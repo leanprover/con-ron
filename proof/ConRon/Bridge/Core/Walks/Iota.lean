@@ -55,13 +55,6 @@ theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
   rw [h]; exact denoteLListE_ext hx _ _ h
 grind_pattern [bridge_grind] denoteLList_le => st ≤ st', denoteLList st.ls hs
 
-theorem denoteNList_le {st st' : EStore} {hs : List NIdx} (hx : st ≤ st')
-    (hd : Frontend.denoteNList st.ns hs ≠ none) :
-    Frontend.denoteNList st'.ns hs = Frontend.denoteNList st.ns hs := by
-  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [h]; exact denoteNListE_ext hx _ _ h
-grind_pattern [bridge_grind] denoteNList_le => st ≤ st', Frontend.denoteNList st.ns hs
-
 theorem denoteLList_cons_inv {st : LStore} {u : LIdx} {us : List LIdx} {L : List Level}
     (h : denoteLList st (u :: us) = some L) :
     ∃ l L', denoteL st u = some l ∧ denoteLList st us = some L' ∧ L = l :: L' := by
@@ -97,26 +90,6 @@ theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
       vcgen [ConRon.Arena.substParamLevels,
         internLevel_specC (mode := mode) (env := env) (fe := fe), step] <;> finish
 
-theorem denoteEList_cons_eq (st : EStore) (a : EIdx) (as : List EIdx) :
-    Frontend.denoteEList st (a :: as) =
-      opt2 List.cons (denoteE st a) (Frontend.denoteEList st as) := by
-  simp only [Frontend.denoteEList]
-  cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
-
-theorem denoteEList_take_rel (st : EStore) (hs : List EIdx) (n : Nat) :
-    MapRel (List.take n) (Frontend.denoteEList st hs) (Frontend.denoteEList st (hs.take n)) := by
-  cases h : Frontend.denoteEList st hs with
-  | none => trivial
-  | some xs => exact ExprOps.denoteEList_take n hs xs h
-grind_pattern [bridge_grind] denoteEList_take_rel => Frontend.denoteEList st (hs.take n)
-
-theorem denoteEList_drop_rel (st : EStore) (hs : List EIdx) (n : Nat) :
-    MapRel (List.drop n) (Frontend.denoteEList st hs) (Frontend.denoteEList st (hs.drop n)) := by
-  cases h : Frontend.denoteEList st hs with
-  | none => trivial
-  | some xs => exact ExprOps.denoteEList_drop _ _ _ h
-grind_pattern [bridge_grind] denoteEList_drop_rel => Frontend.denoteEList st (hs.drop n)
-
 /-- the nested pin comparand -/
 def pinCmpFn (xs : List Expr) (rP : Nat) (ks : List ConLeche.Name) (us : List Level)
     (p : Expr) : Expr :=
@@ -150,93 +123,13 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
       vcgen [ConRon.Arena.instSpinePins, ExprOps.instLPFast_spec (ksv := ksv) (usv := usv),
         ExprOps.instSpine_spec, step] <;> finish
 
-/-! ## The environment index at inductives, constructors and recursors
-
-Vocabulary candidate (for `Bridge/Grind.lean`'s `IndexCI`): the inductive,
-constructor and recursor projections the ι walks read, registered locally. -/
-
-def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
-def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
-def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
-def iRecVal : Option IConstantInfo → IConstantVal | some (.recInfo v _ _ _) => v | _ => default
-def iRecMI : Option IConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
-def iRecRP : Option IConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
-def iRecRules : Option IConstantInfo → List IRecRule | some (.recInfo _ _ _ rs) => rs | _ => []
-def cRec? : Option ConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
-def cRecVal : Option ConstantInfo → ConstantVal | some (.recInfo v _ _ _) => v | _ => default
-def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
-def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
-def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
-
-theorem iRec?_eta {o : Option IConstantInfo} (h : iRec? o = true) :
-    o = some (.recInfo (iRecVal o) (iRecMI o) (iRecRP o) (iRecRules o)) := by
-  match o, h with
-  | some (.recInfo _ _ _ _), _ => rfl
-local grind_pattern [bridge_grind] iRec?_eta => iRec? o
-
-/-- the index's inductive, constructor and recursor halves at a lookup pair -/
-def IotaCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
-  cInd? oc = iInd? oi ∧
-  (iInd? oi = true →
-    Frontend.denoteNList st.ns (iIndVal oi).levelParams = some (cIndVal oc).levelParams ∧
-    Frontend.denoteCaps st (iIndCaps oi) = some (cIndCaps oc)) ∧
-  cCtor? oc = iCtor? oi ∧
-  (iCtor? oi = true → Frontend.denoteCV st (iCtorVal oi) = some (cCtorVal oc) ∧
-    cCtorNP oc = iCtorNP oi) ∧
-  cRec? oc = iRec? oi ∧
-  (iRec? oi = true → Frontend.denoteCV st (iRecVal oi) = some (cRecVal oc) ∧
-    Frontend.denoteRules st (iRecRules oi) = some (cRecRules oc) ∧
-    cRecMI oc = iRecMI oi ∧ cRecRP oc = iRecRP oi)
-
-def IotaAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => IotaCI st (fe.find? c) (env.find? nm)
-  | none => True
-
-theorem iotaAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
-    IotaAt env fe s.store c (denoteN s.store.ns c) := by
-  cases hn : denoteN s.store.ns c with
-  | none => trivial
-  | some nm =>
-    show IotaCI _ _ _
-    cases hf : fe.find? c with
-    | none =>
-      rw [IFEnvOK.miss hok.state hok.ienv hn hf]
-      exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩
-    | some ci =>
-      obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
-      obtain rfl := Option.some.inj (hn'.symm.trans hn)
-      rw [hfind]
-      cases ci <;> simp only [Frontend.denoteCI] at hci
-      case indInfo v caps =>
-        split at hci
-        · rename_i dcv dcaps hdcv hdcaps
-          cases hci
-          exact ⟨rfl, fun _ => ⟨(denoteCV_inv hdcv).2.1, hdcaps⟩, rfl, nofun, rfl, nofun⟩
-        · cases hci
-      case ctorInfo v nP nF =>
-        obtain ⟨dcv, hdcv, rfl⟩ := Option.map_eq_some_iff.mp hci
-        exact ⟨rfl, nofun, rfl, fun _ => ⟨hdcv, rfl⟩, rfl, nofun⟩
-      case recInfo v mI rP rs =>
-        split at hci
-        · rename_i dcv drs hdcv hdrs
-          cases hci
-          exact ⟨rfl, nofun, rfl, nofun, rfl, fun _ => ⟨hdcv, hdrs, rfl, rfl⟩⟩
-        · cases hci
-      all_goals first
-        | (split at hci
-           · cases hci; exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩
-           · cases hci)
-        | (obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp hci
-           exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩)
+/-! `IotaMajor`'s environment index facts, registered here too (they are local
+there; candidates for `Bridge/Grind.lean`'s `IndexCI`). -/
 local grind_pattern [bridge_grind] iotaAt => CheckOK mode env fe s, fe.find? c
-
-theorem IotaAt.some {st : EStore} {c : NIdx} {nm : ConLeche.Name}
-    (H : IotaAt env fe st c (some nm)) : IotaCI st (fe.find? c) (env.find? nm) := H
 local grind_pattern [bridge_grind] IotaAt.some => IotaAt env fe st c (some nm)
-
-attribute [local bridge_grind =] IotaCI cInd? cIndVal cIndCaps cCtor? cCtorVal cCtorNP
-  iRec? iRecVal iRecMI iRecRP iRecRules cRec? cRecVal cRecMI cRecRP cRecRules
-
+local grind_pattern [bridge_grind] iRec?_eta => iRec? o
+attribute [local bridge_grind =] IotaCI iInd?_ind iIndVal_ind iIndCaps_ind iCtor?_ctor
+  iCtorVal_ctor iCtorNP_ctor iRec?_rec iRecVal_rec iRecMI_rec iRecRP_rec iRecRules_rec
 
 theorem iotaCtorNeverProp_eq (find? : ConLeche.Name → Option ConstantInfo) (cvj : ConstantVal)
     (us : List Level) :

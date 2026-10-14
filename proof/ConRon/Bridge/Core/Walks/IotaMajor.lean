@@ -20,7 +20,418 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 2. The major's preparation -/
+/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
+
+/-! ### Fuel-free answers -/
+
+/-- a fuelled pure run reaches `v` at some fuel -/
+def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
+
+/-- a knot slot's pure run at a subject reaches `v` -/
+def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
+  ∃ F, op F d e = .ok v
+
+/-- a knot slot's result at the answer's denotation: well scoped, and the
+pure run's value -/
+def SlotRes (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e : Expr) : Option Expr → Prop
+  | some v => Expr.WScoped d v ∧ RunE op d e v
+  | none => False
+
+@[bridge_grind =] theorem SlotRes.some_eq (op : Nat → Nat → Expr → CheckM Expr) (d : Nat)
+    (e v : Expr) : SlotRes op d e (some v) = (Expr.WScoped d v ∧ RunE op d e v) := rfl
+
+theorem SlotRes.isSome {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
+    {o : Option Expr} (h : SlotRes op d e o) : o.isSome = true := by
+  cases o with
+  | none => exact h.elim
+  | some _ => rfl
+grind_pattern [bridge_grind] SlotRes.isSome => SlotRes op d e o
+
+/-- the knot slot's answer about an optional subject -/
+def SlotAns (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (st : EStore) (r : EIdx) :
+    Option Expr → Prop
+  | some e => SlotRes op d e (denoteE st r)
+  | none => True
+
+@[bridge_grind =] theorem SlotAns.some_eq (op : Nat → Nat → Expr → CheckM Expr) (d : Nat)
+    (st : EStore) (r : EIdx) (e : Expr) :
+    SlotAns op d st r (some e) = SlotRes op d e (denoteE st r) := rfl
+
+theorem slotAns_of_simE {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
+    {st : EStore} {r : EIdx} (h : SimE op d e st r) : SlotAns op d st r (some e) := by
+  obtain ⟨v, hv, hw, hF⟩ := h
+  show SlotRes op d e (denoteE st r)
+  rw [hv]; exact ⟨hw, hF⟩
+
+/-- a walk's answer at its result denotation -/
+def OutE (P : Nat → CheckM Expr) (d : Nat) : Option Expr → Prop
+  | some v => Expr.WScoped d v ∧ Runs P v
+  | none => False
+
+@[bridge_grind =] theorem OutE.some_eq (P : Nat → CheckM Expr) (d : Nat) (v : Expr) :
+    OutE P d (some v) = (Expr.WScoped d v ∧ Runs P v) := rfl
+
+theorem OutE.isSome {P : Nat → CheckM Expr} {d : Nat} {o : Option Expr} (h : OutE P d o) :
+    o.isSome = true := by
+  cases o with
+  | none => exact h.elim
+  | some _ => rfl
+grind_pattern [bridge_grind] OutE.isSome => OutE P d o
+
+@[bridge_grind =] theorem simEOp_eq (P : Nat → CheckM Expr) (d : Nat) (st : EStore) (r : EIdx) :
+    SimEOp P d st r = OutE P d (denoteE st r) := by
+  unfold SimEOp; cases h : denoteE st r <;> simp [OutE, Runs]
+
+/-- the `defeq` slot's answer at two optional subjects -/
+def DefeqAns (mode : CheckMode) (env : Env) (d : Nat) (x : Bool) :
+    Option Expr → Option Expr → Prop
+  | some a, some b => SimV (ConLeche.isDefEqCore mode env) d a b x
+  | _, _ => True
+
+@[bridge_grind =] theorem DefeqAns.some_eq (d : Nat) (x : Bool) (a b : Expr) :
+    DefeqAns mode env d x (some a) (some b) = SimV (ConLeche.isDefEqCore mode env) d a b x := rfl
+
+theorem KnotSpec.inferIOS {f : Nat} (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).inferIO d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.inferTypeIO mode env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+  cases hd : denoteE s₀.store i with
+  | none => rw [hd] at hw; exact hw.elim
+  | some e =>
+    rw [hd] at hw
+    exact triple_mono (hsim.inferIO s₀ d i e hok hd hw)
+      (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, slotAns_of_simE h4⟩)
+
+theorem KnotSpec.whnfS {f : Nat} (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.whnf mode env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+  cases hd : denoteE s₀.store i with
+  | none => rw [hd] at hw; exact hw.elim
+  | some e =>
+    rw [hd] at hw
+    exact triple_mono (hsim.whnf s₀ d i e hok hd hw)
+      (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, slotAns_of_simE h4⟩)
+
+theorem KnotSpec.defeqS {f : Nat} (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
+    (hi : DenWS d (denoteE s₀.store i)) (hj : DenWS d (denoteE s₀.store j)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeq d i j
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        DefeqAns mode env d r (denoteE s₀.store i) (denoteE s₀.store j); ⊤⦄ := by
+  cases hdi : denoteE s₀.store i with
+  | none => rw [hdi] at hi; exact hi.elim
+  | some a =>
+  cases hdj : denoteE s₀.store j with
+  | none => rw [hdj] at hj; exact hj.elim
+  | some b =>
+    rw [hdi] at hi; rw [hdj] at hj
+    exact triple_mono (hsim.defeq s₀ d i j a b hok hdi hdj hi hj) (fun _ _ h => h)
+
+/-- con-leche's `proofIrrel` at two subjects, as a fuelled run -/
+def proofIrrelOp (mode : CheckMode) (env : Env) (d : Nat) (a b : Expr) : Nat → CheckM Bool :=
+  fun F => ConLeche.proofIrrelFueled mode env F d a b
+
+/-- `proofIrrel`'s answer at two optional subjects -/
+def PIAns (mode : CheckMode) (env : Env) (d : Nat) (x : Bool) :
+    Option Expr → Option Expr → Prop
+  | some a, some b => Runs (proofIrrelOp mode env d a b) x
+  | _, _ => True
+
+@[bridge_grind =] theorem PIAns.some_eq (d : Nat) (x : Bool) (a b : Expr) :
+    PIAns mode env d x (some a) (some b) = Runs (proofIrrelOp mode env d a b) x := rfl
+
+theorem proofIrrel_specS {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode env fe s₀)
+    (ha : DenWS d (denoteE s₀.store a)) (hb : DenWS d (denoteE s₀.store b)) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PIAns mode env d r (denoteE s₀.store a) (denoteE s₀.store b); ⊤⦄ := by
+  cases hda : denoteE s₀.store a with
+  | none => rw [hda] at ha; exact ha.elim
+  | some x =>
+  cases hdb : denoteE s₀.store b with
+  | none => rw [hdb] at hb; exact hb.elim
+  | some y =>
+    rw [hda] at ha; rw [hdb] at hb
+    exact triple_mono (proofIrrel_spec hsim s₀ d a b x y hok hda hdb ha hb) (fun _ _ h => h)
+
+/-- the fabricated spine's scope check -/
+def scopeOkFn (d : Nat) (ef em : Expr) : Bool :=
+  ef.wscopedB d && ef.looseBVarsBounded 0 && ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)
+
+def ScopeAns (d : Nat) (r : Bool) : Option Expr → Option Expr → Prop
+  | some ef, some em => r = scopeOkFn d ef em
+  | _, _ => True
+
+@[bridge_grind =] theorem ScopeAns.some_eq (d : Nat) (r : Bool) (ef em : Expr) :
+    ScopeAns d r (some ef) (some em) = (r = scopeOkFn d ef em) := rfl
+
+theorem fabScopeOk_specS (s₀ : AState) (d : Nat) (fab major : EIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hf : (denoteE s₀.store fab).isSome = true) (hm : (denoteE s₀.store major).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.fabScopeOk d fab major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        ScopeAns d r (denoteE s₀.store fab) (denoteE s₀.store major); ⊤⦄ := by
+  obtain ⟨ef, hef⟩ := Option.isSome_iff_exists.mp hf
+  obtain ⟨em, hem⟩ := Option.isSome_iff_exists.mp hm
+  rw [hef, hem]
+  exact fabScopeOk_spec s₀ d fab major ef em hok hef hem
+
+theorem scopeOk_wscoped {d : Nat} {ef em : Expr} (h : scopeOkFn d ef em = true) :
+    Expr.WScoped d ef := by
+  simp only [scopeOkFn, Bool.and_eq_true] at h
+  exact Expr.WScoped.of_wscopedB h.1.1
+grind_pattern [bridge_grind] scopeOk_wscoped => scopeOkFn d ef em
+
+theorem denoteEList_take_rel (st : EStore) (hs : List EIdx) (n : Nat) :
+    MapRel (List.take n) (Frontend.denoteEList st hs) (Frontend.denoteEList st (hs.take n)) := by
+  cases h : Frontend.denoteEList st hs with
+  | none => trivial
+  | some xs => exact ExprOps.denoteEList_take n hs xs h
+grind_pattern [bridge_grind] denoteEList_take_rel => Frontend.denoteEList st (hs.take n)
+
+theorem denoteEList_drop_rel (st : EStore) (hs : List EIdx) (n : Nat) :
+    MapRel (List.drop n) (Frontend.denoteEList st hs) (Frontend.denoteEList st (hs.drop n)) := by
+  cases h : Frontend.denoteEList st hs with
+  | none => trivial
+  | some xs => exact ExprOps.denoteEList_drop _ _ _ h
+grind_pattern [bridge_grind] denoteEList_drop_rel => Frontend.denoteEList st (hs.drop n)
+
+theorem denoteNList_le {st st' : EStore} {hs : List NIdx} (hx : st ≤ st')
+    (hd : Frontend.denoteNList st.ns hs ≠ none) :
+    Frontend.denoteNList st'.ns hs = Frontend.denoteNList st.ns hs := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteNListE_ext hx _ _ h
+grind_pattern [bridge_grind] denoteNList_le => st ≤ st', Frontend.denoteNList st.ns hs
+
+theorem denoteCaps_le {st st' : EStore} {c : IIndCaps} (hx : st ≤ st')
+    (hd : Frontend.denoteCaps st c ≠ none) :
+    Frontend.denoteCaps st' c = Frontend.denoteCaps st c := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteCaps_ext h hx
+grind_pattern [bridge_grind] denoteCaps_le => st ≤ st', Frontend.denoteCaps st c
+
+theorem denoteRules_le {st st' : EStore} {rs : List IRecRule} (hx : st ≤ st')
+    (hd : Frontend.denoteRules st rs ≠ none) :
+    Frontend.denoteRules st' rs = Frontend.denoteRules st rs := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteRules_ext hx _ _ h
+grind_pattern [bridge_grind] denoteRules_le => st ≤ st', Frontend.denoteRules st rs
+
+theorem denoteCV_le {st st' : EStore} {cv : IConstantVal} (hx : st ≤ st')
+    (hd : Frontend.denoteCV st cv ≠ none) :
+    Frontend.denoteCV st' cv = Frontend.denoteCV st cv := by
+  obtain ⟨c, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteCV_ext h hx
+grind_pattern [bridge_grind] denoteCV_le => st ≤ st', Frontend.denoteCV st cv
+
+theorem nidx_eq_of_denote {st : EStore} (hwf : StoreWF st) {a b : NIdx}
+    (h : denoteN st.ns a = denoteN st.ns b) (hs : denoteN st.ns a ≠ none) : a = b := by
+  obtain ⟨x, hx⟩ := Option.ne_none_iff_exists'.mp hs
+  obtain ⟨rk, hrk⟩ := hwf
+  exact denoteN_inj hrk.nsWF hx (h ▸ hx)
+grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.ns a, denoteN st.ns b where
+  guard denoteN st.ns a = denoteN st.ns b
+  a =/= b
+
+/-- a name-handle list's membership test at its denotation -/
+def ContainsAt (b : Bool) : Option (List ConLeche.Name) → Option ConLeche.Name → Prop
+  | some xs, some x => b = xs.contains x
+  | _, _ => True
+
+@[bridge_grind =] theorem ContainsAt.some_eq (b : Bool) (xs : List ConLeche.Name)
+    (x : ConLeche.Name) : ContainsAt b (some xs) (some x) = (b = xs.contains x) := rfl
+
+theorem containsAt {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx) :
+    ContainsAt (List.elem n ns) (Frontend.denoteNList st.ns ns) (denoteN st.ns n) := by
+  cases h1 : Frontend.denoteNList st.ns ns with
+  | none => trivial
+  | some xs =>
+  cases h2 : denoteN st.ns n with
+  | none => trivial
+  | some x => exact denoteNList_containsC hwf ns xs h1 n x h2
+grind_pattern [bridge_grind] containsAt => StoreWF st, List.elem n ns, Frontend.denoteNList st.ns ns
+
+theorem denoteEList_cons_eq (st : EStore) (a : EIdx) (as : List EIdx) :
+    Frontend.denoteEList st (a :: as) =
+      opt2 List.cons (denoteE st a) (Frontend.denoteEList st as) := by
+  simp only [Frontend.denoteEList]
+  cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
+
+/-- two optional lists, appended -/
+def optAppend {α : Type} : Option (List α) → Option (List α) → Option (List α)
+  | some a, some b => some (a ++ b)
+  | _, _ => none
+
+@[bridge_grind =] theorem optAppend_some {α : Type} (a b : List α) :
+    optAppend (some a) (some b) = some (a ++ b) := rfl
+
+theorem denoteEList_append_eq (st : EStore) :
+    ∀ (as bs : List EIdx), Frontend.denoteEList st (as ++ bs) =
+      optAppend (Frontend.denoteEList st as) (Frontend.denoteEList st bs)
+  | [], bs => by
+    rw [List.nil_append]; cases Frontend.denoteEList st bs <;> rfl
+  | a :: as, bs => by
+    rw [List.cons_append, denoteEList_cons_eq, denoteEList_cons_eq, denoteEList_append_eq st as bs]
+    cases denoteE st a <;> cases Frontend.denoteEList st as <;>
+      cases Frontend.denoteEList st bs <;> rfl
+
+/-- a projection node's denotation at its two children's -/
+def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
+  | some nm, some x => some (.proj nm i x)
+  | _, _ => none
+
+@[bridge_grind =] theorem optProj_some (i : Nat) (nm : ConLeche.Name) (x : Expr) :
+    optProj i (some nm) (some x) = some (.proj nm i x) := rfl
+
+theorem denoteEView_proj (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) :
+    denoteEView st (.proj n i e) = optProj i (denoteN st.ns n) (denoteE st e) := by
+  simp only [denoteEView]
+  cases denoteN st.ns n <;> cases denoteE st e <;> rfl
+
+theorem denoteEView_const (st : EStore) (n : NIdx) (us : LsIdx) :
+    denoteEView st (.const n us) = opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us) := rfl
+
+theorem view_of_viewLit {st : EStore} {i : EIdx} {l : Literal}
+    (htg : i.tag = ETag.lit) (h : st.viewLit i = some l) :
+    st.view i = some (.lit l) :=
+  EStore.view_of_proj (p := ETables.getLit) (fun t hh => by
+    simp only [ETables.getLit, Option.map_eq_some_iff] at hh
+    obtain ⟨r, hr, rfl⟩ := hh
+    simp [ETables.get, htg, hr, ETag.lit, ETag.sort, ETag.bvar, ETag.fvar, ETag.const,
+      ETag.app, ETag.lam, ETag.forallE, ETag.letE]) h
+grind_pattern [bridge_grind] view_of_viewLit => st.viewLit i, some l where
+  guard st.viewLit i = some l
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean andName — the pin table's `And` slot -/
+@[bridge_grind =] theorem pinNames_eq_andName : pinNames[PIN_AND]? = some ConLeche.andName := rfl
+
+/-- con-leche: none — is a literal a string. -/
+def litIsStr : Literal → Bool | .strVal _ => true | .natVal _ => false
+/-- a string literal's string -/
+def litStr : Literal → String | .strVal s => s | .natVal _ => ""
+
+theorem isStrLit_eq (e : Expr) :
+    e.isStrLit = (exprTag e == ETag.lit && litIsStr (exprLit e)) := by
+  cases e <;> try rfl
+  rename_i l; cases l <;> rfl
+
+/-! ## The environment index at inductives, constructors and recursors -/
+
+def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
+def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+def iRecVal : Option IConstantInfo → IConstantVal | some (.recInfo v _ _ _) => v | _ => default
+def iRecMI : Option IConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+def iRecRP : Option IConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+def iRecRules : Option IConstantInfo → List IRecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+def cRec? : Option ConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+def cRecVal : Option ConstantInfo → ConstantVal | some (.recInfo v _ _ _) => v | _ => default
+def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+
+theorem iRec?_eta {o : Option IConstantInfo} (h : iRec? o = true) :
+    o = some (.recInfo (iRecVal o) (iRecMI o) (iRecRP o) (iRecRules o)) := by
+  match o, h with
+  | some (.recInfo _ _ _ _), _ => rfl
+local grind_pattern [bridge_grind] iRec?_eta => iRec? o
+
+/-- the index's inductive, constructor and recursor halves at a lookup pair -/
+def IotaCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
+  cInd? oc = iInd? oi ∧
+  (iInd? oi = true →
+    Frontend.denoteCV st (iIndVal oi) = some (cIndVal oc) ∧
+    Frontend.denoteNList st.ns (iIndVal oi).levelParams = some (cIndVal oc).levelParams ∧
+    Frontend.denoteCaps st (iIndCaps oi) = some (cIndCaps oc)) ∧
+  cCtor? oc = iCtor? oi ∧
+  (iCtor? oi = true → Frontend.denoteCV st (iCtorVal oi) = some (cCtorVal oc) ∧
+    cCtorNP oc = iCtorNP oi) ∧
+  cRec? oc = iRec? oi ∧
+  (iRec? oi = true → Frontend.denoteCV st (iRecVal oi) = some (cRecVal oc) ∧
+    Frontend.denoteRules st (iRecRules oi) = some (cRecRules oc) ∧
+    cRecMI oc = iRecMI oi ∧ cRecRP oc = iRecRP oi)
+
+def IotaAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
+  | some nm => IotaCI st (fe.find? c) (env.find? nm)
+  | none => True
+
+theorem iotaAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
+    IotaAt env fe s.store c (denoteN s.store.ns c) := by
+  cases hn : denoteN s.store.ns c with
+  | none => trivial
+  | some nm =>
+    show IotaCI _ _ _
+    cases hf : fe.find? c with
+    | none =>
+      rw [IFEnvOK.miss hok.state hok.ienv hn hf]
+      exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩
+    | some ci =>
+      obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
+      obtain rfl := Option.some.inj (hn'.symm.trans hn)
+      rw [hfind]
+      cases ci <;> simp only [Frontend.denoteCI] at hci
+      case indInfo v caps =>
+        split at hci
+        · rename_i dcv dcaps hdcv hdcaps
+          cases hci
+          exact ⟨rfl, fun _ => ⟨hdcv, (denoteCV_inv hdcv).2.1, hdcaps⟩, rfl, nofun, rfl, nofun⟩
+        · cases hci
+      case ctorInfo v nP nF =>
+        obtain ⟨dcv, hdcv, rfl⟩ := Option.map_eq_some_iff.mp hci
+        exact ⟨rfl, nofun, rfl, fun _ => ⟨hdcv, rfl⟩, rfl, nofun⟩
+      case recInfo v mI rP rs =>
+        split at hci
+        · rename_i dcv drs hdcv hdrs
+          cases hci
+          exact ⟨rfl, nofun, rfl, nofun, rfl, fun _ => ⟨hdcv, hdrs, rfl, rfl⟩⟩
+        · cases hci
+      all_goals first
+        | (split at hci
+           · cases hci; exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩
+           · cases hci)
+        | (obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp hci
+           exact ⟨rfl, nofun, rfl, nofun, rfl, nofun⟩)
+local grind_pattern [bridge_grind] iotaAt => CheckOK mode env fe s, fe.find? c
+
+theorem IotaAt.some {st : EStore} {c : NIdx} {nm : ConLeche.Name}
+    (H : IotaAt env fe st c (some nm)) : IotaCI st (fe.find? c) (env.find? nm) := H
+local grind_pattern [bridge_grind] IotaAt.some => IotaAt env fe st c (some nm)
+
+attribute [local bridge_grind =] IotaCI
+
+theorem iInd?_ind (v : IConstantVal) (caps : IIndCaps) :
+    iInd? (some (.indInfo v caps)) = true := rfl
+theorem iIndVal_ind (v : IConstantVal) (caps : IIndCaps) :
+    iIndVal (some (.indInfo v caps)) = v := rfl
+theorem iIndCaps_ind (v : IConstantVal) (caps : IIndCaps) :
+    iIndCaps (some (.indInfo v caps)) = caps := rfl
+theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) :
+    iCtor? (some (.ctorInfo v n f)) = true := rfl
+theorem iCtorVal_ctor (v : IConstantVal) (n f : Nat) :
+    iCtorVal (some (.ctorInfo v n f)) = v := rfl
+theorem iCtorNP_ctor (v : IConstantVal) (n f : Nat) :
+    iCtorNP (some (.ctorInfo v n f)) = n := rfl
+theorem iRec?_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRec? (some (.recInfo v m r rs)) = true := rfl
+theorem iRecVal_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecVal (some (.recInfo v m r rs)) = v := rfl
+theorem iRecMI_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecMI (some (.recInfo v m r rs)) = m := rfl
+theorem iRecRP_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecRP (some (.recInfo v m r rs)) = r := rfl
+theorem iRecRules_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecRules (some (.recInfo v m r rs)) = rs := rfl
+attribute [local bridge_grind =] iInd?_ind iIndVal_ind iIndCaps_ind iCtor?_ctor iCtorVal_ctor
+  iCtorNP_ctor iRec?_rec iRecVal_rec iRecMI_rec iRecRP_rec iRecRules_rec
+
+
+/-! ## The pure side: con-leche's text at its exits -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — every
 major but a string literal takes the `Nat` conversion. -/
@@ -34,75 +445,6 @@ theorem litMajorToCtorFueled_nstr {F d : Nat} {x : Expr}
     | strVal str => exact absurd rfl (hx str)
     | natVal n => rfl
   | _ => rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — **THEOREM
-1 for `litMajorToCtor`**: a `Nat` literal one layer, a supported `String`
-literal to its reduced constructor form. -/
-theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
-          s'.store r; ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨v, hv⟩ := denoteE_view hden
-  unfold ConRon.Arena.litMajorToCtor
-  refine tag_view_bind_triple hv ?_
-    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
-  -- every major but a string literal: the `Nat` conversion
-  have hnat : (∀ str, x ≠ .lit (.strVal str)) →
-      ⦃fun s => s = s₀⦄ ConRon.Arena.litToCtorIfNat fe h
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
-            s'.store r; ⊤⦄ := by
-    intro hnl
-    refine triple_mono (litToCtorIfNat_spec s₀ h x hok hden) ?_
-    rintro r s' ⟨hok', hx', hp', hr⟩
-    refine ⟨hok', hx', hp', _, hr, ConLeche.litToCtorIfNat_WScoped hw, 0, ?_⟩
-    exact litMajorToCtorFueled_nstr hnl
-  cases v
-  case lit l =>
-    obtain rfl := denote_lit_inv hwf hv hden
-    cases l with
-    | natVal n => exact hnat (by intro str h; cases h)
-    | strVal str =>
-      dsimp only
-      refine triple_seq (strLitSupported_spec s₀ hok) ?_
-      rintro sup s1 ⟨hok1, hx1, hp1, hsup⟩
-      split
-      next hsupt =>
-        have hS : ConLeche.strLitSupported env = true := hsup ▸ hsupt
-        refine triple_seq (strLitToConstructor_spec s1 str hok1) ?_
-        rintro c s2 ⟨hok2, hx2, hp2, hc⟩
-        refine triple_mono (hsim.whnf s2 d c _ hok2 hc
-          (strLitToConstructor_WScoped str d)) ?_
-        rintro r s3 ⟨hok3, hx3, hp3, w, hw3, hww, F, hF⟩
-        refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
-          w, hw3, hww, F, ?_⟩
-        simp only [ConLeche.litMajorToCtorFueled, ConLeche.litMajorToCtor, hS,
-          ite_true]
-        exact hF
-      next hsupf =>
-        have hS : ConLeche.strLitSupported env = false := by
-          rw [← hsup]; simpa using hsupf
-        vcgen
-        bridge_peel; subst_vars
-        refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
-          ?_⟩
-        simp only [ConLeche.litMajorToCtor, hS, Bool.false_eq_true, ite_false]
-        rfl
-  all_goals
-    dsimp only
-    refine hnat ?_
-    intro str hx
-    subst hx
-    have := view_of_denote_lit hwf hv hden
-    cases this
 
 /-! ### `majorToCtor`'s pure side, one function per rescue branch
 
@@ -225,330 +567,6 @@ theorem majorToCtorFueled_nrules {F d : Nat} {cn : ConLeche.Name}
   | [rl], h => exact absurd rfl (h rl)
   | _ :: _ :: _, _ => rfl
 
-theorem majorToCtorFueled_nctor {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
-    {x : Expr} (hnc : ConLeche.isCtorApp env x = false)
-    (h : ∀ cvj cnP cnF, env.find? rl.ctor ≠ some (.ctorInfo cvj cnP cnF)) :
-    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
-  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc,
-    Bool.false_eq_true, ite_false]
-  first
-    | rfl
-    | (split
-       · rename_i cvj cnP cnF heq; exact absurd heq (h cvj cnP cnF)
-       · rfl)
-
-theorem majorToCtorFueled_nhead {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
-    {x : Expr} {cvj : ConstantVal} {cnP cnF : Nat}
-    (hnc : ConLeche.isCtorApp env x = false)
-    (hfj : env.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
-    (h : ∀ T lus, cvj.type.piResult.getAppFn ≠ .const T lus) :
-    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
-  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj,
-    Bool.false_eq_true, ite_false]
-  first
-    | rfl
-    | (split
-       · rename_i T lus heq; exact absurd heq (h T lus)
-       · rfl)
-
-theorem majorToCtorFueled_nind {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
-    {x : Expr} {cvj : ConstantVal} {cnP cnF : Nat} {T : ConLeche.Name}
-    {lus : List Level}
-    (hnc : ConLeche.isCtorApp env x = false)
-    (hfj : env.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
-    (hpr : cvj.type.piResult.getAppFn = .const T lus)
-    (h : ∀ cvT caps, env.find? T ≠ some (.indInfo cvT caps)) :
-    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
-  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj, hpr,
-    Bool.false_eq_true, ite_false]
-  first
-    | rfl
-    | (split
-       · rename_i cvT caps heq; exact absurd heq (h cvT caps)
-       · rfl)
-
-/-- con-leche: none — two name handles are equal exactly when their
-denotations are (`denoteN` is injective on a well-formed store). -/
-theorem nidx_eq_iff {st : EStore} (hwf : StoreWF st) {a b : NIdx}
-    {x y : ConLeche.Name} (ha : denoteN st.ns a = some x)
-    (hb : denoteN st.ns b = some y) : a = b ↔ x = y := by
-  obtain ⟨rk, hrk⟩ := hwf
-  constructor
-  · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
-  · rintro rfl; exact denoteN_inj hrk.nsWF ha hb
-
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the K branch
-past its three syntactic guards, as a function of the two verdicts. -/
-theorem mtcK_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
-    {T T' : ConLeche.Name} {x tm tmaj tf : Expr} {ust : List Level}
-    {b5 b6 : Bool}
-    (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
-    (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
-    (hgf : tmaj.getAppFn = .const T' ust)
-    (hg1 : T' = T ∧ cvj.levelParams.length = ust.length)
-    (hg2 : cnP ≤ tmaj.getAppArgs.length)
-    (hgd : ((Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)).wscopedB d &&
-      (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)).looseBVarsBounded 0 &&
-      (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)).fvarLeaves.all
-        (fun l => x.fvarLeaves.contains l)) = true)
-    (h4 : ConLeche.inferTypeIO mode env F d (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) = .ok tf)
-    (h5 : ConLeche.isDefEqCore mode env F d tmaj tf = .ok b5)
-    (h6 : b5 = true → (if mode.verifiedChecks then ConLeche.proofIrrelFueled mode env F d
-      (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) x else .ok true) = .ok b6) :
-    mtcK mode env F d rl cvj cnP T x = .ok (if b5 && b6 then
-      (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) else x) := by
-  have e1' : (ConLeche.pureFns mode env F).inferIO d x = .ok tm := e1
-  have e2' : (ConLeche.pureFns mode env F).whnf d tm = .ok tmaj := e2
-  have h4' : (ConLeche.pureFns mode env F).inferIO d (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) = .ok tf := h4
-  have h5' : (ConLeche.pureFns mode env F).defeq d tmaj tf = .ok b5 := h5
-  simp only [mtcK, e1', e2', bind, Except.bind, hgf]
-  rw [ite_eq_left hg1, ite_eq_left hg2]
-  simp only [hgd, ite_true, h4', h5']
-  cases b5
-  · rfl
-  · have h6' := h6 rfl
-    simp only [ite_true]
-    cases hv : mode.verifiedChecks
-    · simp only [hv, Bool.false_eq_true, ite_false] at h6' ⊢
-      cases h6'; rfl
-    · simp only [hv, ite_true] at h6' ⊢
-      have h6'' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) x =
-          .ok b6 := h6'
-      rw [h6'']
-      cases b6 <;> rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:571-617 majorToCtor — **the K
-rescue** (`to_cnstr_when_K`): the parameters-only constructor application
-fabricated from the major's type, certified by the official type check and,
-at verified mode, proof irrelevance. -/
-theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
-    (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
-    (x : Expr) (icvj : IConstantVal) (dcvj : ConstantVal) (cnP cnF : Nat)
-    (T : NIdx) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₁) (hrl' : Frontend.denoteRule s₁.store rl = some rl')
-    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
-    (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
-    (hT : denoteN s₁.store.ns T = some Tn)
-    (hfj : env.find? rl'.ctor = some (.ctorInfo dcvj cnP cnF)) :
-    ⦃fun s => s = s₁⦄ (do
-      let tmaj ← (coreKnot mode fe id fuel).whnf d
-        (← (coreKnot mode fe id fuel).inferIO d major)
-      let hh ← getAppFn coreWalkFuel tmaj
-      if hh.tag == ETag.const then
-        match ← view hh with
-        | .const T' ust => do
-          let ustl ← viewLs ust
-          if T' = T ∧ icvj.levelParams.length = ustl.length then do
-            let targs ← getAppArgs coreWalkFuel tmaj
-            if cnP ≤ targs.length then do
-              let hd ← internE (.const rl.ctor ust)
-              let fab ← mkAppN hd (targs.take cnP)
-              if ← fabScopeOk d fab major then do
-                if ← (coreKnot mode fe id fuel).defeq d tmaj
-                    (← (coreKnot mode fe id fuel).inferIO d fab) then do
-                  let irK ←
-                    if mode.verifiedChecks then
-                      ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                    else pure true
-                  if irK then pure fab else pure major
-                else pure major
-              else pure major
-            else pure major
-          else pure major
-        | _ => pure major
-      else pure major : AM EIdx)
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
-        s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcK mode env F d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
-  obtain ⟨_, _, hrlc, _, _, _, _⟩ := rule_denote hrl'
-  obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
-  have hnamej : dcvj.name = rl'.ctor := env_find_name hfj
-  -- stage: the major's io-grade type, head-normalised
-  refine triple_seq (hsim.inferIO s₁ d major x hok hmaj hw) ?_
-  rintro tm s2 ⟨hok2, hx2, hp2, vtm, hvtm, hwvtm, F1, hF1⟩
-  refine triple_seq (hsim.whnf s2 d tm vtm hok2 hvtm hwvtm) ?_
-  rintro tmaj s3 ⟨hok3, hx3, hp3, vtmaj, hvtmaj, hwvtmaj, F2, hF2⟩
-  have hx13 := hx2.trans hx3
-  have hp13 : s3.pins = s₁.pins := hp3.trans hp2
-  have hwf3 := hok3.state.wf
-  have hA : ∀ G, max F1 F2 ≤ G →
-      (ConLeche.pureFns mode env G).inferIO d x = .ok vtm ∧
-      (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := fun G hG =>
-    ⟨ConLeche.inferTypeIO_mono (by omega) hF1, ConLeche.whnf_mono (by omega) hF2⟩
-  -- stage: the type's head
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 tmaj hok3.state
-    (by rw [hvtmaj]; rfl)) ?_
-  rintro hh s4 ⟨hs4, hrelF⟩
-  subst s4
-  have hdd := hrelF vtmaj hvtmaj
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const T' ust =>
-    obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
-    dsimp only
-    refine triple_seq (viewLs_spec s3 ust) ?_
-    rintro ustl s5 ⟨hs5, hustl⟩
-    subst s5
-    have hul := view_len_of_denoteLs hlsu hustl
-    have hcond : (T' = T ∧ icvj.levelParams.length = ustl.length) ↔
-        (Tn' = Tn ∧ dcvj.levelParams.length = lsu.length) := by
-      rw [nidx_eq_iff hwf3 hTn' (denoteN_ext hT hx13), hul,
-        ← denoteNList_len hlpsj]
-    by_cases hg1 : T' = T ∧ icvj.levelParams.length = ustl.length
-    · rw [ite_eq_left hg1]
-      have hg1P := hcond.mp hg1
-      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s3 tmaj hok3.state
-        (by rw [hvtmaj]; rfl)) ?_
-      rintro targs s6 ⟨hs6, hrelA⟩
-      subst s6
-      have htargs := hrelA vtmaj hvtmaj
-      have htl := denoteEList_len htargs
-      by_cases hg2 : cnP ≤ targs.length
-      · rw [ite_eq_left hg2]
-        have hg2P : cnP ≤ vtmaj.getAppArgs.length := by rw [htl]; exact hg2
-        refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-          s3 (.const rl.ctor ust) hok3 (viewOK_const
-            (nview_isSome_of_denote (denoteN_ext hrlc hx13))
-            (by obtain ⟨w, hw', _⟩ := denoteLs_view hlsu; rw [hw']; rfl))) ?_
-        rintro hd s7 ⟨hok7, hx7, hp7, hhd⟩
-        have hhd' : denoteE s7.store hd = some (.const rl'.ctor lsu) := by
-          rw [hhd]
-          simp only [denoteEView, denoteN_ext (denoteN_ext hrlc hx13) hx7,
-            denoteLs_ext hlsu hx7, opt2]
-        have htk := ExprOps.denoteEList_take cnP _ _ (denoteEList_ext hx7 _ _ htargs)
-        refine triple_seq (ExprOps.mkAppN_spec (targs.take cnP) s7 hd hok7.state
-          (by rw [hhd']; rfl) (by rw [htk]; rfl)) ?_
-        rintro fab s8 ⟨hst8, hx8, _, hc8, hp8, hrel⟩
-        have hok8 : CheckOK mode env fe s8 := hok7.mono hst8 hx8 hc8 hp8
-        have hfab := hrel _ _ hhd' htk
-        have hx18 := hx13.trans (hx7.trans hx8)
-        have hp18 : s8.pins = s₁.pins := hp8.trans (hp7.trans hp13)
-        refine triple_seq (fabScopeOk_spec s8 d fab major _ x hok8 hfab
-          (denote_ext hmaj hx18)) ?_
-        rintro gd s9 ⟨hok9, hst9, hp9, hgd⟩
-        have hx19 : Ext s₁.store s9.store := by rw [hst9]; exact hx18
-        have hp19 : s9.pins = s₁.pins := hp9.trans hp18
-        by_cases hgt : gd = true
-        · rw [ite_eq_left hgt]
-          have hgP := hgd ▸ hgt
-          have hwfab : Expr.WScoped d (Expr.mkAppN (.const rl'.ctor lsu)
-              (vtmaj.getAppArgs.take cnP)) := by
-            simp only [Bool.and_eq_true] at hgP
-            exact Expr.WScoped.of_wscopedB hgP.1.1
-          have hx39 : Ext s3.store s9.store := hx7.trans (by rw [hst9]; exact hx8)
-          have hTs : ∀ {b5 b6 : Bool} {tf : Expr} {G : Nat}, max F1 F2 ≤ G →
-              ConLeche.inferTypeIO mode env G d
-                (Expr.mkAppN (.const rl'.ctor lsu) (vtmaj.getAppArgs.take cnP)) = .ok tf →
-              ConLeche.isDefEqCore mode env G d vtmaj tf = .ok b5 →
-              (b5 = true → (if mode.verifiedChecks then ConLeche.proofIrrelFueled mode env G d
-                (Expr.mkAppN (.const rl'.ctor lsu) (vtmaj.getAppArgs.take cnP)) x
-                else .ok true) = .ok b6) →
-              mtcK mode env G d rl' dcvj cnP Tn x = .ok (if b5 && b6 then
-                Expr.mkAppN (.const rl'.ctor lsu) (vtmaj.getAppArgs.take cnP) else x) := by
-            intro b5 b6 tf G hG h4 h5 h6
-            obtain ⟨e1, e2⟩ := hA G hG
-            have hg1' : Tn' = Tn ∧ dcvj.levelParams.length = lsu.length := hg1P
-            rw [← hg1'.1]
-            exact mtcK_fire e1 e2 hgf ⟨rfl, hg1'.2⟩ hg2P hgP h4 h5 h6
-          have hfab9 : denoteE s9.store fab = some (Expr.mkAppN (.const rl'.ctor lsu)
-              (vtmaj.getAppArgs.take cnP)) := by rw [hst9]; exact hfab
-          refine triple_seq (hsim.inferIO s9 d fab _ hok9 hfab9 hwfab) ?_
-          rintro tf s12 ⟨hok12, hx12, hp12, vtf, hvtf, hwvtf, F4, hF4⟩
-          refine triple_seq (hsim.defeq s12 d tmaj tf vtmaj vtf hok12
-            (denote_ext hvtmaj (hx39.trans hx12)) hvtf hwvtmaj hwvtf) ?_
-          rintro rd s13 ⟨hok13, hx13', hp13', F5, hF5⟩
-          have hx113 := hx19.trans (hx12.trans hx13')
-          have hp113 : s13.pins = s₁.pins := hp13'.trans (hp12.trans hp19)
-          by_cases hrd : rd = true
-          · rw [ite_eq_left hrd]
-            subst hrd
-            rw [ite_eq_left hμ]
-            refine triple_seq (proofIrrel_spec hsim s13 d fab major _ x hok13
-              (denote_ext hfab9 (hx12.trans hx13')) (denote_ext hmaj hx113) hwfab hw) ?_
-            rintro ir s14 ⟨hok14, hx14, hp14, F6, hF6⟩
-            have hv := hTs (b5 := true) (b6 := ir)
-              (G := max (max F1 F2) (max F4 (max F5 F6))) (by omega)
-              (ConLeche.inferTypeIO_mono (by omega) hF4)
-              (ConLeche.isDefEqCore_mono (by omega) hF5)
-              (fun _ => by rw [ite_eq_left hμ]; exact proofIrrelFueled_mono (by omega) hF6)
-            have hfab14 := denote_ext hfab9 (hx12.trans (hx13'.trans hx14))
-            have hmaj14 := denote_ext hmaj (hx113.trans hx14)
-            cases ir <;> simp only [Bool.false_eq_true, ↓reduceIte]
-            · vcgen
-              bridge_peel; subst_vars
-              exact ⟨hok14, hx113.trans hx14, hp14.trans hp113, x, hmaj14, hw, _, hv⟩
-            · vcgen
-              bridge_peel; subst_vars
-              exact ⟨hok14, hx113.trans hx14, hp14.trans hp113, _, hfab14, hwfab, _, hv⟩
-          · rw [ite_eq_right hrd]
-            have hrdf : rd = false := by simpa using hrd
-            subst hrdf
-            have hv := hTs (b5 := false) (b6 := false)
-              (G := max (max F1 F2) (max F4 F5)) (by omega)
-              (ConLeche.inferTypeIO_mono (by omega) hF4)
-              (ConLeche.isDefEqCore_mono (by omega) hF5)
-              (fun h => by cases h)
-            vcgen
-            bridge_peel; subst_vars
-            exact ⟨hok13, hx113, hp113, x, denote_ext hmaj hx113, hw, _, hv⟩
-        · rw [ite_eq_right hgt]
-          have hgf' : gd = false := by simpa using hgt
-          have hres : ∀ G, max F1 F2 ≤ G →
-              mtcK mode env G d rl' dcvj cnP Tn x = .ok x := by
-            intro G hG
-            obtain ⟨e1, e2⟩ := hA G hG
-            simp only [mtcK, e1, e2, bind, Except.bind, hgf]
-            rw [ite_eq_left hg1P, ite_eq_left hg2P]
-            simp only [← hgd, hgf']
-            rfl
-          vcgen
-          bridge_peel; subst_vars
-          exact ⟨hok9, hx19, hp19, x, denote_ext hmaj hx19, hw, _,
-            hres _ (Nat.le_refl _)⟩
-      · rw [ite_eq_right hg2]
-        have hres : ∀ G, max F1 F2 ≤ G →
-            mtcK mode env G d rl' dcvj cnP Tn x = .ok x := by
-          intro G hG
-          obtain ⟨e1, e2⟩ := hA G hG
-          simp only [mtcK, e1, e2, bind, Except.bind, hgf]
-          rw [ite_eq_left hg1P, ite_eq_right (by rw [htl]; exact hg2)]
-          rfl
-        vcgen
-        bridge_peel; subst_vars
-        exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _,
-          hres _ (Nat.le_refl _)⟩
-    · rw [ite_eq_right hg1]
-      have hres : ∀ G, max F1 F2 ≤ G →
-          mtcK mode env G d rl' dcvj cnP Tn x = .ok x := by
-        intro G hG
-        obtain ⟨e1, e2⟩ := hA G hG
-        simp only [mtcK, e1, e2, bind, Except.bind, hgf]
-        rw [ite_eq_right (fun h => hg1 (hcond.mpr h))]
-        rfl
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _,
-        hres _ (Nat.le_refl _)⟩
-  all_goals
-    dsimp only
-    have hnc := denote_not_const hwf3 hvh hdd (by intro c us h; cases h)
-    have hres : ∀ G, max F1 F2 ≤ G →
-        mtcK mode env G d rl' dcvj cnP Tn x = .ok x := by
-      intro G hG
-      obtain ⟨e1, e2⟩ := hA G hG
-      simp only [mtcK, e1, e2, bind, Except.bind]
-      first
-        | rfl
-        | (split
-           · rename_i c us heq; exact absurd heq (hnc c us)
-           · rfl)
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
-
 /-- con-leche: none — a denoted capability record's fields. -/
 theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
     (h : Frontend.denoteCaps st c = some dc) :
@@ -559,753 +577,6 @@ theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
   split at h
   · rename_i ct _ _ hct _ _; cases h; exact ⟨rfl, hct, rfl, rfl, rfl⟩
   · simp at h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the η branch
-past its guards: the fabricated constructor, uncertified (con-leche task
-#342). -/
-theorem mtcEta_fire {F d : Nat} {cvT : ConstantVal} {caps : IndCaps}
-    {T T' : ConLeche.Name} {x tm tmaj : Expr} {ust : List Level}
-    (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
-    (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
-    (hgf : tmaj.getAppFn = .const T' ust)
-    (hg : T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
-      ust.length = cvT.levelParams.length ∧
-      ConLeche.capsNeverZero cvT.levelParams ust caps = true ∧
-      ConLeche.reservedBasisNames.contains T = false ∧
-      ConLeche.reservedBasisNames.contains caps.etaCtor = false ∧
-      ConLeche.towerSlotsAll env T caps.etaFields = true)
-    (hgd : ((Expr.mkAppN (.const caps.etaCtor ust)
-        (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)).wscopedB d &&
-      (Expr.mkAppN (.const caps.etaCtor ust)
-        (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)).looseBVarsBounded 0 &&
-      (Expr.mkAppN (.const caps.etaCtor ust)
-        (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)).fvarLeaves.all
-        (fun l => x.fvarLeaves.contains l)) = true) :
-    mtcEta mode env F d cvT caps T x = .ok (Expr.mkAppN (.const caps.etaCtor ust)
-        (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)) := by
-  have e1' : (ConLeche.pureFns mode env F).inferIO d x = .ok tm := e1
-  have e2' : (ConLeche.pureFns mode env F).whnf d tm = .ok tmaj := e2
-  simp only [mtcEta, e1', e2', bind, Except.bind, hgf]
-  rw [ite_eq_left hg]
-  simp only [hgd, ite_true]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the `And`
-branch past its guards, as a function of the two verdicts. -/
-theorem mtcAnd_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
-    {T T' : ConLeche.Name} {x tm tmaj tf : Expr} {ust : List Level}
-    {b5 b6 : Bool}
-    (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
-    (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
-    (hgf : tmaj.getAppFn = .const T' ust)
-    (hg : T' = T ∧ tmaj.getAppArgs.length = cnP ∧
-      cvj.levelParams.length = ust.length ∧
-      ConLeche.andRescueSlots env rl.ctor cnP ust = true)
-    (hgd : ((Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).wscopedB d &&
-      (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).looseBVarsBounded 0 &&
-      (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).fvarLeaves.all
-        (fun l => x.fvarLeaves.contains l)) = true)
-    (h4 : ConLeche.inferTypeIO mode env F d (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) = .ok tf)
-    (h5 : ConLeche.isDefEqCore mode env F d tmaj tf = .ok b5)
-    (h6 : b5 = true → (if mode.verifiedChecks then ConLeche.proofIrrelFueled mode env F d
-      (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) x else .ok true) = .ok b6) :
-    mtcAnd mode env F d rl cvj cnP T x = .ok (if b5 && b6 then
-      (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) else x) := by
-  have e1' : (ConLeche.pureFns mode env F).inferIO d x = .ok tm := e1
-  have e2' : (ConLeche.pureFns mode env F).whnf d tm = .ok tmaj := e2
-  have h4' : (ConLeche.pureFns mode env F).inferIO d (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) = .ok tf := h4
-  have h5' : (ConLeche.pureFns mode env F).defeq d tmaj tf = .ok b5 := h5
-  simp only [mtcAnd, e1', e2', bind, Except.bind, hgf]
-  rw [ite_eq_left hg]
-  simp only [hgd, ite_true, h4', h5']
-  cases b5
-  · rfl
-  · have h6' := h6 rfl
-    simp only [ite_true]
-    cases hv : mode.verifiedChecks
-    · simp only [hv, Bool.false_eq_true, ite_false] at h6' ⊢
-      cases h6'; rfl
-    · simp only [hv, ite_true] at h6' ⊢
-      have h6'' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (Expr.mkAppN (.const rl.ctor ust)
-        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) x =
-          .ok b6 := h6'
-      rw [h6'']
-      cases b6 <;> rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:618-658 majorToCtor — **the η
-rescue** (`to_cnstr_when_structure`): the constructor of the major's
-projections, fabricated at an instantiated-never-`Prop` structure outside the
-reserved basis whose field slots are all tower slots, with no certificate
-(con-leche task #342 L11b). -/
-theorem majorEta_spec {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel)
-    (s₁ : AState) (d : Nat) (major : EIdx) (x : Expr)
-    (icvT : IConstantVal) (dcvT : ConstantVal) (icaps : IIndCaps)
-    (dcaps : IndCaps) (T : NIdx) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₁)
-    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
-    (hdcvT : Frontend.denoteCV s₁.store icvT = some dcvT)
-    (hcaps : Frontend.denoteCaps s₁.store icaps = some dcaps)
-    (hT : denoteN s₁.store.ns T = some Tn) :
-    ⦃fun s => s = s₁⦄ (do
-      let tmaj ← (coreKnot mode fe id fuel).whnf d
-        (← (coreKnot mode fe id fuel).inferIO d major)
-      let hh ← getAppFn coreWalkFuel tmaj
-      if hh.tag == ETag.const then
-        match ← view hh with
-        | .const T' ust => do
-          let ustl ← viewLs ust
-          let targs ← getAppArgs coreWalkFuel tmaj
-          let nz ← capsNeverZero icvT.levelParams ust icaps
-          if T' = T ∧ targs.length = icaps.etaParams ∧
-              ustl.length = icvT.levelParams.length ∧ nz = true then do
-            let reserved ← reservedBasisNames
-            if reserved.contains T = false ∧
-                reserved.contains icaps.etaCtor = false then do
-              if ← towerSlotsAll fe T icaps.etaFields then do
-                let fabArgs ← etaFabArgsE T targs major icaps.etaFields
-                let hd ← internE (.const icaps.etaCtor ust)
-                let fab ← mkAppN hd fabArgs
-                if ← fabScopeOk d fab major then pure fab
-                else pure major
-              else pure major
-            else pure major
-          else pure major
-        | _ => pure major
-      else pure major : AM EIdx)
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
-        s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcEta mode env F d dcvT dcaps Tn x) d s'.store r; ⊤⦄ := by
-  obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
-  obtain ⟨_, hctor, hep, hef, _⟩ := denoteCaps_fields hcaps
-  -- stage: the major's io-grade type, head-normalised
-  refine triple_seq (hsim.inferIO s₁ d major x hok hmaj hw) ?_
-  rintro tm s2 ⟨hok2, hx2, hp2, vtm, hvtm, hwvtm, F1, hF1⟩
-  refine triple_seq (hsim.whnf s2 d tm vtm hok2 hvtm hwvtm) ?_
-  rintro tmaj s3 ⟨hok3, hx3, hp3, vtmaj, hvtmaj, hwvtmaj, F2, hF2⟩
-  have hx13 := hx2.trans hx3
-  have hp13 : s3.pins = s₁.pins := hp3.trans hp2
-  have hwf3 := hok3.state.wf
-  have hA : ∀ G, max F1 F2 ≤ G →
-      ConLeche.inferTypeIO mode env G d x = .ok vtm ∧
-      ConLeche.whnf mode env G d vtm = .ok vtmaj := fun G hG =>
-    ⟨ConLeche.inferTypeIO_mono (by omega) hF1, ConLeche.whnf_mono (by omega) hF2⟩
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 tmaj hok3.state
-    (by rw [hvtmaj]; rfl)) ?_
-  rintro hh s4 ⟨hs4, hrelF⟩
-  subst s4
-  have hdd := hrelF vtmaj hvtmaj
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const T' ust =>
-    obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
-    dsimp only
-    refine triple_seq (viewLs_spec s3 ust) ?_
-    rintro ustl s5 ⟨hs5, hustl⟩
-    subst s5
-    have hul := view_len_of_denoteLs hlsu hustl
-    refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s3 tmaj hok3.state
-      (by rw [hvtmaj]; rfl)) ?_
-    rintro targs s6 ⟨hs6, hrelA⟩
-    subst s6
-    have htargs := hrelA vtmaj hvtmaj
-    have htl := denoteEList_len htargs
-    refine triple_seq (capsNeverZero_spec s3 icvT.levelParams ust icaps
-      dcvT.levelParams lsu dcaps hok3 (denoteNListE_ext hx13 _ _ hlpsT) hlsu
-      (denoteCaps_ext hcaps hx13)) ?_
-    rintro nz s7 ⟨hok7, hst7, hp7, hnz⟩
-    have hx37 : Ext s3.store s7.store := by rw [hst7]; exact Ext.refl _
-    have hx17 : Ext s₁.store s7.store := hx13.trans hx37
-    have hp17 : s7.pins = s₁.pins := hp7.trans hp13
-    have hcond : (T' = T ∧ targs.length = icaps.etaParams ∧
-        ustl.length = icvT.levelParams.length ∧ nz = true) ↔
-        (Tn' = Tn ∧ vtmaj.getAppArgs.length = dcaps.etaParams ∧
-          lsu.length = dcvT.levelParams.length ∧
-          ConLeche.capsNeverZero dcvT.levelParams lsu dcaps = true) := by
-      rw [nidx_eq_iff hwf3 hTn' (denoteN_ext hT hx13), ← htl, hep, hul,
-        ← denoteNList_len hlpsT, hnz]
-    -- every failed guard leaves the major
-    have hno : ∀ G, max F1 F2 ≤ G →
-        ¬ (Tn' = Tn ∧ vtmaj.getAppArgs.length = dcaps.etaParams ∧
-          lsu.length = dcvT.levelParams.length ∧
-          ConLeche.capsNeverZero dcvT.levelParams lsu dcaps = true ∧
-          ConLeche.reservedBasisNames.contains Tn = false ∧
-          ConLeche.reservedBasisNames.contains dcaps.etaCtor = false ∧
-          ConLeche.towerSlotsAll env Tn dcaps.etaFields = true) →
-        mtcEta mode env G d dcvT dcaps Tn x = .ok x := by
-      intro G hG hng
-      obtain ⟨e1, e2⟩ := hA G hG
-      have e1' : (ConLeche.pureFns mode env G).inferIO d x = .ok vtm := e1
-      have e2' : (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := e2
-      simp only [mtcEta, e1', e2', bind, Except.bind, hgf]
-      rw [ite_eq_right hng]
-      rfl
-    by_cases hg : T' = T ∧ targs.length = icaps.etaParams ∧
-        ustl.length = icvT.levelParams.length ∧ nz = true
-    case neg =>
-      rw [ite_eq_right hg]
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok7, hx17, hp17, x, denote_ext hmaj hx17, hw, _,
-        hno _ (Nat.le_refl _) (fun h => hg (hcond.mpr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1⟩))⟩
-    rw [ite_eq_left hg]
-    have hgP := hcond.mp hg
-    refine triple_seq (reservedBasisNames_spec s7 hok7) ?_
-    rintro res s8 ⟨hok8, hx8, hp8, hres⟩
-    have hx18 := hx17.trans hx8
-    have hp18 : s8.pins = s₁.pins := hp8.trans hp17
-    have hc1 := denoteNList_containsC hok8.state.wf res _ hres T Tn (denoteN_ext hT hx18)
-    have hc2 := denoteNList_containsC hok8.state.wf res _ hres icaps.etaCtor dcaps.etaCtor
-      (denoteN_ext hctor hx18)
-    by_cases hgr : res.contains T = false ∧ res.contains icaps.etaCtor = false
-    case neg =>
-      rw [ite_eq_right hgr]
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok8, hx18, hp18, x, denote_ext hmaj hx18, hw, _,
-        hno _ (Nat.le_refl _) (fun h => hgr ⟨by rw [hc1]; exact h.2.2.2.2.1,
-          by rw [hc2]; exact h.2.2.2.2.2.1⟩)⟩
-    rw [ite_eq_left hgr]
-    have hgrP : ConLeche.reservedBasisNames.contains Tn = false ∧
-        ConLeche.reservedBasisNames.contains dcaps.etaCtor = false :=
-      ⟨by rw [← hc1]; exact hgr.1, by rw [← hc2]; exact hgr.2⟩
-    refine triple_seq (towerSlotsAll_spec s8 T Tn icaps.etaFields hok8
-      (denoteN_ext hT hx18)) ?_
-    rintro tsa s9 ⟨hok9, hx9, hp9, htsa⟩
-    have hx19 := hx18.trans hx9
-    have hp19 : s9.pins = s₁.pins := hp9.trans hp18
-    by_cases hts : tsa = true
-    case neg =>
-      rw [ite_eq_right hts]
-      have htsF : ConLeche.towerSlotsAll env Tn dcaps.etaFields ≠ true := by
-        rw [hef, ← htsa]; exact hts
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok9, hx19, hp19, x, denote_ext hmaj hx19, hw, _,
-        hno _ (Nat.le_refl _) (fun h => htsF h.2.2.2.2.2.2)⟩
-    rw [ite_eq_left hts]
-    have htsP : ConLeche.towerSlotsAll env Tn dcaps.etaFields = true := by
-      rw [hef, ← htsa]; exact hts
-    have hgAll : Tn' = Tn ∧ vtmaj.getAppArgs.length = dcaps.etaParams ∧
-        lsu.length = dcvT.levelParams.length ∧
-        ConLeche.capsNeverZero dcvT.levelParams lsu dcaps = true ∧
-        ConLeche.reservedBasisNames.contains Tn = false ∧
-        ConLeche.reservedBasisNames.contains dcaps.etaCtor = false ∧
-        ConLeche.towerSlotsAll env Tn dcaps.etaFields = true :=
-      ⟨hgP.1, hgP.2.1, hgP.2.2.1, hgP.2.2.2, hgrP.1, hgrP.2, htsP⟩
-    have hx39 : Ext s3.store s9.store := hx37.trans (hx8.trans hx9)
-    have htargs9 := denoteEList_ext hx39 _ _ htargs
-    refine triple_seq (etaFabArgsE_spec s9 T targs major icaps.etaFields Tn
-      vtmaj.getAppArgs x hok9 (denoteN_ext hT hx19) htargs9
-      (denote_ext hmaj hx19)) ?_
-    rintro fabArgs s10 ⟨hok10, hx10, hp10, hfa⟩
-    rw [← hef] at hfa
-    have hx110 := hx19.trans hx10
-    refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s10 (.const icaps.etaCtor ust) hok10 (viewOK_const
-        (nview_isSome_of_denote (denoteN_ext hctor hx110))
-        (by obtain ⟨w, hw', _⟩ := denoteLs_view (denoteLs_ext hlsu (hx39.trans hx10))
-            rw [hw']; rfl))) ?_
-    rintro hd s11 ⟨hok11, hx11, hp11, hhd⟩
-    have hhd' : denoteE s11.store hd = some (.const dcaps.etaCtor lsu) := by
-      rw [hhd]
-      simp only [denoteEView, denoteN_ext hctor (hx110.trans hx11),
-        denoteLs_ext hlsu (hx39.trans (hx10.trans hx11)), opt2]
-    have hfa11 := denoteEList_ext hx11 _ _ hfa
-    refine triple_seq (ExprOps.mkAppN_spec fabArgs s11 hd hok11.state
-      (by rw [hhd']; rfl) (by rw [hfa11]; rfl)) ?_
-    rintro fab s12 ⟨hst12, hx12, _, hc12, hp12, hrel⟩
-    have hok12 : CheckOK mode env fe s12 := hok11.mono hst12 hx12 hc12 hp12
-    have hfab := hrel _ _ hhd' hfa11
-    have hx112 := hx110.trans (hx11.trans hx12)
-    have hp112 : s12.pins = s₁.pins := hp12.trans (hp11.trans (hp10.trans hp19))
-    refine triple_seq (fabScopeOk_spec s12 d fab major _ x hok12 hfab
-      (denote_ext hmaj hx112)) ?_
-    rintro gd s13 ⟨hok13, hst13, hp13', hgd⟩
-    have hx113 : Ext s₁.store s13.store := by rw [hst13]; exact hx112
-    have hp113 : s13.pins = s₁.pins := hp13'.trans hp112
-    by_cases hgt : gd = true
-    · rw [ite_eq_left hgt]
-      have hgP' := hgd ▸ hgt
-      have hwfab : Expr.WScoped d (Expr.mkAppN (.const dcaps.etaCtor lsu)
-          (ConLeche.etaFabArgsE Tn vtmaj.getAppArgs x dcaps.etaFields)) := by
-        simp only [Bool.and_eq_true] at hgP'
-        exact Expr.WScoped.of_wscopedB hgP'.1.1
-      have hv : mtcEta mode env (max F1 F2) d dcvT dcaps Tn x = .ok
-          (Expr.mkAppN (.const dcaps.etaCtor lsu)
-            (ConLeche.etaFabArgsE Tn vtmaj.getAppArgs x dcaps.etaFields)) := by
-        obtain ⟨e1, e2⟩ := hA _ (Nat.le_refl _)
-        obtain ⟨hTT, hr⟩ := hgAll
-        subst hTT
-        exact mtcEta_fire e1 e2 hgf ⟨rfl, hr⟩ hgP'
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok13, hx113, hp113, _, by rw [hst13]; exact hfab, hwfab, _, hv⟩
-    · rw [ite_eq_right hgt]
-      have hgf' : gd = false := by simpa using hgt
-      have hres : mtcEta mode env (max F1 F2) d dcvT dcaps Tn x = .ok x := by
-        obtain ⟨e1, e2⟩ := hA _ (Nat.le_refl _)
-        have e1' : (ConLeche.pureFns mode env (max F1 F2)).inferIO d x = .ok vtm := e1
-        have e2' : (ConLeche.pureFns mode env (max F1 F2)).whnf d vtm = .ok vtmaj := e2
-        obtain ⟨hTT, hr⟩ := hgAll
-        subst hTT
-        simp only [mtcEta, e1', e2', bind, Except.bind, hgf]
-        rw [ite_eq_left (by first | exact ⟨rfl, hr⟩ | exact ⟨trivial, hr⟩)]
-        simp only [← hgd, hgf']
-        rfl
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok13, hx113, hp113, x, denote_ext hmaj hx113, hw, _, hres⟩
-  all_goals
-    dsimp only
-    have hnc := denote_not_const hwf3 hvh hdd (by intro c us h; cases h)
-    have hres : ∀ G, max F1 F2 ≤ G →
-        mtcEta mode env G d dcvT dcaps Tn x = .ok x := by
-      intro G hG
-      obtain ⟨e1, e2⟩ := hA G hG
-      have e1' : (ConLeche.pureFns mode env G).inferIO d x = .ok vtm := e1
-      have e2' : (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := e2
-      simp only [mtcEta, e1', e2', bind, Except.bind]
-      first
-        | rfl
-        | (split
-           · rename_i c us heq; exact absurd heq (hnc c us)
-           · rfl)
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — **the pinned
-`And` rescue**: `And.intro` of the major's two projections, certified the K
-branch's way (the type check, and proof irrelevance at verified mode). -/
-theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
-    (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
-    (x : Expr) (icvj : IConstantVal) (dcvj : ConstantVal) (cnP cnF : Nat)
-    (T : NIdx) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₁) (hrl' : Frontend.denoteRule s₁.store rl = some rl')
-    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
-    (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
-    (hT : denoteN s₁.store.ns T = some Tn)
-    (hfj : env.find? rl'.ctor = some (.ctorInfo dcvj cnP cnF)) :
-    ⦃fun s => s = s₁⦄ (do
-      let tmaj ← (coreKnot mode fe id fuel).whnf d
-        (← (coreKnot mode fe id fuel).inferIO d major)
-      let hh ← getAppFn coreWalkFuel tmaj
-      if hh.tag == ETag.const then
-        match ← view hh with
-        | .const T' ust => do
-          match ← viewLsLen ust with
-          | none => failDanglingLs
-          | some ustl =>
-          let targs ← getAppArgs coreWalkFuel tmaj
-          let ars ← andRescueSlots fe rl.ctor cnP ust
-          if T' = T ∧ targs.length = cnP ∧
-              icvj.levelParams.length = ustl ∧ ars = true then do
-            let p0 ← internE (.proj T 0 major)
-            let p1 ← internE (.proj T 1 major)
-            let fabArgs := targs ++ [p0, p1]
-            let hd ← internE (.const rl.ctor ust)
-            let fab ← mkAppN hd fabArgs
-            if ← fabScopeOk d fab major then do
-              if ← (coreKnot mode fe id fuel).defeq d tmaj
-                  (← (coreKnot mode fe id fuel).inferIO d fab) then do
-                let irA ←
-                  if mode.verifiedChecks then
-                    ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                  else pure true
-                if irA then pure fab else pure major
-              else pure major
-            else pure major
-          else pure major
-        | _ => pure major
-      else pure major : AM EIdx)
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
-        s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcAnd mode env F d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
-  obtain ⟨_, _, hrlc, _, _, _, _⟩ := rule_denote hrl'
-  obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
-  have hnamej : dcvj.name = rl'.ctor := env_find_name hfj
-  refine triple_seq (hsim.inferIO s₁ d major x hok hmaj hw) ?_
-  rintro tm s2 ⟨hok2, hx2, hp2, vtm, hvtm, hwvtm, F1, hF1⟩
-  refine triple_seq (hsim.whnf s2 d tm vtm hok2 hvtm hwvtm) ?_
-  rintro tmaj s3 ⟨hok3, hx3, hp3, vtmaj, hvtmaj, hwvtmaj, F2, hF2⟩
-  have hx13 := hx2.trans hx3
-  have hp13 : s3.pins = s₁.pins := hp3.trans hp2
-  have hwf3 := hok3.state.wf
-  have hA : ∀ G, max F1 F2 ≤ G →
-      ConLeche.inferTypeIO mode env G d x = .ok vtm ∧
-      ConLeche.whnf mode env G d vtm = .ok vtmaj := fun G hG =>
-    ⟨ConLeche.inferTypeIO_mono (by omega) hF1, ConLeche.whnf_mono (by omega) hF2⟩
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 tmaj hok3.state
-    (by rw [hvtmaj]; rfl)) ?_
-  rintro hh s4 ⟨hs4, hrelF⟩
-  subst s4
-  have hdd := hrelF vtmaj hvtmaj
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const T' ust =>
-    obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
-    dsimp only
-    refine triple_seq (viewLsLen_spec s3 ust) ?_
-    rintro ol s5 ⟨hs5, hol⟩
-    subst s5
-    rw [viewLen_of_denoteLs hlsu] at hol
-    subst hol
-    dsimp only
-    refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s3 tmaj hok3.state
-      (by rw [hvtmaj]; rfl)) ?_
-    rintro targs s6 ⟨hs6, hrelA⟩
-    subst s6
-    have htargs := hrelA vtmaj hvtmaj
-    have htl := denoteEList_len htargs
-    refine triple_seq (andRescueSlots_spec s3 rl.ctor cnP ust rl'.ctor lsu hok3
-      (denoteN_ext hrlc hx13) hlsu) ?_
-    rintro ars s7 ⟨hok7, hx7, hp7, hars⟩
-    have hx17 := hx13.trans hx7
-    have hp17 : s7.pins = s₁.pins := hp7.trans hp13
-    have hcond : (T' = T ∧ targs.length = cnP ∧ icvj.levelParams.length = lsu.length ∧
-        ars = true) ↔ (Tn' = Tn ∧ vtmaj.getAppArgs.length = cnP ∧
-          dcvj.levelParams.length = lsu.length ∧
-          ConLeche.andRescueSlots env rl'.ctor cnP lsu = true) := by
-      rw [nidx_eq_iff hwf3 hTn' (denoteN_ext hT hx13), ← htl,
-        ← denoteNList_len hlpsj, hars]
-    by_cases hg : T' = T ∧ targs.length = cnP ∧ icvj.levelParams.length = lsu.length ∧
-        ars = true
-    · rw [ite_eq_left hg]
-      have hgP := hcond.mp hg
-      have hwf7 := hok7.state.wf
-      refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-        s7 (.proj T 0 major) hok7 (viewOK_proj
-          (nview_isSome_of_denote (denoteN_ext hT hx17))
-          (by rw [denote_ext hmaj hx17]; rfl))) ?_
-      rintro p0 s8 ⟨hok8, hx8, hp8, hp0⟩
-      have hx18 := hx17.trans hx8
-      have hp0' : denoteE s8.store p0 = some (.proj Tn 0 x) := by
-        rw [hp0]; simp only [denoteEView, denoteN_ext hT hx18, denote_ext hmaj hx18, opt2]
-      refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-        s8 (.proj T 1 major) hok8 (viewOK_proj
-          (nview_isSome_of_denote (denoteN_ext hT hx18))
-          (by rw [denote_ext hmaj hx18]; rfl))) ?_
-      rintro p1 s9 ⟨hok9, hx9, hp9, hp1⟩
-      have hx19 := hx18.trans hx9
-      have hp1' : denoteE s9.store p1 = some (.proj Tn 1 x) := by
-        rw [hp1]; simp only [denoteEView, denoteN_ext hT hx19, denote_ext hmaj hx19, opt2]
-      try dsimp only
-      refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-        s9 (.const rl.ctor ust) hok9 (viewOK_const
-          (nview_isSome_of_denote (denoteN_ext hrlc hx19))
-          (by obtain ⟨w, hw', _⟩ := denoteLs_view (denoteLs_ext hlsu (hx7.trans (hx8.trans hx9)))
-              rw [hw']; rfl))) ?_
-      rintro hd s10 ⟨hok10, hx10, hp10, hhd⟩
-      have hx110 := hx19.trans hx10
-      have hhd' : denoteE s10.store hd = some (.const rl'.ctor lsu) := by
-        rw [hhd]
-        simp only [denoteEView, denoteN_ext hrlc hx110,
-          denoteLs_ext hlsu (hx7.trans (hx8.trans (hx9.trans hx10))), opt2]
-      have hfa : Frontend.denoteEList s10.store (targs ++ [p0, p1]) =
-          some (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x]) :=
-        denoteEList_appendI
-          (denoteEList_ext (hx7.trans (hx8.trans (hx9.trans hx10))) _ _ htargs)
-          (by simp [Frontend.denoteEList, denote_ext hp0' (hx9.trans hx10),
-                denote_ext hp1' hx10])
-      refine triple_seq (ExprOps.mkAppN_spec _ s10 hd hok10.state
-        (by rw [hhd']; rfl) (by rw [hfa]; rfl)) ?_
-      rintro fab s11 ⟨hst11, hx11, _, hc11, hp11, hrel⟩
-      have hok11 : CheckOK mode env fe s11 := hok10.mono hst11 hx11 hc11 hp11
-      have hfab := hrel _ _ hhd' hfa
-      have hx111 := hx110.trans hx11
-      have hp111 : s11.pins = s₁.pins :=
-        hp11.trans (hp10.trans (hp9.trans (hp8.trans hp17)))
-      refine triple_seq (fabScopeOk_spec s11 d fab major _ x hok11 hfab
-        (denote_ext hmaj hx111)) ?_
-      rintro gd s12 ⟨hok12, hst12, hp12, hgd⟩
-      have hx112 : Ext s₁.store s12.store := by rw [hst12]; exact hx111
-      have hp112 : s12.pins = s₁.pins := hp12.trans hp111
-      have hTs : ∀ {b5 b6 : Bool} {tf : Expr} {G : Nat}, max F1 F2 ≤ G →
-          gd = true →
-          ConLeche.inferTypeIO mode env G d (Expr.mkAppN (.const rl'.ctor lsu)
-              (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x])) = .ok tf →
-          ConLeche.isDefEqCore mode env G d vtmaj tf = .ok b5 →
-          (b5 = true → (if mode.verifiedChecks then ConLeche.proofIrrelFueled mode env G d
-            (Expr.mkAppN (.const rl'.ctor lsu)
-              (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x])) x else .ok true) = .ok b6) →
-          mtcAnd mode env G d rl' dcvj cnP Tn x = .ok (if b5 && b6 then
-            Expr.mkAppN (.const rl'.ctor lsu)
-              (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x]) else x) := by
-        intro b5 b6 tf G hG hgt h4 h5 h6
-        obtain ⟨e1, e2⟩ := hA G hG
-        obtain ⟨hTT, hr⟩ := hgP
-        subst hTT
-        exact mtcAnd_fire e1 e2 hgf ⟨rfl, hr⟩ (hgd ▸ hgt) h4 h5 h6
-      by_cases hgt : gd = true
-      · rw [ite_eq_left hgt]
-        have hgP' := hgd ▸ hgt
-        have hwfab : Expr.WScoped d (Expr.mkAppN (.const rl'.ctor lsu)
-            (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x])) := by
-          simp only [Bool.and_eq_true] at hgP'
-          exact Expr.WScoped.of_wscopedB hgP'.1.1
-        have hx312 : Ext s3.store s12.store := by
-          rw [hst12]; exact hx7.trans (hx8.trans (hx9.trans (hx10.trans hx11)))
-        have hfab12 : denoteE s12.store fab = some (Expr.mkAppN (.const rl'.ctor lsu)
-            (vtmaj.getAppArgs ++ [.proj Tn 0 x, .proj Tn 1 x])) := by rw [hst12]; exact hfab
-        refine triple_seq (hsim.inferIO s12 d fab _ hok12 hfab12 hwfab) ?_
-        rintro tf s15 ⟨hok15, hx15, hp15, vtf, hvtf, hwvtf, F4, hF4⟩
-        refine triple_seq (hsim.defeq s15 d tmaj tf vtmaj vtf hok15
-          (denote_ext hvtmaj (hx312.trans hx15)) hvtf hwvtmaj hwvtf) ?_
-        rintro rd s16 ⟨hok16, hx16, hp16, F5, hF5⟩
-        have hx116 := hx112.trans (hx15.trans hx16)
-        have hp116 : s16.pins = s₁.pins := hp16.trans (hp15.trans hp112)
-        by_cases hrd : rd = true
-        · rw [ite_eq_left hrd]
-          subst hrd
-          rw [ite_eq_left hμ]
-          refine triple_seq (proofIrrel_spec hsim s16 d fab major _ x hok16
-            (denote_ext hfab12 (hx15.trans hx16)) (denote_ext hmaj hx116) hwfab hw) ?_
-          rintro ir s17 ⟨hok17, hx17', hp17', F6, hF6⟩
-          have hv := hTs (b5 := true) (b6 := ir)
-            (G := max (max F1 F2) (max F4 (max F5 F6))) (by omega) hgt
-            (ConLeche.inferTypeIO_mono (by omega) hF4)
-            (ConLeche.isDefEqCore_mono (by omega) hF5)
-            (fun _ => by rw [ite_eq_left hμ]; exact proofIrrelFueled_mono (by omega) hF6)
-          have hfab17 := denote_ext hfab12 (hx15.trans (hx16.trans hx17'))
-          have hmaj17 := denote_ext hmaj (hx116.trans hx17')
-          cases ir <;> simp only [Bool.false_eq_true, ↓reduceIte]
-          · vcgen
-            bridge_peel; subst_vars
-            exact ⟨hok17, hx116.trans hx17', hp17'.trans hp116, x, hmaj17, hw, _, hv⟩
-          · vcgen
-            bridge_peel; subst_vars
-            exact ⟨hok17, hx116.trans hx17', hp17'.trans hp116, _, hfab17, hwfab, _,
-              hv⟩
-        · rw [ite_eq_right hrd]
-          have hrdf : rd = false := by simpa using hrd
-          subst hrdf
-          have hv := hTs (b5 := false) (b6 := false)
-            (G := max (max F1 F2) (max F4 F5)) (by omega) hgt
-            (ConLeche.inferTypeIO_mono (by omega) hF4)
-            (ConLeche.isDefEqCore_mono (by omega) hF5)
-            (fun h => by cases h)
-          vcgen
-          bridge_peel; subst_vars
-          exact ⟨hok16, hx116, hp116, x, denote_ext hmaj hx116, hw, _, hv⟩
-      · rw [ite_eq_right hgt]
-        have hgf' : gd = false := by simpa using hgt
-        have hres : ∀ G, max F1 F2 ≤ G →
-            mtcAnd mode env G d rl' dcvj cnP Tn x = .ok x := by
-          intro G hG
-          obtain ⟨e1, e2⟩ := hA G hG
-          have e1' : (ConLeche.pureFns mode env G).inferIO d x = .ok vtm := e1
-          have e2' : (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := e2
-          obtain ⟨hTT, hr⟩ := hgP
-          subst hTT
-          simp only [mtcAnd, e1', e2', bind, Except.bind, hgf]
-          rw [ite_eq_left (by first | exact ⟨rfl, hr⟩ | exact ⟨trivial, hr⟩)]
-          simp only [← hgd, hgf']
-          rfl
-        vcgen
-        bridge_peel; subst_vars
-        exact ⟨hok12, hx112, hp112, x, denote_ext hmaj hx112, hw, _,
-          hres _ (Nat.le_refl _)⟩
-    · rw [ite_eq_right hg]
-      have hres : ∀ G, max F1 F2 ≤ G →
-          mtcAnd mode env G d rl' dcvj cnP Tn x = .ok x := by
-        intro G hG
-        obtain ⟨e1, e2⟩ := hA G hG
-        have e1' : (ConLeche.pureFns mode env G).inferIO d x = .ok vtm := e1
-        have e2' : (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := e2
-        simp only [mtcAnd, e1', e2', bind, Except.bind, hgf]
-        rw [ite_eq_right (fun h => hg (hcond.mpr h))]
-        rfl
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok7, hx17, hp17, x, denote_ext hmaj hx17, hw, _, hres _ (Nat.le_refl _)⟩
-  all_goals
-    dsimp only
-    have hnc := denote_not_const hwf3 hvh hdd (by intro c us h; cases h)
-    have hres : ∀ G, max F1 F2 ≤ G →
-        mtcAnd mode env G d rl' dcvj cnP Tn x = .ok x := by
-      intro G hG
-      obtain ⟨e1, e2⟩ := hA G hG
-      have e1' : (ConLeche.pureFns mode env G).inferIO d x = .ok vtm := e1
-      have e2' : (ConLeche.pureFns mode env G).whnf d vtm = .ok vtmaj := e2
-      simp only [mtcAnd, e1', e2', bind, Except.bind]
-      first
-        | rfl
-        | (split
-           · rename_i c us heq; exact absurd heq (hnc c us)
-           · rfl)
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1
-for `majorToCtor`**, the stuck-major rescue: K, η, and the pinned `And`.
-The recursor's name is unused on both sides (`_recName`). -/
-theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
-    (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
-    (hok : CheckOK mode env fe s₀)
-    (hr : Frontend.denoteRules s₀.store rules = some rules')
-    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules
-        major
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
-          s'.store r; ⊤⦄ := by
-  have hwf := hok.state.wf
-  have hxit : ∀ (s' : AState), CheckOK mode env fe s' → Ext s₀.store s'.store →
-      s'.pins = s₀.pins →
-      (∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x) →
-      CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
-          s'.store major :=
-    fun s' h1 h2 h3 h4 => ⟨h1, h2, h3, x, denote_ext hden h2, hw, 0, h4 0⟩
-  unfold ConRon.Arena.majorToCtor
-  refine triple_seq (isCtorApp_spec s₀ major x hok hden) ?_
-  rintro ic s1 ⟨hs1, hic⟩
-  subst s1
-  by_cases hict : ic = true
-  · rw [ite_eq_left hict]
-    have hc : ConLeche.isCtorApp env x = true := hic ▸ hict
-    have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F => majorToCtorFueled_ctor hc)
-    vcgen
-    bridge_peel; subst_vars
-    exact hxit _ hok (Ext.refl _) rfl hF
-  · rw [ite_eq_right hict]
-    have hnc : ConLeche.isCtorApp env x = false := by rw [← hic]; simpa using hict
-    split
-    next rl =>
-      obtain ⟨rl', hrl', rfl⟩ : ∃ rl', Frontend.denoteRule s₀.store rl = some rl' ∧
-          rules' = [rl'] := by
-        simp only [Frontend.denoteRules] at hr
-        split at hr
-        · rename_i y ys hy hys
-          simp only [Option.some.injEq] at hys
-          subst hys
-          cases hr
-          exact ⟨y, hy, rfl⟩
-        · simp at hr
-      obtain ⟨_, _, hrlc, _, _, _, _⟩ := rule_denote hrl'
-      obtain ⟨hk', he'⟩ : rl'.k = rl.k ∧ rl'.eta = rl.eta := by
-        simp only [Frontend.denoteRule] at hrl'
-        split at hrl'
-        · cases hrl'; exact ⟨rfl, rfl⟩
-        · simp at hrl'
-      split
-      next icvj cnP cnF hfj =>
-        obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok hrlc hfj
-        obtain ⟨_, _, htyj⟩ := denoteCV_inv hdcvj
-        have hcj : denoteN s₀.store.ns icvj.name = some rl'.ctor := by
-          rw [denoteCV_name hdcvj]; exact congrArg some (env_find_name hfindj)
-        refine triple_seq (ExprOps.piResult_spec coreWalkFuel s₀ icvj.type hok.state
-          (by rw [htyj]; rfl)) ?_
-        rintro pr s2 ⟨hs2, hrelP⟩
-        subst s2
-        have hpr := hrelP dcvj.type htyj
-        refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ pr hok.state
-          (by rw [hpr]; rfl)) ?_
-        rintro ph s3 ⟨hs3, hrelF⟩
-        subst s3
-        have hph := hrelF _ hpr
-        obtain ⟨vh, hvh⟩ := denoteE_view hph
-        refine tag_view_bind_triple hvh ?_
-          (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-        cases vh
-        case const T lus =>
-          obtain ⟨Tn, lusv, hgf, hTn, _⟩ := denote_const_inv hwf hvh hph
-          dsimp only
-          split
-          next icvT icaps hfT =>
-            obtain ⟨dcvT, dcaps, hdcvT, hdcaps, hfindT⟩ := env_ind_of_index hok hTn hfT
-            have hpre := fun F => majorToCtorFueled_pre (F := F) (d := d) (cn := cn)
-              (mode := mode) hnc hfindj hgf hfindT
-            by_cases hk : rl.k = true
-            · rw [ite_eq_left hk]
-              refine triple_mono (majorK_spec hμ hsim s₀ d rl rl' major x icvj dcvj
-                cnP cnF T Tn hok hrl' hden hw hdcvj hTn hfindj) ?_
-              rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
-              exact ⟨h1, h2, h3, v, hv, hwv, F, by dsimp only; rw [hpre, ite_eq_left (hk' ▸ hk)]; exact hF⟩
-            · rw [ite_eq_right hk]
-              have hkf : (rl'.k = true) = False := by rw [hk']; simpa using hk
-              by_cases he : rl.eta = true
-              · rw [ite_eq_left he]
-                refine triple_mono (majorEta_spec hsim s₀ d major x
-                  icvT dcvT icaps dcaps T Tn hok hden hw hdcvT hdcaps hTn) ?_
-                rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
-                exact ⟨h1, h2, h3, v, hv, hwv, F, by
-                  dsimp only; rw [hpre, ite_eq_right (by rw [hk']; exact hk), ite_eq_left (he' ▸ he)]; exact hF⟩
-              · rw [ite_eq_right he]
-                unfold ConRon.Arena.pinAnd
-                refine triple_seq (pinAt_spec s₀ PIN_AND hok.pins) ?_
-                rintro an s4 ⟨hs4, han⟩
-                subst s4
-                have hTan := nidx_eq_iff hwf hTn (han _ rfl)
-                by_cases hta : T = an
-                · rw [ite_eq_left hta]
-                  have hta' : Tn = ConLeche.andName := hTan.mp hta
-                  refine triple_mono (majorAnd_spec hμ hsim s₀ d rl rl' major x icvj
-                    dcvj cnP cnF T Tn hok hrl' hden hw hdcvj hTn hfindj) ?_
-                  rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
-                  exact ⟨h1, h2, h3, v, hv, hwv, F, by
-                    dsimp only; rw [hpre, ite_eq_right (by rw [hk']; exact hk),
-                      ite_eq_right (by rw [he']; exact he), ite_eq_left hta']; exact hF⟩
-                · rw [ite_eq_right hta]
-                  have hta' : ¬ Tn = ConLeche.andName := fun h => hta (hTan.mpr h)
-                  have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F => by
-                    rw [hpre, ite_eq_right (by rw [hk']; exact hk),
-                      ite_eq_right (by rw [he']; exact he), ite_eq_right hta']; rfl)
-                  vcgen
-                  bridge_peel; subst_vars
-                  exact hxit _ hok (Ext.refl _) rfl hF
-          next hnd =>
-            have hni := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
-            have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
-              majorToCtorFueled_nind hnc hfindj hgf hni)
-            vcgen
-            bridge_peel; subst_vars
-            exact hxit _ hok (Ext.refl _) rfl hF
-        all_goals
-          dsimp only
-          have hncT := denote_not_const hwf hvh hph (by intro c us h; cases h)
-          have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
-            majorToCtorFueled_nhead hnc hfindj hncT)
-          vcgen
-          bridge_peel; subst_vars
-          exact hxit _ hok (Ext.refl _) rfl hF
-      next hnd =>
-        have hnc' := env_not_ctor_of_index hok hrlc (fun v p q h => hnd v p q h)
-        have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
-          majorToCtorFueled_nctor hnc hnc')
-        vcgen
-        bridge_peel; subst_vars
-        exact hxit _ hok (Ext.refl _) rfl hF
-    next hnr =>
-      have hns : ∀ rl, rules' ≠ [rl] := by
-        intro rl h
-        subst h
-        have hl := denoteRules_len hr
-        match rules, hl, hnr with
-        | [r], _, hnr => exact hnr r rfl
-      have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F =>
-        majorToCtorFueled_nrules hnc hns)
-      vcgen
-      bridge_peel; subst_vars
-      exact hxit _ hok (Ext.refl _) rfl hF
 
 /-- con-leche: none — a denoting rule list has the same K bit. -/
 theorem recRuleK_denote {st : EStore} {rules : List IRecRule}
@@ -1363,79 +634,6 @@ theorem prepareMajorFueled_kStuck {F d : Nat} {cn : ConLeche.Name}
     e1, hc, Bool.false_eq_true, ite_false, bind, Except.bind]
   rfl
 
-/-- con-leche: none — the converse of the `lit` arm of `ETables.get`: a tier
-that decodes a handle to a literal view projects that literal. -/
-theorem ETables.getLit_of_get {t : ETables} {i : EIdx} {l : ConLeche.Literal}
-    (h : t.get i = some (.lit l)) : t.getLit i = some l := by
-  simp only [ETables.get] at h
-  simp only [ETables.getLit]
-  repeat' split at h
-  all_goals first
-    | (simp at h; done)
-    | (obtain ⟨r, hr, hh⟩ := Option.map_eq_some_iff.mp h
-       cases hh; simp_all)
-
-/-- con-leche: none — a handle that views to a literal is read by `viewLit`
-as that literal. -/
-theorem viewLit_of_view {st : EStore} {i : EIdx} {l : ConLeche.Literal}
-    (h : st.view i = some (.lit l)) : st.viewLit i = some l := by
-  rw [EStore.view_eq_tier] at h
-  simp only [EStore.viewLit, EStore.persGetLit]
-  by_cases hp : i.isPersistent = true
-  · rw [ite_eq_left hp] at h ⊢; exact ETables.getLit_of_get h
-  · simp only [Bool.not_eq_true] at hp
-    rw [hp] at h ⊢; simp only [Bool.false_eq_true, ite_false] at h ⊢
-    by_cases hon : st.scratchOn = true
-    · rw [ite_eq_left hon] at h ⊢; exact ETables.getLit_of_get h
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon] at h; simp at h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:689-692 Expr.isStrLit — **THEOREM 1
-for the twin's `isStrLit`**: a read-only test that agrees with the
-denotation's. -/
-theorem isStrLit_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.isStrLit h
-    ⦃fun b s' => s' = s₀ ∧ b = x.isStrLit; ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨v, hv⟩ := denoteE_view hden
-  unfold ConRon.Arena.isStrLit
-  by_cases ht : (h.tag == ETag.lit) = true
-  · rw [ite_eq_left ht]
-    have htag : h.tag = v.tagOf := EStore.tagOf_of_view hv
-    cases v
-    case lit l =>
-      obtain rfl := denote_lit_inv hwf hv hden
-      have hl := viewLit_of_view hv
-      cases l <;>
-        (simp only [ConRon.Arena.viewLit]
-         vcgen
-         all_goals first
-           | (bridge_peel; subst_vars; simp_all [Expr.isStrLit]; done)
-           | (bridge_peel; subst_vars; rename_i h1 h2; rw [hl] at h2; cases h2
-              exact (h1 _ rfl).elim))
-    all_goals
-      exfalso
-      simp only [ENodeView.tagOf] at htag
-      rw [htag] at ht
-      revert ht; decide
-  · rw [ite_eq_right ht]
-    have hns : x.isStrLit = false := by
-      cases x with
-      | lit l =>
-        cases l with
-        | natVal _ => rfl
-        | strVal _ =>
-          exfalso
-          obtain rfl := view_of_denote_lit hwf hv hden
-          have := EStore.tagOf_of_view hv
-          simp only [ENodeView.tagOf] at this
-          exact ht (by rw [this]; rfl)
-      | _ => rfl
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨rfl, hns.symm⟩
-
 /-- con-leche: ConLeche/Kernel/Core.lean:751-769 prepareMajor — elsewhere,
 the structure rescues on the major AS FOUND (lean4#15351; a `String` literal
 skips them) produced a constructor application: that is the major. -/
@@ -1492,11 +690,1176 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     simp only [ite_true, hc, Bool.false_eq_true, ite_false, e1, e2, e3, bind,
       Except.bind, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:751-769 prepareMajor — **THEOREM 1
-for `prepareMajor`**: the K rescue on the raw major, then only the literal
-conversion of a rescued constructor (con-leche task #334); elsewhere the
-structure rescues on the major as found, then head normalisation, the
-literal conversion and the rescues once more (lean4#15351). -/
+/-! ## `majorToCtor`: the arena's three rescue blocks as named programs -/
+
+/-- the twin's K rescue block (`majorToCtor`'s `rl.k` arm) -/
+def majorKA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
+    (cvj : IConstantVal) (cnP : Nat) (T : NIdx) (major : EIdx) : AM EIdx := do
+  let tmaj ← r.whnf depth (← r.inferIO depth major)
+  let hh ← getAppFn coreWalkFuel tmaj
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T' ust => do
+      let ustl ← viewLs ust
+      if T' = T ∧ cvj.levelParams.length = ustl.length then do
+        let targs ← getAppArgs coreWalkFuel tmaj
+        if cnP ≤ targs.length then do
+          let hd ← internE (.const rl.ctor ust)
+          let fab ← mkAppN hd (targs.take cnP)
+          if ← fabScopeOk depth fab major then do
+            if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+              let irK ←
+                if mode.verifiedChecks then ConRon.Arena.proofIrrel r fe depth fab major
+                else pure true
+              if irK then pure fab else pure major
+            else pure major
+          else pure major
+        else pure major
+      else pure major
+    | _ => pure major
+  else pure major
+
+/-- the twin's η rescue block (`majorToCtor`'s `rl.eta` arm) -/
+def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
+    (T : NIdx) (major : EIdx) : AM EIdx := do
+  let tmaj ← r.whnf depth (← r.inferIO depth major)
+  let hh ← getAppFn coreWalkFuel tmaj
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T' ust => do
+      let ustl ← viewLs ust
+      let targs ← getAppArgs coreWalkFuel tmaj
+      let nz ← capsNeverZero cvT.levelParams ust caps
+      if T' = T ∧ targs.length = caps.etaParams ∧
+          ustl.length = cvT.levelParams.length ∧ nz = true then do
+        let reserved ← reservedBasisNames
+        if reserved.contains T = false ∧
+            reserved.contains caps.etaCtor = false then do
+          if ← towerSlotsAll fe T caps.etaFields then do
+            let fabArgs ← etaFabArgsE T targs major caps.etaFields
+            let hd ← internE (.const caps.etaCtor ust)
+            let fab ← mkAppN hd fabArgs
+            if ← fabScopeOk depth fab major then pure fab
+            else pure major
+          else pure major
+        else pure major
+      else pure major
+    | _ => pure major
+  else pure major
+
+/-- the twin's `And` rescue block (`majorToCtor`'s pinned-`And` arm) -/
+def majorAndA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
+    (cvj : IConstantVal) (cnP : Nat) (T : NIdx) (major : EIdx) : AM EIdx := do
+  let tmaj ← r.whnf depth (← r.inferIO depth major)
+  let hh ← getAppFn coreWalkFuel tmaj
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T' ust => do
+      match ← viewLsLen ust with
+      | none => failDanglingLs
+      | some ustl =>
+      let targs ← getAppArgs coreWalkFuel tmaj
+      let ars ← andRescueSlots fe rl.ctor cnP ust
+      if T' = T ∧ targs.length = cnP ∧
+          cvj.levelParams.length = ustl ∧ ars = true then do
+        let p0 ← internE (.proj T 0 major)
+        let p1 ← internE (.proj T 1 major)
+        let fabArgs := targs ++ [p0, p1]
+        let hd ← internE (.const rl.ctor ust)
+        let fab ← mkAppN hd fabArgs
+        if ← fabScopeOk depth fab major then do
+          if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+            let irA ←
+              if mode.verifiedChecks then ConRon.Arena.proofIrrel r fe depth fab major
+              else pure true
+            if irA then pure fab else pure major
+          else pure major
+        else pure major
+      else pure major
+    | _ => pure major
+  else pure major
+
+/-- the twin's `majorToCtor` at a single rule, its three rescues named -/
+theorem majorToCtor_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (c : NIdx) (rl : IRecRule) (major : EIdx) :
+    ConRon.Arena.majorToCtor mode r fe depth c [rl] major = (do
+      if ← isCtorApp fe major then pure major else
+      match fe.find? rl.ctor with
+      | some (.ctorInfo cvj cnP _cnF) => do
+        let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
+        if hh.tag == ETag.const then
+          match ← view hh with
+          | .const T _ =>
+            match fe.find? T with
+            | some (.indInfo cvT caps) =>
+              if rl.k = true then majorKA mode r fe depth rl cvj cnP T major
+              else if rl.eta = true then majorEtaA r fe depth cvT caps T major
+              else do
+                let an ← pinAnd
+                if T = an then majorAndA mode r fe depth rl cvj cnP T major
+                else pure major
+            | _ => pure major
+          | _ => pure major
+        else pure major
+      | _ => pure major) := rfl
+
+/-! ## The K rescue -/
+
+/-- `mtcK` past its two knot calls, as a function of the head-normalised type -/
+def mtcKT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major tmaj : Expr) :
+    CheckM Expr :=
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ cvj.levelParams.length = ust.length then
+      if cnP ≤ tmaj.getAppArgs.length then
+        let fab := Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)
+        if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+            fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+          (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
+          (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+          if rd then
+            (if mode.verifiedChecks then
+              ConLeche.proofIrrel (ConLeche.pureFns mode env F) d fab major
+            else pure true) >>= fun r => if r then pure fab else pure major
+          else pure major
+        else pure major
+      else pure major
+    else pure major
+  | _ => pure major
+
+theorem mtcK_eq (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
+    mtcK mode env F d rl cvj cnP T major =
+      ((ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+       (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+       mtcKT mode env F d rl cvj cnP T major tmaj) := rfl
+
+/-- the K fabrication -/
+def kFab (rl : RecRule) (cnP : Nat) (tmaj : Expr) : Expr :=
+  Expr.mkAppN (.const rl.ctor (exprConstLevels tmaj.getAppFn)) (tmaj.getAppArgs.take cnP)
+
+def mtcKOp (mode : CheckMode) (env : Env) (d : Nat) (rl : RecRule) (cvj : ConstantVal)
+    (cnP : Nat) (T : ConLeche.Name) (x : Expr) : Nat → CheckM Expr :=
+  fun F => mtcK mode env F d rl cvj cnP T x
+
+/-- the run of `mtcK` through its prefix: the tail at one merged fuel -/
+theorem mtcK_runs {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj v : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (h3 : ∃ F₀, ∀ F, F₀ ≤ F → mtcKT mode env F d rl cvj cnP T x tmaj = .ok v) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) v := by
+  obtain ⟨F1, hF1⟩ := h1
+  obtain ⟨F2, hF2⟩ := h2
+  obtain ⟨F3, hF3⟩ := h3
+  refine ⟨max F1 (max F2 F3), ?_⟩
+  have e1 : (ConLeche.pureFns mode env (max F1 (max F2 F3))).inferIO d x = .ok tm :=
+    ConLeche.inferTypeIO_mono (by omega) hF1
+  have e2 : (ConLeche.pureFns mode env (max F1 (max F2 F3))).whnf d tm = .ok tmaj :=
+    ConLeche.whnf_mono (by omega) hF2
+  simp only [mtcKOp, mtcK_eq, e1, e2, bind, Except.bind]
+  exact hF3 _ (by omega)
+
+theorem mtcK_nohead {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : (exprTag tmaj.getAppFn == ETag.const) = false) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) x := by
+  refine mtcK_runs h1 h2 ⟨0, fun F _ => ?_⟩
+  unfold mtcKT
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first | rfl | (simp [exprTag] at hg)
+grind_pattern [bridge_grind] mtcK_nohead =>
+  mtcKOp mode env d rl cvj cnP T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcKT_const {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tmaj : Expr}
+    (hg : exprTag tmaj.getAppFn = ETag.const) :
+    mtcKT mode env F d rl cvj cnP T x tmaj =
+      if exprConstName tmaj.getAppFn = T ∧
+          cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length then
+        if cnP ≤ tmaj.getAppArgs.length then
+          if scopeOkFn d (kFab rl cnP tmaj) x then
+            (ConLeche.pureFns mode env F).inferIO d (kFab rl cnP tmaj) >>= fun tfab =>
+            (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+            if rd then
+              (if mode.verifiedChecks then
+                ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (kFab rl cnP tmaj) x
+              else pure true) >>= fun r => if r then pure (kFab rl cnP tmaj) else pure x
+            else pure x
+          else pure x
+        else pure x
+      else pure x := by
+  unfold mtcKT kFab scopeOkFn
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first | rfl | exact absurd hg (by simp only [exprTag]; decide)
+
+theorem mtcK_guard {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : ¬ (exprConstName tmaj.getAppFn = T ∧
+          cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length ∧
+          cnP ≤ tmaj.getAppArgs.length ∧ scopeOkFn d (kFab rl cnP tmaj) x = true)) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) x := by
+  refine mtcK_runs h1 h2 ⟨0, fun F _ => ?_⟩
+  rw [mtcKT_const hg]
+  by_cases a : exprConstName tmaj.getAppFn = T ∧
+      cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length
+  · rw [ite_eq_left a]
+    by_cases b : cnP ≤ tmaj.getAppArgs.length
+    · rw [ite_eq_left b]
+      have c : scopeOkFn d (kFab rl cnP tmaj) x = false := by
+        cases h : scopeOkFn d (kFab rl cnP tmaj) x
+        · rfl
+        · exact absurd ⟨a.1, a.2, b, h⟩ hc
+      rw [c]; rfl
+    · rw [ite_eq_right b]; rfl
+  · rw [ite_eq_right a]; rfl
+grind_pattern [bridge_grind] mtcK_guard =>
+  mtcKOp mode env d rl cvj cnP T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcK_fireR {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr} {b5 b6 : Bool}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : exprConstName tmaj.getAppFn = T ∧
+          cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length ∧
+          cnP ≤ tmaj.getAppArgs.length ∧ scopeOkFn d (kFab rl cnP tmaj) x = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (kFab rl cnP tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf b5)
+    (h6 : b5 = true → Runs (proofIrrelOp mode env d (kFab rl cnP tmaj) x) b6) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) (if b5 && b6 then kFab rl cnP tmaj else x) := by
+  obtain ⟨F4, hF4⟩ := h4
+  obtain ⟨F5, hF5⟩ := h5
+  have h6' : ∃ F6, b5 = true →
+      ConLeche.proofIrrelFueled mode env F6 d (kFab rl cnP tmaj) x = .ok b6 := by
+    cases b5
+    · exact ⟨0, nofun⟩
+    · obtain ⟨F6, hF6⟩ := h6 rfl; exact ⟨F6, fun _ => hF6⟩
+  obtain ⟨F6, hF6⟩ := h6'
+  refine mtcK_runs h1 h2 ⟨max F4 (max F5 F6), fun F hF => ?_⟩
+  obtain ⟨ha, hb, hb', hs⟩ := hc
+  rw [mtcKT_const hg, ite_eq_left ⟨ha, hb⟩, ite_eq_left hb', ite_eq_left hs]
+  have e4 : (ConLeche.pureFns mode env F).inferIO d (kFab rl cnP tmaj) = .ok tf :=
+    ConLeche.inferTypeIO_mono (by omega) hF4
+  have e5 : (ConLeche.pureFns mode env F).defeq d tmaj tf = .ok b5 :=
+    ConLeche.isDefEqCore_mono (by omega) hF5
+  simp only [e4, e5, bind, Except.bind]
+  cases b5
+  · rfl
+  · have e6 : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (kFab rl cnP tmaj) x = .ok b6 :=
+      proofIrrelFueled_mono (by omega) (hF6 rfl)
+    simp only [ite_true, hμ, e6]
+    cases b6 <;> rfl
+
+theorem mtcK_df {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : exprConstName tmaj.getAppFn = T ∧
+          cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length ∧
+          cnP ≤ tmaj.getAppArgs.length ∧ scopeOkFn d (kFab rl cnP tmaj) x = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (kFab rl cnP tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf false) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) x :=
+  mtcK_fireR (b6 := false) hμ h1 h2 hg hc h4 h5 nofun
+grind_pattern [bridge_grind] mtcK_df =>
+  mtcKOp mode env d rl cvj cnP T x, RunE (ConLeche.whnf mode env) d tm tmaj,
+    SimV (ConLeche.isDefEqCore mode env) d tmaj tf false
+
+theorem mtcK_pi {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr} {b6 : Bool}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : exprConstName tmaj.getAppFn = T ∧
+          cvj.levelParams.length = (exprConstLevels tmaj.getAppFn).length ∧
+          cnP ≤ tmaj.getAppArgs.length ∧ scopeOkFn d (kFab rl cnP tmaj) x = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (kFab rl cnP tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf true)
+    (h6 : Runs (proofIrrelOp mode env d (kFab rl cnP tmaj) x) b6) :
+    Runs (mtcKOp mode env d rl cvj cnP T x) (if b6 then kFab rl cnP tmaj else x) := by
+  have := mtcK_fireR (b5 := true) hμ h1 h2 hg hc h4 h5 (fun _ => h6)
+  simpa using this
+grind_pattern [bridge_grind] mtcK_pi =>
+  mtcKOp mode env d rl cvj cnP T x, RunE (ConLeche.whnf mode env) d tm tmaj,
+    SimV (ConLeche.isDefEqCore mode env) d tmaj tf true,
+    Runs (proofIrrelOp mode env d (kFab rl cnP tmaj) x) b6
+
+/-- two name handles of one store with one denotation are one handle -/
+theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
+    (x : Expr) (icvj : IConstantVal) (dcvj : ConstantVal) (cnP : Nat)
+    (T : NIdx) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s₁) (hrl' : Frontend.denoteRule s₁.store rl = some rl')
+    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
+    (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
+    (hT : denoteN s₁.store.ns T = some Tn) :
+    ⦃fun s => s = s₁⦄
+      majorKA mode (coreKnot mode fe id fuel) fe d rl icvj cnP T major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+        s'.pins = s₁.pins ∧
+        SimEOp (mtcKOp mode env d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
+  have hrc := (rule_denote hrl').2.2.1
+  sym (gen := 16) only [bridge_grind, kFab, ← viewOK_const] =>
+    vcgen [majorKA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
+      internE_specC (mode := mode) (env := env) (fe := fe),
+      mkAppN_specC (mode := mode) (env := env) (fe := fe),
+      fabScopeOk_specS (mode := mode) (env := env) (fe := fe), hsim.defeqS,
+      proofIrrel_specS hsim] <;> finish
+
+/-! ## The η rescue -/
+
+def mtcEtaT (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps) (T : ConLeche.Name)
+    (major tmaj : Expr) : CheckM Expr :=
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
+        ust.length = cvT.levelParams.length ∧
+        ConLeche.capsNeverZero cvT.levelParams ust caps = true ∧
+        ConLeche.reservedBasisNames.contains T = false ∧
+        ConLeche.reservedBasisNames.contains caps.etaCtor = false ∧
+        ConLeche.towerSlotsAll env T caps.etaFields = true then
+      let fab := Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE T tmaj.getAppArgs major caps.etaFields)
+      if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+          fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+        pure fab
+      else pure major
+    else pure major
+  | _ => pure major
+
+theorem mtcEta_eq (mode : CheckMode) (env : Env) (F d : Nat) (cvT : ConstantVal)
+    (caps : IndCaps) (T : ConLeche.Name) (major : Expr) :
+    mtcEta mode env F d cvT caps T major =
+      ((ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+       (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+       mtcEtaT env d cvT caps T major tmaj) := rfl
+
+/-- the η fabrication -/
+def etaFab (caps : IndCaps) (T : ConLeche.Name) (x tmaj : Expr) : Expr :=
+  Expr.mkAppN (.const caps.etaCtor (exprConstLevels tmaj.getAppFn))
+    (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)
+
+/-- the η rescue's guards, at the head-normalised type -/
+def etaRescueOk (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps) (T : ConLeche.Name)
+    (x tmaj : Expr) : Bool :=
+  exprConstName tmaj.getAppFn == T && tmaj.getAppArgs.length == caps.etaParams &&
+    (exprConstLevels tmaj.getAppFn).length == cvT.levelParams.length &&
+    ConLeche.capsNeverZero cvT.levelParams (exprConstLevels tmaj.getAppFn) caps &&
+    !ConLeche.reservedBasisNames.contains T &&
+    !ConLeche.reservedBasisNames.contains caps.etaCtor &&
+    ConLeche.towerSlotsAll env T caps.etaFields &&
+    scopeOkFn d (etaFab caps T x tmaj) x
+
+def mtcEtaOp (mode : CheckMode) (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps)
+    (T : ConLeche.Name) (x : Expr) : Nat → CheckM Expr :=
+  fun F => mtcEta mode env F d cvT caps T x
+
+theorem mtcEta_runs {d : Nat} {cvT : ConstantVal} {caps : IndCaps}
+    {T : ConLeche.Name} {x tm tmaj v : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (h3 : mtcEtaT env d cvT caps T x tmaj = .ok v) :
+    Runs (mtcEtaOp mode env d cvT caps T x) v := by
+  obtain ⟨F1, hF1⟩ := h1
+  obtain ⟨F2, hF2⟩ := h2
+  refine ⟨max F1 F2, ?_⟩
+  have e1 : (ConLeche.pureFns mode env (max F1 F2)).inferIO d x = .ok tm :=
+    ConLeche.inferTypeIO_mono (by omega) hF1
+  have e2 : (ConLeche.pureFns mode env (max F1 F2)).whnf d tm = .ok tmaj :=
+    ConLeche.whnf_mono (by omega) hF2
+  simp only [mtcEtaOp, mtcEta_eq, e1, e2, bind, Except.bind, h3]
+
+theorem mtcEtaT_nohead {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
+    {x tmaj : Expr} (hg : (exprTag tmaj.getAppFn == ETag.const) = false) :
+    mtcEtaT env d cvT caps T x tmaj = .ok x := by
+  unfold mtcEtaT
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first | rfl | (simp [exprTag] at hg)
+
+theorem mtcEtaT_const {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
+    {x tmaj : Expr} (hg : exprTag tmaj.getAppFn = ETag.const) :
+    mtcEtaT env d cvT caps T x tmaj =
+      if etaRescueOk env d cvT caps T x tmaj then .ok (etaFab caps T x tmaj) else .ok x := by
+  unfold mtcEtaT etaRescueOk etaFab scopeOkFn
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first
+    | exact absurd hg (by simp only [exprTag]; decide)
+    | skip
+  simp only [exprConstName, exprConstLevels]
+  split <;> rename_i h1 <;> simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at h1 ⊢
+  · split <;> rename_i h2
+    · rw [ite_eq_left (by simp_all)]; rfl
+    · rw [ite_eq_right (by simp_all)]; rfl
+  · rw [ite_eq_right (by simp_all)]; rfl
+
+theorem mtcEta_nohead {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
+    {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : (exprTag tmaj.getAppFn == ETag.const) = false) :
+    Runs (mtcEtaOp mode env d cvT caps T x) x :=
+  mtcEta_runs h1 h2 (mtcEtaT_nohead hg)
+grind_pattern [bridge_grind] mtcEta_nohead =>
+  mtcEtaOp mode env d cvT caps T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcEta_no {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
+    {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hn : etaRescueOk env d cvT caps T x tmaj = false) :
+    Runs (mtcEtaOp mode env d cvT caps T x) x :=
+  mtcEta_runs h1 h2 (by rw [mtcEtaT_const hg, hn]; rfl)
+grind_pattern [bridge_grind] mtcEta_no =>
+  mtcEtaOp mode env d cvT caps T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcEta_fab {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
+    {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hy : etaRescueOk env d cvT caps T x tmaj = true) :
+    Runs (mtcEtaOp mode env d cvT caps T x) (etaFab caps T x tmaj) :=
+  mtcEta_runs h1 h2 (by rw [mtcEtaT_const hg, hy]; rfl)
+grind_pattern [bridge_grind] mtcEta_fab =>
+  mtcEtaOp mode env d cvT caps T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+/-- `capsNeverZero`'s answer at optional subjects -/
+def CapsNZ (r : Bool) : Option (List ConLeche.Name) → Option (List Level) → Option IndCaps → Prop
+  | some ks, some vs, some c => r = ConLeche.capsNeverZero ks vs c
+  | _, _, _ => True
+
+@[bridge_grind =] theorem CapsNZ.some_eq (r : Bool) (ks : List ConLeche.Name) (vs : List Level)
+    (c : IndCaps) : CapsNZ r (some ks) (some vs) (some c) = (r = ConLeche.capsNeverZero ks vs c) :=
+  rfl
+
+theorem capsNeverZero_specS (s₀ : AState) (lps : List NIdx) (us : LsIdx)
+    (icaps : IIndCaps) (hok : CheckOK mode env fe s₀)
+    (hks : (Frontend.denoteNList s₀.store.ns lps).isSome = true)
+    (hvs : (denoteLs s₀.store.lss us).isSome = true)
+    (hcaps : (Frontend.denoteCaps s₀.store icaps).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.capsNeverZero lps us icaps
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        CapsNZ r (Frontend.denoteNList s₀.store.ns lps) (denoteLs s₀.store.lss us)
+          (Frontend.denoteCaps s₀.store icaps); ⊤⦄ := by
+  obtain ⟨ks, h1⟩ := Option.isSome_iff_exists.mp hks
+  obtain ⟨vs, h2⟩ := Option.isSome_iff_exists.mp hvs
+  obtain ⟨c, h3⟩ := Option.isSome_iff_exists.mp hcaps
+  rw [h1, h2, h3]
+  exact capsNeverZero_spec s₀ lps us icaps ks vs c hok h1 h2 h3
+
+/-- con-leche's η spine arguments at a fixed family, major and field count -/
+def etaArgsFn (T : ConLeche.Name) (x : Expr) (nF : Nat) (ts : List Expr) : List Expr :=
+  ConLeche.etaFabArgsE T ts x nF
+
+theorem etaFabArgsE_specS (s₀ : AState) (T : NIdx) (targs : List EIdx) (major : EIdx) (nF : Nat)
+    (Tn : ConLeche.Name) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
+    (hts : (Frontend.denoteEList s₀.store targs).isSome = true)
+    (hx : denoteE s₀.store major = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.etaFabArgsE T targs major nF
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        MapRel (etaArgsFn Tn x nF) (Frontend.denoteEList s₀.store targs)
+          (Frontend.denoteEList s'.store r); ⊤⦄ := by
+  obtain ⟨ts, h1⟩ := Option.isSome_iff_exists.mp hts
+  rw [h1]
+  exact etaFabArgsE_spec s₀ T targs major nF Tn ts x hok hT h1 hx
+
+theorem majorEta_spec {fuel : Nat}
+    (hsim : KnotSpec mode env fe fuel)
+    (s₁ : AState) (d : Nat) (major : EIdx) (x : Expr)
+    (icvT : IConstantVal) (dcvT : ConstantVal) (icaps : IIndCaps)
+    (dcaps : IndCaps) (T : NIdx) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s₁)
+    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
+    (hdcvT : Frontend.denoteCV s₁.store icvT = some dcvT)
+    (hcaps : Frontend.denoteCaps s₁.store icaps = some dcaps)
+    (hT : denoteN s₁.store.ns T = some Tn) :
+    ⦃fun s => s = s₁⦄
+      majorEtaA (coreKnot mode fe id fuel) fe d icvT icaps T major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+        s'.pins = s₁.pins ∧
+        SimEOp (mtcEtaOp mode env d dcvT dcaps Tn x) d s'.store r; ⊤⦄ := by
+  obtain ⟨_, hctor, hep, hef, _⟩ := denoteCaps_fields hcaps
+  sym (gen := 16) only [bridge_grind, etaFab, etaRescueOk, etaArgsFn, ← viewOK_const] =>
+    vcgen [majorEtaA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
+      capsNeverZero_specS (mode := mode) (env := env) (fe := fe),
+      reservedBasisNames_spec (mode := mode) (env := env) (fe := fe),
+      towerSlotsAll_spec (mode := mode) (env := env) (fe := fe) (Tn := Tn),
+      etaFabArgsE_specS (mode := mode) (env := env) (fe := fe) (Tn := Tn) (x := x),
+      internE_specC (mode := mode) (env := env) (fe := fe),
+      mkAppN_specC (mode := mode) (env := env) (fe := fe),
+      fabScopeOk_specS (mode := mode) (env := env) (fe := fe)] <;> finish
+
+/-! ## The `And` rescue -/
+
+def mtcAndT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major tmaj : Expr) :
+    CheckM Expr :=
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ tmaj.getAppArgs.length = cnP ∧
+        cvj.levelParams.length = ust.length ∧
+        ConLeche.andRescueSlots env rl.ctor cnP ust = true then
+      let fab := Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 major, .proj T 1 major])
+      if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+          fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+        (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
+        (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+        if rd then
+          (if mode.verifiedChecks then
+            ConLeche.proofIrrel (ConLeche.pureFns mode env F) d fab major
+          else pure true) >>= fun r => if r then pure fab else pure major
+        else pure major
+      else pure major
+    else pure major
+  | _ => pure major
+
+theorem mtcAnd_eq (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
+    mtcAnd mode env F d rl cvj cnP T major =
+      ((ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+       (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+       mtcAndT mode env F d rl cvj cnP T major tmaj) := rfl
+
+/-- the `And` fabrication -/
+def andFab (rl : RecRule) (T : ConLeche.Name) (x tmaj : Expr) : Expr :=
+  Expr.mkAppN (.const rl.ctor (exprConstLevels tmaj.getAppFn))
+    (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])
+
+/-- the `And` rescue's syntactic guards and scope check -/
+def andRescueOk (env : Env) (d : Nat) (rl : RecRule) (cvj : ConstantVal) (cnP : Nat)
+    (T : ConLeche.Name) (x tmaj : Expr) : Bool :=
+  exprConstName tmaj.getAppFn == T && tmaj.getAppArgs.length == cnP &&
+    cvj.levelParams.length == (exprConstLevels tmaj.getAppFn).length &&
+    ConLeche.andRescueSlots env rl.ctor cnP (exprConstLevels tmaj.getAppFn) &&
+    scopeOkFn d (andFab rl T x tmaj) x
+
+def mtcAndOp (mode : CheckMode) (env : Env) (d : Nat) (rl : RecRule) (cvj : ConstantVal)
+    (cnP : Nat) (T : ConLeche.Name) (x : Expr) : Nat → CheckM Expr :=
+  fun F => mtcAnd mode env F d rl cvj cnP T x
+
+theorem mtcAnd_runs {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj v : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (h3 : ∃ F₀, ∀ F, F₀ ≤ F → mtcAndT mode env F d rl cvj cnP T x tmaj = .ok v) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) v := by
+  obtain ⟨F1, hF1⟩ := h1
+  obtain ⟨F2, hF2⟩ := h2
+  obtain ⟨F3, hF3⟩ := h3
+  refine ⟨max F1 (max F2 F3), ?_⟩
+  have e1 : (ConLeche.pureFns mode env (max F1 (max F2 F3))).inferIO d x = .ok tm :=
+    ConLeche.inferTypeIO_mono (by omega) hF1
+  have e2 : (ConLeche.pureFns mode env (max F1 (max F2 F3))).whnf d tm = .ok tmaj :=
+    ConLeche.whnf_mono (by omega) hF2
+  simp only [mtcAndOp, mtcAnd_eq, e1, e2, bind, Except.bind]
+  exact hF3 _ (by omega)
+
+theorem mtcAndT_const {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tmaj : Expr}
+    (hg : exprTag tmaj.getAppFn = ETag.const) :
+    mtcAndT mode env F d rl cvj cnP T x tmaj =
+      if andRescueOk env d rl cvj cnP T x tmaj then
+        (ConLeche.pureFns mode env F).inferIO d (andFab rl T x tmaj) >>= fun tfab =>
+        (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+        if rd then
+          (if mode.verifiedChecks then
+            ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (andFab rl T x tmaj) x
+          else pure true) >>= fun r => if r then pure (andFab rl T x tmaj) else pure x
+        else pure x
+      else pure x := by
+  unfold mtcAndT andRescueOk andFab scopeOkFn
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first
+    | exact absurd hg (by simp only [exprTag]; decide)
+    | skip
+  rename_i T' ust
+  simp only [exprConstName, exprConstLevels]
+  by_cases h1 : T' = T ∧ tmaj.getAppArgs.length = cnP ∧ cvj.levelParams.length = ust.length ∧
+      ConLeche.andRescueSlots env rl.ctor cnP ust = true
+  · rw [ite_eq_left h1]
+    obtain ⟨a, b, c, e⟩ := h1
+    subst a b
+    simp only [beq_self_eq_true, c, e, Bool.true_and]
+  · rw [ite_eq_right h1]
+    have hb : (T' == T && tmaj.getAppArgs.length == cnP &&
+        cvj.levelParams.length == ust.length &&
+        ConLeche.andRescueSlots env rl.ctor cnP ust) = false :=
+      Bool.eq_false_iff.mpr fun h => h1 (by
+        simp only [Bool.and_eq_true, beq_iff_eq] at h; exact ⟨h.1.1.1, h.1.1.2, h.1.2, h.2⟩)
+    simp only [hb, Bool.false_and, Bool.false_eq_true, ite_false]
+
+theorem mtcAnd_nohead {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : (exprTag tmaj.getAppFn == ETag.const) = false) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) x := by
+  refine mtcAnd_runs h1 h2 ⟨0, fun F _ => ?_⟩
+  unfold mtcAndT
+  generalize tmaj.getAppFn = g at hg ⊢
+  cases g <;> first | rfl | (simp [exprTag] at hg)
+grind_pattern [bridge_grind] mtcAnd_nohead =>
+  mtcAndOp mode env d rl cvj cnP T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcAnd_guard {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : andRescueOk env d rl cvj cnP T x tmaj = false) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) x := by
+  refine mtcAnd_runs h1 h2 ⟨0, fun F _ => ?_⟩
+  rw [mtcAndT_const hg, hc]; rfl
+grind_pattern [bridge_grind] mtcAnd_guard =>
+  mtcAndOp mode env d rl cvj cnP T x, RunE (ConLeche.inferTypeIO mode env) d x tm,
+    RunE (ConLeche.whnf mode env) d tm tmaj
+
+theorem mtcAnd_fireR {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr} {b5 b6 : Bool}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : andRescueOk env d rl cvj cnP T x tmaj = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (andFab rl T x tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf b5)
+    (h6 : b5 = true → Runs (proofIrrelOp mode env d (andFab rl T x tmaj) x) b6) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) (if b5 && b6 then andFab rl T x tmaj else x) := by
+  obtain ⟨F4, hF4⟩ := h4
+  obtain ⟨F5, hF5⟩ := h5
+  have h6' : ∃ F6, b5 = true →
+      ConLeche.proofIrrelFueled mode env F6 d (andFab rl T x tmaj) x = .ok b6 := by
+    cases b5
+    · exact ⟨0, nofun⟩
+    · obtain ⟨F6, hF6⟩ := h6 rfl; exact ⟨F6, fun _ => hF6⟩
+  obtain ⟨F6, hF6⟩ := h6'
+  refine mtcAnd_runs h1 h2 ⟨max F4 (max F5 F6), fun F hF => ?_⟩
+  rw [mtcAndT_const hg, hc]
+  have e4 : (ConLeche.pureFns mode env F).inferIO d (andFab rl T x tmaj) = .ok tf :=
+    ConLeche.inferTypeIO_mono (by omega) hF4
+  have e5 : (ConLeche.pureFns mode env F).defeq d tmaj tf = .ok b5 :=
+    ConLeche.isDefEqCore_mono (by omega) hF5
+  simp only [e4, e5, bind, Except.bind, ite_true]
+  cases b5
+  · rfl
+  · have e6 : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d (andFab rl T x tmaj) x =
+        .ok b6 := proofIrrelFueled_mono (by omega) (hF6 rfl)
+    simp only [ite_true, hμ, e6]
+    cases b6 <;> rfl
+
+theorem mtcAnd_df {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : andRescueOk env d rl cvj cnP T x tmaj = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (andFab rl T x tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf false) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) x :=
+  mtcAnd_fireR (b6 := false) hμ h1 h2 hg hc h4 h5 nofun
+grind_pattern [bridge_grind] mtcAnd_df =>
+  mtcAndOp mode env d rl cvj cnP T x, RunE (ConLeche.whnf mode env) d tm tmaj,
+    SimV (ConLeche.isDefEqCore mode env) d tmaj tf false
+
+theorem mtcAnd_pi {d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T : ConLeche.Name} {x tm tmaj tf : Expr} {b6 : Bool}
+    (hμ : mode.verifiedChecks = true)
+    (h1 : RunE (ConLeche.inferTypeIO mode env) d x tm)
+    (h2 : RunE (ConLeche.whnf mode env) d tm tmaj)
+    (hg : exprTag tmaj.getAppFn = ETag.const)
+    (hc : andRescueOk env d rl cvj cnP T x tmaj = true)
+    (h4 : RunE (ConLeche.inferTypeIO mode env) d (andFab rl T x tmaj) tf)
+    (h5 : SimV (ConLeche.isDefEqCore mode env) d tmaj tf true)
+    (h6 : Runs (proofIrrelOp mode env d (andFab rl T x tmaj) x) b6) :
+    Runs (mtcAndOp mode env d rl cvj cnP T x) (if b6 then andFab rl T x tmaj else x) := by
+  have := mtcAnd_fireR (b5 := true) hμ h1 h2 hg hc h4 h5 (fun _ => h6)
+  simpa using this
+grind_pattern [bridge_grind] mtcAnd_pi =>
+  mtcAndOp mode env d rl cvj cnP T x, RunE (ConLeche.whnf mode env) d tm tmaj,
+    SimV (ConLeche.isDefEqCore mode env) d tmaj tf true,
+    Runs (proofIrrelOp mode env d (andFab rl T x tmaj) x) b6
+
+/-- `andRescueSlots`'s answer at the level list's denotation -/
+def AndSlotsAns (env : Env) (cn : ConLeche.Name) (nP : Nat) (r : Bool) :
+    Option (List Level) → Prop
+  | some ls => r = ConLeche.andRescueSlots env cn nP ls
+  | none => True
+
+@[bridge_grind =] theorem AndSlotsAns.some_eq (cn : ConLeche.Name) (nP : Nat) (r : Bool)
+    (ls : List Level) :
+    AndSlotsAns env cn nP r (some ls) = (r = ConLeche.andRescueSlots env cn nP ls) := rfl
+
+theorem andRescueSlots_specS (s₀ : AState) (ctor : NIdx) (nP : Nat) (ust : LsIdx)
+    (cn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
+    (hc : denoteN s₀.store.ns ctor = some cn) (hus : (denoteLs s₀.store.lss ust).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        AndSlotsAns env cn nP r (denoteLs s₀.store.lss ust); ⊤⦄ := by
+  obtain ⟨ls, h1⟩ := Option.isSome_iff_exists.mp hus
+  rw [h1]
+  exact andRescueSlots_spec s₀ ctor nP ust cn ls hok hc h1
+
+theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
+    (x : Expr) (icvj : IConstantVal) (dcvj : ConstantVal) (cnP : Nat)
+    (T : NIdx) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s₁) (hrl' : Frontend.denoteRule s₁.store rl = some rl')
+    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
+    (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
+    (hT : denoteN s₁.store.ns T = some Tn) :
+    ⦃fun s => s = s₁⦄
+      majorAndA mode (coreKnot mode fe id fuel) fe d rl icvj cnP T major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+        s'.pins = s₁.pins ∧
+        SimEOp (mtcAndOp mode env d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
+  have hrc := (rule_denote hrl').2.2.1
+  sym (gen := 16) only [bridge_grind, -denoteEList_cons_ans, -denoteEView, denoteEView_proj,
+      denoteEView_const, andFab, andRescueOk, denoteEList_append_eq,
+      denoteEList_cons_eq, ← viewOK_const] =>
+    vcgen [majorAndA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
+      andRescueSlots_specS (mode := mode) (env := env) (fe := fe) (cn := rl'.ctor),
+      internE_specC (mode := mode) (env := env) (fe := fe),
+      mkAppN_specC (mode := mode) (env := env) (fe := fe),
+      fabScopeOk_specS (mode := mode) (env := env) (fe := fe), hsim.defeqS,
+      proofIrrel_specS hsim] <;> finish
+
+/-! ## `litMajorToCtor` -/
+
+/-- the twin's `litMajorToCtor` with its literal match one constructor deep -/
+theorem litMajorToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
+    ConRon.Arena.litMajorToCtor r fe d h =
+      (if h.tag == ETag.lit then do
+        let v ← view h
+        if litIsStr (nodeLit v) && v.tagOf == ETag.lit then do
+          if ← strLitSupported fe then do
+            let c ← strLitToConstructor (litStr (nodeLit v))
+            r.whnf d c
+          else pure h
+        else litToCtorIfNat fe h
+      else litToCtorIfNat fe h) := by
+  unfold ConRon.Arena.litMajorToCtor
+  split
+  · congr 1; funext v
+    cases v <;> try rfl
+    rename_i l; cases l <;> rfl
+  · rfl
+
+def litMajorOp (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) : Nat → CheckM Expr :=
+  fun F => ConLeche.litMajorToCtorFueled mode env F d x
+
+theorem litMajor_nstr {d : Nat} {x : Expr} (h : x.isStrLit = false) :
+    Runs (litMajorOp mode env d x) (ConLeche.litToCtorIfNat env x) :=
+  ⟨0, litMajorToCtorFueled_nstr (fun s hs => by subst hs; cases h)⟩
+grind_pattern [bridge_grind] litMajor_nstr => litMajorOp mode env d x
+
+theorem litMajor_unsup {d : Nat} {x : Expr} (h : x.isStrLit = true)
+    (hs : ConLeche.strLitSupported env = false) : Runs (litMajorOp mode env d x) x := by
+  refine ⟨0, ?_⟩
+  cases x with
+  | lit l => cases l with
+    | strVal s => simp [litMajorOp, ConLeche.litMajorToCtorFueled, ConLeche.litMajorToCtor, hs]; rfl
+    | natVal => cases h
+  | _ => cases h
+grind_pattern [bridge_grind] litMajor_unsup => litMajorOp mode env d x
+
+theorem litMajor_str {d : Nat} {x v : Expr} (h : x.isStrLit = true)
+    (hs : ConLeche.strLitSupported env = true)
+    (hw : RunE (ConLeche.whnf mode env) d (ConLeche.strLitToConstructor (litStr (exprLit x))) v) :
+    Runs (litMajorOp mode env d x) v := by
+  obtain ⟨F, hF⟩ := hw
+  refine ⟨F, ?_⟩
+  cases x with
+  | lit l => cases l with
+    | strVal s =>
+      simp only [litMajorOp, ConLeche.litMajorToCtorFueled, ConLeche.litMajorToCtor, hs, ite_true]
+      exact hF
+    | natVal => cases h
+  | _ => cases h
+grind_pattern [bridge_grind] litMajor_str =>
+  litMajorOp mode env d x, RunE (ConLeche.whnf mode env) d (ConLeche.strLitToConstructor (litStr (exprLit x))) v
+
+theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
+    (hw : Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ SimEOp (litMajorOp mode env d x) d s'.store r; ⊤⦄ := by
+  sym only [bridge_grind, isStrLit_eq, ConLeche.litToCtorIfNat_WScoped,
+      strLitToConstructor_WScoped] =>
+    vcgen [litMajorToCtor_split, strLitSupported_spec (mode := mode) (env := env) (fe := fe),
+      strLitToConstructor_spec (mode := mode) (env := env) (fe := fe), hsim.whnfS,
+      litToCtorIfNat_spec (x := x)] <;> finish
+
+/-! ## `majorToCtor`'s pure side -/
+
+def majorToCtorOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name)
+    (rules : List RecRule) (x : Expr) : Nat → CheckM Expr :=
+  fun F => ConLeche.majorToCtorFueled mode env F d cn rules x
+
+/-- the constructor's family name, read off its stored type -/
+def mtcFam (env : Env) (rl : RecRule) : ConLeche.Name :=
+  exprConstName (cCtorVal (env.find? rl.ctor)).type.piResult.getAppFn
+
+/-- the prefix every rescue shares: a stored constructor whose type ends in
+a stored inductive -/
+def mtcPrefixOk (env : Env) (rl : RecRule) : Bool :=
+  cCtor? (env.find? rl.ctor) &&
+    exprTag (cCtorVal (env.find? rl.ctor)).type.piResult.getAppFn == ETag.const &&
+    cInd? (env.find? (mtcFam env rl))
+
+theorem majorToCtorFueled_one {F d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x : Expr}
+    (hnc : ConLeche.isCtorApp env x = false) :
+    ConLeche.majorToCtorFueled mode env F d cn [rl] x =
+      if mtcPrefixOk env rl then
+        if rl.k = true then
+          mtcK mode env F d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+            (mtcFam env rl) x
+        else if rl.eta = true then
+          mtcEta mode env F d (cIndVal (env.find? (mtcFam env rl)))
+            (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x
+        else if mtcFam env rl = ConLeche.andName then
+          mtcAnd mode env F d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+            (mtcFam env rl) x
+        else .ok x
+      else .ok x := by
+  unfold mtcPrefixOk mtcFam
+  cases hf : env.find? rl.ctor with
+  | none =>
+    simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, cCtor?,
+      Bool.false_eq_true, ite_false, Bool.false_and]; rfl
+  | some ci =>
+    cases ci with
+    | ctorInfo cvj cnP cnF =>
+      simp only [cCtor?, cCtorVal, cCtorNP, Bool.true_and]
+      generalize hg : cvj.type.piResult.getAppFn = g
+      cases g with
+      | const T us =>
+        simp only [exprTag, exprConstName, beq_self_eq_true, Bool.true_and]
+        cases hT : env.find? T with
+        | none =>
+          simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, hg, hT, cInd?,
+            Bool.false_eq_true, ite_false]; rfl
+        | some ti =>
+          cases ti with
+          | indInfo cvT caps =>
+            have := majorToCtorFueled_pre (F := F) (d := d) (cn := cn) (mode := mode) hnc hf hg hT
+            simp only [cInd?, cIndVal, cIndCaps, ite_true]
+            rw [this]; rfl
+          | _ =>
+            simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, hg, hT, cInd?,
+              Bool.false_eq_true, ite_false]; rfl
+      | _ =>
+        simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, hg]
+        first | rfl | (simp only [exprTag]; rfl)
+    | _ =>
+      simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, cCtor?,
+        Bool.false_eq_true, ite_false, Bool.false_and]; rfl
+
+theorem mtc_isCtor {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x : Expr}
+    (h : ConLeche.isCtorApp env x = true) : Runs (majorToCtorOp mode env d cn rules x) x :=
+  ⟨0, majorToCtorFueled_ctor (mode := mode) (cn := cn) (rules := rules) (d := d) h⟩
+grind_pattern [bridge_grind] mtc_isCtor => majorToCtorOp mode env d cn rules x
+
+theorem mtc_nil {d : Nat} {cn : ConLeche.Name} {x : Expr}
+    (h : ConLeche.isCtorApp env x = false) : Runs (majorToCtorOp mode env d cn [] x) x :=
+  ⟨0, by
+    show ConLeche.majorToCtorFueled mode env 0 d cn [] x = .ok x
+    simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, h, Bool.false_eq_true,
+      ite_false]; rfl⟩
+grind_pattern [bridge_grind] mtc_nil => majorToCtorOp mode env d cn [] x
+
+theorem mtc_many {d : Nat} {cn : ConLeche.Name} {a b : RecRule} {cs : List RecRule} {x : Expr}
+    (h : ConLeche.isCtorApp env x = false) :
+    Runs (majorToCtorOp mode env d cn (a :: b :: cs) x) x :=
+  ⟨0, by
+    show ConLeche.majorToCtorFueled mode env 0 d cn (a :: b :: cs) x = .ok x
+    simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, h, Bool.false_eq_true,
+      ite_false]; rfl⟩
+grind_pattern [bridge_grind] mtc_many => majorToCtorOp mode env d cn (a :: b :: cs) x
+
+theorem mtc_skip {d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x : Expr}
+    (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = false) :
+    Runs (majorToCtorOp mode env d cn [rl] x) x :=
+  ⟨0, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, Bool.false_eq_true, ite_false]⟩
+grind_pattern [bridge_grind] mtc_skip => majorToCtorOp mode env d cn [rl] x
+
+theorem mtc_K {d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x v : Expr}
+    (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : rl.k = true)
+    (H : Runs (mtcKOp mode env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+      (mtcFam env rl) x) v) :
+    Runs (majorToCtorOp mode env d cn [rl] x) v :=
+  let ⟨F, hF⟩ := H
+  ⟨F, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, ite_true]; exact hF⟩
+grind_pattern [bridge_grind] mtc_K => majorToCtorOp mode env d cn [rl] x,
+  Runs (mtcKOp mode env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+      (mtcFam env rl) x) v
+
+theorem mtc_Eta {d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x v : Expr}
+    (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : rl.k = false)
+    (he : rl.eta = true)
+    (H : Runs (mtcEtaOp mode env d (cIndVal (env.find? (mtcFam env rl)))
+      (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x) v) :
+    Runs (majorToCtorOp mode env d cn [rl] x) v :=
+  let ⟨F, hF⟩ := H
+  ⟨F, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, he, ite_true,
+    Bool.false_eq_true, ite_false]; exact hF⟩
+grind_pattern [bridge_grind] mtc_Eta => majorToCtorOp mode env d cn [rl] x,
+  Runs (mtcEtaOp mode env d (cIndVal (env.find? (mtcFam env rl)))
+      (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x) v
+
+theorem mtc_And {d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x v : Expr}
+    (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : rl.k = false)
+    (he : rl.eta = false) (hT : mtcFam env rl = ConLeche.andName)
+    (H : Runs (mtcAndOp mode env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+      (mtcFam env rl) x) v) :
+    Runs (majorToCtorOp mode env d cn [rl] x) v :=
+  let ⟨F, hF⟩ := H
+  ⟨F, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, he, ite_true,
+    Bool.false_eq_true, ite_false]; rw [ite_eq_left hT]; exact hF⟩
+grind_pattern [bridge_grind] mtc_And => majorToCtorOp mode env d cn [rl] x,
+  Runs (mtcAndOp mode env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+      (mtcFam env rl) x) v
+
+theorem mtc_none {d : Nat} {cn : ConLeche.Name} {rl : RecRule} {x : Expr}
+    (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : rl.k = false)
+    (he : rl.eta = false) (hT : ¬ mtcFam env rl = ConLeche.andName) :
+    Runs (majorToCtorOp mode env d cn [rl] x) x :=
+  ⟨0, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, he, ite_true,
+    Bool.false_eq_true, ite_false]; rw [ite_eq_right hT]⟩
+grind_pattern [bridge_grind] mtc_none => majorToCtorOp mode env d cn [rl] x
+
+theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
+    (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
+    (hok : CheckOK mode env fe s₀)
+    (hr : Frontend.denoteRules s₀.store rules = some rules')
+    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ SimEOp (majorToCtorOp mode env d cn rules' x) d s'.store r; ⊤⦄ := by
+  match rules, rules', hr with
+  | [], rules', hr =>
+    obtain rfl : rules' = [] := by simpa [Frontend.denoteRules] using hr.symm
+    sym only [bridge_grind] =>
+      vcgen [ConRon.Arena.majorToCtor, isCtorApp_spec (mode := mode) (env := env) (x := x)] <;> finish
+  | [rl], rules', hr =>
+    obtain ⟨rl', hrl', rfl⟩ : ∃ rl', Frontend.denoteRule s₀.store rl = some rl' ∧
+        rules' = [rl'] := by
+      simp only [Frontend.denoteRules] at hr
+      split at hr
+      · rename_i y ys hy hys
+        simp only [Option.some.injEq] at hys
+        subst hys
+        cases hr
+        exact ⟨y, hy, rfl⟩
+      · simp at hr
+    obtain ⟨_, _, hrlc, _, _, hk', he'⟩ := rule_denote hrl'
+    sym (gen := 10) only [bridge_grind, -iInd?, -iIndVal, -iIndCaps, -iCtor?, -iCtorVal, -iCtorNP,
+        -iCtorNF, mtcPrefixOk, mtcFam] =>
+      vcgen [majorToCtor_one, isCtorApp_spec (mode := mode) (env := env) (x := x), ExprOps.piResult_spec,
+        ExprOps.getAppFn_spec, ConRon.Arena.pinAnd, pinAt_specE,
+        majorK_spec hμ hsim (rl' := rl') (x := x) (dcvj := cCtorVal (env.find? rl'.ctor))
+          (Tn := mtcFam env rl'),
+        majorEta_spec hsim (x := x) (dcvT := cIndVal (env.find? (mtcFam env rl')))
+          (dcaps := cIndCaps (env.find? (mtcFam env rl'))) (Tn := mtcFam env rl'),
+        majorAnd_spec hμ hsim (rl' := rl') (x := x) (dcvj := cCtorVal (env.find? rl'.ctor))
+          (Tn := mtcFam env rl')] <;> finish
+  | r1 :: r2 :: rs, rules', hr =>
+    obtain ⟨a, b, cs, rfl⟩ : ∃ a b cs, rules' = a :: b :: cs := by
+      have hl := denoteRules_len hr
+      match rules', hl with
+      | a :: b :: cs, _ => exact ⟨a, b, cs, rfl⟩
+    sym only [bridge_grind] =>
+      vcgen [ConRon.Arena.majorToCtor, isCtorApp_spec (mode := mode) (env := env) (x := x)] <;> finish
+
+/-! ## `isStrLit` -/
+
+/-- the twin's `isStrLit` with its literal match one constructor deep -/
+theorem isStrLit_split (h : EIdx) :
+    ConRon.Arena.isStrLit h =
+      (if h.tag == ETag.lit then do
+        match ← viewLit h with
+        | none => failDanglingE
+        | some l => pure (litIsStr l)
+      else pure false) := by
+  unfold ConRon.Arena.isStrLit
+  split
+  · congr 1; funext o
+    cases o with
+    | none => rfl
+    | some l => cases l <;> rfl
+  · rfl
+
+theorem isStrLit_spec (s₀ : AState) (h : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isStrLit h
+    ⦃fun b s' => s' = s₀ ∧ b = x.isStrLit; ⊤⦄ := by
+  sym only [bridge_grind, isStrLit_eq] =>
+    vcgen [isStrLit_split, ConRon.Arena.viewLit] <;> finish
+
+/-! ## `prepareMajor` -/
+
+/-- `majorToCtor`'s answer at an optional subject -/
+def MtcAns (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+    (st : EStore) (r : EIdx) : Option Expr → Prop
+  | some x => SimEOp (majorToCtorOp mode env d cn rules x) d st r
+  | none => True
+
+@[bridge_grind =] theorem MtcAns.some_eq (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+    (st : EStore) (r : EIdx) (x : Expr) :
+    MtcAns mode env d cn rules st r (some x) = SimEOp (majorToCtorOp mode env d cn rules x) d st r :=
+  rfl
+
+theorem majorToCtor_specS {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
+    (cn : ConLeche.Name) (rules' : List RecRule)
+    (hok : CheckOK mode env fe s₀)
+    (hr : Frontend.denoteRules s₀.store rules = some rules')
+    (hw : DenWS d (denoteE s₀.store major)) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ MtcAns mode env d cn rules' s'.store r (denoteE s₀.store major); ⊤⦄ := by
+  cases hd : denoteE s₀.store major with
+  | none => rw [hd] at hw; exact hw.elim
+  | some x =>
+    rw [hd] at hw
+    exact majorToCtor_spec hμ hsim s₀ d c rules major cn rules' x hok hr hd hw
+
+/-- `litMajorToCtor`'s answer at an optional subject -/
+def LitAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
+    Option Expr → Prop
+  | some x => SimEOp (litMajorOp mode env d x) d st r
+  | none => True
+
+@[bridge_grind =] theorem LitAns.some_eq (d : Nat) (st : EStore) (r : EIdx) (x : Expr) :
+    LitAns mode env d st r (some x) = SimEOp (litMajorOp mode env d x) d st r := rfl
+
+theorem litMajorToCtor_specS {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (h : EIdx) (hok : CheckOK mode env fe s₀)
+    (hw : DenWS d (denoteE s₀.store h)) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ LitAns mode env d s'.store r (denoteE s₀.store h); ⊤⦄ := by
+  cases hd : denoteE s₀.store h with
+  | none => rw [hd] at hw; exact hw.elim
+  | some x =>
+    rw [hd] at hw
+    exact litMajorToCtor_spec hsim s₀ d h x hok hd hw
+
+theorem isCtorApp_specS (s₀ : AState) (a : EIdx) (hok : CheckOK mode env fe s₀)
+    (hda : (denoteE s₀.store a).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isCtorApp fe a
+    ⦃fun r s' => s' = s₀ ∧ MapRelV (ConLeche.isCtorApp env) (denoteE s₀.store a) r; ⊤⦄ := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hda
+  rw [hx]
+  exact isCtorApp_spec s₀ a x hok hx
+
+def prepOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+    (x : Expr) : Nat → CheckM Expr :=
+  fun F => ConLeche.prepareMajorFueled mode env F d cn rules x
+
+theorem prep_k {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x m1 m3 : Expr}
+    (hk : ConLeche.recRuleK rules = true)
+    (h1 : Runs (majorToCtorOp mode env d cn rules x) m1)
+    (hc : ConLeche.isCtorApp env m1 = true) (h3 : Runs (litMajorOp mode env d m1) m3) :
+    Runs (prepOp mode env d cn rules x) m3 :=
+  let ⟨F1, hF1⟩ := h1
+  let ⟨F3, hF3⟩ := h3
+  ⟨max F1 F3, prepareMajorFueled_k hk (majorToCtorFueled_mono (Nat.le_max_left _ _) hF1) hc
+    (litMajorToCtorFueled_mono (Nat.le_max_right _ _) hF3)⟩
+grind_pattern [bridge_grind] prep_k => prepOp mode env d cn rules x,
+  Runs (majorToCtorOp mode env d cn rules x) m1, Runs (litMajorOp mode env d m1) m3
+
+theorem prep_kStuck {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x m1 : Expr}
+    (hk : ConLeche.recRuleK rules = true)
+    (h1 : Runs (majorToCtorOp mode env d cn rules x) m1)
+    (hc : ConLeche.isCtorApp env m1 = false) :
+    Runs (prepOp mode env d cn rules x) m1 :=
+  let ⟨F1, hF1⟩ := h1
+  ⟨F1, prepareMajorFueled_kStuck hk hF1 hc⟩
+grind_pattern [bridge_grind] prep_kStuck => prepOp mode env d cn rules x,
+  Runs (majorToCtorOp mode env d cn rules x) m1
+
+/-- the major as the structure rescues on it as found leave it (a `String`
+literal skips them) -/
+def PrepE (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+    (x mE : Expr) : Prop :=
+  ∃ F, (if x.isStrLit then .ok x
+    else ConLeche.majorToCtorFueled mode env F d cn rules x : CheckM Expr) = .ok mE
+
+theorem prepE_str {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x : Expr}
+    (h : x.isStrLit = true) : PrepE mode env d cn rules x x := ⟨0, by simp [h]⟩
+grind_pattern [bridge_grind] prepE_str => prepOp mode env d cn rules x
+
+theorem prepE_mtc {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x mE : Expr}
+    (h : x.isStrLit = false) (h1 : Runs (majorToCtorOp mode env d cn rules x) mE) :
+    PrepE mode env d cn rules x mE :=
+  let ⟨F, hF⟩ := h1
+  ⟨F, by simp only [h, Bool.false_eq_true, ite_false]; exact hF⟩
+grind_pattern [bridge_grind] prepE_mtc => prepOp mode env d cn rules x,
+  Runs (majorToCtorOp mode env d cn rules x) mE
+
+theorem prep_nkCtor {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x mE : Expr}
+    (hk : ConLeche.recRuleK rules = false) (hE : PrepE mode env d cn rules x mE)
+    (hc : ConLeche.isCtorApp env mE = true) :
+    Runs (prepOp mode env d cn rules x) mE :=
+  let ⟨F, hF⟩ := hE
+  ⟨F, prepareMajorFueled_nkCtor hk hF hc⟩
+grind_pattern [bridge_grind] prep_nkCtor => prepOp mode env d cn rules x, PrepE mode env d cn rules x mE
+
+theorem prep_nk {d : Nat} {cn : ConLeche.Name} {rules : List RecRule} {x mE m1 m2 m3 : Expr}
+    (hk : ConLeche.recRuleK rules = false) (hE : PrepE mode env d cn rules x mE)
+    (hc : ConLeche.isCtorApp env mE = false)
+    (h1 : RunE (ConLeche.whnf mode env) d mE m1)
+    (h2 : Runs (litMajorOp mode env d m1) m2)
+    (h3 : Runs (majorToCtorOp mode env d cn rules m2) m3) :
+    Runs (prepOp mode env d cn rules x) m3 := by
+  obtain ⟨F0, hF0⟩ := hE
+  obtain ⟨F1, hF1⟩ := h1
+  obtain ⟨F2, hF2⟩ := h2
+  obtain ⟨F3, hF3⟩ := h3
+  refine ⟨max F0 (max F1 (max F2 F3)), prepareMajorFueled_nk hk ?_ hc
+    (ConLeche.whnf_mono (by omega) hF1) (litMajorToCtorFueled_mono (by omega) hF2)
+    (majorToCtorFueled_mono (by omega) hF3)⟩
+  cases hs : x.isStrLit
+  · simp only [hs, Bool.false_eq_true, ite_false] at hF0 ⊢
+    exact majorToCtorFueled_mono (by omega) hF0
+  · simp only [hs, ite_true] at hF0 ⊢
+    exact hF0
+grind_pattern [bridge_grind] prep_nk => prepOp mode env d cn rules x, PrepE mode env d cn rules x mE,
+  RunE (ConLeche.whnf mode env) d mE m1, Runs (litMajorOp mode env d m1) m2,
+  Runs (majorToCtorOp mode env d cn rules m2) m3
+
 theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
@@ -1505,110 +1868,13 @@ theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hr : Frontend.denoteRules s₀.store rules = some rules')
     (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.prepareMajor mode (coreKnot mode fe id fuel) fe d c rules
-        major
+      ConRon.Arena.prepareMajor mode (coreKnot mode fe id fuel) fe d c rules major
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-          s'.store r; ⊤⦄ := by
-  unfold ConRon.Arena.prepareMajor
-  rw [recRuleK_denote hr]
-  split
-  next hk =>
-    refine triple_seq (majorToCtor_spec hμ hsim s₀ d c rules major cn
-      rules' x hok hr hden hw) ?_
-    rintro m1 s1 ⟨hok1, hx1, hp1, v1, hv1, hwv1, F1, hF1⟩
-    refine triple_seq (isCtorApp_spec s1 m1 v1 hok1 hv1) ?_
-    rintro ic s2 ⟨hs2, hic⟩
-    subst s2
-    by_cases hict : ic = true
-    · rw [ite_eq_left hict]
-      have hc : ConLeche.isCtorApp env v1 = true := hic ▸ hict
-      refine triple_mono (litMajorToCtor_spec hsim s1 d m1 v1 hok1 hv1 hwv1) ?_
-      rintro m3 s3 ⟨hok3, hx3, hp3, v3, hv3, hwv3, F3, hF3⟩
-      refine ⟨hok3, hx1.trans hx3, hp3.trans hp1, v3, hv3,
-        hwv3, max F1 F3, prepareMajorFueled_k hk
-          (majorToCtorFueled_mono (by omega) hF1) hc
-          (litMajorToCtorFueled_mono (by omega) hF3)⟩
-    · rw [ite_eq_right hict]
-      have hnc : ConLeche.isCtorApp env v1 = false := by rw [← hic]; simpa using hict
-      have hpost : CheckOK mode env fe s1 ∧ Ext s₀.store s1.store ∧
-          s1.pins = s₀.pins ∧
-          SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-            s1.store m1 :=
-        ⟨hok1, hx1, hp1, v1, hv1, hwv1, F1, prepareMajorFueled_kStuck hk hF1 hnc⟩
-      vcgen
-      subst_vars
-      exact hpost
-  next hk =>
-    have hk' : ConLeche.recRuleK rules' = false := by simpa using hk
-    -- the continuation, at whatever the structure rescues on the major as
-    -- found produced (a `String` literal skips them)
-    have hK : ∀ mE s1, (CheckOK mode env fe s1 ∧ Ext s₀.store s1.store ∧
-          s1.pins = s₀.pins ∧
-          SimEOp (fun F => (if x.isStrLit then .ok x
-            else ConLeche.majorToCtorFueled mode env F d cn rules' x : CheckM Expr))
-            d s1.store mE) →
-        ⦃fun s => s = s1⦄ (do
-          if ← ConRon.Arena.isCtorApp fe mE then pure mE
-          else do
-            let major₀ ← (coreKnot mode fe id fuel).whnf d mE
-            let major₁ ← ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d
-              major₀
-            ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules
-              major₁ : AM EIdx)
-        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-            s'.store r; ⊤⦄ := by
-      rintro mE s1 ⟨hok1, hx1, hp1, vE, hvE, hwvE, F0, hF0⟩
-      refine triple_seq (isCtorApp_spec s1 mE vE hok1 hvE) ?_
-      rintro ic s2 ⟨hs2, hic⟩
-      subst s2
-      by_cases hict : ic = true
-      · rw [ite_eq_left hict]
-        have hc : ConLeche.isCtorApp env vE = true := hic ▸ hict
-        have hpost : CheckOK mode env fe s1 ∧ Ext s₀.store s1.store ∧
-            s1.pins = s₀.pins ∧
-            SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-              s1.store mE :=
-          ⟨hok1, hx1, hp1, vE, hvE, hwvE, F0, prepareMajorFueled_nkCtor hk' hF0 hc⟩
-        vcgen
-        subst_vars
-        exact hpost
-      · rw [ite_eq_right hict]
-        have hnc : ConLeche.isCtorApp env vE = false := by rw [← hic]; simpa using hict
-        refine triple_seq (hsim.whnf s1 d mE vE hok1 hvE hwvE) ?_
-        rintro m1 s2 ⟨hok2, hx2, hp2, v1, hv1, hwv1, F1, hF1⟩
-        refine triple_seq (litMajorToCtor_spec hsim s2 d m1 v1 hok2 hv1 hwv1) ?_
-        rintro m2 s3 ⟨hok3, hx3, hp3, v2, hv2, hwv2, F2, hF2⟩
-        have hx13 := hx1.trans (hx2.trans hx3)
-        refine triple_mono (majorToCtor_spec hμ hsim s3 d c rules m2 cn rules'
-          v2 hok3 (denoteRules_ext hx13 _ _ hr) hv2 hwv2) ?_
-        rintro m3 s4 ⟨hok4, hx4, hp4, v3, hv3, hwv3, F3, hF3⟩
-        refine ⟨hok4, hx13.trans hx4, hp4.trans (hp3.trans (hp2.trans hp1)), v3, hv3,
-          hwv3, max F0 (max F1 (max F2 F3)), prepareMajorFueled_nk hk'
-            ?_ hnc
-            (ConLeche.whnf_mono (by omega) hF1)
-            (litMajorToCtorFueled_mono (by omega) hF2)
-            (majorToCtorFueled_mono (by omega) hF3)⟩
-        cases hs : x.isStrLit
-        · simp only [hs, Bool.false_eq_true, ite_false] at hF0 ⊢
-          exact majorToCtorFueled_mono (by omega) hF0
-        · simp only [hs, ite_true] at hF0 ⊢
-          exact hF0
-    refine triple_seq (isStrLit_spec s₀ major x hok hden) ?_
-    rintro b s1 ⟨hs1, rfl⟩
-    subst s1
-    dsimp only
-    cases hs : x.isStrLit
-    · simp only [Bool.false_eq_true, ite_false]
-      refine triple_seq (majorToCtor_spec hμ hsim s₀ d c rules major cn rules'
-        x hok hr hden hw) ?_
-      intro mE s1 hpost
-      refine hK mE s1 ?_
-      simpa only [hs, Bool.false_eq_true, ite_false] using hpost
-    · simp only [ite_true, pure_bind]
-      exact hK major s₀ ⟨hok, Ext.refl _, rfl, x, hden, hw, 0, by simp [hs]⟩
+        s'.pins = s₀.pins ∧ SimEOp (prepOp mode env d cn rules' x) d s'.store r; ⊤⦄ := by
+  sym (gen := 16) only [bridge_grind, recRuleK_denote hr] =>
+    vcgen [ConRon.Arena.prepareMajor, majorToCtor_specS hμ hsim (cn := cn) (rules' := rules'),
+      isCtorApp_specS (mode := mode) (env := env), isStrLit_spec (mode := mode) (env := env) (fe := fe) (x := x),
+      litMajorToCtor_specS hsim, hsim.whnfS] <;> finish
+
 
 end ConRon.Bridge.Core
