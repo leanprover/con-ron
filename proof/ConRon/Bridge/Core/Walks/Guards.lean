@@ -77,8 +77,6 @@ theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
 
 /-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
 
-attribute [bridge_grind →] CheckOK.pins
-
 /-- con-leche: none — **a `const`-tagged handle**, as an `Ans` atom about its
 denotation (`Bridge/Grind.lean` §3): its view is a constant, and whatever it
 denotes is that constant's denotation. -/
@@ -184,7 +182,10 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
     ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
-  sym only [bridge_grind] =>
+  -- the pin table's invariant at the initial state: the two pin reads'
+  -- precondition (as a registered forward rule it would fire at every
+  -- `CheckOK` of every walk)
+  sym only [bridge_grind, hok.pins] =>
     vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels, boolTrueName_spec] <;> finish
 
 /-! ## The axiom census -/
