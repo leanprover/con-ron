@@ -12,7 +12,7 @@ order.
   arena's store API (DESIGN `### Task #97a`) does not state
   (`EStore.internName` / `internLevel` / `internLevels`, and `internBind`);
 * `Bridge/Specs.lean` — the `@[spec]` theorem of every `Monad.lean`
-  primitive, and the `bridge_vcs` closer;
+  primitive;
 * `Bridge/SpecsL.lean` — four more `@[spec]` theorems, over the
   `Specs.lean` primitives;
 * `Bridge/Axioms.lean` — the trust census (`#print axioms` on every closed

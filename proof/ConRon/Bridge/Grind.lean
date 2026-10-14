@@ -227,6 +227,17 @@ polarities: a `MapRel` goal too). -/
 @[bridge_grind =] theorem MapRel.some_eq {α β : Type} (g : α → β) (a : α) (o : Option β) :
     MapRel g (some a) o = (o = some (g a)) := rfl
 
+/-- con-leche: none — **an answer relation at two optional subjects**: whatever
+the subjects `oa`, `ob` denote, the answer `o` denotes their image under `g`
+(`MapRel` with a second subject). -/
+def MapRel2 {α β γ : Type} (g : α → β → γ) : Option α → Option β → Option γ → Prop
+  | some a, some b, o => o = some (g a b)
+  | _, _, _ => True
+
+/-- con-leche: none — `MapRel2` at two denoting subjects, as an equation. -/
+@[bridge_grind =] theorem MapRel2.some_eq {α β γ : Type} (g : α → β → γ) (a : α) (b : β)
+    (o : Option γ) : MapRel2 g (some a) (some b) o = (o = some (g a b)) := rfl
+
 /-- con-leche: none — the `∀` spelling of every answer relation IS `MapRel`. -/
 theorem forall_eq_mapRel {α β : Type} (g : α → β) (o : Option α) (o' : Option β) :
     (∀ a, o = some a → o' = some (g a)) = MapRel g o o' := by
@@ -392,6 +403,20 @@ theorem denoteEList_cons_ans (st : EStore) (a : EIdx) (as : List EIdx) :
       (Frontend.denoteEList st (a :: as)) :=
   fun _ h => denoteEList_cons_inv h
 grind_pattern [bridge_grind] denoteEList_cons_ans => Frontend.denoteEList st (a :: as)
+
+/-- con-leche: none — a handle list extended at the END denotes its
+denotation's `concat`. -/
+@[bridge_grind =] theorem denoteEList_concat_eq (st : EStore) (a : EIdx) :
+    ∀ rs : List EIdx, Frontend.denoteEList st (rs ++ [a]) =
+      opt2 List.concat (Frontend.denoteEList st rs) (denoteE st a)
+  | [] => by
+    simp only [List.nil_append, Frontend.denoteEList, opt2]
+    cases denoteE st a <;> rfl
+  | j :: js => by
+    simp only [List.cons_append, Frontend.denoteEList, denoteEList_concat_eq st a js, opt2]
+    cases denoteE st j <;> cases Frontend.denoteEList st js <;> cases denoteE st a <;> rfl
+
+attribute [bridge_grind =] List.concat_eq_append
 
 /-- con-leche: none — a handle list's length is its denotation's. -/
 def EListLen (hs : List EIdx) : Option (List Expr) → Prop
@@ -575,6 +600,12 @@ grind_pattern [bridge_grind] MemoLOK.get => MemoLOK f tbl st, tbl[k]?, some r wh
 
 grind_pattern [bridge_grind] MemoLsOK.get => MemoLsOK f tbl st, tbl[k]?, some r where
   guard tbl[k]? = some r
+
+grind_pattern [bridge_grind] MemoLOK.of_empty => MemoLOK f tbl st where
+  guard tbl = ∅
+
+grind_pattern [bridge_grind] MemoLsOK.of_empty => MemoLsOK f tbl st where
+  guard tbl = ∅
 
 /-! ## 6. Views and tags as equations -/
 
@@ -1110,8 +1141,8 @@ grind_pattern [bridge_grind] view_of_viewProj => st.viewProj i, some (n, k, e) w
   guard st.viewProj i = some (n, k, e)
 
 /-- con-leche: none — the `fvar` index projection read means the type
-projection reads too (one row of the `fvar` array): `TagFirst`'s
-`viewFVarIdx_of_viewFVarTy`, the other way. -/
+projection reads too (one row of the `fvar` array);
+`viewFVarIdx_isSome_of_viewFVarTy` is the other way. -/
 theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
     (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
   unfold EStore.viewFVarIdx at h
@@ -1127,15 +1158,45 @@ theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
       exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
     · cases h
 
-/-- con-leche: none — the `fvar` index read under its tag gives the view (the
-type handle exists: `viewFVarTy_of_viewFVarIdx`). -/
+/-- con-leche: none — the `fvar` index read under its tag gives the view, its
+type the type projection's (`viewFVarTy_of_viewFVarIdx`). -/
 theorem view_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
     (htg : i.tag = ETag.fvar) (h : st.viewFVarIdx i = some k) :
-    ∃ ty, st.view i = some (.fvar k ty) := by
+    st.view i = some (.fvar k ((st.viewFVarTy i).getD default)) := by
   obtain ⟨ty, hty⟩ := viewFVarTy_of_viewFVarIdx h
-  exact ⟨ty, view_of_viewFVar htg h hty⟩
+  rw [hty]
+  exact view_of_viewFVar htg h hty
 grind_pattern [bridge_grind] view_of_viewFVarIdx => st.viewFVarIdx i, some k where
   guard st.viewFVarIdx i = some k
+
+/-- con-leche: none — the `fvar` type projection read means the index
+projection reads too (one row of the `fvar` array). -/
+theorem viewFVarIdx_isSome_of_viewFVarTy {st : EStore} {i ty : EIdx}
+    (h : st.viewFVarTy i = some ty) : (st.viewFVarIdx i).isSome = true := by
+  unfold EStore.viewFVarTy at h
+  unfold EStore.viewFVarIdx EStore.persGetFVarIdx
+  unfold EStore.persGetFVarTy at h
+  split at h
+  · simp only [ETables.getFVarTy, Option.map_eq_some_iff] at h
+    obtain ⟨r, hr, -⟩ := h
+    simp [*, ETables.getFVarIdx]
+  · split at h
+    · simp only [ETables.getFVarTy, Option.map_eq_some_iff] at h
+      obtain ⟨r, hr, -⟩ := h
+      simp [*, ETables.getFVarIdx]
+    · cases h
+
+/-- con-leche: none — the `fvar` TYPE projection read under its tag gives the
+view, its index the index projection's (`view_of_viewFVarIdx`'s twin),
+guarded at that read. -/
+theorem view_of_viewFVarTy {st : EStore} {i ty : EIdx}
+    (htg : i.tag = ETag.fvar) (h : st.viewFVarTy i = some ty) :
+    st.view i = some (.fvar ((st.viewFVarIdx i).getD 0) ty) := by
+  obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (viewFVarIdx_isSome_of_viewFVarTy h)
+  rw [hk]
+  exact view_of_viewFVar htg hk h
+grind_pattern [bridge_grind] view_of_viewFVarTy => st.viewFVarTy i, some ty where
+  guard st.viewFVarTy i = some ty
 
 /-- con-leche: none — arena infrastructure: `EStore.view` reads `pers`, `scr`
 and `scratchOn` and nothing else. -/

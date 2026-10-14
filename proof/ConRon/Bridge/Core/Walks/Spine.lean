@@ -219,15 +219,10 @@ theorem DenoteCV.some {st : EStore} {v : IConstantVal} {c : ConstantVal}
       v.levelParams.length = c.levelParams.length ∧ denoteE st v.type = some c.type := H
 grind_pattern [bridge_grind] DenoteCV.some => DenoteCV st v (some c)
 
-/-- con-leche: none — `RelEA`'s answer at optional subjects. -/
-def MapRelA (F : Expr → List Expr → Expr) : Option Expr → Option (List Expr) → Option Expr → Prop
-  | some e, some es, o => o = some (F e es)
-  | _, _, _ => True
-
-/-- con-leche: none — a `RelEA` answer is a `MapRelA` fact. -/
+/-- con-leche: none — a `RelEA` answer is a `MapRel2` fact. -/
 theorem RelEA.mapRel {F : Expr → List Expr → Expr} {st st' : EStore} {c : EIdx}
     {args : List EIdx} {r : EIdx} (h : ExprOps.RelEA F st c args st' r) :
-    MapRelA F (denoteE st c) (Frontend.denoteEList st args) (denoteE st' r) := by
+    MapRel2 F (denoteE st c) (Frontend.denoteEList st args) (denoteE st' r) := by
   cases hc : denoteE st c with
   | none => trivial
   | some e =>
@@ -235,11 +230,6 @@ theorem RelEA.mapRel {F : Expr → List Expr → Expr} {st st' : EStore} {c : EI
   | none => trivial
   | some es => exact h e es hc ha
 grind_pattern [bridge_grind] RelEA.mapRel => ExprOps.RelEA F st c args st' r
-
-/-- con-leche: none — `MapRelA` at denoting subjects. -/
-theorem MapRelA.some {F : Expr → List Expr → Expr} {e : Expr} {es : List Expr}
-    {o : Option Expr} (H : MapRelA F (some e) (some es) o) : o = some (F e es) := H
-grind_pattern [bridge_grind] MapRelA.some => MapRelA F (some e) (some es) o
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean mkAppN — `ExprOps/Spine.lean`'s
 `mkAppN_spec` at the tier's invariant (`CheckOK.mono`), so that `grind` need not

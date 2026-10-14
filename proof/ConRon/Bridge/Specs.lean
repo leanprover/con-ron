@@ -55,13 +55,11 @@ checker invariant crosses an `ExprOps` call on `Ext` plus
   end: they are `internE` plus task #97-P6-5's upward cutoff, and every
   rebuilding walk goes through them.
 
-## The closer
+## The proofs
 
-Most walks are closed by `sym only [bridge_grind] => vcgen [...] <;> finish`
-over `Bridge/Grind.lean`'s vocabulary.  `bridge_vcs` at the end of this file
-is the closer of the modules that are not stated for that yet
-(`ExprOps/{Guards,Ranges,Spine,InstLP}.lean`): ONE curated `grind` list, a
-`bridge_peel` in front of it, and a second stage with a larger budget.
+Each spec is `vcgen [f] with finish`, or `sym only [bridge_grind, …] =>
+vcgen [f, callee specs…] <;> finish` over `Bridge/Grind.lean`'s vocabulary
+where it calls other specs or needs the bridge's lemmas.
 -/
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.Grind
@@ -913,9 +911,8 @@ record bought. -/
         s'.memos = { s₀.memos with inst1C := s₀.memos.inst1C.insert k r } ∧
         Inst1MemoA ve s'; ⊤⦄ := by
   dsimp only
-  vcgen [inst1Set]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
+  sym only [bridge_grind] =>
+    vcgen [inst1Set] <;> finish
 
 @[spec] theorem inst1Clear_spec (s₀ : AState) :
     ⦃fun s => s = s₀⦄ inst1Clear
@@ -924,9 +921,8 @@ record bought. -/
         s'.memos = { s₀.memos with inst1C := ∅ } ∧
         ∀ ve, Inst1MemoA ve s'; ⊤⦄ := by
   dsimp only
-  vcgen [inst1Clear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [inst1Clear] <;> finish
 
 @[spec] theorem instLGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => s = s₀⦄ instLGet k
@@ -939,9 +935,8 @@ record bought. -/
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with instLC := ∅ } ∧
         ∀ ws, InstLMemoA ws s'; ⊤⦄ := by
   dsimp only
-  vcgen [instLClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [instLClear] <;> finish
 
 @[spec] theorem liftGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => s = s₀⦄ liftGet k
@@ -954,9 +949,8 @@ record bought. -/
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with liftC := ∅ } ∧
         ∀ amount, LiftMemoA amount s'; ⊤⦄ := by
   dsimp only
-  vcgen [liftClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [liftClear] <;> finish
 
 @[spec] theorem abs1Get_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => s = s₀⦄ abs1Get k
@@ -969,9 +963,8 @@ record bought. -/
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with abs1C := ∅ } ∧
         ∀ d, Abs1MemoA d s'; ⊤⦄ := by
   dsimp only
-  vcgen [abs1Clear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [abs1Clear] <;> finish
 
 @[spec] theorem inst1LGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => s = s₀⦄ inst1LGet k
@@ -984,9 +977,8 @@ record bought. -/
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with inst1LC := ∅ } ∧
         ∀ ve, Inst1LMemoA ve s'; ⊤⦄ := by
   dsimp only
-  vcgen [inst1LClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [inst1LClear] <;> finish
 
 @[spec] theorem instLPGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => s = s₀⦄ instLPGet k
@@ -1004,10 +996,8 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         (∀ ks us, InstLPMemoA ks us s') ∧ (∀ ks us, InstLPLMemoA ks us s') ∧
         ∀ ks us, InstLPLsMemoA ks us s'; ⊤⦄ := by
   dsimp only
-  vcgen [instLPClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, fun _ _ => MemoOK.of_empty rfl,
-    fun _ _ => MemoLOK.of_empty rfl, fun _ _ => MemoLsOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [instLPClear] <;> finish
 
 @[spec] theorem instLPLGet_spec (s₀ : AState) (h : LIdx) :
     ⦃fun s => s = s₀⦄ instLPLGet h
@@ -1033,9 +1023,8 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.memos = { s₀.memos with bvarBC := s₀.memos.bvarBC.insert k r } ∧
         MemoBA s'; ⊤⦄ := by
   dsimp only
-  vcgen [bvarBSet]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
+  sym only [bridge_grind] =>
+    vcgen [bvarBSet] <;> finish
 
 @[spec] theorem bvarBClear_spec (s₀ : AState) :
     ⦃fun s => s = s₀⦄ bvarBClear
@@ -1043,9 +1032,8 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with bvarBC := ∅ } ∧
         MemoBA s'; ⊤⦄ := by
   dsimp only
-  vcgen [bvarBClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [bvarBClear] <;> finish
 
 @[spec] theorem fvarBGet_spec (s₀ : AState) (k : EIdx) :
     ⦃fun s => s = s₀⦄ fvarBGet k
@@ -1061,9 +1049,8 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.memos = { s₀.memos with fvarBC := s₀.memos.fvarBC.insert k r } ∧
         MemoFA s'; ⊤⦄ := by
   dsimp only
-  vcgen [fvarBSet]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
+  sym only [bridge_grind] =>
+    vcgen [fvarBSet] <;> finish
 
 @[spec] theorem fvarBClear_spec (s₀ : AState) :
     ⦃fun s => s = s₀⦄ fvarBClear
@@ -1071,9 +1058,8 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with fvarBC := ∅ } ∧
         MemoFA s'; ⊤⦄ := by
   dsimp only
-  vcgen [fvarBClear]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
+  sym only [bridge_grind] =>
+    vcgen [fvarBClear] <;> finish
 
 /-! ### The bulk-instantiation cutoff (task #97f's deviation)
 
@@ -1189,50 +1175,5 @@ theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
     ⦃fun e s' => s' = s₀ ∧
         denoteE s₀.store e = some (.sort (.succ .zero)); ⊤⦄ := by
   sym only [bridge_grind, hp.sortOne] => vcgen [pinSortOne] <;> finish
-
-/-! ## The closer
-
-ONE curated `grind` list, with a `bridge_peel` in front of it, which is what
-lets `grind` see one state where the verification condition shows seven; and
-a second stage with a larger instance budget and `RelV.of_ext`, for the
-verification conditions that move a value answer along the extension
-chain. -/
-
-/-- con-leche: none — **the uniform closer** for Theorem 1's verification
-conditions.  ONE curated list, plus the walk's own pure function where a
-walk's arms need it: `bridge_vcs [Expr.instantiate1]` is how `ExprOps/Inst1`
-calls it.  The second stage puts the `RelE` transports back and raises the
-instance budget, for the handful of verification conditions that genuinely
-have to move an answer along the extension chain. -/
-syntax "bridge_vcs" (" [" (Lean.Parser.Tactic.grindParam),* "]")? : tactic
-
-macro_rules
-  -- NOT `bridge_vcs []`: an empty splice expands to a leading comma and
-  -- `grind` reports "unexpected grind parameter".
-  | `(tactic| bridge_vcs) => `(tactic| bridge_vcs [Ext.refl])
-  | `(tactic| bridge_vcs [$ts,*]) => `(tactic| first
-      | (intro hf; exact False.elim hf)
-      | (bridge_peel
-         subst_vars
-         grind (instances := 1000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
-           MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
-           MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
-           Ext.trans, Ext.refl,
-           viewOK_bvar, viewOK_lit, viewOK_fvar,
-           viewOK_sort, viewOK_const, viewOK_app, viewOK_lam, viewOK_forallE,
-           viewOK_letE, viewOK_proj, denoteEView,
-           opt2_eq_some_iff, opt3_eq_some_iff, Option.isSome_iff_exists,
-           Option.map_eq_some_iff])
-      | (bridge_peel
-         subst_vars
-         grind (instances := 4000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
-           MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
-           MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
-           Ext.trans, Ext.refl,
-           RelV.of_ext,
-           viewOK_bvar, viewOK_lit, viewOK_fvar, viewOK_sort, viewOK_const,
-           viewOK_app, viewOK_lam, viewOK_forallE, viewOK_letE, viewOK_proj,
-           denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
-           Option.isSome_iff_exists, Option.map_eq_some_iff]))
 
 end ConRon.Bridge
