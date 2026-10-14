@@ -1528,7 +1528,55 @@ condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
     st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
   rfl
 
-attribute [bridge_grind =] denoteEView denoteLView
+attribute [bridge_grind =] denoteLView
+
+/-- con-leche: none — a projection node's denotation at its two children's
+(the arm of `denoteEView` that would otherwise reach `grind` as a `fun`). -/
+def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
+  | some nm, some x => some (.proj nm i x)
+  | _, _ => none
+
+/-- con-leche: none — `optProj` at two present children. -/
+@[bridge_grind =] theorem optProj_some (i : Nat) (nm : ConLeche.Name) (x : Expr) :
+    optProj i (some nm) (some x) = some (.proj nm i x) := rfl
+
+/-! A node's denotation from its view, one equation per constructor, none
+with a `fun` (`grind`'s `funext` would split on it). -/
+
+/-- con-leche: none — `denoteEView` at a `bvar` view. -/
+@[bridge_grind =] theorem denoteEView_bvar_eq (st : EStore) (k : Nat) :
+    denoteEView st (.bvar k) = some (.bvar k) := rfl
+/-- con-leche: none — `denoteEView` at an `fvar` view. -/
+@[bridge_grind =] theorem denoteEView_fvar_eq (st : EStore) (k : Nat) (ty : EIdx) :
+    denoteEView st (.fvar k ty) = (denoteE st ty).map (Expr.fvar k) := rfl
+/-- con-leche: none — `denoteEView` at a `sort` view. -/
+@[bridge_grind =] theorem denoteEView_sort_eq (st : EStore) (u : LIdx) :
+    denoteEView st (.sort u) = (denoteL st.ls u).map Expr.sort := rfl
+/-- con-leche: none — `denoteEView` at a `const` view. -/
+@[bridge_grind =] theorem denoteEView_const_eq (st : EStore) (n : NIdx) (us : LsIdx) :
+    denoteEView st (.const n us) = opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us) := rfl
+/-- con-leche: none — `denoteEView` at an `app` view. -/
+@[bridge_grind =] theorem denoteEView_app_eq (st : EStore) (g a : EIdx) :
+    denoteEView st (.app g a) = opt2 Expr.app (denoteE st g) (denoteE st a) := rfl
+/-- con-leche: none — `denoteEView` at a `lam` view. -/
+@[bridge_grind =] theorem denoteEView_lam_eq (st : EStore) (ty b : EIdx) :
+    denoteEView st (.lam ty b) = opt2 Expr.lam (denoteE st ty) (denoteE st b) := rfl
+/-- con-leche: none — `denoteEView` at a `forallE` view. -/
+@[bridge_grind =] theorem denoteEView_forallE_eq (st : EStore) (ty b : EIdx) :
+    denoteEView st (.forallE ty b) = opt2 Expr.forallE (denoteE st ty) (denoteE st b) := rfl
+/-- con-leche: none — `denoteEView` at a `letE` view. -/
+@[bridge_grind =] theorem denoteEView_letE_eq (st : EStore) (ty w b : EIdx) :
+    denoteEView st (.letE ty w b) =
+      opt3 Expr.letE (denoteE st ty) (denoteE st w) (denoteE st b) := rfl
+/-- con-leche: none — `denoteEView` at a `lit` view. -/
+@[bridge_grind =] theorem denoteEView_lit_eq (st : EStore) (l : Literal) :
+    denoteEView st (.lit l) = some (.lit l) := rfl
+/-- con-leche: none — `denoteEView` at a `proj` view, through `optProj`. -/
+@[bridge_grind =] theorem denoteEView_proj_eq (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) :
+    denoteEView st (.proj n i e) = optProj i (denoteN st.ns n) (denoteE st e) := by
+  simp only [denoteEView]
+  cases denoteN st.ns n <;> cases denoteE st e <;> rfl
+
 attribute [bridge_grind ←] viewOK_bvar viewOK_lit viewOK_sort viewOK_app viewOK_lam
   viewOK_forallE viewOK_letE viewOK_proj
 

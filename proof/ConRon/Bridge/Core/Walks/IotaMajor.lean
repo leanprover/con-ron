@@ -146,25 +146,6 @@ theorem denoteEList_drop_rel (st : EStore) (hs : List EIdx) (n : Nat) :
   | some xs => exact ExprOps.denoteEList_drop _ _ _ h
 grind_pattern [bridge_grind] denoteEList_drop_rel => Frontend.denoteEList st (hs.drop n)
 
-/-- a projection node's denotation at its two children's -/
-def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
-  | some nm, some x => some (.proj nm i x)
-  | _, _ => none
-
-/-- con-leche: none — `optProj` at two present children. -/
-@[bridge_grind =] theorem optProj_some (i : Nat) (nm : ConLeche.Name) (x : Expr) :
-    optProj i (some nm) (some x) = some (.proj nm i x) := rfl
-
-/-- con-leche: none — a projection node's denotation through `optProj` (no `fun` for `grind`). -/
-theorem denoteEView_proj (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) :
-    denoteEView st (.proj n i e) = optProj i (denoteN st.ns n) (denoteE st e) := by
-  simp only [denoteEView]
-  cases denoteN st.ns n <;> cases denoteE st e <;> rfl
-
-/-- con-leche: none — a constant node's denotation. -/
-theorem denoteEView_const (st : EStore) (n : NIdx) (us : LsIdx) :
-    denoteEView st (.const n us) = opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us) := rfl
-
 /-! ## The environment index at inductives, constructors and recursors -/
 
 local grind_pattern [bridge_grind] iRec?_eta => iRec? o
@@ -1264,9 +1245,7 @@ theorem andRescueSlots_specS (s₀ : AState) (ctor : NIdx) (nP : Nat) (ust : LsI
   exact andRescueSlots_spec s₀ ctor nP ust cn ls hok hc h1
 
 /-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — **the pinned `And`
-rescue**, certified the K branch's way. Sixteen states, hence `gen := 16`; the
-projection nodes' denotations go through `denoteEView_proj` (the generic `denoteEView`
-equation carries a `fun`, erased here). -/
+rescue**, certified the K branch's way. Sixteen states, hence `gen := 16`. -/
 theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
@@ -1282,8 +1261,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₁.pins ∧
         SimEOp (mtcAndOp mode env d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
   have hrc := (rule_denote hrl').2.2.1
-  sym (gen := 16) only [bridge_grind, -denoteEView, denoteEView_proj,
-      denoteEView_const, andFab, andRescueOk, denoteEList_append_eq, ← viewOK_const] =>
+  sym (gen := 16) only [bridge_grind, andFab, andRescueOk, denoteEList_append_eq, ← viewOK_const] =>
     vcgen [majorAndA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
       andRescueSlots_specS (mode := mode) (env := env) (fe := fe) (cn := rl'.ctor),
       internE_specC (mode := mode) (env := env) (fe := fe),
