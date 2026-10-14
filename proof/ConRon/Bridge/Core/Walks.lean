@@ -73,7 +73,8 @@ six more.
   `Walks/Owed.lean`). CLOSED.
 * `Walks/ProjCore.lean` — **the projection rule on a reduced scrutinee**
   (task #109, con-leche's `reduceProjCore`): `reduceProjCore_spec` in
-  `SimOOp` form, its five pure exits and `reduceProjCoreFueled_mono`; shared
+  `SimOOp` form, the function as one equation (`reduceProjCore_eq`) and
+  `reduceProjCoreFueled_mono`; shared
   by `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`. CLOSED.
 * `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
   PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and

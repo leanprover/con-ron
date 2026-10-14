@@ -1,23 +1,23 @@
 /-
 # `ConRon.Bridge.Core.Walks.ProjCore` — the projection rule on a reduced scrutinee
 
-Task #109.  con-leche 8afe1815 split the projection rule out of
-`whnfCoreBody`'s `.proj` clause into `reduceProjCore` (the official kernel's
-`reduce_proj_core`), which two callers share: `whnfCoreBody` (after reducing
-the scrutinee by `whnf`, or by the cheap `whnfCore`) and the definitional
-equality's `lazyDeltaProjReduction`.  The twin ports it as one walk, so this
-module proves it once, as a standalone walk theorem both callers apply.
+con-leche's `reduceProjCore` (the official kernel's `reduce_proj_core`) is
+the projection rule on a reduced scrutinee, shared by `whnfCoreBody`'s
+`.proj` clause and the definitional equality's `lazyDeltaProjReduction`.  The
+twin ports it as one walk, and this module proves it once, as a standalone
+walk theorem both callers apply.
 
 | theorem | what it is |
 |---|---|
-| `reduceProjCore_none` … `reduceProjCore_fire` | con-leche's five exits, one equation each |
+| `projRuleFn`, `reduceProjCore_eq` | con-leche's function as the literal expansion and ONE equation over tags and projections |
 | `reduceProjCoreFueled_mono` | fuel monotonicity, from con-leche's `reduceProjCore_mono` |
+| `ProjCoreAns.of_lit` | the walk's one exit, as a `grind` lemma over the expansion's answer |
+| `reduceProjCore_specA` | the walk, `sym … vcgen … finish`, answer `ProjCoreAns` |
 | `reduceProjCore_spec` | **THEOREM 1 for `reduceProjCore`**, in `SimOOp` form |
 
-The walk is the `.proj` clause's former stages 2–9 (`Arms/WhnfCore.lean`
-before task #109): `projLitToCtor_spec`, `IFEnv.findProj?_spec`,
+The walk's callees: `projLitToCtor_specA`, `findProj?_specP`,
 `getAppFn_spec`, the head's `view`, `getAppArgs_spec`, `viewLsLen`,
-`IProjEntry.fireOk_spec`, the guard, `internE (.bvar 0)`, `projCertAt_spec`.
+`IProjEntry.fireOk_specA`, `internE (.bvar 0)`, `projCertAt_specA`.
 -/
 import ConRon.Bridge.Core.Walks.ProjLit
 import ConLeche.Verify.BetaSpine
@@ -33,89 +33,61 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 1. The five exits of con-leche's `reduceProjCore` -/
+/-! ## 1. con-leche's `reduceProjCore` as one equation
 
-/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — **no table
-entry**: the rule does not fire. -/
-theorem reduceProjCore_none {F d i : Nat} {sn : Name} {c e' : Expr}
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c
-      = .ok e')
-    (ht : env.findProj? sn i = none) :
-    ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
-  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
-    bind, Except.bind, pure, Except.pure]
+The rule after the literal expansion is a pure function of the expanded
+scrutinee (`projRuleFn`), written over the tag and projections `grind`
+reads, so that the walk's answer is ONE equation (`reduceProjCore_eq`). -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — the table
-fires but **the scrutinee's head is not a constant**. -/
-theorem reduceProjCore_head {F d i : Nat} {sn : Name} {c e' : Expr}
-    {entry : ProjEntry}
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : ∀ k us, e'.getAppFn ≠ .const k us) :
-    ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
-  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
-    bind, Except.bind]
-  first
-    | rfl
-    | (split
-       · rename_i k us heq; exact absurd heq (hh k us)
-       · rfl)
+/-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — the rule on
+the expanded scrutinee `v`: the table entry for `(nm, k)`, the head
+constant's guards, the certificate, the selected field. -/
+def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
+    Option Expr :=
+  if (env.findProj? nm k).isSome = true ∧ exprTag v.getAppFn = ETag.const ∧
+      exprConstName v.getAppFn = (projOf (env.findProj? nm k)).ctor ∧
+      k < (projOf (env.findProj? nm k)).numFields ∧
+      v.getAppArgs.length = (projOf (env.findProj? nm k)).numParams +
+        (projOf (env.findProj? nm k)).numFields ∧
+      (exprConstLevels v.getAppFn).length = (projOf (env.findProj? nm k)).levelParams.length ∧
+      (projOf (env.findProj? nm k)).fireOk (exprConstLevels v.getAppFn) = true ∧
+      ConLeche.projCertAt env mode.verifiedChecks (exprConstName v.getAppFn) v.getAppArgs = true
+  then some (v.getAppArgs.getD ((projOf (env.findProj? nm k)).numParams + k) (.bvar 0))
+  else none
+attribute [bridge_grind =] projRuleFn
 
-/-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
-fires but **a guard fails**. -/
-theorem reduceProjCore_guard {F d i : Nat} {sn : Name} {c e' : Expr}
-    {entry : ProjEntry} {k : Name} {us : List Level}
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const k us)
-    (hg : ¬ (k = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)) :
-    ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
-  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
-    hh, bind, Except.bind]
-  rw [ite_eq_right hg]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
-fires and **the certificate fails**. -/
-theorem reduceProjCore_cert_false {F d i : Nat} {sn : Name} {c e' : Expr}
-    {entry : ProjEntry} {k : Name} {us : List Level}
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const k us)
-    (hg : k = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt env mode.verifiedChecks k e'.getAppArgs = false) :
-    ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
-  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
-    hh, bind, Except.bind]
-  rw [ite_eq_left hg]
-  simp [hcert, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
-fires, the guards hold and **the certificate succeeds**: the selected
-field. -/
-theorem reduceProjCore_fire {F d i : Nat} {sn : Name} {c e' : Expr}
-    {entry : ProjEntry} {k : Name} {us : List Level}
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const k us)
-    (hg : k = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt env mode.verifiedChecks k e'.getAppArgs = true) :
-    ConLeche.reduceProjCoreFueled mode env F d sn i c =
-      .ok (some (e'.getAppArgs.getD (entry.numParams + i) (.bvar 0))) := by
-  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
-    hh, bind, Except.bind]
-  rw [ite_eq_left hg]
-  simp [hcert, pure, Except.pure]
+/-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — the
+function is the literal expansion followed by `projRuleFn`. -/
+theorem reduceProjCore_eq (F d : Nat) (nm : Name) (k : Nat) (c : Expr) :
+    ConLeche.reduceProjCoreFueled mode env F d nm k c =
+      (ConLeche.projLitToCtorFueled mode env F d c).bind
+        (fun v => .ok (projRuleFn mode env nm k v)) := by
+  simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore,
+    ConLeche.projLitToCtorFueled, bind, Except.bind]
+  cases ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d c with
+  | error e => rfl
+  | ok v =>
+    simp only [projRuleFn]
+    cases hf : env.findProj? nm k with
+    | none => simp [pure, Except.pure]
+    | some p =>
+      simp only [projOf, Option.isSome_some, true_and]
+      cases hg : v.getAppFn with
+      | const n us =>
+        simp only [exprTag, exprConstName, exprConstLevels, true_and]
+        by_cases hgd : n = p.ctor ∧ k < p.numFields ∧
+            v.getAppArgs.length = p.numParams + p.numFields ∧
+            us.length = p.levelParams.length ∧ p.fireOk us = true
+        · cases ConLeche.projCertAt env mode.verifiedChecks n v.getAppArgs <;>
+            simp [hgd, pure, Except.pure]
+        · have hgd' : ¬ (n = p.ctor ∧ k < p.numFields ∧
+              v.getAppArgs.length = p.numParams + p.numFields ∧
+              us.length = p.levelParams.length ∧ p.fireOk us = true ∧
+              ConLeche.projCertAt env mode.verifiedChecks n v.getAppArgs = true) :=
+            fun h => hgd ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1⟩
+          simp only [hgd, hgd', ite_false, pure, Except.pure]
+      | _ => simp [exprTag, pure, Except.pure, ETag.const, ETag.bvar, ETag.fvar, ETag.sort,
+          ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:466 reduceProjCore_mono — at
 the pure knot. -/
@@ -125,14 +97,102 @@ theorem reduceProjCoreFueled_mono {F F' d i : Nat} {sn : Name} {c : Expr}
     ConLeche.reduceProjCoreFueled mode env F' d sn i c = .ok o :=
   ConLeche.reduceProjCore_mono hle h
 
-/-- con-leche: none — an in-range `getD` is the element, whatever the
-default (the twin's default is an interned `.bvar 0` handle, con-leche's the
-term `.bvar 0`). -/
-theorem getD_of_lt {α : Type} {l : List α} {i : Nat} {a : α}
-    (h : i < l.length) : l.getD i a = l[i] := by
-  simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]
+/-! ## 2. The answer and the callees in answer shape -/
 
-/-! ## 2. The walk theorem -/
+/-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — **the
+answer** of the walk (a named predicate: `SimOOp` at the pure call, its
+`fun` hidden from `grind`). -/
+def ProjCoreAns (mode : CheckMode) (env : Env) (d : Nat) (nm : Name) (k : Nat) (c : Expr)
+    (st : EStore) (r : Option EIdx) : Prop :=
+  SimOOp (fun F => ConLeche.reduceProjCoreFueled mode env F d nm k c) d st r
+
+/-- con-leche: none — a literal expansion's answer denotes. -/
+theorem ProjLitAns.isSome {d : Nat} {x : Expr} {st : EStore} {r : EIdx}
+    (h : ProjLitAns mode env d x st r) : (denoteE st r).isSome = true := by
+  obtain ⟨v, hv, _⟩ := h
+  rw [hv]; rfl
+grind_pattern [bridge_grind] ProjLitAns.isSome => ProjLitAns mode env d x st r
+
+/-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — **the
+walk's one exit**: the expansion answered `e`, and the walk's answer denotes
+`projRuleFn` at `e`'s denotation (at the walk's final store `st₂`). -/
+theorem ProjCoreAns.of_lit {d : Nat} {nm : Name} {k : Nat} {c : Expr}
+    {st₁ st₂ : EStore} {e : EIdx} {r : Option EIdx}
+    (hl : ProjLitAns mode env d c st₁ e)
+    (hr : denoteEO st₂ r = some ((denoteE st₁ e).bind (projRuleFn mode env nm k))) :
+    ProjCoreAns mode env d nm k c st₂ r := by
+  obtain ⟨v, hv, hwv, F, hF⟩ := hl
+  rw [hv, Option.bind_some] at hr
+  refine ⟨_, hr, fun y hy => ?_, F, ?_⟩
+  · simp only [projRuleFn] at hy
+    split at hy
+    · cases hy
+      rename_i hg
+      have hj : (projOf (env.findProj? nm k)).numParams + k < v.getAppArgs.length := by
+        omega
+      simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
+      exact Expr.WScoped.getAppArgs hwv _ (List.getElem_mem _)
+    · cases hy
+  · dsimp only at hF ⊢
+    rw [reduceProjCore_eq, hF]; rfl
+grind_pattern [bridge_grind] ProjCoreAns.of_lit =>
+  ProjCoreAns mode env d nm k c st₂ r, ProjLitAns mode env d c st₁ e
+
+/-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — the
+certificate at optional subjects (one equation at `some`). -/
+def projCertAtO (env : Env) (verified : Bool) : Option Name → Option (List Expr) → Bool
+  | some cn, some xs => ConLeche.projCertAt env verified cn xs
+  | _, _ => false
+
+/-- con-leche: none — `projCertAtO` at denoting subjects. -/
+@[bridge_grind =] theorem projCertAtO_some (verified : Bool) (cn : Name) (xs : List Expr) :
+    projCertAtO env verified (some cn) (some xs) = ConLeche.projCertAt env verified cn xs := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — `projCertAt_spec`
+in answer shape: the certificate at whatever the handles denote. -/
+theorem projCertAt_specA (s₀ : AState) (hok : CheckOK mode env fe s₀)
+    (verified : Bool) (c : NIdx) (args : List EIdx)
+    (hc : (denoteN s₀.store.ns c).isSome = true)
+    (hargs : (Frontend.denoteEList s₀.store args).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projCertAt fe verified c args
+    ⦃fun b s' => s' = s₀ ∧ b = projCertAtO env verified (denoteN s₀.store.ns c)
+        (Frontend.denoteEList s₀.store args); ⊤⦄ := by
+  obtain ⟨cn, hcn⟩ := Option.isSome_iff_exists.mp hc
+  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp hargs
+  rw [hcn, hxs]
+  exact projCertAt_spec s₀ hok verified c args cn xs hcn hxs
+
+/-! ## 3. The walk theorem -/
+
+section Walk
+
+/-! The guard compares the head's constant handle with the entry's: the name
+handles as `idxOfName` (`Bridge/Grind.lean` §6), for this walk only. -/
+
+local grind_pattern [bridge_grind] nameIdx => denoteN st.ns n
+local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — the walk
+in answer shape (`ProjCoreAns`). -/
+theorem reduceProjCore_specA {fuel : Nat}
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (c : EIdx)
+    (nm : Name) (ce : Expr)
+    (hok : CheckOK mode env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
+    (hden : denoteE s₀.store c = some ce) (hw : Expr.WScoped d ce) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.reduceProjCore mode (coreKnot mode fe id fuel) fe d sn k c
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ProjCoreAns mode env d nm k ce s'.store r; ⊤⦄ := by
+  sym only [bridge_grind, Option.getD_some] =>
+    vcgen [ConRon.Arena.reduceProjCore, projLitToCtor_specA hsim (x := ce),
+      findProj?_specP (mode := mode) (env := env) (fe := fe) (Tn := nm),
+      ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec, viewLsLen_spec,
+      IProjEntry.fireOk_specA (mode := mode) (env := env) (fe := fe),
+      internE_specC (mode := mode) (env := env) (fe := fe),
+      projCertAt_specA (mode := mode) (env := env) (fe := fe)] <;> finish
+
+end Walk
 
 /-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — **THEOREM
 1 for `reduceProjCore`**: at a scrutinee handle `c` denoting a well-scoped
@@ -140,7 +200,8 @@ theorem getD_of_lt {α : Type} {l : List α} {i : Nat} {a : α}
 answers what con-leche's `reduceProjCore` answers at some fuel — `none` when
 the rule does not fire, and otherwise the selected field, well-scoped.  The
 walk both `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`
-consume. -/
+consume (`reduceProjCore_specA`; `ProjCoreAns` is `SimOOp` at the pure
+call). -/
 theorem reduceProjCore_spec {fuel : Nat} (_henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (c : EIdx)
@@ -152,163 +213,13 @@ theorem reduceProjCore_spec {fuel : Nat} (_henv : ConLeche.EnvWF env)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.reduceProjCoreFueled mode env F d nm k ce) d
-          s'.store r; ⊤⦄ := by
-  unfold ConRon.Arena.reduceProjCore
-  -- stage 1: the string-literal expansion
-  refine triple_seq (projLitToCtor_spec hsim s₀ d c ce hok hden hw) ?_
-  rintro e' s2 ⟨hok2, hx2, hp2, v', hv', hwv', F2, hF2⟩
-  have hsn2 : denoteN s2.store.ns sn = some nm := denoteN_ext hsn hx2
-  have hplc : ConLeche.projLitToCtor (ConLeche.pureFns mode env F2) env d ce
-      = .ok v' := hF2
-  -- the `none` exit, shared by four of the five exits
-  have hnone : ∀ (s : AState), CheckOK mode env fe s →
-      Ext s₀.store s.store → s.pins = s₀.pins →
-      (∃ F, ConLeche.reduceProjCoreFueled mode env F d nm k ce = .ok none) →
-      ⦃fun s' => s' = s⦄ (pure none : AM (Option EIdx))
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          SimOOp (fun F => ConLeche.reduceProjCoreFueled mode env F d nm k ce)
-            d s'.store r; ⊤⦄ := by
-    intro s hs hxs hps hF
-    obtain ⟨F, hF⟩ := hF
-    vcgen; bridge_peel; subst_vars
-    exact ⟨hs, hxs, hps, ⟨none, rfl, (fun _ hx => by simp at hx), F, hF⟩⟩
-  -- stage 2: the table
-  refine triple_seq (IFEnv.findProj?_spec s2 sn k nm hok2 hsn2) ?_
-  rintro oe s3 ⟨hok3, hx3, _hm3, _hc3, hp3, hsome, hnone3⟩
-  have hv'3 := denote_ext hv' hx3
-  have hx03 : Ext s₀.store s3.store := hx2.trans hx3
-  have hp03 : s3.pins = s₀.pins := hp3.trans hp2
-  cases oe with
-  | none =>
-    exact hnone s3 hok3 hx03 hp03 ⟨F2, reduceProjCore_none hplc (hnone3 rfl)⟩
-  | some entry =>
-    obtain ⟨pe', hpd, hfp⟩ := hsome entry rfl
-    have hwf3 := hok3.state.wf
-    obtain ⟨rk3, hrk3⟩ := hok3.state.wf
-    dsimp only
-    -- stage 3: the head of the expanded scrutinee
-    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 e' hok3.state
-      (by rw [hv'3]; rfl)) ?_
-    rintro hd s4 ⟨hs4, hrelF⟩
-    subst s4
-    have hdd : denoteE s3.store hd = some v'.getAppFn := hrelF v' hv'3
-    obtain ⟨vh, hvh⟩ := denoteE_view hdd
-    refine tag_view_bind_triple hvh ?_
-      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-    cases vh
-    case const cc us =>
-      obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf3 hvh hdd
-      dsimp only
-      -- stage 4: the spine's arguments
-      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s3 e'
-        hok3.state (by rw [hv'3]; rfl)) ?_
-      rintro args s5 ⟨hs5, hrelA⟩
-      subst s5
-      have hargs : Frontend.denoteEList s3.store args = some v'.getAppArgs :=
-        hrelA v' hv'3
-      -- stage 5: the level list's length
-      refine triple_seq (viewLsLen_spec s3 us) ?_
-      rintro ol s6 ⟨hs6, hol⟩
-      subst s6
-      rw [viewLen_of_denoteLs hus] at hol
-      subst hol
-      dsimp only
-      -- stage 6: the possibly-`Prop` fence
-      obtain ⟨_hsnp, hlps, hctor, _hbody, _hfs, _hss, _hidx, hnp, hnf, _hoff⟩ :=
-        denoteProjEntry_inv hpd
-      refine triple_seq (IProjEntry.fireOk_spec s3 entry us pe' ls hok3 hpd
-        hus) ?_
-      rintro fok s7 ⟨hok7, hst7, hp7, hfok⟩
-      subst hfok
-      have hc_iff : cc = entry.ctor ↔ cn = pe'.ctor := by
-        constructor
-        · rintro rfl; exact Option.some.inj (hcn.symm.trans hctor)
-        · rintro rfl; exact denoteN_inj hrk3.nsWF hcn hctor
-      have hlen_a : args.length = v'.getAppArgs.length :=
-        (denoteEList_len hargs).symm
-      have hlen_l : ls.length = pe'.levelParams.length ↔
-          ls.length = entry.levelParams.length := by
-        rw [← denoteNList_len hlps]
-      have hguard : (cc = entry.ctor ∧ k < entry.numFields ∧
-          args.length = entry.numParams + entry.numFields ∧
-          ls.length = entry.levelParams.length ∧ pe'.fireOk ls = true) ↔
-          (cn = pe'.ctor ∧ k < pe'.numFields ∧
-          v'.getAppArgs.length = pe'.numParams + pe'.numFields ∧
-          ls.length = pe'.levelParams.length ∧ pe'.fireOk ls = true) := by
-        rw [hc_iff, hlen_a, hnp, hnf, hlen_l]
-      have hst : s7.store = s3.store := hst7
-      have hx07 : Ext s₀.store s7.store := by rw [hst]; exact hx03
-      have hp07 : s7.pins = s₀.pins := hp7.trans hp03
-      split
-      next hg =>
-        obtain ⟨hcE, hkF, hlenA, _hlenL, _hfire⟩ := hg
-        have hgP := hguard.mp ⟨hcE, hkF, hlenA, _hlenL, _hfire⟩
-        subst hcE
-        -- stage 7: the `getD` default
-        refine triple_seq (internE_spec s7 (.bvar 0) hok7.state.wf viewOK_bvar) ?_
-        rintro b0 s8 ⟨hwf8, hx8, _hl8, _hsc8, _hm8, hc8, hp8, _hv8, _hd8⟩
-        have hok8 : CheckOK mode env fe s8 := hok7.mono ⟨hwf8⟩ hx8 hc8 hp8
-        have hx38 : Ext s3.store s8.store := by rw [← hst]; exact hx8
-        -- the argument the rule selects, in range on both sides
-        have hj : entry.numParams + k < args.length := by omega
-        have hj' : pe'.numParams + k < v'.getAppArgs.length := by
-          rw [← hlen_a, hnp]; exact hj
-        have hwargs : ∀ x ∈ v'.getAppArgs, Expr.WScoped d x :=
-          Expr.WScoped.getAppArgs hwv'
-        have harg3 : denoteE s3.store (args.getD (entry.numParams + k) b0) =
-            some (v'.getAppArgs.getD (pe'.numParams + k) (.bvar 0)) := by
-          have hj'' : entry.numParams + k < v'.getAppArgs.length := by
-            rw [← hlen_a]; exact hj
-          have e1 : args.getD (entry.numParams + k) b0 =
-              args.getD (entry.numParams + k) default := by
-            rw [getD_of_lt hj, getD_of_lt hj]
-          have e2 : v'.getAppArgs.getD (entry.numParams + k) (.bvar 0) =
-              v'.getAppArgs.getD (entry.numParams + k) default := by
-            rw [getD_of_lt hj'', getD_of_lt hj'']
-          rw [hnp, e1, e2]
-          exact denoteEList_getD hargs hj
-        have hwarg : Expr.WScoped d
-            (v'.getAppArgs.getD (pe'.numParams + k) (.bvar 0)) := by
-          rw [getD_of_lt hj']
-          exact hwargs _ (List.getElem_mem _)
-        -- stage 8: the certificate
-        refine triple_seq (projCertAt_spec s8 hok8 mode.verifiedChecks entry.ctor
-          args cn v'.getAppArgs (denoteN_ext hcn hx38)
-          (denoteEList_ext hx38 _ _ hargs)) ?_
-        rintro cert s9 ⟨hs9, hcert'⟩
-        subst hs9
-        have hx09 : Ext s₀.store s9.store := hx07.trans hx8
-        have hp09 : s9.pins = s₀.pins := hp8.trans hp07
-        have hplc' := hplc
-        cases cert
-        · -- the certificate fails
-          exact hnone s9 hok8 hx09 hp09
-            ⟨F2, reduceProjCore_cert_false hplc' hfp hgf hgP hcert'.symm⟩
-        · -- the rule FIRES: the selected field
-          have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'.symm
-          have hdarg := denote_ext harg3 hx38
-          vcgen +internalize; bridge_peel; subst_vars
-          refine ⟨hok8, hx09, hp09, ⟨_, ?_, ?_, F2, hfire⟩⟩
-          · simp only [denoteEO, hdarg, Option.map_some]
-          · intro x hx
-            cases hx
-            exact hwarg
-      next hg =>
-        -- a guard fails
-        exact hnone s7 hok7 hx07 hp07
-          ⟨F2, reduceProjCore_guard hplc hfp hgf
-            (fun h => hg (hguard.mpr h))⟩
-    -- the head is not a constant
-    all_goals
-      dsimp only
-      exact hnone s3 hok3 hx03 hp03
-        ⟨F2, reduceProjCore_head hplc hfp
-          (denote_not_const hwf3 hvh hdd (by intro c us h; cases h))⟩
+          s'.store r; ⊤⦄ :=
+  reduceProjCore_specA hsim s₀ d sn k c nm ce hok hsn hden hw
 
 section Census
 
-#print axioms reduceProjCore_fire
+#print axioms reduceProjCore_eq
+#print axioms reduceProjCore_specA
 #print axioms reduceProjCore_spec
 
 end Census

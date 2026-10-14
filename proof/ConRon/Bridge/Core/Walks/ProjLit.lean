@@ -13,6 +13,7 @@ constructor deep (`projLitToCtor_split`).
 -/
 import ConRon.Bridge.Core.Walks.StrLit
 import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.Core.Walks.PropRead
 
 namespace ConRon.Bridge.Core
 
@@ -24,6 +25,96 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+
+/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+
+The projection table's entries as `grind` reads them: a lookup's answer as
+ONE named predicate (`ProjAns`), a denoting entry's fields as equations
+(`EntryFields`), a found entry as `some` of its projection (`projOf_eta`),
+and the two callees in that shape (`findProj?_specP`,
+`IProjEntry.fireOk_specA`). -/
+
+/-- con-leche: none — the index's projection-table answer against the
+environment's: a found entry denotes the environment's (which is found), a
+miss is a miss. -/
+def ProjAns (st : EStore) : Option IProjEntry → Option ProjEntry → Prop
+  | some en, o => denoteProjEntry st en = o ∧ o.isSome = true
+  | none, o => o = none
+
+/-- con-leche: none — `ProjAns` at a found entry. -/
+@[bridge_grind =] theorem ProjAns.some_eq (st : EStore) (en : IProjEntry) (o : Option ProjEntry) :
+    ProjAns st (some en) o = (denoteProjEntry st en = o ∧ o.isSome = true) := rfl
+
+/-- con-leche: none — `ProjAns` at a miss. -/
+@[bridge_grind =] theorem ProjAns.none_eq (st : EStore) (o : Option ProjEntry) :
+    ProjAns st none o = (o = none) := rfl
+
+/-- con-leche: none — a found entry is `some` of its projection. -/
+theorem projOf_eta {o : Option ProjEntry} (h : o.isSome = true) : o = some (projOf o) := by
+  cases o with
+  | none => cases h
+  | some p => rfl
+grind_pattern [bridge_grind] projOf_eta => o.isSome
+
+/-- con-leche: none — a denoting entry's comparable fields: the constructor
+and level-parameter handles denote the entry's, the counts are shared. -/
+def EntryFields (st : EStore) (en : IProjEntry) : Option ProjEntry → Prop
+  | some p => denoteN st.ns en.ctor = some p.ctor ∧
+      Frontend.denoteNList st.ns en.levelParams = some p.levelParams ∧
+      p.numParams = en.numParams ∧ p.numFields = en.numFields
+  | none => True
+
+/-- con-leche: none — `denoteProjEntry_inv`'s comparable fields, keyed by the
+entry's denotation. -/
+theorem entryFields (st : EStore) (en : IProjEntry) :
+    EntryFields st en (denoteProjEntry st en) := by
+  cases h : denoteProjEntry st en with
+  | none => trivial
+  | some p =>
+    obtain ⟨_, hl, hc, _, _, _, _, hnp, hnf, _⟩ := denoteProjEntry_inv h
+    exact ⟨hc, hl, hnp, hnf⟩
+grind_pattern [bridge_grind] entryFields => denoteProjEntry st en
+
+/-- con-leche: none — `EntryFields` at a denoting entry. -/
+theorem EntryFields.some {st : EStore} {en : IProjEntry} {p : ProjEntry}
+    (H : EntryFields st en (some p)) :
+    denoteN st.ns en.ctor = some p.ctor ∧
+      Frontend.denoteNList st.ns en.levelParams = some p.levelParams ∧
+      p.numParams = en.numParams ∧ p.numFields = en.numFields := H
+grind_pattern [bridge_grind] EntryFields.some => EntryFields st en (some p)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? —
+`IFEnv.findProj?_specA` with its answer as `ProjAns`. -/
+theorem findProj?_specP (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
+    ⦃fun s => s = s₀⦄ fe.findProj? T i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ProjAns s'.store r (env.findProj? Tn i); ⊤⦄ :=
+  triple_mono (IFEnv.findProj?_specA s₀ T i Tn hok hT)
+    (fun r _ ⟨h1, h2, _, _, h5, h6⟩ => ⟨h1, h2, h5, by
+      cases r with
+      | none => exact (Option.some.inj h6).symm
+      | some en =>
+        simp only [denoteProjEntryO, Option.map_eq_some_iff] at h6
+        obtain ⟨p, hp, hq⟩ := h6
+        exact ⟨hp.trans hq, by rw [← hq]; rfl⟩⟩)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
+`IProjEntry.fireOk_spec` at a denoting entry and level list, its answer over
+their denotations (`projOf`, `Option.getD`): no record or list variable for
+`grind` to bind. -/
+theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hden : (denoteProjEntry s₀.store entry).isSome = true)
+    (hus : (denoteLs s₀.store.lss us).isSome = true) :
+    ⦃fun s => s = s₀⦄ entry.fireOk us
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧
+        b = (projOf (denoteProjEntry s₀.store entry)).fireOk
+          ((denoteLs s₀.store.lss us).getD []); ⊤⦄ := by
+  obtain ⟨ls, hls⟩ := Option.isSome_iff_exists.mp hus
+  rw [hls]
+  exact IProjEntry.fireOk_spec s₀ entry us _ ls hok (projOf_eta hden) hls
 
 /-- con-leche: none — a handle that denotes a literal views as that literal. -/
 theorem view_of_denote_lit {st : EStore} (hwf : StoreWF st) {h : EIdx}

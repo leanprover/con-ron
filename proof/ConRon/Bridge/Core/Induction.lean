@@ -146,11 +146,7 @@ standard axioms. -/
 #print axioms mStep_proj_none
 #print axioms mStep_proj_some
 #print axioms whnfCore_of_loopM
-#print axioms reduceProjCore_none
-#print axioms reduceProjCore_head
-#print axioms reduceProjCore_guard
-#print axioms reduceProjCore_cert_false
-#print axioms reduceProjCore_fire
+#print axioms reduceProjCore_eq
 
 #print axioms whnfLoop_reduceNat
 #print axioms whnfLoop_delta
