@@ -302,6 +302,27 @@ theorem internE_specC (s₀ : AState) (w : ENodeView)
 
 attribute [bridge_grind →] CheckOK.pins
 
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the pin
+table's length. -/
+theorem pinNames_length : pinNames.length = pinCount := by decide
+
+/-- con-leche: none — `PinsOK.pinAt` as an equation: the pin at slot `i`
+denotes `pinNames[i]?`. -/
+theorem PinsOK.pinAtEq {s : AState} (hp : PinsOK s) {i : Nat} (hlt : i < s.pins.names.size) :
+    denoteN s.store.ns s.pins.names[i] = pinNames[i]? := by
+  have hl : i < pinNames.length := by rw [pinNames_length, ← hp.ready]; exact hlt
+  rw [List.getElem?_eq_getElem hl]
+  exact hp.pinAt hlt _ (List.getElem?_eq_getElem hl)
+
+/-- con-leche: none — `Bridge/Specs.lean`'s `pinAt_spec` with its answer as an
+EQUATION (`pinNames[i]?` is a closed term the `pinNames_eq_*` rules evaluate):
+no `∀ x, … → …` whose pattern is every `some` in sight. -/
+theorem pinAt_specE (s₀ : AState) (i : Nat) (hp : PinsOK s₀) :
+    ⦃fun s => s = s₀⦄ pinAt i
+    ⦃fun n s' => s' = s₀ ∧ denoteN s₀.store.ns n = pinNames[i]?; ⊤⦄ := by
+  sym only [bridge_grind, PinsOK.pinAtEq] =>
+    vcgen [pinAt] <;> finish
+
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
 `PIN_NAT` slot names `natName`. -/
 @[bridge_grind =] theorem pinNames_eq_natName : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
@@ -540,7 +561,7 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
   sym only [bridge_grind, rawNatLit?_eq] =>
-    vcgen [rawNatLit?_split, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatZero] <;> finish
+    vcgen [rawNatLit?_split, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatZero, pinAt_specE] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — answer
 shape: the reading of whatever the handle denotes, as an equation through
@@ -610,7 +631,7 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
       ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
       ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
-      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight] <;> finish (splits := 20)
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;> finish (splits := 20)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:700-703 natOpStored — the
 function as ONE equation: is the lookup a definition. -/
@@ -670,7 +691,7 @@ theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
       ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
       ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
       ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
-      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight] <;> finish (splits := 20) (gen := 16)
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;> finish (splits := 20) (gen := 16)
 
 /-! ## 4. `constE` and `natOpResult` -/
 
@@ -740,7 +761,7 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight,
       ConRon.Arena.boolTrueName, ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
       ConRon.Arena.pinBoolFalse, internE_specC (mode := mode) (env := env) (fe := fe),
-      constE_specA (mode := mode) (env := env) (fe := fe)] <;> finish (splits := 20)
+      constE_specA (mode := mode) (env := env) (fe := fe), pinAt_specE] <;> finish (splits := 20)
 
 /-! ## 5. `natLitSupported` — the three stored-declaration shapes
 
@@ -814,7 +835,7 @@ theorem natZeroOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
   have hrel := optCI_find hok hn
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat,
-      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;> finish
+      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
 for `natSuccOk`**, at the index's lookup of a denoted name. -/
@@ -826,7 +847,7 @@ theorem natSuccOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
   have hrel := optCI_find hok hn
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat,
-      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;> finish
+      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
 **THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
@@ -839,8 +860,8 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
       ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
       natIndOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName),
       natZeroOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natZeroName),
-      natSuccOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natSuccName)] <;>
-      finish
+      natSuccOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natSuccName),
+      pinAt_specE] <;> finish
 
 /-! ## 6. `reduceNat`'s pure side at its exits
 
@@ -1385,7 +1406,7 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       natOpWfNames_spec (mode := mode) (env := env) (fe := fe),
       natOpResult_spec (mode := mode) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
-      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish (gen := 16) (ematch := 10)
+      internE_specC (mode := mode) (env := env) (fe := fe), pinAt_specE] <;> finish (gen := 16) (ematch := 10)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `reduceNat`**: the literal acceleration, run in the `whnf` loop before
