@@ -88,8 +88,8 @@ weakening: `leafGuard`, the one consumer, uses the list only as a membership
 base (`leafMem`), and `Guards.lean`'s `leavesSubSpec_congr` is what makes
 that formally so.
 -/
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
 
@@ -724,7 +724,8 @@ theorem LeavesEq.proj_step {st : EStore} (hwf : StoreWF st)
 /-! ### The arms' exits as lemmas
 
 The cutoff, the `seen` hit and the four leaf views, each in the shape of the
-postcondition's conjunct it closes (task #120: `bridge_frame`'s list). -/
+postcondition's conjunct it closes (task #120; since task #123 `grind` rules,
+registered in the candidates section below). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — a leaf view
 adds nothing. -/
@@ -762,33 +763,175 @@ theorem isSome_denoteLeaves_cons {st : EStore} {acc : List (Nat × EIdx)} {i : N
     ⟨_, denoteLeaves_cons (Option.isSome_iff_exists.mp ht).choose_spec
       (Option.isSome_iff_exists.mp hacc).choose_spec⟩
 
-/-! ### A child's membership, one lemma per position
-
-`SeenOK.of_grow`/`.child` ask for `ch ∈ v.echildren`; at a concrete view these
-close it by unification (task #120: `bridge_auto`'s list, not an arm). -/
-
+/-- con-leche: none — the annotation is the `fvar` node's child. -/
 theorem mem_ech_fvar {i : Nat} {ty : EIdx} : ty ∈ (ENodeView.fvar i ty).echildren := by
   simp [ENodeView.echildren]
-theorem mem_ech_app₁ {f a : EIdx} : f ∈ (ENodeView.app f a).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_app₂ {f a : EIdx} : a ∈ (ENodeView.app f a).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_lam₁ {t b : EIdx} : t ∈ (ENodeView.lam t b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_lam₂ {t b : EIdx} : b ∈ (ENodeView.lam t b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_forallE₁ {t b : EIdx} : t ∈ (ENodeView.forallE t b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_forallE₂ {t b : EIdx} : b ∈ (ENodeView.forallE t b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_letE₁ {t v b : EIdx} : t ∈ (ENodeView.letE t v b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_letE₂ {t v b : EIdx} : v ∈ (ENodeView.letE t v b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_letE₃ {t v b : EIdx} : b ∈ (ENodeView.letE t v b).echildren := by
-  simp [ENodeView.echildren]
-theorem mem_ech_proj {n : NIdx} {i : Nat} {e : EIdx} : e ∈ (ENodeView.proj n i e).echildren := by
-  simp [ENodeView.echildren]
+
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+
+`fvarLeavesGo_spec`'s arms are closed by `grind` from the step lemmas above,
+each registered with a pattern that names exactly the terms its arm's
+verification condition has.  `grind` has no lemma ORDER (the thing task #120
+found `bridge_auto` sensitive to here), so each pattern carries the facts that
+pick it:
+
+* the node's `LeavesEq` step is keyed by its goal AND its children's answers
+  (`LeavesEq st acc h res, LeavesEq st acc f mid, LeavesEq st mid a res`), so
+  it fires only where those recursive calls were made; the view, which binds
+  nothing new, is a premise the E-graph already has (the binder steps take the
+  view constructor into the pattern, because `app`/`lam`/`forallE` share the
+  children shape);
+* the three exits (`of_cut`, `of_hit'`, `of_leafV`) are keyed by the
+  reflexive goal `LeavesEq st acc c acc` and decided by their premises;
+* `SeenGrow` composes forward (`trans` on two `SeenGrow` facts sharing a
+  set, `AccGrow` from each answer), and closes backward (`drop_insert` keyed by
+  the goal and the inserted set's fact; `insert_black` at a leaf);
+* each recursive call's `SeenOK` is keyed by its goal: the first child by
+  `child'`, the `fvar` annotation by `fvar_child`, a later child by
+  `of_grow'` with the previous call's `SeenGrow` — the membership premise is
+  `ch ∈ ochildren (st.view h)`, an equation-closed fact instead of an
+  existential view;
+* `DenoteView` extraction at the five constructors `Bridge/Grind.lean` §5
+  does not cover (private copies; `ExprOps/Inst1.lean` has its own). -/
+
+/-- con-leche: none — is an optional view one of the four leaf kinds. -/
+private def leafV : Option ENodeView → Bool
+  | some (.bvar _) | some (.sort _) | some (.const _ _) | some (.lit _) => true
+  | _ => false
+
+/-- con-leche: none — the children of an optional view (none at a dangling
+handle). -/
+private def ochildren : Option ENodeView → List EIdx
+  | some v => v.echildren
+  | none => []
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the four
+leaf views add nothing, as one rule keyed by the reflexive goal. -/
+private theorem LeavesEq.of_leafV {st : EStore} (hwf : StoreWF st) {acc : List (Nat × EIdx)}
+    {c : EIdx} (hl : leafV (st.view c) = true) : LeavesEq st acc c acc := by
+  cases hv : st.view c with
+  | none => rw [hv] at hl; cases hl
+  | some v =>
+    rw [hv] at hl
+    cases v <;> simp only [leafV] at hl <;> first
+      | exact LeavesEq.of_relFL (RelFL.bvar_step hwf hv)
+      | exact LeavesEq.of_relFL (RelFL.sort_step hwf hv)
+      | exact LeavesEq.of_relFL (RelFL.const_step hwf hv)
+      | exact LeavesEq.of_relFL (RelFL.lit_step hwf hv)
+      | cases hl
+local grind_pattern [bridge_grind] LeavesEq.of_leafV => LeavesEq st acc c acc
+
+local grind_pattern [bridge_grind] LeavesEq.of_cut => LeavesEq st acc c acc
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+`seen` hit with the probe as `isSome` (no answer variable). -/
+private theorem LeavesEq.of_hit' {st : EStore} (hwf : StoreWF st) {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {c : EIdx} (hs : SeenOK st acc seen c)
+    (hhit : seen[c]?.isSome = true) : LeavesEq st acc c acc := by
+  obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hhit
+  exact LeavesEq.of_hit hwf hs hu
+local grind_pattern [bridge_grind] LeavesEq.of_hit' => LeavesEq st acc c acc, SeenOK st acc seen c
+
+local grind_pattern [bridge_grind] SeenGrow.refl => SeenGrow st acc seen seen
+
+/-- con-leche: none — a leaf's own insert keeps `SeenGrow` (it is black at
+once). -/
+private theorem SeenGrow.insert_black {st : EStore} {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {k : EIdx} (hb : BlackA st acc k) :
+    SeenGrow st acc seen (seen.insert k ()) :=
+  SeenGrow.drop_insert SeenGrow.refl hb
+local grind_pattern [bridge_grind] SeenGrow.insert_black => SeenGrow st acc seen (seen.insert k ())
+
+local grind_pattern [bridge_grind] SeenGrow.drop_insert =>
+  SeenGrow st acc seen seen', SeenGrow st acc (seen.insert k ()) seen'
+local grind_pattern [bridge_grind] SeenGrow.trans => SeenGrow st a1 s0 s1, SeenGrow st a2 s1 s2
+local grind_pattern [bridge_grind] LeavesEq.accGrow => LeavesEq st acc c res
+local grind_pattern [bridge_grind] LeavesEq.black => LeavesEq st acc c res
+local grind_pattern [bridge_grind] AccGrow.trans => AccGrow st a b, AccGrow st b c
+
+/-- con-leche: none — `SeenOK.child` with the view as a membership in its
+children. -/
+private theorem SeenOK.child' {st : EStore} {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {h ch : EIdx} (hch : ch ∈ ochildren (st.view h))
+    (hs : SeenOK st acc seen h) (hacc : (denoteLeaves st acc).isSome = true) :
+    SeenOK st acc (seen.insert h ()) ch := by
+  cases hv : st.view h with
+  | none => rw [hv] at hch; cases hch
+  | some v => rw [hv] at hch; exact SeenOK.child hv hch hs hacc
+local grind_pattern [bridge_grind] SeenOK.child' => SeenOK st acc (seen.insert h ()) ch
+
+/-- con-leche: none — `SeenOK.of_grow` with the view as a membership in its
+children. -/
+private theorem SeenOK.of_grow' {st : EStore} {acc acc' : List (Nat × EIdx)}
+    {seen seen' : Std.HashMap EIdx Unit} {h ch : EIdx} (hch : ch ∈ ochildren (st.view h))
+    (hs : SeenOK st acc seen h) (hg : SeenGrow st acc' (seen.insert h ()) seen')
+    (hga : AccGrow st acc acc') : SeenOK st acc' seen' ch := by
+  cases hv : st.view h with
+  | none => rw [hv] at hch; cases hch
+  | some v => rw [hv] at hch; exact SeenOK.of_grow hv hch hs hg hga
+local grind_pattern [bridge_grind] SeenOK.of_grow' =>
+  SeenOK st acc' seen' ch, SeenGrow st acc' (seen.insert h ()) seen', SeenOK st acc seen h
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1093-1128 fvarLeavesGoC — the
+`fvar` arm's call: the pushed leaf and the inserted node. -/
+private theorem SeenOK.fvar_child {st : EStore} {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {h ty : EIdx} {idx : Nat}
+    (hv : st.view h = some (.fvar idx ty)) (hs : SeenOK st acc seen h)
+    (hacc : (denoteLeaves st acc).isSome = true) (hty : (denoteE st ty).isSome = true) :
+    SeenOK st ((idx, ty) :: acc) (seen.insert h ()) ty :=
+  SeenOK.of_grow hv mem_ech_fvar hs SeenGrow.refl (AccGrow.cons hacc hty)
+local grind_pattern [bridge_grind] SeenOK.fvar_child => SeenOK st ((idx, ty) :: acc) (seen.insert h ()) ty
+
+local grind_pattern [bridge_grind] isSome_denoteLeaves_cons => (denoteLeaves st ((i, t) :: acc)).isSome
+
+local grind_pattern [bridge_grind] LeavesEq.fvar_step =>
+  LeavesEq st acc h res, LeavesEq st ((idx, ty) :: acc) ty res
+local grind_pattern [bridge_grind] LeavesEq.app_step =>
+  LeavesEq st acc h res, LeavesEq st acc f mid, LeavesEq st mid a res
+local grind_pattern [bridge_grind] LeavesEq.lam_step =>
+  LeavesEq st acc h res, LeavesEq st acc ty mid, LeavesEq st mid b res, ENodeView.lam ty b
+local grind_pattern [bridge_grind] LeavesEq.forallE_step =>
+  LeavesEq st acc h res, LeavesEq st acc ty mid, LeavesEq st mid b res, ENodeView.forallE ty b
+local grind_pattern [bridge_grind] LeavesEq.letE_step =>
+  LeavesEq st acc h res, LeavesEq st acc ty m1, LeavesEq st m1 w m2, LeavesEq st m2 b res
+local grind_pattern [bridge_grind] LeavesEq.proj_step =>
+  LeavesEq st acc h res, LeavesEq st acc sub res, ENodeView.proj n i sub
+
+/-- con-leche: none — an `fvar` view's annotation denotes the type. -/
+private theorem DenoteView.fvar' {st : EStore} {k : Nat} {t : EIdx} {e : Expr}
+    (H : DenoteView st (some (.fvar k t)) (some e)) :
+    denoteE st t = some (exprFVarType e) := H.2
+local grind_pattern [bridge_grind] DenoteView.fvar' => DenoteView st (some (.fvar k t)) (some e)
+/-- con-leche: none — a `lam` view's children. -/
+private theorem DenoteView.lam' {st : EStore} {t b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.lam t b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.lam' => DenoteView st (some (.lam t b)) (some e)
+/-- con-leche: none — a `forallE` view's children. -/
+private theorem DenoteView.forallE' {st : EStore} {t b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.forallE t b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.forallE' =>
+  DenoteView st (some (.forallE t b)) (some e)
+/-- con-leche: none — a `letE` view's children. -/
+private theorem DenoteView.letE' {st : EStore} {t w b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.letE t w b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st w = some (exprLetVal e) ∧
+      denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.letE' => DenoteView st (some (.letE t w b)) (some e)
+/-- con-leche: none — a `proj` view's structure. -/
+private theorem DenoteView.proj' {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
+    (H : DenoteView st (some (.proj n i sub)) (some e)) :
+    denoteE st sub = some (exprProjStruct e) := H.2.2.2
+local grind_pattern [bridge_grind] DenoteView.proj' =>
+  DenoteView st (some (.proj n i sub)) (some e)
+
+/-- con-leche: none — the empty `seen` set, keyed by the goal. -/
+private theorem SeenOK.empty {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx} :
+    SeenOK st acc ∅ c := SeenOK.of_empty rfl
+local grind_pattern [bridge_grind] SeenOK.empty => SeenOK st acc ∅ c
+attribute [local bridge_grind =] denoteLeaves_nil
+
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `fvarLeavesGo`'s recursion. -/
@@ -814,29 +957,17 @@ theorem fvarLeavesGo_spec :
   | zero =>
     constructor
     intro s₀ acc seen c _ _ _ _
-    vcgen [fvarLeavesGo_zero]
-    all_goals bridge_vcs [denoteLeaves_nil]
+    sym only [bridge_grind] => vcgen [fvarLeavesGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ acc seen c hok hacc hseen hden
-    have hrec := ih.run
-    vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
-      fvarLeavesGoArmLet, hrec]
-    all_goals (bridge_peel; subst_vars)
-    all_goals try bridge_vcs [denoteLeaves_nil]
-    -- the view inversions' answers the step lemmas want: the children denote
-    bridge_auto [isSome_fvar, isSome_app, isSome_lam, isSome_forallE, isSome_letE,
-      RelFL.bvar_step, RelFL.sort_step, RelFL.const_step, RelFL.lit_step]
-    -- every arm is its step lemmas composed: `LeavesEq` by the node's step,
-    -- `SeenGrow` by `drop_insert` after the children's `trans`, and each
-    -- recursive call's `SeenOK` by the gray argument `SeenOK.of_grow`
-    bridge_frame [LeavesEq.fvar_step, LeavesEq.app_step, LeavesEq.lam_step,
-      LeavesEq.forallE_step, LeavesEq.letE_step, LeavesEq.proj_step, LeavesEq.of_relFL,
-      LeavesEq.of_cut, LeavesEq.of_hit, LeavesEq.black, LeavesEq.accGrow, AccGrow.trans,
-      AccGrow.cons, SeenGrow.drop_insert, SeenGrow.refl, SeenGrow.trans,
-      SeenOK.child, SeenOK.of_grow, isSome_denoteLeaves_cons, mem_ech_fvar, mem_ech_app₁,
-      mem_ech_app₂, mem_ech_lam₁, mem_ech_lam₂, mem_ech_forallE₁, mem_ech_forallE₂,
-      mem_ech_letE₁, mem_ech_letE₂, mem_ech_letE₃, mem_ech_proj]
+    obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+    -- every arm is the step rules of the candidates section composed: `LeavesEq`
+    -- by the node's step, `SeenGrow` by `drop_insert` after the children's
+    -- `trans`, and each recursive call's `SeenOK` by the gray argument
+    sym only [bridge_grind, leafV, ochildren, ENodeView.echildren, List.mem_cons] =>
+      vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
+        fvarLeavesGoArmLet, ih.run] <;> finish
 
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1154-1155 fvarLeavesC —
@@ -847,9 +978,8 @@ theorem fvarLeavesFast_spec (fuel : Nat) (s₀ : AState) (h : EIdx)
     ⦃fun s => s = s₀⦄ fvarLeavesFast fuel h
     ⦃fun rs s' => s' = s₀ ∧ (denoteLeaves s₀.store rs).isSome = true ∧
         LeavesEq s₀.store [] h rs; ⊤⦄ := by
-  have hr := (fvarLeavesGo_spec fuel).run
-  vcgen [fvarLeavesFast, hr]
-  all_goals bridge_vcs [SeenOK.of_empty, denoteLeaves_nil]
+  sym only [bridge_grind] =>
+    vcgen [fvarLeavesFast, (fvarLeavesGo_spec fuel).run] <;> finish
 
 /-! ## The axiom check -/
 
