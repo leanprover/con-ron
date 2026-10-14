@@ -973,15 +973,24 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
           a.mvarId!.assign h.pf
           acc ← instances rest mk acc
         restore s
-    -- an equation no hypothesis states: its two sides unify (`tg = h.tag` once
-    -- `tg` is fixed), or evaluation decides it (`pinNames[PIN_NAT]? = some ?x`)
+    -- an equation about a CLOSED term (`pinNames[PIN_NAT]? = some x`): no
+    -- hypothesis states it, evaluation decides it
+    if acc.isEmpty then
+      if let some (_, l, r) := aT.eq? then
+        if !l.hasFVar && !l.hasMVar then
+          let s ← save
+          let ok ← try withTransparency .default (Meta.isDefEq l r) catch _ => pure false
+          if ok then
+            a.mvarId!.assign (← mkEqRefl l)
+            acc ← instances rest mk acc
+          restore s
+    -- an equation no hypothesis states, whose two sides unify (`tg = h.tag`
+    -- once `tg` is fixed): `rfl`
     if acc.isEmpty then
       if let some (_, l, r) := aT.eq? then
         let s ← save
-        let l ← instantiateMVars l
-        -- (a closed left side evaluates; the right side may be the hole)
-        if (← same l r) || (!l.hasFVar && !l.hasMVar && (← boundedDefEq l r)) then
-          a.mvarId!.assign (← mkEqRefl l)
+        if ← same l r then
+          a.mvarId!.assign (← mkEqRefl (← instantiateMVars l))
           acc ← instances rest mk acc
         restore s
     return acc
