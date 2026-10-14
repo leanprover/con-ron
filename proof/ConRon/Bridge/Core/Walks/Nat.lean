@@ -12,12 +12,37 @@ side.
 Every one of them is DESIGN §8.3's *"index equality IS structural
 equality"* cashed at a pin: the twin compares an `NIdx` against a pinned
 name handle, an `LsIdx` against the empty-levels pin and an `EIdx` against an
-interned constant, where con-leche compares the values; `denoteN_inj`,
-`denoteLs_inj` and `denoteE_inj` make the two the same test.
+interned constant, where con-leche compares the values.
+
+**The proofs are `vcgen` and `grind`** (task #123):
+`sym only [bridge_grind] => vcgen [f, callee specs…] <;> finish` for every
+walk, no `bridge_*`, no `vc_arm`.  What makes them `grind`-shaped:
+
+* the index equality as an inverse function at each store (`idxOfName`,
+  `Bridge/Grind.lean` §5, and here `idxOfLs`, `idxOfExpr`): a handle test
+  `c == ns` is the name test by congruence closure, in both directions;
+* every con-leche function the walks compare against as ONE unconditional
+  equation over tags and projections (`rawNatLit?_eq`, `natOpStored_eq`,
+  `natIndOk_eq`, `natZeroOk_eq`, `natSuccOk_eq`), and the environment's
+  stored inductives and constructors as projections (`iInd?`/`cInd?`,
+  `OptCI.at`), so that `grind` never splits a `match`;
+* `reduceNat`'s answer named (`NatRed`), its fourteen exits as `grind`
+  lemmas over the subject's projections (`exprFn`, `exprArg`), and the
+  callees it reads at handles it has only just made in answer shape
+  (`KnotSpec.whnfA`, `rawNatLit?_specA`, `constE_specA`);
+* the binary guards as `Bool`s (`natBinOpB`, `WfNames`), so a fourteen-way
+  name test is one equation per pin, not a disjunction.
+
+One `grind` limitation is worked around rather than met: a `vcgen`
+fall-through hypothesis with a NESTED constructor pattern
+(`∀ n, v = .lit (.natVal n) → False`) is invisible to `grind`
+(`_tmp/corpus/vcgen-grind/nested-ctor-fallthrough-hyp.lean`), so
+`rawNatLit?_spec` runs `vcgen` on `rawNatLit?_split`, the twin with its
+literal arm one constructor deep.
 -/
 import ConRon.Bridge.Core.Walks.Spine
 import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -41,279 +66,345 @@ theorem beq_of_denoteLs {st : LsStore} (hwf : LsStoreWF st) {i j : LsIdx}
   · rintro rfl; rw [hi] at hj; exact Option.some.inj hj
   · rintro rfl; exact denoteLs_inj hwf hi hj
 
-/-! ## 2. `rawNatLit?` -/
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — a handle
-whose view is neither a `Nat` literal nor a constant reads as no literal. -/
-theorem rawNatLit?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hnl : ∀ n, v = .lit (.natVal n) → False)
-    (hnc : ∀ c us, v = .const c us → False) :
-    ConLeche.rawNatLit? e = none := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv he]; rfl
-  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; rfl
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; rfl
-  | const n us => exact absurd rfl (hnc n us)
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; rfl
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; rfl
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; rfl
-  | lit l =>
-    rw [denote_lit_inv hwf hv he]
-    cases l with
-    | natVal n => exact absurd rfl (hnl n)
-    | strVal _ => rfl
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
+`Bridge/Grind.lean` §5/§6's shape for what these walks read and the generic
+vocabulary does not cover yet: the index equality at the level-list and
+expression stores (and the name store's, keyed by the denotation), two more
+view constructors (`lit`, `forallE`), the knot's `whnf` slot and `internE`
+at the invariant in answer shape, the environment's inductives and
+constructors as projections, and a few `Option`/`List` equations. -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — the
-constant arm: `Nat.zero` exactly when the name is the pinned one and the
-levels the empty list, both tested by handle. -/
-theorem rawNatLit?_const_eq {st : EStore} {c nz : NIdx}
-    {us el : LsIdx} {nm : ConLeche.Name} {ls : List Level}
-    (hn : denoteN st.ns c = some nm) (hls : denoteLs st.lss us = some ls)
-    (hel : denoteLs st.lss el = some [])
-    (hnz : ∀ x, pinNames[PIN_NAT_ZERO]? = some x → denoteN st.ns nz = some x)
-    (hwf : StoreWF st) :
-    (if (c == nz && us == el) = true then some 0 else none) =
-      ConLeche.rawNatLit? (.const nm ls) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  rw [beq_of_denoteN hrk.nsWF hn (hnz _ rfl), beq_of_denoteLs hrk.lss hls hel]
-  cases ls with
-  | nil =>
-    simp only [ConLeche.rawNatLit?]
-    by_cases hz : nm = ConLeche.natZeroName <;> simp [hz]
-  | cons l ls => simp [ConLeche.rawNatLit?]
+/-! The tags' values, so that `grind` tells them apart (`ETag`'s are plain
+`def`s), and `tagOf`/`exprTag` at a constructor. -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? —
-`rawNatLit?_of_view` in the arm's orientation. -/
-theorem rawNatLit?_none {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hnl : ∀ n, v = .lit (.natVal n) → False)
-    (hnc : ∀ c us, v = .const c us → False) :
-    none = ConLeche.rawNatLit? e := (rawNatLit?_of_view hwf hv he hnl hnc).symm
+/-- con-leche: none — the `bvar` tag's value. -/
+@[bridge_grind =] theorem ETag.bvar_eq : ETag.bvar = 0 := rfl
+/-- con-leche: none — the `fvar` tag's value. -/
+@[bridge_grind =] theorem ETag.fvar_eq : ETag.fvar = 1 := rfl
+/-- con-leche: none — the `sort` tag's value. -/
+@[bridge_grind =] theorem ETag.sort_eq : ETag.sort = 2 := rfl
+/-- con-leche: none — the `const` tag's value. -/
+@[bridge_grind =] theorem ETag.const_eq : ETag.const = 3 := rfl
+/-- con-leche: none — the `app` tag's value. -/
+@[bridge_grind =] theorem ETag.app_eq : ETag.app = 4 := rfl
+/-- con-leche: none — the `lam` tag's value. -/
+@[bridge_grind =] theorem ETag.lam_eq : ETag.lam = 5 := rfl
+/-- con-leche: none — the `forallE` tag's value. -/
+@[bridge_grind =] theorem ETag.forallE_eq : ETag.forallE = 6 := rfl
+/-- con-leche: none — the `letE` tag's value. -/
+@[bridge_grind =] theorem ETag.letE_eq : ETag.letE = 7 := rfl
+/-- con-leche: none — the `lit` tag's value. -/
+@[bridge_grind =] theorem ETag.lit_eq : ETag.lit = 8 := rfl
+/-- con-leche: none — the `proj` tag's value. -/
+@[bridge_grind =] theorem ETag.proj_eq : ETag.proj = 9 := rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — **THEOREM 1
-for `rawNatLit?`**: the literal reading of a head normal form. -/
-theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
-    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
-  have hp := hok.pins
-  vcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
-    ConRon.Arena.pinNatZero]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [denote_lit_inv, rawNatLit?_const_eq, rawNatLit?_none]
+attribute [bridge_grind =] ENodeView.tagOf exprTag
 
-/-! ## 3. The name tests -/
+/-- con-leche: none — **the name handle of a denoted name** at the name
+store, keyed by the denotation term (`idxOfName_eq` as a fact): with it, a
+handle test against a pin is the name test by congruence closure. -/
+def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
+  | some nm => idxOfName st nm = n
+  | none => True
 
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
-`natBinOpName`**: the binary literal acceleration's fourteen-way name test is
-con-leche's disjunction. -/
-theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
-    ⦃fun b s' => s' = s₀ ∧ (b = true ↔
-        (nm = ConLeche.natAddName ∨
-        nm = ConLeche.natSubName ∨
-        nm = ConLeche.natMulName ∨
-        nm = ConLeche.natPowName ∨
-        nm = ConLeche.natBeqName ∨
-        nm = ConLeche.natBleName ∨
-        nm = ConLeche.natDivName ∨
-        nm = ConLeche.natModName ∨
-        nm = ConLeche.natGcdName ∨
-        nm = ConLeche.natLandName ∨
-        nm = ConLeche.natLorName ∨
-        nm = ConLeche.natXorName ∨
-        nm = ConLeche.natShiftLeftName ∨
-        nm = ConLeche.natShiftRightName)); ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  vcgen [ConRon.Arena.natBinOpName, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
-  all_goals (bridge_peel; subst_vars)
-  all_goals first | exact hp | skip
-  refine ⟨rfl, ?_⟩
-  have beq_handle_eq := fun {n : NIdx} {y : ConLeche.Name} => @beq_handle_eq _ hwf c n nm y
-  rw [beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
-      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
-  simp only [Bool.or_eq_true, beq_iff_eq, or_assoc]
-  exact Iff.rfl
+/-- con-leche: none — every denoting name handle is its name's handle. -/
+theorem nameIdx {st : EStore} (hwf : StoreWF st) (n : NIdx) :
+    NameIdx st.ns n (denoteN st.ns n) := by
+  cases h : denoteN st.ns n with
+  | none => trivial
+  | some nm => obtain ⟨rk, hrk⟩ := hwf; exact idxOfName_eq hrk.nsWF h
+grind_pattern [bridge_grind] nameIdx => denoteN st.ns n
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — **THEOREM 1
-for `natOpStored`**: is the operation stored as a definition. -/
-theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
-  vcgen [ConRon.Arena.natOpStored]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [env_defn_of_index, env_not_defn_of_index] unfolding [ConLeche.natOpStored]
+/-- con-leche: none — `NameIdx` at a denoting handle. -/
+theorem NameIdx.some {st : NStore} {n : NIdx} {nm : ConLeche.Name}
+    (H : NameIdx st n (some nm)) : idxOfName st nm = n := H
+grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:602-612 natOpWfNames — **THEOREM
-1 for `natOpWfNames`**: the eight pinned handles answer con-leche's
-membership test at every denoted name. -/
-theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpWfNames
-    ⦃fun ws s' => s' = s₀ ∧ ∀ c nm, denoteN s₀.store.ns c = some nm →
-        ws.contains c = ConLeche.natOpWfNames.contains nm; ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  vcgen [ConRon.Arena.natOpWfNames, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
-  all_goals (bridge_peel; subst_vars)
-  all_goals first | exact hp | skip
-  refine ⟨rfl, fun c nm hn => ?_⟩
-  simp only [List.contains_cons, List.contains_nil, Bool.or_false,
-    ConLeche.natOpWfNames]
-  rw [beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
-    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
-  rfl
+open Classical in
+/-- con-leche: none — **the level-list handle of a level list**, `denoteLs`'s
+inverse on the lists the store denotes (`idxOfName` at the level-list
+store). -/
+noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
+  if h : ∃ n, denoteLs st n = some ls then Classical.choose h else default
 
-/-! ## 4. `natOpResult` -/
+/-- con-leche: none — a denoting level-list handle is its list's handle. -/
+def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
+  | some ls => idxOfLs st ls = n
+  | none => True
 
-set_option hygiene false in
-/-- con-leche: none — the fifteen name tests of `natOpResult`'s chain, turned
-into con-leche's `Name` tests at one arm. -/
-local macro "nat_tests" : tactic => `(tactic| (
-   have e0 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_PRED]? = some x → denoteN _ _ = some x› _ rfl)
-   have e1 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e2 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl)
-   have e3 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl)
-   have e4 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl)
-   have e5 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl)
-   have e6 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl)
-   have e7 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl)
-   have e8 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e9 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e10 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl)
-   have e11 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl)
-   have e12 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl)
-   have e13 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl)
-   have e14 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)
-   simp only [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, beq_iff_eq] at *))
+/-- con-leche: none — `idxOfLs` inverts `denoteLs` (`denoteLs_inj`). -/
+theorem lsIdxAt {st : EStore} (hwf : StoreWF st) (n : LsIdx) :
+    LsIdxAt st.lss n (denoteLs st.lss n) := by
+  cases h : denoteLs st.lss n with
+  | none => trivial
+  | some ls =>
+    obtain ⟨rk, hrk⟩ := hwf
+    have hex : ∃ n, denoteLs st.lss n = some ls := ⟨n, h⟩
+    show idxOfLs _ _ = _
+    simp only [idxOfLs, hex, dite_true]
+    exact denoteLs_inj hrk.lss (Classical.choose_spec hex) h
+grind_pattern [bridge_grind] lsIdxAt => denoteLs st.lss n
 
-set_option hygiene false in
-/-- con-leche: none — the state half of a `natOpResult` arm: one intern
-after reads. -/
-local macro "nat_frame" : tactic => `(tactic| (
-   refine ⟨hok.mono ⟨?_⟩ ?_ ?_ ?_, ?_, ?_, ?_⟩
-   rotate_left 5
-   all_goals try assumption
-   all_goals try exact Ext.refl _
-   all_goals try rfl))
+/-- con-leche: none — `LsIdxAt` at a denoting handle. -/
+theorem LsIdxAt.some {st : LsStore} {n : LsIdx} {ls : List Level}
+    (H : LsIdxAt st n (some ls)) : idxOfLs st ls = n := H
+grind_pattern [bridge_grind] LsIdxAt.some => LsIdxAt st n (some ls)
 
-set_option hygiene false in
-/-- con-leche: none — the answer half of a `natOpResult` arm: the interned
-literal (or `Bool` constant, or nothing) IS con-leche's reduct. -/
-local macro "nat_answer" : tactic => `(tactic| first
-   | (simp only [denoteEO]
-      simp (config := { decide := true }) [ConLeche.natOpResult,
-        ConLeche.natPredName, ConLeche.natAddName, ConLeche.natSubName,
-        ConLeche.natMulName, ConLeche.natPowName, ConLeche.natBeqName,
-        ConLeche.natBleName, ConLeche.natDivName, ConLeche.natModName,
-        ConLeche.natGcdName, ConLeche.natLandName, ConLeche.natLorName,
-        ConLeche.natXorName, ConLeche.natShiftLeftName,
-        ConLeche.natShiftRightName, ConLeche.boolTrueName,
-        ConLeche.boolFalseName, *]
-      done)
-   | (rw [denoteEO, ‹denoteE _ _ = denoteEView _ _›]
-      simp only [denoteEView, Option.map_some]
-      simp (config := { decide := true }) [ConLeche.natOpResult,
-        ConLeche.natPredName, ConLeche.natAddName, ConLeche.natSubName,
-        ConLeche.natMulName, ConLeche.natPowName, ConLeche.natBeqName,
-        ConLeche.natBleName, ConLeche.natDivName, ConLeche.natModName,
-        ConLeche.natGcdName, ConLeche.natLandName, ConLeche.natLorName,
-        ConLeche.natXorName, ConLeche.natShiftLeftName,
-        ConLeche.natShiftRightName, ConLeche.boolTrueName,
-        ConLeche.boolFalseName, *]
-      done)
-   | (rw [denoteEO, ‹denoteE _ _ = denoteEView _ _›]
-      have hF := denoteN_ext
-        (‹∀ x, pinNames[PIN_BOOL_FALSE]? = some x → denoteN _ _ = some x› _ rfl)
-        ‹Ext _ _›
-      have hL := denoteLs_ext ‹denoteLs _ _ = some []› ‹Ext _ _›
-      simp only [denoteEView, hF, hL, opt2, Option.map_some]
-      simp (config := { decide := true }) [ConLeche.natOpResult,
-        ConLeche.natPredName, ConLeche.natAddName, ConLeche.natSubName,
-        ConLeche.natMulName, ConLeche.natPowName, ConLeche.natBeqName,
-        ConLeche.natBleName, ConLeche.natDivName, ConLeche.natModName,
-        ConLeche.natGcdName, ConLeche.natLandName, ConLeche.natLorName,
-        ConLeche.natXorName, ConLeche.natShiftLeftName,
-        ConLeche.natShiftRightName, ConLeche.boolTrueName,
-        ConLeche.boolFalseName, *]
-      done)
-   | (rw [denoteEO, ‹denoteE _ _ = denoteEView _ _›]
-      have hT := denoteN_ext
-        (‹∀ x, pinNames[PIN_BOOL_TRUE]? = some x → denoteN _ _ = some x› _ rfl)
-        ‹Ext _ _›
-      have hL := denoteLs_ext ‹denoteLs _ _ = some []› ‹Ext _ _›
-      simp only [denoteEView, hT, hL, opt2, Option.map_some]
-      simp (config := { decide := true }) [ConLeche.natOpResult,
-        ConLeche.natPredName, ConLeche.natAddName, ConLeche.natSubName,
-        ConLeche.natMulName, ConLeche.natPowName, ConLeche.natBeqName,
-        ConLeche.natBleName, ConLeche.natDivName, ConLeche.natModName,
-        ConLeche.natGcdName, ConLeche.natLandName, ConLeche.natLorName,
-        ConLeche.natXorName, ConLeche.natShiftLeftName,
-        ConLeche.natShiftRightName, ConLeche.boolTrueName,
-        ConLeche.boolFalseName, *]
-      done))
+open Classical in
+/-- con-leche: none — **the expression handle of an expression**, `denoteE`'s
+inverse on the expressions the store denotes (DESIGN §8.3 at the expression
+store, `denoteE_inj`). -/
+noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
+  if h : ∃ n, denoteE st n = some e then Classical.choose h else default
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — **THEOREM 1
-for `natOpResult`**: the reduct of a binary operation on two literals. -/
-theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (a b : Nat) (hok : CheckOK mode env fe s₀)
-    (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
+/-- con-leche: none — a denoting expression handle is its expression's
+handle. -/
+def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
+  | some e => idxOfExpr st e = n
+  | none => True
+
+/-- con-leche: none — `idxOfExpr` inverts `denoteE`. -/
+theorem eIdxAt {st : EStore} (hwf : StoreWF st) (n : EIdx) : EIdxAt st n (denoteE st n) := by
+  cases h : denoteE st n with
+  | none => trivial
+  | some e =>
+    have hex : ∃ n, denoteE st n = some e := ⟨n, h⟩
+    show idxOfExpr _ _ = _
+    simp only [idxOfExpr, hex, dite_true]
+    exact denoteE_inj hwf (Classical.choose_spec hex) h
+grind_pattern [bridge_grind] eIdxAt => denoteE st n
+
+/-- con-leche: none — `EIdxAt` at a denoting handle. -/
+theorem EIdxAt.some {st : EStore} {n : EIdx} {e : Expr} (H : EIdxAt st n (some e)) :
+    idxOfExpr st e = n := H
+grind_pattern [bridge_grind] EIdxAt.some => EIdxAt st n (some e)
+
+/-- con-leche: none — a `lit` view's denotation is that literal (its
+projection). -/
+theorem DenoteView.lit {st : EStore} {l : Literal} {e : Expr}
+    (H : DenoteView st (some (.lit l)) (some e)) : exprLit e = l := H
+grind_pattern [bridge_grind] DenoteView.lit => DenoteView st (some (.lit l)) (some e)
+
+/-- con-leche: none — a `forallE` view's children denote the binder type and
+the body. -/
+theorem DenoteView.forallE {st : EStore} {ty b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.forallE ty b)) (some e)) :
+    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+grind_pattern [bridge_grind] DenoteView.forallE => DenoteView st (some (.forallE ty b)) (some e)
+
+/-- con-leche: none — the binder-type handle of a `forallE`/`lam` view. -/
+def nodeBinderType : ENodeView → EIdx | .forallE t _ => t | .lam t _ => t | _ => default
+/-- con-leche: none — the body handle of a `forallE`/`lam` view. -/
+def nodeBody : ENodeView → EIdx | .forallE _ b => b | .lam _ b => b | _ => default
+
+/-- con-leche: none — a view tagged `forallE` IS a `forallE` view. -/
+theorem ENodeView.tagOf_forallE {v : ENodeView} (h : v.tagOf = ETag.forallE) :
+    v = .forallE (nodeBinderType v) (nodeBody v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_forallE => ENodeView.tagOf v
+
+/-- con-leche: none — the literal of a `lit` view. -/
+def nodeLit : ENodeView → Literal | .lit l => l | _ => .natVal 0
+
+/-- con-leche: none — a view tagged `lit` IS a `lit` view. -/
+theorem ENodeView.tagOf_lit {v : ENodeView} (h : v.tagOf = ETag.lit) : v = .lit (nodeLit v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_lit => ENodeView.tagOf v
+
+/-- con-leche: none — a literal's `Nat`, if it is one. -/
+def litNat? : Literal → Option Nat | .natVal n => some n | .strVal _ => none
+attribute [bridge_grind =] litNat?
+
+/-- con-leche: none — `denoteEView` at a literal. -/
+@[bridge_grind =] theorem denoteEView_lit (st : EStore) (l : Literal) :
+    denoteEView st (.lit l) = some (.lit l) := rfl
+
+/-- con-leche: none — `denoteEView` at a constant. -/
+@[bridge_grind =] theorem denoteEView_const (st : EStore) (n : NIdx) (us : LsIdx) :
+    denoteEView st (.const n us) = opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us) := rfl
+
+/-- con-leche: none — `opt2` at two present values. -/
+@[bridge_grind =] theorem opt2_some_some {α β γ : Type} (f : α → β → γ) (a : α) (b : β) :
+    opt2 f (some a) (some b) = some (f a b) := rfl
+
+attribute [bridge_grind .] viewOK_lit
+attribute [bridge_grind =] Option.map_none
+
+/-- con-leche: none — a list is empty iff its length is `0` (the twin reads
+the stored list, con-leche the denoted one: their lengths agree). -/
+theorem List.isEmpty_eq_len {α : Type} (l : List α) : l.isEmpty = (l.length == 0) := by
+  cases l <;> rfl
+attribute [bridge_grind =] List.isEmpty_eq_len
+
+/-- con-leche: none — membership in a cons as a `||` (`List.elem_cons`'s
+`match` is what `grind` would otherwise split). -/
+theorem List.elem_cons_or {α : Type} [BEq α] (a b : α) (bs : List α) :
+    (b :: bs).elem a = (a == b || bs.elem a) := by
+  simp only [List.elem_cons]; cases a == b <;> rfl
+
+/-- con-leche: none — a precondition on an optional subject: it denotes, in
+scope at `d`. -/
+def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none => False
+
+/-- con-leche: none — `DenWS` at a denoting subject. -/
+@[bridge_grind =] theorem DenWS.some_eq (d : Nat) (e : Expr) :
+    DenWS d (some e) = Expr.WScoped d e := rfl
+
+/-- con-leche: none — an application's argument is in scope where it is. -/
+theorem wscoped_exprArg {d : Nat} {x : Expr} (h : Expr.WScoped d x) :
+    Expr.WScoped d (exprArg x) := by
+  cases x <;> simp_all [Expr.WScoped, exprArg]
+grind_pattern [bridge_grind] wscoped_exprArg => Expr.WScoped d x, exprArg x
+
+/-- con-leche: none — an application's function is in scope where it is. -/
+theorem wscoped_exprFn {d : Nat} {x : Expr} (h : Expr.WScoped d x) :
+    Expr.WScoped d (exprFn x) := by
+  cases x <;> simp_all [Expr.WScoped, exprFn]
+grind_pattern [bridge_grind] wscoped_exprFn => Expr.WScoped d x, exprFn x
+
+/-- con-leche: none — the `whnf` slot's answer at an optional subject (a
+named predicate on the denotation term, `MapRel`'s idea at `SimE`). -/
+def WhnfAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
+    Option Expr → Prop
+  | some e => SimE (ConLeche.whnf mode env) d e st r
+  | none => True
+
+/-- con-leche: none — `WhnfAns` at a denoting subject. -/
+theorem WhnfAns.some {d : Nat} {st : EStore} {r : EIdx} {e : Expr}
+    (H : WhnfAns mode env d st r (some e)) : SimE (ConLeche.whnf mode env) d e st r := H
+grind_pattern [bridge_grind] WhnfAns.some => WhnfAns mode env d st r (some e)
+
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the `whnf`
+slot in answer shape (`KnotSpec.whnf'` with a `DenWS` precondition and a
+`WhnfAns` post: no `∃` to prove, no `∀` to instantiate). -/
+theorem KnotSpec.whnfA {f : Nat} (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  vcgen [ConRon.Arena.natOpResult, ConRon.Arena.natPredName, ConRon.Arena.pinNatPred, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, ConRon.Arena.constE,
-    ConRon.Arena.emptyLevels, ConRon.Arena.boolTrueName,
-    ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
-    ConRon.Arena.pinBoolFalse]
-  all_goals (bridge_peel; subst_vars)
-  all_goals first
-    | exact hp
-    | exact hwf
-    | exact viewOK_lit
-    | (obtain ⟨w, hw, _⟩ := denoteLs_view ‹denoteLs _ _ = some []›
-       exact viewOK_const (nview_isSome_of_denote
-         (‹∀ x, pinNames[PIN_BOOL_TRUE]? = some x → denoteN _ _ = some x› _ rfl))
-         (by rw [hw]; rfl))
-    | (obtain ⟨w, hw, _⟩ := denoteLs_view ‹denoteLs _ _ = some []›
-       exact viewOK_const (nview_isSome_of_denote
-         (‹∀ x, pinNames[PIN_BOOL_FALSE]? = some x → denoteN _ _ = some x› _ rfl))
-         (by rw [hw]; rfl))
-    | skip
-  all_goals nat_tests
-  all_goals nat_frame
-  all_goals nat_answer
+        s'.pins = s₀.pins ∧ WhnfAns mode env d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+  cases hd : denoteE s₀.store i with
+  | none => rw [hd] at hw; exact hw.elim
+  | some e =>
+    rw [hd] at hw
+    exact triple_mono (hsim.whnf s₀ d i e hok hd hw) (fun _ _ h => h)
 
-/-! ## 5. `natLitSupported` — the three stored-declaration shapes -/
+/-- con-leche: none — `Bridge/Specs.lean`'s `internE_spec` at the tier's
+invariant (`CheckOK.mono`), so that `grind` need not re-derive `CheckOK`. -/
+theorem internE_specC (s₀ : AState) (w : ENodeView)
+    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ViewOK w) :
+    ⦃fun s => s = s₀⦄ internE w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
+  triple_mono (internE_spec s₀ w hok.state.wf hv)
+    (fun _ _ ⟨hwf, hx, _, _, _, hc, hp, _, hd⟩ => ⟨hok.mono ⟨hwf⟩ hx hc hp, hx, hp, hd⟩)
+
+attribute [bridge_grind →] CheckOK.pins
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT` slot names `natName`. -/
+@[bridge_grind =] theorem pinNames_eq_natName : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_ZERO` slot names `natZeroName`. -/
+@[bridge_grind =] theorem pinNames_eq_natZeroName : pinNames[PIN_NAT_ZERO]? = some ConLeche.natZeroName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SUCC` slot names `natSuccName`. -/
+@[bridge_grind =] theorem pinNames_eq_natSuccName : pinNames[PIN_NAT_SUCC]? = some ConLeche.natSuccName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_PRED` slot names `natPredName`. -/
+@[bridge_grind =] theorem pinNames_eq_natPredName : pinNames[PIN_NAT_PRED]? = some ConLeche.natPredName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_ADD` slot names `natAddName`. -/
+@[bridge_grind =] theorem pinNames_eq_natAddName : pinNames[PIN_NAT_ADD]? = some ConLeche.natAddName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SUB` slot names `natSubName`. -/
+@[bridge_grind =] theorem pinNames_eq_natSubName : pinNames[PIN_NAT_SUB]? = some ConLeche.natSubName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_MUL` slot names `natMulName`. -/
+@[bridge_grind =] theorem pinNames_eq_natMulName : pinNames[PIN_NAT_MUL]? = some ConLeche.natMulName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_POW` slot names `natPowName`. -/
+@[bridge_grind =] theorem pinNames_eq_natPowName : pinNames[PIN_NAT_POW]? = some ConLeche.natPowName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_BEQ` slot names `natBeqName`. -/
+@[bridge_grind =] theorem pinNames_eq_natBeqName : pinNames[PIN_NAT_BEQ]? = some ConLeche.natBeqName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_BLE` slot names `natBleName`. -/
+@[bridge_grind =] theorem pinNames_eq_natBleName : pinNames[PIN_NAT_BLE]? = some ConLeche.natBleName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_DIV` slot names `natDivName`. -/
+@[bridge_grind =] theorem pinNames_eq_natDivName : pinNames[PIN_NAT_DIV]? = some ConLeche.natDivName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_MOD` slot names `natModName`. -/
+@[bridge_grind =] theorem pinNames_eq_natModName : pinNames[PIN_NAT_MOD]? = some ConLeche.natModName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_GCD` slot names `natGcdName`. -/
+@[bridge_grind =] theorem pinNames_eq_natGcdName : pinNames[PIN_NAT_GCD]? = some ConLeche.natGcdName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_LAND` slot names `natLandName`. -/
+@[bridge_grind =] theorem pinNames_eq_natLandName : pinNames[PIN_NAT_LAND]? = some ConLeche.natLandName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_LOR` slot names `natLorName`. -/
+@[bridge_grind =] theorem pinNames_eq_natLorName : pinNames[PIN_NAT_LOR]? = some ConLeche.natLorName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_XOR` slot names `natXorName`. -/
+@[bridge_grind =] theorem pinNames_eq_natXorName : pinNames[PIN_NAT_XOR]? = some ConLeche.natXorName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SHIFT_LEFT` slot names `natShiftLeftName`. -/
+@[bridge_grind =] theorem pinNames_eq_natShiftLeftName : pinNames[PIN_NAT_SHIFT_LEFT]? = some ConLeche.natShiftLeftName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SHIFT_RIGHT` slot names `natShiftRightName`. -/
+@[bridge_grind =] theorem pinNames_eq_natShiftRightName : pinNames[PIN_NAT_SHIFT_RIGHT]? = some ConLeche.natShiftRightName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_BOOL_TRUE` slot names `boolTrueName`. -/
+@[bridge_grind =] theorem pinNames_eq_boolTrueName : pinNames[PIN_BOOL_TRUE]? = some ConLeche.boolTrueName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_BOOL_FALSE` slot names `boolFalseName`. -/
+@[bridge_grind =] theorem pinNames_eq_boolFalseName : pinNames[PIN_BOOL_FALSE]? = some ConLeche.boolFalseName := rfl
+
+/-! ### The environment's inductives and constructors as projections
+
+`Bridge/Grind.lean` §6's `iDefn?`/`cDefn?` at the two other constructors
+`natLitSupported` reads, with `OptCI` (below) through the projections. -/
+
+/-- con-leche: none — is a stored lookup an inductive. -/
+def iInd? : Option IConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+/-- con-leche: none — a stored inductive's record. -/
+def iIndVal : Option IConstantInfo → IConstantVal | some (.indInfo v _) => v | _ => default
+/-- con-leche: none — a stored inductive's capabilities. -/
+def iIndCaps : Option IConstantInfo → IIndCaps | some (.indInfo _ c) => c | _ => default
+/-- con-leche: none — is a stored lookup a constructor. -/
+def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+/-- con-leche: none — a stored constructor's record. -/
+def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
+/-- con-leche: none — a stored constructor's parameter count. -/
+def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+/-- con-leche: none — a stored constructor's field count. -/
+def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+/-- con-leche: none — is an environment lookup an inductive. -/
+def cInd? : Option ConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+/-- con-leche: none — an inductive's record. -/
+def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _ => default
+/-- con-leche: none — is an environment lookup a constructor. -/
+def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+/-- con-leche: none — a constructor's record. -/
+def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
+attribute [bridge_grind =] iInd? iIndVal iIndCaps iCtor? iCtorVal iCtorNP iCtorNF
+
+/-- con-leche: none — a lookup that is an inductive IS one. -/
+theorem iInd?_eta {o : Option IConstantInfo} (h : iInd? o = true) :
+    o = some (.indInfo (iIndVal o) (iIndCaps o)) := by
+  match o, h with
+  | some (.indInfo _ _), _ => rfl
+grind_pattern [bridge_grind] iInd?_eta => iInd? o
+
+/-- con-leche: none — a lookup that is a constructor IS one. -/
+theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
+    o = some (.ctorInfo (iCtorVal o) (iCtorNP o) (iCtorNF o)) := by
+  match o, h with
+  | some (.ctorInfo _ _ _), _ => rfl
+grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 
 /-- con-leche: none — the index's answer at a name, against the
 environment's, as ONE relation: a miss is a miss and a hit denotes the hit. -/
@@ -373,6 +464,32 @@ theorem denoteCI_indInfo_split {st : EStore} {cv : IConstantVal} {caps : IIndCap
   rw [h1, h2] at h
   exact ⟨cvP, capsP, rfl, rfl, (Option.some.inj h).symm⟩
 
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`OptCI` through the
+projections**: the index and the environment agree on "inductive" and
+"constructor", and at either the stored record denotes the environment's. -/
+theorem OptCI.at {st : EStore} {oc : Option IConstantInfo} {oc' : Option ConstantInfo}
+    (h : OptCI st oc oc') : cInd? oc' = iInd? oc ∧ cCtor? oc' = iCtor? oc ∧
+    (iInd? oc = true → Frontend.denoteCV st (iIndVal oc) = some (cIndVal oc')) ∧
+    (iCtor? oc = true → Frontend.denoteCV st (iCtorVal oc) = some (cCtorVal oc')) := by
+  match oc, h with
+  | none, h => simp only [OptCI] at h; subst h; exact ⟨rfl, rfl, nofun, nofun⟩
+  | some ci, ⟨c, hci, hc⟩ =>
+    subst hc
+    cases ci with
+    | indInfo v caps =>
+      obtain ⟨cv, caps', hcv, _, rfl⟩ := denoteCI_indInfo_split hci
+      exact ⟨rfl, rfl, fun _ => hcv, nofun⟩
+    | ctorInfo v nP nF =>
+      obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
+      exact ⟨rfl, rfl, nofun, fun _ => hcv⟩
+    | _ =>
+      have h1 := denoteCI_ind_iff hci
+      have h2 := denoteCI_ctor_iff hci
+      refine ⟨?_, ?_, nofun, nofun⟩
+      · cases c <;> simp_all [cInd?, iInd?]
+      · cases c <;> simp_all [cCtor?, iCtor?]
+grind_pattern [bridge_grind] OptCI.at => OptCI st oc oc'
+
 /-- con-leche: none — a denoting name-handle list is empty exactly when its
 denotation is. -/
 theorem isEmpty_of_denoteNList {st : NStore} {hs : List NIdx}
@@ -381,322 +498,63 @@ theorem isEmpty_of_denoteNList {st : NStore} {hs : List NIdx}
   have := denoteNList_len h
   cases hs <;> cases xs <;> simp_all
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — the stored
-inductive's shape, its type compared with the interned `Sort 1` by handle. -/
-theorem natIndOk_eq {st : EStore} {v : IConstantVal}
-    {cv : ConstantVal} {caps : IndCaps} {s1 : EIdx}
-    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
-    (hty : denoteE st v.type = some cv.type)
-    (hs1 : denoteE st s1 = some (.sort (.succ .zero)))
-    (hwf : StoreWF st) :
-    (v.levelParams.isEmpty && v.type == s1) =
-      ConLeche.natIndOk (some (.indInfo cv caps)) := by
-  simp only [ConLeche.natIndOk, isEmpty_of_denoteNList hlps,
-    beq_of_denoteE hwf hty hs1]
+/-! ## 2. `rawNatLit?` -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
-for `natIndOk`**. -/
-theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
-    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
-    (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk oc
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk oc'; ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  cases oc with
-  | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.natIndOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨rfl, rfl⟩)
-  | some ci =>
-    obtain ⟨c, hci, rfl⟩ := hrel
-    cases ci
-    case indInfo v caps =>
-      obtain ⟨cv, caps', hcv, _, rfl⟩ := denoteCI_indInfo_split hci
-      obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
-      vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
-      all_goals (bridge_peel; subst_vars)
-      bridge_auto [natIndOk_eq]
-    all_goals
-      (have hn : ¬ ∃ cv caps, c = .indInfo cv caps := fun h' => by
-         obtain ⟨v, caps, hv⟩ := (denoteCI_ind_iff hci).mpr h'; cases hv
-       vcgen [ConRon.Arena.natIndOk]
-       bridge_peel; subst_vars
-       refine ⟨rfl, ?_⟩
-       cases c <;> simp_all [ConLeche.natIndOk])
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:240-243 rawNatLit? — the function
+as ONE equation over the tag and the projections (task #123). -/
+theorem rawNatLit?_eq (x : Expr) : ConLeche.rawNatLit? x =
+    if exprTag x = ETag.lit then litNat? (exprLit x)
+    else if exprTag x = ETag.const ∧ exprConstLevels x = [] ∧
+        exprConstName x = ConLeche.natZeroName then some 0
+    else none := by
+  cases x with
+  | lit l => cases l <;> rfl
+  | const n ls =>
+    cases ls <;> simp [ConLeche.rawNatLit?, exprTag, exprConstLevels, exprConstName,
+      ETag.const, ETag.lit]
+  | _ => simp [ConLeche.rawNatLit?, exprTag, ETag.const, ETag.lit, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.proj]
 
-/-- con-leche: none — `ViewOK` of a constant node whose name and level list
-denote (task #120: `bridge_frame`'s side-condition lemma for `constE`). -/
-theorem viewOK_const_of_denote {st : EStore} {n : NIdx} {us : LsIdx}
-    {nm : ConLeche.Name} {ls : List Level}
-    (hn : denoteN st.ns n = some nm) (hl : denoteLs st.lss us = some ls) :
-    st.ViewOK (.const n us) := by
-  obtain ⟨w, hw, _⟩ := denoteLs_view hl
-  exact viewOK_const (nview_isSome_of_denote hn) (by rw [hw]; rfl)
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:240-243 rawNatLit? — the twin
+with its literal arm one constructor deep (`litNat?` reads the literal): the
+shape `vcgen` gives `grind` a usable fall-through for
+(`_tmp/corpus/vcgen-grind/nested-ctor-fallthrough-hyp.lean`). -/
+theorem rawNatLit?_split (h : EIdx) : ConRon.Arena.rawNatLit? h = (do
+    match ← view h with
+    | .lit l => pure (litNat? l)
+    | .const c us => do
+      let e ← emptyLevels
+      let nz ← pinNatZero
+      pure (if c == nz && us == e then some 0 else none)
+    | _ => pure none) := by
+  simp only [ConRon.Arena.rawNatLit?]
+  congr; funext v
+  cases v with
+  | lit l => cases l <;> rfl
+  | _ => rfl
 
-/-- con-leche: none — an interned constant node denotes the constant. -/
-theorem denoteE_const_of_view {st : EStore} {r : EIdx} {n : NIdx} {el : LsIdx}
-    {nm : ConLeche.Name} (hd : denoteE st r = denoteEView st (.const n el))
-    (hn : denoteN st.ns n = some nm) (hel : denoteLs st.lss el = some []) :
-    denoteE st r = some (.const nm []) := by
-  rw [hd]; simp only [denoteEView, hn, hel, opt2]
-
-/-- con-leche: none — **THEOREM 1 for `constE`**: the level-monomorphic
-constant at a denoted name. -/
-theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm []); ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [viewOK_const_of_denote, denoteE_const_of_view]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — the stored
-constructor's shape, its type compared with the interned `Nat` by handle. -/
-theorem natZeroOk_eq {st : EStore} {v : IConstantVal}
-    {cv : ConstantVal} {nP nF : Nat} {nc : EIdx}
-    (hd : denoteE st nc = some (.const ConLeche.natName []))
-    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
-    (hty : denoteE st v.type = some cv.type)
-    (hwf : StoreWF st) :
-    (v.levelParams.isEmpty && v.type == nc) =
-      ConLeche.natZeroOk (some (.ctorInfo cv nP nF)) := by
-  simp only [ConLeche.natZeroOk, isEmpty_of_denoteNList hlps, beq_of_denoteE hwf hty hd]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
-for `natZeroOk`**. -/
-theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
-    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
-    (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk oc
-    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk oc'; ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  cases oc with
-  | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.natZeroOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
-  | some ci =>
-    obtain ⟨c, hci, rfl⟩ := hrel
-    cases ci
-    case ctorInfo v nP nF =>
-      obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
-      obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
-      have hce := fun (s : AState) (n : NIdx) =>
-        constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, hce]
-      all_goals (bridge_peel; subst_vars)
-      bridge_auto [natZeroOk_eq]
-    all_goals
-      (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
-         obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       vcgen [ConRon.Arena.natZeroOk]
-       all_goals (bridge_peel; subst_vars)
-       refine ⟨hok, Ext.refl _, rfl, ?_⟩
-       cases c <;> simp_all [ConLeche.natZeroOk])
-
-/-- con-leche: none — `denote_not_forallE` at the tag-first twin's `else`
-arm: a handle whose TAG is not `forallE` denotes no `∀` (task #120: the shape
-`bridge_fwd` instantiates). -/
-theorem denote_not_forallE_of_tag' {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} (he : denoteE st h = some e)
-    (ht : ¬ (h.tag == ETag.forallE) = true) : ∀ ty b, e ≠ .forallE ty b := by
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact denote_not_forallE hwf hv he
-    (fun ty b hh => view_tagOf_ne hv (t := ETag.forallE) ht (by rw [hh]; rfl))
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — a stored
-`Nat.succ` with universe parameters is not the expected shape. -/
-theorem natSuccOk_levels {st : NStore} {v : IConstantVal} {cv : ConstantVal}
-    {nP nF : Nat} (hlps : Frontend.denoteNList st v.levelParams = some cv.levelParams)
-    (h : (!v.levelParams.isEmpty) = true) :
-    false = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
-  rw [isEmpty_of_denoteNList hlps] at h
-  simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at h
-  simp only [ConLeche.natSuccOk, h, Bool.false_and]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — nor is one
-whose type is not a `∀`. -/
-theorem natSuccOk_not_forallE {cv : ConstantVal} {nP nF : Nat}
-    (h : ∀ p q, cv.type ≠ .forallE p q) :
-    false = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
-  simp only [ConLeche.natSuccOk]
-  split
-  · next heq => exact absurd heq (h _ _)
-  · simp
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — the type is a
-`∀`: both sides compared with the interned `Nat` by handle. -/
-theorem natSuccOk_forallE {st : EStore} {v : IConstantVal}
-    {cv : ConstantVal} {nP nF : Nat} {dom body nc : EIdx} {p q : Expr}
-    (hp1 : denoteE st dom = some p) (hq1 : denoteE st body = some q)
-    (hd : denoteE st nc = some (.const ConLeche.natName []))
-    (hpq : cv.type = .forallE p q)
-    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
-    (hne : ¬ (!v.levelParams.isEmpty) = true)
-    (hwf : StoreWF st) :
-    (dom == nc && body == nc) = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
-  rw [isEmpty_of_denoteNList hlps] at hne
-  simp only [ConLeche.natSuccOk, hpq, beq_of_denoteE hwf hp1 hd, beq_of_denoteE hwf hq1 hd]
-  have hle : cv.levelParams.isEmpty = true := by simpa using hne
-  rw [hle, Bool.true_and]
-  split
-  · next c1 c2 heq =>
-    simp only [Expr.forallE.injEq] at heq
-    obtain ⟨rfl, rfl⟩ := heq
-    rw [Bool.eq_iff_iff]; simp
-  · next hne' =>
-    by_cases hp : p = .const ConLeche.natName []
-    · by_cases hq : q = .const ConLeche.natName []
-      · subst hp hq; exact absurd rfl (hne' _ _)
-      · simp [hq]
-    · simp [hp]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
-for `natSuccOk`**. -/
-theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
-    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
-    (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk oc
-    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk oc'; ⊤⦄ := by
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  cases oc with
-  | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.natSuccOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
-  | some ci =>
-    obtain ⟨c, hci, rfl⟩ := hrel
-    cases ci
-    case ctorInfo v nP nF =>
-      obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
-      obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
-      have hce := fun (s : AState) (n : NIdx) =>
-        constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
-      all_goals (bridge_peel; subst_vars)
-      all_goals clear_tag_hyps
-      bridge_auto [denote_not_forallE, denote_not_forallE_of_tag', natSuccOk_levels,
-        natSuccOk_not_forallE, natSuccOk_forallE]
-    all_goals
-      (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
-         obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       vcgen [ConRon.Arena.natSuccOk]
-       all_goals (bridge_peel; subst_vars)
-       refine ⟨hok, Ext.refl _, rfl, ?_⟩
-       cases c <;> simp_all [ConLeche.natSuccOk])
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
-**THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
-theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitSupported fe
-    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env; ⊤⦄ := by
-  have hp := hok.pins
-  have hi := fun (s : AState) (oc : Option IConstantInfo) =>
-    natIndOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natName)
-  have hz := fun (s : AState) (oc : Option IConstantInfo) =>
-    natZeroOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natZeroName)
-  have hs := fun (s : AState) (oc : Option IConstantInfo) =>
-    natSuccOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natSuccName)
-  vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
-    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, hi, hz, hs]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [optCI_find, CheckOK.pins] unfolding [ConLeche.natLitSupported]
-  -- the three declines and the conjunction: con-leche's `&&` at the verdicts
-  all_goals
-    cases h1 : ConLeche.natIndOk (env.find? ConLeche.natName) <;>
-      cases h2 : ConLeche.natZeroOk (env.find? ConLeche.natZeroName) <;>
-      simp_all [ConLeche.natLitSupported]
-
-/-! ### The five in ANSWER shape
-
-`reduceNat` reaches every one of them through another call — the reduct of a
-`whnf`, or a name read off a `view` — so, by round 3's rule, the subjects'
-denotations go in as an existential and come out as a universal.  Four lines
-each over the published statements. -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — **THEOREM 1
+for `rawNatLit?`**: the literal reading of a head normal form. -/
+theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
+  sym only [bridge_grind, rawNatLit?_eq] =>
+    vcgen [rawNatLit?_split, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatZero] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — answer
-shape. -/
-theorem rawNatLit?_spec' (s₀ : AState) (h : EIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ x, denoteE s₀.store h = some x) :
+shape: the reading of whatever the handle denotes, as an equation through
+`Option.map`. -/
+theorem rawNatLit?_specA (s₀ : AState) (h : EIdx)
+    (hok : CheckOK mode env fe s₀) (hd : (denoteE s₀.store h).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
-    ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
-        r = ConLeche.rawNatLit? x; ⊤⦄ := by
-  obtain ⟨x, hx⟩ := hpre
-  have hb := rawNatLit?_spec s₀ h x hok hx
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
+    ⦃fun r s' => s' = s₀ ∧ (denoteE s₀.store h).map ConLeche.rawNatLit? = some r; ⊤⦄ := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
+  refine triple_mono (rawNatLit?_spec s₀ h x hok hx) ?_
+  rintro r s' ⟨h1, h2⟩
+  exact ⟨h1, by rw [hx, h2]; rfl⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `natBinOpName`
-in answer shape. -/
-theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
-    ⦃fun b s' => s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
-        (b = true ↔ (nm = ConLeche.natAddName ∨
-          nm = ConLeche.natSubName ∨
-          nm = ConLeche.natMulName ∨
-          nm = ConLeche.natPowName ∨
-          nm = ConLeche.natBeqName ∨
-          nm = ConLeche.natBleName ∨
-          nm = ConLeche.natDivName ∨
-          nm = ConLeche.natModName ∨
-          nm = ConLeche.natGcdName ∨
-          nm = ConLeche.natLandName ∨
-          nm = ConLeche.natLorName ∨
-          nm = ConLeche.natXorName ∨
-          nm = ConLeche.natShiftLeftName ∨
-          nm = ConLeche.natShiftRightName)); ⊤⦄ := by
-  obtain ⟨nm, hn⟩ := hpre
-  have hb := natBinOpName_spec s₀ c nm hok hn
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — answer
-shape. -/
-theorem natOpStored_spec' (s₀ : AState) (c : NIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
-    ⦃fun b s' => s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
-        b = ConLeche.natOpStored env nm; ⊤⦄ := by
-  obtain ⟨nm, hn⟩ := hpre
-  have hb := natOpStored_spec s₀ c nm hok hn
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — answer
-shape. -/
-theorem natOpResult_spec' (s₀ : AState) (c : NIdx) (a b : Nat)
-    (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
-        denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
-  obtain ⟨nm, hn⟩ := hpre
-  have hb := natOpResult_spec s₀ c nm a b hok hn
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
-
-/-! ### `reduceNat`'s pure side at its exits
-
-con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
-`whnf` slot is `ConLeche.whnf mode env F`. -/
+/-! ## 3. The name tests -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary
 test, named. -/
@@ -715,6 +573,279 @@ abbrev NatBinOp (c : ConLeche.Name) : Prop :=
       c = ConLeche.natXorName ∨
       c = ConLeche.natShiftLeftName ∨
       c = ConLeche.natShiftRightName
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary
+test as a `Bool`, one `==` per operation. -/
+def natBinOpB (c : ConLeche.Name) : Bool :=
+  c == ConLeche.natAddName || c == ConLeche.natSubName || c == ConLeche.natMulName ||
+  c == ConLeche.natPowName || c == ConLeche.natBeqName || c == ConLeche.natBleName ||
+  c == ConLeche.natDivName || c == ConLeche.natModName || c == ConLeche.natGcdName ||
+  c == ConLeche.natLandName || c == ConLeche.natLorName || c == ConLeche.natXorName ||
+  c == ConLeche.natShiftLeftName || c == ConLeche.natShiftRightName
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the `Bool` is
+con-leche's disjunction. -/
+theorem natBinOpB_iff (c : ConLeche.Name) : natBinOpB c = true ↔ NatBinOp c := by
+  simp [natBinOpB, NatBinOp, or_assoc]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
+`natBinOpName`**: the binary literal acceleration's fourteen-way name test is
+con-leche's (`natBinOpB`). -/
+theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
+    ⦃fun b s' => s' = s₀ ∧ b = natBinOpB nm; ⊤⦄ := by
+  sym only [bridge_grind, natBinOpB.eq_1] =>
+    vcgen [ConRon.Arena.natBinOpName,
+      ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd,
+      ConRon.Arena.natSubName, ConRon.Arena.pinNatSub,
+      ConRon.Arena.natMulName, ConRon.Arena.pinNatMul,
+      ConRon.Arena.natPowName, ConRon.Arena.pinNatPow,
+      ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq,
+      ConRon.Arena.natBleName, ConRon.Arena.pinNatBle,
+      ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv,
+      ConRon.Arena.natModName, ConRon.Arena.pinNatMod,
+      ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd,
+      ConRon.Arena.natLandName, ConRon.Arena.pinNatLand,
+      ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
+      ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
+      ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight] <;> finish (splits := 20)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:700-703 natOpStored — the
+function as ONE equation: is the lookup a definition. -/
+theorem natOpStored_eq (nm : ConLeche.Name) :
+    ConLeche.natOpStored env nm = cDefn? (env.find? nm) := by
+  simp only [ConLeche.natOpStored]
+  split <;> rename_i h
+  · simp_all [cDefn?]
+  · cases ho : env.find? nm with
+    | none => rfl
+    | some ci => cases ci <;> simp_all [cDefn?]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — **THEOREM 1
+for `natOpStored`**: is the operation stored as a definition. -/
+theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
+  sym only [bridge_grind, natOpStored_eq] =>
+    vcgen [ConRon.Arena.natOpStored] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:605-615 natOpWfNames — the
+handle list answers con-leche's membership test at every denoted name. -/
+def WfNames (st : NStore) (ws : List NIdx) : Prop :=
+  ∀ c nm, denoteN st c = some nm → ws.contains c = ConLeche.natOpWfNames.contains nm
+
+/-- con-leche: none — `WfNames` at one handle's optional name. -/
+def WfAt (b : Bool) : Option ConLeche.Name → Prop
+  | some nm => b = ConLeche.natOpWfNames.contains nm
+  | none => True
+
+/-- con-leche: none — `WfNames` at a membership test the walk makes. -/
+theorem WfNames.at {st : NStore} {ws : List NIdx} (H : WfNames st ws) (c : NIdx) :
+    WfAt (ws.contains c) (denoteN st c) := by
+  cases h : denoteN st c with
+  | none => trivial
+  | some nm => exact H c nm h
+grind_pattern [bridge_grind] WfNames.at => WfNames st ws, ws.contains c
+
+/-- con-leche: none — `WfAt` at a denoting handle. -/
+theorem WfAt.some {b : Bool} {nm : ConLeche.Name} (H : WfAt b (some nm)) :
+    b = ConLeche.natOpWfNames.contains nm := H
+grind_pattern [bridge_grind] WfAt.some => WfAt b (some nm)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:602-612 natOpWfNames — **THEOREM
+1 for `natOpWfNames`**: the eight pinned handles answer con-leche's
+membership test at every denoted name. -/
+theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpWfNames
+    ⦃fun ws s' => s' = s₀ ∧ WfNames s₀.store.ns ws; ⊤⦄ := by
+  sym only [bridge_grind, WfNames, List.elem_cons_or, List.elem_nil, ConLeche.natOpWfNames] =>
+    vcgen [ConRon.Arena.natOpWfNames,
+      ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv,
+      ConRon.Arena.natModName, ConRon.Arena.pinNatMod,
+      ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd,
+      ConRon.Arena.natLandName, ConRon.Arena.pinNatLand,
+      ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
+      ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
+      ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight] <;> finish (splits := 20) (gen := 16)
+
+/-! ## 4. `constE` and `natOpResult` -/
+
+/-- con-leche: none — `ViewOK` of a constant node whose name and level list
+denote (task #120: `bridge_frame`'s side-condition lemma for `constE`). -/
+theorem viewOK_const_of_denote {st : EStore} {n : NIdx} {us : LsIdx}
+    {nm : ConLeche.Name} {ls : List Level}
+    (hn : denoteN st.ns n = some nm) (hl : denoteLs st.lss us = some ls) :
+    st.ViewOK (.const n us) := by
+  obtain ⟨w, hw, _⟩ := denoteLs_view hl
+  exact viewOK_const (nview_isSome_of_denote hn) (by rw [hw]; rfl)
+
+/-- con-leche: none — **THEOREM 1 for `constE`**: the level-monomorphic
+constant at a denoted name. -/
+theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm []); ⊤⦄ := by
+  sym only [bridge_grind, viewOK_const_of_denote] =>
+    vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels,
+      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: none — the level-monomorphic constant at a name. -/
+def const0 (nm : ConLeche.Name) : Expr := .const nm []
+
+/-- con-leche: none — `const0` unfolded. -/
+@[bridge_grind =] theorem const0_eq (nm : ConLeche.Name) : const0 nm = .const nm [] := rfl
+
+/-- con-leche: none — `constE_spec` in answer shape: the constant at
+whatever the name handle denotes. -/
+theorem constE_specA (s₀ : AState) (n : NIdx)
+    (hok : CheckOK mode env fe s₀) (hn : (denoteN s₀.store.ns n).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = (denoteN s₀.store.ns n).map const0; ⊤⦄ := by
+  obtain ⟨nm, hnm⟩ := Option.isSome_iff_exists.mp hn
+  refine triple_mono (constE_spec s₀ n nm hok hnm) ?_
+  rintro r s' ⟨h1, h2, h3, h4⟩
+  exact ⟨h1, h2, h3, by rw [h4, hnm]; rfl⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — **THEOREM 1
+for `natOpResult`**: the reduct of a binary operation on two literals. -/
+theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
+    (a b : Nat) (hok : CheckOK mode env fe s₀)
+    (hn : denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
+  sym only [bridge_grind, ConLeche.natOpResult] =>
+    vcgen [ConRon.Arena.natOpResult,
+      ConRon.Arena.natPredName, ConRon.Arena.pinNatPred,
+      ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd,
+      ConRon.Arena.natSubName, ConRon.Arena.pinNatSub,
+      ConRon.Arena.natMulName, ConRon.Arena.pinNatMul,
+      ConRon.Arena.natPowName, ConRon.Arena.pinNatPow,
+      ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq,
+      ConRon.Arena.natBleName, ConRon.Arena.pinNatBle,
+      ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv,
+      ConRon.Arena.natModName, ConRon.Arena.pinNatMod,
+      ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd,
+      ConRon.Arena.natLandName, ConRon.Arena.pinNatLand,
+      ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
+      ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
+      ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight,
+      ConRon.Arena.boolTrueName, ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
+      ConRon.Arena.pinBoolFalse, internE_specC (mode := mode) (env := env) (fe := fe),
+      constE_specA (mode := mode) (env := env) (fe := fe)] <;> finish (splits := 20)
+
+/-! ## 5. `natLitSupported` — the three stored-declaration shapes
+
+Each is a twin over the INDEX's lookup at a pinned name and con-leche's over
+the environment's at the name it denotes; `OptCI.at` relates the two through
+the projections, and con-leche's function is one equation over them. -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:173-176 natIndOk — the function as
+ONE equation over the projections. -/
+@[bridge_grind =] theorem natIndOk_eq (o : Option ConstantInfo) : ConLeche.natIndOk o =
+    (cInd? o && (cIndVal o).levelParams.isEmpty &&
+      (cIndVal o).type == .sort (.succ .zero)) := by
+  match o with
+  | some (.indInfo _ _) => rfl
+  | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
+  | some (.ctorInfo _ _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) => rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:179-182 natZeroOk — the function
+as ONE equation over the projections. -/
+@[bridge_grind =] theorem natZeroOk_eq (o : Option ConstantInfo) : ConLeche.natZeroOk o =
+    (cCtor? o && (cCtorVal o).levelParams.isEmpty &&
+      (cCtorVal o).type == .const ConLeche.natName []) := by
+  match o with
+  | some (.ctorInfo _ _ _) => rfl
+  | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
+  | some (.indInfo _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) => rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:185-192 natSuccOk — the function
+as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
+@[bridge_grind =] theorem natSuccOk_eq (o : Option ConstantInfo) : ConLeche.natSuccOk o =
+    (cCtor? o && (cCtorVal o).levelParams.isEmpty &&
+      (exprTag (cCtorVal o).type == ETag.forallE &&
+        exprBinderType (cCtorVal o).type == .const ConLeche.natName [] &&
+        exprBody (cCtorVal o).type == .const ConLeche.natName [])) := by
+  match o with
+  | some (.ctorInfo cv _ _) =>
+    simp only [ConLeche.natSuccOk, cCtor?, cCtorVal, Bool.true_and]
+    congr 1
+    generalize cv.type = t
+    split
+    · simp only [exprTag, exprBinderType, exprBody, beq_self_eq_true, Bool.true_and]
+      rw [Bool.eq_iff_iff]; simp
+    · next hne =>
+      cases t <;> simp [exprTag, ETag.forallE, ETag.bvar, ETag.fvar, ETag.sort, ETag.const,
+        ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
+      next a b =>
+      simp only [exprBinderType, exprBody]
+      intro h1 h2
+      subst h1 h2
+      exact hne _ _ rfl
+  | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
+  | some (.indInfo _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) => rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
+for `natIndOk`**, at the index's lookup of a denoted name. -/
+theorem natIndOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk (fe.find? n)
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk (env.find? nm); ⊤⦄ := by
+  have hrel := optCI_find hok hn
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
+for `natZeroOk`**, at the index's lookup of a denoted name. -/
+theorem natZeroOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (fe.find? n)
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk (env.find? nm); ⊤⦄ := by
+  have hrel := optCI_find hok hn
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat,
+      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
+for `natSuccOk`**, at the index's lookup of a denoted name. -/
+theorem natSuccOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (fe.find? n)
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk (env.find? nm); ⊤⦄ := by
+  have hrel := optCI_find hok hn
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat,
+      constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
+**THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
+theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitSupported fe
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env; ⊤⦄ := by
+  sym only [bridge_grind, ConLeche.natLitSupported] =>
+    vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
+      ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
+      natIndOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName),
+      natZeroOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natZeroName),
+      natSuccOk_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natSuccName)] <;>
+      finish
+
+/-! ## 6. `reduceNat`'s pure side at its exits
+
+con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
+`whnf` slot is `ConLeche.whnf mode env F`. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ` on a
 literal-supported environment: the argument's head normal form, read. -/
@@ -861,84 +992,15 @@ theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
   rw [ite_eq_right h14] at h
   cases h
 
-/-! ### `reduceNat`'s exits, in the shape `bridge_fwd` leaves them (task #120)
+/-! ### `reduceNat`'s exits
 
-Each verification condition of `reduceNat_spec`, after `bridge_frame` and
-`bridge_fwd`, has its subject's shape in `hden`, the guards' pure meaning (the
-`*_guard` lemmas below, instantiated by `bridge_fwd`) and every callee's
-answer in context; the lemmas here turn that into the `SimOOp` exit in one
-`exact`. -/
+One `SimOOp` lemma per exit, over the subject and the callees' runs; the
+`grind` lemmas of §7 restate them over the subject's projections. -/
 
 /-- con-leche: none — a declining exit. -/
 theorem reduceNat_decline {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStore}
     (F : Nat) (h : P F = .ok none) : SimOOp P d st none :=
   ⟨none, rfl, by simp, F, h⟩
-
-/-- con-leche: none — the level-list test, by handle: the empty list. -/
-theorem levels_nil {st : EStore} (hwf : StoreWF st) {us el : LsIdx}
-    {ls : List Level} (h : ¬ (us != el) = true) (hls : denoteLs st.lss us = some ls)
-    (hel : denoteLs st.lss el = some []) : ls = [] := by
-  obtain ⟨rk, hrk⟩ := hwf
-  simp only [bne, beq_of_denoteLs hrk.lss hls hel] at h
-  simpa using h
-
-/-- con-leche: none — the level-list test, by handle: not the empty list. -/
-theorem levels_ne {st : EStore} (hwf : StoreWF st) {us el : LsIdx}
-    {ls : List Level} (h : (us != el) = true) (hls : denoteLs st.lss us = some ls)
-    (hel : denoteLs st.lss el = some []) : ls ≠ [] := by
-  obtain ⟨rk, hrk⟩ := hwf
-  simp only [bne, beq_of_denoteLs hrk.lss hls hel] at h
-  simpa using h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the `Nat.succ`
-guard, by handle. -/
-theorem succ_guard {st : EStore} (hwf : StoreWF st) {c ns : NIdx}
-    {nm : ConLeche.Name} {b : Bool} (h : (c == ns && b) = true)
-    (hn : denoteN st.ns c = some nm)
-    (hs : ∀ x, pinNames[PIN_NAT_SUCC]? = some x → denoteN st.ns ns = some x) :
-    nm = ConLeche.natSuccName ∧ b = true := by
-  rw [beq_handle_eq hwf hn (hs _ rfl)] at h
-  simpa only [Bool.and_eq_true, beq_iff_eq] using h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the `Nat.succ`
-guard declines. -/
-theorem succ_guard_no {st : EStore} (hwf : StoreWF st) {c ns : NIdx}
-    {nm : ConLeche.Name} {b : Bool} (h : ¬ (c == ns && b) = true)
-    (hn : denoteN st.ns c = some nm)
-    (hs : ∀ x, pinNames[PIN_NAT_SUCC]? = some x → denoteN st.ns ns = some x) :
-    ¬ (nm = ConLeche.natSuccName ∧ b = true) := by
-  rw [beq_handle_eq hwf hn (hs _ rfl)] at h
-  simpa only [Bool.and_eq_true, beq_iff_eq] using h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary
-guard: `natBinOpName`'s answer and `natOpStored`'s. -/
-theorem bin_guard {rb s : Bool} {nm : ConLeche.Name}
-    (h : (rb && s) = true) (hiff : rb = true ↔ NatBinOp nm) :
-    NatBinOp nm ∧ s = true := by
-  simp only [Bool.and_eq_true] at h
-  exact ⟨hiff.mp h.1, h.2⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary
-guard declines. -/
-theorem bin_guard_no {rb s : Bool} {nm : ConLeche.Name}
-    (h : ¬ (rb && s) = true) (hiff : rb = true ↔ NatBinOp nm) :
-    ¬ (NatBinOp nm ∧ s = true) := fun ⟨c1, c2⟩ => h (by rw [hiff.mpr c1, c2]; rfl)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the WF-pinned
-safety net's guard. -/
-theorem wf_guard {c : NIdx} {wf : List NIdx} {nm : ConLeche.Name} {b : Bool}
-    (h : (wf.elem c && b) = true)
-    (he : wf.elem c = ConLeche.natOpWfNames.elem nm) :
-    ConLeche.natOpWfNames.contains nm ∧ b = true := by
-  rw [he] at h; simpa using h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the safety net
-declines. -/
-theorem wf_guard_no {c : NIdx} {wf : List NIdx} {nm : ConLeche.Name} {b : Bool}
-    (h : ¬ (wf.elem c && b) = true)
-    (he : wf.elem c = ConLeche.natOpWfNames.elem nm) :
-    ¬ (ConLeche.natOpWfNames.contains nm ∧ b = true) := by
-  rw [he] at h; simpa using h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a unary
 application of a constant WITH universe levels is no operation. -/
@@ -989,44 +1051,12 @@ theorem simOOp_bin_nc {d : Nat} {st : EStore} {f a b : Expr}
     (fun c a' h' => by simp at h')
     (fun c a' b' h' => by simp only [Expr.app.injEq] at h'; exact h c [] h'.1.1)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a unary
-application whose head is neither a constant nor an application. -/
-theorem simOOp_un_ncna {d : Nat} {st : EStore} {f a : Expr}
-    (hnc : ∀ n us, f ≠ .const n us) (hna : ∀ g a, f ≠ .app g a) :
-    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d (.app f a)) d st none :=
-  reduceNat_decline 0 <| reduceNatFueled_none_of
-    (fun c a' h' => by simp only [Expr.app.injEq] at h'; exact hnc c [] h'.1)
-    (fun c a' b' h' => by simp only [Expr.app.injEq] at h'; exact hna _ _ h'.1)
-
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — not an
 application at all. -/
 theorem simOOp_na {d : Nat} {st : EStore} {x : Expr} (h : ∀ f a, x ≠ .app f a) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d st none :=
   reduceNat_decline 0 <|
     reduceNatFueled_none_of (fun _ _ h' => h _ _ h') (fun _ _ _ h' => h _ _ h')
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ`
-FIRES on a literal. -/
-theorem simOOp_succ_some {F d n : Nat} {a w : Expr}
-    {st : EStore} {r : EIdx}
-    (hs : ConLeche.natLitSupported env = true)
-    (hw : ConLeche.whnf mode env F d a = .ok w) (hr : some n = ConLeche.rawNatLit? w)
-    (hx : denoteE st r = denoteEView st (.lit (.natVal (n + 1)))) :
-    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
-      (.app (.const ConLeche.natSuccName []) a)) d st (some r) := by
-  refine ⟨some (.lit (.natVal (n + 1))), ?_, ?_, F, ?_⟩
-  · simp only [denoteEO, hx, denoteEView, Option.map_some]
-  · intro y hy; cases hy; simp [Expr.WScoped]
-  · dsimp only; rw [reduceNatFueled_succ ⟨rfl, hs⟩ hw, ← hr]; rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ` on
-a non-literal. -/
-theorem simOOp_succ_none {F d : Nat} {a w : Expr} {st : EStore}
-    (hs : ConLeche.natLitSupported env = true)
-    (hw : ConLeche.whnf mode env F d a = .ok w) (hr : none = ConLeche.rawNatLit? w) :
-    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
-      (.app (.const ConLeche.natSuccName []) a)) d st none :=
-  reduceNat_decline F (by rw [reduceNatFueled_succ ⟨rfl, hs⟩ hw, ← hr]; rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
 binary operation FIRES. -/
@@ -1107,7 +1137,255 @@ theorem simOOp_wf_fst {F₁ d : Nat} {nm : ConLeche.Name} {a b w₁ : Expr}
       (.app (.app (.const nm []) a) b)) d st none :=
   reduceNat_decline F₁ (by rw [reduceNatFueled_wf hg ⟨hc, hs⟩ hw₁, ← hr₁]; rfl)
 
-/-! ## 6. `reduceNat` -/
+/-! ## 7. `reduceNat`'s exits as `grind` lemmas
+
+Over the subject's projections: a unary application `.app (.const c []) a`
+is `exprTag x = app`, `exprTag (exprFn x) = const`, `exprConstLevels (exprFn
+x) = []`, with `c = exprConstName (exprFn x)` and `a = exprArg x`; a binary
+one is the same one `exprFn` deeper.  Each exit's conclusion is its pattern,
+with the callees' runs (`whnf`, `rawNatLit?`) whose answers it reads. -/
+
+/-- con-leche: none — a term tagged `app` IS an application of its
+projections. -/
+theorem exprTag_app {e : Expr} (h : exprTag e = ETag.app) : e = .app (exprFn e) (exprArg e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+
+/-- con-leche: none — a term tagged `const` IS a constant of its
+projections. -/
+theorem exprTag_const {e : Expr} (h : exprTag e = ETag.const) :
+    e = .const (exprConstName e) (exprConstLevels e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **`reduceNat`'s
+answer, named** (the statement's `SimOOp (fun F => …)`, which `grind` must
+not see as a `fun`). -/
+def NatRed (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) (st : EStore) (r : Option EIdx) : Prop :=
+  SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d st r
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the `Nat.succ`
+reduct of a literal. -/
+def succLit (n : Nat) : Expr := .lit (.natVal (n + 1))
+/-- con-leche: none — `succLit` unfolded. -/
+@[bridge_grind =] theorem succLit_eq (n : Nat) : succLit n = .lit (.natVal (n + 1)) := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary reduct
+at the two literal readings (`none` unless both are literals). -/
+def binRes (c : ConLeche.Name) : Option Nat → Option Nat → Option Expr
+  | some a, some b => ConLeche.natOpResult c a b
+  | _, _ => none
+attribute [bridge_grind =] binRes
+
+/-- con-leche: none — a declining exit. -/
+theorem natRed_decline {d : Nat} {x : Expr} {st : EStore} (F : Nat)
+    (h : ConLeche.reduceNatFueled mode env F d x = .ok none) : NatRed mode env d x st none :=
+  reduceNat_decline F h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — not an
+application. -/
+theorem natRed_na {d : Nat} {x : Expr} {st : EStore} (h : exprTag x ≠ ETag.app) :
+    NatRed mode env d x st none :=
+  simOOp_na (fun f a he => h (by rw [he]; rfl))
+grind_pattern [bridge_grind] natRed_na => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the head is
+neither a constant nor an application. -/
+theorem natRed_un_other {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag (exprFn x) ≠ ETag.const) (h2 : exprTag (exprFn x) ≠ ETag.app) :
+    NatRed mode env d x st none := by
+  refine natRed_decline 0 (reduceNatFueled_none_of ?_ ?_)
+  · intro c a he; subst he; exact h1 rfl
+  · intro c a b he; subst he; exact h2 rfl
+grind_pattern [bridge_grind] natRed_un_other => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a unary
+application of a constant with universe levels. -/
+theorem natRed_un_levels {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.const)
+    (h3 : exprConstLevels (exprFn x) ≠ []) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_const h2]
+  exact simOOp_unary_levels h3
+grind_pattern [bridge_grind] natRed_un_levels => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the unary guard
+declines. -/
+theorem natRed_succ_no {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.const)
+    (h3 : exprConstLevels (exprFn x) = [])
+    (hg : ¬ (exprConstName (exprFn x) = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_const h2, h3]
+  exact simOOp_succ_no hg
+grind_pattern [bridge_grind] natRed_succ_no => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ`: the
+argument's head normal form, read (`none` on a non-literal). -/
+theorem natRed_succ {F d : Nat} {x w : Expr} {st : EStore} {r : Option EIdx}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.const)
+    (h3 : exprConstLevels (exprFn x) = [])
+    (hn : exprConstName (exprFn x) = ConLeche.natSuccName)
+    (hs : ConLeche.natLitSupported env = true)
+    (hw : ConLeche.whnf mode env F d (exprArg x) = .ok w)
+    (hr : denoteEO st r = some ((ConLeche.rawNatLit? w).map succLit)) :
+    NatRed mode env d x st r := by
+  refine ⟨_, hr, ?_, F, ?_⟩
+  · intro y hy
+    cases h : ConLeche.rawNatLit? w <;> rw [h] at hy <;> cases hy
+    simp [succLit, Expr.WScoped]
+  · rw [exprTag_app h1, exprTag_const h2, h3, hn]
+    exact reduceNatFueled_succ ⟨rfl, hs⟩ hw
+grind_pattern [bridge_grind] natRed_succ =>
+  NatRed mode env d x st r, ConLeche.whnf mode env F d (exprArg x), ConLeche.rawNatLit? w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a binary
+application whose head is not a constant. -/
+theorem natRed_bin_nc {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) ≠ ETag.const) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2]
+  exact simOOp_bin_nc (fun n us he => h3 (by rw [he]; rfl))
+grind_pattern [bridge_grind] natRed_bin_nc => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a binary
+application of a constant with universe levels. -/
+theorem natRed_bin_levels {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) ≠ []) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3]
+  exact simOOp_binary_levels h4
+grind_pattern [bridge_grind] natRed_bin_levels => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — neither binary
+guard. -/
+theorem natRed_bin_no {d : Nat} {x : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) = [])
+    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
+    (hw : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natLitSupported env) = false) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
+  refine simOOp_bin_no ?_ ?_
+  · rw [← natBinOpB_iff]; simpa using hg
+  · simpa using hw
+grind_pattern [bridge_grind] natRed_bin_no => NatRed mode env d x st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
+operation, the first argument not a literal. -/
+theorem natRed_bin_fst {F d : Nat} {x w : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) = [])
+    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = true)
+    (hw : ConLeche.whnf mode env F d (exprArg (exprFn x)) = .ok w)
+    (hr : ConLeche.rawNatLit? w = none) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
+  simp only [Bool.and_eq_true, natBinOpB_iff] at hg
+  exact simOOp_bin_fst hg.1 hg.2 hw hr.symm
+grind_pattern [bridge_grind] natRed_bin_fst =>
+  NatRed mode env d x st none, ConLeche.whnf mode env F d (exprArg (exprFn x)), ConLeche.rawNatLit? w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
+operation on a literal first argument: it fires, or the second is not a
+literal (`binRes`). -/
+theorem natRed_bin {F₁ F₂ d : Nat} {x w₁ w₂ : Expr} {st : EStore} {r : Option EIdx}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) = [])
+    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = true)
+    (hw₁ : ConLeche.whnf mode env F₁ d (exprArg (exprFn x)) = .ok w₁)
+    (hs : (ConLeche.rawNatLit? w₁).isSome = true)
+    (hw₂ : ConLeche.whnf mode env F₂ d (exprArg x) = .ok w₂)
+    (hr : denoteEO st r = some (binRes (exprConstName (exprFn (exprFn x)))
+      (ConLeche.rawNatLit? w₁) (ConLeche.rawNatLit? w₂))) : NatRed mode env d x st r := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
+  simp only [Bool.and_eq_true, natBinOpB_iff] at hg
+  obtain ⟨n₁, hn₁⟩ := Option.isSome_iff_exists.mp hs
+  rw [hn₁] at hr
+  cases hn₂ : ConLeche.rawNatLit? w₂ with
+  | none =>
+    rw [hn₂] at hr
+    simp only [binRes, denoteEO] at hr
+    cases r with
+    | none => exact simOOp_bin_snd hg.1 hg.2 hw₁ hn₁.symm hw₂ hn₂.symm
+    | some r => simp [Option.map_eq_some_iff] at hr
+  | some n₂ =>
+    rw [hn₂] at hr
+    exact simOOp_bin_fire hg.1 hg.2 hw₁ hn₁.symm hw₂ hn₂.symm hr
+grind_pattern [bridge_grind] natRed_bin =>
+  NatRed mode env d x st r, ConLeche.whnf mode env F₁ d (exprArg (exprFn x)),
+  ConLeche.whnf mode env F₂ d (exprArg x), ConLeche.rawNatLit? w₁, ConLeche.rawNatLit? w₂
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the safety net,
+the first argument not a literal. -/
+theorem natRed_wf_fst {F d : Nat} {x w : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) = [])
+    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
+    (hc : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natLitSupported env) = true)
+    (hw : ConLeche.whnf mode env F d (exprArg (exprFn x)) = .ok w)
+    (hr : ConLeche.rawNatLit? w = none) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
+  simp only [Bool.and_eq_true] at hc
+  refine simOOp_wf_fst ?_ hc.1 hc.2 hw hr.symm
+  rw [← natBinOpB_iff]; simpa using hg
+grind_pattern [bridge_grind] natRed_wf_fst =>
+  NatRed mode env d x st none, ConLeche.whnf mode env F d (exprArg (exprFn x)), ConLeche.rawNatLit? w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the safety net,
+the second argument not a literal. -/
+theorem natRed_wf_snd {F₁ F₂ d : Nat} {x w₁ w₂ : Expr} {st : EStore}
+    (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
+    (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
+    (h4 : exprConstLevels (exprFn (exprFn x)) = [])
+    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
+    (hc : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
+      ConLeche.natLitSupported env) = true)
+    (hw₁ : ConLeche.whnf mode env F₁ d (exprArg (exprFn x)) = .ok w₁)
+    (hs : (ConLeche.rawNatLit? w₁).isSome = true)
+    (hw₂ : ConLeche.whnf mode env F₂ d (exprArg x) = .ok w₂)
+    (hr : ConLeche.rawNatLit? w₂ = none) : NatRed mode env d x st none := by
+  rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
+  simp only [Bool.and_eq_true] at hc
+  obtain ⟨n₁, hn₁⟩ := Option.isSome_iff_exists.mp hs
+  refine simOOp_wf_snd ?_ hc.1 hc.2 hw₁ hn₁.symm hw₂ hr.symm
+  rw [← natBinOpB_iff]; simpa using hg
+grind_pattern [bridge_grind] natRed_wf_snd =>
+  NatRed mode env d x st none, ConLeche.whnf mode env F₁ d (exprArg (exprFn x)),
+  ConLeche.whnf mode env F₂ d (exprArg x), ConLeche.rawNatLit? w₁, ConLeche.rawNatLit? w₂
+
+/-! ## 8. `reduceNat` -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `reduceNat` at a
+given subject, its answer `NatRed` (task #123): fifty verification conditions,
+one per exit and per callee precondition, each closed by `grind` from the
+exits of §7. -/
+theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr) (hok : CheckOK mode env fe s₀)
+    (hden : denoteE s₀.store e = some x) (hwx : Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ NatRed mode env d x s'.store r; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
+      KnotSpec.whnfA hsim, rawNatLit?_specA (mode := mode) (env := env) (fe := fe),
+      natLitSupported_spec (mode := mode) (env := env) (fe := fe),
+      natBinOpName_spec (mode := mode) (env := env) (fe := fe)
+        (nm := exprConstName (exprFn (exprFn x))),
+      natOpStored_spec (mode := mode) (env := env) (fe := fe)
+        (nm := exprConstName (exprFn (exprFn x))),
+      natOpWfNames_spec (mode := mode) (env := env) (fe := fe),
+      natOpResult_spec (mode := mode) (env := env) (fe := fe)
+        (nm := exprConstName (exprFn (exprFn x))),
+      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish (gen := 16) (ematch := 10)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `reduceNat`**: the literal acceleration, run in the `whnf` loop before
@@ -1115,8 +1393,8 @@ delta-unfolding.  **CLOSED** (round 4; moved here from `Walks/Owed.lean`,
 statement unchanged).  The divergence audit's D15 is preserved by the twin —
 the FIRST argument is head-normalised and, unless it is a literal, the step
 declines without touching the second — so the two call sequences agree and
-the proof is a straight walk: fifty verification conditions, one per exit
-and per callee precondition. -/
+the proof is a straight walk (`reduceNat_specR`, by `vcgen` and `grind` since
+task #123). -/
 theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -1128,32 +1406,14 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
             s'.store r; ⊤⦄ := by
   obtain ⟨x, hden, hwx⟩ := hdw
-  have hp := hok.pins
-  have hwf := hok.state.wf
-  have hwh := hsim.whnf'
-  have hraw := rawNatLit?_spec' (mode := mode) (env := env) (fe := fe)
-  have hlit := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
-  have hbin := natBinOpName_spec' (mode := mode) (env := env) (fe := fe)
-  have hsto := natOpStored_spec' (mode := mode) (env := env) (fe := fe)
-  have hwfn := natOpWfNames_spec (mode := mode) (env := env) (fe := fe)
-  have hres := natOpResult_spec' (mode := mode) (env := env) (fe := fe)
-  vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
-    ConRon.Arena.pinNatSucc, hwh, hraw, hlit, hbin, hsto, hwfn, hres]
-  all_goals (bridge_peel; subst_vars)
-  -- the twin's two tag tests (task #97-P5-Core round 4) add a hypothesis to
-  -- every `then` arm that no arm's proof needs; clear them so the contexts are
-  -- the view-first twin's again (the two new `else` arms are vc47 and vc50)
-  all_goals clear_tag_hyps
-  -- every exit is one of the `simOOp_*` lemmas, its premises the guards'
-  -- pure meaning (`*_guard`) and the callees' answers
-  bridge_auto [viewOK_lit, denote_not_const, denote_not_const_of_tag, denote_not_app,
-    denote_not_app_of_tag, levels_nil, levels_ne, succ_guard, succ_guard_no,
-    bin_guard, bin_guard_no, wf_guard, wf_guard_no,
-    simOOp_unary_levels, simOOp_binary_levels, simOOp_succ_no, simOOp_succ_some,
-    simOOp_succ_none, simOOp_bin_fire, simOOp_bin_snd, simOOp_bin_fst, simOOp_wf_snd,
-    simOOp_wf_fst, simOOp_bin_no, simOOp_bin_nc, simOOp_un_ncna, simOOp_na]
+  refine triple_mono (reduceNat_specR hsim s₀ d e x hok hden hwx) ?_
+  rintro r s' ⟨h1, h2, h3, h4⟩
+  refine ⟨h1, h2, h3, fun y hy => ?_⟩
+  rw [hden] at hy
+  cases hy
+  exact h4
 
-/-! ## 7. The axiom census -/
+/-! ## 9. The axiom census -/
 
 section Census
 
