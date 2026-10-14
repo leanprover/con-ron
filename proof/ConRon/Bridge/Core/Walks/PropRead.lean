@@ -720,7 +720,7 @@ theorem unwrapIdDefs_specA (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EId
     sym only [bridge_grind, unwrapIdDefs_succ_eq] =>
       vcgen [ConRon.Arena.unwrapIdDefs, ExprOps.getAppFn_spec fuel, viewConstName_spec,
         lamProj?_specA (mode := mode) (env := env) (fe := fe) fuel,
-        ExprOps.getAppArgs_spec fuel, ih] <;> finish (gen := 16)
+        ExprOps.getAppArgs_spec fuel, ih] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — **THEOREM 1
 for `peelPisW`**, in answer shape. -/
@@ -863,7 +863,7 @@ theorem headProofPW_specX (fuel : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
       substPWAt_specX (mode := mode) (env := env) (fe := fe)
         (ks := (cValP (env.find? (exprConstName x))).levelParams) (vs := exprConstLevels x),
       findProj?_specX (mode := mode) (env := env) (fe := fe) (Tn := exprProjName x)] <;>
-      finish (ematch := 10)
+      finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — **THEOREM 1
 for `proofPW`**, in answer shape: `annotPwLam` calls it on the knot's

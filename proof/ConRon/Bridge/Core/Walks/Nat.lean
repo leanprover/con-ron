@@ -446,7 +446,7 @@ theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
       ConRon.Arena.natLorName, ConRon.Arena.pinNatLor,
       ConRon.Arena.natXorName, ConRon.Arena.pinNatXor,
       ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
-      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;> finish (splits := 20) (gen := 16)
+      ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;> finish (gen := 16)
 
 /-! ## 4. `constE` and `natOpResult` -/
 

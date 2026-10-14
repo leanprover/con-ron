@@ -333,7 +333,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
         instLPArmForallE, instLPArmLet, instLPArmProj, ih.run,
         substLMemoAt_spec, substLsMemoAt_spec,
-        instLPSet_specA (f := instLPFn ks us)] <;> finish (gen := 10)
+        instLPSet_specA (f := instLPFn ks us)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the walk
 at every substitution, as the entry's `vcgen` list takes it. -/
