@@ -61,8 +61,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
 /-! ## 1. `wscopedBGo` and `wscopedBFast` — `ExprOps.lean:833`, `:868`
 
 `Walks.lean`'s `wscopedB` with three additions, all of them con-leche's own

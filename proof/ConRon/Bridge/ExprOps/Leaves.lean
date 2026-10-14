@@ -23,11 +23,8 @@ against.  Both are companions of `ExprOps/Walks.lean` (the unmemoized
    the closer does not terminate in any usable time (killed at 15 minutes on
    one file) — its three list variables let every pair of known
    `denoteLeaves` facts breed another, and the appended facts breed again.
-   `ExprOps/Walks.lean`'s recipe ("`bridge_vcs [f, RelV]` closes everything")
-   therefore does **not** extend to a list-valued answer: a list answer needs
-   `ExprOps/Inst1.lean`'s per-arm `_step` shape, monomorphic at the walk's own
-   pure function so that `@[grind →]` has a head symbol and the arms need no
-   `next =>` block.  With them the file is fast again.
+   A list answer needs per-arm step lemmas, monomorphic at the walk's own
+   pure function, each registered with the pattern of its arm.
 
 2. **A memo invariant for a table that is an ARGUMENT.**  `fvarLeavesGo`'s
    `seen` set and `Guards.lean`'s two memos are explicit arguments and not
@@ -99,8 +96,6 @@ set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
-
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
 /-! ## 1. The leaf list's denotation -/
 
@@ -724,8 +719,8 @@ theorem LeavesEq.proj_step {st : EStore} (hwf : StoreWF st)
 /-! ### The arms' exits as lemmas
 
 The cutoff, the `seen` hit and the four leaf views, each in the shape of the
-postcondition's conjunct it closes (task #120; since task #123 `grind` rules,
-registered in the candidates section below). -/
+postcondition's conjunct it closes (`grind` rules, registered in the next
+section). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — a leaf view
 adds nothing. -/
@@ -767,13 +762,12 @@ theorem isSome_denoteLeaves_cons {st : EStore} {acc : List (Nat × EIdx)} {i : N
 theorem mem_ech_fvar {i : Nat} {ty : EIdx} : ty ∈ (ENodeView.fvar i ty).echildren := by
   simp [ENodeView.echildren]
 
-/-! ## The arms as `grind` lemmas (task #123)
+/-! ## The arms as `grind` lemmas
 
 `fvarLeavesGo_spec`'s arms are closed by `grind` from the step lemmas above,
 each registered with a pattern that names exactly the terms its arm's
-verification condition has.  `grind` has no lemma ORDER (the thing task #120
-found `bridge_auto` sensitive to here), so each pattern carries the facts that
-pick it:
+verification condition has.  `grind` has no lemma ORDER, so each pattern
+carries the facts that pick it:
 
 * the node's `LeavesEq` step is keyed by its goal AND its children's answers
   (`LeavesEq st acc h res, LeavesEq st acc f mid, LeavesEq st mid a res`), so

@@ -37,10 +37,10 @@ pure side, each an EQUATION with the con-leche function of the same name at
 The has-parameters cutoff (task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 
-## The proofs (task #123)
+## The proofs
 
 Every reader is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
-finish`, no `bridge_*`, no `vc_arm`.  The readers are stated with their answer
+finish`.  The readers are stated with their answer
 as an EQUATION through `Option.map` of the con-leche function at whatever the
 subject denotes (`(denoteE s₀.store h).map (Expr.binderDom k) = …`), or at a
 given denotation where the caller names it (`headTypePW_specX`,
@@ -160,7 +160,7 @@ theorem denoteEList_getD {st : EStore} :
     | zero => simpa using hy
     | succ i => simpa using denoteEList_getD hys i e x hx
 
-/-! ## The readers' vocabulary (task #123)
+/-! ## The readers' vocabulary
 
 The `view*` projections the readers read are `Bridge/Grind.lean` §6's
 (`view_of_view*`, guarded at the read).  Here: the index at a constant

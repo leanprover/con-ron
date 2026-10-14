@@ -14,12 +14,12 @@ equality"* cashed at a pin: the twin compares an `NIdx` against a pinned
 name handle, an `LsIdx` against the empty-levels pin and an `EIdx` against an
 interned constant, where con-leche compares the values.
 
-**The proofs are `vcgen` and `grind`** (task #123):
+**The proofs are `vcgen` and `grind`**:
 `sym only [bridge_grind] => vcgen [f, callee specs…] <;> finish` for every
-walk, no `bridge_*`, no `vc_arm`.  What makes them `grind`-shaped:
+walk.  What makes them `grind`-shaped:
 
 * the index equality as an inverse function at each store (`idxOfName`,
-  `Bridge/Grind.lean` §5, and here `idxOfLs`, `idxOfExpr`): a handle test
+  `idxOfLs`, `idxOfExpr`, `Bridge/Grind.lean` §6, registered here): a handle test
   `c == ns` is the name test by congruence closure, in both directions;
 * every con-leche function the walks compare against as ONE unconditional
   equation over tags and projections (`rawNatLit?_eq`, `natOpStored_eq`,
@@ -66,7 +66,7 @@ theorem beq_of_denoteLs {st : LsStore} (hwf : LsStoreWF st) {i j : LsIdx}
   · rintro rfl; rw [hi] at hj; exact Option.some.inj hj
   · rintro rfl; exact denoteLs_inj hwf hi hj
 
-/-! ## The `Nat` walks' vocabulary (task #123)
+/-! ## The `Nat` walks' vocabulary
 
 Beyond `Bridge/Grind.lean`: its handle inverses and tag values registered
 locally, the literal's `Nat`, the knot's `whnf` slot and `internE` at the
@@ -275,7 +275,7 @@ theorem isEmpty_of_denoteNList {st : NStore} {hs : List NIdx}
 /-! ## 2. `rawNatLit?` -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:240-243 rawNatLit? — the function
-as ONE equation over the tag and the projections (task #123). -/
+as ONE equation over the tag and the projections. -/
 theorem rawNatLit?_eq (x : Expr) : ConLeche.rawNatLit? x =
     if exprTag x = ETag.lit then litNat? (exprLit x)
     else if exprTag x = ETag.const ∧ exprConstLevels x = [] ∧
@@ -1138,7 +1138,7 @@ grind_pattern [bridge_grind] natRed_wf_snd =>
 /-! ## 8. `reduceNat` -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `reduceNat` at a
-given subject, its answer `NatRed` (task #123): fifty verification conditions,
+given subject, its answer `NatRed`: fifty verification conditions,
 one per exit and per callee precondition, each closed by `grind` from the
 exits of §7. -/
 theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
@@ -1167,8 +1167,7 @@ delta-unfolding.  **CLOSED** (round 4; moved here from `Walks/Owed.lean`,
 statement unchanged).  The divergence audit's D15 is preserved by the twin —
 the FIRST argument is head-normalised and, unless it is a literal, the step
 declines without touching the second — so the two call sequences agree and
-the proof is a straight walk (`reduceNat_specR`, by `vcgen` and `grind` since
-task #123). -/
+the proof is a straight walk (`reduceNat_specR`, by `vcgen` and `grind`). -/
 theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :

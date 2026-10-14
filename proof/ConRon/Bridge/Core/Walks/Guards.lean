@@ -74,7 +74,7 @@ theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; rfl
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
 
-/-! ### The arms as `grind` lemmas (tasks #120, #123)
+/-! ### The arms as `grind` lemmas
 
 Each exit of the twin is one lemma in the shape its verification condition
 has, registered with `@[bridge_grind]`; `isBoolTrue_spec` is then `vcgen` with

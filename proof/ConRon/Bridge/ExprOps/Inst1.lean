@@ -42,13 +42,13 @@ Everything else is clause for clause: the five leaf kinds answer without
 touching the memo, and the four branching kinds probe the memo, run the body
 one level down and insert.
 
-## The tag dispatch, and the closer (task #123)
+## The tag dispatch, and the closer
 
 The twin tests `h.tag` before reading the store (task #97-P6-13), so the arms
 are guarded by tag equations rather than by `view` patterns.  Every proof is
-`sym only [bridge_grind] => vcgen [f, callee specs…] <;> finish` (DESIGN
-`### Task #122`): `grind` sees the arm's projection read as a `DenoteView`
-fact on the subject (`Bridge/Grind.lean` §5), the subject's denotation as its
+`sym only [bridge_grind] => vcgen [f, callee specs…] <;> finish`: `grind`
+sees the arm's projection read as a `DenoteView` fact on the subject
+(`Bridge/Grind.lean` §6), the subject's denotation as its
 constructor with projected fields (the tag-guarded `exprTag_*` etas), the
 children's answers as `MapRel` equations, and `Expr.instantiate1`'s own
 equations — so the arm's step is congruence closure, with no step lemma and
@@ -123,21 +123,11 @@ theorem instantiate1_of_raw_le {v e : Expr} {d : Nat}
     e.instantiate1 v d = e :=
   instantiate1_of_bvarBound_le e d (by rw [← Expr.bvarBRaw_exact e hsat]; exact hle)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the four LEAF
-constructors the catch-all `else` arm covers are all fixed points. -/
-theorem instantiate1_leaf {v e : Expr} {d : Nat}
-    (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ n us, e = .const n us) ∨ ∃ l, e = .lit l) :
-    e.instantiate1 v d = e := by
-  rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
-    simp [Expr.instantiate1]
-
 /-! ## The answer relation
 
-`Inst1At` is `RelE` at `instantiate1`'s pure function.  Since task #123 the
-arms are closed by `grind` from `Bridge/Grind.lean`'s vocabulary and the two
-clause equations below; the step lemmas the hand-applied arms used are
-deleted. -/
+`Inst1At` is `RelE` at `instantiate1`'s pure function; the arms are closed
+by `grind` from `Bridge/Grind.lean`'s vocabulary and the two clause
+equations below. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiate1`'s answer
 relation. -/

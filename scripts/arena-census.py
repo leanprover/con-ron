@@ -71,7 +71,7 @@ that occur.  A theorem is ABOUT twin `X` when its name is `X` plus one of:
                 — the tier's main shape and 373 of the matches;
     _spec'      a second spelling of the same (`internBindIE_spec'`);
     _specV      the value-flavoured answer (`internE_specV`, `RelV`);
-    _specI      the invariant-carrying spelling (`abs1Set_specI`);
+    _specI      the invariant-carrying spelling of a spec;
     _specG      the generic/`grind` spelling (`liftSet_specG`);
     _specF      the fuel-parameterised spelling (`readLevelM_specF`);
     _run        the run-form statement, `X … s = .ok (r, s') → …`

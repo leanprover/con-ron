@@ -35,7 +35,6 @@ namespace ConRon.Bridge
 #print axioms AM.of_run
 #print axioms denoteE_view_eq
 #print axioms denote_app_inv
-#print axioms denote_leaf_of_tag
 #print axioms EStore.tagOf_of_view
 #print axioms view_of_viewApp
 #print axioms view_of_viewBind
@@ -45,11 +44,6 @@ namespace ConRon.Bridge
 
 /-! ## The answer relations -/
 
-#print axioms RelE.retarget
-#print axioms RelE.app
-#print axioms RelE.lam
-#print axioms RelE.letE
-#print axioms RelE.proj
 
 /-! ## The state invariant -/
 
@@ -127,7 +121,6 @@ the run form — and every one of them must report the three. -/
 
 #print axioms ExprOps.instantiate1_of_bvarBound_le
 #print axioms ExprOps.instantiate1_of_raw_le
-#print axioms ExprOps.instantiate1_leaf
 
 /-! ## The `fvar`-leaf group — **closed** (task #97-P3-2)
 

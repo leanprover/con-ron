@@ -103,8 +103,8 @@ theorem infer_strLit {F d : Nat} {s : String}
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — the `Nat`
-literal clause as an answer (a `grind` lemma, task #123: its conclusion is
-its pattern). -/
+literal clause as an answer (a `grind` lemma: its conclusion is its
+pattern). -/
 @[bridge_grind ←] theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
     (h : ConLeche.natLitSupported env = true) :
@@ -120,7 +120,7 @@ literal clause as an answer. -/
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
-clause as an answer, at the denoted level list's length (task #123: the
+clause as an answer, at the denoted level list's length (the
 twin's arity guard on the level list's VIEW reaches it through
 `view_len_of_denoteLs`, a `grind` rule; the constant is not in the
 conclusion, so the arm passes this lemma instantiated at it). -/
@@ -135,7 +135,7 @@ theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     infer_const hfind hct hl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1116-1125 inferBody — the free
-variable clause as an answer (task #123). -/
+variable clause as an answer. -/
 @[bridge_grind ←] theorem SimE.of_fvar {st : EStore} {r : EIdx} {d k : Nat} {t : Expr}
     (hk : k < d) (hd : denoteE st r = some t) (hw : Expr.WScoped d t) :
     SimE (ConLeche.inferTypeCore mode env) d (.fvar k t) st r :=

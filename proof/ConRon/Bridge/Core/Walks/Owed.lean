@@ -332,13 +332,10 @@ whose answer shape it needs. -/
 The two list inversions, the four pure-side step equations, the induction
 itself, and the caller-facing statement derived from it.
 
-**The induction runs at given denotations** (task #123; until then it ran
-on the ∃/∀ shape of `defEqList_go`): the recursive call's lists are the
-TAILS of the denotations the cons arm opens before the walk, so the induction
-hypothesis goes into `vcgen`'s list instantiated at them, and `vcgen` has
-nothing to guess.  (Finding 5.2's problem — at the recursive call the state
-has moved, so `denoteEList s'.store as' = some ?xs` arrives with a
-metavariable that `mvcgen` guessed as the whole list — is gone with it.)
+**The induction runs at given denotations**: the recursive call's lists are
+the TAILS of the denotations the cons arm opens before the walk, so the
+induction hypothesis goes into `vcgen`'s list instantiated at them, and
+`vcgen` has nothing to guess.
 `defEqList_go`, the ∃/∀ shape a caller whose state has moved needs, and
 `defEqList_spec` are both stated over `defEqList_specA`. -/
 
@@ -366,7 +363,7 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
     Except.bind]
   rfl
 
-/-! #### The four exits as `grind` lemmas (tasks #120, #121, #123)
+/-! #### The four exits as `grind` lemmas
 
 The answer is stated about `defEqListOp`, con-leche's walk at a pair of
 lists as ONE term: the lists are then subterms `grind` can match (inside the
@@ -431,7 +428,7 @@ grind_pattern [bridge_grind] defEqList_cons_false_sim =>
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
 induction**, at given denotations (`defEqListOp`'s answer).  The recursive
 call's lists are the tails of THESE denotations, so the induction hypothesis
-goes into `vcgen`'s list instantiated at them (task #122's rule for a
+goes into `vcgen`'s list instantiated at them (rule for a
 parameter the program does not name). -/
 theorem defEqList_specA {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     ∀ (as bs : List EIdx) (xs ys : List Expr) (s₀ : AState),

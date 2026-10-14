@@ -72,7 +72,7 @@ theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
     · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
     · simp at h
 
-/-! ## The string walks' vocabulary (task #123)
+/-! ## The string walks' vocabulary
 
 The interning of a level at the tier's invariant (its readbacks and `ViewOK`
 preconditions are `Bridge/Grind.lean` §7's), the record fields the shape

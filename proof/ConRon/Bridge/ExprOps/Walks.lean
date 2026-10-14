@@ -21,31 +21,17 @@ RelV (f : Expr → α) (st : EStore) (c : EIdx) (x : α) : Prop :=
 interns, so nothing here grows the arena: every twin below leaves the state
 literally unchanged and Theorem 1's postcondition says `s' = s₁` where a
 rebuilding walk needs `Ext s₁.store s'.store` plus four frame equations.
-That collapses the whole extension-chain half of `ExprOps/Inst1.lean`'s
-proof, and with it the per-arm `_step` lemmas: **`bridge_vcs` closes every
-verification condition of every twin in this file**, given `RelV` in its
-`grind` list.
+There is no extension chain to carry and no answer to retarget.
 
-## The one thing the closer needed: `RelV` in the unfold list
+## The proof
 
-`RelV` is a `def` (deliberately — a `∀`-hypothesis has no head symbol for
-`grind` to ematch on), so the closer cannot see into the goal
-`RelV Expr.sizeB st h (x + y + 1)` unless it is told to unfold it.
-`bridge_vcs [Expr.sizeB, RelV]` is the whole recipe, and it is the finding
-this file records: task #97-P3-0's note on `ExprOps/Inst1.lean`'s `bvar` arm
-("`try unfold RelE` inside the closer takes them and breaks the `proj` arm")
-does **not** apply to a walk with no target store — there is no `proj` arm
-whose answer has to be retargeted, so the unfold is free and universal.
-No `_step` lemma, no `next =>` block, no `arm_hyp` appears below.
-
-## The closer now (task #123)
-
-`lamPair?_spec`, the one walk left in this file, is
-`sym only [bridge_grind, Expr.lamPair?] => vcgen [lamPair?] <;> finish`
-(DESIGN #122's idiom): `grind` closes both arms from `viewBind_lam_eq` (the
-binder view of a `lam`-tagged handle, as an equation) and the two declining
-lemmas `lamPair?_none_left`/`_right`, all three `grind_pattern … where guard`
-so that they fire only at the facts the program produced.
+`lamPair?_spec` is
+`sym only [bridge_grind, Expr.lamPair?] => vcgen [lamPair?] <;> finish`:
+`grind` reads the binder view of a `lam`-tagged handle from
+`Bridge/Grind.lean`'s guarded `view_of_viewBind` and the `DenoteView`
+extractions, and declines by `lamPair?_none_left`/`_right`, both
+`grind_pattern … where guard` so that they fire only at the denotation
+`lamPair?` is applied to.
 
 ## Fuel, and what the twins dispatch on
 
@@ -69,15 +55,6 @@ set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
-
-/-! ### Attribute hygiene (task #97s round 2, item 1)
-
-`RelE.ext`, `.of_ext` and `.retarget` close the answer relation under `Ext` in
-both directions, so every intermediate store multiplies every answer already
-known.  `attribute [-grind]` does not travel through an import, so every file
-of this tier repeats the line — even this one, which has no `Ext` in any
-statement: the closer's second stage still has them in its list. -/
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
 /-! ## The two one-node readers — `ExprOps.lean:771`, `:776`
 
@@ -110,21 +87,9 @@ theorem tag_lam_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {t b : Exp
     simp_all [ENodeView.tagOf, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
       Option.map_eq_some_iff]
 
-/-! ## The binder view under the `lam` tag (task #123) -/
+/-! ## The binder view under the `lam` tag -/
 
-/-- con-leche: none — a denoting `lam`-tagged handle whose binder view is
-`(ty, b)` denotes a λ whose two parts `ty` and `b` denote.  Guarded: it fires
-only at the binder view the program read. -/
-theorem viewBind_lam_eq {st : EStore} (hwf : StoreWF st) {i ty b : EIdx}
-    (htg : i.tag = ETag.lam) (h : st.viewBind i = some (ty, b))
-    (hs : (denoteE st i).isSome = true) :
-    ∃ et eb, denoteE st i = some (.lam et eb) ∧ denoteE st ty = some et ∧
-      denoteE st b = some eb :=
-  denote_eq_lam hwf (view_of_viewBind_lam htg h) hs
-grind_pattern [bridge_grind] viewBind_lam_eq => StoreWF st, st.viewBind i, some (ty, b) where
-  guard st.viewBind i = some (ty, b)
-
-/-! ## `lamPair?`'s arms as `grind` lemmas (task #123)
+/-! ## `lamPair?`'s arms as `grind` lemmas
 
 The declining arm knows only that one of the two tags is not `lam`; the lemma
 for each side is guarded by the subject's denotation, so that it fires at the

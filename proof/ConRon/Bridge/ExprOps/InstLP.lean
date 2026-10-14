@@ -68,9 +68,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ### Attribute hygiene (task #97s round 2, item 1) -/
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
 /-- con-leche: none — `vcgen` hands an arm its projection read as
 `some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
 supplies a step lemma's hypothesis has to try both orientations. -/
@@ -252,7 +249,7 @@ theorem substLMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         RelL (Level.subst ks us) s₀.store u s'.store r; ⊤⦄ := by
   dsimp only
   vcgen [substLMemoAt]
-  all_goals bridge_vcs [MemoLOK.insert, MemoLOK.get, RelL.of_ext, RelL.ext,
+  all_goals bridge_vcs [MemoLOK.insert, MemoLOK.get, RelL.of_ext,
     RelL.of_denote, denoteL_ext, ReadLCacheOK.mono, Option.isSome_iff_exists]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
@@ -278,7 +275,7 @@ theorem substLsMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
   dsimp only
   vcgen [substLsMemoAt]
   all_goals bridge_vcs [MemoLsOK.insert, MemoLsOK.get, MemoLsOK.mono,
-    RelLs.of_ext, RelLs.ext, RelLs.of_denote, denoteLs_ext, substLevelList_eq,
+    RelLs.of_ext, RelLs.of_denote, denoteLs_ext, substLevelList_eq,
     ReadLsCacheOK.mono, Option.isSome_iff_exists]
 
 end ConRon.Bridge.ExprOps

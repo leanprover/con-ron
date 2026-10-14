@@ -18,7 +18,7 @@ the `grind` vocabulary the level arms need, and three pieces of arena/spec
 infrastructure that belong further down the stack and are flagged in place
 (`view_eq_viewAt`, `readNameM_specF` / `readNamesM_specF`).
 
-## The closer (task #123)
+## The closer
 
 Every walk is `sym only [bridge_grind, …] => vcgen [...] <;> finish`, as in
 `ExprOps/Abs.lean` (whose header says what `grind` is given): the two walks
@@ -78,9 +78,8 @@ worth keeping:
    **What it cost**: the same record equation stated one level down at each
    of `readNameM_specF`, `readNamesM_specF` (this file),
    `readLevelM_specF`, `readLevelsM_specF` (`ExprOps/MemoSpecs.lean`) and
-   `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`) — each
-   replacing the two sibling-table equations it used to carry, which are its
-   projections — and **one lemma in `instLPFast_spec`'s closer list**
+   `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`), whose
+   two sibling-table equations are its projections — and **one lemma in `instLPFast_spec`'s closer list**
    (`ReadNCacheOK.mono`).  Every other proof of the chain closed unchanged.
    `instLPGo_specS`'s fourteen structural blocks each gained one `by grind` /
    one `rfl`.
@@ -407,10 +406,7 @@ recursion is on the list as `readNames`' is. -/
     vcgen [readNamesM]
     all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
-    -- `mvcgen` preferred `Bridge/SpecsL.lean`'s database `readNamesM_spec` to
-    -- the induction hypothesis, so the tail used to be generalised to a
-    -- program VARIABLE first; with `vcgen` the hypothesis passed in the list
-    -- serves directly.
+    -- the induction hypothesis, passed in `vcgen`'s list, serves the tail
     sym only [bridge_grind, Frontend.denoteNList, ReadNCacheOK] =>
       vcgen [readNamesM, readNameM_specF, ih] <;> finish
 

@@ -99,7 +99,7 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 0. The readback frame and the projection table, as `grind` reads them (task #123)
+/-! ## 0. The readback frame and the projection table, as `grind` reads them
 
 What this module's walks read beyond `Bridge/Grind.lean`'s vocabulary (which
 sits below `Core/Walks/Frame.lean` in the import graph and cannot name it):
@@ -164,8 +164,8 @@ theorem projTableName_specC (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
 stores a TABLE at the reserved name: the entry the arena answers with denotes
 con-leche's (`IFEnvOK.hit` at the reserved name, `denoteCI`'s `.projInfo` arm
-and `denoteProjTable_entry`).  Task #120: the hit arm as a lemma; since task
-#123 `findProjAt` reads all three as one equation. -/
+and `denoteProjTable_entry`); `findProjAt` reads this and the two misses
+as one equation. -/
 theorem findProj?_hit_some {s : AState} {rn : NIdx} {tbl : IProjTable}
     {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
     (hfind : fe.find? rn = some (.projInfo tbl))
@@ -242,7 +242,7 @@ def iFindProj (fe : IFEnv) (rn : NIdx) (i : Nat) : Option IProjEntry :=
   | _ => none
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — **the lookup
-as ONE equation** (task #123): at a handle denoting `T`'s reserved name, the
+as ONE equation**: at a handle denoting `T`'s reserved name, the
 arena's answer denotes con-leche's — the three lemmas above, keyed by the
 invariant, the name's denotation and the comparand. -/
 theorem findProjAt {s : AState} {rn : NIdx} {Tn : ConLeche.Name} {i : Nat}
@@ -265,7 +265,7 @@ grind_pattern [bridge_grind] findProjAt =>
   guard denoteN s.store.ns rn = some (ConLeche.projTableName Tn)
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — Theorem 1 for
-the lookup with its answer as one equation (task #123: no `∃` for `grind` to
+the lookup with its answer as one equation (no `∃` for `grind` to
 prove). -/
 theorem IFEnv.findProj?_specA (s₀ : AState) (T : NIdx) (i : Nat)
     (Tn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
@@ -356,7 +356,7 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast —
 `ExprOps/Subst.lean`'s `instantiateListFast_spec` at the tier's invariant
-(`CheckOK.mono`; task #123, as `Core/Walks/Spine.lean`'s `mkAppN_specC`). -/
+(`CheckOK.mono`, as `Core/Walks/Spine.lean`'s `mkAppN_specC`). -/
 theorem instantiateListFast_specC (fuel : Nat) (s₀ : AState) (e : EIdx)
     (vs : Array EIdx) (d : Nat) (ws : List Expr) (hok : CheckOK mode env fe s₀)
     (hvec : ExprOps.InstLVec s₀.store vs ws)
@@ -783,7 +783,7 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-/-! ### The constructor index (task #123)
+/-! ### The constructor index
 
 `Bridge/Grind.lean` §8's shape (`FindAt`, the definitions) at a CONSTRUCTOR
 (the projections `iCtor?`, `iCtorVal`, … are §8's): the index's two halves
@@ -847,7 +847,7 @@ theorem peelPis_succ_eq (k : Nat) (e : Expr) :
     ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
-`peelPis`** in answer shape: `RelEO` at con-leche's peel (task #123: a named
+`peelPis`** in answer shape: `RelEO` at con-leche's peel (a named
 answer, read by `grind` as `MapRel`). -/
 theorem peelPis_specA (k : Nat) : ∀ (s₀ : AState) (h : EIdx), StoreWF s₀.store →
     (denoteE s₀.store h).isSome = true →

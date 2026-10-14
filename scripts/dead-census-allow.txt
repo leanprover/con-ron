@@ -5,7 +5,6 @@
 ConRon.Generated.FunsExternal_Template	Aeneas's hole template for the opaque functions, never built by design; read by scripts/holes.sh
 ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque types, never built by design; read by scripts/holes.sh
 _private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
-ConRon.Bridge.RelE.apply	@[grind →] forward lemma; Bridge/ExprOps/{Abs,Inst1,Subst}.lean's binder-arm VCs need it in `bridge_vcs`' grind
 ConRon.Bridge.RelV.of_ext	named in Bridge/Specs.lean's `bridge_vcs` grind list
 ConRon.Bridge.RelL.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
 ConRon.Bridge.RelLs.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean

@@ -77,12 +77,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ### Attribute hygiene (task #97s round 2, item 1)
-
-`attribute [-grind]` does not travel through an import, so every file of the
-tier repeats `ExprOps/Inst1`'s line. -/
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
 /-! ## 1. The answer relations this group adds
 
 Modelled on `Bridge/Rel.lean`'s `RelEO`: an `Option`-valued answer gets a
@@ -142,16 +136,16 @@ this round. -/
 
 /-! ## 2. The step lemmas the whole group is written against
 
-All of them morally belong in `Bridge/Rel.lean` group 7 beside
-`RelE.of_view`: none mentions a walk.  `RelE.head_step` is `RelE.app` for a
-walk that DESCENDS into the head and answers the head's answer (rather than
+All of them morally belong in `Bridge/Rel.lean` group 7: none mentions a
+walk.  `RelE.head_step` is the `app` step for
+a walk that DESCENDS into the head and answers the head's answer (rather than
 rebuilding the node), which is `getAppFn`'s and every spine peel's shape;
 `RelE.self_of_view` is `RelE.self` with the licence read off the view, which
 is what every "not a `∀`" fallthrough arm needs. -/
 
 /-- con-leche: none — a walk that descends into the HEAD of an application
 and answers the head's answer, at a known view.  The pure function's own
-clause is the decomposition hypothesis, as in `RelE.app`. -/
+clause is the decomposition hypothesis. -/
 theorem RelE.head_step {F Ff : Expr → Expr} {st st' : EStore}
     {h f a r : EIdx} (hwf : StoreWF st) (hview : st.view h = some (.app f a))
     (hdec : ∀ x y, F (.app x y) = Ff x) (hf : RelE Ff st f st' r) :
@@ -398,8 +392,8 @@ theorem denoteEView_not_sort {st : EStore} {v : ENodeView} {e : Expr}
 
 /-! ### The pure functions' fallthrough clauses
 
-One lemma per twin, each a `cases e` over the ten constructors.  They are the
-`instantiate1_leaf` of this group (`ExprOps/Inst1`'s own catch-all licence). -/
+One lemma per twin, each a `cases e` over the ten constructors: the
+catch-all licence of each walk. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the
 fallthrough clause. -/
@@ -439,8 +433,7 @@ theorem stripLams_of_not_lam {e : Expr} {k : Nat}
 
 `getAppFn` and `getAppArgs` test `h.tag == ETag.app` before reading the store
 (task #97-P6-13), so their fallthrough arm knows only the NEGATIVE tag fact.
-This is `Rel.lean`'s `denote_leaf_of_tag` at one constructor instead of four,
-and it belongs there. -/
+It belongs in `Rel.lean`. -/
 
 /-- con-leche: none — a handle whose tag is not `app` denotes a term that is
 not an application. -/

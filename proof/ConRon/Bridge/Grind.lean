@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Grind` — the vocabulary `grind` closes Theorem 1's verification conditions with
 
-Tasks #122, #123.  A Theorem 1 walk proof is
+A Theorem 1 walk proof is
 
 ```lean
   sym only [bridge_grind] =>
@@ -14,11 +14,8 @@ condition in that same E-graph.  `only`: the bridge's set and nothing else
 (the default `@[grind]` set carries `Bridge/Rel.lean`'s forward rules, which
 fire on every denotation in sight).  What `grind` needs from the bridge is this
 module's vocabulary and the walks' own arm lemmas, all registered with
-`@[bridge_grind]`.  This module is the ONE place general vocabulary lives
-(task #123's consolidation): a walk module adds only what is about its own
-walk.  (The custom closers it replaced — `bridge_auto`, `bridge_frame`,
-`vc_arm`, with `ConRon/BridgeTactic.lean` and `Bridge/Frame.lean` — are
-deleted, task #123.)
+`@[bridge_grind]`.  This module is the ONE place general vocabulary lives:
+a walk module adds only what is about its own walk.
 
 1. **The store order.**  `Ext` is the preorder `≤` on `EStore`
    (`Std.IsPreorder`), so `grind`'s order solver decides the chains
@@ -46,7 +43,7 @@ deleted, task #123.)
 5. **The memo tables**: the hit, the insert and the dropped table of the
    generic expression memo invariant, each keyed by the table term the
    program builds.
-6. **Views and tags as equations** (task #123, the dispatch walks).  A
+6. **Views and tags as equations** (the dispatch walks).  A
    dispatch walk tests a handle's TAG, matches its VIEW, and compares against
    a con-leche function that matches the DENOTATION's constructor.  `grind`
    must see all three without a case split, so each fact is an equation
@@ -98,7 +95,7 @@ open ConLeche ConRon.Arena
 
 /-! ## 1. The store order -/
 
-/-- con-leche: none — `Ext` is the store order (task #122): `st ≤ st'` is
+/-- con-leche: none — `Ext` is the store order: `st ≤ st'` is
 "`st'` extends `st`". -/
 instance : LE EStore := ⟨Ext⟩
 
@@ -207,8 +204,8 @@ A subject known only to denote (`isSome`, the walks' precondition) is equated
 with a `some` of a named term, so that the `some` equations fire. -/
 
 /-- con-leche: none — **whatever `o` denotes satisfies `P`**: the answer
-shape of a spec whose subject's denotation is not a parameter (task #122;
-the spelling `∀ e, o = some e → P e` unfolded).  `o` is a `denoteE st i`
+shape of a spec whose subject's denotation is not a parameter (the
+spelling `∀ e, o = some e → P e`, behind a head symbol).  `o` is a `denoteE st i`
 (or a `st.view i`, for the facts a view carries). -/
 def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some e → P e
 
@@ -219,7 +216,7 @@ def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some 
 
 /-- con-leche: none — **an answer relation at an optional subject**: whatever
 the subject `o` denotes, the answer `o'` denotes its image under `g` (the
-named-predicate form of `Ans (fun e => o' = some (g e))`, task #123). -/
+named-predicate form of `Ans (fun e => o' = some (g e))`). -/
 def MapRel {α β : Type} (g : α → β) : Option α → Option β → Prop
   | some a, o => o = some (g a)
   | none, _ => True
@@ -549,7 +546,7 @@ grind_pattern [bridge_grind] MemoOK.insert_at => MemoOK f (tbl.insert k r) st
 grind_pattern [bridge_grind] MemoOK.of_empty => MemoOK f tbl st where
   guard tbl = ∅
 
-/-! ## 6. Views and tags as equations (task #123) -/
+/-! ## 6. Views and tags as equations -/
 
 /-- con-leche: none — **the constructor tag of a denotation**: the four tag
 bits of a handle are the tag of the expression it denotes. -/
@@ -1221,7 +1218,7 @@ handle that has a view. -/
   ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
    fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
-/-! ## 8. The environment index as equations (task #123) -/
+/-! ## 8. The environment index as equations -/
 
 /-- con-leche: none — is a stored lookup a definition. -/
 def iDefn? : Option IConstantInfo → Bool | some (.defnInfo _ _ _) => true | _ => false

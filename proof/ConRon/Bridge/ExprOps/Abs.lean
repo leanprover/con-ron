@@ -7,9 +7,9 @@ free variables into bound ones: `abstractRange` (the SPEC descent, `:669`),
 `abstractRangeFast` (`:1616`, `:1686`).
 
 Written against `ExprOps/Inst1.lean`, the tier's exemplar: the same `…Spec`
-record for one level of the recursion and the same fuel induction; since
-task #123 the arms are closed by `grind` (see *The closer* below), not by
-per-arm step lemmas.
+record for one level of the recursion and the same fuel induction; the arms
+are closed by `grind` (see *The closer* below), with no per-arm step
+lemmas.
 
 ## The three deviations this family carries
 
@@ -36,9 +36,8 @@ per-arm step lemmas.
    IDENTITY, not a clause."  `Bridge/StateOK.lean`'s `Abs1MemoA d` is the
    `abstract1` reading of that table and `AbsRangeMemoA d k` below is the
    `abstractRange` reading; the two are never in scope at once, and
-   `ExprOps/MemoSpecs.lean`'s `abs1Set_specI` — the memo insert's spec with
-   the pure function moved INSIDE the postcondition — is what lets one
-   primitive serve both.
+   `abs1Set_specA` — the memo insert's spec with the pure function a
+   parameter — is what lets one primitive serve both.
 
 ## What this module ASSUMES: `fvarB`
 
@@ -62,11 +61,10 @@ dispatcher's `vcgen` list is the five of them.  `vcgen` (task #111)
 instantiates an arm spec at the state `fvarB` returned and leaves the arm's
 preconditions at that state as verification conditions.
 
-## The closer (task #123)
+## The closer
 
-Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish` (DESIGN
-#122's idiom; no `bridge_*`, no `vc_arm`).  What `grind` needs is
-equations, never a `fun` (DESIGN #123's recipe):
+Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish`.  What
+`grind` needs is equations, never a `fun`:
 
 * the pure functions are NAMED (`abs1Fn d k`, `absRangeFn d k c`), so the
   answer relation `RelE (abs1Fn d k)` and the memo invariant
@@ -74,16 +72,14 @@ equations, never a `fun` (DESIGN #123's recipe):
   walk descends into (`abs1Fn_app`, …), and the cutoff and the catch-all as
   two lemmas the DISPATCHER passes to `sym` (`abs1Fn_cutoff`,
   `abs1Fn_leaf`);
-* the view a tag-guarded projection read gives is `Bridge/Rel.lean`'s
-  `view_of_viewApp` & co. under a guarded pattern, the denotation's
-  constructor follows from its tag (`exprTag_app` & co.), and the children's
-  denotations are `Bridge/Grind.lean` §6's `DenoteView` extractions;
+* the view a tag-guarded projection read gives, the denotation's
+  constructor from its tag and the children's denotations are
+  `Bridge/Grind.lean` §6's (`view_of_viewApp`, `exprTag_app`, the
+  `DenoteView` extractions);
 * the memo insert is `abs1Set_specA`, the insert's spec with the walk's
   function a parameter (given in the `vcgen` list) and the invariant and
   the answer as PRECONDITIONS, so that its post is a plain conjunction.
 
-The general lemmas this needed are `Bridge/Grind.lean`'s (hoisted there by
-task #123's consolidation).
 -/
 import ConRon.Bridge.ExprOps.MemoSpecs
 
@@ -127,8 +123,7 @@ theorem abstractRange_zero_eq :
 
 /-! ## The pure functions, named
 
-`grind` must see the walk's pure function as a TERM, not a `fun` (DESIGN
-#123's recipe, rule 2): `abs1Fn d` and `absRangeFn d k` are the memo
+`grind` must see the walk's pure function as a TERM, not a `fun`: `abs1Fn d` and `absRangeFn d k` are the memo
 invariant's function, `abs1Fn d k` and `absRangeFn d k c` the answer
 relation's.  Each comes with one `=` lemma per constructor the walk descends
 into — they fire once congruence closure knows the denotation's constructor
@@ -229,8 +224,8 @@ theorem absRangeFn_leaf {d k c : Nat} {e : Expr}
 
 /-! ## The answer relations
 
-`Bridge/Rel.lean`'s generic `RelE` at the named function (task #97b finding
-1, and task #123's rule against a `fun`). -/
+`Bridge/Rel.lean`'s generic `RelE` at the named function (no `fun` for
+`grind` to split on). -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `abstract1`'s answer
 relation. -/
@@ -258,9 +253,7 @@ abbrev AbsRangeMemoA (d k : Nat) (s : AState) : Prop :=
 
 /-! ## The memo insert, generic in the walk
 
-`ExprOps/MemoSpecs.lean`'s `abs1Set_specI` moved the walk's function inside a
-`∀ f` of the postcondition, which `grind` would have to instantiate (at a
-`fun`).  This face takes the function as a parameter — `vcgen`'s list gives
+`abs1Set`'s spec at the walk's function: it takes the function as a parameter — `vcgen`'s list gives
 it, `abs1Set_specA (f := abs1Fn d)` — and the invariant and the answer as
 PRECONDITIONS, which `vcgen` leaves as verification conditions; the post is a
 plain conjunction. -/

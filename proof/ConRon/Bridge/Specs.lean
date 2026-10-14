@@ -57,14 +57,11 @@ checker invariant crosses an `ExprOps` call on `Ext` plus
 
 ## The closer
 
-`bridge_vcs` at the end of this file is task #97s round 2's recipe: ONE
-curated `grind` list, a `bridge_peel` in front of it, and a second stage that
-puts the `RelE` transports back for the handful of verification conditions
-that genuinely have to move an answer along the extension chain.  The arm
-files erase the transports from `grind`'s set with `attribute [-grind]`
-(round 2's item 1, worth 70 s → 11.5 s on the spike's one file), and because
-`attribute [-grind]` does not travel through an import each of them repeats
-the line.
+Most walks are closed by `sym only [bridge_grind] => vcgen [...] <;> finish`
+over `Bridge/Grind.lean`'s vocabulary.  `bridge_vcs` at the end of this file
+is the closer of the modules that are not stated for that yet
+(`ExprOps/{Guards,Ranges,Spine,InstLP}.lean`): ONE curated `grind` list, a
+`bridge_peel` in front of it, and a second stage with a larger budget.
 -/
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.Grind
@@ -704,8 +701,8 @@ LIST, by induction on the list (the recursion `readNames` itself takes). -/
   | cons a as ih =>
     sym only [bridge_grind, Frontend.denoteNList] => vcgen [readNames, ih] <;> finish
 
-/-- con-leche: none — the NAME store's probe hit, at `StoreWF` (task #120:
-the cons-hit arm of the three nested interns as lemmas the closer takes). -/
+/-- con-leche: none — the NAME store's probe hit, at `StoreWF` (the
+cons-hit arm of the three nested interns, as a lemma). -/
 theorem EStore.nview_of_find {st : EStore} {v : NNodeView} {i : NIdx}
     (h : StoreWF st) (hf : st.ns.find? v = some i) : st.ns.view i = some v := by
   obtain ⟨rk, hwf⟩ := h; exact NStore.view_of_find hwf.nsWF hf
@@ -1158,8 +1155,8 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
         exact ih ys k n x hd.2 h1 h2
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the pin at slot `i`, when the table has one, denotes `pinNames[i]` (task
-#120: `pinAt`'s one arm as a lemma). -/
+the pin at slot `i`, when the table has one, denotes `pinNames[i]` (`pinAt`'s
+one arm as a lemma). -/
 theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
     (hlt : i < s.pins.names.size) :
     ∀ x, pinNames[i]? = some x → denoteN s.store.ns s.pins.names[i] = some x := by
@@ -1207,21 +1204,11 @@ theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
 
 /-! ## The closer
 
-Task #97s round 2's recipe, item by item.  ONE curated `grind` list; a
-`bridge_peel` in front of it, which is what lets `grind` see one state where
-the verification condition shows seven; and a second stage that puts the
-`RelE` transports back and raises the instance budget, for the verification
-conditions that genuinely have to move an answer along the extension chain.
-
-**The arm files erase the transports.**  `RelE.ext`, `.of_ext` and
-`.retarget` close the answer relation under `Ext` in both directions, so every
-intermediate store multiplies every answer already known — measured on the
-spike's one file, 70 s against 11.5 s.  The `_step` lemmas of
-`Bridge/Rel.lean` group 7 already carry the chain, so the transports are
-redundant *and* explosive; `attribute [-grind] RelE.ext RelE.of_ext
-RelE.retarget` at the top of each arm file is the single highest-value line in
-it, and because `attribute [-grind]` does not travel through an import each
-file repeats it. -/
+ONE curated `grind` list, with a `bridge_peel` in front of it, which is what
+lets `grind` see one state where the verification condition shows seven; and
+a second stage with a larger instance budget and `RelV.of_ext`, for the
+verification conditions that move a value answer along the extension
+chain. -/
 
 /-- con-leche: none — **the uniform closer** for Theorem 1's verification
 conditions.  ONE curated list, plus the walk's own pure function where a
@@ -1254,7 +1241,7 @@ macro_rules
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
            MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
            Ext.trans, Ext.refl,
-           RelE.ext, RelE.of_ext, RelV.of_ext,
+           RelV.of_ext,
            viewOK_bvar, viewOK_lit, viewOK_fvar, viewOK_sort, viewOK_const,
            viewOK_app, viewOK_lam, viewOK_forallE, viewOK_letE, viewOK_proj,
            denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,

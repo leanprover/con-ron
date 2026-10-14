@@ -8,9 +8,9 @@ first of them consumes.  `ExprOps/Inst1.lean` was the exemplar and this file
 keeps its shape — the `…Spec` record for one level of the recursion, the fuel
 induction, the per-arm theorems of the tag-dispatching walks.
 
-## The closer (task #123)
+## The closer
 
-Every verification condition is closed by DESIGN #122's idiom,
+Every verification condition is closed by
 
 ```lean
   sym only [bridge_grind, <the pure function's equations>] =>
@@ -82,21 +82,17 @@ conditions are the derived-word cutoff and the catch-all leaf
 `instantiateList_bvar_eq`'s two `if`s and the vector's indexed read
 (`InstLVec.getElem_eq`, `InstLVec.last`).
 
-## The two mechanical findings this file adds to the recipe
+## Two mechanical points
 
-* **A spec parameter the program does not mention was filled in by `mvcgen`
-  from the local context** (and is left open by `vcgen`; see below).  `Bridge/Specs.lean`'s four memo-insert specs
+* **A spec parameter the program does not mention is left open by
+  `vcgen`.**  `Bridge/Specs.lean`'s four memo-insert specs
   (`instLSet_spec`, `liftSet_spec`, `inst1LSet_spec`) take the
-  walk's own parameter — `ws`, `amount`, `ve` — as an ordinary argument, and
-  `mspec` has nothing to unify it against; in `liftLooseBVarsGo`'s arms it
-  picks the cutoff's `bRaw`, and in the `proj` arm the projection index.  The
-  fix, measured, is to make the PURE FUNCTION the parameter
-  (`f : Nat → Expr → Expr`, uninhabited in the arm's context, so `mvcgen`
-  left it as one verification condition the walk pinned with a single
-  `exact`) and to register the replacement `@[spec high]`, because a later
-  `@[spec]` does **not** override an earlier one for the same program.  Under
-  `vcgen` (task #111) each walk passes the generic spec INSTANTIATED in its
-  `vcgen` list instead.  `liftSet_specG` carries the full note.
+  walk's own parameter — `ws`, `amount`, `ve` — as an ordinary argument,
+  which nothing in the program determines.  The generic specs make the PURE
+  FUNCTION the parameter (`f : Nat → Expr → Expr`), registered
+  `@[spec high]` (a later `@[spec]` does **not** override an earlier one for
+  the same program), and each walk passes them INSTANTIATED in its `vcgen`
+  list.  `liftSet_specG` carries the full note.
 * **`bvarB` is not one of these twins**, and `instantiate1LiftGo` tests it.  Round 3 carried its Theorem 1 as a
   hypothesis `hbb : ∀ f, BvarBSpec (bvarB f)`; **round 4 discharged it**
   (`bvarB_bvarBSpec`) and deleted every binder, so the entry points and
@@ -466,7 +462,7 @@ The two derived cutoffs and `bvarB`'s packed branch read the derived word's
 bound field; below the saturation it IS the denotation's `bvarBound`, as one
 fact per handle whose word the program reads.  (The general vocabulary these
 walks need — the answer relations as `MapRel`, the views and tags, the memo
-invariant's uses — is `Bridge/Grind.lean`'s, task #123.) -/
+invariant's uses — is `Bridge/Grind.lean`'s.) -/
 
 /-- con-leche: none — the derived word's bound field, at a denoting handle:
 below the saturation it IS the denotation's `bvarBound` (`bvarBRaw_exact` at
@@ -633,8 +629,8 @@ parameter and each walk passes this spec INSTANTIATED in its `vcgen` list —
 `liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)`.
 `@[spec high]`: a spec registered later does not override an earlier one for
 the same program.  `dsimp only` first: the postcondition's record update
-elaborates to `let __src := s0.memos; …`, which `vcgen` rejects (task #123,
-reproducer `vcgen-let-src-in-spec.lean`). -/
+elaborates to `let __src := s0.memos; …`, which `vcgen` rejects (reproducer
+`_tmp/corpus/vcgen-grind/vcgen-let-src-in-spec.lean`). -/
 @[spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s0.memos.liftC s0.store)
     (hk : (denoteE s0.store k.1).isSome = true)
@@ -800,8 +796,8 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (instantiate1LiftFast_spec fuel s₀ e v d ve hok hv hden)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift —
-`instPisAtLift_spec` at a GIVEN denotation of the argument list (task #123:
-the list is the induction's own parameter and its head and tail are split off
+`instPisAtLift_spec` at a GIVEN denotation of the argument list (the
+list is the induction's own parameter and its head and tail are split off
 before `sym`, so that `vcgen`'s list takes the induction hypothesis at the
 tail's denotation; the answer at the named function `Expr.instPisAtLift xs`,
 no `fun`). -/
