@@ -813,9 +813,6 @@ def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v
 /-- con-leche: none — `iCtor?` at a constructor. -/
 @[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (a b : Nat) :
     iCtor? (some (.ctorInfo v a b)) = true := rfl
-/-- con-leche: none — `iCtorVal` at a constructor. -/
-@[bridge_grind =] theorem iCtorVal_ctor (v : IConstantVal) (a b : Nat) :
-    iCtorVal (some (.ctorInfo v a b)) = v := rfl
 /-- con-leche: none — a lookup that is a constructor IS one: what refutes a
 `match`'s fall-through arm. -/
 theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
