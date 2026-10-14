@@ -274,7 +274,8 @@ denotation. -/
     LSubMemoO tbl st (some bl') = MemoVOK (leavesSubSpec bl') tbl st := rfl
 
 /-- con-leche: none — a base list known only to denote denotes SOMETHING (the
-witness `LSubO.some_eq` and `LSubMemoO.some_eq` fire on). -/
+witness `LSubO.some_eq` and `LSubMemoO.some_eq` fire on; an `∃` for the reason
+`Bridge/Grind.lean`'s `denote_some_of_isSome` gives). -/
 @[bridge_grind →] theorem denoteLeaves_some_of_isSome {st : EStore} {bl : List (Nat × EIdx)}
     (h : (denoteLeaves st bl).isSome = true) : ∃ bl', denoteLeaves st bl = some bl' :=
   Option.isSome_iff_exists.mp h

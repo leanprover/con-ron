@@ -296,9 +296,11 @@ def MapRelV {α : Type} (g : Expr → α) : Option Expr → α → Prop
 
 /-- con-leche: none — a subject known only to denote (`isSome`, the walks'
 precondition) denotes SOMETHING: the witness congruence closure needs to fire
-the `some` equations.  (The `∃`-free spelling `o = some (o.getD _)` puts the
-witness one generation deeper and leaves `grind` short of the walk's
-equations — measured on `ExprOps/Abs.lean` and `ExprOps/Subst.lean`.) -/
+the `some` equations.  This is the one place the vocabulary keeps an `∃`
+conclusion: the witness IS the denotation's value, and it is pinned by the
+equation it comes with.  The `∃`-free spelling `o = some (o.getD _)` puts the
+witness one generation deeper, and `finish` then fails in `ExprOps/Inst1`,
+`ExprOps/Ranges` and `ExprOps/Leaves`. -/
 @[bridge_grind →] theorem denote_some_of_isSome {st : EStore} {h : EIdx}
     (hs : (denoteE st h).isSome = true) : ∃ e, denoteE st h = some e :=
   Option.isSome_iff_exists.mp hs
