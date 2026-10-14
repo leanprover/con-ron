@@ -95,7 +95,7 @@ theorem denote_tag_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
     obtain ⟨nm, ls, rfl, hn, hl⟩ := denote_const_inv hwf hv he
     exact ⟨n, us, nm, ls, hv, rfl, hn, hl⟩
   | _ => rw [ht] at htv; simp [ENodeView.tagOf, ETag.const] at htv <;> contradiction
-grind_pattern [bridge_grind] denote_tag_const => denoteE st h
+grind_pattern [bridge_grind] denote_tag_const => denoteE st h, h.tag
 
 /-! ### The arms as `grind` lemmas (tasks #120, #123)
 
