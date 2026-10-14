@@ -67,6 +67,7 @@ files erase the transports from `grind`'s set with `attribute [-grind]`
 the line.
 -/
 import ConRon.Bridge.StateOK
+import ConRon.Bridge.Grind
 import ConRon.Bridge.Frame
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
@@ -436,6 +437,72 @@ word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
     ⦃fun w s' => s' = s₀ ∧ w = s₀.store.derived h; ⊤⦄ := by
   vcgen [derivedE] with finish
 
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+
+The binder record's two faces as `grind` equations: `eBindView` at a literal
+tag is the constructor it spells, and `internLam`/`internForallE` are
+`internBind` at that tag (so that `EStore.internBind_spec`'s pattern meets the
+program's call). -/
+
+/-- con-leche: none — `eBindView` at the `lam` tag. -/
+@[bridge_grind =] theorem eBindView_lam (ty b : EIdx) :
+    eBindView ETag.lam ty b = .lam ty b := rfl
+
+/-- con-leche: none — `eBindView` at the `forallE` tag. -/
+@[bridge_grind =] theorem eBindView_forallE (ty b : EIdx) :
+    eBindView ETag.forallE ty b = .forallE ty b := rfl
+
+/-- con-leche: none — `internLam` is `internBind` at the `lam` tag. -/
+@[bridge_grind =] theorem EStore.internLam_eq (st : EStore) (ty b : EIdx) :
+    st.internLam ty b = st.internBind ETag.lam ty b := rfl
+
+/-- con-leche: none — `internForallE` is `internBind` at the `forallE` tag. -/
+@[bridge_grind =] theorem EStore.internForallE_eq (st : EStore) (ty b : EIdx) :
+    st.internForallE ty b = st.internBind ETag.forallE ty b := rfl
+
+/-- con-leche: none — `capOK` is the program's own capacity branch
+condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
+@[bridge_grind =] theorem EStore.capOK_eq (st : EStore) (v : ENodeView) :
+    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
+  rfl
+
+/-- con-leche: none — `capOK` of the name store, as an equation. -/
+@[bridge_grind =] theorem NStore.capOK_eq (st : NStore) (v : NNodeView) :
+    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
+  rfl
+
+/-- con-leche: none — `capOK` of the level store, as an equation. -/
+@[bridge_grind =] theorem LStore.capOK_eq (st : LStore) (v : LNodeView) :
+    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
+  rfl
+
+/-- con-leche: none — `capOK` of the level-list store, as an equation. -/
+@[bridge_grind =] theorem LsStore.capOK_eq (st : LsStore) (v : LsNodeView) :
+    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
+  rfl
+
+/-- con-leche: none — `denote_le` for a NAME handle: past an extension, a
+name handle that denotes denotes the same. -/
+theorem denoteN_le {st st' : EStore} {c : NIdx} (hx : st ≤ st')
+    (hd : denoteN st.ns c ≠ none) : denoteN st'.ns c = denoteN st.ns c := by
+  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [hx']; exact denoteN_ext hx' hx
+grind_pattern [bridge_grind] denoteN_le => st ≤ st', denoteN st.ns c
+
+/-- con-leche: none — `denote_le` for a LEVEL handle. -/
+theorem denoteL_le {st st' : EStore} {c : LIdx} (hx : st ≤ st')
+    (hd : denoteL st.ls c ≠ none) : denoteL st'.ls c = denoteL st.ls c := by
+  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [hx']; exact denoteL_ext hx' hx
+grind_pattern [bridge_grind] denoteL_le => st ≤ st', denoteL st.ls c
+
+/-- con-leche: none — `denote_le` for a universe-argument LIST handle. -/
+theorem denoteLs_le {st st' : EStore} {c : LsIdx} (hx : st ≤ st')
+    (hd : denoteLs st.lss c ≠ none) : denoteLs st'.lss c = denoteLs st.lss c := by
+  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [hx']; exact denoteLs_ext hx' hx
+grind_pattern [bridge_grind] denoteLs_le => st ≤ st', denoteLs st.lss c
+
 /-! ### The two binder faces
 
 `internLamE` / `internForallEE` do NOT go through `internNodeE`: they call
@@ -457,10 +524,9 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lam ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
-  vcgen [internLamE]
-  all_goals subst_vars
-  bridge_auto [EStore.view_of_findBind (tag := ETag.lam) (htag := rfl), denoteE_view_eq,
-      EStore.internBind_spec (tag := ETag.lam) (htag := rfl)]
+  sym only [bridge_grind, → EStore.view_of_findBind (tag := ETag.lam) (htag := rfl),
+      denoteE_view_eq, EStore.internBind_spec (tag := ETag.lam) (htag := rfl)] =>
+    vcgen [internLamE] <;> finish
 
 theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
     (hwf : StoreWF s₀.store) (hty : (s₀.store.view ty).isSome = true)
@@ -471,10 +537,9 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.forallE ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
-  vcgen [internForallEE]
-  all_goals subst_vars
-  bridge_auto [EStore.view_of_findBind (tag := ETag.forallE) (htag := rfl), denoteE_view_eq,
-      EStore.internBind_spec (tag := ETag.forallE) (htag := rfl)]
+  sym only [bridge_grind, → EStore.view_of_findBind (tag := ETag.forallE) (htag := rfl),
+      denoteE_view_eq, EStore.internBind_spec (tag := ETag.forallE) (htag := rfl)] =>
+    vcgen [internForallEE] <;> finish
 
 /-- con-leche: none — `internLamE_spec_view` at denoting children: the face
 the node-building walks use. -/
@@ -539,10 +604,9 @@ theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w; ⊤⦄ := by
-  vcgen [internNodeE]
-  all_goals subst_vars
-  bridge_auto [EStore.view_of_find, denoteE_view_eq, EStore.intern_spec]
-    unfolding [EStore.lss_intern, EStore.scratchOn_intern]
+  sym only [bridge_grind, → EStore.view_of_find, denoteE_view_eq, EStore.intern_spec,
+      EStore.lss_intern, EStore.scratchOn_intern] =>
+    vcgen [internNodeE] <;> finish
 
 /-- con-leche: none — `AM.of_run`'s converse at a fixed pre-state: a
 partial-correctness triple from a statement about every accepting run. -/
@@ -721,13 +785,12 @@ LIST, by induction on the list (the recursion `readNames` itself takes). -/
     ⦃fun s => s = s₀⦄ readNames hs
     ⦃fun xs s' => s' = s₀ ∧ Frontend.denoteNList s₀.store.ns hs = some xs; ⊤⦄ := by
   induction hs generalizing s₀ with
-  | nil => vcgen [readNames]; try grind [Frontend.denoteNList]
+  | nil => sym only [bridge_grind, Frontend.denoteNList] => vcgen [readNames] <;> finish
   | cons a as ih =>
-    vcgen [readNames, ih]
-    all_goals (bridge_peel; subst_vars; grind [Frontend.denoteNList])
+    sym only [bridge_grind, Frontend.denoteNList] => vcgen [readNames, ih] <;> finish
 
 /-- con-leche: none — the NAME store's probe hit, at `StoreWF` (task #120:
-the cons-hit arm of the three nested interns as lemmas `bridge_auto` takes). -/
+the cons-hit arm of the three nested interns as lemmas the closer takes). -/
 theorem EStore.nview_of_find {st : EStore} {v : NNodeView} {i : NIdx}
     (h : StoreWF st) (hf : st.ns.find? v = some i) : st.ns.view i = some v := by
   obtain ⟨rk, hwf⟩ := h; exact NStore.view_of_find hwf.nsWF hf
@@ -770,9 +833,9 @@ fact under the wrapper's own capacity branch. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.ns.view h = some v ∧
         denoteN s'.store.ns h = denoteNView s'.store.ns v; ⊤⦄ := by
-  vcgen [internNNode]
-  all_goals subst_vars
-  bridge_auto [EStore.nview_of_find, EStore.denoteN_view_eq, EStore.internName_spec]
+  sym only [bridge_grind, → EStore.nview_of_find, EStore.denoteN_view_eq,
+      EStore.internName_spec] =>
+    vcgen [internNNode] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
 name, by induction on the `Name` tree (the recursion `internName` takes: a
@@ -787,19 +850,17 @@ name, by induction on the `Name` tree (the recursion `internName` takes: a
         denoteN s'.store.ns h = some nm; ⊤⦄ := by
   induction nm generalizing s₀ with
   | anonymous =>
-    vcgen [internName, internNNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children])
+    sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
+        List.not_mem_nil] =>
+      vcgen [internName, internNNode_spec] <;> finish
   | str p str ih =>
-    vcgen [internName, ih, internNNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
-                 nview_isSome_of_denote, Ext.trans])
+    sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
+        List.mem_singleton, Option.map_some, nview_isSome_of_denote] =>
+      vcgen [internName, ih, internNNode_spec] <;> finish
   | num p k ih =>
-    vcgen [internName, ih, internNNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
-                 nview_isSome_of_denote, Ext.trans])
+    sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
+        List.mem_singleton, Option.map_some, nview_isSome_of_denote] =>
+      vcgen [internName, ih, internNNode_spec] <;> finish
 
 /-! ## The level store -/
 
@@ -826,9 +887,9 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.ls.view h = some v ∧
         denoteL s'.store.ls h = denoteLView s'.store.ls v; ⊤⦄ := by
-  vcgen [internLNode]
-  all_goals subst_vars
-  bridge_auto [EStore.lview_of_find, EStore.denoteL_view_eq, EStore.internLevel_spec]
+  sym only [bridge_grind, → EStore.lview_of_find, EStore.denoteL_view_eq,
+      EStore.internLevel_spec] =>
+    vcgen [internLNode] <;> finish
 
 /-! ## The level-list store -/
 
@@ -856,9 +917,9 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.lss.view h = some v ∧
         denoteLs s'.store.lss h = denoteLsView s'.store.lss v; ⊤⦄ := by
-  vcgen [internLsNode]
-  all_goals subst_vars
-  bridge_auto [EStore.lsview_of_find, denoteLs_unfold, EStore.internLevels_spec]
+  sym only [bridge_grind, → EStore.lsview_of_find, denoteLs_unfold,
+      EStore.internLevels_spec] =>
+    vcgen [internLsNode] <;> finish
 
 /-! ## The readback memos (task #97-P6-13)
 
@@ -877,6 +938,11 @@ could keep the state invariant, and — since `[spec]` cannot be erased — a
 caller could not prove the missing conjunct for itself either.  It costs
 these three proofs one `rfl` each. -/
 
+-- The frame at a hit, `s'.caches = { s₀.caches with readLC := s'.caches.readLC }`
+-- with `s' = s₀`, is structure eta: `grind`'s `etaStruct` at the cache record
+-- (local: a global `ext` would expand every `Caches` term of every walk).
+attribute [local bridge_grind ext] Caches
+
 @[spec] theorem readLevelM_spec (s₀ : AState) (h : LIdx)
     (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
     ⦃fun s => s = s₀⦄ readLevelM h
@@ -886,12 +952,8 @@ these three proofs one `rfl` each. -/
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [readLevelM]
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLCacheOK]
+  sym only [bridge_grind, ReadLCacheOK, Std.HashMap.getElem?_insert] =>
+    vcgen [readLevelM] <;> finish
 
 @[spec] theorem readNameM_spec (s₀ : AState) (h : NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
@@ -902,12 +964,8 @@ these three proofs one `rfl` each. -/
         denoteN s₀.store.ns h = some x ∧
         ReadNCacheOK s'.caches.readNC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [readNameM]
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadNCacheOK]
+  sym only [bridge_grind, ReadNCacheOK, Std.HashMap.getElem?_insert] =>
+    vcgen [readNameM] <;> finish
 
 @[spec] theorem readLevelsM_spec (s₀ : AState) (h : LsIdx)
     (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
@@ -918,12 +976,8 @@ these three proofs one `rfl` each. -/
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [readLevelsM]
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLsCacheOK]
+  sym only [bridge_grind, ReadLsCacheOK, Std.HashMap.getElem?_insert] =>
+    vcgen [readLevelsM] <;> finish
 
 /-! ## The thirteen memo tables
 
@@ -1204,9 +1258,8 @@ theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
     ⦃fun s => s = s₀⦄ pinAt i
     ⦃fun n s' => s' = s₀ ∧ ∀ x, pinNames[i]? = some x →
         denoteN s₀.store.ns n = some x; ⊤⦄ := by
-  vcgen [pinAt]
-  all_goals subst_vars
-  bridge_auto [PinsOK.pinAt]
+  sym only [bridge_grind, PinsOK.pinAt] =>
+    vcgen [pinAt] <;> finish
 
 @[spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinReserved
