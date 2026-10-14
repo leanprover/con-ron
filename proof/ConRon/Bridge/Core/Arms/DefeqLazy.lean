@@ -31,15 +31,12 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
-
-/-- A tag test at a denotation of known constructor: `exprTag` computes, and
-the two `UInt32` literals are compared by `decide`. -/
-local macro "tag_dec" : tactic => `(tactic| (simp only [exprTag]; try decide))
 
 /-! ## 1. `quickDefEq` -/
 
@@ -604,48 +601,62 @@ section Offsets
 
 variable {fe : IFEnv}
 
+/-! The zero and predecessor tests compare a name handle against a pin and a
+level-list handle against the empty-levels pin: `Bridge/Grind.lean` §6's
+handle inverses at those two stores, registered for this section. -/
+local grind_pattern [bridge_grind] nameIdx => denoteN st.ns n
+local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
+local grind_pattern [bridge_grind] lsIdxAt => denoteLs st.lss n
+local grind_pattern [bridge_grind] LsIdxAt.some => LsIdxAt st n (some ls)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1517-1521 Expr.isNatZero — the
+function as ONE equation over the tag and the projections. -/
+theorem isNatZero_eq (x : Expr) : x.isNatZero =
+    if exprTag x = ETag.lit then litNat? (exprLit x) == some 0
+    else if exprTag x = ETag.const ∧ exprConstLevels x = [] then
+      exprConstName x == ConLeche.natZeroName
+    else false := by
+  cases x with
+  | lit l => cases l with
+    | natVal n => cases n <;> rfl
+    | strVal _ => rfl
+  | const n ls => cases ls <;> rfl
+  | _ => rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1517-1521 Expr.isNatZero — the twin
+with its literal arm one constructor deep (`litNat?` reads the literal), the
+shape `vcgen` gives `grind` a usable fall-through for
+(`_tmp/corpus/vcgen-grind/nested-ctor-fallthrough-hyp.lean`). -/
+theorem isNatZero_split (e : EIdx) : ConRon.Arena.isNatZero e =
+    (if e.tag == ETag.lit then do
+      match ← view e with
+      | .lit l => pure (litNat? l == some 0)
+      | _ => pure false
+    else if e.tag == ETag.const then do
+      match ← view e with
+      | .const c us => do
+        let el ← emptyLevels
+        let nz ← pinNatZero
+        pure (c == nz && us == el)
+      | _ => pure false
+    else pure false) := by
+  unfold ConRon.Arena.isNatZero
+  split
+  · congr 1; funext v
+    cases v with
+    | lit l => cases l <;> rfl
+    | _ => rfl
+  · rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1517-1521 Expr.isNatZero — **THEOREM
 1 for the zero test**: read-only, and con-leche's answer. -/
 theorem isNatZero_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store e = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isNatZero e
     ⦃fun r s' => s' = s₀ ∧ r = x.isNatZero; ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨v, hv⟩ := denoteE_view hx
-  unfold ConRon.Arena.isNatZero
-  rw [tag_of_denote hwf hx]
-  rcases VD.of_view hwf hv hx with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
-    _ | _ | _ | ⟨l⟩ | _
-  case lit =>
-    rw [ite_eq_left (by tag_dec)]
-    refine view_bind_triple hv ?_
-    rcases l with n | st
-    · cases n <;> exact triple_pure_post ⟨rfl, rfl⟩
-    · exact triple_pure_post ⟨rfl, rfl⟩
-  case const =>
-    rw [ite_eq_right (by tag_dec), ite_eq_left (by tag_dec)]
-    refine view_bind_triple hv ?_
-    refine triple_seq (pinEmptyLevels_spec s₀ hok.pins) ?_
-    rintro el s2 ⟨hs2, hel⟩
-    subst s2
-    refine triple_seq (pinAt_spec s₀ PIN_NAT_ZERO hok.pins) ?_
-    rintro nz s3 ⟨hs3, hnz⟩
-    subst s3
-    refine triple_pure_post ⟨rfl, ?_⟩
-    rw [beq_handle_eq hwf hc (hnz _ rfl)]
-    cases ls with
-    | nil =>
-      have : (us == el) = true := beq_iff_eq.mpr ((ls_eq_iff_nil hwf hus hel).mpr rfl)
-      rw [this, Bool.and_true]; rfl
-    | cons l ls =>
-      have : (us == el) = false := by
-        cases h : us == el
-        · rfl
-        · exact absurd ((ls_eq_iff_nil hwf hus hel).mp (beq_iff_eq.mp h)) (by simp)
-      rw [this, Bool.and_false]; rfl
-  all_goals
-    rw [ite_eq_right (by tag_dec), ite_eq_right (by tag_dec)]
-    exact triple_pure_post ⟨rfl, rfl⟩
+  sym only [bridge_grind, isNatZero_eq] =>
+    vcgen [isNatZero_split, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatZero, pinAt_specE] <;>
+      finish
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — a
 predecessor of a well-scoped term is well-scoped. -/
@@ -659,6 +670,73 @@ theorem natPred?_WScoped {d : Nat} {x p : Expr} (h : x.natPred? = some p)
     · cases h
   · cases h
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — a
+literal's predecessor literal, if it is a nonzero `Nat`. -/
+def litPred? : Literal → Option Expr
+  | .natVal n => if n = 0 then none else some (.lit (.natVal (n - 1)))
+  | .strVal _ => none
+attribute [local bridge_grind =] litPred?
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — the
+function as ONE equation over the tags and the projections. -/
+theorem natPred?_eq (x : Expr) : x.natPred? =
+    if exprTag x = ETag.lit then litPred? (exprLit x)
+    else if exprTag x = ETag.app ∧ exprTag (exprFn x) = ETag.const ∧
+        exprConstLevels (exprFn x) = [] ∧ exprConstName (exprFn x) = ConLeche.natSuccName then
+      some (exprArg x)
+    else none := by
+  cases x with
+  | lit l => cases l with
+    | natVal n => cases n <;> rfl
+    | strVal _ => rfl
+  | app f a =>
+    cases f with
+    | const c ls =>
+      cases ls with
+      | nil =>
+        simp [ConLeche.Expr.natPred?, exprTag, exprFn, exprArg, exprConstLevels, exprConstName,
+          ETag.app, ETag.lit, ETag.const]
+      | cons _ _ => rfl
+    | _ => rfl
+  | _ => rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — the twin
+with its literal arm one constructor deep (the literal matched on its own),
+for `vcgen`'s fall-through (`_tmp/corpus/vcgen-grind/nested-ctor-fallthrough-hyp.lean`). -/
+theorem natPred?_split (e : EIdx) : ConRon.Arena.natPred? e =
+    (if e.tag == ETag.lit then do
+      match ← view e with
+      | .lit l =>
+        match l with
+        | .natVal n =>
+          if n = 0 then pure none else do
+            let r ← internE (.lit (.natVal (n - 1)))
+            pure (some r)
+        | .strVal _ => pure none
+      | _ => pure none
+    else if e.tag == ETag.app then do
+      match ← viewApp e with
+      | none => failDanglingE
+      | some (f, x) =>
+        if f.tag == ETag.const then do
+          match ← view f with
+          | .const c us => do
+            let el ← emptyLevels
+            let ns ← pinNatSucc
+            if c == ns && us == el then pure (some x) else pure none
+          | _ => pure none
+        else pure none
+    else pure none) := by
+  unfold ConRon.Arena.natPred?
+  split
+  · congr 1; funext v
+    cases v with
+    | lit l => cases l with
+      | natVal n => cases n <;> rfl
+      | strVal _ => rfl
+    | _ => rfl
+  · rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — **THEOREM 1
 for the predecessor**: a nonzero literal's predecessor is interned, a
 `Nat.succ x` answers `x`. -/
@@ -667,73 +745,10 @@ theorem natPred?_spec (s₀ : AState) (e : EIdx) (x : Expr)
     ⦃fun s => s = s₀⦄ ConRon.Arena.natPred? e
     ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteEO s'.store o = some x.natPred?; ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨v, hv⟩ := denoteE_view hx
-  unfold ConRon.Arena.natPred?
-  have htg := tag_of_denote hwf hx
-  rw [htg]
-  rcases VD.of_view hwf hv hx with _ | _ | _ | _ | ⟨f, a, ef, ea, hf, ha⟩ |
-    _ | _ | _ | ⟨l⟩ | _
-  case lit =>
-    rw [ite_eq_left (by tag_dec)]
-    refine view_bind_triple hv ?_
-    rcases l with n | st
-    · cases n with
-      | zero => exact triple_pure_post ⟨hok, Ext.refl _, rfl, rfl⟩
-      | succ n =>
-        refine triple_seq (internE_ok_spec s₀ (.lit (.natVal n)) hok viewOK_lit) ?_
-        rintro l s1 ⟨hok1, hx1, hp1, hd1⟩
-        exact triple_pure_post ⟨hok1, hx1, hp1, by
-          simp only [denoteEO, hd1, denoteEView]; rfl⟩
-    · exact triple_pure_post ⟨hok, Ext.refl _, rfl, rfl⟩
-  case app =>
-    rw [ite_eq_right (by tag_dec), ite_eq_left (by tag_dec)]
-    refine triple_seq (viewApp_spec s₀ e) ?_
-    rintro p s1 ⟨hs1, rfl⟩
-    subst s1
-    cases hva : s₀.store.viewApp e with
-    | none => exact triple_failDanglingE
-    | some p =>
-    obtain ⟨f', a'⟩ := p
-    have hv' := view_of_viewApp htg hva
-    rw [hv] at hv'
-    cases hv'
-    dsimp only
-    obtain ⟨vf, hvf⟩ := denoteE_view hf
-    refine tag_view_bind_triple hvf ?_
-      (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
-    rcases VD.of_view hwf hvf hf with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
-      _ | _ | _ | _ | _
-    case const =>
-      refine triple_seq (pinEmptyLevels_spec s₀ hok.pins) ?_
-      rintro el s2 ⟨hs2, hel⟩
-      subst s2
-      refine triple_seq (pinAt_spec s₀ PIN_NAT_SUCC hok.pins) ?_
-      rintro ns s3 ⟨hs3, hns⟩
-      subst s3
-      have hiff : (c = ns ∧ us = el) ↔ (nm = ConLeche.natSuccName ∧ ls = []) := by
-        rw [n_eq_iff_pin hwf hc (hns _ rfl), ls_eq_iff_nil hwf hus hel]
-      split
-      · rename_i h
-        simp only [Bool.and_eq_true, beq_iff_eq] at h
-        obtain ⟨rfl, rfl⟩ := hiff.mp h
-        exact triple_pure_post ⟨hok, Ext.refl _, rfl, by
-          simp [denoteEO, ha, ConLeche.Expr.natPred?]⟩
-      · rename_i h
-        simp only [Bool.and_eq_true, beq_iff_eq] at h
-        refine triple_pure_post ⟨hok, Ext.refl _, rfl, ?_⟩
-        cases ls with
-        | nil =>
-          have hne : ¬ nm = ConLeche.natSuccName :=
-            fun h' => h (hiff.mpr ⟨h', rfl⟩)
-          simp [denoteEO, ConLeche.Expr.natPred?, hne]
-        | cons _ _ => simp [denoteEO, ConLeche.Expr.natPred?]
-    all_goals
-      exact triple_pure_post ⟨hok, Ext.refl _, rfl, by
-        simp [denoteEO, ConLeche.Expr.natPred?]⟩
-  all_goals
-    rw [ite_eq_right (by tag_dec), ite_eq_right (by tag_dec)]
-    exact triple_pure_post ⟨hok, Ext.refl _, rfl, rfl⟩
+  sym only [bridge_grind, natPred?_eq] =>
+    vcgen [natPred?_split, ConRon.Arena.emptyLevels,
+      ConRon.Arena.pinNatSucc, pinAt_specE,
+      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1523-1526 Expr.isLit — the twin's
 tag test IS con-leche's `isLit`. -/
