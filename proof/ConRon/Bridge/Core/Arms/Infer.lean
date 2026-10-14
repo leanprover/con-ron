@@ -42,7 +42,7 @@ import ConRon.Bridge.Core.Walks.StrLit
 import ConRon.Bridge.Core.Walks.InferSpine
 import ConRon.Bridge.Core.Walks.BinderLoop
 import ConRon.Bridge.Core.EnsureSort
-import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -103,8 +103,9 @@ theorem infer_strLit {F d : Nat} {s : String}
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — the `Nat`
-literal clause as an answer (wave 2: for `bridge_auto`'s list). -/
-theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
+literal clause as an answer (a `grind` lemma, task #123: its conclusion is
+its pattern). -/
+@[bridge_grind ←] theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
     (h : ConLeche.natLitSupported env = true) :
     SimE (ConLeche.inferTypeCore mode env) d (.lit (.natVal n)) st r :=
@@ -112,29 +113,33 @@ theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1141-1147 inferBody — the string
 literal clause as an answer. -/
-theorem SimE.of_strLit {st : EStore} {r : EIdx} {d : Nat} {str : String}
+@[bridge_grind ←] theorem SimE.of_strLit {st : EStore} {r : EIdx} {d : Nat} {str : String}
     (hd : denoteE st r = some (.const ConLeche.stringName []))
     (h : ConLeche.strLitSupported env = true) :
     SimE (ConLeche.inferTypeCore mode env) d (.lit (.strVal str)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
-clause as an answer: the twin's arity guard on the level list's VIEW length
-is con-leche's on the denoted list's length. -/
-theorem SimE.of_constTy {st st₀ : EStore} {r : EIdx} {d : Nat} {n : Name}
-    {ls : List Level} {c : ConstantInfo} {cv : IConstantVal} {us : LsIdx}
-    {usl : List LIdx} (henv : ConLeche.EnvWF env)
+clause as an answer, at the denoted level list's length (task #123: the
+twin's arity guard on the level list's VIEW reaches it through
+`view_len_of_denoteLs`, a `grind` rule; the constant is not in the
+conclusion, so the arm passes this lemma instantiated at it). -/
+theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
+    {ls : List Level} {c : ConstantInfo} (henv : ConLeche.EnvWF env)
     (hfind : env.find? n = some c) (hct : c.isTowerEntry = false)
+    (hl : ls.length = c.toConstantVal.levelParams.length)
     (hd : denoteE st r = some (c.toConstantVal.type.instantiateLevelParams
-      c.toConstantVal.levelParams ls))
-    (hus : denoteLs st₀.lss us = some ls) (hview : st₀.lss.view us = some usl)
-    (hlen : ¬(usl.length != cv.levelParams.length) = true)
-    (hlp : c.toConstantVal.levelParams.length = cv.levelParams.length) :
-    SimE (ConLeche.inferTypeCore mode env) d (.const n ls) st r := by
-  refine ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
-    infer_const hfind hct ?_⟩
-  rw [← view_len_of_denoteLs hus hview, hlp]
-  simpa using hlen
+      c.toConstantVal.levelParams ls)) :
+    SimE (ConLeche.inferTypeCore mode env) d (.const n ls) st r :=
+  ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
+    infer_const hfind hct hl⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1116-1125 inferBody — the free
+variable clause as an answer (task #123). -/
+@[bridge_grind ←] theorem SimE.of_fvar {st : EStore} {r : EIdx} {d k : Nat} {t : Expr}
+    (hk : k < d) (hd : denoteE st r = some t) (hw : Expr.WScoped d t) :
+    SimE (ConLeche.inferTypeCore mode env) d (.fvar k t) st r :=
+  ⟨_, hd, hw, 1, infer_fvar hk⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1166-1171 inferBody — **the `let`
 clause**, official `infer_let` (con-leche's task #342 S0): the type is a
@@ -154,6 +159,17 @@ theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
   rfl
+
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+
+attribute [bridge_grind →] CheckOK.pins view_len_of_denoteLs
+
+/-- con-leche: none — the `Nat` pin's name (`Arena/Pins.lean`'s table). -/
+@[bridge_grind =] theorem pinNames_nat : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
+
+/-- con-leche: none — the `String` pin's name. -/
+@[bridge_grind =] theorem pinNames_string :
+    pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
 
 /-! ## 4. The projection clause
 
@@ -342,8 +358,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     dsimp only
     cases hf : fe.find? n with
     | none =>
-      vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
-      subst_vars; exact hok.pins
+      sym only [bridge_grind] =>
+        vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx] <;> finish
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
       obtain rfl := Option.some.inj (hn.symm.trans hn')
@@ -352,13 +368,11 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
         have hname : denoteN s₀.store.ns cv.name = some nm := by
           rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
         have hlp := denoteNList_len (denoteCV_inv hcv).2.1
-        have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
-          s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
         simp only [hcv_eq]
-        vcgen [hcta]
-        all_goals (bridge_peel; subst_vars)
-        -- the arity guard passed: con-leche's instantiated type, closed
-        bridge_auto [SimE.of_constTy henv]
+        -- the arity guard passed: con-leche's instantiated type
+        sym only [bridge_grind, SimE.of_constTy (mode := mode) (d := d) henv hfind hct] =>
+          vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ cv us nm ls c
+            hok hname hus hfind hcv] <;> finish
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
         simp only [ht, ite_true]
@@ -386,26 +400,23 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
-  have hce := fun (s : AState) (n : NIdx) =>
-    constE_spec' (mode := mode) (env := env) (fe := fe) s n
   cases v
   case lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
+    -- the pin's name is the basis constant's (`pinNames_nat`/`_string`)
     cases l with
     | natVal n =>
-      have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
-        s₀ hok
-      vcgen [hn, ConRon.Arena.pinNat, hce]
-      all_goals (bridge_peel; subst_vars)
-      -- the pin's precondition, then `constE`'s two, then the answer
-      bridge_auto [CheckOK.pins, SimE.of_natLit]
+      sym only [bridge_grind] =>
+        vcgen [natLitSupported_spec (mode := mode) (env := env) (fe := fe) s₀ hok,
+          ConRon.Arena.pinNat,
+          constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
+          finish
     | strVal str =>
-      have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
-        s₀ hok
-      vcgen [hn, ConRon.Arena.pinString, hce]
-      all_goals (bridge_peel; subst_vars)
-      -- the pin's precondition, then `constE`'s two, then the answer
-      bridge_auto [CheckOK.pins, SimE.of_strLit]
+      sym only [bridge_grind] =>
+        vcgen [strLitSupported_spec (mode := mode) (env := env) (fe := fe) s₀ hok,
+          ConRon.Arena.pinString,
+          constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
+          finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-! ### The `.proj` clause, shared with the io body
@@ -781,8 +792,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
     have hwt : Expr.WScoped d t' := by
       unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
-    vcgen; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, infer_fvar hk⟩
+    sym only [bridge_grind] => vcgen <;> finish
   | sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
     dsimp only
