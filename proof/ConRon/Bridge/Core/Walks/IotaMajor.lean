@@ -146,46 +146,9 @@ theorem denoteEList_drop_rel (st : EStore) (hs : List EIdx) (n : Nat) :
   | some xs => exact ExprOps.denoteEList_drop _ _ _ h
 grind_pattern [bridge_grind] denoteEList_drop_rel => Frontend.denoteEList st (hs.drop n)
 
-/-! ## The environment index at inductives, constructors and recursors -/
-
+/-! The recursor projections' eta (`Bridge/Grind.lean` §8), registered for the ι
+walks. -/
 local grind_pattern [bridge_grind] iRec?_eta => iRec? o
-
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iInd?_ind (v : IConstantVal) (caps : IIndCaps) :
-    iInd? (some (.indInfo v caps)) = true := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iIndVal_ind (v : IConstantVal) (caps : IIndCaps) :
-    iIndVal (some (.indInfo v caps)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iIndCaps_ind (v : IConstantVal) (caps : IIndCaps) :
-    iIndCaps (some (.indInfo v caps)) = caps := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) :
-    iCtor? (some (.ctorInfo v n f)) = true := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iCtorVal_ctor (v : IConstantVal) (n f : Nat) :
-    iCtorVal (some (.ctorInfo v n f)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iCtorNP_ctor (v : IConstantVal) (n f : Nat) :
-    iCtorNP (some (.ctorInfo v n f)) = n := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iRec?_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRec? (some (.recInfo v m r rs)) = true := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iRecVal_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecVal (some (.recInfo v m r rs)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iRecMI_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecMI (some (.recInfo v m r rs)) = m := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iRecRP_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecRP (some (.recInfo v m r rs)) = r := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-theorem iRecRules_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecRules (some (.recInfo v m r rs)) = rs := rfl
-attribute [local bridge_grind =] iInd?_ind iIndVal_ind iIndCaps_ind iCtor?_ctor iCtorVal_ctor
-  iCtorNP_ctor iRec?_rec iRecVal_rec iRecMI_rec iRecRP_rec iRecRules_rec
-
 
 /-! ## The pure side: con-leche's text at its exits -/
 
@@ -1534,8 +1497,7 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         exact ⟨y, hy, rfl⟩
       · simp at hr
     obtain ⟨_, _, hrlc, _, _, hk', he'⟩ := rule_denote hrl'
-    sym (gen := 10) only [bridge_grind, -iInd?, -iIndVal, -iIndCaps, -iCtor?, -iCtorVal, -iCtorNP,
-        -iCtorNF, mtcPrefixOk, mtcFam] =>
+    sym (gen := 10) only [bridge_grind, mtcPrefixOk, mtcFam] =>
       vcgen [majorToCtor_one, isCtorApp_spec (mode := mode) (env := env) (x := x), ExprOps.piResult_spec,
         ExprOps.getAppFn_spec, ConRon.Arena.pinAnd, pinAt_specE,
         majorK_spec hμ hsim (rl' := rl') (x := x) (dcvj := cCtorVal (env.find? rl'.ctor))

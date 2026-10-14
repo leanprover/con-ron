@@ -1680,7 +1680,32 @@ def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _
 def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
 /-- con-leche: none — a constructor's record. -/
 def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
-attribute [bridge_grind =] iInd? iIndVal iIndCaps iCtor? iCtorVal iCtorNP iCtorNF
+
+/-! The projections at their own constructor, one equation each (as `iDefn?_defn`):
+the definitions' wildcard arms would reach `grind` as conditional equations it
+case-splits on. -/
+
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iInd?_ind (v : IConstantVal) (caps : IIndCaps) :
+    iInd? (some (.indInfo v caps)) = true := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iIndVal_ind (v : IConstantVal) (caps : IIndCaps) :
+    iIndVal (some (.indInfo v caps)) = v := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iIndCaps_ind (v : IConstantVal) (caps : IIndCaps) :
+    iIndCaps (some (.indInfo v caps)) = caps := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) :
+    iCtor? (some (.ctorInfo v n f)) = true := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iCtorVal_ctor (v : IConstantVal) (n f : Nat) :
+    iCtorVal (some (.ctorInfo v n f)) = v := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iCtorNP_ctor (v : IConstantVal) (n f : Nat) :
+    iCtorNP (some (.ctorInfo v n f)) = n := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iCtorNF_ctor (v : IConstantVal) (n f : Nat) :
+    iCtorNF (some (.ctorInfo v n f)) = f := rfl
 
 /-- con-leche: none — a lookup that is an inductive IS one. -/
 theorem iInd?_eta {o : Option IConstantInfo} (h : iInd? o = true) :
@@ -1724,6 +1749,15 @@ def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ =>
 def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
 /-- con-leche: none — an environment constructor's field count. -/
 def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+/-- con-leche: none — `cIndCaps` at an inductive. -/
+@[bridge_grind =] theorem cIndCaps_ind (v : ConstantVal) (c : IndCaps) :
+    cIndCaps (some (.indInfo v c)) = c := rfl
+/-- con-leche: none — `cCtorNP` at a constructor. -/
+@[bridge_grind =] theorem cCtorNP_ctor (v : ConstantVal) (n f : Nat) :
+    cCtorNP (some (.ctorInfo v n f)) = n := rfl
+/-- con-leche: none — `cCtorNF` at a constructor. -/
+@[bridge_grind =] theorem cCtorNF_ctor (v : ConstantVal) (n f : Nat) :
+    cCtorNF (some (.ctorInfo v n f)) = f := rfl
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
@@ -1744,6 +1778,22 @@ def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
 def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
 /-- con-leche: none — a recursor's rules. -/
 def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iRec?_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRec? (some (.recInfo v m r rs)) = true := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iRecVal_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecVal (some (.recInfo v m r rs)) = v := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iRecMI_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecMI (some (.recInfo v m r rs)) = m := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iRecRP_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecRP (some (.recInfo v m r rs)) = r := rfl
+/-- con-leche: none — a stored lookup's projection at its constructor. -/
+@[bridge_grind =] theorem iRecRules_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
+    iRecRules (some (.recInfo v m r rs)) = rs := rfl
 
 /-- con-leche: none — a lookup that is a recursor IS one (registered by the ι
 walks, `Core/Walks/IotaMajor.lean` and `Core/Walks/Iota.lean`). -/

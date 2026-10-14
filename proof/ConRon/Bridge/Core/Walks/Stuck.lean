@@ -55,7 +55,6 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
 
-attribute [bridge_grind =] cIndCaps cCtorNP cCtorNF
 
 /-! ### The children's answers, named -/
 
