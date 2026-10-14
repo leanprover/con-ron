@@ -49,6 +49,7 @@ definition named in its list.
 -/
 import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
 
@@ -143,6 +144,9 @@ maintained at all — the readback clause is the one hypothesis
 Two specs, same shape as the ones in `Specs.lean` plus two equations, and they
 belong there. -/
 
+-- The frame at a hit is structure eta at the cache record (as in `Specs.lean`).
+attribute [local bridge_grind ext] Caches
+
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelM` with the
 sibling readback tables framed. -/
 @[spec high] theorem readLevelM_specF (s₀ : AState) (h : LIdx)
@@ -154,8 +158,8 @@ sibling readback tables framed. -/
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [readLevelM]
-  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
+  sym only [bridge_grind, ReadLCacheOK, Std.HashMap.getElem?_insert] =>
+    vcgen [readLevelM] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelsM` with the
 sibling readback tables framed. -/
@@ -168,8 +172,8 @@ sibling readback tables framed. -/
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [readLevelsM]
-  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
+  sym only [bridge_grind, ReadLsCacheOK, Std.HashMap.getElem?_insert] =>
+    vcgen [readLevelsM] <;> finish
 
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
@@ -289,10 +293,8 @@ reflexive there. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
         denoteE s'.store r = denoteEView s'.store v; ⊤⦄ := by
-  vcgen [internRebuilt, internE_specV]
-  all_goals (bridge_peel; subst_vars)
-  -- the `same` arm answers the handle it was given
-  bridge_auto unfolding [denoteE_view_eq hwf (hsame rfl), imp_self, implies_true, true_and]
+  sym only [bridge_grind, denoteE_view_eq hwf] =>
+    vcgen [internRebuilt, internE_specV] <;> finish
 
 /-! ### The binder intern at the V shape
 
