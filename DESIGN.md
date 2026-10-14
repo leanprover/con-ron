@@ -69227,7 +69227,7 @@ by the hoisted vocabulary (transports of names, level lists, caps, rules;
 | `tag_dec` | `Core/Arms/DefeqLazy` | 6 | deleted (`isNatZero_spec`, `natPred?_spec` in the idiom) |
 | `dmc_move` | `Checker/DivMod` | 66 | kept |
 | `constWF_closed` | `Checker/DeclWF` | 1 | kept |
-| `vind_*` (six) | `Frontend/Lines` | 22 | kept |
+| `vind_*` (six) | `Frontend/Lines` | 16 | kept |
 
 What remains and why: all three are in the RUN-style tiers (Checker,
 Frontend: `AM.bind_ok` decompositions of `= .ok` runs, not `⦃⦄` triples), to
@@ -69260,7 +69260,7 @@ preference.  `### Task #122`/`#123` now point at the frame reproducers in
 **Reproducers** (`_tmp/corpus/vcgen-grind/`): new
 `finish-limits-under-sym.lean` (the diagnostic reports `sym`'s default
 limits, not `finish`'s); `forward-eq-hyp-multipattern.lean` extended with the
-guarded-pattern fix.  Two lane observations without a minimal reproducer:
+guarded-pattern fix.  One lane observation without a minimal reproducer:
 in Stuck's long chains `denote_view`/`denote_tag`/`denote_le` sometimes did
 not fire on a `denoteE` term created late by an `∃`-split of `SimE.inv`
 (standalone probes fired; worked around by exit lemmas over handles).
