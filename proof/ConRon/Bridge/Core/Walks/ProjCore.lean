@@ -15,7 +15,7 @@ walk theorem both callers apply.
 | `reduceProjCore_specA` | the walk, `sym … vcgen … finish`, answer `ProjCoreAns` |
 | `reduceProjCore_spec` | **THEOREM 1 for `reduceProjCore`**, in `SimOOp` form |
 
-The walk's callees: `projLitToCtor_specA`, `findProj?_specP`,
+The walk's callees: `projLitToCtor_spec`, `findProj?_specP`,
 `getAppFn_spec`, the head's `view`, `getAppArgs_spec`, `viewLsLen`,
 `IProjEntry.fireOk_specA`, `internE (.bvar 0)`, `projCertAt_specA`.
 -/
@@ -185,7 +185,7 @@ theorem reduceProjCore_specA {fuel : Nat}
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ProjCoreAns mode env d nm k ce s'.store r; ⊤⦄ := by
   sym only [bridge_grind, Option.getD_some] =>
-    vcgen [ConRon.Arena.reduceProjCore, projLitToCtor_specA hsim (x := ce),
+    vcgen [ConRon.Arena.reduceProjCore, projLitToCtor_spec hsim (x := ce),
       findProj?_specP (mode := mode) (env := env) (fe := fe) (Tn := nm),
       ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec, viewLsLen_spec,
       IProjEntry.fireOk_specA (mode := mode) (env := env) (fe := fe),
