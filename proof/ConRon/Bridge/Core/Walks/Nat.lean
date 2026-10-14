@@ -75,30 +75,11 @@ view constructors (`lit`, `forallE`), the knot's `whnf` slot and `internE`
 at the invariant in answer shape, the environment's inductives and
 constructors as projections, and a few `Option`/`List` equations. -/
 
-/-! The tags' values, so that `grind` tells them apart (`ETag`'s are plain
-`def`s), and `tagOf`/`exprTag` at a constructor. -/
+/-! The tags' values (`ETag`'s are plain `def`s; their equations make them
+literals `grind` tells apart), and `tagOf`/`exprTag` at a constructor. -/
 
-/-- con-leche: none — the `bvar` tag's value. -/
-@[bridge_grind =] theorem ETag.bvar_eq : ETag.bvar = 0 := rfl
-/-- con-leche: none — the `fvar` tag's value. -/
-@[bridge_grind =] theorem ETag.fvar_eq : ETag.fvar = 1 := rfl
-/-- con-leche: none — the `sort` tag's value. -/
-@[bridge_grind =] theorem ETag.sort_eq : ETag.sort = 2 := rfl
-/-- con-leche: none — the `const` tag's value. -/
-@[bridge_grind =] theorem ETag.const_eq : ETag.const = 3 := rfl
-/-- con-leche: none — the `app` tag's value. -/
-@[bridge_grind =] theorem ETag.app_eq : ETag.app = 4 := rfl
-/-- con-leche: none — the `lam` tag's value. -/
-@[bridge_grind =] theorem ETag.lam_eq : ETag.lam = 5 := rfl
-/-- con-leche: none — the `forallE` tag's value. -/
-@[bridge_grind =] theorem ETag.forallE_eq : ETag.forallE = 6 := rfl
-/-- con-leche: none — the `letE` tag's value. -/
-@[bridge_grind =] theorem ETag.letE_eq : ETag.letE = 7 := rfl
-/-- con-leche: none — the `lit` tag's value. -/
-@[bridge_grind =] theorem ETag.lit_eq : ETag.lit = 8 := rfl
-/-- con-leche: none — the `proj` tag's value. -/
-@[bridge_grind =] theorem ETag.proj_eq : ETag.proj = 9 := rfl
-
+attribute [bridge_grind =] ETag.bvar ETag.fvar ETag.sort ETag.const ETag.app ETag.lam
+  ETag.forallE ETag.letE ETag.lit ETag.proj
 attribute [bridge_grind =] ENodeView.tagOf exprTag
 
 /-- con-leche: none — **the name handle of a denoted name** at the name

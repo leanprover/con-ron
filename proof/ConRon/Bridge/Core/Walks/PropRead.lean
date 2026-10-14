@@ -400,10 +400,6 @@ theorem entryAt (st : EStore) (en : IProjEntry) : EntryAt st en (denoteProjEntry
     · simp at h
 grind_pattern [bridge_grind] entryAt => denoteProjEntry st en
 
-/-- con-leche: none — `EntryAt` at a denoting entry. -/
-theorem EntryAt.some {st : EStore} {en : IProjEntry} {p : ProjEntry}
-    (H : EntryAt st en (some p)) : denoteE st en.body = some p.body := H
-grind_pattern [bridge_grind] EntryAt.some => EntryAt st en (some p)
 
 attribute [bridge_grind =] Option.bind_some Option.bind_none Option.isSome_none
 
