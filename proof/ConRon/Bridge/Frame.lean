@@ -28,9 +28,6 @@ set_option autoImplicit false
 
 /-! ## 1. The lemmas the search composes -/
 
-/-- con-leche: none — an equality of stores is an extension. -/
-theorem Ext.of_eq {a b : EStore} (h : a = b) : Ext a b := h ▸ Ext.refl a
-
 /-- con-leche: none — `StateOK` reads only the store. -/
 theorem StateOK.of_store {s s' : AState} (h : StateOK s) (he : s'.store = s.store) :
     StateOK s' := ⟨he ▸ h.wf⟩

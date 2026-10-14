@@ -68523,7 +68523,7 @@ header lists them):
 | `transportLemmas`, `factHeads`, `frameDefaults`, `fwdDefaults`, `autoDefaults`, `relNames`, 60 of `usedConstants` | the three attributes, `isAnswerRel` |
 | the block and the repeat goal-intro forms | `introFacts` |
 | `closeExistsByHyp` (3 goals, Core/Walks/Owed) | three exit lemmas there (`defEqList_*_sim`) |
-| `closeByNegCtor`, the earlier-store `isSome` search, the final identification loop, `CheckOK.monoF` in the defaults | deleted (nothing reached them) |
+| `closeByNegCtor`, the earlier-store `isSome` search, the final identification loop, `CheckOK.monoF` in the defaults, `Ext.of_eq` | deleted (nothing reached them) |
 | `bridge_fwd`, `bridge_finish` as syntax | `bridge_auto`'s stages |
 
 **Kept, and why** (each tried removed or unified, each failed or cost):
@@ -68564,7 +68564,7 @@ header lists them):
 
 **Lines.**  `ConRon/BridgeTactic.lean` 2 358 → 1 974 (−16 %, documentation
 rewritten: what each component does and the rules for lemma authors, no lane
-history); `Bridge/Frame.lean` 267 → 259; `Core/Walks/Owed.lean` 505 → 524 (the
+history); `Bridge/Frame.lean` 267 → 256; `Core/Walks/Owed.lean` 505 → 524 (the
 three exit lemmas).  Less than the third #120 hoped for: most of the bulk is
 the forward step and the finisher, whose mechanisms each carry a measured
 case.
