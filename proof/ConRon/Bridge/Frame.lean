@@ -58,8 +58,13 @@ theorem StateOK.of_store {s s' : AState} (h : StateOK s) (he : s'.store = s.stor
 theorem StateOK.of_wf {s : AState} {st : EStore} (h : StoreWF st) (he : s.store = st) :
     StateOK s := ⟨he ▸ h⟩
 
-/-! The bridge's own lemmas the closers compose (declared in `Bridge/Rel.lean`,
-which does not import the tactic library), registered here. -/
+/-! The rules the closers compose, registered (`ConRon/BridgeTactic.lean` §1);
+the bridge's older modules do not import the tactic library, so their
+lemmas are registered here.  The frame: the state invariants past a chain of
+calls, a denoting handle's `isSome`, an intern's `ViewOK`. -/
+
+attribute [bridge_frame] StateOK.of_store StateOK.of_wf CheckOK.mono CheckOK.monoF
+  isSome_of_eq_some
 
 attribute [bridge_transport] denote_ext denoteN_ext denoteL_ext denoteLs_ext
 
@@ -95,7 +100,7 @@ attribute [bridge_fwd] denote_fvar_inv denote_sort_inv denote_const_inv denote_a
 
 /-- con-leche: none — a handle that denotes still denotes past an extension
 (its `isSome`, as the walks' preconditions state it). -/
-theorem isSome_denote_ext {st st' : EStore} {h : EIdx}
+@[bridge_frame] theorem isSome_denote_ext {st st' : EStore} {h : EIdx}
     (hs : (denoteE st h).isSome = true) (hx : Ext st st') :
     (denoteE st' h).isSome = true := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs

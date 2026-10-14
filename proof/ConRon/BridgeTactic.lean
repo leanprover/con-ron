@@ -1,30 +1,36 @@
 /-
-# `ConRon.BridgeTactic` — the meta code of Theorem 1's position-free closers
+# `ConRon.BridgeTactic` — the closers of Theorem 1's verification conditions
 
-Task #120.  `bridge_frame`, `bridge_fwd` and `vc_arm` (documented at their
-syntax below and in `Bridge/Frame.lean`, which holds the lemmas they compose).
-A library of its own, importing Lean alone, so that it can be PRECOMPILED
-(`precompileModules`): the closers run on every verification condition of the
-`Bridge` tier, and interpreted they cost ~4x what they cost native.  The bridge
-constants they build proofs from are named with single backticks — unchecked
-here, and `Bridge/Frame.lean`'s census line checks they exist.
+The meta code of `bridge_frame`, `bridge_auto` and `vc_arm` (DESIGN.md, tasks
+#120 and #121; the idiom is at `bridge_auto`'s syntax below).  A library of its
+own, importing Lean alone, so that it can be PRECOMPILED (`precompileModules`):
+the closers run on every verification condition of the `Bridge` tier, and
+interpreted they cost ~3× what they cost native.
+
+The structure:
+
+1. **Registries** — the lemmas the closers compose, by attribute
+   (`@[bridge_transport]`, `@[bridge_frame]`, `@[bridge_fwd]`).
+2. **Matching** — every unification is REDUCIBLE (`same`), behind a syntactic
+   filter (`quickMatch`).
+3. **The snapshot** — a goal's hypotheses, read once.
+4. **Paths** — a goal `R a b` for a preorder `R` (`Eq`, `Ext`, `CacheFrame`,
+   …) as a chain of the context's steps; equations also by congruence.
+5. **The backward search** `prove` — connectives, hypotheses, paths, facts
+   (a denotation, carried along `Ext` or read off a `∀`-hypothesis), rules
+   (the lemmas and the `∀`-hypotheses, premises proved recursively),
+   evaluation.  `bridge_frame` is this search on every goal.
+6. **The forward step** — every `∀`-hypothesis and `@[bridge_fwd]` lemma
+   instantiated at what the context knows, saturated.
+7. **The finisher** — `rfl`, `contradiction`, a case split, `simp only`.
+8. **`vc_arm`** — an arm addressed by the shape of its hypotheses.
+
+The bridge constants named with single backticks (`usedConstants`) are
+unchecked here; `Bridge/Frame.lean` checks they exist.
 -/
 import Lean
 
 namespace ConRon.Bridge
-
-/-! ## 2. The search
-
-Everything below reads a SNAPSHOT of the goal's context, taken once per goal
-(and once per `bridge_fwd` round): each hypothesis with its type instantiated
-and its negations unfolded (`normNeg`), its head symbol, and — for a
-`∀`-hypothesis — the answer-relation-unfolded telescope's conclusion heads,
-so that the searches below filter by head before they unify.  Every
-unification is REDUCIBLE (`same`): a default-transparency `isDefEq` between
-`denoteE st h = some ?x` and a hypothesis unfolds `denoteE` itself (measured:
-a heartbeat timeout on one goal), and `backward.isDefEq.respectTransparency`
-is switched back on locally for the same reason (the project sets it `false`
-for Aeneas). -/
 
 /-- con-leche: none — a denoting handle's `isSome`. -/
 theorem isSome_of_eq_some {α : Type} {o : Option α} {a : α} (h : o = some a) :
@@ -43,53 +49,32 @@ namespace Frame
 def usedConstants : List Name :=
   [`ConLeche.Expr,
    `ConRon.Arena.AState,
-   `ConRon.Arena.AState.caches,
    `ConRon.Arena.AState.store,
    `ConRon.Arena.EStore,
    `ConRon.Arena.EStore.view,
    `ConRon.Arena.Ext,
-   `ConRon.Arena.Ext.refl,
-   `ConRon.Arena.Ext.trans,
    `ConRon.Arena.StoreWF,
    `ConRon.Arena.denoteE,
    `ConRon.Bridge.CacheFrame,
-   `ConRon.Bridge.CacheFrame.of_eq,
-   `ConRon.Bridge.CacheFrame.refl,
-   `ConRon.Bridge.CacheFrame.trans,
    `ConRon.Bridge.CheckOK,
-   `ConRon.Bridge.CheckOK.mono,
-   `ConRon.Bridge.CheckOK.monoF,
-   `ConRon.Bridge.CheckOK.state,
-   `ConRon.Bridge.Ext.of_eq,
-   `ConRon.Bridge.RelE,
-   `ConRon.Bridge.RelEL,
-   `ConRon.Bridge.RelEO,
-   `ConRon.Bridge.RelL,
-   `ConRon.Bridge.RelLs,
-   `ConRon.Bridge.RelV,
    `ConRon.Bridge.StateOK,
-   `ConRon.Bridge.StateOK.of_store,
-   `ConRon.Bridge.StateOK.of_wf,
-   `ConRon.Bridge.StateOK.wf,
    `ConRon.Bridge.exprTag,
-   `ConRon.Bridge.isSome_denote_ext,
    `Std.Do.Triple]
 
-/-! ## 1. The lemma registries
+/-! ## 1. The registries
 
 The lemmas the closers compose are registered by attribute where they are
-declared (or, for the bridge's older modules, in `Bridge/Frame.lean`), in
-declaration order:
+declared (for the bridge's older modules, which do not import this library,
+in `Bridge/Frame.lean`), in declaration order:
 
 * `@[bridge_transport]` — `(hd : F st x = some v) → (hx : Ext st st') →
-  F st' x = some v`, the denotation fact FIRST (so that the store it lives at
-  is fixed by a hypothesis before the `Ext` path is searched).  The head `F`
-  of its conclusion makes `F … = some …` a *fact*: what the transports carry,
-  what the answer relations quantify over, what `bridge_auto` identifies.
-* `@[bridge_frame]` — a backward rule of the frame search, applied to every
-  goal it does not close otherwise (after the call's own list).
-* `@[bridge_fwd]` — a forward rule of `bridge_auto`, instantiated at what the
-  context knows (the view inversions, the tag tests, the optional handle). -/
+  F st' x = some v`, the fact FIRST (so that the store it lives at is fixed by
+  a hypothesis before the `Ext` path is searched).  The head `F` of its
+  conclusion makes `F … = some …` a FACT: what the transports carry, what the
+  answer relations quantify over, what `bridge_auto` identifies.
+* `@[bridge_frame]` — a backward rule of `prove`, after the call's own list.
+* `@[bridge_fwd]` — a forward rule of `bridge_auto` (the view inversions, the
+  tag tests, the optional handle). -/
 
 /-- A registry: `(lemma, key)` in declaration order, imports first. -/
 abbrev Registry := SimplePersistentEnvExtension (Name × Name) (Array (Name × Name))
@@ -119,32 +104,86 @@ def transportKey (ty : Expr) : MetaM Name := do
   return n
 
 initialize transportExt : Registry ←
-  mkRegistry `bridge_transport "a denotation fact carried along `Ext`" transportKey
+  mkRegistry `bridge_transport "a fact carried along `Ext`" transportKey
 initialize frameExt : Registry ←
   mkRegistry `bridge_frame "a backward rule of the frame search" fun _ => pure .anonymous
 initialize fwdExt : Registry ←
   mkRegistry `bridge_fwd "a forward rule of `bridge_auto`" fun _ => pure .anonymous
 
+initialize registerTraceClass `bridge
+
 /-- The registered lemmas of `ext`. -/
 def registered (env : Environment) (ext : Registry) : Array Name :=
   (ext.getState env).map (·.1)
 
-/-- The fact heads: the keys of the transport lemmas. -/
-def factHeads (env : Environment) : Array Name :=
-  (transportExt.getState env).map (·.2)
+/-- Is `t` a FACT — an equation whose left side has a transport lemma's head
+(`denoteE st h = some e`, `denoteN …`, `denoteEList …`, …)? -/
+def isFactShape (env : Environment) (t : Expr) : Bool :=
+  match t.eq? with
+  | some (_, lhs, _) =>
+    lhs.getAppFn.constName?.any fun n => (transportExt.getState env).any (·.2 == n)
+  | none => false
 
-/-- The answer relations whose definitions are a `∀ e, denote… = some e → …`. -/
-def relNames : List Name :=
-  [`ConRon.Bridge.RelE, `ConRon.Bridge.RelEL, `ConRon.Bridge.RelEO, `ConRon.Bridge.RelV, `ConRon.Bridge.RelL, `ConRon.Bridge.RelLs]
+/-- Is `t` a frame predicate — the state invariants and the store and cache
+frames (a premise of this shape is searched for, never guessed)? -/
+def isFrameShape (t : Expr) : Bool :=
+  [`ConRon.Arena.StoreWF, `ConRon.Bridge.StateOK, `ConRon.Bridge.CheckOK, `ConRon.Arena.Ext,
+   `ConRon.Bridge.CacheFrame].any t.isAppOf
 
-/-- Reducible definitional equality, the node identity of every search. -/
+/-- May a hypothesis with this head be unfolded to the `∧`/`∃` it is
+defined as?  Not a frame predicate (`StoreWF` is `∃ rk, EWFAt st rk`, wanted
+whole), nor any other well-formedness invariant (`…WF`, `…OK`). -/
+def peelable (n : Name) : Bool :=
+  ![`ConRon.Arena.StoreWF, `ConRon.Bridge.StateOK, `ConRon.Bridge.CheckOK, `ConRon.Arena.Ext,
+    `ConRon.Bridge.CacheFrame].contains n &&
+    !(n.toString.endsWith "WF") && !(n.toString.endsWith "OK")
+
+/-- Does `e` mention a Hoare triple (a callee's spec, never a fact)? -/
+def mentionsTriple (e : Expr) : Bool :=
+  (e.find? fun x => x.constName?.any fun n =>
+    n == `Std.Do.Triple || n.toString.endsWith ".Triple").isSome
+
+/-- Is `n` an ANSWER RELATION — a definition whose body is `∀ x…, F … = some x
+→ … → a = b`: for every denotation of the input (its first premise is a fact),
+an equation about the answer (`RelE`, `RelEL`, `RelV`, `ExprOps.RelEA`, …)?
+Read off the definition, syntactically. -/
+def isAnswerRel (env : Environment) (n : Name) : Bool := Id.run do
+  let some (.defnInfo d) := env.find? n | return false
+  let mut b := d.value
+  while b.isLambda do b := b.bindingBody!
+  let mut factPremise := false
+  while b.isForall do
+    let dom := b.bindingDomain!
+    if !factPremise && dom.isAppOfArity ``Eq 3 then
+      unless isFactShape env dom do return false
+      factPremise := true
+    b := b.bindingBody!
+  return factPremise && b.isAppOfArity ``Eq 3
+
+/-- Unfold a definition whose body is a `∀` at the head (once): an answer
+relation, a walk's own `∀` relation. -/
+def unfoldRel (t : Expr) : MetaM Expr := do
+  let t := t.cleanupAnnotations
+  let some n := t.getAppFn.constName? | return t
+  unless (← getEnv).find? n matches some (.defnInfo _) do return t
+  let some t' ← unfoldDefinition? t | return t
+  let t' := t'.headBeta
+  return if t'.isForall then t' else t
+
+/-! ## 2. Matching -/
+
+/-- Reducible definitional equality, the node identity of every search.  A
+default-transparency `isDefEq` between `denoteE st h = some ?x` and a
+hypothesis unfolds `denoteE` itself (a heartbeat timeout on one goal), and
+`backward.isDefEq.respectTransparency` (which the project sets `false` for
+Aeneas) is switched back on for the same reason. -/
 def same (a b : Expr) : MetaM Bool :=
   withOptions (fun o => o.setBool `backward.isDefEq.respectTransparency true) <|
     withReducible (Meta.isDefEq a b)
 
 /-- `¬ p` and `a ≠ b` spelled `p → False` and `a = b → False`, so that a
-reducible match sees through them (`Not` is not reducible).  The proofs are
-unchanged: the two spellings are definitionally equal. -/
+reducible match sees through them (`Not` is not reducible).  The two spellings
+are definitionally equal, so proofs are unchanged. -/
 def normNeg (e : Expr) : MetaM Expr := do
   unless (e.find? fun x => x.isConstOf ``Not || x.isConstOf ``Ne).isSome do return e
   Meta.transform e (pre := fun x => do
@@ -155,12 +194,39 @@ def normNeg (e : Expr) : MetaM Expr := do
         .default)
     return .continue)
 
+/-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
+`same`: two applications of DIFFERENT constants (or of one constant at
+different arities) never match at reducible transparency unless a head is
+reducible or a projection; a metavariable or a binder matches anything, two
+different locals never.  Three levels deep. -/
+partial def quickMatch (env : Environment) (a b : Expr) (depth : Nat := 3) : Bool :=
+  if depth == 0 then true else
+  let a := a.cleanupAnnotations
+  let b := b.cleanupAnnotations
+  let rigid (n : Name) : Bool :=
+    getReducibilityStatusCore env n != .reducible && !env.isProjectionFn n
+  match a.getAppFn, b.getAppFn with
+  | .const n _, .const m _ =>
+    if n != m then !(rigid n && rigid m)
+    else if a.getAppNumArgs != b.getAppNumArgs then false
+    else (a.getAppArgs.zip b.getAppArgs).all fun (x, y) => quickMatch env x y (depth - 1)
+  | .forallE _ d₁ b₁ _, .forallE _ d₂ b₂ _ =>
+    quickMatch env d₁ d₂ (depth - 1) && quickMatch env b₁ b₂ (depth - 1)
+  | .const n _, .forallE .. => !rigid n
+  | .forallE .., .const n _ => !rigid n
+  | .fvar a, .fvar b => a == b
+  | .fvar _, .const n _ => !rigid n
+  | .const n _, .fvar _ => !rigid n
+  | _, _ => true
+
+/-- `quickMatch` at the top: the filter every search runs before `same`. -/
+def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
+
 /-- Supply `p` for the telescope argument `a`: an unassigned metavariable is
-assigned once its type and `p`'s agree up to `normNeg` (a reducible check on
-the raw types would not see through `Not`), which also unifies the
-telescope's earlier implicit arguments; anything else is compared.  (The
-type check is not optional: assigning outright let `CheckOK.mono h` be built
-with `h` at the wrong state — a kernel error, found by task #120's Memo lane.) -/
+assigned once its type and `p`'s agree up to `normNeg`, which also unifies
+the telescope's earlier implicit arguments; anything else is compared.  (The
+type check is not optional: assigning outright built `CheckOK.mono h` with
+`h` at the wrong state — a kernel error.) -/
 def supply (a p : Expr) : MetaM Bool := do
   if a.isMVar && !(← a.mvarId!.isAssigned) then
     let ta ← normNeg (← instantiateMVars (← inferType a))
@@ -168,150 +234,6 @@ def supply (a p : Expr) : MetaM Bool := do
     unless ← same ta tp do return false
     a.mvarId!.assign p; return true
   same a p
-
-/-- Is `t` an equation whose left side is a denotation (`factHeads`)? -/
-def isFactShape (env : Environment) (t : Expr) : Bool :=
-  match t.eq? with
-  | some (_, lhs, _) => lhs.getAppFn.constName?.any ((factHeads env).contains ·)
-  | none => false
-
-/-- Is `t` one of the frame predicates `prove` decides? -/
-def isFrameShape (t : Expr) : Bool :=
-  [`ConRon.Arena.StoreWF, `ConRon.Bridge.StateOK, `ConRon.Bridge.CheckOK, `ConRon.Arena.Ext, `ConRon.Bridge.CacheFrame].any t.isAppOf
-
-/-- May a hypothesis with this head be unfolded to the `∧`/`∃` it is
-defined as?  Not a frame predicate (`StoreWF` is `∃ rk, EWFAt st rk`, and
-`bridge_frame` wants it whole), nor any other well-formedness invariant. -/
-def peelable (n : Name) : Bool :=
-  ![`ConRon.Arena.StoreWF, `ConRon.Bridge.StateOK, `ConRon.Bridge.CheckOK, `ConRon.Arena.Ext, `ConRon.Bridge.CacheFrame].contains n &&
-    !(n.toString.endsWith "WF") && !(n.toString.endsWith "OK")
-
-/-- Does `e` mention a Hoare triple (a callee's spec, never a fact)? -/
-def mentionsTriple (e : Expr) : Bool :=
-  (e.find? fun x => x.constName?.any fun n =>
-    n == `Std.Do.Triple || n.toString.endsWith ".Triple").isSome
-
-/-- Unfold an answer relation at the head (once): one of `relNames`, or any
-definition whose body is a `∀` (a walk's own relation, `ExprOps.RelEA`). -/
-def unfoldRel (t : Expr) : MetaM Expr := do
-  let t := t.cleanupAnnotations
-  match t.getAppFn.constName? with
-  | some n =>
-    if relNames.contains n then
-      if let some t' ← unfoldDefinition? t then return t'.headBeta
-      return t
-    if let some (.defnInfo _) := (← getEnv).find? n then
-      if let some t' ← unfoldDefinition? t then
-        let t' := t'.headBeta
-        if t'.isForall then return t'
-    return t
-  | none => return t
-
-/-- The heads of the left sides of the equations a `∀`-telescope concludes
-(through `∧`), read syntactically. -/
-partial def conclHeads (t : Expr) : List Name :=
-  match t with
-  | .forallE _ _ b _ => conclHeads b
-  | .mdata _ b => conclHeads b
-  | _ =>
-    if t.isAppOfArity ``And 2 then conclHeads t.appFn!.appArg! ++ conclHeads t.appArg!
-    else match t.eq? with
-      | some (_, lhs, _) => match lhs.getAppFn.constName? with
-        | some n => [n]
-        | none => []
-      | none => []
-
-/-- The conclusion of a `∀`-telescope and its conjuncts, syntactically. -/
-partial def conclSkels (t : Expr) : List Expr :=
-  match t with
-  | .forallE _ _ b _ => conclSkels b
-  | .mdata _ b => conclSkels b
-  | _ =>
-    if t.isAppOfArity ``And 2 then t :: (conclSkels t.appFn!.appArg! ++ conclSkels t.appArg!)
-    else [t]
-
-/-- One hypothesis of the snapshot. -/
-structure Hyp where
-  pf : Expr
-  ty : Expr
-  /-- the answer-relation-unfolded, negation-normalised `∀` form, if any -/
-  rel? : Option Expr
-  /-- `conclHeads` of `rel?` -/
-  heads : List Name
-  /-- the conclusions of `rel?` (and their conjuncts), loose bound variables
-  and all — `quickMatch` treats a bound variable as a hole -/
-  concls : List Expr := []
-
-/-- The snapshot of a goal's context. -/
-structure Snap where
-  hyps : Array Hyp
-  /-- `Ext` edges `(src, dst, proof)` -/
-  ext : Array (Expr × Expr × Expr)
-  /-- `bridge_frame [l₁, …]`'s extra lemmas, tried last (their elaboration
-  metavariables abstracted, so that each use instantiates afresh) -/
-  lemmas : Array AbstractMVarsResult := #[]
-  /-- per lemma: its telescope length and its conclusion after each length,
-  syntactically (computed once per snapshot, for `quickMatch`) -/
-  lemmaSkels : Array (Nat × Array Expr) := #[]
-  /-- the closed goals `prove` already failed on, with the fuel it had: a
-  monotonicity chain (`∀ i v, a.view i = some v → b.view i = some v`) tried
-  backwards re-asks the same intermediate goals exponentially often -/
-  failCache : Option (IO.Ref (Std.HashMap Expr Nat)) := none
-
-abbrev FM := ReaderT Snap MetaM
-
-/-- The equation-typed fields of a hypothesis `h : S a…` with `S` a `Prop`
-structure, as snapshot entries `h.f : x = y`. -/
-def fieldEqs (h t : Expr) : MetaM (Array Hyp) := do
-  let some n := t.getAppFn.constName? | return #[]
-  let env ← getEnv
-  unless isStructure env n do return #[]
-  let mut out := #[]
-  for f in getStructureFields env n do
-    let some pj := getProjFnForField? env n f | continue
-    let some e ← observing? (mkAppM pj #[h]) | continue
-    let ty := (← instantiateMVars (← inferType e)).cleanupAnnotations
-    if ty.isAppOfArity ``Eq 3 then
-      out := out.push { pf := e, ty, rel? := none, heads := [] }
-  return out
-
-/-- Take the snapshot of the current local context. -/
-def snapshot (cache : Std.HashMap FVarId Hyp := {}) : MetaM Snap := do
-  let mut hs := #[]
-  for d in (← getLCtx) do
-    if d.isImplementationDetail then continue
-    if let some h := cache[d.fvarId]? then
-      hs := hs.push h; continue
-    let t ← normNeg (← instantiateMVars d.type).cleanupAnnotations
-    let mut rel? := none
-    let mut heads := []
-    unless mentionsTriple t do
-      let r ← normNeg (← unfoldRel t)
-      if r.isForall then
-        rel? := some r
-        heads := conclHeads r
-    let concls := match rel? with | some r => conclSkels r | none => []
-    hs := hs.push { pf := d.toExpr, ty := t, rel?, heads, concls }
-    -- a structure hypothesis's EQUATION fields (`ReadbackFrame`'s `store`,
-    -- `pins`, …) are equations of the context too
-    hs := hs ++ (← fieldEqs d.toExpr t)
-  let mut ext := #[]
-  for h in hs do
-    let t := h.ty
-    if t.isAppOfArity `ConRon.Arena.Ext 2 then
-      ext := ext.push (t.appFn!.appArg!, t.appArg!, h.pf)
-    else if let some (ty, a, b) := t.eq? then
-      let ty ← whnfR ty
-      if ty.isConstOf `ConRon.Arena.EStore then
-        ext := ext.push (a, b, ← mkAppM `ConRon.Bridge.Ext.of_eq #[h.pf])
-        ext := ext.push (b, a, ← mkAppM `ConRon.Bridge.Ext.of_eq #[← mkEqSymm h.pf])
-      else if ty.isConstOf `ConRon.Arena.AState then
-        let hs' ← mkCongrArg (mkConst `ConRon.Arena.AState.store) h.pf
-        ext := ext.push (← mkAppM `ConRon.Arena.AState.store #[a], ← mkAppM `ConRon.Arena.AState.store #[b],
-          ← mkAppM `ConRon.Bridge.Ext.of_eq #[hs'])
-        ext := ext.push (← mkAppM `ConRon.Arena.AState.store #[b], ← mkAppM `ConRon.Arena.AState.store #[a],
-          ← mkAppM `ConRon.Bridge.Ext.of_eq #[← mkEqSymm hs'])
-  return { hyps := hs, ext }
 
 /-- Run `k`; on `none` (or an exception) roll the metavariable context back. -/
 def attemptM (k : MetaM (Option Expr)) : MetaM (Option Expr) := do
@@ -322,6 +244,70 @@ def attemptM (k : MetaM (Option Expr)) : MetaM (Option Expr) := do
     | none => s.restore; return none
   catch _ => s.restore; return none
 
+/-- A default-transparency `isDefEq` with its own heartbeat budget: a pure
+function at symbolic arguments would otherwise unfold until the declaration's
+limit. -/
+def boundedDefEq (a b : Expr) (budget : Nat := 20000) : MetaM Bool :=
+  tryCatchRuntimeEx
+    (withCurrHeartbeats <| withTheReader Core.Context
+      (fun c => { c with maxHeartbeats := budget * 1000 })
+      (withDefault (Meta.isDefEq a b)))
+    (fun _ => pure false)
+
+/-- An equation decided by EVALUATION, as `rfl` within `boundedDefEq`: a
+closed one (a pin table's entry, `pinNames[PIN_NAT]? = some natName`), or one
+whose left side is a function of con-leche's pure checker at a constructor
+(its defining clause, `(Expr.lam t b).lamPair? (.lam t' b') = some …`).  Never
+an arena function: those read the store. -/
+def rflBounded (t : Expr) : MetaM (Option Expr) := do
+  let some (_, a, b) := t.eq? | return none
+  if t.hasMVar then return none
+  if t.hasFVar then
+    let some n := a.getAppFn.constName? | return none
+    unless (`ConLeche).isPrefixOf n do return none
+    let env ← getEnv
+    unless a.getAppArgs.any (·.getAppFn.constName?.any env.isConstructor) do return none
+  attemptM do
+    unless ← boundedDefEq a b do return none
+    -- typed as the equation itself, so that `supply`'s check sees `t`
+    return some (← mkExpectedTypeHint (← mkEqRefl a) t)
+
+/-! ## 3. The snapshot
+
+A goal's hypotheses, read once per goal (and once per forward round): each
+with its type instantiated and its negations unfolded, and — for a
+`∀`-hypothesis (after unfolding an answer relation) — its telescope and the
+skeletons of its conclusion and conjuncts, so that the searches filter before
+they unify. -/
+
+/-- One hypothesis of the snapshot. -/
+structure Hyp where
+  /-- the local it is (or is a field of) -/
+  src : FVarId
+  pf : Expr
+  ty : Expr
+  /-- the relation-unfolded, negation-normalised `∀` form, if any -/
+  rel? : Option Expr := none
+  /-- the conclusions of `rel?` (and their conjuncts), loose bound variables
+  and all — `quickMatch` treats a bound variable as a hole -/
+  concls : List Expr := []
+
+/-- The snapshot of a goal's context. -/
+structure Snap where
+  hyps : Array Hyp
+  /-- the rules (`bridge_frame [l₁, …]`'s list, then `@[bridge_frame]`), their
+  elaboration metavariables abstracted so that each use instantiates afresh -/
+  lemmas : Array AbstractMVarsResult := #[]
+  /-- per rule: its telescope length and its conclusion after each length,
+  syntactically (for `quickMatch`) -/
+  lemmaSkels : Array (Nat × Array Expr) := #[]
+  /-- the goals `prove` already failed on (metavariables abstracted), with the
+  fuel it had: a monotonicity chain tried backwards re-asks the same goals
+  exponentially often -/
+  failCache : Option (IO.Ref (Std.HashMap Expr Nat)) := none
+
+abbrev FM := ReaderT Snap MetaM
+
 /-- `attemptM` in the snapshot monad. -/
 def attempt (k : FM (Option Expr)) : FM (Option Expr) := fun snap => attemptM (k snap)
 
@@ -329,81 +315,152 @@ def attempt (k : FM (Option Expr)) : FM (Option Expr) := fun snap => attemptM (k
 def save : FM Meta.SavedState := (saveState : MetaM _)
 def restore (s : Meta.SavedState) : FM Unit := (s.restore : MetaM Unit)
 
-/-- A proof of `Ext a b` from the snapshot's chain, breadth first. -/
-def extPath (a b : Expr) : FM (Option Expr) := do
-  if ← same a b then return some (← mkAppM `ConRon.Arena.Ext.refl #[a])
-  let edges := (← read).ext
-  let mut frontier : Array (Expr × Expr) := #[(a, ← mkAppM `ConRon.Arena.Ext.refl #[a])]
-  let mut seen : Array Expr := #[a]
-  for _ in [0:edges.size] do
-    let mut next := #[]
-    for (n, pn) in frontier do
-      for (src, dst, pe) in edges do
-        unless ← same n src do continue
-        if ← seen.anyM (fun x => (same dst x : MetaM Bool)) then continue
-        let p ← mkAppM `ConRon.Arena.Ext.trans #[pn, pe]
-        if ← same dst b then return some p
-        seen := seen.push dst
-        next := next.push (dst, p)
-    if next.isEmpty then return none
-    frontier := next
+/-- The conclusion of a `∀`-telescope and its conjuncts, syntactically. -/
+partial def conclSkels (t : Expr) : List Expr :=
+  match t with
+  | .forallE _ _ b _ => conclSkels b
+  | .mdata _ b => conclSkels b
+  | _ =>
+    if t.isAppOfArity ``And 2 then t :: (conclSkels t.appFn!.appArg! ++ conclSkels t.appArg!)
+    else [t]
+
+/-- The fields of a hypothesis `h : S a…` with `S` a `Prop` structure that are
+equations or frame predicates (`ReadbackFrame`'s `store`, `CheckOK`'s `state`
+and in turn its `wf`), as snapshot entries: hypotheses too. -/
+partial def structFields (src : FVarId) (h t : Expr) : MetaM (Array Hyp) := do
+  let some n := t.getAppFn.constName? | return #[]
+  let env ← getEnv
+  unless isStructure env n do return #[]
+  let mut out := #[]
+  for f in getStructureFields env n do
+    let some pj := getProjFnForField? env n f | continue
+    let some e ← observing? (mkAppM pj #[h]) | continue
+    let ty := (← instantiateMVars (← inferType e)).cleanupAnnotations
+    if ty.isAppOfArity ``Eq 3 then out := out.push { src, pf := e, ty }
+    else if isFrameShape ty then
+      out := out.push { src, pf := e, ty }
+      out := out ++ (← structFields src e ty)
+  return out
+
+/-- Take the snapshot of the current local context (`cache`: entries of an
+earlier snapshot of the same goal, by local). -/
+def snapshot (cache : Std.HashMap FVarId (Array Hyp) := {}) : MetaM Snap := do
+  let mut hs := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    if let some h := cache[d.fvarId]? then
+      hs := hs ++ h; continue
+    let t ← normNeg (← instantiateMVars d.type).cleanupAnnotations
+    let mut rel? := none
+    unless mentionsTriple t do
+      let r ← normNeg (← unfoldRel t)
+      if r.isForall then rel? := some r
+    hs := hs.push { src := d.fvarId, pf := d.toExpr, ty := t, rel?,
+                    concls := (rel?.map conclSkels).getD [] }
+    hs := hs ++ (← structFields d.fvarId d.toExpr t)
+  return { hyps := hs }
+
+/-- A hypothesis whose type is `t` (reducibly, the most recent first). -/
+def findHyp (t : Expr) : FM (Option Expr) := do
+  let t ← normNeg t
+  for h in (← read).hyps.reverse do
+    unless ← mayMatch h.ty t do continue
+    if let some p ← attempt (do if ← same h.ty t then return some h.pf else return none) then
+      return some p
   return none
 
-/-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
-`same`: two applications of DIFFERENT constants (or of one constant at
-different arities) never match at reducible transparency unless a head is
-reducible, and the heads compared here (`Eq`, `denoteE`, `EStore.view`, the
-`ENodeView` constructors, …) are not; a metavariable, a local or a binder
-matches anything.  Three levels deep. -/
-partial def quickMatch (env : Environment) (a b : Expr) (depth : Nat := 3) : Bool :=
-  if depth == 0 then true else
-  let a := a.cleanupAnnotations
-  let b := b.cleanupAnnotations
-  let rigid (n : Name) : Bool :=
-    getReducibilityStatusCore env n != .reducible && !env.isProjectionFn n
-  let f := a.getAppFn
-  let g := b.getAppFn
-  match f, g with
-  | .const n _, .const m _ =>
-    if n != m then !(rigid n && rigid m)
-    else if a.getAppNumArgs != b.getAppNumArgs then false
-    else (a.getAppArgs.zip b.getAppArgs).all fun (x, y) => quickMatch env x y (depth - 1)
-  | .forallE _ d₁ b₁ _, .forallE _ d₂ b₂ _ =>
-    quickMatch env d₁ d₂ (depth - 1) && quickMatch env b₁ b₂ (depth - 1)
-  | .const n _, .forallE .. => !rigid n
-  | .forallE .., .const n _ => !rigid n
-  -- two different locals never match (no `let` locals here), nor a local
-  -- and an application of a rigid constant
-  | .fvar a, .fvar b => a == b
-  | .fvar _, .const n _ => !rigid n
-  | .const n _, .fvar _ => !rigid n
-  | _, _ => true
-
-/-- A proof of `a = b` from the snapshot's equalities of the same type,
-breadth first, in either orientation. -/
-def eqPath (ty a b : Expr) : FM (Option Expr) := do
-  if ← same a b then return some (← mkEqRefl a)
-  let env ← getEnv
-  let mut edges : Array (Expr × Expr × Expr) := #[]
+/-- A hypothesis that is `t` up to ONE store equation of the context
+(`s'.store = s.store`, the frame of a memo insert): `t` with the store
+replaced, found by `findHyp`, carried back by `Eq.mpr`.  Only for a goal that
+is not itself a frame predicate (those have their own chains). -/
+def findHypModStoreEq (t : Expr) : FM (Option Expr) := do
+  if isFrameShape t || t.hasMVar then return none
   for h in (← read).hyps do
-    if let some (ty', u, v) := h.ty.eq? then
-      if isFactShape (← getEnv) h.ty then continue
+    let some (ty, a, b) := h.ty.eq? | continue
+    let ty ← whnfR ty
+    unless ty.isConstOf `ConRon.Arena.EStore do continue
+    for (x, y, pxy) in [(a, b, h.pf), (b, a, ← mkEqSymm h.pf)] do
+      -- `t` mentions `x` (up to reducible defeq: `vcgen` writes `s.store` as
+      -- a projection where a postcondition writes the projection function)
+      let r ← withLocalDeclD `z ty fun z => do
+        let body ← Meta.transform t (pre := fun e => do
+          if e.isFVar || e.isConst then return .continue
+          unless e.isProj || e.isApp do return .continue
+          if ← same e x then return .done z
+          return .continue)
+        if body == t then return none
+        return some (← mkLambdaFVars #[z] body)
+      let some lam := r | continue
+      let some p ← findHyp (lam.beta #[y]) | continue
+      return some (← mkEqMPR (← mkCongrArg lam pxy) p)
+  return none
+
+/-! ## 4. Paths
+
+A goal `R a b` with `R` a PREORDER — `Eq` at some type, or a relation with
+`R.refl` and `R.trans` lemmas (`Ext`, `CacheFrame`, `ReadbackFrame`, …) — is a
+chain of the context's steps, found breadth first: a hypothesis `R x y`; an
+equation `x = y` at `R`'s carrier, read as a step both ways; for `Eq` every
+equation both ways.  An equation between structure terms is also found by
+CONGRUENCE (`eqPathCongr`). -/
+
+/-- `t` as `(R, R-prefix, a, b)` when `R` is a preorder. -/
+def preorder? (t : Expr) : MetaM (Option (Name × Expr × Expr × Expr)) := do
+  let t := t.cleanupAnnotations
+  let some n := t.getAppFn.constName? | return none
+  unless t.getAppNumArgs ≥ 2 do return none
+  let env ← getEnv
+  unless n == ``Eq || (env.contains (n ++ `refl) && env.contains (n ++ `trans)) do
+    return none
+  return some (n, t.appFn!.appFn!, t.appFn!.appArg!, t.appArg!)
+
+def preRefl (n : Name) (a : Expr) : MetaM Expr :=
+  if n == ``Eq then mkEqRefl a else mkAppM (n ++ `refl) #[a]
+
+def preTrans (n : Name) (p q : Expr) : MetaM Expr :=
+  if n == ``Eq then mkEqTrans p q else mkAppM (n ++ `trans) #[p, q]
+
+/-- The steps of `R` (prefix `pre`, carrier `ty`) the snapshot states, as
+`(source, target, proof)`. -/
+def steps (n : Name) (pre ty : Expr) : FM (Array (Expr × Expr × Expr)) := do
+  let env ← getEnv
+  let mut out := #[]
+  for h in (← read).hyps do
+    let t := h.ty
+    if let some (ty', u, v) := t.eq? then
+      if isFactShape env t then continue
       unless ← same ty ty' do continue
-      edges := edges.push (u, v, h.pf)
-      edges := edges.push (v, u, ← mkEqSymm h.pf)
+      if n == ``Eq then
+        out := out.push (u, v, h.pf) |>.push (v, u, ← mkEqSymm h.pf)
+      else
+        -- `x = y` as the step `R x y`: `refl x` rewritten
+        let step (x pxy : Expr) : MetaM Expr := do
+          let motive ← withLocalDeclD `z ty fun z => mkLambdaFVars #[z] (mkApp2 pre x z)
+          mkEqNDRec motive (← preRefl n x) pxy
+        out := out.push (u, v, ← step u h.pf) |>.push (v, u, ← step v (← mkEqSymm h.pf))
+    else if n != ``Eq && t.isAppOf n && t.getAppNumArgs == pre.getAppNumArgs + 2 then
+      unless ← same t.appFn!.appFn! pre do continue
+      out := out.push (t.appFn!.appArg!, t.appArg!, h.pf)
+  return out
+
+/-- A chain `R a b` of the snapshot's steps, breadth first. -/
+def path (n : Name) (pre a b : Expr) : FM (Option Expr) := do
+  if ← same a b then return some (← preRefl n a)
+  let edges ← steps n pre (← inferType a)
   if edges.isEmpty then return none
-  let mut frontier : Array (Expr × Expr) := #[(a, ← mkEqRefl a)]
+  let env ← getEnv
+  let mut frontier : Array (Expr × Expr) := #[(a, ← preRefl n a)]
   let mut seen : Array Expr := #[a]
   for _ in [0:edges.size] do
     let mut next := #[]
-    for (n, pn) in frontier do
+    for (x, px) in frontier do
       for (src, dst, pe) in edges do
-        unless quickMatch env n src do continue
-        unless ← same n src do continue
-        if ← seen.anyM (fun x => (do
-            if !quickMatch env dst x then return false
-            same dst x : MetaM Bool)) then continue
-        let p ← mkEqTrans pn pe
+        unless quickMatch env x src do continue
+        unless ← same x src do continue
+        if ← seen.anyM (fun y => do
+            if !quickMatch env dst y then return false
+            same dst y) then continue
+        let p ← preTrans n px pe
         if quickMatch env dst b then
           if ← same dst b then return some p
         seen := seen.push dst
@@ -417,59 +474,50 @@ def eqPath (ty a b : Expr) : FM (Option Expr) := do
 `whnfD` would open `HashMap.insert`). -/
 partial def projNorm (e : Expr) : MetaM Expr := do
   let e := e.cleanupAnnotations
-  match e.getAppFn with
-  | .const n _ =>
-    let some info ← getProjectionFnInfo? n | return e
-    let args := e.getAppArgs
-    if args.size != info.numParams + 1 then return e
-    let st ← projNorm args[info.numParams]!
-    let stw ← whnfR st
-    if let .const cn _ := stw.getAppFn then
-      if let some (.ctorInfo ctor) := (← getEnv).find? cn then
-        let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
-        if let some f := fields[info.i]? then return ← projNorm f
-    return mkAppN e.getAppFn (args.set! info.numParams st)
-  | _ => return e
+  let .const n _ := e.getAppFn | return e
+  let some info ← getProjectionFnInfo? n | return e
+  let args := e.getAppArgs
+  if args.size != info.numParams + 1 then return e
+  let st ← projNorm args[info.numParams]!
+  let stw ← whnfR st
+  if let .const cn _ := stw.getAppFn then
+    if let some (.ctorInfo ctor) := (← getEnv).find? cn then
+      let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
+      if let some f := fields[info.i]? then return ← projNorm f
+  return mkAppN e.getAppFn (args.set! info.numParams st)
 
-/-- A FRAME term: a local, a projection of one, or a structure instance whose
-fields are (`s₂.memos.inst1LC`, `{ s.caches with readLC := … }`). -/
+/-- A FRAME term: a local, a closed value, a projection of one, or a structure
+instance whose fields are (`s₂.memos.inst1LC`, `{ s.caches with readLC := … }`). -/
 partial def projShaped (e : Expr) : MetaM Bool := do
   let e := e.cleanupAnnotations
-  if e.isFVar then return true
-  -- a closed value (`∅`, a cleared table)
-  if !e.hasFVar && !e.hasMVar then return true
+  if e.isFVar || (!e.hasFVar && !e.hasMVar) then return true
   match e with
   | .proj _ _ x => projShaped x
   | _ =>
     let .const n _ := e.getAppFn | return false
+    let args := e.getAppArgs
     if let some info ← getProjectionFnInfo? n then
-      let args := e.getAppArgs
-      if args.size == info.numParams + 1 then return ← projShaped args[info.numParams]!
-      return false
+      return args.size == info.numParams + 1 && (← projShaped args[info.numParams]!)
     if let some (.ctorInfo ci) := (← getEnv).find? n then
-      let args := e.getAppArgs
-      for x in args.extract ci.numParams args.size do
-        unless ← projShaped x do return false
-      return true
+      return ← (args.extract ci.numParams args.size).allM projShaped
     return false
 
-/-- `eqPath` through CONGRUENCE: a step rewrites, inside the current node, an
-occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
-then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
-liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
-memo-table frame of every memoized walk).  Both sides are rewritten (at most six steps each) and the search meets in
-the middle, so a target that itself mentions projections of later states
-(`{ s₂.caches with readLC := s.caches.readLC }`) is reached too. -/
+/-- An equation `a = b` by CONGRUENCE: a step rewrites, inside the current
+term, an occurrence of one side of an equation of the context (of any type) by
+the other, then reduces projections of structure instances — so that
+`s₂.memos = { s₁.memos with liftC := … }` carries `s₂.memos.inst1LC =
+s₁.memos.inst1LC` (the memo-table frame of every memoized walk).  Both sides
+are rewritten (at most six steps, 128 terms each) and the search meets in the
+middle, so a target that itself mentions projections of later states is
+reached too. -/
 def eqPathCongr (a b : Expr) : FM (Option Expr) := do
+  let env ← getEnv
   let mut edges : Array (Expr × Expr × Expr) := #[]
   for h in (← read).hyps do
     if let some (_, u, v) := h.ty.eq? then
-      if isFactShape (← getEnv) h.ty then continue
-      if u.isFVar && v.isFVar then continue
-      edges := edges.push (u, v, h.pf)
-      edges := edges.push (v, u, ← mkEqSymm h.pf)
+      if isFactShape env h.ty || (u.isFVar && v.isFVar) then continue
+      edges := edges.push (u, v, h.pf) |>.push (v, u, ← mkEqSymm h.pf)
   if edges.isEmpty then return none
-  -- every node reachable from `x` in at most four rewrites, with `x = node`
   let reach (x : Expr) : MetaM (Array (Expr × Expr)) := do
     let mut all : Array (Expr × Expr) := #[(x, ← mkEqRefl x)]
     let mut frontier := all
@@ -478,10 +526,9 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
       for (n, pn) in frontier do
         for (u, v, pe) in edges do
           unless (n.find? (· == u)).isSome do continue
-          let ty ← inferType u
           -- abstracted through a local, not `.bvar 0`: an occurrence under
           -- a binder must not be captured by it
-          let motive ← withLocalDeclD `z ty fun z =>
+          let motive ← withLocalDeclD `z (← inferType u) fun z =>
             mkLambdaFVars #[z] (n.replace fun x => if x == u then some z else none)
           let n' ← projNorm (n.replace fun x => if x == u then some v else none)
           if ← all.anyM (fun (y, _) => same n' y) then continue
@@ -492,8 +539,6 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
       if next.isEmpty then return all
       frontier := next
     return all
-  -- meet in the middle: a node both sides reach (the target may mention
-  -- the same projections, `{ s₂.caches with readLC := s.caches.readLC }`)
   let ra ← reach a
   let rb ← reach b
   for (na, pa) in ra do
@@ -502,143 +547,74 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
         return some (← mkEqTrans pa (← mkEqSymm pb))
   return none
 
-/-- `quickMatch` at the top: the filter every search runs before `same`. -/
-def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
+/-! ## 5. The backward search
 
-/-- A default-transparency `isDefEq` with its own small heartbeat budget: a
-pure function at symbolic arguments (`defEqList (pureFns …) …`) would
-otherwise unfold until the declaration's limit (measured: Core/Walks/Owed). -/
-def boundedDefEq (a b : Expr) (budget : Nat := 20000) : MetaM Bool :=
-  tryCatchRuntimeEx
-    (withCurrHeartbeats <| withTheReader Core.Context
-      (fun c => { c with maxHeartbeats := budget * 1000 })
-      (withDefault (Meta.isDefEq a b)))
-    (fun _ => pure false)
+`prove fuel t` — the rules, in order:
 
-/-- A CLOSED equation (no local, no metavariable) by `rfl` at default
-transparency: a pin table's entry, `pinNames[PIN_NAT]? = some natName`, which
-a callee's `∀ x, pinNames[i]? = some x → …` premise asks for.  Closed terms
-evaluate; nothing in the context can make the check expensive. -/
-def closedRfl (t : Expr) : FM (Option Expr) := do
-  let some (_, a, b) := t.eq? | return none
-  if t.hasFVar || t.hasMVar then return none
-  let s ← (saveState : MetaM _)
-  try
-    if ← boundedDefEq a b then
-      -- typed as the equation itself, so that `supply`'s check sees `t`
-      return some (← mkExpectedTypeHint (← mkEqRefl a) t)
-    s.restore; return none
-  catch _ => s.restore; return none
+* **connectives**: `True`, `∧` (both sides; the right one first when the left
+  has an `∃`-witness hole), `∨` (either side), `∃` (a witness hole the proof
+  fixes, else a default), a definition that unfolds to `∧`/`∃` (`SimE`);
+* **a hypothesis** (reducibly; also up to one store equation);
+* **a fact** (`provedFact`): a hypothesis, the conclusion (or a conjunct) of a
+  `∀`-hypothesis whose premises are proved, or a fact at an earlier store
+  carried by a transport lemma along an `Ext` path;
+* **a path** of a preorder (§4), for a non-`Eq` preorder also through steps
+  the rules prove; an equation between frame terms by congruence;
+* **evaluation** (`rflBounded`);
+* **the rules**: the call's lemmas, then `@[bridge_frame]`, then the
+  `∀`-hypotheses — the conclusion (at any telescope length, an equation in
+  either orientation) unified with the goal, the premises proved by
+  `proveArgs`.
 
-/-- An equation whose left side is con-leche's PURE function at constructor
-arguments (`(Expr.lam t b).lamPair? (Expr.lam t' b') = some (t, b, t', b')`), by
-`rfl` at default transparency: the function's own clause.  No metavariable,
-and the head must live in `ConLeche` (never a store read, which would unfold
-the arena). -/
-def pureRfl (t : Expr) : FM (Option Expr) := do
-  let some (_, a, b) := t.eq? | return none
-  if t.hasMVar then return none
-  let some n := a.getAppFn.constName? | return none
-  unless (`ConLeche).isPrefixOf n do return none
-  -- at a CONSTRUCTOR argument (the clause to compute); a pure function at
-  -- symbolic arguments only unfolds
-  let env ← getEnv
-  unless a.getAppArgs.any (fun x => x.getAppFn.constName?.any (env.isConstructor ·)) do
-    return none
-  let s ← (saveState : MetaM _)
-  try
-    if ← boundedDefEq a b then
-      return some (← mkExpectedTypeHint (← mkEqRefl a) t)
-    s.restore; return none
-  catch _ => s.restore; return none
+`fuel` bounds the recursion; a closed goal that failed is not tried again at
+the same fuel. -/
 
-/-- A hypothesis whose type is `t` (reducibly, the most recent first). -/
-def findHyp (t : Expr) : FM (Option Expr) := do
-  let t ← normNeg t
-  for h in (← read).hyps.reverse do
-    unless ← mayMatch h.ty t do continue
-    if let some p ← attempt (do if ← same h.ty t then return some h.pf else return none) then
-      return some p
-  return none
-
-/-- A lemma's telescope length and its conclusion after each length. -/
-def lemmaSkel (lr : AbstractMVarsResult) : MetaM (Nat × Array Expr) := do
-  let (_, _, l) ← openAbstractMVarsResult lr
-  let ty ← instantiateMVars (← inferType l)
-  let (args, _, _) ← forallMetaTelescope ty
-  let mut c := ty
-  let mut cs : Array Expr := #[c]
-  while c.isForall do
-    c := c.bindingBody!
-    cs := cs.push c
-  return (args.size, cs)
-
-/-- A hypothesis that is `t` up to ONE store equation of the context
-(`s'.store = s.store`, the frame of a memo insert): `t` with the store
-replaced, found by `findHyp`, carried back by `Eq.mpr`.  Only for a goal
-that is not itself a frame predicate (those have their own chains). -/
-def findHypModStoreEq (t : Expr) : FM (Option Expr) := do
-  if isFrameShape t || t.hasMVar then return none
-  for h in (← read).hyps do
-    let some (ty, a, b) := h.ty.eq? | continue
-    let ty ← whnfR ty
-    unless ty.isConstOf `ConRon.Arena.EStore do continue
-    for (x, y, pxy) in [(a, b, h.pf), (b, a, ← mkEqSymm h.pf)] do
-      -- `t` mentions `x` (up to reducible defeq: `vcgen` writes `s.store` as
-      -- a projection where a postcondition writes the projection function)
-      let r ← withLocalDeclD `z ty fun z => do
-        let mut hit := false
-        let body ← Meta.transform t (pre := fun e => do
-          if e.isFVar || e.isConst then return .continue
-          unless e.isProj || e.isApp do return .continue
-          if ← same e x then return .done z
-          return .continue)
-        if body == t then return none
-        let _ := hit
-        return some (← mkLambdaFVars #[z] body)
-      let some lam := r | continue
-      let t' := lam.beta #[y]
-      let some p ← findHyp t' | continue
-      -- `pxy : x = y`, `p : t[y]`; `t[x]` by rewriting back
-      return some (← mkEqMPR (← mkCongrArg lam pxy) p)
-  return none
+/-- A conclusion and its conjuncts (along the right spine), each with the
+projection that extracts it. -/
+def conjunctProjs (c : Expr) : Array (Expr × (Expr → MetaM Expr)) := Id.run do
+  let mut out : Array (Expr × (Expr → MetaM Expr)) := #[(c, pure)]
+  let mut c := c.cleanupAnnotations
+  let mut proj : Expr → MetaM Expr := pure
+  while c.isAppOfArity ``And 2 do
+    let pl := proj
+    out := out.push (c.appFn!.appArg!, fun e => do mkAppM ``And.left #[← pl e])
+    proj := fun e => do mkAppM ``And.right #[← pl e]
+    c := c.appArg!.cleanupAnnotations
+    out := out.push (c, proj)
+  return out
 
 mutual
 
-/-- The frame solver: a proof of `t`, or `none` — `proveCore`'s built-in
-rules, then `bridge_frame [l₁, …]`'s lemmas (for every goal shape: an `∃ F`
-fuel merge, an equation a walk-specific lemma concludes). -/
+/-- The backward search: a proof of `t`, or `none`. -/
 partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  let t ← instantiateMVars t
-  let fc := (← read).failCache
-  let key? : Option (IO.Ref (Std.HashMap Expr Nat)) := if t.hasMVar then none else fc
+  let t := (← instantiateMVars t).cleanupAnnotations
+  -- the failure cache, keyed by the goal with its metavariables abstracted
+  -- (`CheckOK ?m ?e ?f ?s` fails the same way every time it is asked)
+  let key ← if t.hasMVar then pure (← abstractMVars t).expr else pure t
+  let key? := (← read).failCache
   if let some ref := key? then
-    let m ← (ref.get : IO _)
-    if let some f := m[t]? then
+    if let some f := (← (ref.get : IO _))[key]? then
       if f ≥ fuel then return none
-  let r ← (do
+  let r ← withTraceNode `bridge (fun r => return m!"{match r with | .ok (some _) => "✅" | _ => "❌"} {t}") do
     if let some p ← attempt (proveCore fuel t) then return some p
-    if (← read).lemmas.isEmpty || fuel == 0 then return none
-    proveByLemmas fuel t.cleanupAnnotations : FM (Option Expr))
+    if fuel == 0 then return none
+    byRules fuel t
   if r.isNone then
-    if let some ref := key? then (ref.modify (·.insert t fuel) : IO Unit)
+    if let some ref := key? then (ref.modify (·.insert key fuel) : IO Unit)
   return r
 
-/-- The built-in rules of `prove`.  `fuel` bounds the backward chaining
-through `CheckOK.mono`, `StateOK` and the `∃` intro. -/
+/-- `prove`'s rules before the lemmas. -/
 partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  let t := (← instantiateMVars t).cleanupAnnotations
   if t.isConstOf ``True then return some (mkConst ``True.intro)
   if t.isAppOfArity ``And 2 then
     let l := t.appFn!.appArg!
     let r := t.appArg!
-    let lr ← attempt do
-      let some pa ← prove fuel l | return none
-      let some pb ← prove fuel r | return none
-      return some (mkApp4 (mkConst ``And.intro) l r pa pb)
-    if let some p := lr then return some p
+    if let some p ← attempt (do
+        let some pa ← prove fuel l | return none
+        let some pb ← prove fuel r | return none
+        return some (mkApp4 (mkConst ``And.intro) l r pa pb)) then return some p
     -- a left conjunct with an `∃`-witness hole the right one fixes
-    -- (`f x = some ?w ∧ denoteE st h = some ?w`): the right one first
+    -- (`f x = some ?w ∧ denoteE st h = some ?w`)
     unless (← instantiateMVars l).hasExprMVar do return none
     let some pb ← prove fuel r | return none
     let some pa ← prove fuel (← instantiateMVars l) | return none
@@ -646,169 +622,73 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   if let some h ← findHyp t then return some h
   if let some h ← findHypModStoreEq t then return some h
   if fuel == 0 then return none
-  -- a disjunction (a bracket's "the table was dropped or nothing moved"):
-  -- either side
   if t.isAppOfArity ``Or 2 then
     let a := t.appFn!.appArg!; let b := t.appArg!
-    if let some p ← attempt (prove fuel a) then
-      return some (mkApp3 (mkConst ``Or.inl) a b p)
-    if let some p ← attempt (prove fuel b) then
-      return some (mkApp3 (mkConst ``Or.inr) a b p)
+    if let some p ← attempt (prove fuel a) then return some (mkApp3 (mkConst ``Or.inl) a b p)
+    if let some p ← attempt (prove fuel b) then return some (mkApp3 (mkConst ``Or.inr) a b p)
     return none
-  if t.isAppOfArity `ConRon.Arena.Ext 2 then
-    return ← extPath t.appFn!.appArg! t.appArg!
-  if let some (ty, a, b) := t.eq? then
-    -- a denotation at the current store: a fact at an earlier one, transported
-    if isFactShape (← getEnv) t then return ← provedFact fuel t
-    -- `o.isSome = true` from a denotation fact `o = some x`
-    if b.isConstOf ``Bool.true && a.isAppOfArity ``Option.isSome 2 then
-      let o := a.appArg!
-      let α := a.appFn!.appArg!
-      let x ← mkFreshExprMVar α
-      let ft ← mkEq o (← mkAppM ``Option.some #[x])
-      if isFactShape (← getEnv) ft then
-        if let some ph ← attempt (provedFact fuel ft) then
-          return some (← mkAppM ``ConRon.Bridge.isSome_of_eq_some #[ph])
-        -- an `isSome` hypothesis at an earlier store, carried along the chain
-        if o.isAppOfArity `ConRon.Arena.denoteE 2 then
-          for h in (← read).hyps.reverse do
-            let some (_, a', b') := h.ty.eq? | continue
-            unless b'.isConstOf ``Bool.true && a'.isAppOfArity ``Option.isSome 2 do continue
-            let o' := a'.appArg!
-            unless o'.isAppOfArity `ConRon.Arena.denoteE 2 do continue
-            unless ← same o'.appArg! o.appArg! do continue
-            let some px ← extPath o'.appFn!.appArg! o.appFn!.appArg! | continue
-            return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[h.pf, px])
-      -- a VIEW's `isSome` (`ViewOK`'s premises): the lemmas
-      return ← proveByLemmas fuel t
-    if let some p ← eqPath ty a b then return some p
-    -- the congruence search only for a CLOSED equation: with metavariables
-    -- (a lemma premise `st.view h = some (.app ?f ?a)` no hypothesis states)
-    -- every rewrite unifies, and the search is the dearest step of a frame
-    if t.hasExprMVar then return none
-    -- and only at a structure type (a state, its caches, a table) or between
-    -- FRAME terms (projections of states, structure updates); a view read
-    -- (`Option ENodeView`) is never one (measured: an `internRebuilt`
-    -- "unchanged child" view goal cost 1.5 s here)
-    let isStruct ← do
-      let ty' ← whnfR ty
-      pure (ty'.getAppFn.constName?.any (isStructure (← getEnv)))
-    unless isStruct || ((← projShaped a) && (← projShaped b)) do
-      if let some p ← closedRfl t then return some p
-      return ← pureRfl t
-    if let some p ← eqPathCongr a b then return some p
-    if let some p ← closedRfl t then return some p
-    return ← pureRfl t
   if t.isAppOfArity ``Exists 2 then
-    let body := t.appArg!
     let α := t.appFn!.appArg!
     let x ← mkFreshExprMVar α
-    let inst := (body.beta #[x]).cleanupAnnotations
-    let some pa ← attempt (prove fuel inst) | return none
+    let some pa ← attempt (prove fuel (t.appArg!.beta #[x]).cleanupAnnotations) | return none
     -- a witness the proof did not fix (a fuel the lemma is uniform in): any
-    if !(← x.mvarId!.isAssigned) then
-      let some d ← attempt (do return some (← mkAppOptM ``Inhabited.default #[α, none]))
+    unless ← x.mvarId!.isAssigned do
+      let some d ← attemptM (do return some (← mkAppOptM ``Inhabited.default #[α, none]))
         | return none
       x.mvarId!.assign d
-    return some (← mkAppOptM ``Exists.intro #[α, body, ← instantiateMVars x,
+    return some (← mkAppOptM ``Exists.intro #[α, t.appArg!, ← instantiateMVars x,
       ← instantiateMVars pa])
-  match t.getAppFn.constName? with
-  | some `ConRon.Bridge.StateOK =>
-    let s := t.appArg!
-    for h in (← read).hyps.reverse do
-      let src? : Option Expr ←
-        if h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 then pure (some (← mkAppM `ConRon.Bridge.CheckOK.state #[h.pf]))
-        else if h.ty.isAppOfArity `ConRon.Bridge.StateOK 1 then pure (some h.pf) else pure none
-      let some src := src? | do
-        -- a bare `StoreWF s.store` is a `StateOK s`
-        if h.ty.isAppOfArity `ConRon.Arena.StoreWF 1 then
-          let he ← mkEq (← mkAppM `ConRon.Arena.AState.store #[s]) h.ty.appArg!
-          if let some pe ← attempt (prove (fuel - 1) he) then
-            return some (← mkAppM `ConRon.Bridge.StateOK.of_wf #[h.pf, pe])
-        continue
-      let s' := (← inferType src).appArg!
-      let he ← mkEq (← mkAppM `ConRon.Arena.AState.store #[s]) (← mkAppM `ConRon.Arena.AState.store #[s'])
-      if let some pe ← attempt (prove (fuel - 1) he) then
-        return some (← mkAppM `ConRon.Bridge.StateOK.of_store #[src, pe])
-    proveByLemmas fuel t
-  | some `ConRon.Arena.StoreWF =>
-    let st := t.appArg!
-    for h in (← read).hyps.reverse do
-      let src? : Option Expr ←
-        if h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 then pure (some (← mkAppM `ConRon.Bridge.CheckOK.state #[h.pf]))
-        else if h.ty.isAppOfArity `ConRon.Bridge.StateOK 1 then pure (some h.pf) else pure none
-      let some src := src? | continue
-      let s' := (← inferType src).appArg!
-      if ← same (← mkAppM `ConRon.Arena.AState.store #[s']) st then
-        return some (← mkAppM `ConRon.Bridge.StateOK.wf #[src])
-    proveByLemmas fuel t
-  | some `ConRon.Bridge.CheckOK =>
-    for h in (← read).hyps.reverse do
-      unless h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 do continue
-      for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
-        if let some p ← attempt (applyLemma fuel lem h.pf t) then return some p
-    if let some p ← proveByLemmas fuel t then return some p
-    -- `CheckOK` at an earlier state by one of the lemmas (`CheckOK.ofInstLP`),
-    -- then carried here
-    if fuel ≥ 2 then
-      let s := t.appArg!
-      for d in (← getLCtx) do
-        if d.isImplementationDetail then continue
-        unless (← whnfR d.type).isConstOf `ConRon.Arena.AState do continue
-        if ← same d.toExpr s then continue
-        let t' := mkApp t.appFn! d.toExpr
-        let some h' ← attempt (proveByLemmas (fuel - 1) t') | continue
-        for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
-          if let some p ← attempt (applyLemma (fuel - 1) lem h' t) then return some p
+  let env ← getEnv
+  if isFactShape env t then return ← provedFact fuel t
+  if let some (n, pre, a, b) ← preorder? t then
+    if let some p ← path n pre a b then return some p
+    if n == ``Eq then
+      -- by congruence only between FRAME terms (a state, its caches, a table)
+      -- and only closed: with metavariables every rewrite unifies, and a view
+      -- read is never one (measured: 1.5 s on one goal)
+      unless t.hasExprMVar do
+        let isStruct := (← whnfR (← inferType a)).getAppFn.constName?.any (isStructure env)
+        if isStruct || ((← projShaped a) && (← projShaped b)) then
+          if let some p ← eqPathCongr a b then return some p
+        if let some p ← rflBounded t then return some p
+    else if let some p ← pathByRules fuel n pre a b then return some p
     return none
-  | some n =>
-    -- a transitive relation of the bridge (`ReadbackFrame`, …: it has
-    -- `.refl` and `.trans`): a path through the context
-    let env ← getEnv
-    if t.getAppNumArgs ≥ 2 && env.contains (n ++ `trans) && env.contains (n ++ `refl) then
-      if let some p ← relPath fuel n t then return some p
-    -- a definition that unfolds to an `∃`/`∧` (`SimBOp`, `SimE`): unfolded
-    if peelable n then
-      if let some (.defnInfo _) := env.find? n then
-        if let some t' ← unfoldDefinition? t then
-          let t' := t'.headBeta
-          if t'.isAppOfArity ``Exists 2 || t'.isAppOfArity ``And 2 then
-            if let some p ← attempt (prove fuel t') then
-              return some (← mkExpectedTypeHint p t)
-    return none
-  | none => return none
+  -- a definition that unfolds to an `∃`/`∧` (`SimBOp`, `SimE`)
+  let some n := t.getAppFn.constName? | return none
+  unless peelable n && env.find? n matches some (.defnInfo _) do return none
+  let some t' ← unfoldDefinition? t | return none
+  let t' := t'.headBeta
+  unless t'.isAppOfArity ``Exists 2 || t'.isAppOfArity ``And 2 do return none
+  let some p ← attempt (prove fuel t') | return none
+  return some (← mkExpectedTypeHint p t)
 
-/-- `R a b` for a transitive `R` (with `R.refl`, `R.trans`): breadth first
-over the locals of `a`'s type, an edge `R x y` being a hypothesis or one of
-`bridge_frame [l₁, …]`'s lemmas (whose premises `prove` discharges). -/
-partial def relPath (fuel : Nat) (n : Name) (t : Expr) : FM (Option Expr) := do
-  let a := t.appFn!.appArg!
-  let b := t.appArg!
-  let pre := t.appFn!.appFn!
-  if ← same a b then
-    return ← attempt (do
-      let r ← mkAppM (n ++ `refl) #[a]
-      if ← same (← inferType r) t then return some r else return none)
-  if fuel == 0 then return none
+/-- `R a b` for a preorder `R` through steps the rules prove (`ReadbackFrame`
+of a readback call, from `bridge_frame [ReadbackFrame.ofReadN]`): breadth
+first over the locals of `a`'s type, a step `R x y` being a hypothesis or
+proved by `byRules`.  Only when there is a local besides `a` and `b` (else the
+one step is `prove`'s own rule fallback). -/
+partial def pathByRules (fuel : Nat) (n : Name) (pre a b : Expr) : FM (Option Expr) := do
   let ty ← inferType a
   let mut nodes : Array Expr := #[]
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
+    if (← same d.toExpr a) || (← same d.toExpr b) then continue
     if ← same d.type ty then nodes := nodes.push d.toExpr
-  unless ← nodes.anyM (same · b) do nodes := nodes.push b
-  let edge (x y : Expr) : FM (Option Expr) := do
+  if nodes.isEmpty then return none
+  nodes := nodes.push b
+  let step (x y : Expr) : FM (Option Expr) := do
     let g := mkApp2 pre x y
     if let some h ← findHyp g then return some h
-    proveByLemmas (fuel - 1) g
-  let mut frontier : Array (Expr × Expr) := #[(a, ← mkAppM (n ++ `refl) #[a])]
+    byRules (fuel - 1) g
+  let mut frontier : Array (Expr × Expr) := #[(a, ← preRefl n a)]
   let mut seen : Array Expr := #[a]
   for _ in [0:nodes.size] do
     let mut next := #[]
     for (x, px) in frontier do
       for y in nodes do
         if ← seen.anyM (same · y) then continue
-        let some pe ← attempt (edge x y) | continue
-        let p ← mkAppM (n ++ `trans) #[px, pe]
+        let some pe ← attempt (step x y) | continue
+        let p ← preTrans n px pe
         if ← same y b then return some p
         seen := seen.push y
         next := next.push (y, p)
@@ -816,72 +696,81 @@ partial def relPath (fuel : Nat) (n : Name) (t : Expr) : FM (Option Expr) := do
     frontier := next
   return none
 
-/-- The goal from one of `bridge_frame [l₁, …]`'s lemmas (also the fallback of
-the `StateOK`/`StoreWF`/`CheckOK` searches: a walk's own frame rule — a cache
-insert, a readback frame — is passed this way): its conclusion unified with
-`t`, every premise proved by `prove`. -/
-partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
+/-- The rules: the lemmas (the call's list, then `@[bridge_frame]`), then the
+`∀`-hypotheses (a fact's are `provedFact`'s). -/
+partial def byRules (fuel : Nat) (t : Expr) : FM (Option Expr) := do
+  if let some p ← byLemmas fuel t then return some p
+  if isFactShape (← getEnv) t then return none
+  byForallHyp fuel t
+
+/-- The goal from a lemma: its conclusion — at any telescope length (a
+conclusion may itself be a `∀`), an equation in either orientation —
+unified with `t`, its premises proved by `proveArgs`. -/
+partial def byLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   let snap ← read
+  let env ← getEnv
+  -- the syntactic filter: the conclusion at telescope length `n - k` must
+  -- match the goal (either way round for an equation)
+  let skelOk (c : Expr) : Bool :=
+    quickMatch env c t || (match c.eq? with
+      | some (ty, a, b) => quickMatch env (mkApp3 c.getAppFn ty b a) t
+      | none => false)
   for lr in snap.lemmas, (n, skels) in snap.lemmaSkels do
-    -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
-    -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
-    -- length, longest first
-    -- a cheap syntactic filter first: the conclusion at telescope length
-    -- `n - k'` must match the goal (either way round for an equation)
-    let env ← getEnv
-    let skelOk (c : Expr) : Bool :=
-      quickMatch env c t || (match c.eq? with
-        | some (ty, a, b) => quickMatch env (mkApp3 c.getAppFn ty b a) t
-        | none => false)
-    for k' in [0:n + 1] do
-     unless skelOk (skels[n - k']?.getD t) do continue
-     -- an equation also in the other orientation (`false = f x` from a lemma
-     -- `f x = false`)
-     for flip in [false, true] do
-      let r ← attempt do
-        let (_, _, l) ← openAbstractMVarsResult lr
-        let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
-        let concl ← if flip then
+    for k in [0:n + 1] do
+      unless skelOk (skels[n - k]?.getD t) do continue
+      for flip in [false, true] do
+        let r ← attempt do
+          let (_, _, l) ← openAbstractMVarsResult lr
+          let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k)
+          let concl ← if !flip then pure concl else
             match concl.eq? with
             | some (ty, a, b) => pure (mkApp3 (mkConst ``Eq [← getLevel ty]) ty b a)
-            | none => pure concl
-          else pure concl
-        if flip && !concl.isAppOfArity ``Eq 3 then return none
-        unless ← mayMatch concl t do return none
-        unless ← same concl t do return none
-        unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
-        -- the lemma's own arguments must be determined; a metavariable of
-        -- the goal's (an `∃`'s witness the lemma is uniform in) may remain
-        for a in args do
-          unless ← a.mvarId!.isAssigned do return none
-        let p ← instantiateMVars (mkAppN l args)
-        if flip then return some (← mkEqSymm p)
-        return some p
-      if let some p := r then return some p
-  -- a `∀`-HYPOTHESIS as a lemma: a callee's postcondition that concludes a
-  -- non-fact (`memo insert's ∀ f, MemoOK f … → RelE … → MemoOK f …`); its
-  -- conclusion is not a denotation (those are `chainHyp`'s)
-  if isFactShape (← getEnv) t then return none
+            | none => return none
+          unless ← mayMatch concl t do return none
+          unless ← same concl t do return none
+          unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
+          -- the lemma's own arguments must be determined; a metavariable of
+          -- the goal's (an `∃`'s witness the lemma is uniform in) may remain
+          for a in args do
+            unless ← a.mvarId!.isAssigned do return none
+          let p ← instantiateMVars (mkAppN l args)
+          if flip then return some (← mkEqSymm p)
+          return some p
+        if let some p := r then return some p
+  return none
+
+/-- The goal from a `∀`-HYPOTHESIS — an answer relation, a callee's
+`∀ x, denoteE s c = some x → …` postcondition, a callee's frame rule — whose
+conclusion, or a conjunct of it, unifies with `t`; its premises proved by
+`proveArgs`. -/
+partial def byForallHyp (fuel : Nat) (t : Expr) : FM (Option Expr) := do
+  if fuel == 0 then return none
   let env ← getEnv
   for h in (← read).hyps.reverse do
     let some rt := h.rel? | continue
     unless h.concls.any (quickMatch env · t) do continue
     let r ← attempt do
       let (args, _, concl) ← forallMetaTelescope rt
-      if isFactShape (← getEnv) concl then return none
-      unless ← mayMatch concl t do return none
-      unless ← same concl t do return none
-      unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
-      let e ← instantiateMVars (mkAppN h.pf args)
-      if e.hasExprMVar then return none
-      return some e
+      for (cc, pj) in conjunctProjs concl do
+        unless ← mayMatch cc t do continue
+        let r ← attempt do
+          unless ← same cc t do return none
+          unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
+          let e ← instantiateMVars (mkAppN h.pf args)
+          if e.hasExprMVar then return none
+          return some (← pj e)
+        if let some p := r then return some p
+      return none
     if let some p := r then return some p
   return none
 
-/-- The `Prop` premises of a lemma, in order.  A premise that is neither a
-frame predicate nor a denotation fact (`MemoOK f tbl st`) is matched against
-EVERY hypothesis, with backtracking: the first match fixes metavariables
-(here the store) that a later premise (`Ext st s`) may refute. -/
+/-- Prove the `Prop` premises `args` of a rule, in order.  A closed premise is
+proved by `prove`; one with metavariables is matched against EVERY hypothesis,
+with backtracking (the first match fixes metavariables — here the store — that
+a later premise may refute), and searched for only if it is a fact or a frame
+predicate: an answer relation, an equation (a view read `st.view h = some
+(.app ?f ?a)`), or the goal's own head near the bottom of the fuel would
+re-enter the rules with a free store, every rule unifying with it. -/
 partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM Bool := do
   match args with
   | [] => return true
@@ -889,8 +778,6 @@ partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM B
     if ← a.mvarId!.isAssigned then return ← proveArgs fuel ghd rest
     let aT ← instantiateMVars (← inferType a)
     unless ← isProp aT do return ← proveArgs fuel ghd rest
-    -- a closed premise: proved; one with metavariables (`CheckOK ?s`, a
-    -- frame or fact premise included) branches over the hypotheses first
     if !aT.hasExprMVar then
       let some pa ← prove (fuel - 1) aT | return false
       unless ← supply a pa do return false
@@ -902,20 +789,10 @@ partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM B
       if (← same h.ty aTn) && (← supply a h.pf) then
         if ← proveArgs fuel ghd rest then return true
       restore s
-    -- no hypothesis: the search itself — except for an answer-relation
-    -- premise (`RelE f ?st c st' r`, through `abbrev`s: a transport lemma's,
-    -- a step lemma's child), an equation (a view read `st.view h = some
-    -- (.app ?f ?a)`: the search would unify it with every equation), or one
-    -- of the goal's own head, with metavariables: it would re-enter the lemma
-    -- list with a free store, every lemma unifying with it, at every fuel
-    -- level — 27 s on one walk (task #120 wave 2).  It is matched against
-    -- hypotheses only; `bridge_auto`'s forward step has put the step
-    -- lemmas' answers there.
+    let env ← getEnv
     let hd := (← whnfR aT).getAppFn.constName?
-    -- (the goal's own head only near the bottom of the fuel: a chain of
-    -- `SeenGrow.trans` is a search through it, a free-store lemma list is not)
-    if !(isFrameShape aT || isFactShape (← getEnv) aT) &&
-        ((hd == ghd && fuel < 4) || hd.any relNames.contains || hd == some ``Eq) then
+    if !(isFrameShape aT || isFactShape env aT) &&
+        ((hd == ghd && fuel < 4) || hd.any (isAnswerRel env) || hd == some ``Eq) then
       return false
     let s ← save
     if let some pa ← prove (fuel - 1) aT then
@@ -924,98 +801,34 @@ partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM B
     restore s
     return false
 
-/-- `lem h ?…` at the goal `t`: the first explicit argument is `h`, the
-conclusion is unified with `t`, and every other explicit argument is proved by
-`prove`. -/
-partial def applyLemma (fuel : Nat) (lem : Name) (h t : Expr) : FM (Option Expr) := do
-  let pf ← mkConstWithFreshMVarLevels lem
-  let (args, bis, concl) ← forallMetaTelescope (← inferType pf)
-  let mut first := true
-  for a in args, bi in bis do
-    if bi.isExplicit && first then
-      first := false
-      unless ← supply a h do return none
-  unless ← same concl t do return none
-  first := true
-  for a in args, bi in bis do
-    if bi.isExplicit then
-      if first then first := false; continue
-      let aT ← instantiateMVars (← inferType a)
-      let some pa ← prove (fuel - 1) aT | return none
-      unless ← supply a pa do return none
-  return some (← instantiateMVars (mkAppN pf args))
-
-/-- A fact from a universally quantified hypothesis whose conclusion (or a
-conjunct of it) is the fact: the answer relations, a callee's
-`∀ x, denoteE s c = some x → …` postcondition.  Its premises are facts too,
-proved by `provedFact` at one less fuel. -/
-partial def chainHyp (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if fuel == 0 then return none
-  let some (_, lhs, _) := t.eq? | return none
-  let some hd := lhs.getAppFn.constName? | return none
-  let env ← getEnv
-  for h in (← read).hyps.reverse do
-    let some rt := h.rel? | continue
-    unless h.heads.contains hd do continue
-    unless h.concls.any (quickMatch env · t) do continue
-    let r ← attempt do
-      let (args, _, concl) ← forallMetaTelescope rt
-      -- the conclusion, or a projection of a conjunction
-      let mut cands : Array (Expr × (Expr → MetaM Expr)) := #[(concl, pure)]
-      let mut c := concl.cleanupAnnotations
-      let mut proj : Expr → MetaM Expr := pure
-      while c.isAppOfArity ``And 2 do
-        let pl := proj
-        cands := cands.push (c.appFn!.appArg!, fun e => do mkAppM ``And.left #[← pl e])
-        proj := fun e => do mkAppM ``And.right #[← pl e]
-        c := c.appArg!.cleanupAnnotations
-        cands := cands.push (c, proj)
-      for (cc, pj) in cands do
-        unless ← mayMatch cc t do continue
-        let r ← attempt do
-          unless ← same cc t do return none
-          for a in args do
-            if ← a.mvarId!.isAssigned then continue
-            let aT ← instantiateMVars (← inferType a)
-            unless ← isProp aT do continue
-            let some pa ← provedFact (fuel - 1) aT | return none
-            unless ← supply a pa do return none
-          for a in args do
-            unless ← a.mvarId!.isAssigned do return none
-          return some (← pj (← instantiateMVars (mkAppN h.pf args)))
-        if let some p := r then return some p
-      return none
-    if let some p := r then return some p
-  return none
-
-/-- A denotation fact `t` — `denote… st h = some x`, `x` possibly a
-metavariable — from a hypothesis, from a `∀`-hypothesis (`chainHyp`), or from
-either at an earlier store and an `Ext` path. -/
+/-- A FACT `t` — `denote… st h = some x`, `x` possibly a metavariable — from a
+hypothesis, from a `∀`-hypothesis, or from either at an earlier store carried
+by the transport lemma of `t`'s head along an `Ext` path.  (A non-fact: a
+hypothesis or evaluation.) -/
 partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if !isFactShape (← getEnv) t then
-    if let some h ← findHyp t then return some h
-    return ← closedRfl t
   if let some h ← findHyp t then return some h
-  if let some h ← chainHyp fuel t then return some h
-  -- the one transport lemma whose conclusion has `t`'s head
+  let env ← getEnv
+  unless isFactShape env t do return ← rflBounded t
+  if let some h ← byForallHyp fuel t then return some h
   let some (_, lhs, _) := t.eq? | return none
   let some hd := lhs.getAppFn.constName? | return none
-  for (lem, k) in transportExt.getState (← getEnv) do
+  for (lem, k) in transportExt.getState env do
     unless k == hd do continue
     let r ← attempt do
       let pf ← mkConstWithFreshMVarLevels lem
       let (args, _, concl) ← forallMetaTelescope (← inferType pf)
       unless ← mayMatch concl t do return none
       unless ← same concl t do return none
-      -- the last two explicit arguments are `hd` and `hx`
+      -- the last two explicit arguments are the fact and the `Ext`
       let hd := args[args.size - 2]!
       let hx := args[args.size - 1]!
       let hdT ← instantiateMVars (← inferType hd)
       let some ph ← (do if let some p ← findHyp hdT then pure (some p)
-                         else chainHyp fuel hdT) | return none
+                         else byForallHyp fuel hdT) | return none
       unless ← supply hd ph do return none
       let hxT ← instantiateMVars (← inferType hx)
-      let some px ← extPath hxT.appFn!.appArg! hxT.appArg! | return none
+      let some px ← path `ConRon.Arena.Ext hxT.appFn!.appFn! hxT.appFn!.appArg! hxT.appArg!
+        | return none
       unless ← supply hx px do return none
       return some (← instantiateMVars (mkAppN pf args))
     if let some p := r then return some p
@@ -1023,40 +836,59 @@ partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 
 end
 
-/-- The number of top-level conjuncts. -/
-partial def conjuncts (t : Expr) : MetaM Nat := do
-  let t := t.cleanupAnnotations
-  if t.isAppOfArity ``And 2 then
-    return (← conjuncts t.appFn!.appArg!) + (← conjuncts t.appArg!)
-  return 1
-
-/-- Close `g` if the frame solver proves it; otherwise split its top-level
-conjunction and close the conjuncts it can.  Returns the open goals. -/
+/-- Close `g` if `prove` does; otherwise split its top-level conjunction and
+close the conjuncts it can — only if one closes, so that an arm's own
+conjunction stays whole.  Returns the open goals. -/
 partial def frameGoal (snap : Snap) (g : MVarId) : MetaM (List MVarId) := g.withContext do
   let t := (← instantiateMVars (← g.getType)).cleanupAnnotations
   if let some p ← attemptM ((prove 6 t).run snap) then
     g.assign p
     return []
-  if t.isAppOfArity ``And 2 then
-    let s ← saveState
-    let ga ← mkFreshExprSyntheticOpaqueMVar t.appFn!.appArg! (← g.getTag)
-    let gb ← mkFreshExprSyntheticOpaqueMVar t.appArg! (← g.getTag)
-    g.assign (mkApp4 (mkConst ``And.intro) t.appFn!.appArg! t.appArg! ga gb)
-    let rest := (← frameGoal snap ga.mvarId!) ++ (← frameGoal snap gb.mvarId!)
-    -- split only if a conjunct closed: an arm's own conjunction stays whole
-    if rest.length ≥ 2 && (← conjuncts t) == rest.length then
-      s.restore
-      return [g]
-    return rest
-  return [g]
+  unless t.isAppOfArity ``And 2 do return [g]
+  let s ← saveState
+  let ga ← mkFreshExprSyntheticOpaqueMVar t.appFn!.appArg! (← g.getTag)
+  let gb ← mkFreshExprSyntheticOpaqueMVar t.appArg! (← g.getTag)
+  g.assign (mkApp4 (mkConst ``And.intro) t.appFn!.appArg! t.appArg! ga gb)
+  let rest := (← frameGoal snap ga.mvarId!) ++ (← frameGoal snap gb.mvarId!)
+  if rest == [ga.mvarId!, gb.mvarId!] then
+    s.restore
+    return [g]
+  return rest
 
-/-! ## 3. Forward: instantiate what the context already knows -/
+/-- A rule's telescope length and its conclusion after each length. -/
+def lemmaSkel (lr : AbstractMVarsResult) : MetaM (Nat × Array Expr) := do
+  let (_, _, l) ← openAbstractMVarsResult lr
+  let ty ← instantiateMVars (← inferType l)
+  let (args, _, _) ← forallMetaTelescope ty
+  let mut c := ty
+  let mut cs : Array Expr := #[c]
+  while c.isForall do
+    c := c.bindingBody!
+    cs := cs.push c
+  return (args.size, cs)
+
+/-- The rules `prove` applies: the terms `extra` (elaborated in the current
+goal), then `@[bridge_frame]`; with their skeletons. -/
+def rules (extra : Array Term) : TacticM (Array AbstractMVarsResult × Array (Nat × Array Expr)) := do
+  let mut ls := #[]
+  for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
+  for n in registered (← getEnv) frameExt do
+    ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
+  return (ls, ← ls.mapM (fun l => (lemmaSkel l : MetaM _)))
+
+/-- `bridge_frame [l₁, …]` on one goal. -/
+def frameGoals (extra : Array Term) (g : MVarId) : TacticM (List MVarId) := g.withContext do
+  let (ls, sks) ← rules extra
+  let snap ← snapshot
+  frameGoal { snap with lemmas := ls, lemmaSkels := sks, failCache := some (← IO.mkRef {}) } g
+
+/-! ## 6. The forward step: instantiate what the context already knows -/
 
 /-- The premise with its head constant unfolded once, if that constant is a
 non-reducible definition (not a frame predicate or an answer relation). -/
 def unfoldHeadOnce (t : Expr) : MetaM (Option Expr) := do
   let some n := t.getAppFn.constName? | return none
-  if relNames.contains n || isFrameShape t then return none
+  if isAnswerRel (← getEnv) n || isFrameShape t then return none
   unless (← getEnv).find? n matches some (.defnInfo _) do return none
   if getReducibilityStatusCore (← getEnv) n == .reducible then return none
   let some t' ← unfoldDefinition? t | return none
@@ -1583,7 +1415,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   g ← reduceGoalMatches g
   -- an answer relation the frame could not close: its `∀` form
   let tg ← g.withContext do instantiateMVars (← g.getType)
-  if unfoldRelGoal && tg.getAppFn.constName?.any (relNames.contains ·) then
+  if unfoldRelGoal && tg.getAppFn.constName?.any (isAnswerRel (← getEnv)) then
     let tu ← g.withContext (unfoldRel tg)
     if tu != tg then g ← g.replaceTargetDefEq (← Core.betaReduce tu)
   -- a block of data binders followed by facts about them
@@ -1642,21 +1474,23 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   g := g'; opened := o
   let mut seen : Array Expr := #[]
   let mut deadL : Array Bool := #[]
-  let mut cache : Std.HashMap FVarId Hyp := {}
+  let mut cache : Std.HashMap FVarId (Array Hyp) := {}
   let mut first := true
+  -- the frame premises of the sources are proved with `@[bridge_frame]`
+  let (rl, rsk) ← g.withContext (rules #[])
   for _ in [0:8] do
     let (news, snap) ← g.withContext do
       let mut ls := #[]
       for n in defaults do ls := ls.push (← mkConstWithFreshMVarLevels n)
       for t in extra do ls := ls.push (← Tactic.elabTerm t none)
-      let snap ← snapshot cache
+      let snap := { (← snapshot cache) with lemmas := rl, lemmaSkels := rsk }
       let fresh? := if first then none else
-        some (snap.hyps.filter fun h => !h.pf.isFVar || !cache.contains h.pf.fvarId!)
+        some (snap.hyps.filter fun h => !cache.contains h.src)
       pure (← (fwdRound ls defaults.length seen deadL fresh?).run snap, snap)
     first := false
     cache := {}
     for h in snap.hyps do
-      if h.pf.isFVar then cache := cache.insert h.pf.fvarId! h
+      cache := cache.insert h.src ((cache.getD h.src #[]).push h)
     let (news, dl) := news
     deadL := dl
     if news.isEmpty then break
@@ -2091,20 +1925,9 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
 @[tactic bridgeFrame] def evalBridgeFrame : Tactic := fun stx => do
   let extra : Array Term :=
     if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
-  let gs ← getGoals
   let mut out := []
-  for g in gs do
-    if ← g.isAssigned then continue
-    let snap ← g.withContext do
-      let snap ← Frame.snapshot
-      let mut ls := #[]
-      for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
-      for n in Frame.registered (← getEnv) Frame.frameExt do
-        ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
-      let sks ← ls.mapM (fun l => (Frame.lemmaSkel l : MetaM _))
-      let fc ← IO.mkRef {}
-      pure { snap with lemmas := ls, lemmaSkels := sks, failCache := some fc }
-    out := out ++ (← Frame.frameGoal snap g)
+  for g in ← getGoals do
+    unless ← g.isAssigned do out := out ++ (← Frame.frameGoals extra g)
   setGoals out
 
 /-- con-leche: none — **the whole pipeline** (task #120):
@@ -2173,7 +1996,7 @@ syntax (name := vcArm) "vc_arm" (ppSpace "(" ident " : " term ")")*
     if ← g.isAssigned then continue
     let isRel ← g.withContext do
       let t ← instantiateMVars (← g.getType)
-      return t.getAppFn.constName?.any (Frame.relNames.contains ·)
+      return t.getAppFn.constName?.any (Frame.isAnswerRel (← getEnv))
     unless isRel do out2 := out2 ++ [g]; continue
     let s ← saveState
     try
