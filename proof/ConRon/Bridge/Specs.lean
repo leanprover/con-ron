@@ -410,13 +410,6 @@ theorem beq_of_denoteEList {st : EStore} (hwf : StoreWF st)
     rw [h1] at hne
     exact absurd hne (by simp)
 
-/-- con-leche: none — a universe-argument list handle that denotes has a
-view. -/
-theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List Level}
-    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
-  obtain ⟨v, hv, _⟩ := denoteLs_view hd
-  rw [hv]; rfl
-
 /-- con-leche: none — the `fvar` index projection read means the type
 projection reads too (one row of the `fvar` array): `TagFirst`'s
 `viewFVarIdx_of_viewFVarTy`, the other way. -/

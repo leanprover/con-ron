@@ -100,13 +100,16 @@ theorem eq_of_eq_some {α : Type} {o : Option α} {a b : α} (h₁ : o = some a)
 /-- con-leche: none — a memo HIT
 answers by the invariant, in the shape a walk's hit arm has (`some r =
 tbl'[(h, c)]?`, the key spelled out, the table and the stores up to the
-frame's equations): task #120's one-`exact` hit arm. -/
+frame's equations, and the answer's function `g` only equal to the table's
+`f c` — `f c` is no pattern, so `bridge_frame [MemoOK.get_hit']` would not
+unify with it): task #120's memo-hit lemma. -/
 theorem MemoOK.get_hit' {f : Nat → ConLeche.Expr → ConLeche.Expr}
+    {g : ConLeche.Expr → ConLeche.Expr}
     {tbl tbl' : Std.HashMap (EIdx × Nat) EIdx} {st st₁ st₂ : EStore} {h : EIdx}
     {c : Nat} {r : EIdx} (hm : MemoOK f tbl st) (hk : some r = tbl'[(h, c)]?)
-    (ht : tbl' = tbl) (h₁ : st₁ = st) (h₂ : st₂ = st) :
-    RelE (f c) st₁ h st₂ r := by
-  subst ht h₁ h₂
+    (ht : tbl' = tbl) (h₁ : st₁ = st) (h₂ : st₂ = st) (hg : g = f c) :
+    RelE g st₁ h st₂ r := by
+  subst ht h₁ h₂ hg
   exact MemoOK.get (k := (h, c)) hm hk.symm
 
 /-! ## 2. The tag tests and the optional handle (task #120)
@@ -214,6 +217,45 @@ theorem view_of_viewBind_forallE_tag' {st : EStore} {i ty b : EIdx}
     st.view i = some (.forallE ty b) := by
   rw [view_of_viewBind h.symm, eBindView, show i.tag = ETag.forallE by simpa using htg]
   rfl
+
+/-- con-leche: none — `view_of_viewBind` in the orientation `vcgen` hands the
+binder arms (`some (ty, b) = st.viewBind i`). -/
+theorem view_of_viewBind' {st : EStore} {i ty b : EIdx}
+    (h : some (ty, b) = st.viewBind i) : st.view i = some (eBindView i.tag ty b) :=
+  view_of_viewBind h.symm
+
+/-- con-leche: none — a denoting universe-argument list handle has a view
+(`viewOK_const`'s premise; the name and level stores have theirs in
+`Bridge/Rel.lean`; moved here from `Bridge/Specs.lean`, task #120 wave 2). -/
+theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List ConLeche.Level}
+    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
+  obtain ⟨w, hw, _⟩ := denoteLs_view hd
+  rw [hw]; rfl
+
+/-- con-leche: none — an answer relation moved at BOTH ends: its source
+along an extension under which the subject denotes (`RelE.retarget`), its
+target along one (`RelE.ext`).  `bridge_frame`'s one transport lemma for an
+answer a hypothesis (or `bridge_auto`'s forward step) holds at other stores. -/
+theorem RelE.transport {f : ConLeche.Expr → ConLeche.Expr} {st st0 st' st'' : EStore}
+    {c r : EIdx} (h : RelE f st c st' r) (hs : Ext st st0)
+    (hc : (denoteE st c).isSome = true) (ht : Ext st' st'') : RelE f st0 c st'' r :=
+  (h.retarget hs hc).ext ht
+
+/-- con-leche: none — a denoting `cons` list of handles: its head and its tail
+denote (`bridge_auto`'s default inversion for the list subjects). -/
+theorem denoteEList_cons_fr {st : EStore} {a : EIdx} {as : List EIdx}
+    {xs : List ConLeche.Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
+    ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
+      xs = x :: xs' := by
+  simp only [Frontend.denoteEList] at h
+  cases ha : denoteE st a with
+  | none => rw [ha] at h; simp at h
+  | some x =>
+    cases has : Frontend.denoteEList st as with
+    | none => rw [ha, has] at h; simp at h
+    | some ys =>
+      rw [ha, has] at h
+      exact ⟨x, ys, rfl, rfl, (Option.some.inj h).symm⟩
 
 -- `ConRon.BridgeTactic` names the constants above (and the bridge's own)
 -- with single backticks, unchecked: this checks them.
