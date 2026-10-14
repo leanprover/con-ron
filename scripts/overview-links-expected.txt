@@ -1967,7 +1967,7 @@
    111  /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
    112  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
    113  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
-   114  `Bridge/Checker/Decl.lean`'s seven arms; the arms are where the content is
+   114  `Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
    115  (all proved: the tier is `sorry`-free).
    116  
    117  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
@@ -2028,26 +2028,24 @@
     30     `StateT σ (Except ε)` leaves universe metavariables in the verification
     31     conditions.
 
-== proof/ConRon/Bridge/Inductives/Run.lean#L57-L75
-    57  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
-    58  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
-    59  answer related to the pure side's by `R`, having only grown the arena.
-    60  
-    61  Partial correctness, as everywhere in this library: a (B) function may fail
-    62  and Theorem 1 claims nothing then — which is why the hypothesis is
-    63  `c s0 = .ok (r, s')` and not an unconditional equation.
-    64  
-    65  **RUN form rather than a Hoare triple**, and the reason is task
-    66  #97-P3-Checker §1's: this tier's work is composition, inversion and list
-    67  induction rather than verification conditions, and `Bridge/Checker/Fold.lean`
-    68  — the module that consumes `IndSpec` — is already written in run form
-    69  (`AM.bind_ok` is its only inversion).  A leaf walk proved with `vcgen` in
-    70  task #97-P3-0's idiom reaches this shape by reading its triple at the `.ok`
-    71  branch; `Bridge/Inductives/Decl.lean`'s note says what that costs. -/
-    72  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
-    73      Prop :=
-    74    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
-    75      PStep s₀ s' ∧ R s'.store r
+== proof/ConRon/Bridge/Inductives/Run.lean#L56-L72
+    56  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
+    57  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
+    58  answer related to the pure side's by `R`, having only grown the arena.
+    59  
+    60  Partial correctness, as everywhere in this library: a (B) function may fail
+    61  and Theorem 1 claims nothing then — which is why the hypothesis is
+    62  `c s0 = .ok (r, s')` and not an unconditional equation.
+    63  
+    64  **RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
+    65  §1): this tier's work is composition, inversion and list induction rather
+    66  than verification conditions, and the checker tier that consumes `IndSpec`
+    67  (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
+    68  inversion). -/
+    69  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    70      Prop :=
+    71    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
+    72      PStep s₀ s' ∧ R s'.store r
 
 == proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66
     49  /-! ## The core grade -/
@@ -2075,7 +2073,7 @@
    120  /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
    121  The parameter variables as seen from under `o` extra binders.
    122  
-   123  **CLOSED** (task #97-P3-Ind round 2): a `Nat` recursion over
+   123  **Proof:** a `Nat` recursion over
    124  `internBVarE_run` with the cursor `k` generalised.  The pure side is a
    125  `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
    126  the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
@@ -2119,7 +2117,7 @@
    164    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
 == proof/ConRon/Bridge/Core/Knot.lean#L109-L126
-   109  round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
+   109  rule 8 — "the record of knot hypotheses costs nothing"). -/
    110  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
    111      Prop where
    112    /-- Head normalization without delta, in either mode (`c` is the official
