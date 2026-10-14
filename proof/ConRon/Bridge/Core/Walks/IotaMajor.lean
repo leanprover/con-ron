@@ -1191,7 +1191,13 @@ theorem andRescueSlots_specS (s₀ : AState) (ctor : NIdx) (nP : Nat) (ust : LsI
   exact andRescueSlots_spec s₀ ctor nP ust cn ls hok hc h1
 
 /-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — **the pinned `And`
-rescue**, certified the K branch's way. Sixteen states, hence `gen := 16`. -/
+rescue**, certified the K branch's way. Sixteen states, hence `gen := 16`.
+`opt2_isSome_of_eq_some` is erased here: the fabrication's denotation is an
+`opt2` chain (`Expr.const`, the `++`, the two `List.cons` cells) restated at each
+later state, so the rule fires on every cell at every state and each `isSome` it
+derives opens a fresh witness (`denote_some_of_isSome`,
+`denoteEList_some_of_isSome`) for a denotation the callees' posts already name;
+it proves nothing this walk needs and makes its search 2.5× as expensive. -/
 theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
@@ -1207,7 +1213,8 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₁.pins ∧
         SimEOp (mtcAndOp mode env d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
   have hrc := (rule_denote hrl').2.2.1
-  sym (gen := 16) only [bridge_grind, andFab, andRescueOk, denoteEList_append_eq, ← viewOK_const] =>
+  sym (gen := 16) only [bridge_grind, -opt2_isSome_of_eq_some, andFab, andRescueOk,
+      denoteEList_append_eq, ← viewOK_const] =>
     vcgen [majorAndA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
       andRescueSlots_specS (mode := mode) (env := env) (fe := fe) (cn := rl'.ctor),
       internE_specC (mode := mode) (env := env) (fe := fe),
