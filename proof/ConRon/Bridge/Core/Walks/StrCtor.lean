@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.StrCtor` — a string literal's constructor form
 
-Task #97-P3-Core round 5.  `strLitToConstructor` (`Arena/Core.lean:556`) builds
+`strLitToConstructor` (`Arena/Core.lean:598`) builds
 the `String.ofList (List.cons … (List.nil Char))` spine of a string literal in
 the store; con-leche's `strLitToConstructor` (`Kernel/CoreDefs.lean:288-299`)
 is the same term as a `foldr`.  Two of the tier's walks read it: the `.proj`
@@ -9,6 +9,10 @@ clause's `projLitToCtor` (and `litMajorToCtor`, the ι major's), and the
 `defeq` step's two string-literal congruence exits.  It is the first rule of
 this tier whose postcondition is a genuine `Ext` built by a RECURSION of
 interns (`strLitConsSpine`), which is why it is a module of its own.
+
+The recursion is `sym only [bridge_grind, …] => vcgen [strLitConsSpine, ih,
+internE_specC] <;> finish` per list cell (`strSpineE_nil`/`_cons`); the
+walk itself is staged over its sixteen calls.
 -/
 import ConRon.Bridge.Core.Walks.Nat
 

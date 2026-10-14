@@ -1,18 +1,17 @@
 /-
 # `ConRon.Bridge.Core.EnsureSort` — the seventh entry point
 
-Task #97-P3-CoreWalks, ask 2 of the Checker tier.  `Arena/Core.lean` has
-SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
+`Arena/Core.lean` has SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
 top of the knot (`ensureSort (pureFnsA mode fe fuel) fe depth e`) rather than
 being one of its fields, so `Bridge/Core/Knot.lean`'s `KnotSpec` does not
-cover it — and the declaration front door calls it at every constant, which
-is why `Bridge/Checker/Hyp.lean` had to carry `EnsureSortSpec` as a second
-named hypothesis beside `KnotSpec`.
+cover it — and the declaration front door calls it at every constant, so
+`Bridge/Checker/Hyp.lean` states `EnsureSortSpec` as a second named
+hypothesis beside `KnotSpec`.
 
-This module discharges it.  It is one `whnf` call and a tag test: the
-theorem is `KnotSpec.whnf` followed by `Bridge/Rel.lean`'s `denote_sort_inv`,
-and the pure side is con-leche's own `ensureSort_def` (`Verify/Knot.lean:215`,
-which is `rfl`).
+This module discharges it.  It is one `whnf` call and a tag test: the proof
+is `vcgen` over `KnotSpec.whnf` and `grind` with the exit lemma
+`SimL.of_whnfSort` (`Bridge/Rel.lean`'s `denote_sort_inv`, and con-leche's
+own `ensureSort_def`, `Verify/Knot.lean:215`, which is `rfl`).
 
 **Why it is its own module rather than a line in `Bridge/Core/Induction.lean`.**
 `Bridge/Checker/Hyp.lean` imports `Core.Induction` for `knot_spec_checkFuel`;
@@ -107,8 +106,7 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
 section Census
 
 #print axioms ensureSortCore_of_whnf
-/-! **The seventh entry point, sorry-free**: the Checker tier's
-`EnsureSortSpec` is discharged outright (task #97-P3-CoreWalks, ask 2). -/
+#print axioms SimL.of_whnfSort
 #print axioms ensureSortCore_spec
 
 end Census
