@@ -569,15 +569,6 @@ theorem RelE.const {F : Expr → Expr} {Fls : List Level → List Level}
   rfl
 
 
-/-- con-leche: none — `RelE.retarget` at the answer's OWN store, which is the
-only target a memo insert ever needs: the row is recorded against the store
-the call ended in.  `RelE.retarget` leaves that store a metavariable and the
-closer cannot guess it (measured); this form determines it from the answer. -/
-theorem RelE.retarget_self {f : Expr → Expr} {st st' : EStore} {c r : EIdx}
-    (h : RelE f st c st' r) (hx : Ext st st')
-    (hs : (denoteE st c).isSome = true) : RelE f st' c st' r :=
-  h.retarget hx hs
-
 /-! ## The three "hop" helpers
 
 A walk that reads `fvarB` before it reads the store has every `view` fact at a
@@ -586,22 +577,5 @@ its Theorem 1 frames the store with an equation).  Inside a lemma the two
 stores are variables and `subst` closes the gap in one step; in a
 verification condition they are projections and it cannot.  These are
 the facts the binder arm needs, stated so the hop happens inside. -/
-
-/-- con-leche: none — the binder's two children denote, at the store the walk
-read the binder in. -/
-theorem bind_children_hop {st st0 : EStore} (hst : st0 = st)
-    (hwf : StoreWF st) {i ty b : EIdx}
-    (h1 : some (ty, b) = st0.viewBind i)
-    (hden : (denoteE st i).isSome = true) :
-    (denoteE st0 ty).isSome = true ∧ (denoteE st0 b).isSome = true := by
-  subst hst
-  exact isSome_eBindView hwf (view_of_viewBind h1.symm) hden
-
-/-- con-leche: none — an answer handle has a view at any later store: the
-`internRebuilt` arms' `ViewOK` obligation, in one lemma. -/
-theorem view_isSome_of_rel {f : Expr → Expr} {st s1 s2 : EStore} {c r : EIdx}
-    (hden : (denoteE st c).isSome = true) (hr : RelE f st c s1 r)
-    (hx : Ext s1 s2) : (s2.view r).isSome = true :=
-  view_isSome (denote_isSome_ext (hr.isSome hden) hx)
 
 end ConRon.Bridge.ExprOps

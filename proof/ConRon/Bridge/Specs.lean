@@ -428,16 +428,6 @@ theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
       exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
     · cases h
 
-/-- con-leche: none — `eBindView` at the `lam` tag (task #120: an unfolding
-`bridge_auto` is handed). -/
-theorem eBindView_lam (ty b : EIdx) : eBindView ETag.lam ty b = .lam ty b := by
-  simp [eBindView]
-
-/-- con-leche: none — `eBindView` at the `forallE` tag. -/
-theorem eBindView_forallE (ty b : EIdx) :
-    eBindView ETag.forallE ty b = .forallE ty b := by
-  simp [eBindView, ETag.lam, ETag.forallE]
-
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
 word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
@@ -471,7 +461,6 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
   all_goals subst_vars
   bridge_auto [EStore.view_of_findBind (tag := ETag.lam) (htag := rfl), denoteE_view_eq,
       EStore.internBind_spec (tag := ETag.lam) (htag := rfl)]
-    unfolding [eBindView_lam]
 
 theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
     (hwf : StoreWF s₀.store) (hty : (s₀.store.view ty).isSome = true)
@@ -486,7 +475,6 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
   all_goals subst_vars
   bridge_auto [EStore.view_of_findBind (tag := ETag.forallE) (htag := rfl), denoteE_view_eq,
       EStore.internBind_spec (tag := ETag.forallE) (htag := rfl)]
-    unfolding [eBindView_forallE]
 
 /-- con-leche: none — `internLamE_spec_view` at denoting children: the face
 the node-building walks use. -/

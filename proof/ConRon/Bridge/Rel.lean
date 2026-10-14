@@ -1468,10 +1468,6 @@ theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x :
     (h : RelV f st c x) (hfg : ∀ e, f e = g e) : RelV g st c x :=
   fun e he => by rw [← hfg e]; exact h e he
 
-@[grind →] theorem RelL.apply {f : Level → Level} {st st' : EStore} {c r : LIdx}
-    {u : Level} (h : RelL f st c st' r) (hu : denoteL st.ls c = some u) :
-    denoteL st'.ls r = some (f u) := h u hu
-
 @[grind →] theorem RelL.ext {f : Level → Level} {st st' st'' : EStore}
     {c r : LIdx} (h : RelL f st c st' r) (hx : Ext st' st'') :
     RelL f st c st'' r :=

@@ -105,9 +105,8 @@ Four facts were missing, in three groups.
 below: the match-equation lemmas of a con-leche `def` carry their negative
 side conditions as hypotheses, and `simp only [ConLeche.unfoldableHead, hgf]`
 DISCHARGES them from the local context.  So the "the head is not a stored
-definition" arm of each of these walks is one `simp only` and no case bash —
-`unfoldableHead_of_not_defn` and `headHint_of_not_defn` below are one line
-each.  Where the match is on a PAIR (`sameConstHeads`) the discharger does
+definition" arm of each of these walks is one `simp only` and no case bash
+(since task #120 `bridge_finish`'s `simp only [f, *]` does exactly that).  Where the match is on a PAIR (`sameConstHeads`) the discharger does
 not fire and the arm needs `cases … <;> cases … <;> first | rfl | …`, which
 is the whole difference between the two shapes. -/
 
@@ -322,23 +321,6 @@ theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
     exact hnd v' e' dh hf
 
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead — the
-negative arm, in ONE `simp only`: a con-leche `def`'s match-equation lemma
-carries its negative side condition as a hypothesis and `simp` discharges it
-from the local context.  (The round's measured finding; see §0c.) -/
-theorem unfoldableHead_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
-    {ls : List Level} (hgf : x.getAppFn = .const nm ls)
-    (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
-    ConLeche.unfoldableHead env x = false := by
-  simp only [ConLeche.unfoldableHead, hgf]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead — the
-same at the outer match. -/
-theorem unfoldableHead_of_not_const {env : Env} {x : Expr}
-    (h : ∀ n us, x.getAppFn ≠ .const n us) :
-    ConLeche.unfoldableHead env x = false := by
-  simp only [ConLeche.unfoldableHead]
-
 /-! ## 1. The three with an unfueled pure side
 
 con-leche's comparand is a plain function of the environment, so the
@@ -474,24 +456,6 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
   bridge_auto [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
     denote_not_const_of_tag, unfoldDefinition_post_unfold henv hwx,
     unfoldDefinition_post_len, unfoldDefinition_post_nodefn, unfoldDefinition_post_nc]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
-for `headHint`**: the reducibility hint of the constant at the head.
-**CLOSED** (round 3).  The answer type is one both tiers share, so the
-relation is an equation, because con-leche's `headHint` takes no fuel.  It is `unfoldableHead` minus the
-level-list read: five verification conditions and the same three arms. -/
-theorem headHint_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
-    {ls : List Level} (hgf : x.getAppFn = .const nm ls)
-    (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
-    ConLeche.headHint env x = .opaque := by
-  simp only [ConLeche.headHint, hgf]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — the
-not-a-constant arm. -/
-theorem headHint_of_not_const {env : Env} {x : Expr}
-    (h : ∀ n us, x.getAppFn ≠ .const n us) :
-    ConLeche.headHint env x = .opaque := by
-  simp only [ConLeche.headHint]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM
 1 for `headHint`**: the reducibility hint of the constant at the head.

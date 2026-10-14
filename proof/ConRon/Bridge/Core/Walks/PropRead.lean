@@ -270,15 +270,6 @@ theorem denoteEList_getD {st : EStore} :
     | zero => simpa using hy
     | succ i => simpa using denoteEList_getD hys i e x hx
 
-/-- con-leche: none — the `else` arm of a tag-first twin (task #97-P5-Core
-round 6): a denoting handle whose tag is not `t` views to a node that is not a
-`t` node. -/
-theorem view_not_of_tagB {st : EStore} {h : EIdx} {e : Expr}
-    (he : denoteE st h = some e) {t : UInt32} (ht : ¬ (h.tag == t) = true) :
-    ∃ v, st.view h = some v ∧ v.tagOf ≠ t := by
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact ⟨v, hv, view_tagOf_ne hv ht⟩
-
 /-! ## 2. The view-only readers
 
 `peelPis` is `Walks/Proj.lean`'s `peelPis_spec` (the recursor's and the
@@ -340,13 +331,6 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
 
 /-! ## 2b. The identity-like wrappers (con-leche's task #342) -/
 
-/-- con-leche: none — `view_of_viewBind_lam` at the twin's tag test and in
-`vcgen`'s orientation (task #120). -/
-theorem view_of_viewBind_lam' {st : EStore} {i ty b : EIdx}
-    (htg : (i.tag == ETag.lam) = true) (h : some (ty, b) = st.viewBind i) :
-    st.view i = some (.lam ty b) :=
-  view_of_viewBind_lam (by simpa using htg) h.symm
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:73-79 lamProj? — **THEOREM 1 for
 `lamProj?`**.  Read-only; the arena's walk is fueled and fails at fuel `0`. -/
 theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
@@ -363,7 +347,7 @@ theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     intro k s₀ h hok
     vcgen [ConRon.Arena.lamProj?, ih]
     all_goals (bridge_peel; subst_vars)
-    bridge_auto [view_of_viewBind_lam', denote_bvar_inv] unfolding [ConLeche.lamProj?]
+    bridge_auto [denote_bvar_inv] unfolding [ConLeche.lamProj?]
 
 /-- con-leche: none — `view_of_viewConstName` at the twin's tag test and in
 `vcgen`'s orientation (task #120: a forward rule for `bridge_auto`). -/
@@ -379,29 +363,6 @@ theorem denoteEList_getD' {st : EStore} {hs : List EIdx} {xs : List Expr}
     (hx : denoteE st e = some x) :
     ∀ i, denoteE st (hs.getD i e) = some (xs.getD i x) :=
   fun i => denoteEList_getD h i e x hx
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — the head is
-not a constant: nothing to unwrap. -/
-theorem unwrapIdDefs_not_const {find? : ConLeche.Name → Option ConstantInfo}
-    {n : Nat} {x : Expr} (h : ∀ c us, x.getAppFn ≠ .const c us) :
-    ConLeche.unwrapIdDefs find? (n + 1) x = x := by
-  rw [ConLeche.unwrapIdDefs]
-  split
-  next c us heq => exact absurd heq (h c us)
-  next => rfl
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — the head
-constant is not a stored definition. -/
-theorem unwrapIdDefs_not_defn {find? : ConLeche.Name → Option ConstantInfo}
-    {n : Nat} {x : Expr} {nm : ConLeche.Name} {ls : List Level}
-    (hgf : x.getAppFn = .const nm ls)
-    (h : ∀ cv val hint, find? nm ≠ some (.defnInfo cv val hint)) :
-    ConLeche.unwrapIdDefs find? (n + 1) x = x := by
-  rw [ConLeche.unwrapIdDefs, hgf]
-  dsimp only
-  split
-  next cv v hint heq => exact absurd heq (h cv v hint)
-  next => rfl
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — **THEOREM
 1 for `unwrapIdDefs`**, in answer shape: the answer denotes con-leche's
@@ -426,7 +387,7 @@ theorem unwrapIdDefs_spec' (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EId
     all_goals (bridge_peel; subst_vars)
     bridge_auto [view_of_viewConstName', denote_const_inv, denoteEList_getD', env_defn_of_index,
       env_not_defn_of_index, denote_not_const_of_tag, denoteEList_len]
-      unfolding [ConLeche.unwrapIdDefs, unwrapIdDefs_not_const, unwrapIdDefs_not_defn,
+      unfolding [ConLeche.unwrapIdDefs,
         ite_true, ite_false, Bool.false_eq_true]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — not a `∀`
@@ -667,7 +628,7 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     vcgen [ConRon.Arena.proofPW, headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel,
       ih]
     all_goals (bridge_peel; subst_vars)
-    bridge_auto [view_of_viewBind_lam'] unfolding [ConLeche.proofPW]
+    bridge_auto unfolding [ConLeche.proofPW]
 
 /-! ## 4. The two arms
 

@@ -168,3 +168,4 @@ ConRon.Refine2.Lockstep.vec_new_val'	rfl lemma a `simp`/`dsimp` call rewrites wi
 ConRon.Refine2.Lockstep.vec_with_capacity_val'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Bridge.Core.pureFns_whnfCore_succ	rfl lemma in the `simp` set of Bridge/Core/Memo.lean's `whnf_of_stuck` (the build fails without it); simp leaves no trace
 ConRon.Bridge.Frame.usedConstants	read by `run_cmd` in Bridge/Frame.lean (checks the single-backtick names of ConRon/BridgeTactic.lean exist); a command, not a term reference
+ConRon.Bridge.view_of_viewConst_tag'	named (single backtick) in ConRon/BridgeTactic.lean's autoDefaults: a default view lemma of bridge_auto, no current proof happens to use it

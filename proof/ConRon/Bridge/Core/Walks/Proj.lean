@@ -697,13 +697,6 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-/-- con-leche: none — `view_of_viewBind_forallE` at the twin's tag test and
-in `vcgen`'s orientation (task #120). -/
-theorem view_of_viewBind_forallE' {st : EStore} {i ty b : EIdx}
-    (htg : (i.tag == ETag.forallE) = true) (h : some (ty, b) = st.viewBind i) :
-    st.view i = some (.forallE ty b) :=
-  view_of_viewBind_forallE (by simpa using htg) h.symm
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
 `peelPis`** in answer shape (task #120: the subject's denotation out as a
 universal, so `vcgen` needs no parameter it cannot see). -/
@@ -758,16 +751,6 @@ theorem teleArityOk_spec (s₀ : AState) (hwf : StoreWF s₀.store) (ty : EIdx)
   bridge_auto [ExprOps.denoteEList_length, isSome_of_denoteEO]
     unfolding [ConLeche.teleArityOk]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — the stored
-constant is no constructor: no certificate. -/
-theorem projCert_not_ctor {cn : ConLeche.Name} {xs : List Expr}
-    (h : ∀ cv nP nF, env.find? cn ≠ some (.ctorInfo cv nP nF)) :
-    ConLeche.projCert env cn xs = false := by
-  unfold ConLeche.projCert
-  split
-  next cv nP nF heq => exact absurd heq (h cv nP nF)
-  next => rfl
-
 /-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
 the structural projection's certificate**: the constructor's stored type has
 the spine's arity (`teleArityOk`, con-leche's task #342 L18).  Read-only. -/
@@ -780,7 +763,7 @@ theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
   vcgen [ConRon.Arena.projCert, teleArityOk_spec]
   all_goals (bridge_peel; subst_vars)
   bridge_auto [env_ctor_of_index, env_not_ctor_of_index, denoteCV_inv]
-    unfolding [ConLeche.projCert, projCert_not_ctor]
+    unfolding [ConLeche.projCert]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — **THEOREM 1 for
 `projCertAt`**: the verified mode checks the arity, the trusted mode nothing.

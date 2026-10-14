@@ -505,16 +505,6 @@ theorem seen_insert_cases {seen : Std.HashMap EIdx Unit} {j k : EIdx}
   · rename_i hbeq; exact Or.inl (eq_of_beq hbeq).symm
   · exact Or.inr h
 
-/-- con-leche: none — inserting a BLACK key is a `SeenGrow` step; this is the
-four leaf views and, after the recursion, the node itself. -/
-theorem SeenGrow.of_insert {st : EStore} {acc : List (Nat × EIdx)}
-    {seen : Std.HashMap EIdx Unit} {k : EIdx} (hb : BlackA st acc k) :
-    SeenGrow st acc seen (seen.insert k ()) := by
-  intro j hj
-  rcases seen_insert_cases hj with rfl | hj2
-  · exact Or.inl hb
-  · exact Or.inr hj2
-
 /-- con-leche: none — `SeenGrow` composes along an arm's sequence of calls. -/
 theorem SeenGrow.trans {st : EStore} {a1 a2 : List (Nat × EIdx)}
     {s0 s1 s2 : Std.HashMap EIdx Unit} (h1 : SeenGrow st a1 s0 s1)
@@ -621,15 +611,6 @@ theorem LeavesEq.of_nil {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx}
   obtain rfl := Option.some.inj hr
   rw [h e he]
   simp
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — a subject
-with no leaves is black at every accumulator. -/
-theorem BlackA.of_nil {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx}
-    (h : ∀ e, denoteE st c = some e → Expr.fvarLeaves e = []) :
-    BlackA st acc c := by
-  intro e ea he _ x hx
-  rw [h e he] at hx
-  exact absurd hx (by simp)
 
 /-- con-leche: none — a subject whose leaf list is `[]` under `RelFL` has no
 leaves, which is the form the four `RelFL.*_step` rules deliver. -/
@@ -740,46 +721,6 @@ theorem LeavesEq.proj_step {st : EStore} (hwf : StoreWF st)
   rw [hp]
   exact h1 es ea r hds hea hr x
 
-/-- con-leche: none — a child of a node that denotes denotes (task #120: the
-child-generic form `fvarLeavesGo`'s "second child" arm needs, whichever
-constructor the node is). -/
-theorem isSome_echild {st : EStore} (hwf : StoreWF st) {h c : EIdx}
-    {v : ENodeView} (hw : st.view h = some v) (hs : (denoteE st h).isSome = true)
-    (hc : c ∈ v.echildren) : (denoteE st c).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  cases v <;> simp only [ENodeView.echildren, List.mem_cons,
-    List.not_mem_nil, or_false] at hc
-  · subst hc; exact isSome_fvar hwf hw hs
-  · rcases hc with rfl | rfl
-    · exact (isSome_app hwf hw hs).1
-    · exact (isSome_app hwf hw hs).2
-  · rcases hc with rfl | rfl
-    · exact (isSome_lam hwf hw hs).1
-    · exact (isSome_lam hwf hw hs).2
-  · rcases hc with rfl | rfl
-    · exact (isSome_forallE hwf hw hs).1
-    · exact (isSome_forallE hwf hw hs).2
-  · rcases hc with rfl | rfl | rfl
-    · exact (isSome_letE hwf hw hs).1
-    · exact (isSome_letE hwf hw hs).2.1
-    · exact (isSome_letE hwf hw hs).2.2
-  · subst hc
-    obtain ⟨nm, es, _, _, hds⟩ := denote_proj_inv hwf hw he
-    rw [hds]; rfl
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the
-postcondition of `fvarLeavesGo`'s four LEAF arms, from the leaf view's `RelFL`
-rule (task #120: one `exact` per arm). -/
-theorem fvarLeavesGo_leaf {s : AState} {acc : List (Nat × EIdx)}
-    {seen : Std.HashMap EIdx Unit} {c : EIdx}
-    (hr : RelFL Expr.fvarLeaves s.store c [])
-    (hacc : (denoteLeaves s.store acc).isSome = true) :
-    s = s ∧ (denoteLeaves s.store acc).isSome = true ∧
-      SeenGrow s.store acc seen (seen.insert c ()) ∧ LeavesEq s.store acc c acc :=
-  ⟨rfl, hacc, SeenGrow.of_insert (BlackA.of_nil fun _ he =>
-      fvarLeaves_eq_nil_of_relFL hr he),
-    LeavesEq.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he⟩
-
 /-! ### The arms' exits as lemmas
 
 The cutoff, the `seen` hit and the four leaf views, each in the shape of the
@@ -790,13 +731,6 @@ adds nothing. -/
 theorem LeavesEq.of_relFL {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx}
     (hr : RelFL Expr.fvarLeaves st c []) : LeavesEq st acc c acc :=
   LeavesEq.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he
-
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1093-1128 fvarLeavesGoC — a leaf
-goes into `seen` black. -/
-theorem SeenGrow.of_relFL {st : EStore} {acc : List (Nat × EIdx)}
-    {seen : Std.HashMap EIdx Unit} {c : EIdx} (hr : RelFL Expr.fvarLeaves st c []) :
-    SeenGrow st acc seen (seen.insert c ()) :=
-  SeenGrow.of_insert (BlackA.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
 CUTOFF: a zero fvar-range field means no leaves at all. -/
@@ -899,7 +833,7 @@ theorem fvarLeavesGo_spec :
     bridge_frame [LeavesEq.fvar_step, LeavesEq.app_step, LeavesEq.lam_step,
       LeavesEq.forallE_step, LeavesEq.letE_step, LeavesEq.proj_step, LeavesEq.of_relFL,
       LeavesEq.of_cut, LeavesEq.of_hit, LeavesEq.black, LeavesEq.accGrow, AccGrow.trans,
-      AccGrow.cons, SeenGrow.drop_insert, SeenGrow.of_relFL, SeenGrow.refl, SeenGrow.trans,
+      AccGrow.cons, SeenGrow.drop_insert, SeenGrow.refl, SeenGrow.trans,
       SeenOK.child, SeenOK.of_grow, isSome_denoteLeaves_cons, mem_ech_fvar, mem_ech_app₁,
       mem_ech_app₂, mem_ech_lam₁, mem_ech_lam₂, mem_ech_forallE₁, mem_ech_forallE₂,
       mem_ech_letE₁, mem_ech_letE₂, mem_ech_letE₃, mem_ech_proj]

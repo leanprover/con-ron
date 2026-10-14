@@ -879,10 +879,6 @@ equation (the `bvarB` shift, not an extension). -/
 theorem RelE.src_eq {f : Expr -> Expr} {st st0 st' : EStore} {c r : EIdx}
     (heq : st0 = st) (h : RelE f st c st' r) : RelE f st0 c st' r := heq ▸ h
 
-/-- con-leche: none — and its TARGET store. -/
-theorem RelE.tgt_eq {f : Expr -> Expr} {st st' st2 : EStore} {c r : EIdx}
-    (heq : st' = st2) (h : RelE f st c st' r) : RelE f st c st2 r := heq ▸ h
-
 /-- con-leche: none — `RelE.leaf_view` with the view first. -/
 theorem RelE.leaf_viewV {f : Expr -> Expr} {st : EStore} {h : EIdx}
     {v : ENodeView} (hview : st.view h = some v) (hwf : StoreWF st)
@@ -965,16 +961,6 @@ theorem Inst1LAt.bvar_selfV {st : EStore} {h : EIdx} {ve : Expr} {d i : Nat}
     (hview : st.view h = some (.bvar i)) (hwf : StoreWF st)
     (hne : ¬ (i = d)) (hgt : ¬ (i > d)) : Inst1LAt ve d st h st h :=
   Inst1LAt.bvar_self hwf hview hne hgt
-
-/-- con-leche: none — `Bridge/Rel.lean`'s `denote_eq_proj` with the VIEW
-first, so that `assumption` pins the store before it is asked for that store's
-`StoreWF` (the `bvarB` walks have two `StoreWF`s in scope). -/
-theorem denote_eq_projV {st : EStore} {h : EIdx} {n : NIdx} {i : Nat}
-    {sub : EIdx} (hw : st.view h = some (.proj n i sub)) (hwf : StoreWF st)
-    (hd : (denoteE st h).isSome = true) :
-    ∃ nm es, denoteE st h = some (.proj nm i es) ∧
-      denoteN st.ns n = some nm ∧ denoteE st sub = some es :=
-  denote_eq_proj hwf hw hd
 
 /-! ## H3. `instantiateList`'s `.bvar` arm
 
