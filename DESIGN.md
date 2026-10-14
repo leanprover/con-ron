@@ -68667,3 +68667,212 @@ the same file closed by `sorry`.
 removed at once (against the brief); baselines were rebuilt in place by
 checkout instead.
 
+
+### Task #122 — Theorem 1 by `vcgen` frames and `grind`: a spike on the memo/whnf chain (2026-10-14, Opus)
+
+**The brief.**  Replace `bridge_auto` with the toolchain's own mechanisms,
+used the way their authors intend — `vcgen`'s frame inference for the
+invariant every walk preserves, `grind` (order solver included) for the rest,
+everything inside `SymM`, no Aesop, as little custom meta code as possible —
+on ONE callee chain, measure it, estimate the twenty modules, stop.  The chain:
+`Core/Memo.lean` (the six memo-wrapper steps) and `Core/Arms/Whnf.lean`
+(`whnfLoop_spec`, `whnfBody_spec`), whose callees (`KnotSpec`'s slots,
+`reduceNat_spec`, `unfoldDefinition_spec`, the cache setters) keep their
+statements.
+
+**The idiom now** (both modules; no `bridge_*`, no `vc_arm`, no addressing):
+
+```lean
+  rw [coreKnot_whnf_succ]
+  sym only [bridge_grind] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
+```
+
+`sym` enters `grind`'s symbolic mode; `vcgen` (a `grind`-mode step there)
+generates the verification conditions in `SymM` and internalizes each one's
+hypotheses into the E-graph as it introduces them; `finish` closes every
+condition in that same E-graph.  The `SymM` context is built once per
+theorem, never per goal (requirement 3 of the brief): no custom code runs
+between `vcgen` and `grind`.  `only [bridge_grind]` is the project's lemma set
+(`register_grind_attr bridge_grind`, `Bridge/GrindAttr.lean`) and nothing
+else: the default set carries `Bridge/Rel.lean`'s `@[grind →]` rules, which
+fired hundreds of times per condition in the Spine experiment below, and
+`only` is also 2–3 % cheaper on the two modules.  Callee specs go into the
+`vcgen` list as terms, not as `have`s: a triple in the local context is a
+`∀`-fact `grind` instantiates (and the knot slot `hwc` did, 16 times per
+condition, before it moved into the list).
+
+**The vocabulary** (`Bridge/Grind.lean`, 107 lines; the walks' own lemmas
+next to them, all `@[bridge_grind]`):
+
+1. *The store order.*  `instance : LE EStore := ⟨Ext⟩` and `Std.IsPreorder`;
+   `ext_eq_le : Ext a b = (a ≤ b)` as an `=` rule (not `grind norm`: a
+   normalizer can only live in the default set, where it would rewrite every
+   `Ext` the `ExprOps` closers' `grind` calls see).  The order solver decides
+   every chain `s₀.store ≤ s₁.store ≤ … ≤ sₙ.store`; the statements keep `Ext`.
+2. *Transport as an equation*: `denote_le : st ≤ st' → denoteE st h ≠ none →
+   denoteE st' h = denoteE st h`, multi-pattern `st ≤ st', denoteE st h`;
+   congruence closure carries every denotation along the chain.
+3. *Answers about an optional subject as atoms*: `Ans P o := ∀ e, o = some e
+   → P e` with the two equations `Ans P (some e) = P e`, `Ans P none = True`.
+   A post that does not know its subject's denotation states `Ans (fun e =>
+   …) (denoteE s₀.store i)` — definitionally the old `∀ e, denoteE … = some
+   e → …`, but as a hypothesis the old spelling's only pattern is `some e`,
+   which matches every `some` in the context (the loop's first `grind` run
+   instantiated such hypotheses at every `some`, hit the generation limit
+   and failed at 29 G; the Spine experiment: one hypothesis 483 times); the
+   atom's equation fires exactly when congruence closure learns
+   the subject's constructor, and e-matching binds `e` from the subject's
+   equivalence class.
+4. *The state invariant's projections* (`CheckOK.state`, `StateOK.wf` as `→`
+   rules), `Except.isOk (.ok a) = true`, the `denoteEO` inversions.
+
+**The rules for a `grind` lemma** (found on the chain; #121's diagnosis,
+made concrete):
+
+* every variable occurs in a pattern — so a lemma takes a callee's answer as
+  ONE premise, the callee's own atom (`CheckOK.insertWhnfAt … (hs : SimE …)`,
+  `SimE.of_whnfLoop (h : ∃ v, …)`), never its parts (`hF : op F d a = .ok
+  b` — `F` and `b` occur in no term `grind` can match);
+* a variable that is only the right-hand side of an equation premise is
+  unreachable: the fuel-merge lemmas take the inner run as `(… ).isOk =
+  true` and conclude an EQUATION between the merged and the inner run
+  (`whnfLoop_reduceNat_eq`), with the multi-pattern of the three runs;
+* no `∃` in a premise (`grind` does not prove it to fire a lemma — the
+  first `_eq` version with `hk : ∃ res, … = .ok res` never fired);
+* an operation that is a `fun` (`fun F d e => whnfCore mode env F d e c`,
+  `KnotSpec.whnfCore`'s) cannot be matched with variables inside it: that
+  lemma (`SimE.of_whnfCoreStuck`) is passed instantiated in the call's list;
+* a parameter the program does not name must be given (`(mode := mode)` on
+  `unfoldDefinition_specA`: left implicit, `vcgen` left `?mode` in the
+  post and `grind` failed on `CheckOK ?mode …`).
+
+**`vcgen`'s frame inference — the answer to #121's open question, and why
+the spike does not use it.**
+
+* *"A spec with a conjunctive precondition applies directly: no frameproc
+  runs."*  `conjunctivePre` (`Lean/Elab/Tactic/Do/ConjunctivePre.lean`) is a
+  property of a spec whose precondition mentions its own SCHEMATIC
+  postcondition `Q` only conjunctively (`⦃fun s => Q s s⦄ get ⦃Q⦄`): applying
+  it carries any frame already.  Our walk specs have a fixed postcondition
+  and no schematic `Q`, so they are never conjunctive and the frame
+  procedure runs for every one; the `fun s => s = s₀` precondition plays no
+  part.  No framing ever happened because `StateT` has no `@[frameproc]`
+  and the default meet procedure frames only what a `frames` clause pins.
+* *What a frame procedure for `AM` looks like*: ten lines
+  (`_tmp/t122-repro-a99ebf1ea732/FrameProc.lean`, `growsFP`): keyed on
+  `StateT`, decline unless the state is ours, frame `Grows s` (grows from
+  the CALL's state `s`, the first excess argument), `FrameDecision.ofFrame`.
+  It works — `vcgen` frames every call — and it pays nothing:
+  * `WP.Frames op x F` is unconditional, and no walk preserves the
+    invariant unconditionally: a memo walk's `CheckOK` after the insert needs
+    the walk's own precondition (`WScoped d e`) and its functional
+    correctness, and the knot slots are only specified as `KnotSpec`'s
+    conditional triples.  So `F` must carry the callee's precondition (or
+    the frame lemma takes facts about the frame's origin), one frame lemma
+    per walk, derived from its full spec — the spec stays;
+  * the frame's side goal `WP.Frames meet x F` is a verification condition
+    per call (upstream's own tests close it with `finish` and a `@[grind]`
+    frame lemma, `tests/elab/vcgenFrames.lean`), and so is the frame at the
+    call, `F s s` (after state introduction the precondition is `⊤`, so the
+    split leaves it as a goal).  The toy: three calls, ONE condition with
+    full specs, SEVEN with lossy specs and `growsFP` — and the final one
+    still needs the chain `s₀ ≤ s₁ ≤ s₂ ≤ s₃` from the three framed facts;
+  * the frame removes the conjuncts from the specs' STATEMENTS, not from
+    the proofs: the growth comes back as a hypothesis per call exactly as it
+    came from the spec's post, and `grind` closes the chain and the pins
+    equations at no measurable cost in the same E-graph.
+  * Found on the way (`Frames.lean`, the reproducer): `WP.Frames.of_conjunctive`
+    cannot frame a program that may throw — its premise `∀ E, F ⊑ wp x (fun
+    _ => F) E` includes `E = ⊥` — and every walk may throw.  `of_top`, the
+    same with `F ⊑ wp x (fun _ => F) ⊤`, is provable from `WPConjunctive`
+    and `top_meet` (eleven lines there); an upstream candidate.
+
+  Recommendation: no frames for this invariant.  The relational,
+  precondition-dependent "grows from here, invariant holds" is the order
+  solver's job, not the frame rule's; frames fit footprints that are
+  preserved unconditionally (upstream's `mkFreshNat` frames `s.2`).
+
+**Numbers** (`perf stat -e instructions:u` of `lake env lean` on the module,
+its options and the tactic library loaded, imports included — #120's method;
+baseline: the master files rebuilt in place by checkout; three runs each,
+identical to 0.01 G):
+
+| module | instructions | file lines | VC proof lines | `bridge_*`/`vc_arm` | custom meta code |
+|---|---:|---:|---:|---:|---:|
+| `Core/Memo` | 13.70 G → 11.53 G (−16 %) | 976 → 960 | 44 → 22 | 7 → 0 | none |
+| `Core/Arms/Whnf` | 6.78 G → 6.22 G (−8 %) | 259 → 336 | 19 → 15 | 2 → 0 | none |
+| `Bridge/Grind`, `GrindAttr` (new) | 3.86 G (mostly imports) | 120 | | | one `register_grind_attr` |
+
+Lemmas: 11 restated (the six miss lemmas `CheckOK.insert*At` take the
+answer atom; the three loop exits `whnfLoop_*_ex` → `_eq`;
+`SimE.of_whnfLoop` takes the loop's answer whole; `whnfLoop_spec`'s post is
+an `Ans` atom), 7 registered unchanged (the six hit lemmas, the `whnf` stuck
+lemma), 5 added in the walks (`SimE.inv`, `SimOOp.some_inv`/`none_inv`, two
+`Ans`-shaped adapters of the callees `reduceNat_spec`/`unfoldDefinition_spec`
+— in a full conversion those specs would be stated so), 2 deleted
+(`SimE.intro`, `SimV.intro`), and `view_bind_triple` is a `triple_seq` term
+(its `vc_arm` gone).  Everything builds (`lake build ConRonBridge`), no
+`sorry`, no new axioms (census unchanged), no warnings.
+
+**Calibration on the hard class** (scratch only, not landed:
+`_tmp/t122-a99ebf1ea732/SpineGrindExperiment.lean`).  `Spine`'s
+`sameConstHeads_spec` — 9 conditions, two subjects dispatched by tag and
+view, the pure side a nested `match` — is where #121 measured `grind` at
+335 G.  With `sym` and NO walk vocabulary: 0/9 closed, 472 G with raised
+limits.  With 14 vocabulary lemmas — the view inversions and the tag as
+`Ans` atoms (`denote_app_ans`, `denote_const_ans`, `tag_ans`,
+`view_tag_ans`), `ENodeView.tagOf`'s two inversions, `sameConstHeads` as
+tag-guarded equations plus a `constName?` form of its `match`, the name
+test as an equation of `Option`s: 7/9 closed; the two head-is-constant arms
+run into `grind`'s case-split limit (9), and raising it to 16 (213 G for
+the file) still fails; the theorem costs ~113 G against `bridge_auto`'s 3 G.  The memo
+wrappers and the loop are cheaper under `grind` because their arms are
+already lemma-shaped; a dispatch walk's arms are constructor case analysis
+on both sides, and `grind` explores it by case splits on the disjunctions
+the `Ans` instances and the negated conjunctive goal create.
+
+**A full conversion of the twenty modules** (18 left: 176 closer calls, 14
+`vc_arm`s, ~313 entries in their lemma lists; plus `ExprOps/{Guards,Ranges,
+InstLP,Spine}` and `Frame.lean` among the 23 files that still use the
+tactic):
+
+* the generic vocabulary, once: the ten view inversions and the tag as
+  `Ans` atoms, `tagOf`'s inversions, the `RelE`/`RelV`/`RelEO`/`SimOOp`
+  answer relations as `Ans` equations (`RelE f st c st' r = Ans (…)
+  (denoteE st c)` is `rfl`) — ~40 lemmas;
+* every spec whose post has the answer shape restated with `Ans` (a
+  definitional change, but it moves bottom-up through the import order:
+  a caller's `bridge_auto` sees a new head);
+* ~313 arm lemmas restated by the rules above (most mechanically: a
+  callee's answer as one premise, `isOk` premises, equations), and a
+  tag-guarded equation family per pure function a dispatch walk compares
+  against (`sameConstHeads`, `reduceNat`'s guards, the `Expr` views of
+  Subst/Abs/Inst1/Leaves);
+* risk: the dispatch walks (Spine, Nat, Subst, Proj, StrLit, PropRead —
+  the expensive half of #120's table) are exactly where `grind`'s case
+  splitting blows up; until a strategy for them exists (smaller conditions
+  from `vcgen` — the conjunctive postcondition is one goal today —, or
+  `grind` splitting on the subject's constructor once instead of on every
+  disjunction), they would stay on `bridge_auto` or cost 10–100×.
+
+**Recommendation.**  Frames: no (above).  `grind` in `SymM`: yes, it is the
+better closer for walks whose arms are lemma-shaped — Memo and Whnf are
+cheaper, shorter, and need no custom code — and the same idiom should reach
+`Arms/Infer`, `Arms/InferIO`, `Walks/Cached`, `Walks/Owed`, `Walks/Guards`,
+`ExprOps/MemoSpecs`, `ExprOps/Walks` with modest vocabulary.  For the
+dispatch walks the gating experiment is Spine's nine conditions: close them
+under ~2× `bridge_auto` (case-split strategy, condition splitting, or an
+upstream `grind` feature) before committing to a full conversion; until
+then the two closers coexist, `bridge_auto` shrinking as modules move.
+
+**Reproducers** (`_tmp/t122-repro-a99ebf1ea732/`, plain Lean at this
+toolchain, no project imports — copy them out before
+`scripts/drop-worktree.sh`, which deletes `_tmp/*-<key>`):
+`Frames.lean` — `of_conjunctive`'s premise at `E = ⊥` for a throwing program
+(the condition left is `⊥ "no"`), and `of_top`; `FrameProc.lean` — the
+`growsFP` frame procedure and the 1 → 7 condition count.  No bug in `vcgen`,
+`grind` or `Sym` was found; a first version of `growsFP` declined on the
+first call of every program because a binder's type was still an assigned
+metavariable (`instantiateMVars` fixes it — worth a line in the frameproc
+protocol notes).

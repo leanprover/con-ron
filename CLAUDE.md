@@ -194,7 +194,11 @@ section for every task you land.
   bridge_auto [lemmas] unfolding [pure functions]`, the mathematics in small
   pure lemmas stated in the shape the verification condition has (goal's
   orientation; a declining exit concludes the postcondition); `vc_arm (h :
-  T) … ⊢ t => tac`, keyed by a branch condition, only for real reasoning.  The tactics' meta code is `ConRon/BridgeTactic.lean`
+  T) … ⊢ t => tac`, keyed by a branch condition, only for real reasoning.
+  Task #122's spike adds the toolchain idiom, `sym only [bridge_grind] =>
+  vcgen […] <;> finish` (`Core/Memo.lean`, `Core/Arms/Whnf.lean`; the
+  vocabulary and the rules for a `grind` lemma in `Bridge/Grind.lean` and
+  DESIGN `### Task #122`).  The tactics' meta code is `ConRon/BridgeTactic.lean`
   (a precompiled library: `lake env lean` needs
   `--load-dynlib=.lake/build/lib/libcon_x2dron_ConRonBridgeTactic.so` to run
   it natively).
