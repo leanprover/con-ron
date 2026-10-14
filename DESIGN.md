@@ -68714,7 +68714,7 @@ next to them, all `@[bridge_grind]`):
    denoteE st' h = denoteE st h`, multi-pattern `st ≤ st', denoteE st h`;
    congruence closure carries every denotation along the chain.
 3. *Answers about an optional subject as atoms*: `Ans P o := ∀ e, o = some e
-   → P e` with the two equations `Ans P (some e) = P e`, `Ans P none = True`.
+   → P e` with the one equation `Ans P (some e) = P e`.
    A post that does not know its subject's denotation states `Ans (fun e =>
    …) (denoteE s₀.store i)` — definitionally the old `∀ e, denoteE … = some
    e → …`, but as a hypothesis the old spelling's only pattern is `some e`,
@@ -68811,7 +68811,8 @@ an `Ans` atom), 7 registered unchanged (the six hit lemmas, the `whnf` stuck
 lemma), 5 added in the walks (`SimE.inv`, `SimOOp.some_inv`/`none_inv`, two
 `Ans`-shaped adapters of the callees `reduceNat_spec`/`unfoldDefinition_spec`
 — in a full conversion those specs would be stated so), 2 deleted
-(`SimE.intro`, `SimV.intro`), and `view_bind_triple` is a `triple_seq` term
+(`SimE.intro`, `SimV.intro`; and `Frame.lean`'s `denoteEO_ext`, which only
+the old loop proof reached — the dead-census gate), and `view_bind_triple` is a `triple_seq` term
 (its `vc_arm` gone).  Everything builds (`lake build ConRonBridge`), no
 `sorry`, no new axioms (census unchanged), no warnings.
 
@@ -68876,3 +68877,8 @@ toolchain, no project imports — copy them out before
 first call of every program because a binder's type was still an assigned
 metavariable (`instantiateMVars` fixes it — worth a line in the frameproc
 protocol notes).
+
+**State.**  Landable: `LAKE_JOBS=4 scripts/gates.sh` on the tip is green
+(the dead-census step after `Ans.none_eq` was deleted — `grind` never needed
+it — and `Frame.lean`'s `denoteEO_ext` was allowlisted: `bridge_auto`'s
+search needs it in `PropRead`, no proof term names it).

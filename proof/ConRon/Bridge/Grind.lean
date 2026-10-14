@@ -26,10 +26,10 @@ module's vocabulary and the walks' own arm lemmas, all registered with
    closure carries every denotation along the chain.
 3. **Answers about an optional subject as atoms.**  A spec that does not
    know its subject's denotation states `Ans P (denoteE st i)` — whatever `i`
-   denotes satisfies `P`.  `Ans` is never unfolded: its two equations
-   (`Ans P (some e) = P e`, `Ans P none = True`) fire when congruence closure
-   learns which constructor the denotation is, and e-matching binds `e` from
-   the subject's equivalence class.  (The `∀ e, denoteE st i = some e → P e`
+   denotes satisfies `P`.  `Ans` is never unfolded: its equation
+   `Ans P (some e) = P e` fires when congruence closure learns that the
+   denotation is a `some`, and e-matching binds `e` from the subject's
+   equivalence class.  (The `∀ e, denoteE st i = some e → P e`
    spelling it replaces is the same proposition, but as a hypothesis its
    only pattern is `some e`, which matches every `some` in the context.)
 4. **The state invariant's projections** (`CheckOK → StateOK → StoreWF`).
@@ -80,10 +80,6 @@ def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some 
 @[bridge_grind =] theorem Ans.some_eq {α : Type} (P : α → Prop) (e : α) :
     Ans P (some e) = P e :=
   propext ⟨fun h => h e rfl, fun h _ he => Option.some.inj he ▸ h⟩
-
-/-- con-leche: none — `Ans` at a subject that does not denote. -/
-@[bridge_grind =] theorem Ans.none_eq {α : Type} (P : α → Prop) : Ans P none = True :=
-  propext ⟨fun _ => trivial, fun _ _ he => nomatch he⟩
 
 /-! ## 4. The state invariant's projections, and small facts -/
 
