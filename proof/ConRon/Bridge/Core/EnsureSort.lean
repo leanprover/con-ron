@@ -1,22 +1,21 @@
 /-
 # `ConRon.Bridge.Core.EnsureSort` — the seventh entry point
 
-Task #97-P3-CoreWalks, ask 2 of the Checker tier.  `Arena/Core.lean` has
-SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
+`Arena/Core.lean` has SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
 top of the knot (`ensureSort (pureFnsA mode fe fuel) fe depth e`) rather than
 being one of its fields, so `Bridge/Core/Knot.lean`'s `KnotSpec` does not
-cover it — and the declaration front door calls it at every constant, which
-is why `Bridge/Checker/Hyp.lean` had to carry `EnsureSortSpec` as a second
-named hypothesis beside `KnotSpec`.
+cover it — and the declaration front door calls it at every constant, so
+`Bridge/Checker/Hyp.lean` states `EnsureSortSpec` as a second named
+hypothesis beside `KnotSpec`.
 
-This module discharges it.  It is one `whnf` call and a tag test: the
-theorem is `KnotSpec.whnf` followed by `Bridge/Rel.lean`'s `denote_sort_inv`,
-and the pure side is con-leche's own `ensureSort_def` (`Verify/Knot.lean:215`,
-which is `rfl`).
+This module discharges it.  It is one `whnf` call and a tag test: the proof
+is `vcgen` over `KnotSpec.whnf` and `grind` with the exit lemma
+`SimL.of_whnfSort` (`Bridge/Rel.lean`'s `denote_sort_inv`, and con-leche's
+own `ensureSort_def`, `Verify/Knot.lean:215`, which is `rfl`).
 
 **Why it is its own module rather than a line in `Bridge/Core/Induction.lean`.**
 `Bridge/Checker/Hyp.lean` imports `Core.Induction` for `knot_spec_checkFuel`;
-it now imports this too, and keeping the two apart means the Checker tier's
+it imports this too, and keeping the two apart means the Checker tier's
 import closure does not grow by the six `Arms/` modules a second time.  It
 takes `KnotSpec` as a HYPOTHESIS, so it needs `Core/Knot.lean` and nothing
 else — the same discipline `Bridge/Core/Arms/*.lean` follow.
@@ -63,6 +62,20 @@ theorem ensureSortCore_of_whnf {F d : Nat} {e : Expr} {l : Level}
   simp only [ConLeche.ensureSort, ConLeche.whnf_def] at h ⊢
   simp only [h, bind, Except.bind, pure, Except.pure]
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1101-1107 ensureSort — the entry's
+exit as an answer: the `whnf` slot answered a handle whose view is a sort, so
+the level handle is the `ensureSortCore` answer.  Keyed by the goal and the
+slot's answer at the same store. -/
+theorem SimL.of_whnfSort {st : EStore} {r : EIdx} {u : LIdx} {d : Nat} {e : Expr}
+    (hs : SimE (ConLeche.whnf mode env) d e st r) (hwf : StoreWF st)
+    (hv : st.view r = some (.sort u)) :
+    SimL (ConLeche.ensureSortCore mode env) d e st u := by
+  obtain ⟨v, hd, _, F, hF⟩ := hs
+  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hd
+  exact ⟨l, hl, F, ensureSortCore_of_whnf hF⟩
+grind_pattern [bridge_grind] SimL.of_whnfSort =>
+  SimL (ConLeche.ensureSortCore mode env) d e st u, SimE (ConLeche.whnf mode env) d e st r
+
 /-! ## 3. The entry's theorem -/
 
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore —
@@ -82,25 +95,18 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄ := by
-  have hb := hsim.whnf s₀ d i e hok hden hw
   unfold ConRon.Arena.ensureSortCore ConRon.Arena.pureFnsA
-  vcgen [ConRon.Arena.ensureSort, hb]
-  -- the one verification condition: the reduct is a sort (both failing
-  -- branches have native specs and leave none)
-  bridge_peel; subst_vars
-  rename_i hck hsm hxt hpn hvw
-  refine ⟨hck, hxt, hpn, ?_⟩
-  obtain ⟨v, hv, _hwv, F, hF⟩ := hsm
-  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hck.state.wf hvw hv
-  exact ⟨l, hl, F, ensureSortCore_of_whnf hF⟩
+  -- both failing branches have native specs and leave no condition; the
+  -- sort exit is `SimL.of_whnfSort`
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.ensureSort, hsim.whnf s₀ d i e hok hden hw] <;> finish
 
 /-! ## 4. The axiom census -/
 
 section Census
 
 #print axioms ensureSortCore_of_whnf
-/-! **The seventh entry point, sorry-free**: the Checker tier's
-`EnsureSortSpec` is discharged outright (task #97-P3-CoreWalks, ask 2). -/
+#print axioms SimL.of_whnfSort
 #print axioms ensureSortCore_spec
 
 end Census

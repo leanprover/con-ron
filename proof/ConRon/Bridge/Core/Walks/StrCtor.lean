@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.StrCtor` — a string literal's constructor form
 
-Task #97-P3-Core round 5.  `strLitToConstructor` (`Arena/Core.lean:556`) builds
+`strLitToConstructor` (`Arena/Core.lean:598`) builds
 the `String.ofList (List.cons … (List.nil Char))` spine of a string literal in
 the store; con-leche's `strLitToConstructor` (`Kernel/CoreDefs.lean:288-299`)
 is the same term as a `foldr`.  Two of the tier's walks read it: the `.proj`
@@ -9,6 +9,10 @@ clause's `projLitToCtor` (and `litMajorToCtor`, the ι major's), and the
 `defeq` step's two string-literal congruence exits.  It is the first rule of
 this tier whose postcondition is a genuine `Ext` built by a RECURSION of
 interns (`strLitConsSpine`), which is why it is a module of its own.
+
+The recursion is `sym only [bridge_grind, …] => vcgen [strLitConsSpine, ih,
+internE_specC] <;> finish` per list cell (`strSpineE_nil`/`_cons`); the
+walk itself is staged over its sixteen calls.
 -/
 import ConRon.Bridge.Core.Walks.Nat
 
@@ -40,6 +44,16 @@ theorem internE_ok_spec (s₀ : AState) (w : ENodeView)
 def strSpineE (cx ox nx : Expr) (cs : List Char) : Expr :=
   cs.foldr (fun c e => .app (.app cx (.app ox (.lit (.natVal c.toNat)))) e) nx
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor — the
+empty spine. -/
+theorem strSpineE_nil (cx ox nx : Expr) : strSpineE cx ox nx [] = nx := rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor — one
+character in front of the rest. -/
+theorem strSpineE_cons (cx ox nx : Expr) (c : Char) (cs : List Char) :
+    strSpineE cx ox nx (c :: cs) =
+      .app (.app cx (.app ox (.lit (.natVal c.toNat)))) (strSpineE cx ox nx cs) := rfl
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor —
 **THEOREM 1 for the spine recursion** `strLitConsSpine`: one character per
 level, four interns each. -/
@@ -55,47 +69,13 @@ theorem strLitConsSpine_spec (cons ofNat nilE : EIdx) (cx ox nx : Expr) :
   induction cs with
   | nil =>
     intro s₀ hok _ _ hn
-    vcgen [ConRon.Arena.strLitConsSpine]
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, hn⟩
+    sym only [bridge_grind, strSpineE_nil] =>
+      vcgen [ConRon.Arena.strLitConsSpine] <;> finish
   | cons c cs ih =>
     intro s₀ hok hc ho hn
-    unfold ConRon.Arena.strLitConsSpine
-    refine triple_seq (ih s₀ hok hc ho hn) ?_
-    rintro rest s1 ⟨hok1, hx1, hp1, hrest⟩
-    refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s1 (.lit (.natVal c.toNat)) hok1 viewOK_lit) ?_
-    rintro lit s2 ⟨hok2, hx2, hp2, hlit⟩
-    have ho2 := denote_ext ho (hx1.trans hx2)
-    have hlit' : denoteE s2.store lit = some (.lit (.natVal c.toNat)) := by
-      rw [hlit]; rfl
-    refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s2 (.app ofNat lit) hok2 (viewOK_app (by rw [ho2]; rfl)
-        (by rw [hlit']; rfl))) ?_
-    rintro ch s3 ⟨hok3, hx3, hp3, hch⟩
-    have hch' : denoteE s3.store ch =
-        some (.app ox (.lit (.natVal c.toNat))) := by
-      rw [hch]
-      simp only [denoteEView, denote_ext ho2 hx3, denote_ext hlit' hx3, opt2]
-    have hc3 := denote_ext hc (hx1.trans (hx2.trans hx3))
-    refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s3 (.app cons ch) hok3 (viewOK_app (by rw [hc3]; rfl)
-        (by rw [hch']; rfl))) ?_
-    rintro f s4 ⟨hok4, hx4, hp4, hf⟩
-    have hf' : denoteE s4.store f =
-        some (.app cx (.app ox (.lit (.natVal c.toNat)))) := by
-      rw [hf]
-      simp only [denoteEView, denote_ext hc3 hx4, denote_ext hch' hx4, opt2]
-    have hrest4 := denote_ext hrest (hx2.trans (hx3.trans hx4))
-    refine triple_mono (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s4 (.app f rest) hok4 (viewOK_app (by rw [hf']; rfl)
-        (by rw [hrest4]; rfl))) ?_
-    rintro r s5 ⟨hok5, hx5, hp5, hr⟩
-    refine ⟨hok5, hx1.trans (hx2.trans (hx3.trans (hx4.trans hx5))),
-      hp5.trans (hp4.trans (hp3.trans (hp2.trans hp1))), ?_⟩
-    rw [hr]
-    simp only [denoteEView, denote_ext hf' hx5, denote_ext hrest4 hx5, opt2,
-      strSpineE, List.foldr_cons]
+    sym only [bridge_grind, strSpineE_cons] =>
+      vcgen [ConRon.Arena.strLitConsSpine, ih,
+        internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor —
 **THEOREM 1 for `strLitToConstructor`**: the handle the twin builds denotes
