@@ -650,7 +650,14 @@ theorem view_isSome_of_isSome {st : EStore} {h : EIdx} (hd : (denoteE st h).isSo
   exact view_isSome_of_denote he
 grind_pattern [bridge_grind] view_isSome_of_isSome => (st.view h).isSome
 
-attribute [bridge_grind →] nview_isSome_of_denote
+/-- con-leche: none — a denoting NAME handle has a view (the `isSome` a
+projection intern asks for), keyed by that view's `isSome`. -/
+theorem nview_isSome_of_isSome {st : NStore} {c : NIdx} (hd : (denoteN st c).isSome = true) :
+    (st.view c).isSome = true := by
+  obtain ⟨nm, hn⟩ := Option.isSome_iff_exists.mp hd
+  exact nview_isSome_of_denote hn
+grind_pattern [bridge_grind] nview_isSome_of_isSome => (NStore.view st c).isSome
+
 attribute [bridge_grind ←] viewOK_bvar viewOK_app viewOK_lam viewOK_forallE viewOK_letE
   viewOK_proj
 attribute [bridge_grind =] denoteEView.eq_1 denoteEView.eq_5 denoteEView.eq_6
