@@ -135,6 +135,7 @@ structural gap; everything else on this list is labour.**
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -332,16 +333,15 @@ whose answer shape it needs. -/
 The two list inversions, the four pure-side step equations, the induction
 itself, and the caller-facing statement derived from it.
 
-**The statement the induction runs on is not the one `Owed.lean` published**,
-and for finding 5.2's reason one step further out: at the recursive call the
-subjects `as'` and `bs'` are known but their DENOTATIONS are not — the state
+**The induction runs at given denotations** (task #123; until then it ran
+on the ∃/∀ shape of `defEqList_go`): the recursive call's lists are the
+TAILS of the denotations the cons arm opens before the walk, so the induction
+hypothesis goes into `vcgen`'s list instantiated at them, and `vcgen` has
+nothing to guess.  (Finding 5.2's problem — at the recursive call the state
 has moved, so `denoteEList s'.store as' = some ?xs` arrives with a
-metavariable and `mvcgen` guesses `?xs := xs`, the whole list.  So
-`defEqList_go` takes the two denotations as existentials and hands them back
-as universals — the primed shape of `Bridge/Core/Knot.lean`'s six slots, at a
-walk rather than a slot — and `defEqList_spec` below is four lines over it.
-The rule generalises: *the ∃/∀ shape is not about knot slots, it is about
-every recursive call whose state has moved.* -/
+metavariable that `mvcgen` guessed as the whole list — is gone with it.)
+`defEqList_go`, the ∃/∀ shape a caller whose state has moved needs, and
+`defEqList_spec` are both stated over `defEqList_specA`. -/
 
 /-- con-leche: none — the empty handle list denotes the empty list. -/
 theorem denoteEList_nil_inv {st : EStore} {xs : List Expr}
@@ -385,50 +385,140 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
     Except.bind]
   rfl
 
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+
+/-- con-leche: none — the empty handle list denotes the empty list. -/
+@[bridge_grind =] theorem denoteEList_nil_eq (st : EStore) :
+    Frontend.denoteEList st [] = some [] := rfl
+
+/-- con-leche: none — a cons of handles, as an `Ans` atom about its
+denotation (`Bridge/Grind.lean` §3): whatever it denotes is the cons of the
+head's and the tail's denotations. -/
+theorem denoteEList_cons_ans (st : EStore) (a : EIdx) (as : List EIdx) :
+    Ans (fun xs => ∃ x xs', denoteE st a = some x ∧
+      Frontend.denoteEList st as = some xs' ∧ xs = x :: xs')
+      (Frontend.denoteEList st (a :: as)) :=
+  fun _ h => denoteEList_cons_inv h
+grind_pattern [bridge_grind] denoteEList_cons_ans => Frontend.denoteEList st (a :: as)
+
+/-- con-leche: none — `denoteEList_ext` as an equation (`Bridge/Grind.lean`'s
+`denote_le` at a handle list). -/
+theorem denoteEList_le {st st' : EStore} {l : List EIdx} (hx : st ≤ st')
+    (hd : Frontend.denoteEList st l ≠ none) :
+    Frontend.denoteEList st' l = Frontend.denoteEList st l := by
+  obtain ⟨xs, hxs⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [hxs]; exact denoteEList_ext hx _ _ hxs
+grind_pattern [bridge_grind] denoteEList_le => st ≤ st', Frontend.denoteEList st l
+
+/-! #### The four exits as `grind` lemmas (tasks #120, #121, #123)
+
+The answer is stated about `defEqListOp`, con-leche's walk at a pair of
+lists as ONE term: the lists are then subterms `grind` can match (inside the
+`fun F => …` of the published statement they are not), and each exit below
+is a lemma whose every variable occurs in its pattern.  The published
+statements are the same propositions (`defEqListOp` unfolds to the `fun`). -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — con-leche's
+walk at a pair of argument lists, as a fuelled run (an atom for `grind`). -/
+def defEqListOp (mode : CheckMode) (env : Env) (d : Nat) (xs ys : List Expr) :
+    Nat → CheckM Bool :=
+  fun F => ConLeche.defEqListFueled mode env F d xs ys
+
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the two empty
-lists, as the answer relation (at any fuel; task #121: the exit as a lemma in
-the shape the verification condition has). -/
+lists (at any fuel). -/
 theorem defEqList_nil_nil_sim {d : Nat} :
-    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d [] []) true :=
+    SimBOp (defEqListOp mode env d [] []) true :=
   ⟨0, rfl⟩
+grind_pattern [bridge_grind] defEqList_nil_nil_sim => defEqListOp mode env d [] []
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — lists of
 different lengths, the left one empty. -/
 theorem defEqList_nil_cons_sim {d : Nat} {y : Expr} {ys : List Expr} :
-    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d [] (y :: ys)) false :=
+    SimBOp (defEqListOp mode env d [] (y :: ys)) false :=
   ⟨0, rfl⟩
+grind_pattern [bridge_grind] defEqList_nil_cons_sim => defEqListOp mode env d [] (y :: ys)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — lists of
 different lengths, the right one empty. -/
 theorem defEqList_cons_nil_sim {d : Nat} {x : Expr} {xs : List Expr} :
-    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d (x :: xs) []) false :=
+    SimBOp (defEqListOp mode env d (x :: xs) []) false :=
   ⟨0, rfl⟩
+grind_pattern [bridge_grind] defEqList_cons_nil_sim => defEqListOp mode env d (x :: xs) []
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the cons/cons
-arm, heads agreeing, as the answer relation at the larger fuel (task #120:
-the fuel merge as a lemma in the shape the verification condition has). -/
-theorem defEqList_cons_true_sim {F₁ F₂ d : Nat} {x y : Expr}
+arm, heads agreeing: the verdict is the tails', the head's and the tail's
+fuels merged (`isDefEqCore_mono`, `defEqListFueled_mono`).  Both premises are
+the callees' answer atoms. -/
+theorem defEqList_cons_true_sim {d : Nat} {x y : Expr}
     {xs ys : List Expr} {r : Bool}
-    (h : ConLeche.isDefEqCore mode env F₁ d x y = .ok true)
-    (ht : ConLeche.defEqList (pureFns mode env F₂) env d xs ys = .ok r) :
-    SimBOp (fun F => ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys)) r :=
+    (h : SimV (ConLeche.isDefEqCore mode env) d x y true)
+    (ht : SimBOp (defEqListOp mode env d xs ys) r) :
+    SimBOp (defEqListOp mode env d (x :: xs) (y :: ys)) r :=
+  let ⟨F₁, h⟩ := h
+  let ⟨F₂, ht⟩ := ht
   ⟨max F₁ F₂, defEqListFueled_cons_true
     (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) h)
     (defEqListFueled_mono (Nat.le_max_right _ _) ht)⟩
+grind_pattern [bridge_grind] defEqList_cons_true_sim =>
+  SimV (ConLeche.isDefEqCore mode env) d x y true, SimBOp (defEqListOp mode env d xs ys) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
-disagree: the verdict is the head comparison's. -/
-theorem defEqList_cons_false_sim {F d : Nat} {x y : Expr}
-    {xs ys : List Expr} {r : Bool} (hnb : ¬ r = true)
-    (h : ConLeche.isDefEqCore mode env F d x y = .ok r) :
-    SimBOp (fun F => ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys)) false := by
-  obtain rfl : r = false := by cases r <;> simp_all
-  exact ⟨F, defEqListFueled_cons_false h⟩
+disagree: so do the spines. -/
+theorem defEqList_cons_false_sim {d : Nat} {x y : Expr} {xs ys : List Expr}
+    (h : SimV (ConLeche.isDefEqCore mode env) d x y false) :
+    SimBOp (defEqListOp mode env d (x :: xs) (y :: ys)) false :=
+  let ⟨F, h⟩ := h
+  ⟨F, defEqListFueled_cons_false h⟩
+grind_pattern [bridge_grind] defEqList_cons_false_sim =>
+  SimV (ConLeche.isDefEqCore mode env) d x y false, defEqListOp mode env d (x :: xs) (y :: ys)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
-induction**, in the ∃/∀ shape the recursive call forces (see the section
-note).  Four arms; the cons/cons arm has eight verification conditions and the
-fuel merge. -/
+induction**, at given denotations (`defEqListOp`'s answer).  The recursive
+call's lists are the tails of THESE denotations, so the induction hypothesis
+goes into `vcgen`'s list instantiated at them (task #122's rule for a
+parameter the program does not name). -/
+theorem defEqList_specA {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+    ∀ (as bs : List EIdx) (xs ys : List Expr) (s₀ : AState),
+      CheckOK mode env fe s₀ →
+      Frontend.denoteEList s₀.store as = some xs →
+      Frontend.denoteEList s₀.store bs = some ys →
+      (∀ x ∈ xs, Expr.WScoped d x) → (∀ y ∈ ys, Expr.WScoped d y) →
+      ⦃fun s => s = s₀⦄
+        ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ SimBOp (defEqListOp mode env d xs ys) r; ⊤⦄ := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ys s₀ hok hda hdb _ _
+    cases bs <;>
+    sym only [bridge_grind] => vcgen [ConRon.Arena.defEqList.eq_def] <;> finish
+  | cons a as' ih =>
+    intro bs xs ys s₀ hok hda hdb hwx hwy
+    cases bs with
+    | nil =>
+      clear ih hwx hwy
+      sym only [bridge_grind] => vcgen [ConRon.Arena.defEqList.eq_def] <;> finish
+    | cons b bs' =>
+      -- the two lists' heads and tails, before the walk: the recursive call
+      -- is at the tails' denotations
+      obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons_inv hda
+      obtain ⟨y, ys', hy, hys', rfl⟩ := denoteEList_cons_inv hdb
+      have hwx0 : Expr.WScoped d x := hwx x (by simp)
+      have hwy0 : Expr.WScoped d y := hwy y (by simp)
+      -- the induction hypothesis at the tails, and nothing quantified left in
+      -- the context for `grind` to instantiate
+      have step := fun s₁ h1 h2 h3 =>
+        ih bs' xs' ys' s₁ h1 h2 h3 (fun z hz => hwx z (by simp [hz]))
+          (fun z hz => hwy z (by simp [hz]))
+      clear ih hwx hwy
+      sym only [bridge_grind] =>
+        vcgen [ConRon.Arena.defEqList, hsim.defeq s₀ d a b x y hok hx hy hwx0 hwy0,
+          step] <;> finish
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
+induction**, in the ∃/∀ shape a caller whose state has moved needs (see the
+section note): `defEqList_specA` at the denotations it is handed. -/
 theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     ∀ (as bs : List EIdx) (s₀ : AState),
       CheckOK mode env fe s₀ →
@@ -443,46 +533,21 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
           ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
             Frontend.denoteEList s₀.store bs = some ys →
             SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r; ⊤⦄ := by
-  intro as
-  induction as with
-  | nil =>
-    intro bs s₀ hok hda hdb
-    cases bs with
-    | nil =>
-      vcgen [ConRon.Arena.defEqList]
-      bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv, defEqList_nil_nil_sim]
-    | cons b bs' =>
-      vcgen [ConRon.Arena.defEqList.eq_def]
-      bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv, defEqList_nil_cons_sim]
-  | cons a as' ih =>
-    intro bs s₀ hok hda hdb
-    cases bs with
-    | nil =>
-      vcgen [ConRon.Arena.defEqList.eq_def]
-      bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv, defEqList_cons_nil_sim]
-    | cons b bs' =>
-      have hdq := hsim.defeq'
-      -- the two lists' heads and tails, before the walk: every precondition
-      -- of the two calls is then a transported fact
-      obtain ⟨xs, hxs, hwx⟩ := hda
-      obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons_inv hxs
-      obtain ⟨ys, hys, hwy⟩ := hdb
-      obtain ⟨y, ys', hy, hys', rfl⟩ := denoteEList_cons_inv hys
-      have hwx0 : Expr.WScoped d x := hwx x (by simp)
-      have hwy0 : Expr.WScoped d y := hwy y (by simp)
-      have hwxs : ∀ z ∈ xs', Expr.WScoped d z := fun z hz => hwx z (by simp [hz])
-      have hwys : ∀ z ∈ ys', Expr.WScoped d z := fun z hz => hwy z (by simp [hz])
-      vcgen [ConRon.Arena.defEqList, hdq, ih]
-      all_goals (bridge_peel; subst_vars)
-      bridge_auto [defEqList_cons_true_sim, defEqList_cons_false_sim]
+  intro as bs s₀ hok ⟨xs, hxs, hwx⟩ ⟨ys, hys, hwy⟩
+  -- the answer over `defEqListOp` (the same proposition)
+  show ⦃fun s => s = s₀⦄ ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
+          Frontend.denoteEList s₀.store bs = some ys →
+          SimBOp (defEqListOp mode env d xs ys) r; ⊤⦄
+  sym only [bridge_grind] =>
+    vcgen [defEqList_specA hsim d as bs xs ys s₀ hok hxs hys hwx hwy] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
-**CLOSED** (round 3), at the published statement, over `defEqList_go`'s
-induction.
+**CLOSED** (round 3), at the published statement: `defEqList_specA`, whose
+answer is the same proposition.
 
 DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 named the fuel merge as the one
 thing this walk was missing beyond the induction; `Walks/Mono.lean`'s
@@ -499,11 +564,8 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys)
-          r; ⊤⦄ := by
-  have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
+          r; ⊤⦄ :=
+  defEqList_specA hsim d as bs xs ys s₀ hok hda hdb hwa hwb
 
 /-! ## 6. The axiom census
 

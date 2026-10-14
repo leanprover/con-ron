@@ -30,6 +30,7 @@ named slot.
 -/
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -74,41 +75,69 @@ theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; rfl
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
 
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+
+/-- con-leche: none — **a `const`-tagged handle**, as an `Ans` atom about its
+denotation (`Bridge/Grind.lean` §3): its view is a constant, and whatever it
+denotes is that constant's denotation. -/
+theorem denote_tag_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    (ht : h.tag = ETag.const) :
+    Ans (fun e => ∃ n us nm ls, st.view h = some (.const n us) ∧
+      e = .const nm ls ∧ denoteN st.ns n = some nm ∧
+      denoteLs st.lss us = some ls) (denoteE st h) := by
+  intro e he
+  obtain ⟨v, hv⟩ := denoteE_view he
+  have htv := EStore.tagOf_of_view hv
+  cases v with
+  | const n us =>
+    obtain ⟨nm, ls, rfl, hn, hl⟩ := denote_const_inv hwf hv he
+    exact ⟨n, us, nm, ls, hv, rfl, hn, hl⟩
+  | _ => rw [ht] at htv; simp [ENodeView.tagOf, ETag.const] at htv <;> contradiction
+grind_pattern [bridge_grind] denote_tag_const => denoteE st h, h.tag
+
+/-! ### The arms as `grind` lemmas (tasks #120, #123)
+
+Each exit of the twin is one lemma in the shape its verification condition
+has, registered with `@[bridge_grind]`; `isBoolTrue_spec` is then `vcgen` with
+`finish`.  The subject's constant view comes from `denote_tag_const` (the
+tag test the twin makes first), and con-leche's `isBoolTrue` is met at a
+constant by the two lemmas for its universe-argument and name tests. -/
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
-tag-first twin's `else` arm: a handle whose TAG is not `const` (task #120:
-in the shape `bridge_fwd` instantiates from the arm's own hypotheses). -/
+tag-first twin's `else` arm: a handle whose TAG is not `const`. -/
 theorem isBoolTrue_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
-    (he : denoteE st h = some e) (ht : ¬ (h.tag == ETag.const) = true) :
+    (he : denoteE st h = some e) (ht : ¬ h.tag = ETag.const) :
     ConLeche.Expr.isBoolTrue e = false := by
   obtain ⟨v, hv⟩ := denoteE_view he
   exact isBoolTrue_of_not_const hwf hv he
-    (fun c us hh => view_tagOf_ne hv (t := ETag.const) ht (by rw [hh]; rfl))
+    (fun c us hh => view_tagOf_ne hv (t := ETag.const) (by simpa using ht)
+      (by rw [hh]; rfl))
+grind_pattern [bridge_grind] isBoolTrue_of_tag =>
+  ConLeche.Expr.isBoolTrue e, denoteE st h
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
 universe-argument test fails: the handle is not the empty-levels pin, so the
-denoted list is not `[]` (task #120: the arm as a lemma in the shape the
-verification condition has). -/
+denoted list is not `[]` (`denoteLs_inj`: index inequality IS structural
+inequality). -/
 theorem isBoolTrue_levels {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
-    {n : ConLeche.Name} {l : List Level} (hne : (u != e) = true)
+    {n : ConLeche.Name} {l : List Level} (hne : ¬ u = e)
     (hus : denoteLs st.lss u = some l) (hel : denoteLs st.lss e = some []) :
-    false = ConLeche.Expr.isBoolTrue (.const n l) := by
+    ConLeche.Expr.isBoolTrue (.const n l) = false := by
   obtain ⟨rk, hrk⟩ := hwf
   cases l with
-  | nil => exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
+  | nil => exact absurd (denoteLs_inj hrk.lss hus hel) hne
   | cons a as => rfl
+grind_pattern [bridge_grind] isBoolTrue_levels =>
+  ConLeche.Expr.isBoolTrue (.const n l), denoteLs st.lss u, denoteLs st.lss e
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
 universe arguments are the empty list, and the name decides by handle
 (`denoteN_inj`: index equality IS name equality). -/
-theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
-    {c b : NIdx} {n : ConLeche.Name} {l : List Level} (hne : ¬ (u != e) = true)
-    (hus : denoteLs st.lss u = some l) (hel : denoteLs st.lss e = some [])
-    (hc : denoteN st.ns c = some n)
+theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {c b : NIdx}
+    {n : ConLeche.Name} (hc : denoteN st.ns c = some n)
     (hbtn : denoteN st.ns b = some ConLeche.boolTrueName) :
-    (c == b) = ConLeche.Expr.isBoolTrue (.const n l) := by
+    ConLeche.Expr.isBoolTrue (.const n []) = (c == b) := by
   obtain ⟨rk, hrk⟩ := hwf
-  obtain rfl : u = e := by simpa using hne
-  obtain rfl := eq_of_eq_some hus hel
   simp only [ConLeche.Expr.isBoolTrue]
   by_cases hb : n = ConLeche.boolTrueName
   · subst hb
@@ -120,13 +149,24 @@ theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
     have h2 : (n == ConLeche.boolTrueName) = false := by
       simp only [beq_eq_false_iff_ne]; exact hb
     rw [h1, h2]
+grind_pattern [bridge_grind] isBoolTrue_name =>
+  ConLeche.Expr.isBoolTrue (.const n []), denoteN st.ns c, denoteN st.ns b
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+the `Bool.true` pin, as the name it denotes (`pinAt_spec` at the named slot,
+`pinNames_boolTrue`). -/
+theorem boolTrueName_spec (s₀ : AState) (hp : PinsOK s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.boolTrueName
+    ⦃fun n s' => s' = s₀ ∧ denoteN s₀.store.ns n = some ConLeche.boolTrueName; ⊤⦄ := by
+  have hbt := pinNames_boolTrue
+  vcgen [ConRon.Arena.boolTrueName, pinBoolTrue] with finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
 **THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true` (the official
 kernel's `is_constant(e, Bool.true)`)?  CLOSED.
 
-Five verification conditions: two pin-table side goals (`PinsOK`, in hand),
-the universe-argument test, the name test, and the catch-all.  **Both tests
+Five verification conditions: the universe-argument test, the name test
+(both signs), the catch-all of the view match and the tag test.  **Both tests
 are DESIGN §8.3's "index inequality IS structural inequality" cashed** — the
 twin compares an `LsIdx` against the empty-levels pin and an `NIdx` against
 the `Bool.true` pin where con-leche compares a `List Level` against `[]` and
@@ -142,13 +182,11 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
     ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
-  have hp := hok.pins
-  have hbt := pinNames_boolTrue
-  vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
-    ConRon.Arena.boolTrueName, ConRon.Arena.pinBoolTrue]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [isBoolTrue_of_not_const, isBoolTrue_of_tag, isBoolTrue_levels,
-    isBoolTrue_name]
+  -- the pin table's invariant at the initial state: the two pin reads'
+  -- precondition (as a registered forward rule it would fire at every
+  -- `CheckOK` of every walk)
+  sym only [bridge_grind, hok.pins] =>
+    vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels, boolTrueName_spec] <;> finish
 
 /-! ## The axiom census -/
 
