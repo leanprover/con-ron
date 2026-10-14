@@ -170,8 +170,8 @@ theorem projTableName_specC (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
 stores a TABLE at the reserved name: the entry the arena answers with denotes
 con-leche's (`IFEnvOK.hit` at the reserved name, `denoteCI`'s `.projInfo` arm
-and `denoteProjTable_entry`).  Task #120: the hit arm as a lemma, in the
-shape `bridge_auto` applies. -/
+and `denoteProjTable_entry`).  Task #120: the hit arm as a lemma; since task
+#123 `findProjAt` reads all three as one equation. -/
 theorem findProj?_hit_some {s : AState} {rn : NIdx} {tbl : IProjTable}
     {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
     (hfind : fe.find? rn = some (.projInfo tbl))
