@@ -1995,69 +1995,38 @@
     96      (hrun : Arena.PooledAccepts μ pins ds s fe' s') :
     97      ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
 
-== proof/ConRon/Bridge/Specs.lean#L1-L62
+== proof/ConRon/Bridge/Specs.lean#L1-L31
      1  /-
      2  # `ConRon.Bridge.Specs` — one `@[spec]` theorem per `Monad.lean` primitive
      3  
-     4  The thing task #97s's spike exists to fix: **one spec theorem per (B)
-     5  primitive, in one shape**, so that the verification-condition generator
-     6  (`mvcgen` until task #111, `vcgen` since, on native `Std.WP` triples since
-     7  task #111 slice 2) can walk a twin's body without any store reasoning
-     8  appearing in the proof text.  The shape is the spike's
-     9  seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
-    10  
-    11  ```lean
-    12  @[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
-    13      ⦃fun s => s = s₀⦄ f args ⦃fun r s' => Post s₀ r s'; ⊤⦄
-    14  ```
-    15  
-    16  1. **the precondition is `s = s₀` and nothing else** — every real
-    17     precondition is an ordinary hypothesis of the theorem, so `vcgen` turns it
-    18     into a side goal instead of an entailment to discharge in the logic;
-    19  2. **exception postcondition `⊤` (partial correctness), never the default
-    20     `⊥`** (`⦃P⦄ x ⦃Q⦄` is TOTAL correctness in `Std.WP`) — a (B) function may
-    21     fail and Theorem 1 claims nothing then (con-leche's `SimAt`,
-    22     `Verify/SimI.lean:244`);
-    23  3. **the postcondition names `s₀`**, the only way to state
-    24     `Ext s₀.store s'.store` in a triple;
-    25  4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
-    26  5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
-    27     never a bare `∀ e, … → …`;
-    28  6. **a memo insert's spec states that the INVARIANT is preserved**, not that
-    29     the table grew — the single highest-value change of the spike;
-    30  7. **one named failure primitive** (`fail`), because a bare `throw` in
-    31     `StateT σ (Except ε)` leaves `mvcgen` with universe metavariables.
-    32  
-    33  ## The frame conditions
-    34  
-    35  `AState` has four fields and the `Memos` record has thirteen tables, so a
-    36  naive frame condition would be sixteen equations per spec.  Task #97b put the
-    37  per-call tables in ONE record and task #97c the per-declaration ones in
-    38  another for exactly this reason: every spec below frames the state in at most
-    39  four equations, and a memo write frames the other twelve tables with one
-    40  (`s'.memos = { s₀.memos with xC := … }`).
-    41  
-    42  `Bridge/StateOK.lean`'s `CheckOK.mono` is what those equations buy: the whole
-    43  checker invariant crosses an `ExprOps` call on `Ext` plus
-    44  `s'.caches = s₀.caches` plus `s'.pins = s₀.pins`.
-    45  
-    46  ## What is NOT here, and why
-    47  
-    48  * **`internPersistentE` / `…N` / `…L` / `…Ls`.**  `Arena/Store.lean`'s own
-    49    note (the section "Interning into the PERSISTENT tier") states the
-    50    obligation for the BRACKET and not for the operation: `internPersistent`
-    51    breaks `fresh` transiently, and it is `promote … dropScratch` as a whole
-    52    that takes `StoreWF` to `StoreWF`.  Its four specs therefore belong to the
-    53    `Promote` tier, whose statement is that bracket, not to this file.
-    54  * **the eleven `internRebuilt*` faces of `ExprOps.lean`** are here, at the
-    55    end: they are `internE` plus task #97-P6-5's upward cutoff, and every
-    56    rebuilding walk goes through them.
-    57  
-    58  ## The closer
-    59  
-    60  `bridge_vcs` at the end of this file is task #97s round 2's recipe: ONE
-    61  curated `grind` list, a `bridge_peel` in front of it, and a second stage that
-    62  puts the `RelE` transports back for the handful of verification conditions
+     4  **One spec theorem per (B) primitive, in one shape**, so that the
+     5  verification-condition generator (`vcgen`, on native `Std.WP` triples) can
+     6  walk a twin's body without any store reasoning appearing in the proof text.
+     7  The shape is the seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task
+     8  #97s's section):
+     9  
+    10  ```lean
+    11  @[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
+    12      ⦃fun s => s = s₀⦄ f args ⦃fun r s' => Post s₀ r s'; ⊤⦄
+    13  ```
+    14  
+    15  1. **the precondition is `s = s₀` and nothing else** — every real
+    16     precondition is an ordinary hypothesis of the theorem, so `vcgen` turns it
+    17     into a side goal instead of an entailment to discharge in the logic;
+    18  2. **exception postcondition `⊤` (partial correctness), never the default
+    19     `⊥`** (`⦃P⦄ x ⦃Q⦄` is TOTAL correctness in `Std.WP`) — a (B) function may
+    20     fail and Theorem 1 claims nothing then (con-leche's `SimAt`,
+    21     `Verify/SimI.lean:244`);
+    22  3. **the postcondition names `s₀`**, the only way to state
+    23     `Ext s₀.store s'.store` in a triple;
+    24  4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
+    25  5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
+    26     never a bare `∀ e, … → …`;
+    27  6. **a memo insert's spec states that the INVARIANT is preserved**, not that
+    28     the table grew — the rule that matters most;
+    29  7. **one named failure primitive** (`fail`), because a bare `throw` in
+    30     `StateT σ (Except ε)` leaves universe metavariables in the verification
+    31     conditions.
 
 == proof/ConRon/Bridge/Inductives/Run.lean#L57-L75
     57  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's

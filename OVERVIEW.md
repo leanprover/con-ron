@@ -617,7 +617,7 @@ stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
 The store primitives and the type checker are specified by Hoare triples
 of Lean's `Std.WP`, in one fixed form, proved with `vcgen` (task #111); the
 `@[spec]` lemmas of
-[`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L62)
+[`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L31)
 cover one primitive each:
 
 ```lean
