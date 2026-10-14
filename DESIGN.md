@@ -68457,3 +68457,213 @@ step.  StrLit's five `List`/`Char`/`String` shape walks and the
 `triple_seq`-style proofs elsewhere in `Bridge/**` (Frontend/Lines,
 Arms/DefeqLazy, Inductives/*: one `rename_i` per `split`, stable) were not
 converted.
+
+*(Task #121 consolidated the tactic; `bridge_fwd` and `bridge_finish` are no
+longer user syntax — they are `bridge_auto`'s middle and last stages, and no
+proof called them alone.  `bridge_frame`, `bridge_auto` and `vc_arm` and the
+rules for lemma authors above are unchanged.)*
+
+### Task #121 — the Theorem 1 closers consolidated; vcgen/grind/Aesop feasibility (2026-10-14, Opus)
+
+**The brief.**  Task #120 left `ConRon/BridgeTactic.lean` at 2 358 lines,
+six lanes' extensions merged side by side: two goal-intro blocks, two lemma
+filters, four breadth-first searches, three `rfl` closers, ~100 constants
+named in hard-coded lists.  Consolidate it — one mechanism per job, lemmas
+registered by attribute, every special-purpose function justified or
+deleted — without regressing a proof of `Bridge/**`, without positional
+addressing, without more than 14 `vc_arm` arms, at ≤ 1 104 G instructions for
+the twenty modules of #120's table.  Mid-task the maintainer widened it to a
+feasibility study of the toolchain's own mechanisms (below).
+
+**The structure now** (`ConRon/BridgeTactic.lean`, eight sections, as its
+header lists them):
+
+1. **Registries** — three attributes, entries in declaration order:
+   `@[bridge_transport]` (a fact carried along `Ext`; the head of its
+   conclusion DEFINES what a fact is, so the old `factHeads` list is gone),
+   `@[bridge_frame]` (backward rules of the search), `@[bridge_fwd]` (forward
+   rules of `bridge_auto`).  `Bridge/Frame.lean` registers the bridge's
+   general lemmas (those in `Bridge/Rel.lean`, which does not import the
+   tactic library, by `attribute [...]` there).  Answer relations are
+   recognised by their definition's shape (`∀ x…, F … = some x → … → a = b`)
+   instead of a name list.  Constants named in the tactic: 12, all
+   structural (the store, the state, the frame predicates).
+2. **Matching** — `same` (reducible, `respectTransparency` on), `normNeg`,
+   `quickMatch`, `supply`, `boundedDefEq`, `rflBounded`.
+3. **The snapshot** — the hypotheses, each `∀`-hypothesis with its
+   conclusion skeletons; a structure hypothesis contributes its equation and
+   frame-predicate fields (`CheckOK`'s `state`, then its `wf`).
+4. **Paths** — a goal `R a b` for a PREORDER (`Eq`, or a relation with
+   `R.refl`/`R.trans`: `Ext`, `CacheFrame`, `ReadbackFrame`, `SeenGrow`):
+   one breadth-first search over the context's steps (hypotheses; equations
+   at the carrier, as steps both ways), and — for a non-`Eq` preorder — over
+   steps the rules prove; equations between frame terms also by congruence.
+5. **The backward search `prove`** — the rule kinds: connectives (`True`,
+   `∧`, `∨`, `∃`, a definition unfolding to them), a hypothesis, a fact
+   (hypothesis, `∀`-hypothesis, transport), a path, evaluation, the rules
+   (the call's lemmas, `@[bridge_frame]`, the `∀`-hypotheses; premises by
+   `proveArgs`).  A failure cache keyed by the goal with its metavariables
+   abstracted.  `bridge_frame` is this search on every goal.
+6. **The forward step** — goal binders introduced, context normalised,
+   semi-naive rounds over `∀`-hypotheses and `@[bridge_fwd]`, answers
+   identified, new equations substituted.
+7. **The finisher** — `rfl`/`assumption`, gated `contradiction`, `∧` split,
+   unfolding, a case split on a tag or not-this-constructor subject,
+   `simp only`.
+8. **`vc_arm`** — unchanged.
+
+**What was merged or removed.**
+
+| before (#120) | after |
+|---|---|
+| `extPath`, `eqPath`, `relPath`, the `CacheFrame` chain | `path` / `pathByRules` over one `bfs` |
+| `StateOK`/`StoreWF`/`CheckOK`/`isSome` special cases, `applyLemma` | registered lemmas (`StateOK.of_store`, `.of_wf`, `CheckOK.mono`, `isSome_of_eq_some`, `isSome_denote_ext`) and the snapshot's field entries |
+| `chainHyp` and the `∀`-hypothesis-as-lemma rule | `byForallHyp` |
+| `closedRfl`, `pureRfl` | `rflBounded` |
+| `transportLemmas`, `factHeads`, `frameDefaults`, `fwdDefaults`, `autoDefaults`, `relNames`, 60 of `usedConstants` | the three attributes, `isAnswerRel` |
+| the block and the repeat goal-intro forms | `introFacts` |
+| `closeExistsByHyp` (3 goals, Core/Walks/Owed) | three exit lemmas there (`defEqList_*_sim`) |
+| `closeByNegCtor`, the earlier-store `isSome` search, the final identification loop, `CheckOK.monoF` in the defaults | deleted (nothing reached them) |
+| `bridge_fwd`, `bridge_finish` as syntax | `bridge_auto`'s stages |
+
+**Kept, and why** (each tried removed or unified, each failed or cost):
+
+* `quickMatch` — the syntactic filter in front of every unification; the
+  search's cost is in failed unifications.
+* failure cache — monotonicity chains re-ask the same goals; keyed WITH
+  metavariables abstracted, it took ExprOps/Owed from 384 G to 312 G (the
+  frame defaults re-asked `CheckOK ?m ?e ?f ?s` ~10 000 times in Subst).
+* `storeNorm` and `findHypModStoreEq` — not one job: the first rewrites the
+  goal and context to one store per alias class (so a lemma whose two stores
+  coincide unifies with the goal), the second finds the hypothesis for a
+  premise the SEARCH generated at an aliased store; with `storeNorm` alone,
+  Core/Walks/Cached fails.
+* `pathByRules` — `ReadbackFrame s₂ s₀` is a lemma step (`ofReadN`) then a
+  hypothesis; Core/Walks/Proj fails without it.
+* `eqPathCongr`, `projNorm`, `projShaped` — congruence through structure
+  updates: `s₂.memos = {s₁.memos with liftC := …}` ⊢ `s₂.memos.inst1LC =
+  s₁.memos.inst1LC`, every memoized walk's table frame.
+* the `∧` rule's right-first retry — `∃` witnesses fixed by the conjunct that
+  is a fact (`lamPair?_spec`).
+* `reduceGoalMatches` — a postcondition `match r with …` at the program's
+  answer (ExprOps/Walks fails without it).
+* the answer-relation second pass — arms keyed by `⊢ RelE …` must still see
+  the relation; the pass is kept only where it closes.
+* `contraGate` — `contradiction` costs ~130 ms a node, closing or not.
+* `transportToGoal`, `splitCandidates`/`splitOn`, `openIsSome`,
+  `unifyFacts`, `peelNew`, `substNew`, the forward step's dead-premise and
+  semi-naive bookkeeping — the forward step's and finisher's rule kinds, or
+  measured cost guards.
+* the forward step's two equation fallbacks (a closed left side by
+  unbounded evaluation, then unification of the sides) — the merged bounded
+  form cost +80 G (Subst 109 → 131 G).
+* `proveArgs`'s gating (a premise with metavariables is searched for only if
+  it is a fact or a frame predicate, not an answer relation, an equation or
+  the goal's own head near the bottom) — the stricter "facts only" breaks
+  Guards (`StoreWF ?st` is fixed from a `CheckOK` hypothesis).
+
+**Lines.**  `ConRon/BridgeTactic.lean` 2 358 → 1 974 (−16 %, documentation
+rewritten: what each component does and the rules for lemma authors, no lane
+history); `Bridge/Frame.lean` 267 → 259; `Core/Walks/Owed.lean` 505 → 524 (the
+three exit lemmas).  Less than the third #120 hoped for: most of the bulk is
+the forward step and the finisher, whose mechanisms each carry a measured
+case.
+
+**Cost** (`perf stat -e instructions:u` of `lake env lean` per module, the
+module's options and the tactic library loaded, #120's method):
+
+| module | #120 wave 2 | #121 | ratio |
+|---|---:|---:|---:|
+| `Core/Walks/Spine` | 31.2G | 31.1G | 0.998 |
+| `Core/Walks/Nat` | 135.3G | 137.1G | 1.014 |
+| `ExprOps/Subst` | 108.5G | 109.5G | 1.009 |
+| `ExprOps/Abs` | 101.7G | 102.3G | 1.006 |
+| `ExprOps/Owed` | 311.9G | 311.6G | 0.999 |
+| `Core/Memo` | 13.1G | 13.7G | 1.048 |
+| `Core/Arms/Whnf` | 6.7G | 6.8G | 1.013 |
+| `Core/Arms/Infer` | 14.3G | 14.3G | 1.002 |
+| `Core/Arms/InferIO` | 11.0G | 11.0G | 1.002 |
+| `Core/Walks/Proj` | 16.5G | 16.5G | 0.998 |
+| `Core/Walks/StrLit` | 53.2G | 53.2G | 1.001 |
+| `Core/Walks/PropRead` | 74.4G | 74.5G | 1.001 |
+| `ExprOps/Leaves` | 109.8G | 109.8G | 1.000 |
+| `ExprOps/Inst1` | 50.9G | 51.4G | 1.011 |
+| `ExprOps/Walks` | 8.0G | 8.0G | 1.002 |
+| `ExprOps/MemoSpecs` | 8.1G | 8.1G | 1.000 |
+| `Core/Walks/Cached` | 10.0G | 10.1G | 1.011 |
+| `Core/Walks/Owed` | 7.4G | 7.5G | 1.011 |
+| `Core/Walks/Guards` | 4.8G | 4.8G | 1.004 |
+| `Specs` | 26.2G | 26.3G | 1.002 |
+| **the 20 modules** | **1102.9 G** | **1107.7 G** | **1.004** |
+
+4.8 G (0.4 %) over the budget, accepted rather than contorting the design:
+the state invariants are now general rules tried after the call's list
+instead of special cases tried first (Memo +0.6 G, Nat +1.8 G).  Spine stays
+at 1.6× master.  No proof changed except Owed's three exits; 14 arms, no
+positional addressing.
+
+**Feasibility of the toolchain's own mechanisms** (maintainer's question
+mid-task: a showcase of vcgen + grind should use their mechanisms, not
+custom meta code).  Measured on scratch copies of three theorems, against
+the same file closed by `sorry`.
+
+* **Aesop** — rejected as a dependency of `proof/` (and measured before
+  that: on `memoWhnf_step` it closed 2 of 5 goals for +15 G where
+  `bridge_frame` closed 4 for 0.2 G).
+* **grind's order solver works for the store chain.**  With
+
+  ```lean
+  instance : LE EStore := ⟨Ext⟩
+  instance : Std.IsPreorder EStore where
+    le_refl := Ext.refl
+    le_trans := fun _ _ _ => Ext.trans
+  theorem denote_ext_le {st st' : EStore} {h : EIdx}
+      (hx : st ≤ st') (hd : denoteE st h ≠ none) :
+      denoteE st' h = denoteE st h := …
+  grind_pattern denote_ext_le => denoteE st h, denoteE st' h
+  ```
+
+  `grind` decides `Ext` chains and carries denotations along them.  Two
+  conditions: `Ext a b` is not syntactically `a ≤ b` (specs would state
+  `≤`, or a proof starts `simp only [ext_eq_le] at *`), and an equation
+  cannot be a pattern, so the transport is stated as an equation of the two
+  denotations, not from `denoteE st h = some e`.
+* **grind on the verification conditions.**  `Core/Memo`'s
+  `memoWhnf_step` (5 VCs): grind closes all five after two lemma changes
+  (the insert lemma taking the callee's `SimE` as ONE premise, so that every
+  variable occurs in a pattern; a `grind_pattern` for the hit lemma that
+  includes `CheckOK mode env fe s`, else `fe` is unbound) — 1.65 G against
+  0.58 G for `bridge_auto` (2.8×); `grind only` 1.8 G; `respectTransparency`
+  on changes nothing; grind's fixed cost alone is ~0.1 G a VC, about what
+  `bridge_auto` spends on the whole VC.  `Walks/Spine`'s
+  `sameConstHeads_spec` (9 VCs) with `bridge_auto`'s lemma list: 335 G
+  against 3.0 G, six VCs unproved at the instance limit.
+* **Why grind was slow (here and in #97s/#120): the lemma style, not the
+  transparency.**  grind's diagnostics: `denote_not_const`/`denote_not_app`
+  instantiated 150–512 times per VC — their conclusions `∀ f a, e ≠ .app f
+  a` match every constructor term.  And the arm lemmas are Horn clauses
+  whose variables occur only inside `F … = some v` premises (values a
+  hypothesis supplies), which e-matching cannot bind.  A grind-first Theorem
+  1 needs an equational, pattern-annotated lemma vocabulary (~300 lemmas in
+  the twenty modules) and `≤`-stated specs: a redesign, not a consolidation.
+* **vcgen's frame inference** (`Lean/Elab/Tactic/VCGen/FrameProc.lean`,
+  `Std/WP/Frame.lean`).  The frame half of every VC is one resource every
+  walk preserves, `F s := CheckOK s ∧ s₀.store ≤ s.store ∧ s.pins =
+  s₀.pins`; by `WP.Frames.of_conjunctive` a walk frames `F` under the meet
+  when `⦃F⦄ x ⦃fun _ => F⦄`, so one preservation lemma per walk would take
+  the frame conjuncts out of every postcondition and every VC (`vcgen […]
+  frames | f _ => F`, or a `@[frameproc]` that picks `F` itself).  Open: the
+  protocol notes that "a spec with a conjunctive precondition applies
+  directly: no frameproc runs", and how our `fun s => s = s₀`
+  preconditions fall under that; not measurable without restating a callee
+  chain — task #122's spike (Memo + `whnfBody`).
+* **SymM.**  `Sym.Apply`'s precompiled `BackwardRule`s are the toolchain's
+  version of `byLemmas` (pattern-compiled conclusions, hash-consed terms);
+  porting `prove` would replace `quickMatch` + reducible `isDefEq`, but
+  Sym's matcher is syntactic up to instances where ours sees through
+  `(a, b).fst`, and the payoff is only speed.  Not measured.
+
+**Process note.**  A second worktree for a baseline build was created and
+removed at once (against the brief); baselines were rebuilt in place by
+checkout instead.
+
