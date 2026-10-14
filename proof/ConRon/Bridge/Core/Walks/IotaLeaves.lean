@@ -1,9 +1,17 @@
 /-
 # `ConRon.Bridge.Core.Walks.IotaLeaves` — the state-only readers under `iotaRec`
 
-Task #97-P3-Core round 6 (lane `iota`): the six readers the stuck-major rescue
-and the ι step consult, each an equation with con-leche's function.  The
-walks that call the knot are `Walks/IotaMajor.lean` and `Walks/Iota.lean`.
+The readers the stuck-major rescue and the ι step consult, each an equation
+with con-leche's function.  The walks that call the knot are
+`Walks/IotaMajor.lean` and `Walks/Iota.lean`.
+
+Every proof is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
+finish`.  What makes them `grind`-shaped: each con-leche function as ONE
+equation over tags and projections (`isCtorApp_eq`, `litToCtorIfNat_eq`,
+`andRescueSlots_eq` over the named slot walk `andSlotsFrom`), a twin's nested
+`match` one constructor deep (`litToCtorIfNat_split`), and the callees with
+`∀`-shaped posts restated as named answers (`leafGuard_specA`,
+`findProj?_specP`, `IProjEntry.fireOk_specA`).
 -/
 import ConRon.Bridge.Core.Walks.Stuck
 import ConRon.Bridge.Core.Walks.ProjLit
@@ -21,7 +29,103 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
+/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+
+The pin table's `And` slot, and the projection table's entries as `grind`
+reads them: a lookup's answer as ONE named predicate (`ProjAns`), a denoting
+entry's fields as equations (`EntryFields`), a found entry as `some` of its
+projection (`projOf_eta`), and the two callees in that shape
+(`findProj?_specP`, `IProjEntry.fireOk_specA`). -/
+
+/-- con-leche: none — the pin table's `And` slot (`pinNames_eq_*`'s shape). -/
+@[bridge_grind =] theorem pinNames_eq_andName : pinNames[PIN_AND]? = some ConLeche.andName :=
+  rfl
+
+/-- con-leche: none — the index's projection-table answer against the
+environment's: a found entry denotes the environment's (which is found), a
+miss is a miss. -/
+def ProjAns (st : EStore) : Option IProjEntry → Option ProjEntry → Prop
+  | some en, o => denoteProjEntry st en = o ∧ o.isSome = true
+  | none, o => o = none
+
+/-- con-leche: none — `ProjAns` at a found entry. -/
+@[bridge_grind =] theorem ProjAns.some_eq (st : EStore) (en : IProjEntry) (o : Option ProjEntry) :
+    ProjAns st (some en) o = (denoteProjEntry st en = o ∧ o.isSome = true) := rfl
+
+/-- con-leche: none — `ProjAns` at a miss. -/
+@[bridge_grind =] theorem ProjAns.none_eq (st : EStore) (o : Option ProjEntry) :
+    ProjAns st none o = (o = none) := rfl
+
+/-- con-leche: none — a found entry is `some` of its projection. -/
+theorem projOf_eta {o : Option ProjEntry} (h : o.isSome = true) : o = some (projOf o) := by
+  cases o with
+  | none => cases h
+  | some p => rfl
+grind_pattern [bridge_grind] projOf_eta => o.isSome
+
+/-- con-leche: none — a denoting entry's comparable fields: the constructor
+handle denotes the entry's constructor, the counts are shared. -/
+def EntryFields (st : EStore) (en : IProjEntry) : Option ProjEntry → Prop
+  | some p => denoteN st.ns en.ctor = some p.ctor ∧ p.numParams = en.numParams ∧
+      p.numFields = en.numFields
+  | none => True
+
+/-- con-leche: none — `denoteProjEntry_inv`'s comparable fields, keyed by the
+entry's denotation. -/
+theorem entryFields (st : EStore) (en : IProjEntry) :
+    EntryFields st en (denoteProjEntry st en) := by
+  cases h : denoteProjEntry st en with
+  | none => trivial
+  | some p =>
+    obtain ⟨_, _, hc, _, _, _, _, hnp, hnf, _⟩ := denoteProjEntry_inv h
+    exact ⟨hc, hnp, hnf⟩
+grind_pattern [bridge_grind] entryFields => denoteProjEntry st en
+
+/-- con-leche: none — `EntryFields` at a denoting entry. -/
+theorem EntryFields.some {st : EStore} {en : IProjEntry} {p : ProjEntry}
+    (H : EntryFields st en (some p)) :
+    denoteN st.ns en.ctor = some p.ctor ∧ p.numParams = en.numParams ∧
+      p.numFields = en.numFields := H
+grind_pattern [bridge_grind] EntryFields.some => EntryFields st en (some p)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? —
+`IFEnv.findProj?_specA` with its answer as `ProjAns`. -/
+theorem findProj?_specP (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
+    ⦃fun s => s = s₀⦄ fe.findProj? T i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ProjAns s'.store r (env.findProj? Tn i); ⊤⦄ :=
+  triple_mono (IFEnv.findProj?_specA s₀ T i Tn hok hT)
+    (fun r _ ⟨h1, h2, _, _, h5, h6⟩ => ⟨h1, h2, h5, by
+      cases r with
+      | none => exact (Option.some.inj h6).symm
+      | some en =>
+        simp only [denoteProjEntryO, Option.map_eq_some_iff] at h6
+        obtain ⟨p, hp, hq⟩ := h6
+        exact ⟨hp.trans hq, by rw [← hq]; rfl⟩⟩)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
+`IProjEntry.fireOk_spec` at a denoting entry, its answer over the entry's
+denotation (`projOf`): no record variable for `grind` to bind. -/
+theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
+    (ls : List Level) (hok : CheckOK mode env fe s₀)
+    (hden : (denoteProjEntry s₀.store entry).isSome = true)
+    (hus : denoteLs s₀.store.lss us = some ls) :
+    ⦃fun s => s = s₀⦄ entry.fireOk us
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ b = (projOf (denoteProjEntry s₀.store entry)).fireOk ls; ⊤⦄ := by
+  exact IProjEntry.fireOk_spec s₀ entry us _ ls hok (projOf_eta hden) hus
+
 /-! ## 1. State-only readers -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — the reader as
+ONE equation over the head's tag, its constant name and the environment's
+constructor projection. -/
+theorem isCtorApp_eq (x : Expr) :
+    ConLeche.isCtorApp env x =
+      (exprTag x.getAppFn == ETag.const && cCtor? (env.find? (exprConstName x.getAppFn))) := by
+  simp only [ConLeche.isCtorApp]
+  cases x.getAppFn <;> rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — **THEOREM 1
 for `isCtorApp`**: an equation with con-leche's reader. -/
@@ -29,56 +133,8 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isCtorApp fe a
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.isCtorApp env x; ⊤⦄ := by
-  have hwf := hok.state.wf
-  unfold ConRon.Arena.isCtorApp
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
-    (by rw [hda]; rfl)) ?_
-  rintro hd s1 ⟨hs1, hrelF⟩
-  subst s1
-  have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const c us =>
-    obtain ⟨cn, ls, hgf, hcn, _⟩ := denote_const_inv hwf hvh hdd
-    dsimp only
-    split
-    next icv cnP cnF hfd =>
-      obtain ⟨dcv, _hdcv, hfind⟩ := env_ctor_of_index hok hcn hfd
-      vcgen
-      bridge_peel; subst_vars
-      refine ⟨rfl, ?_⟩
-      simp only [ConLeche.isCtorApp, hgf, hfind]
-    next hnd =>
-      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      vcgen
-      bridge_peel; subst_vars
-      refine ⟨rfl, ?_⟩
-      simp only [ConLeche.isCtorApp, hgf]
-      try (split
-           · rename_i cv p q heq; exact absurd heq (hnc cv p q)
-           · rfl)
-  all_goals
-    dsimp only
-    vcgen
-    bridge_peel; subst_vars
-    refine ⟨rfl, ?_⟩
-    have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
-    simp only [ConLeche.isCtorApp]
-    try (split
-         · rename_i c us heq; exact absurd heq (hnc c us)
-         · rfl)
-
-/-- con-leche: none — only a `Nat` literal converts. -/
-theorem litToCtorIfNat_of_not_nat (x : Expr)
-    (hx : ∀ n, x ≠ .lit (.natVal n)) : ConLeche.litToCtorIfNat env x = x := by
-  cases x with
-  | lit l =>
-    cases l with
-    | natVal n => exact absurd rfl (hx n)
-    | strVal _ => rfl
-  | _ => rfl
+  sym only [bridge_grind, isCtorApp_eq] =>
+    vcgen [ConRon.Arena.isCtorApp, ExprOps.getAppFn_spec] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:197-200 natLitToConstructor —
 **THEOREM 1 for `natLitToConstructor`**: `Nat.zero`, or `Nat.succ` applied to
@@ -89,35 +145,45 @@ theorem natLitToConstructor_spec (s₀ : AState) (n : Nat)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.natLitToConstructor n); ⊤⦄ := by
-  unfold ConRon.Arena.natLitToConstructor
-  cases n with
-  | zero =>
-    dsimp only
-    unfold ConRon.Arena.pinNatZero
-    refine triple_seq (pinAt_spec s₀ PIN_NAT_ZERO hok.pins) ?_
-    rintro z s1 ⟨hs1, hz⟩
-    subst s1
-    exact constE_spec s₀ z ConLeche.natZeroName hok (hz _ rfl)
-  | succ k =>
-    dsimp only
-    unfold ConRon.Arena.pinNatSucc
-    refine triple_seq (pinAt_spec s₀ PIN_NAT_SUCC hok.pins) ?_
-    rintro sn s1 ⟨hs1, hsn⟩
-    subst s1
-    refine triple_seq (constE_spec s₀ sn ConLeche.natSuccName hok (hsn _ rfl)) ?_
-    rintro sc s2 ⟨hok2, hx2, hp2, hsc⟩
-    refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s2 (.lit (.natVal k)) hok2 viewOK_lit) ?_
-    rintro l s3 ⟨hok3, hx3, hp3, hl⟩
-    have hl' : denoteE s3.store l = some (.lit (.natVal k)) := by rw [hl]; rfl
-    have hsc3 := denote_ext hsc hx3
-    refine triple_mono (internE_ok_spec (mode := mode) (env := env) (fe := fe)
-      s3 (.app sc l) hok3 (viewOK_app (by rw [hsc3]; rfl) (by rw [hl']; rfl))) ?_
-    rintro r s4 ⟨hok4, hx4, hp4, hr⟩
-    refine ⟨hok4, hx2.trans (hx3.trans hx4), hp4.trans (hp3.trans hp2), ?_⟩
-    rw [hr]
-    simp only [denoteEView, denote_ext hsc3 hx4, denote_ext hl' hx4, opt2,
-      ConLeche.natLitToConstructor]
+  sym only [bridge_grind, ConLeche.natLitToConstructor, hok.pins] =>
+    vcgen [ConRon.Arena.natLitToConstructor, ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
+      pinAt_specE, constE_specA (mode := mode) (env := env) (fe := fe),
+      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat — the
+function as ONE equation over the tag and the literal projection
+(`litNat?`, `Core/Walks/Nat.lean`). -/
+theorem litToCtorIfNat_eq (x : Expr) : ConLeche.litToCtorIfNat env x =
+    if exprTag x = ETag.lit ∧ (litNat? (exprLit x)).isSome ∧
+        ConLeche.natLitSupported env = true then
+      ConLeche.natLitToConstructor ((litNat? (exprLit x)).getD 0)
+    else x := by
+  cases x with
+  | lit l => cases l <;> simp [ConLeche.litToCtorIfNat, exprTag, exprLit, litNat?]
+  | _ => simp [ConLeche.litToCtorIfNat, exprTag, ETag.lit, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.proj]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat — the
+twin with its literal arm one constructor deep (`litNat?` reads the literal),
+so that `vcgen`'s fall-through conditions are flat
+(`_tmp/corpus/vcgen-grind/nested-ctor-fallthrough-hyp.lean`). -/
+theorem litToCtorIfNat_split (h : EIdx) : ConRon.Arena.litToCtorIfNat fe h =
+    (if h.tag == ETag.lit then do
+      match ← view h with
+      | .lit l =>
+        match litNat? l with
+        | some n => do if ← ConRon.Arena.natLitSupported fe then
+            ConRon.Arena.natLitToConstructor n else pure h
+        | none => pure h
+      | _ => pure h
+    else pure h) := by
+  simp only [ConRon.Arena.litToCtorIfNat]
+  split
+  · congr; funext v
+    cases v with
+    | lit l => cases l <;> rfl
+    | _ => rfl
+  · rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat —
 **THEOREM 1 for `litToCtorIfNat`**: a supported `Nat` literal one layer. -/
@@ -127,52 +193,17 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨v, hv⟩ := denoteE_view hda
-  unfold ConRon.Arena.litToCtorIfNat
-  refine tag_view_bind_triple hv ?_
-    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
-  have hpass : ConLeche.litToCtorIfNat env x = x →
-      ⦃fun s => s = s₀⦄ (pure h : AM EIdx)
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
-    intro hx
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, by rw [hx]; exact hda⟩
-  cases v
-  case lit l =>
-    obtain rfl := denote_lit_inv hwf hv hda
-    cases l with
-    | strVal str => exact hpass rfl
-    | natVal n =>
-      dsimp only
-      refine triple_seq (natLitSupported_spec s₀ hok) ?_
-      rintro sup s1 ⟨hok1, hx1, hp1, hsup⟩
-      split
-      next hsupt =>
-        have hS : ConLeche.natLitSupported env = true := hsup ▸ hsupt
-        refine triple_mono (natLitToConstructor_spec s1 n hok1) ?_
-        rintro r s2 ⟨hok2, hx2, hp2, hr⟩
-        refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
-        rw [hr]
-        simp only [ConLeche.litToCtorIfNat, hS, ite_true]
-      next hsupf =>
-        have hS : ConLeche.natLitSupported env = false := by
-          rw [← hsup]; simpa using hsupf
-        vcgen
-        bridge_peel; subst_vars
-        refine ⟨hok1, hx1, hp1, ?_⟩
-        simp only [ConLeche.litToCtorIfNat, hS, Bool.false_eq_true, ite_false]
-        exact denote_ext hda hx1
-  all_goals
-    dsimp only
-    refine hpass (litToCtorIfNat_of_not_nat _ ?_)
-    intro n hx
-    subst hx
-    have := view_of_denote_lit hwf hv hda
-    cases this
+  sym only [bridge_grind, litToCtorIfNat_eq, Option.getD_some] =>
+    vcgen [litToCtorIfNat_split, natLitSupported_spec (mode := mode) (env := env) (fe := fe),
+      natLitToConstructor_spec (mode := mode) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: none — a denoted capability record keeps the stored `sortZ`. -/
+theorem denoteCaps_sortZ {st : EStore} {c : IIndCaps} {dc : IndCaps}
+    (h : Frontend.denoteCaps st c = some dc) : dc.sortZ = c.sortZ := by
+  simp only [Frontend.denoteCaps] at h
+  split at h
+  · cases h; rfl
+  · simp at h
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:93-95 capsNeverZero —
 **THEOREM 1 for `capsNeverZero`**. -/
@@ -185,28 +216,47 @@ theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     ⦃fun s => s = s₀⦄ ConRon.Arena.capsNeverZero lps us icaps
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.capsNeverZero ks vs caps; ⊤⦄ := by
-  unfold ConRon.Arena.capsNeverZero
-  refine triple_seq (ExprOps.readNamesM_specF s₀ lps hok.caches.readN) ?_
-  rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
-  have hf1 := ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1
-  have hok1 := CheckOK.ofReadbackFrame hok hf1
-  refine triple_seq (ExprOps.readLevelsM_specF s1 us hok1.caches.readLs) ?_
-  rintro vs' s2 ⟨hst2, hm2, hp2, hc2, hvs2, hLs2⟩
-  have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hLs2
-  have hok2 := CheckOK.ofReadbackFrame hok1 hf2
-  rw [hks] at hks1
-  obtain rfl := Option.some.inj hks1
-  rw [hst1, hvs] at hvs2
-  obtain rfl := Option.some.inj hvs2
-  have hsz : caps.sortZ = icaps.sortZ := by
-    simp only [Frontend.denoteCaps] at hcaps
-    split at hcaps
-    · cases hcaps; rfl
-    · simp at hcaps
-  vcgen
-  bridge_peel; subst_vars
-  refine ⟨hok2, hst2.trans hst1, hp2.trans hp1, ?_⟩
-  simp only [ConLeche.capsNeverZero, hsz]
+  sym only [bridge_grind, ConLeche.capsNeverZero, denoteCaps_sortZ hcaps] =>
+    vcgen [ConRon.Arena.capsNeverZero, readNamesM_specC (mode := mode) (env := env) (fe := fe),
+      readLevelsM_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean looseBVarsBounded —
+`ExprOps/Ranges.lean`'s `looseBVarsBoundedFast_spec` at the tier's invariant
+(`CheckOK.mono`). -/
+theorem looseBVarsBoundedFast_specC (fuel k : Nat) (s₀ : AState) (e : EIdx)
+    (hok : CheckOK mode env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => s = s₀⦄ looseBVarsBoundedFast fuel k e
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        RelV (Expr.looseBVarsBounded k) s₀.store e r; ⊤⦄ :=
+  triple_mono (ExprOps.looseBVarsBoundedFast_spec fuel k s₀ e hok.state hden)
+    (fun _ _ ⟨hst, hc, hp, hr⟩ =>
+      ⟨hok.mono (by rw [stateOK_eq, hst]; exact hok.state.wf)
+        (by rw [hst]; exact Ext.refl _) hc hp, hst, hp, hr⟩)
+
+/-- con-leche: none — the leaf guard's answer at the base's denotation (a
+named predicate on the denotation term). -/
+def LeafAns (st : EStore) (fab : EIdx) (r : Bool) : Option Expr → Prop
+  | some eb => RelV (ExprOps.leavesSubSpec (Expr.fvarLeaves eb)) st fab r
+  | none => True
+
+/-- con-leche: none — `LeafAns` at a denoting base. -/
+@[bridge_grind =] theorem LeafAns.some_eq (st : EStore) (fab : EIdx) (r : Bool) (eb : Expr) :
+    LeafAns st fab r (some eb) = RelV (ExprOps.leavesSubSpec (Expr.fvarLeaves eb)) st fab r :=
+  rfl
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard —
+`ExprOps/Guards.lean`'s `leafGuard_spec` in answer shape (`LeafAns`: no `∀`
+for `grind` to instantiate). -/
+theorem leafGuard_specA (fuel : Nat) (s₀ : AState) (fab base : EIdx)
+    (hok : StateOK s₀) (hfab : (denoteE s₀.store fab).isSome = true)
+    (hbase : (denoteE s₀.store base).isSome = true) :
+    ⦃fun s => s = s₀⦄ leafGuard fuel fab base
+    ⦃fun r s' => s' = s₀ ∧ LeafAns s₀.store fab r (denoteE s₀.store base); ⊤⦄ :=
+  triple_mono (ExprOps.leafGuard_spec fuel s₀ fab base hok hfab hbase)
+    (fun r _ ⟨hs, hr⟩ => ⟨hs, by
+      cases hb : denoteE s₀.store base with
+      | none => trivial
+      | some eb => exact hr eb hb⟩)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:586-588 majorToCtor (the scope
 guard) — **THEOREM 1 for `fabScopeOk`**: the executed tier's three memoised
@@ -219,45 +269,10 @@ theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
         s'.pins = s₀.pins ∧
         r = (ef.wscopedB d && ef.looseBVarsBounded 0 &&
           ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)); ⊤⦄ := by
-  unfold ConRon.Arena.fabScopeOk
-  refine triple_seq (ExprOps.wscopedBFast_spec coreWalkFuel d s₀ fab hok.state
-    (by rw [hf]; rfl)) ?_
-  rintro w s1 ⟨hs1, hw⟩
-  subst s1
-  have hw' : w = ef.wscopedB d := hw ef hf
-  split
-  next hwn =>
-    have hwf0 : ef.wscopedB d = false := by simpa [hw'] using hwn
-    vcgen
-    bridge_peel; subst_vars
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp [hwf0]
-  next hwy =>
-    have hwt : ef.wscopedB d = true := by simpa [hw'] using hwy
-    refine triple_seq (ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s₀ fab
-      hok.state (by rw [hf]; rfl)) ?_
-    rintro lb s2 ⟨hst2, hc2, hp2, hlb⟩
-    have hlb' : lb = ef.looseBVarsBounded 0 := hlb ef hf
-    have hok2 : CheckOK mode env fe s2 :=
-      hok.mono ⟨by rw [hst2]; exact hok.state.wf⟩ (by rw [hst2]; exact Ext.refl _)
-        hc2 hp2
-    split
-    next hln =>
-      have hlf : ef.looseBVarsBounded 0 = false := by simpa [hlb'] using hln
-      vcgen
-      bridge_peel; subst_vars
-      refine ⟨hok2, hst2, hp2, ?_⟩
-      simp [hlf]
-    next hly =>
-      have hlt : ef.looseBVarsBounded 0 = true := by simpa [hlb'] using hly
-      refine triple_mono (ExprOps.leafGuard_spec coreWalkFuel s2 fab major
-        hok2.state (by rw [hst2, hf]; rfl) (by rw [hst2, hm]; rfl)) ?_
-      rintro r s3 ⟨hs3, hr⟩
-      subst hs3
-      refine ⟨hok2, hst2, hp2, ?_⟩
-      have := hr em (by rw [hst2]; exact hm) ef (by rw [hst2]; exact hf)
-      rw [this, hwt, hlt]
-      simp [ExprOps.leavesSubSpec]
+  sym only [bridge_grind, ExprOps.leavesSubSpec] =>
+    vcgen [ConRon.Arena.fabScopeOk, ExprOps.wscopedBFast_spec,
+      looseBVarsBoundedFast_specC (mode := mode) (env := env) (fe := fe),
+      leafGuard_specA] <;> finish
 
 /-- con-leche: none — the denotation of an appended handle list. -/
 theorem denoteEList_appendI {st : EStore} :
@@ -273,6 +288,18 @@ theorem denoteEList_appendI {st : EStore} :
     simp only [List.cons_append, Frontend.denoteEList, hx,
       denoteEList_appendI hxs hb]
 
+/-- con-leche: none — the denotation of an appended handle list, as ONE
+equation (`opt2` of the two halves). -/
+theorem denoteEList_append_eq (st : EStore) (as bs : List EIdx) :
+    Frontend.denoteEList st (as ++ bs) =
+      opt2 HAppend.hAppend (Frontend.denoteEList st as) (Frontend.denoteEList st bs) := by
+  induction as with
+  | nil => cases h : Frontend.denoteEList st bs <;> simp [Frontend.denoteEList, opt2, h]
+  | cons a as ih =>
+    simp only [List.cons_append, Frontend.denoteEList, ih]
+    cases denoteE st a <;> cases Frontend.denoteEList st as <;>
+      cases Frontend.denoteEList st bs <;> rfl
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:741-743 etaFabArgsE — **THEOREM
 1 for `etaFabArgsE`**: the η rescue's fabricated argument spine, the type's
 arguments then `etaProjs` (`Walks/Eta.lean`'s `etaProjs_spec`). -/
@@ -287,79 +314,70 @@ theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx)
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
           some (ConLeche.etaFabArgsE Tn ts x nF); ⊤⦄ := by
-  unfold ConRon.Arena.etaFabArgsE
-  refine triple_seq (etaProjs_spec s₀ T major nF Tn x hok hT hx) ?_
-  rintro ps s1 ⟨hok1, hx1, hp1, hps⟩
-  vcgen
-  bridge_peel; subst_vars
-  refine ⟨hok1, hx1, hp1, ?_⟩
-  rw [denoteEList_appendI (denoteEList_ext hx1 _ _ hts) hps]
-  rfl
+  sym only [bridge_grind, ConLeche.etaFabArgsE, denoteEList_append_eq] =>
+    vcgen [ConRon.Arena.etaFabArgsE,
+      etaProjs_spec (mode := mode) (env := env) (fe := fe) (Tn := Tn) (y := x)] <;>
+      finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — one
+slot's test at the environment's answer (the body of the `all`). -/
+def andSlotOk (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+    Option ProjEntry → Bool
+  | some e => e.ctor == cn && e.numParams == nP && e.numFields == 2 && e.fireOk ls
+  | none => false
+attribute [bridge_grind =] andSlotOk
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — the
+slots `j, j+1, …` for `n` slots, one equation per step. -/
+def andSlotsFrom (env : Env) (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+    Nat → Nat → Bool
+  | 0, _ => true
+  | n + 1, j => andSlotOk cn nP ls (env.findProj? ConLeche.andName j) &&
+      andSlotsFrom env cn nP ls n (j + 1)
+attribute [bridge_grind =] andSlotsFrom
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:796-799 andRescueSlots — the
+function is the two slots from slot 0. -/
+@[bridge_grind =] theorem andRescueSlots_eq (cn : ConLeche.Name) (nP : Nat)
+    (ls : List Level) :
+    ConLeche.andRescueSlots env cn nP ls = andSlotsFrom env cn nP ls 2 0 := by
+  simp only [ConLeche.andRescueSlots, ConLeche.andRescueSlotsOf, andSlotsFrom, List.range,
+    List.range.loop, List.all_cons, List.all_nil, Bool.and_true]
+  cases env.findProj? ConLeche.andName 0 <;> cases env.findProj? ConLeche.andName 1 <;> rfl
+
+section AndSlots
+
+/-! The slot test compares the entry's constructor handle with the rescue's:
+the name handles as `idxOfName` (`Bridge/Grind.lean` §6), for this walk only. -/
+
+local grind_pattern [bridge_grind] nameIdx => denoteN st.ns n
+local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:796-809 andRescueSlotsOf — the
-two-slot walk, from slot `j` for `n` slots. -/
-theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
+two-slot walk, from slot `j` for `n` slots (answer `andSlotsFrom`). -/
+theorem andRescueSlotsGo_specA (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     (cn : ConLeche.Name) (ls : List Level) (an : NIdx) :
     ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
       denoteN s₀.store.ns an = some ConLeche.andName →
       denoteN s₀.store.ns ctor = some cn → denoteLs s₀.store.lss ust = some ls →
       ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlotsGo fe an ctor nP ust n j
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          r = (List.range' j n).all (fun k =>
-            match env.findProj? ConLeche.andName k with
-            | some e => e.ctor == cn && e.numParams == nP && e.numFields == 2 &&
-                e.fireOk ls
-            | none => false); ⊤⦄ := by
+          s'.pins = s₀.pins ∧ r = andSlotsFrom env cn nP ls n j; ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro j s₀ hok _ _ _
-    vcgen [ConRon.Arena.andRescueSlotsGo]
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+    sym only [bridge_grind] => vcgen [ConRon.Arena.andRescueSlotsGo] <;> finish
   | succ n ih =>
     intro j s₀ hok han hc hus
-    unfold ConRon.Arena.andRescueSlotsGo
-    refine triple_seq (IFEnv.findProj?_spec s₀ an j ConLeche.andName hok han) ?_
-    rintro o s1 ⟨hok1, hx1, _, _, hp1, hsome, hnone⟩
-    cases o with
-    | none =>
-      have hf := hnone rfl
-      vcgen
-      bridge_peel; subst_vars
-      refine ⟨hok1, hx1, hp1, ?_⟩
-      rw [List.range'_succ, List.all_cons, hf]; rfl
-    | some e =>
-      obtain ⟨p, hpe, hfp⟩ := hsome e rfl
-      obtain ⟨_, _, hct, _, _, _, _, hnp, hnf, _⟩ := denoteProjEntry_inv hpe
-      dsimp only
-      refine triple_seq (IProjEntry.fireOk_spec s1 e ust p ls hok1 hpe
-        (denoteLs_ext hus hx1)) ?_
-      rintro fo s2 ⟨hok2, hst2, hp2, hfo⟩
-      have hcond : (e.ctor == ctor && e.numParams == nP && e.numFields == 2 && fo) =
-          (p.ctor == cn && p.numParams == nP && p.numFields == 2 && p.fireOk ls) := by
-        obtain ⟨rk, hrk⟩ := hok1.state.wf
-        rw [beq_of_denoteN hrk.nsWF hct (denoteN_ext hc hx1), hnp, hnf, hfo]
-      have hx12 : Ext s1.store s2.store := by rw [hst2]; exact Ext.refl _
-      split
-      next hy =>
-        have hy' : (p.ctor == cn && p.numParams == nP && p.numFields == 2 &&
-            p.fireOk ls) = true := hcond ▸ hy
-        refine triple_mono (ih (j + 1) s2 hok2 (denoteN_ext han (hx1.trans hx12))
-          (denoteN_ext hc (hx1.trans hx12)) (denoteLs_ext hus (hx1.trans hx12))) ?_
-        rintro r s3 ⟨hok3, hx3, hp3, hr⟩
-        refine ⟨hok3, hx1.trans (hx12.trans hx3), hp3.trans (hp2.trans hp1), ?_⟩
-        rw [hr, List.range'_succ, List.all_cons, hfp]
-        simp only [hy', Bool.true_and]
-      next hn =>
-        have hn' : (p.ctor == cn && p.numParams == nP && p.numFields == 2 &&
-            p.fireOk ls) = false := by rw [← hcond]; simpa using hn
-        vcgen
-        bridge_peel; subst_vars
-        refine ⟨hok2, hx1.trans hx12, hp2.trans hp1, ?_⟩
-        rw [List.range'_succ, List.all_cons, hfp]
-        simp only [hn', Bool.false_and]
+    sym only [bridge_grind] =>
+      vcgen [ConRon.Arena.andRescueSlotsGo,
+        findProj?_specP (mode := mode) (env := env) (fe := fe) (Tn := ConLeche.andName),
+        IProjEntry.fireOk_specA (mode := mode) (env := env) (fe := fe) (ls := ls), ih] <;>
+        finish
+
+end AndSlots
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:796-813 andRescueSlots —
 **THEOREM 1 for `andRescueSlots`**: the pinned `And`'s two slots, ready to
 fire. -/
@@ -370,18 +388,10 @@ theorem andRescueSlots_spec (s₀ : AState) (ctor : NIdx) (nP : Nat)
     ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.andRescueSlots env cn nP ls; ⊤⦄ := by
-  have hwf := hok.state.wf
-  unfold ConRon.Arena.andRescueSlots ConRon.Arena.pinAnd
-  refine triple_seq (pinAt_spec s₀ PIN_AND hok.pins) ?_
-  rintro an s1 ⟨hs1, han⟩
-  subst s1
-  refine triple_mono (andRescueSlotsGo_specI ctor nP ust cn ls an 2 0 s₀ hok
-    (han _ rfl) hc hus) ?_
-  rintro r s' ⟨hok', hst, hp, hr⟩
-  refine ⟨hok', hst, hp, ?_⟩
-  rw [hr, ConLeche.andRescueSlots, ConLeche.andRescueSlotsOf, List.range_eq_range']
-  rfl
-
+  sym only [bridge_grind, hok.pins] =>
+    vcgen [ConRon.Arena.andRescueSlots, ConRon.Arena.pinAnd, pinAt_specE,
+      andRescueSlotsGo_specA (mode := mode) (env := env) (fe := fe) (cn := cn) (ls := ls)] <;>
+      finish
 
 /-- con-leche: none — a denoted rule's fields. -/
 theorem rule_denote {st : EStore} {rl : IRecRule} {rl' : RecRule}
