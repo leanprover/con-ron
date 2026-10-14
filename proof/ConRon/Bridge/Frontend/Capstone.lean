@@ -15,33 +15,27 @@ the parse's exactness, the preparation's, and the prelude.
 
 ## The assembly, four steps, one theorem each
 
-The original campaign's `conron.no_False_declaration`
-(`proof/ConRon/RefineOld/Main.lean:730`) is four steps and this is the same
-four, with the arena's own theorems in place of the port's:
-
-| step | the original | here |
-|---|---|---|
-| 1. the parse holds the record | `parse_chunks_refines_of_modeller` + `ParseResultSim.decls` | `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` |
-| 2. the preparation keeps it | `prepare_prelude_refines` + `mem_preparePrelude` | `Bridge/Frontend/Prepare.lean`'s `mem_preparePrelude_denote` |
-| 3. the twin's accept is con-leche's | `check_decls_verified_refines_ok` | `Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` |
-| 4. con-leche refutes it | `ConLeche.no_False_theorem_accepted` | `checkDeclsPure_thmDecl_const` + `ConLeche.Model.no_proof_of_False_pure` |
+| step | the theorem |
+|---|---|
+| 1. the parse holds the record | `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` |
+| 2. the preparation keeps it | `Bridge/Frontend/Prepare.lean`'s `mem_preparePrelude_denote` |
+| 3. the twin's accept is con-leche's | `Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` |
+| 4. con-leche refutes it | `checkDeclsPure_thmDecl_const` + `ConLeche.Model.no_proof_of_False_pure` |
 
 **Step 4 is the one that is not a transport**, and §3 below says why: con-leche
 states its stream ingredient at the CACHED fold (`Cached.checkDecls_thmDecl_const`,
 `Verify/Cached/StreamThm.lean:101`) and the arena's bridge lands on the PURE
 one, so the pure-tier twin of that one lemma has to be stated here.
 
-## Two savings the arena rewrite buys this statement
+## Two things this statement does not need
 
 **No `absChunks`.**  `Arena.Frontend.parseChunks` takes `List ByteArray` and so
 does con-leche's, so the hypothesis is literally
-`ConLeche.jsonWithTheoremFalse chunks` where the original had to write
-`ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks)`.
+`ConLeche.jsonWithTheoremFalse chunks`.
 
-**No scanner tier.**  The twin CALLS `scanLineFwd`; the port had to
-re-implement it, and proving the re-implementation right was seven files and
-17 479 lines with two standing obligations (`Utf8DecodeSpec`,
-`UnescapeSpec`).  Neither obligation exists here.
+**No scanner tier.**  The twin CALLS `scanLineFwd`, so there is no
+re-implementation of the scanner to prove right, and no scanner obligation
+(`Utf8DecodeSpec`, `UnescapeSpec`) among the hypotheses.
 
 ## The named hypotheses
 
@@ -55,12 +49,8 @@ of them):
   `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel`);
 * `hind : IndSpec .verified` — the Inductives tier's.
 
-**Task #105**: the original campaign's `hgen`/`hmr` — the seam's two promises
-about the in-process modeller (`Bridge/Frontend/Modeller.lean`, deleted) —
-are gone.  The uniform installer (`Arena/Inductives/**`) replaces the
-modeller and needs no analogous premise: `hind` alone covers it, so
-`Arena.no_False_declaration_pipeline` carries two named hypotheses where the
-original campaign's `conron.no_False_declaration` carried four.
+The inductive installer (`Arena/Inductives/**`, the uniform route) needs no
+premise of its own: `hind` alone covers it.
 -/
 import ConRon.Bridge.Frontend.Prepare
 import ConRon.Bridge.Checker
@@ -96,18 +86,16 @@ Its four halves, and what each costs:
 * `PersIFEnv` / `IFEnvCoh` / `denoteFEnv … = some Env.empty` — all three are
   `rfl`-level at `mkIFEnv IEnv.empty`.
 
-**The fourth hypothesis is the driver's own start**, and it was missing from
-the round-one statement: what the parse gives is that the per-declaration
-tables did not MOVE, not that they were empty.  `AState.init` sets them empty
-(`Arena/Monad.lean:146`), so the driver has it; a statement about an arbitrary
-start state has to say so.
+**The fourth hypothesis is the driver's own start**: what the parse gives is
+that the per-declaration tables did not MOVE, not that they were empty.
+`AState.init` sets them empty (`Arena/Monad.lean:146`), so the driver has it;
+a statement about an arbitrary start state has to say so.
 
-*(Task #97-P3-Frame turned it from `s.caches = Caches.empty` into `CacheOK`
-itself.  The parse is not cache-neutral after all — the owner census compares
-two levels, see `Bridge/Frontend/Rel.lean`'s frame note — so "the tables are
-empty" does not survive a `ParseStep`, while `CacheOK` does, through
+It is `CacheOK` itself rather than `s.caches = Caches.empty`: the parse is not
+cache-neutral — see `Bridge/Frontend/Rel.lean`'s frame note — so "the tables
+are empty" does not survive a `ParseStep`, while `CacheOK` does, through
 `CheckOK.monoF`.  `CacheOK.of_empty` is what the driver reaches it with and is
-one line at each of the two call sites.)* -/
+one line at each of the two call sites. -/
 theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
     (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK μ Env.empty s) :
     FoldOK μ Env.empty (mkIFEnv IEnv.empty) s where

@@ -28,21 +28,17 @@ The modules, in dependency order:
 **A scanner tier.**  `Arena/Frontend/ExportC.lean` imports
 `ConLeche.Frontend.Scan.Fast` and calls `scanLineFwd` — con-leche's own
 function, on con-leche's own `ByteArray`, returning con-leche's own `LineRec`.
-There is no twin, so there is nothing to prove.  The original campaign needed
-`RefineOld/Frontend/Scan{WF,Kit,Str,Obj,Expr,Ind,Line}.lean` — seven files,
-17 479 lines, and two standing obligations (`Utf8DecodeSpec`,
-`UnescapeSpec`) — for exactly this.  **That is the largest single saving of
-the arena rewrite's proof**, and it is a consequence of (B) being written in
-Lean: a Lean twin may CALL con-leche where a Rust port must re-implement.
+There is no twin, so there is nothing to prove, and no scanner obligation
+(`Utf8DecodeSpec`, `UnescapeSpec`) is named.  It is a consequence of (B) being
+written in Lean: a Lean twin may CALL con-leche where a Rust port must
+re-implement.
 
 **A byte abstraction.**  Chunks are `List ByteArray` on both sides, so there
-is no `absChunks` (`RefineOld/Frontend/Abs.lean:438`), no `absByte`, no
-`absPos`, and the capstone's hypothesis is literally
-`ConLeche.jsonWithTheoremFalse chunks`.
+is no `absChunks`, no `absByte`, no `absPos`, and the capstone's hypothesis is
+literally `ConLeche.jsonWithTheoremFalse chunks`.
 
 **An error abstraction.**  `CheckError` is con-leche's own type in the twin,
-so there is no `absErrKind` and no `ParseErrSim`
-(`RefineOld/Frontend/ChunksR.lean:226`): every theorem here is
+so there is no `absErrKind` and no `ParseErrSim`: every theorem here is
 one-directional — *the twin accepting implies con-leche accepting* — which is
 the only direction the capstone consumes, and a twin failure claims nothing,
 exactly as `Bridge/Checker`'s arms claim nothing about a `native` decline.

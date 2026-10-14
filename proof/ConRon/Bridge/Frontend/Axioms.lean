@@ -2,15 +2,12 @@
 # `ConRon.Bridge.Frontend.Axioms` — the frontend tier's trust census
 
 `#print axioms` on every closed result of `Bridge/Frontend/**`, in the shape
-`Bridge/Axioms.lean` and `Bridge/Checker/Axioms.lean` use.  The rule of the
-campaign: **a result that carries `sorryAx` is not in this file**, so the
-census is a list of what is actually proved rather than a list of what is
-stated.
+`Bridge/Axioms.lean` and `Bridge/Checker/Axioms.lean` use.
 
 Every one below is `[propext, Classical.choice, Quot.sound]` — Lean's own
 three, which come in through `Std.HashMap`, `Classical` in `Option`'s lemmas
-and `Quot` in `String`, and which every tier of this repository already
-carries.  No `sorryAx`, no `bv_decide` axiom.
+and `Quot` in `String`, and which every tier of this repository carries.
+No `sorryAx`, no `bv_decide` axiom.
 
 **The named hypotheses are hypotheses, not axioms.**  `CoreSpec` and
 `IndSpec` appear in the capstone's STATEMENT; `#print axioms` on it therefore
@@ -70,8 +67,8 @@ namespace ConRon.Bridge.Frontend
 
 /-! ## Transport across an append
 
-The eighteen-clause relation and the seven-clause result relation both survive
-an `intern`, which is what the streaming fold's induction rests on. -/
+The parse-state relation and the result relation both survive an `intern`, which
+is what the streaming fold's induction rests on. -/
 
 #print axioms StateDRel.ext
 
@@ -95,9 +92,9 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 #print axioms readName_run
 #print axioms StateD_names_run
 
-/-! ## The record headers (round two)
+/-! ## The record headers
 
-The three steps of items 5-6 that read the tables and nothing else. -/
+The steps that read the tables and nothing else. -/
 
 #print axioms parseCVD_run
 #print axioms parseRuleD_run
@@ -106,9 +103,9 @@ The three steps of items 5-6 that read the tables and nothing else. -/
 
 #print axioms EMemoOK.empty
 
-/-! ## The intern direction (round 3) — CLOSED
+/-! ## The intern direction
 
-Item 2 in full: the ten-arm structural recursion over `ConLeche.Expr` with the
+The ten-arm structural recursion over `ConLeche.Expr` with the
 intern memo carried (`internExprGo_istep`) and the twelve record layers over
 it.  `IStep` is the frame every one of them answers in — `StateOK`, `Ext`, the
 closed scratch tier and the three untouched state fields — and
@@ -132,16 +129,16 @@ closed scratch tier and the three untouched state fields — and
 #print axioms denoteN_str_inv
 #print axioms view_str_of_denoteN
 
-/-! ## The parse's initial state (round 2) — CLOSED
+/-! ## The parse's initial state
 
-`StateD_init_run` is the base case of the streaming fold's induction, and
-round 2 closed it: the two intern specs through `AM.of_run`, `IdTableRel`'s
+`StateD_init_run` is the base case of the streaming fold's induction: the two
+intern specs through `AM.of_run`, `IdTableRel`'s
 `singleton` and `empty`, and — the `PersStateD` half —
 `PersN_of_view` / `PersL_of_view`. -/
 
 #print axioms StateD_init_run
 
-/-! ## The three table entries (round 4) — item 5 CLOSED
+/-! ## The three table entries
 
 The rebinding guards, the `PersStateD` half of a table write, and the three
 entry parsers: `parseNameEntryD_run`, `parseLevelEntryD_run` and — the tier's
@@ -175,22 +172,20 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 #print axioms parseChunksC_eq
 #print axioms parseChunks_eq
 
-/-! ## The pure fold's stream ingredient (round two) — CLOSED
+/-! ## The pure fold's stream ingredient
 
 `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure` are the
-one part of the capstone's path that is a con-leche-tier lemma, and they are
-sorry-FREE: the stored type is the declared one (con-leche's
-`ConstantValRun`, task #119: no annotation pass) and
+one part of the capstone's path that is a con-leche-tier lemma: the stored
+type is the declared one (con-leche's `ConstantValRun`) and
 `checkDeclsPure_prefix` replaces con-leche's cached-tier `PushChain` half
-outright (`Bridge/Frontend/Capstone.lean` §2).  Task #97-P3-Frontend's sorry
-list item 24 is therefore discharged, and the upstream ask is the RE-STATEMENT
-(the prefix form), not the proof. -/
+outright (`Bridge/Frontend/Capstone.lean` §2).  The upstream ask is the
+RE-STATEMENT (the prefix form), not the proof. -/
 
 #print axioms checkDeclsPure_prefix
 #print axioms checkDeclsPure_thmDecl_const
 #print axioms no_False_theorem_accepted_pure
 
-/-! ## Round seven — `validateIndD_run`, CLOSED
+/-! ## `validateIndD_run`
 
 The inductive record's READ half, over its two loops: `forIn_sim` relates a
 read-only `AM` loop to con-leche's `Except String` one through an arbitrary
@@ -220,11 +215,10 @@ the `induct`/`T.rec` comparisons. -/
 #print axioms VInv.res
 #print axioms validateIndD_run'
 
-/-! ## Round seven, continued — the install half, the line, the hoist, CLOSED
+/-! ## The install half, the line, the hoist
 
-The machinery `installIndD_run`, `processLineCoreD_run`,
-`hoistNatOpGround_run` and `projRewriteD_run` stand on.  Everything here is
-at Lean's own three. -/
+The machinery `installIndD_run`, `processLineCoreD_run` and
+`hoistNatOpGround_run` stand on. -/
 
 #print axioms ListRel.append
 #print axioms denoteCIList_of_listRel
@@ -237,11 +231,10 @@ at Lean's own three. -/
 #print axioms denoteNList_flatMap_names
 #print axioms applyHoist_run
 
-/-! ## Round eight — the target map, CLOSED
+/-! ## The target map
 
-`hoistTargets_run` against the round-8 twin (`hoistClosure`'s fuel counts
-marked records), and with it `hoistNatOpGround_run`, which rested on nothing
-else.  Everything here is at Lean's own three. -/
+`hoistTargets_run` (`hoistClosure`'s fuel counts marked records), and with it
+`hoistNatOpGround_run`, which rests on nothing else. -/
 
 #print axioms forIn_id_yield
 #print axioms loop_id_unfold
@@ -265,27 +258,14 @@ else.  Everything here is at Lean's own three. -/
 #print axioms hoistTargets_run
 #print axioms hoistNatOpGround_run
 
-/-! ## PROVED, and once resting on an open leaf
-
-When this section was written, each result below had a COMPLETE proof of its
-own and carried `sorryAx` only through a lemma of the sorry list it cites; it
-was printed here because the distance between "proved" and "closed" was
-exactly what the tier's remaining work was.  Every leaf it names is closed
-since, so these read Lean's own three now; the list is kept as the record of
-what rested on what.
+/-! ## The line, the chunks, the preparation and the prelude
 
 * the line and the chunk tier — `applyLine_run` rests on the three entry
-  parsers and `processLineCoreD_run` (items 5-7, 9), and **everything below it
-  is closed on `applyLine_run` and `StateD_init_run` alone** (items 16-18);
+  parsers and `processLineCoreD_run`, and everything below it rests on
+  `applyLine_run` and `StateD_init_run` alone;
 * the preparation and the prelude — `builtinPreludeE_run` on `parseBytes_run`,
-  `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run` (items 19-22);
-* `FoldOK_post_parse` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`
-  (the Checker tier's item 6) and nothing else;
-* round 7's skeletons — `processLineCoreD_run`, `installIndD_run` and
-  `registerProjOwners_run` rest on `projRecOwners_run`, which since round 8 is
-  closed modulo `occursConstFast_run`'s two con-leche-tier asks and nothing
-  else; `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
-  (`hoistNatOpGround_run` and `projRewriteD_run` left this list in round 8.) -/
+  `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run`;
+* `FoldOK_of_start` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`. -/
 
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
@@ -327,20 +307,15 @@ what rested on what.
 
 /-! ## The headlines, and the two named hypotheses
 
-These five reported `sorryAx` while they rested on leaves of the sorry list
-(the intern direction, the `ExprOps` walks, the
-record-assembly steps and `processLineCoreD`'s six arms); those are closed,
-and the five are printed for the one thing the census is for: **none of
-them names `CoreSpec` or `IndSpec`.**  Those two are hypotheses of
+The five are printed for the one thing the census is for: **none of them
+names `CoreSpec` or `IndSpec`.**  Those two are hypotheses of
 the statements, not axioms of the environment, which is what makes "two named
 hypotheses" a checkable claim rather than an editorial one
 (`Bridge/Checker/Axioms.lean` makes the same point about its two).
 
-With the tier closed, the reading of all five is
-`[propext, Classical.choice, Quot.sound]` — con-leche's own census for
-`ConLeche.no_False_declaration` (`tests/ConLecheTests/Axioms.lean:121`) and
-the original campaign's for `conron.no_False_declaration`
-(`RefineOld/Main.lean:775`). -/
+The reading of all five is `[propext, Classical.choice, Quot.sound]` —
+con-leche's own census for `ConLeche.no_False_declaration`
+(`tests/ConLecheTests/Axioms.lean:121`). -/
 
 
 end ConRon.Bridge.Frontend

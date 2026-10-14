@@ -155,7 +155,7 @@ theorem getDeclD_run {s s' : AState} {sd : StateD}
   StateD_expr_run hrel hrun
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readName` as a run.
-`Bridge/Specs.lean` states it as a Hoare triple (it is `mvcgen`'s vocabulary);
+`Bridge/Specs.lean` states it as a Hoare triple (it is `vcgen`'s vocabulary);
 `Bridge/Rel.lean`'s `AM.of_run` is the four-line bridge back to the shape
 every theorem of this tier is stated in. -/
 theorem readName_run {s s' : AState} {h : NIdx} {x : ConLeche.Name}
@@ -777,11 +777,10 @@ theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
 /-! ## The stored constant's common data
 
 `IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`) is the one projection
-of the environment vocabulary that is MONADIC, and round 4's finding 16 is
-about why: its `.projInfo` arm builds the closed dummy type `Sort 1`, which
-over handles means interning `.zero`, `.succ .zero` and `.sort one`.  Its
-NAME is the stored `tbl.tableName`, and `CIProjNamed` is what ties that to
-con-leche's recomputed `projTableName`. -/
+of the environment vocabulary that is MONADIC: its `.projInfo` arm builds the
+closed dummy type `Sort 1`, which over handles means interning `.zero`,
+`.succ .zero` and `.sort one`.  Its NAME is the stored `tbl.tableName`, and
+`CIProjNamed` is what ties that to con-leche's recomputed `projTableName`. -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 **the three fields of a stored constant's common data denote con-leche's**, in
@@ -1005,13 +1004,10 @@ theorem toConstantVal_type_run {s s' : AState} (hok : StateOK s)
     exact ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, hdty'⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:65-72 pushDecl — one parsed
-record, appended.  `pushDecl` is a plain state update now (task #105: the
-constants-and-heights bookkeeping the in-process modeller's `noteDecl` used to
-read is gone with it, and `noteDecl` itself is deleted), so the whole frame is
+record, appended.  `pushDecl` is a plain state update, so the whole frame is
 `s' = s`.
 
-**This is `StateDRel.projNamed`'s one debtor** (task #105: the modeller's
-`pushGenList` was the other, and it is gone): the pushed record's clause is
+**This is `StateDRel.projNamed`'s one debtor**: the pushed record's clause is
 what keeps the relation's `projNamed` conjunct true across the append, and
 `DeclsProjNamed.push` is the whole of it. -/
 theorem pushDecl_run {s s' : AState} {sd sd' : StateD}
@@ -1764,8 +1760,7 @@ The guards are handle comparisons where con-leche's are `Name` comparisons,
 sound by `denoteN_inj` (`ListRel.nodup_iff_denoteN`, `ctorIx_fold_rel`, the
 `induct` and `T.rec` guards); the arithmetic guards read the same records on
 both sides; the two telescope walks are `indPiTeleLen_run` and
-`piSortTeleLen?_run`.  Every step is read-only, so the frame is `s' = s`.
-Task #97-P3-Frontend round 7. -/
+`piSortTeleLen?_run`.  Every step is read-only, so the frame is `s' = s`. -/
 theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {tys : List ConLeche.Frontend.IndTypeRec}
@@ -2041,9 +2036,7 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
 
 /-! ## `installIndD`'s machinery
 
-The WRITE half of an inductive record: the block's constants, pushed
-(task #105: the owner census, the block map and the modeller seam — the rest
-of what this section used to carry — are gone with the modeller).  The three
+The WRITE half of an inductive record: the block's constants, pushed.  The three
 member lists (`types`, `ctors`, `recs`) are each a `mapM` over `parseCVD_run`
 (recursors additionally over `parseRules_run`), nothing moves the store, and
 the whole block denotes con-leche's by `denoteCIList_of_listRel`. -/
@@ -2070,7 +2063,7 @@ theorem denoteCIList_of_listRel {st : EStore} :
 
 /-- con-leche: ConLeche/Kernel/Env.lean:352-371 IndCaps — the DEFAULT capability
 record denotes con-leche's default, once the zero name handle decodes to
-`.anonymous` (`PinsOK.anon`, task #97-P3-Ind round 5's ruling). -/
+`.anonymous` (`PinsOK.anon`). -/
 theorem denoteCaps_default {st : EStore}
     (h : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous) :
     denoteCaps st {} = some {} := by
@@ -2078,13 +2071,10 @@ theorem denoteCaps_default {st : EStore}
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — **an
 inductive record, INSTALLED**: the block's constants, pushed as one
-`indDecl`.  Task #105: con-leche's own `installIndD` used to build the
-projection-owner table and run the in-process modeller here (`registerProjOwners`,
-`InModel.generate` through the `wants`/`inModel` gate); the uniform installer
-(`Arena/Inductives/**`, the kernel lane's) replaces both, so the parser has
-nothing left to do but push the block — the whole function is now three
-`mapM`s (`parseCVD_run`/`parseRules_run`, none of whose callees intern) and
-`pushDecl_run`, so **nothing moves the store**.
+`indDecl`.  The block is installed by the uniform installer
+(`Arena/Inductives/**`) at check time, so the parser only pushes it — the
+whole function is three `mapM`s (`parseCVD_run`/`parseRules_run`, none of
+whose callees intern) and `pushDecl_run`, so **nothing moves the store**.
 
 `PinsOK s` is what makes the pushed `.indInfo` rows' DEFAULT capability
 record denote con-leche's: its `etaCtor` is the zero name handle, and it
@@ -2287,10 +2277,8 @@ record's own semantics**: six declaration kinds and the inductive route.
 `Arena/Frontend/ExportC.lean`'s own note says "every branch, guard and error
 string is con-leche's", and this is that sentence as a theorem.
 
-**Task #105**: the projection rewrite that used to run in the `.defn`/`.thm`
-arms is gone with the modeller, so every arm now pushes the record it parsed
-unconditionally — `pushDecl_built_run` alone, no `projRewriteD_run` and no
-`setProjRewrites`.  A record this function builds itself is an
+Every arm pushes the record it parsed unconditionally — `pushDecl_built_run`
+alone.  A record this function builds itself is an
 `.axiomDecl`/`.defnDecl`/`.thmDecl`/`.opaqueDecl`/`.quotDecl`
 (`DeclProjNamed.of_…`, vacuous) or an `.indDecl` block of
 `.indInfo`/`.ctorInfo`/`.recInfo` (`installIndD_run`'s own `DeclProjNamed.of_indDecl`

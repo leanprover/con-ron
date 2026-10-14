@@ -24,8 +24,8 @@ a field-for-field conjunction, and the three shapes it needs are:
   every index and its three laws come from con-leche's three
   (`Scan/Types.lean:383/386/390`);
 * **`ListRel`** — Mathlib's `List.Forall₂` under another name; the library
-  imports no Mathlib (task #97-P3-0) and core has no such relation, so the
-  tier carries its own four-line inductive;
+  imports no Mathlib (DESIGN `### Task #97-P3-0`) and core has no such relation,
+  so the tier carries its own four-line inductive;
 * the declaration ARRAY, which is `Bridge/Checker/Inv.lean`'s `denoteDecls` on
   `Array.toList`.
 
@@ -54,13 +54,12 @@ this tier is *one-directional*: **the twin accepting implies con-leche
 accepting**, with the denotation of the answer.  A twin `fail` claims nothing,
 exactly as `Bridge/Checker`'s arms claim nothing about a `native` decline.
 
-**The import is `Bridge/Checker/Inv.lean`, not `Bridge/Checker.lean`** (task
-#97-P3-Layout).  This module uses exactly three names of the checker tier —
-`FoldOK`, `denoteDecls` and `denoteDecl_pext` — and all three are in
-`Inv.lean`, the BOTTOM of that tier.  The blanket import that used to stand
-here pulled all fourteen checker modules in for those three, which put
+**The import is `Bridge/Checker/Inv.lean`, not `Bridge/Checker.lean`.**  This
+module uses exactly three names of the checker tier — `FoldOK`, `denoteDecls`
+and `denoteDecl_pext` — and all three are in `Inv.lean`, the BOTTOM of that
+tier.  Importing the whole checker tier here would put
 `Bridge/Frontend/Shared.lean`'s intern exactness ABOVE every module that needs
-to read it; `Bridge/Checker/Pins.lean` now imports `Shared.lean` instead, and
+to read it; as it is, `Bridge/Checker/Pins.lean` imports `Shared.lean`, and
 only `Bridge/Frontend/Capstone.lean` imports the checker tier whole.
 -/
 import ConRon.Bridge.Checker.Inv
@@ -98,13 +97,11 @@ is persistent.  The parse runs with the scratch tier closed, so every handle
 it interns — every handle `Bridge/Specs.lean`'s intern specs hand back with a
 `view` conjunct — is persistent for free.
 
-Task #97-P3-Frontend-2's round 2 replaces finding 9.1 with this: what
-`StateD_init_run` was missing was not an intern lemma at all, it was the
-observation above plus the `sync` chain that carries `scratchOn = false` down
-the nesting.  (The three store-layer twins of
-`EStore.intern_isPersistent_of_off` went in anyway — `Arena/WFProofs.lean`'s
-last section — because they are the fact stated where it belongs, and a caller
-that has the capacity bound but not the view wants them.) -/
+What `StateD_init_run` needs is this observation plus the `sync` chain that
+carries `scratchOn = false` down the nesting.  (The three store-layer twins of
+`EStore.intern_isPersistent_of_off`, `Arena/WFProofs.lean`'s last section,
+state the same fact where it belongs, for a caller that has the capacity bound
+but not the view.) -/
 
 /-- con-leche: none — the scratch flag is the same at every level of the
 nesting: `EWFAt.sync`, `LsWF.sync` and `LWFAt.sync` composed. -/
@@ -195,8 +192,8 @@ theorem ParseStep.trans {a b c : AState} (h₁ : ParseStep a b) (h₂ : ParseSte
     h₁.cframe.trans h₂.cframe, by rw [h₂.pins, h₁.pins]⟩
 
 /-- con-leche: none — the frame of a parse step that writes no
-per-declaration table at all, which is every step but the owner census.  The
-shape a proof reaches when it has the plain cache equation in hand. -/
+per-declaration table at all.  The shape a proof reaches when it has the plain
+cache equation in hand. -/
 theorem ParseStep.of_caches {s s' : AState} (hok : StateOK s')
     (hx : Ext s.store s'.store) (hsc : s'.store.scratchOn = s.store.scratchOn)
     (hc : s'.caches = s.caches)
@@ -205,12 +202,10 @@ theorem ParseStep.of_caches {s s' : AState} (hok : StateOK s')
 
 /-! ## The three readback invariants, threaded through the parse
 
-Task #97-P3-Frontend round 8.  The projection rewrite's `instLPFast` answers
-exactly only where `readNC`, `readLC` and `readLsC` are sound (`Bridge/ExprOps/
-Owed.lean`'s `instLPFast_spec`), so the parse carries the three invariants from
-the capstones' empty caches.  They survive every parse step through
-`ParseStep.cframe`'s implications — which is why those are implications and
-not equations. -/
+The parse carries the soundness invariants of `readNC`, `readLC` and
+`readLsC` from the capstones' empty caches.  They survive every parse step
+through `ParseStep.cframe`'s implications — which is why those are
+implications and not equations. -/
 
 /-! ## The two generic shapes -/
 
@@ -244,8 +239,8 @@ theorem OptRel.none_left {α : Type u} {β : Type v} {R : α → β → Prop}
 
 /-- con-leche: none — two lists, element for element.  Mathlib's
 `List.Forall₂` under another name: the `ConRonBridge` library imports no
-Mathlib (task #97-P3-0), and core has no such relation, so the tier carries
-its own four-line inductive. -/
+Mathlib (DESIGN `### Task #97-P3-0`), and core has no such relation, so the tier
+carries its own four-line inductive. -/
 inductive ListRel {α : Type u} {β : Type v} (R : α → β → Prop) :
     List α → List β → Prop
   | nil : ListRel R [] []
@@ -270,9 +265,8 @@ def IdTableRel {α : Type} {β : Type} (R : α → β → Prop)
 
 /-- con-leche: ConLeche/Frontend/Scan/Types.lean:369-372 IdTable.bound — **the
 rebinding test agrees**, which is what lets `parseNameEntryD`'s `freshName`
-guard fail on the same indices on both sides.  Task #97-P3-0 §4's rule 4 in
-miniature: the guard reads `bound`, so `bound` is what the relation must
-give. -/
+guard fail on the same indices on both sides.  The guard reads `bound`, so
+`bound` is what the relation must give. -/
 theorem IdTableRel.bound {α β : Type} {R : α → β → Prop}
     {t : ConLeche.Frontend.IdTable α} {u : ConLeche.Frontend.IdTable β}
     (h : IdTableRel R t u) (i : Nat) :
@@ -406,10 +400,9 @@ theorem denoteDecls_length {st : EStore} :
         simp [ih ys has]
 
 /-! `IProjNamed`, `IProjTableOK.toNamed` and `IProjNamed.mono` are in
-`Bridge/StateOK.lean` beside `IProjTableOK` since task #97-P3-Ind round 5 —
-the maintainer's ruling on this round's finding, so that
-`denoteCI_name_proj` can take the name clause alone.  They are in this
-namespace's parent, so every use below reads unchanged. -/
+`Bridge/StateOK.lean` beside `IProjTableOK`, so that `denoteCI_name_proj` can
+take the name clause alone.  They are in this namespace's parent, so every use
+below reads them unqualified. -/
 
 /-- con-leche: none — a stored constant that is rightly named: the clause has
 content at a `.projInfo` and nowhere else. -/
@@ -511,8 +504,8 @@ projection layers take it as a hypothesis and nothing is weakened.
 This is what makes `Bridge/Frontend/Shared.lean`'s intern family
 scratch-agnostic without a second copy of it: the family is stated over
 `IStepS` with the denotation alone, and the `IStep` version — `hoff` in,
-`Pers…` out — is a three-line corollary through these lemmas.  DESIGN
-#97-P3-Frontend round 6. -/
+`Pers…` out — is a three-line corollary through these lemmas (DESIGN
+`### Task #97-P3-Frontend`). -/
 
 /-- con-leche: none — a name handle that denotes on a closed store is
 persistent. -/
@@ -932,8 +925,8 @@ theorem ciNames_denote {st : EStore} :
         simp only [List.map_cons, ConRon.Arena.Frontend.denoteNList, h1, h2]
 
 /-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — **the
-record's declared names denote**, which is what round 4's finding 16 said a
-bare `denoteDecl` does not give.  `DeclProjNamed` is exactly the missing
+record's declared names denote**, which a bare `denoteDecl` does not give
+(`denoteProjTable` drops `tableName`).  `DeclProjNamed` is exactly the missing
 hypothesis and nothing more. -/
 theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
     (hpn : DeclProjNamed st d)
@@ -1018,27 +1011,25 @@ theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
 RELATION**: the twin's parse state denotes con-leche's, field for field, in
 the store `st`.
 
-Four clauses for four fields (task #105: the in-process modeller and the
-projection rewrite's fourteen census fields are gone — see this file's
-header note).  The three stream-index tables go through `IdTableRel`, the
-declaration array through `denoteDeclArray`, and `projNamed` is the one
-invariant that is not a raw field: the stream's projection tables (a kernel
-concern, unrelated to the deleted rewrite) are rightly named. -/
+Four clauses for four fields.  The three stream-index tables go through
+`IdTableRel`, the declaration array through `denoteDeclArray`, and `projNamed`
+is the one invariant that is not a raw field: the stream's projection tables
+(the kernel's struct projection bookkeeping) are rightly named. -/
 structure StateDRel (st : EStore) (sd : StateD) (sc : ConLeche.Frontend.StateD) :
     Prop where
   names : IdTableRel (fun h n => denoteN st.ns h = some n) sd.names sc.names
   levels : IdTableRel (fun h u => denoteL st.ls h = some u) sd.levels sc.levels
   exprs : IdTableRel (fun h e => denoteE st h = some e) sd.exprs sc.exprs
   decls : denoteDeclArray st sd.decls = some sc.decls
-  /-- **the stream's projection tables are rightly named** — round 4's
-  finding 16, repaired the way `Bridge/StateOK.lean`'s `IFEnvOK` repaired the
-  same gap one module over (`IFEnvOK.proj`).  `denoteProjTable` drops
+  /-- **the stream's projection tables are rightly named** — the same clause
+  `Bridge/StateOK.lean`'s `IFEnvOK` carries one module over
+  (`IFEnvOK.proj`).  `denoteProjTable` drops
   `tableName`, so `decls` alone does NOT give `IDeclaration.names`'s
   exactness; this clause does, through `declNames_denote`, and it travels
   through the whole streaming fold because the fold only ever transports the
-  relation.  Its one debtor (task #105: the modeller's `pushGenList` is gone)
-  is `pushDecl` — the only place a record ENTERS the stream, where a block is
-  built out of `.indInfo`/`.ctorInfo`/`.recInfo` and the clause is vacuous. -/
+  relation.  Its one debtor is `pushDecl` — the only place a record ENTERS the
+  stream, where a block is built out of `.indInfo`/`.ctorInfo`/`.recInfo` and
+  the clause is vacuous. -/
   projNamed : DeclsProjNamed st sd.decls
 
 /-! ## The parse result -/
@@ -1050,8 +1041,9 @@ state.  This is what DESIGN §8.2's exactness statement is about, and its
 structure ParseResultRel (st : EStore) (r : ParseResultD)
     (rc : ConLeche.Frontend.ParseResultD) : Prop where
   decls : denoteDeclArray st r.decls = some rc.decls
-  /-- the same clause at the parse RESULT, which is what carries round 4's
-  finding 16 out of the parse and into `Bridge/Frontend/Prepare.lean`. -/
+  /-- the same clause at the parse RESULT, which is what carries the
+  projection-table naming out of the parse and into
+  `Bridge/Frontend/Prepare.lean`. -/
   projNamed : DeclsProjNamed st r.decls
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:761-763 ParseResultD.ofState —

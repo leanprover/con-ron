@@ -15,32 +15,28 @@ by `parseBytes` and not by `parseChunks`.
 **The scanner.**  `Arena/Frontend/ExportC.lean` imports
 `ConLeche.Frontend.Scan.Fast` and calls `scanLineFwd` — con-leche's own
 function on con-leche's own `ByteArray`, returning con-leche's own `LineRec`.
-There is no twin, so there is nothing to relate: where the original campaign
-needed seven files and 17 479 lines (`RefineOld/Frontend/Scan{WF,Kit,Str,Obj,
-Expr,Ind,Line}.lean`, plus `Utf8DecodeSpec` and `UnescapeSpec` as named
-obligations), this tier needs **zero**.  That is the single largest saving of
-the arena rewrite's proof, and it is a consequence of (B) being Lean: a Lean
-twin may CALL con-leche where a Rust port must re-implement.
+There is no twin, so there is nothing to relate, and no scanner obligation
+(`Utf8DecodeSpec`, `UnescapeSpec`) is named.  It is a consequence of (B) being
+Lean: a Lean twin may CALL con-leche where a Rust port must re-implement.
 
 **The chunks.**  `Arena.Frontend.parseChunks` takes `List ByteArray` and so
-does con-leche's, byte for byte — so there is no `absChunks`
-(`RefineOld/Frontend/Abs.lean:438`) either, and the capstone's hypothesis is
-literally `ConLeche.jsonWithTheoremFalse chunks`.  The second saving, and the
-reason the byte-level capstone is a two-step composition rather than a
+does con-leche's, byte for byte — so there is no `absChunks` either, and the
+capstone's hypothesis is literally `ConLeche.jsonWithTheoremFalse chunks`.
+That is why the byte-level capstone is a two-step composition rather than a
 transport across an abstraction.
 
 **The error channel.**  Both sides carry `Except (CheckError × Nat)` for the
 two failures that are VALUES (a scan error, a record verdict), and the twin's
 `CheckError` is con-leche's own type — `Arena/Frontend/Types.lean` says the
 frontend's `M` collapses into `AM` and nothing else moves.  So there is no
-`absErrKind`/`ParseErrSim` (`RefineOld/Frontend/ChunksR.lean:226`) either; the
+`absErrKind`/`ParseErrSim` either; the
 theorems are one-directional (twin accepts ⇒ con-leche accepts) and a twin
 failure claims nothing, which is all the capstone needs.
 
 Nothing downstream of `applyLine_run` reads a per-declaration cache, so no
 cache invariant is threaded through the chain.
 
-## The one import the tier's own module note did not foresee
+## The scanner equation
 
 con-leche's `feedChunk` and `applyFinalLine` call **`scanLineSpec`**, the
 naive reference, and let `@[csimp]` substitute `scanLineFwd` in compiled code;
@@ -50,11 +46,10 @@ between them — `ConLeche.Frontend.scanLineFwd_eq`
 (`Scan/Equiv.lean:932`) — and `Bridge/Frontend/Chunks.lean` imports
 `ConLeche.Frontend.Scan.Equiv` for it.
 
-**This does not reopen the scanner tier.**  The 1 800 lines behind that
-equation are con-leche's, already proved and already built; what the twin
-avoids is re-deriving them, not citing them.  The saving DESIGN §2 records
-(seven files, 17 479 lines of `RefineOld/Frontend/Scan*`) is untouched: those
-files proved a *re-implementation* right, and there is none here.
+**This is not a scanner tier.**  The 1 800 lines behind that equation are
+con-leche's, proved and built there; the twin cites them and does not
+re-derive them, and there is no *re-implementation* of the scanner to prove
+right (DESIGN §2).
 
 ## The one escape hatch
 
@@ -62,9 +57,8 @@ con-leche writes `parseChunks`'s fold as a `where go`; the twin writes it as
 the top-level `parseChunksGo`, because "the arena's Rust twin is a loop of its
 own and a `where` clause has no name to cite"
 (`Arena/Frontend/ExportC.lean`).  `parseChunksC` below is con-leche's `go`
-respelled at the top level with `parseChunks_eq` as its `rfl` equation —
-`RefineOld/Frontend/ChunksR.lean:673`'s `parseBytesFinal`/`parseBytes_eq`
-pattern, for the same reason.
+respelled at the top level with `parseChunks_eq` as its `rfl` equation, so
+that the fold has a name to cite.
 -/
 import ConRon.Bridge.Frontend.Lines
 import ConLeche.Frontend.Scan.Equiv
@@ -123,8 +117,7 @@ Two intern specs and `IdTableRel.singleton`; every other field is the
 structure's default on both sides, so `IdTableRel` of the empty expr table
 (`IdTableRel.empty`) and `denoteDeclArray` of the empty array are `rfl`-level.
 
-**The `PersStateD` half costs one observation**, not an intern lemma
-(task #97-P3-Frontend-2 round 2, revising round one's finding 9.1): a scratch
+**The `PersStateD` half costs one observation**, not an intern lemma: a scratch
 handle reads as ABSENT while the scratch tier is off, so a handle the intern
 spec hands back WITH A VIEW is persistent — `Bridge/Frontend/Rel.lean`'s
 `PersN_of_view` / `PersL_of_view`, over the `sync` chain that carries
@@ -248,9 +241,7 @@ The loop's strong induction on `b.size - i.toNat` — the twin's own
 `termination_by`, taken as a `Nat` bound so that the induction is an ordinary
 one — with `applyLine_run` at the step and the two guards (`scanLineFwd`'s
 verdict and `newlineFrom`) evaluated once and shared, since both sides call
-con-leche's functions on the same bytes.  Task #97-P3-Frontend's sorry list,
-item 16 — **the tier's second critical path**, after
-`processLineCoreD_run`. -/
+con-leche's functions on the same bytes. -/
 theorem feedChunk_run_le :
     ∀ (n : Nat) {s s' : AState}, StateOK s → s.store.scratchOn = false → PinsOK s →
       ∀ {sd sd' : StateD} {sc : ConLeche.Frontend.StateD},

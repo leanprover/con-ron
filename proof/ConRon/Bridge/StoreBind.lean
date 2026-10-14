@@ -3,9 +3,9 @@
 
 `EStore.internBind` (and its two `@[inline]` faces `internLam` /
 `internForallE`) is the `intern` the REBUILDING WALKS call — they take a
-binder apart with `viewBind` and put it back with this.  Since task #119 (the
-binder datum is gone from con-leche's `Expr`, so from the arena) it is
-literally `intern` at the binder view its tag spells
+binder apart with `viewBind` and put it back with this.  A binder carries no
+datum (neither does con-leche's `Expr`), so it is literally `intern` at the
+binder view its tag spells
 (`Arena/WFProofs.lean`'s `EStore.internBind_eq_intern`), and its spec is
 `EStore.intern_spec` read through that equation.
 -/

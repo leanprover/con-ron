@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.Promote.Walk` — the four handle-kind promotions, run forwards
 
-The induction under `Bridge/Promote/Exact.lean`'s `promote{N,L,Ls,E}_spec`
-(task #97-P3-Promote).  Each walk is proved in ONE form, the core:
+The induction under `Bridge/Promote/Exact.lean`'s `promote{N,L,Ls,E}_spec`.
+Each walk is proved in ONE form, the core:
 
     StoreWF' s.store → PMemoOK m s.store → promoteX m fuel h s = .ok ((m', r), s') →
       StoreWF' s'.store ∧ PMemoOK m' s'.store ∧ PersX r ∧

@@ -14,12 +14,12 @@ and why the capstone needs only its corollary
 `ConLeche.Frontend.mem_preparePrelude` (`Verify/Frontend/Prepare.lean:174`):
 **preparation keeps every record it was given.**
 
-Over handles nothing about that changes, and there is one pleasant surprise:
-`declares` and `pick` are PURE on both sides (`Arena/Env.lean`'s
-`IProjTable.tableName` note is what buys it — `IDeclaration.names` is a pure
-function of handles), so the two `Array` walks are the same walk with
-`NIdx` where con-leche has `Name`, and the only monadic step in the whole
-module is `preludeKey`'s `.anonymous` fall-through, which has to be interned.
+Over handles nothing about that changes, and more: `declares` and `pick` are
+PURE on both sides (`Arena/Env.lean`'s `IProjTable.tableName` note is what buys
+it — `IDeclaration.names` is a pure function of handles), so the two `Array`
+walks are the same walk with `NIdx` where con-leche has `Name`, and the only
+monadic step in the whole module is `preludeKey`'s `.anonymous` fall-through,
+which has to be interned.
 
 **The hoist is the one place a handle comparison stands for a name
 comparison** and therefore the one place `denoteN_inj` (DESIGN §8.3's
@@ -36,16 +36,16 @@ out.
 `pins/leanprover-lean4-v4.33.0.prelude.ndjson`.  The two are the same bytes
 (`scripts/gen-prelude-lean.sh` generates `PreludeText.lean` from con-leche's
 own committed file, and its `--check` is step 11 of `scripts/gates.sh`), but
-**soundness does not depend on it** (task #98-HEADLINE): con-leche's
-`preparePrelude` puts the prelude's declarations INTO the checked stream, so
-whatever the prelude parses to is checked like the file's own records.
+**soundness does not depend on it** (DESIGN `### Task #98-HEADLINE`):
+con-leche's `preparePrelude` puts the prelude's declarations INTO the checked
+stream, so whatever the prelude parses to is checked like the file's own
+records.
 
 So `builtinPreludeE_run` below is stated **parametrically in the bytes**: the
 prelude index denotes SOME con-leche prelude index — `⟨rc.decls⟩` of
 `parseBytes_run` on `preludeText` — and nothing downstream asks which.  The
 gate stays, as the claim "con-ron ships con-leche's prelude", but it is no
-hypothesis of any theorem (until the arena merge it was `hbytes`, the
-equation `preludeText = builtinPreludeText.toUTF8`).
+hypothesis of any theorem.
 -/
 import ConRon.Bridge.Frontend.Chunks
 import ConRon.Arena.Frontend.Prelude
@@ -111,7 +111,7 @@ theorem builtinPreludeE_run
 prelude record is looked up by.  The twin is monadic only for the
 `.anonymous` fall-through.
 
-**Round 4's finding 16, repaired (round 5).**  `IDeclaration.names`
+**The name exactness.**  `IDeclaration.names`
 (`Arena/Env.lean:262-266`) reads `IConstantInfo.name`, which at a `.projInfo`
 is the STORED handle `tbl.tableName` — and `denoteProjTable` does not mention
 `tableName`, so `denoteDecl st d = some dP` alone does NOT give
@@ -324,8 +324,8 @@ stream's own copy of a prelude record, pulled out.  PURE on both sides
 
 `declares n d` is `d.names.contains n`, so this statement reads
 `IDeclaration.names` at every record of the stream and needs its exactness —
-which round 4's finding 16 said a `.projInfo` does not give.  `DeclsProjNamed`
-is the hypothesis that supplies it (round 5).
+which a `.projInfo`'s denotation alone does not give.  `DeclsProjNamed` is the
+hypothesis that supplies it.
 
 `denoteDecls_findIdx` for the index, `denoteDecls_getElem?` for the answer and
 `denoteDecls_eraseIdx` for the rest — the three list facts above, transported
@@ -398,8 +398,7 @@ of the preparation are PERMUTATIONS: no record is built, so every record out
 is a record in, and the fold theorems' `hpd` (`Arena.installThenCheck_bridge`)
 at the fold's argument is the parse's and the prelude's, carried.
 
-Proved: a list induction over `preludeKey_run` and `pick_denote`.  Was task
-#97-P3-Frontend's sorry list, item 20. -/
+Proved: a list induction over `preludeKey_run` and `pick_denote`. -/
 theorem frontOf_run :
     ∀ (ps : List IDeclaration) {s s' : AState} {acc : Array IDeclaration}
       {accP : Array Declaration} {psP : List Declaration}
@@ -528,8 +527,8 @@ therefore stop in the same places exactly when one handle per expression is
 reachable — which is DESIGN §8.3's soundness obligation `denoteE_inj`, the
 store being hash-consed.  Without it the twin would re-walk a subterm
 con-leche skips and push its constants twice, and the array equality below
-would be false.  This is the third place in the campaign where `denoteE_inj`
-is load-bearing rather than convenient.  DESIGN #97-P3-Frontend round 6. -/
+would be false.  Here `denoteE_inj` is load-bearing rather than
+convenient. -/
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:56-58 usedConstsGo — **the
 two memos are the same memo**, one keyed by handle and one by the expression
@@ -600,7 +599,7 @@ theorem UCSeen.insert {st : EStore} {seen : Std.HashSet EIdx}
 
 /-- con-leche: none — the correspondence survives an arena EXTENSION, which
 is what `usedConstsBlock` needs: `toConstantVal` interns `Sort 1` at a
-projection table (round 4's finding 16).  A handle the extension ADDED cannot
+projection table.  A handle the extension ADDED cannot
 denote anything the old set already holds, because `denoteE_inj` holds at the
 bigger store too — which is the `bwd` clause's whole purpose. -/
 theorem UCSeen.mono {st st' : EStore} {seen : Std.HashSet EIdx}
@@ -896,7 +895,7 @@ theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
 — **an inductive block**, folded over ONE visited set.
 
 The frame is `ParseStep` and not `s' = s`: `toConstantVal`'s `.projInfo` arm
-interns `Sort 1` (`Arena/Env.lean:224-230` — round 4's finding 16), so the
+interns `Sort 1` (`Arena/Env.lean:224-230`), so the
 store grows at a block that holds a projection table, and `UCSeen.mono`,
 `denoteNListE_ext` and `denoteCIList_mono` are what carry the induction's data
 across that. -/
@@ -1018,15 +1017,14 @@ theorem usedConstsBlock_run :
 the constants a record mentions.  A walk over the record's terms with a `seen`
 set, so the GRAY-invariant shape again.
 
-**Round 4's finding 16 bit the FRAME here, and round 5 repaired it**:
-`usedConstsBlock` (`Arena/Frontend/NatOpGround.lean:85-95`) calls
-`ci.toConstantVal`, whose `.projInfo` arm INTERNS `Sort 1`
-(`Arena/Env.lean:224-230`, because con-leche's `ConstantInfo.toConstantVal`
-builds the closed dummy type as a VALUE), so `s' = s` is false at a block that
-holds a projection table.  `ParseStep s s'` is the honest frame and the answer
-is read at `s'.store` — round 4's own finding 15, one module over.
+**The frame is `ParseStep`, not `s' = s`**: `usedConstsBlock`
+(`Arena/Frontend/NatOpGround.lean:85-95`) calls `ci.toConstantVal`, whose
+`.projInfo` arm INTERNS `Sort 1` (`Arena/Env.lean:224-230`, because con-leche's
+`ConstantInfo.toConstantVal` builds the closed dummy type as a VALUE), so
+`s' = s` is false at a block that holds a projection table.  `ParseStep s s'` is the
+honest frame and the answer is read at `s'.store`.
 
-**CLOSED** (round 6).  `usedConstsGo_run` is the walk, `usedConstsRules_run`
+`usedConstsGo_run` is the walk, `usedConstsRules_run`
 and `usedConstsBlock_run` the two folds, and the whole of what makes them line
 up is `UCSeen`: con-leche's memo is keyed by `Expr` and the twin's by handle,
 and the two stop in the same places because `denoteE` is INJECTIVE.
@@ -1160,7 +1158,7 @@ theorem usedConsts_run {s s' : AState} (hok : StateOK s)
     rw [usedConsts_indDecl_eq]
     exact ⟨hstep1, ha1⟩
 
-/-! ## The target map (task #97-P3-Frontend round 8)
+/-! ## The target map
 
 con-leche's `hoistTargets` is an `Id.run do` of two `for` loops (the name
 index), a `for i`/`for g` pair, and a worklist `while`.  Every `for` yields on
@@ -1912,13 +1910,13 @@ hoist's index, and where `denoteN_inj` is load-bearing**: the stream is
 indexed by declared name, and two handles denoting one name would make the
 twin move a record con-leche does not move.
 
-**Round 4's finding 16 bit both halves, and round 5 repaired both**:
-`nameIndex` (`Arena/Frontend/NatOpGround.lean:133-138`) indexes by
-`ds[k].names`, and `usedConsts` moves the store at a projection table.  The
-frame is `ParseStep` and the name exactness is `DeclsProjNamed`'s.
+**Both halves read the store's projection tables**: `nameIndex`
+(`Arena/Frontend/NatOpGround.lean:133-138`) indexes by `ds[k].names`, and
+`usedConsts` moves the store at a projection table.  The frame is `ParseStep`
+and the name exactness is `DeclsProjNamed`'s.
 
-**CLOSED** (round 8), against the round-8 twin (`hoistClosure`'s fuel counts
-marked records, `pushOne` has con-leche's `m != k`).  The target maps are
+The twin's `hoistClosure` fuel counts marked records, and `pushOne` has
+con-leche's `m != k`.  The target maps are
 EQUAL, not merely related: both sides perform the same inserts in the same
 order, so the simulations carry the map literally.  `denoteN_inj` is where it
 is load-bearing: the name index is keyed by handle on the twin's side and by
@@ -2062,8 +2060,8 @@ reorder, at one and the same target map**: the twin's `reorder` over the sorted
 index list is con-leche's `List.map` over the same list (the two comparators
 are the same function of the map), and the moved names are the declared names
 of the moved records, in index order (`declNames_denote`, so `DeclsProjNamed`).
-Pure on both sides.  Round 7's child of `hoistNatOpGround_run`; the two
-comparators close by `congr` (they are the same term up to the matcher). -/
+Pure on both sides; the two comparators close by `congr` (they are the same term
+up to the matcher). -/
 theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
     {dsP : Array Declaration} (hds : denoteDeclArray st ds = some dsP)
     (hpds : PersDecls ds) (hnds : DeclsProjNamed st ds)
@@ -2121,14 +2119,13 @@ theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
 hoist.  Its answer is a PERMUTATION of its argument, so the denotation of the
 result is the permutation of the denotation, and the moved-name list denotes.
 
-**The frame is `ParseStep` for round 4's finding 16's reason** (round 5):
-`hoistTargets` reads `usedConsts`, which interns at a projection table.
+**The frame is `ParseStep`**: `hoistTargets` reads `usedConsts`, which
+interns at a projection table.
 
 `hoistTargets_run` (the SAME target map on both sides), then
-`applyHoist_run` at it.  Round 7 skeletonised it: what it rests on is those
-two, and `PinsOK s` is new — `isNatOpRecord` reads the pinned operation names
-(`natDivModNames`/`natOpNames` are pin reads), so without it the twin's
-target map is not con-leche's. -/
+`applyHoist_run` at it.  `PinsOK s` is a hypothesis because `isNatOpRecord`
+reads the pinned operation names (`natDivModNames`/`natOpNames` are pin reads),
+so without it the twin's target map is not con-leche's. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}

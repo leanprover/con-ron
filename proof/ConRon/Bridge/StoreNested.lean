@@ -1,21 +1,18 @@
 /-
 # `ConRon.Bridge.StoreNested` — the three nested interns' store specs
 
-**The one obligation task #97a's frozen store API left open**, named by task
-#97b's "For P2c" list:
-
-> `EStore.internName` / `internLevel` / `internLevels` have no spec.  P2a
-> froze them without one; every `Core` body that interns a name or a level
-> will need `Ext` and `StoreWF` for them, and so does `instLPFast`.
+**The store obligation the arena's store API does not state** (DESIGN
+`### Task #97b`): `EStore.internName` / `internLevel` / `internLevels`' specs.
+Every `Core` body that interns a name or a level needs `Ext` and `StoreWF` for
+them, and so does `instLPFast`.
 
 `Arena/WFProofs.lean` proves `{N,L,Ls}Store.intern_spec` — the push preserves
 that store's own invariant, extends it, and the new handle decodes — and
-`EStore.intern_spec` for an EXPRESSION node.  What is missing is the LIFT: an
-`EStore` whose nested store grew is still well formed, and its `Ext` holds.
+`EStore.intern_spec` for an EXPRESSION node.  What this file adds is the LIFT:
+an `EStore` whose nested store grew is still well formed, and its `Ext` holds.
 
-The three statements are below.  They are the shape every consumer needs, so
-they are stated here whether or not they are proved here; the two facts that
-make them cheap are `Arena/WFProofs.lean`'s
+The three statements are below, in the shape every consumer needs; the two
+facts that make them cheap are `Arena/WFProofs.lean`'s
 
 * `EStore.wf_of_scr_empty`'s hypothesis list, which already isolates exactly
   the six nested-store facts `EWFAt` reads (`hnsv`/`hlv`/`hlsv` for the
@@ -31,7 +28,7 @@ literally unchanged by all three, so `view`, `derived`, `find?`, `findBM` and
 `nodeCount` at the expression level do not move; the whole content is the
 nested store's own `intern_spec` plus the six transports above.
 
-## How it is proved (task #97-P3-0)
+## How it is proved
 
 Each of the three interns is ONE field update as a value
 (`EStore.internName_eq` and its two siblings), so the file is four layers:
@@ -47,12 +44,9 @@ Each of the three interns is ONE field update as a value
    below (`nchildOK`/`lchildOK`/`lschildOK`), `derExact` (through
    `derOfView`, which reads the nested derived columns) and `sync`;
 3. the `Ext` conjunct, which is `Arena/WFProofs.lean`'s own
-   `EStore.internName_ext` / `internLevel_ext` / `internLevels_ext` (task
-   #97a follow-up 4).  This file used to carry its own
-   `denoteLAux_store_mono_nested` / `denoteEAux_store_mono_nested` and
-   `LExt.of_ns` / `LsExt.of_ls` / `Ext.of_lss` lifts; the store layer now
-   states the same fact UNCONDITIONALLY and over an arbitrary result store
-   (`{N,L,Ls,}Ext.of_view_mono`), so the copies here were deleted;
+   `EStore.internName_ext` / `internLevel_ext` / `internLevels_ext`, which
+   the store layer states UNCONDITIONALLY and over an arbitrary result store
+   (`{N,L,Ls,}Ext.of_view_mono`);
 4. the three statements themselves: each is `{N,L,Ls}Store.intern_spec` plus
    that conjunct plus `denote*_unfold` for the new handle's denotation.
 -/
