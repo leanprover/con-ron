@@ -47,7 +47,6 @@ priority is the only lever.  Each is proved by `vcgen [f]`: unlike
 unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
 definition named in its list.
 -/
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Grind
 

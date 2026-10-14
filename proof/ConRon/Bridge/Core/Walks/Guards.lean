@@ -29,7 +29,6 @@ the one-line bridge from `Bridge/Specs.lean`'s quantified `pinAt_spec` to the
 named slot.
 -/
 import ConRon.Bridge.Core.Walks.Spec
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -75,32 +74,13 @@ theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; rfl
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-/-- con-leche: none — **a `const`-tagged handle**, as an `Ans` atom about its
-denotation (`Bridge/Grind.lean` §3): its view is a constant, and whatever it
-denotes is that constant's denotation. -/
-theorem denote_tag_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    (ht : h.tag = ETag.const) :
-    Ans (fun e => ∃ n us nm ls, st.view h = some (.const n us) ∧
-      e = .const nm ls ∧ denoteN st.ns n = some nm ∧
-      denoteLs st.lss us = some ls) (denoteE st h) := by
-  intro e he
-  obtain ⟨v, hv⟩ := denoteE_view he
-  have htv := EStore.tagOf_of_view hv
-  cases v with
-  | const n us =>
-    obtain ⟨nm, ls, rfl, hn, hl⟩ := denote_const_inv hwf hv he
-    exact ⟨n, us, nm, ls, hv, rfl, hn, hl⟩
-  | _ => rw [ht] at htv; simp [ENodeView.tagOf, ETag.const] at htv <;> contradiction
-grind_pattern [bridge_grind] denote_tag_const => denoteE st h, h.tag
-
 /-! ### The arms as `grind` lemmas (tasks #120, #123)
 
 Each exit of the twin is one lemma in the shape its verification condition
 has, registered with `@[bridge_grind]`; `isBoolTrue_spec` is then `vcgen` with
-`finish`.  The subject's constant view comes from `denote_tag_const` (the
-tag test the twin makes first), and con-leche's `isBoolTrue` is met at a
+`finish`.  The subject's constant view comes from `Bridge/Grind.lean` §6
+(the tag test the twin makes first, `DenoteView.const`, `exprTag_const`,
+`ENodeView.tagOf_const`), and con-leche's `isBoolTrue` is met at a
 constant by the two lemmas for its universe-argument and name tests. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
@@ -145,7 +125,7 @@ theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {c b : NIdx}
     simp only [beq_self_eq_true]
   · have h1 : (c == b) = false := by
       simp only [beq_eq_false_iff_ne]
-      intro hcc; subst hcc; exact hb (eq_of_eq_some hc hbtn)
+      intro hcc; subst hcc; exact hb (Option.some.inj (hc.symm.trans hbtn))
     have h2 : (n == ConLeche.boolTrueName) = false := by
       simp only [beq_eq_false_iff_ne]; exact hb
     rw [h1, h2]

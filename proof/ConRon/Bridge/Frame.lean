@@ -17,7 +17,7 @@ A walk's own lemmas go in its `bridge_auto [...]` list, or are tagged where
 they are declared when every walk wants them.  The census line at the end
 checks that the constants the tactic names with single backticks exist.
 -/
-import ConRon.Bridge.StateOK
+import ConRon.Bridge.Grind
 import ConRon.BridgeTactic
 
 namespace ConRon.Bridge
@@ -104,41 +104,8 @@ theorem MemoOK.get_hit' {f : Nat → ConLeche.Expr → ConLeche.Expr}
 The tag-first twins test `h.tag == ETag.k` before they project; `exprTag`
 turns such a test into a fact about the denotation, in the `Bool` shape
 `contradiction` decides once the denotation is split by constructor — which
-is `bridge_finish`'s case split. -/
-
-/-- con-leche: none — **the constructor tag of a denotation**: the four tag
-bits of a handle are the tag of the expression it denotes. -/
-def exprTag : Expr → UInt32
-  | .bvar _ => ETag.bvar
-  | .fvar _ _ => ETag.fvar
-  | .sort _ => ETag.sort
-  | .const _ _ => ETag.const
-  | .app _ _ => ETag.app
-  | .lam _ _ => ETag.lam
-  | .forallE _ _ => ETag.forallE
-  | .letE _ _ _ => ETag.letE
-  | .lit _ => ETag.lit
-  | .proj _ _ _ => ETag.proj
-
-/-- con-leche: none — DESIGN §8.3: a handle's tag is its denotation's. -/
-theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
-    (hd : denoteE st h = some e) : h.tag = exprTag e := by
-  obtain ⟨v, hv⟩ := denoteE_view hd
-  rw [EStore.tagOf_of_view hv]
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv hd]; rfl
-  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hd; rfl
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
-  | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
-  | lit l => rw [denote_lit_inv hwf hv hd]; rfl
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
-
+is `bridge_finish`'s case split.  (`exprTag` and `tag_of_denote` themselves
+are `Bridge/Grind.lean`'s, §6, since task #123.) -/
 
 /-- con-leche: none — a TRUE tag test is a tag of the denotation
 (`bridge_fwd`'s default). -/
@@ -213,13 +180,7 @@ attribute [bridge_fwd] isSome_eBindView
     (h : denoteEO st none = some v) : v = none :=
   (Option.some.inj h).symm
 
-/-- con-leche: none — a denoting universe-argument list handle has a view
-(`viewOK_const`'s premise; the name and level stores have theirs in
-`Bridge/Rel.lean`; moved here from `Bridge/Specs.lean`, task #120 wave 2). -/
-@[bridge_frame] theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List ConLeche.Level}
-    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
-  obtain ⟨w, hw, _⟩ := denoteLs_view hd
-  rw [hw]; rfl
+attribute [bridge_frame] lsview_isSome_of_denote
 
 /-- con-leche: none — an answer relation moved at BOTH ends: its source
 along an extension under which the subject denotes (`RelE.retarget`), its
@@ -229,22 +190,6 @@ theorem RelE.transport {f : ConLeche.Expr → ConLeche.Expr} {st st0 st' st'' : 
     {c r : EIdx} (h : RelE f st c st' r) (hs : Ext st st0)
     (hc : (denoteE st c).isSome = true) (ht : Ext st' st'') : RelE f st0 c st'' r :=
   (h.retarget hs hc).ext ht
-
-/-- con-leche: none — a denoting `cons` list of handles: its head and its tail
-denote (`bridge_auto`'s default inversion for the list subjects). -/
-theorem denoteEList_cons_fr {st : EStore} {a : EIdx} {as : List EIdx}
-    {xs : List ConLeche.Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
-    ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
-      xs = x :: xs' := by
-  simp only [Frontend.denoteEList] at h
-  cases ha : denoteE st a with
-  | none => rw [ha] at h; simp at h
-  | some x =>
-    cases has : Frontend.denoteEList st as with
-    | none => rw [ha, has] at h; simp at h
-    | some ys =>
-      rw [ha, has] at h
-      exact ⟨x, ys, rfl, rfl, (Option.some.inj h).symm⟩
 
 -- `ConRon.BridgeTactic` names the constants above (and the bridge's own)
 -- with single backticks, unchecked: this checks them.

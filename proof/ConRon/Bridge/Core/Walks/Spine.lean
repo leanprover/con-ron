@@ -70,7 +70,6 @@ task #105.)
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -326,9 +325,9 @@ theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
     exact hnd v' e' dh hf
 
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+/-! ## The spine tier's vocabulary (task #123)
 
-`Bridge/Grind.lean` §5/§6's shape for what this module's walks read and the
+`Bridge/Grind.lean` §6/§8's shape for what this module's walks read and the
 generic vocabulary cannot see from its place in the import graph (the
 lengths and the well-scopedness live in con-leche's `InferLemmas` and in §0c
 above, `RelEA` in `ExprOps/Spine.lean`), and the two callees whose specs

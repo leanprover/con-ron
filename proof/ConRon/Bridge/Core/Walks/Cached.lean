@@ -69,7 +69,6 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Promote.Pers
 import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -266,14 +265,6 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
       ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
   { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-/-- con-leche: none — `RelE` is an `Ans` atom about its subject's
-denotation (definitionally; `Bridge/Grind.lean` §3). -/
-@[bridge_grind =] theorem RelE_eq_ans (f : Expr → Expr) (st : EStore) (c : EIdx)
-    (st' : EStore) (r : EIdx) :
-    RelE f st c st' r = Ans (fun e => denoteE st' r = some (f e)) (denoteE st c) := rfl
-
 /-! ### The five caches' hit and insert, at `CheckOK` (tasks #120, #123)
 
 The arms of the five cache walks as `grind` lemmas (task #123, the shape of
@@ -388,9 +379,9 @@ theorem CheckOK.constTy_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     Ans (fun i => denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) (s.caches.constTyC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := h.caches.constTy _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hn hx) hn'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
-  obtain rfl := eq_of_eq_some hf hf'
+  obtain rfl := Option.some.inj ((denoteN_ext hn hx).symm.trans hn')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
+  obtain rfl := Option.some.inj (hf.symm.trans hf')
   exact hd
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a VALUE-cache HIT. -/
@@ -403,8 +394,8 @@ theorem CheckOK.constVal_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     Ans (fun i => denoteE s.store i = some (val.instantiateLevelParams cv.levelParams ls))
       (s.caches.constValC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ := h.caches.constVal _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hn hx) hn'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
+  obtain rfl := Option.some.inj ((denoteN_ext hn hx).symm.trans hn')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
   rw [hf] at hf'
   cases hf'
   exact hd
@@ -422,9 +413,9 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
       (s.caches.ruleRhsC[(rn, cn, us)]?) := fun i hhit => by
   obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
     h.caches.ruleRhs _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hr hx) hr'
-  obtain rfl := eq_of_eq_some (denoteN_ext hcn hx) hc'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
+  obtain rfl := Option.some.inj ((denoteN_ext hr hx).symm.trans hr')
+  obtain rfl := Option.some.inj ((denoteN_ext hcn hx).symm.trans hc')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
   rw [hf] at hf'
   cases hf'
   rw [hrl] at hrl'

@@ -206,10 +206,6 @@ variable clause as an answer, at the io grade (task #123). -/
     SimE (ConLeche.inferTypeIO mode env) d (.fvar k t) st r :=
   ⟨_, hd, hw, 1, inferIO_fvar hk⟩
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-attribute [bridge_grind →] viewLen_of_denoteLs
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the io
 ∀-formation rule**: `Infer.lean`'s `infer_forallE` with both inferences at
 the io grade (the record `CoreFns.ioView` passes down). -/

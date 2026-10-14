@@ -99,14 +99,15 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 0. Vocabulary candidates for Bridge/Grind.lean (task #123)
+/-! ## 0. The readback frame and the projection table, as `grind` reads them (task #123)
 
-What this module's walks read and the generic vocabulary does not have yet:
+What this module's walks read beyond `Bridge/Grind.lean`'s vocabulary (which
+sits below `Core/Walks/Frame.lean` in the import graph and cannot name it):
 the readback frame as `grind` composes it (reflexivity, transitivity, the
 per-readback constructor keyed by the cache record as in
 `Core/Walks/Cached.lean`'s `CheckOK.ofReadL`, its store/pins projections, and
 `CheckOK` across it), the name-cache invariant off `CheckOK` (the sibling of
-`CheckOK.readL'`), a handle LIST known only to denote, and the projection
+`CheckOK.readL'`), and the projection
 table's optional entry as a denotation (`denoteProjEntryO`, `denoteEO`'s
 shape). -/
 
@@ -121,13 +122,6 @@ grind_pattern [bridge_grind] CheckOK.ofReadbackFrame => CheckOK mode env fe s, R
 `CheckOK.readL'`). -/
 theorem CheckOK.readN' {s : AState} (h : CheckOK mode env fe s) :
     ReadNCacheOK s.caches.readNC s.store := h.caches.readN
-
-/-- con-leche: none — a handle list known only to denote denotes a named list
-(`ExprOps.isSome_eq_some` at lists). -/
-theorem isSome_eq_someL {o : Option (List Expr)} (h : o.isSome = true) :
-    o = some (o.getD []) := by
-  cases o <;> simp_all
-grind_pattern [bridge_grind] isSome_eq_someL => o.isSome
 
 /-- con-leche: none — the denotation of an OPTIONAL projection entry, so that
 a lookup's answer is one equation (`denoteEO`'s shape). -/
@@ -402,10 +396,8 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [Array.toList_push, List.reverse_cons,
       List.reverse_reverse]
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
-  -- the push-order vector denotes `pe :: targs.reverse` (task #97-P6-15);
-  -- `RelE_eq_ans` (Cached's `Ans` reading of `RelE`) is off: `ExprOps/Subst.lean`'s
-  -- `RelE_eq_mapRel` reads the same answers without a `fun`
-  sym only [bridge_grind, -RelE_eq_ans, ConLeche.ProjEntry.typeAt] =>
+  -- the push-order vector denotes `pe :: targs.reverse` (task #97-P6-15)
+  sym only [bridge_grind, ConLeche.ProjEntry.typeAt] =>
     vcgen [ConRon.Arena.IProjEntry.typeAt,
       ExprOps.instLPFast_spec coreWalkFuel s₀ entry.levelParams us entry.body _ _ hok.state
         hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus (by rw [hb]; rfl),
@@ -791,7 +783,7 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-/-! ### Vocabulary candidates for Bridge/Grind.lean (task #123): the constructor index
+/-! ### The constructor index (task #123)
 
 `Bridge/Grind.lean` §6's shape (`FindAt`, the definitions) at a CONSTRUCTOR:
 is a lookup a constructor, its record, and the index's two halves at a
@@ -879,7 +871,7 @@ theorem peelPis_succ_eq (k : Nat) (e : Expr) :
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
 `peelPis`** in answer shape: `RelEO` at con-leche's peel (task #123: a named
-answer, read by `grind` as `MapRelO`). -/
+answer, read by `grind` as `MapRel`). -/
 theorem peelPis_specA (k : Nat) : ∀ (s₀ : AState) (h : EIdx), StoreWF s₀.store →
     (denoteE s₀.store h).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.peelPis k h

@@ -134,7 +134,6 @@ structural gap; everything else on this list is labour.**
 -/
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -343,24 +342,6 @@ metavariable that `mvcgen` guessed as the whole list — is gone with it.)
 `defEqList_go`, the ∃/∀ shape a caller whose state has moved needs, and
 `defEqList_spec` are both stated over `defEqList_specA`. -/
 
-/-- con-leche: none — the empty handle list denotes the empty list. -/
-theorem denoteEList_nil_inv {st : EStore} {xs : List Expr}
-    (h : Frontend.denoteEList st [] = some xs) : xs = [] := by
-  simp only [Frontend.denoteEList] at h; exact (Option.some.inj h).symm
-
-/-- con-leche: none — a denoting cons is a cons of denotations. -/
-theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
-    {xs : List Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
-    ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
-      xs = x :: xs' := by
-  simp only [Frontend.denoteEList] at h
-  cases ha : denoteE st a with
-  | none => rw [ha] at h; simp at h
-  | some x =>
-    cases has : Frontend.denoteEList st as with
-    | none => rw [ha, has] at h; simp at h
-    | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
-
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
 agree, so the verdict is the tails'.  **At ONE fuel**: the caller merges the
 head's and the tail's with `isDefEqCore_mono` and `defEqListFueled_mono`. -/
@@ -384,31 +365,6 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
   simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
     Except.bind]
   rfl
-
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-/-- con-leche: none — the empty handle list denotes the empty list. -/
-@[bridge_grind =] theorem denoteEList_nil_eq (st : EStore) :
-    Frontend.denoteEList st [] = some [] := rfl
-
-/-- con-leche: none — a cons of handles, as an `Ans` atom about its
-denotation (`Bridge/Grind.lean` §3): whatever it denotes is the cons of the
-head's and the tail's denotations. -/
-theorem denoteEList_cons_ans (st : EStore) (a : EIdx) (as : List EIdx) :
-    Ans (fun xs => ∃ x xs', denoteE st a = some x ∧
-      Frontend.denoteEList st as = some xs' ∧ xs = x :: xs')
-      (Frontend.denoteEList st (a :: as)) :=
-  fun _ h => denoteEList_cons_inv h
-grind_pattern [bridge_grind] denoteEList_cons_ans => Frontend.denoteEList st (a :: as)
-
-/-- con-leche: none — `denoteEList_ext` as an equation (`Bridge/Grind.lean`'s
-`denote_le` at a handle list). -/
-theorem denoteEList_le {st st' : EStore} {l : List EIdx} (hx : st ≤ st')
-    (hd : Frontend.denoteEList st l ≠ none) :
-    Frontend.denoteEList st' l = Frontend.denoteEList st l := by
-  obtain ⟨xs, hxs⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hxs]; exact denoteEList_ext hx _ _ hxs
-grind_pattern [bridge_grind] denoteEList_le => st ≤ st', Frontend.denoteEList st l
 
 /-! #### The four exits as `grind` lemmas (tasks #120, #121, #123)
 

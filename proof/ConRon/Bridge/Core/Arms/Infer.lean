@@ -160,9 +160,9 @@ theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
   simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
   rfl
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+/-! ## The pins, as `grind` reads them (task #123) -/
 
-attribute [bridge_grind →] CheckOK.pins view_len_of_denoteLs
+attribute [bridge_grind →] CheckOK.pins
 
 /-- con-leche: none — the `Nat` pin's name (`Arena/Pins.lean`'s table). -/
 @[bridge_grind =] theorem pinNames_nat : pinNames[PIN_NAT]? = some ConLeche.natName := rfl

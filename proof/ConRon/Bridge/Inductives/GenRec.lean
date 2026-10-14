@@ -192,7 +192,7 @@ theorem mapM_E_pstep {f : EIdx → AM EIdx} {F : Expr → Expr}
     exact ⟨PStep.refl hok, rfl⟩
   | cons e es ih =>
     intro idxP s₀ s' r hok h hrun
-    obtain ⟨eP, esP, he, hes, rfl⟩ := Core.denoteEList_cons_inv h
+    obtain ⟨eP, esP, he, hes, rfl⟩ := denoteEList_cons_inv h
     simp only [List.mapM_cons] at hrun
     obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hx1⟩ := hf e eP s₀ s1 x hok he k1
@@ -1526,7 +1526,7 @@ theorem classFieldsOf_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
   | cons f fs ih =>
     intro fsP i s₀ s' r hok hpre hrun
     obtain ⟨hsh, hfs⟩ := hpre
-    obtain ⟨fP, fsP', hf, hfs', rfl⟩ := Core.denoteEList_cons_inv hfs
+    obtain ⟨fP, fsP', hf, hfs', rfl⟩ := denoteEList_cons_inv hfs
     simp only [Arena.classFieldsOf] at hrun
     obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hw⟩ := fvarTypeD_run hok hf k1

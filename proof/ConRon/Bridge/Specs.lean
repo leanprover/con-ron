@@ -68,7 +68,6 @@ the line.
 -/
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.Grind
-import ConRon.Bridge.Frame
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Arena.PersistentRun
@@ -411,24 +410,6 @@ theorem beq_of_denoteEList {st : EStore} (hwf : StoreWF st)
     rw [h1] at hne
     exact absurd hne (by simp)
 
-/-- con-leche: none — the `fvar` index projection read means the type
-projection reads too (one row of the `fvar` array): `TagFirst`'s
-`viewFVarIdx_of_viewFVarTy`, the other way. -/
-theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
-    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
-  unfold EStore.viewFVarIdx at h
-  unfold EStore.viewFVarTy EStore.persGetFVarTy
-  unfold EStore.persGetFVarIdx at h
-  split at h
-  · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-    obtain ⟨r, hr, -⟩ := h
-    exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-  · split at h
-    · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-      obtain ⟨r, hr, -⟩ := h
-      exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-    · cases h
-
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
 word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
@@ -436,72 +417,6 @@ word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
     ⦃fun s => s = s₀⦄ derivedE h
     ⦃fun w s' => s' = s₀ ∧ w = s₀.store.derived h; ⊤⦄ := by
   vcgen [derivedE] with finish
-
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
-
-The binder record's two faces as `grind` equations: `eBindView` at a literal
-tag is the constructor it spells, and `internLam`/`internForallE` are
-`internBind` at that tag (so that `EStore.internBind_spec`'s pattern meets the
-program's call). -/
-
-/-- con-leche: none — `eBindView` at the `lam` tag. -/
-@[bridge_grind =] theorem eBindView_lam (ty b : EIdx) :
-    eBindView ETag.lam ty b = .lam ty b := rfl
-
-/-- con-leche: none — `eBindView` at the `forallE` tag. -/
-@[bridge_grind =] theorem eBindView_forallE (ty b : EIdx) :
-    eBindView ETag.forallE ty b = .forallE ty b := rfl
-
-/-- con-leche: none — `internLam` is `internBind` at the `lam` tag. -/
-@[bridge_grind =] theorem EStore.internLam_eq (st : EStore) (ty b : EIdx) :
-    st.internLam ty b = st.internBind ETag.lam ty b := rfl
-
-/-- con-leche: none — `internForallE` is `internBind` at the `forallE` tag. -/
-@[bridge_grind =] theorem EStore.internForallE_eq (st : EStore) (ty b : EIdx) :
-    st.internForallE ty b = st.internBind ETag.forallE ty b := rfl
-
-/-- con-leche: none — `capOK` is the program's own capacity branch
-condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
-@[bridge_grind =] theorem EStore.capOK_eq (st : EStore) (v : ENodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the name store, as an equation. -/
-@[bridge_grind =] theorem NStore.capOK_eq (st : NStore) (v : NNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the level store, as an equation. -/
-@[bridge_grind =] theorem LStore.capOK_eq (st : LStore) (v : LNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the level-list store, as an equation. -/
-@[bridge_grind =] theorem LsStore.capOK_eq (st : LsStore) (v : LsNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `denote_le` for a NAME handle: past an extension, a
-name handle that denotes denotes the same. -/
-theorem denoteN_le {st st' : EStore} {c : NIdx} (hx : st ≤ st')
-    (hd : denoteN st.ns c ≠ none) : denoteN st'.ns c = denoteN st.ns c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteN_ext hx' hx
-grind_pattern [bridge_grind] denoteN_le => st ≤ st', denoteN st.ns c
-
-/-- con-leche: none — `denote_le` for a LEVEL handle. -/
-theorem denoteL_le {st st' : EStore} {c : LIdx} (hx : st ≤ st')
-    (hd : denoteL st.ls c ≠ none) : denoteL st'.ls c = denoteL st.ls c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteL_ext hx' hx
-grind_pattern [bridge_grind] denoteL_le => st ≤ st', denoteL st.ls c
-
-/-- con-leche: none — `denote_le` for a universe-argument LIST handle. -/
-theorem denoteLs_le {st st' : EStore} {c : LsIdx} (hx : st ≤ st')
-    (hd : denoteLs st.lss c ≠ none) : denoteLs st'.lss c = denoteLs st.lss c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteLs_ext hx' hx
-grind_pattern [bridge_grind] denoteLs_le => st ≤ st', denoteLs st.lss c
 
 /-! ### The two binder faces
 

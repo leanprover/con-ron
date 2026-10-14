@@ -767,7 +767,7 @@ theorem isSome_denoteLeaves_cons {st : EStore} {acc : List (Nat × EIdx)} {i : N
 theorem mem_ech_fvar {i : Nat} {ty : EIdx} : ty ∈ (ENodeView.fvar i ty).echildren := by
   simp [ENodeView.echildren]
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+/-! ## The arms as `grind` lemmas (task #123)
 
 `fvarLeavesGo_spec`'s arms are closed by `grind` from the step lemmas above,
 each registered with a pattern that names exactly the terms its arm's
@@ -791,8 +791,8 @@ pick it:
   `of_grow'` with the previous call's `SeenGrow` — the membership premise is
   `ch ∈ ochildren (st.view h)`, an equation-closed fact instead of an
   existential view;
-* `DenoteView` extraction at the five constructors `Bridge/Grind.lean` §5
-  does not cover (private copies; `ExprOps/Inst1.lean` has its own). -/
+* the children's denotations are `Bridge/Grind.lean`'s `DenoteView`
+  extractions. -/
 
 /-- con-leche: none — is an optional view one of the four leaf kinds. -/
 private def leafV : Option ENodeView → Bool
@@ -896,35 +896,6 @@ local grind_pattern [bridge_grind] LeavesEq.letE_step =>
   LeavesEq st acc h res, LeavesEq st acc ty m1, LeavesEq st m1 w m2, LeavesEq st m2 b res
 local grind_pattern [bridge_grind] LeavesEq.proj_step =>
   LeavesEq st acc h res, LeavesEq st acc sub res, ENodeView.proj n i sub
-
-/-- con-leche: none — an `fvar` view's annotation denotes the type. -/
-private theorem DenoteView.fvar' {st : EStore} {k : Nat} {t : EIdx} {e : Expr}
-    (H : DenoteView st (some (.fvar k t)) (some e)) :
-    denoteE st t = some (exprFVarType e) := H.2
-local grind_pattern [bridge_grind] DenoteView.fvar' => DenoteView st (some (.fvar k t)) (some e)
-/-- con-leche: none — a `lam` view's children. -/
-private theorem DenoteView.lam' {st : EStore} {t b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.lam t b)) (some e)) :
-    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
-local grind_pattern [bridge_grind] DenoteView.lam' => DenoteView st (some (.lam t b)) (some e)
-/-- con-leche: none — a `forallE` view's children. -/
-private theorem DenoteView.forallE' {st : EStore} {t b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.forallE t b)) (some e)) :
-    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
-local grind_pattern [bridge_grind] DenoteView.forallE' =>
-  DenoteView st (some (.forallE t b)) (some e)
-/-- con-leche: none — a `letE` view's children. -/
-private theorem DenoteView.letE' {st : EStore} {t w b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.letE t w b)) (some e)) :
-    denoteE st t = some (exprBinderType e) ∧ denoteE st w = some (exprLetVal e) ∧
-      denoteE st b = some (exprBody e) := H
-local grind_pattern [bridge_grind] DenoteView.letE' => DenoteView st (some (.letE t w b)) (some e)
-/-- con-leche: none — a `proj` view's structure. -/
-private theorem DenoteView.proj' {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
-    (H : DenoteView st (some (.proj n i sub)) (some e)) :
-    denoteE st sub = some (exprProjStruct e) := H.2.2.2
-local grind_pattern [bridge_grind] DenoteView.proj' =>
-  DenoteView st (some (.proj n i sub)) (some e)
 
 /-- con-leche: none — the empty `seen` set, keyed by the goal. -/
 private theorem SeenOK.empty {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx} :

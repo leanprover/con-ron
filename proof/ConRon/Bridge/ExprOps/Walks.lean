@@ -57,7 +57,6 @@ these five dispatch on `view` DIRECTLY (a `match ← view h` over the ten
 arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
 inversions fire on it without help.
 -/
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.TagFirst
 import ConRon.Bridge.Grind
@@ -111,7 +110,7 @@ theorem tag_lam_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {t b : Exp
     simp_all [ENodeView.tagOf, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
       Option.map_eq_some_iff]
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+/-! ## The binder view under the `lam` tag (task #123) -/
 
 /-- con-leche: none — a denoting `lam`-tagged handle whose binder view is
 `(ty, b)` denotes a λ whose two parts `ty` and `b` denote.  Guarded: it fires
@@ -158,8 +157,8 @@ for `lamPair?`**: the state does not move; `none` exactly when the two
 denotations are not both λs, and otherwise the four handles denote the four
 components. -/
 theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
-    (ha : (denoteE s₀.store a).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true) :
+    (_ha : (denoteE s₀.store a).isSome = true)
+    (_hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => s = s₀⦄ lamPair? a b
     ⦃fun r s' => s' = s₀ ∧ ∀ ea eb, denoteE s₀.store a = some ea →
         denoteE s₀.store b = some eb →

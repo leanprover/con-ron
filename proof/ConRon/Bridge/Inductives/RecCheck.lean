@@ -719,7 +719,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       exact ⟨CoreStep.refl hok, true, rfl, by
         simp only [ConLeche.targetParamsDefEq]; exact FOk.pure true⟩
     | cons b bs =>
-      obtain ⟨y, ys, -, -, rfl⟩ := Core.denoteEList_cons_inv hbs
+      obtain ⟨y, ys, -, -, rfl⟩ := denoteEList_cons_inv hbs
       simp only [Arena.targetParamsDefEq] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨CoreStep.refl hok, false, rfl, by
@@ -727,7 +727,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons a as ih =>
     intro bs asP bsP s₀ s' r hok hpre hrun
     obtain ⟨hA, hpf, has, hbs⟩ := hpre
-    obtain ⟨aP, asP', ha, has', rfl⟩ := Core.denoteEList_cons_inv has
+    obtain ⟨aP, asP', ha, has', rfl⟩ := denoteEList_cons_inv has
     cases bs with
     | nil =>
       simp only [Frontend.denoteEList, Option.some.injEq] at hbs
@@ -737,7 +737,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       exact ⟨CoreStep.refl hok, false, rfl, by
         simp only [ConLeche.targetParamsDefEq]; exact FOk.pure false⟩
     | cons b bs =>
-    obtain ⟨bP, bsP', hb, hbs', rfl⟩ := Core.denoteEList_cons_inv hbs
+    obtain ⟨bP, bsP', hb, hbs', rfl⟩ := denoteEList_cons_inv hbs
     have hlen : pfvs.length = pfvsP.length := denoteEList_length hpf
     simp only [Arena.targetParamsDefEq] at hrun
     obtain ⟨s1, p1, z1⟩ := RC.closed4_bind_run hok.state ha hb hrun
@@ -1005,7 +1005,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
   | cons x xs ih =>
     intro xsP e eP s₀ s' r hok hpre hrun
     obtain ⟨hx, hd⟩ := hpre
-    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := Core.denoteEList_cons_inv hx
+    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := denoteEList_cons_inv hx
     simp only [Arena.targetPiDomsWith] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [ite_eq_left htg] at hrun
@@ -1074,7 +1074,7 @@ theorem targetPinTys_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     exact ⟨CoreStep.refl hok, (), trivial, by simp only [ConLeche.targetPinTys]; exact FOk.pure ()⟩
   | cons x xs ih =>
     intro xsP hw s₀ s' r hok hx hrun
-    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := Core.denoteEList_cons_inv hx
+    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := denoteEList_cons_inv hx
     simp only [Arena.targetPinTys] at hrun
     obtain ⟨t, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, v, -, -, hF⟩ := infer_crun hk henv hok hxP (hw xP (by simp)) k1
