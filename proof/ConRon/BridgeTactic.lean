@@ -2016,6 +2016,39 @@ def splitOn (g : MVarId) (e : Expr) : MetaM (Array MVarId) := g.withContext do
   let some x := xs[0]? | return #[]
   return (← g'.cases x).map (·.mvarId)
 
+/-- A cheap gate in front of `contradiction` (which costs ~130 ms on a
+verification condition's context, closing or not): is some hypothesis
+`False`, an equation of two different constructors, or the negation of an
+equation of one constructor with itself — after a bounded unfolding
+(`(exprTag (.sort l) == ETag.app) = true` reduces to `false = true`)? -/
+def contraGate (g : MVarId) : MetaM Bool := g.withContext do
+  let whnfB (e : Expr) : MetaM Expr :=
+    tryCatchRuntimeEx
+      (withCurrHeartbeats <| withTheReader Core.Context
+        (fun c => { c with maxHeartbeats := 2000 * 1000 }) (whnfD e))
+      (fun _ => pure e)
+  let ctorOf (e : Expr) : MetaM (Option (Name × Nat)) := do
+    let e ← whnfB e
+    match e.getAppFn.constName? with
+    | some n =>
+      if (← getEnv).isConstructor n then return some (n, e.getAppNumArgs) else
+      return none
+    | none => return none
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t := (← instantiateMVars d.type).cleanupAnnotations
+    if t.isConstOf ``False then return true
+    if let some (_, a, b) := t.eq? then
+      if let (some (ca, _), some (cb, _)) := (← ctorOf a, ← ctorOf b) then
+        if ca != cb then return true
+      continue
+    let t ← normNeg t
+    if t.isForall && t.bindingBody!.isConstOf ``False then
+      if let some (_, a, b) := t.bindingDomain!.eq? then
+        if let (some (ca, 0), some (cb, 0)) := (← ctorOf a, ← ctorOf b) then
+          if ca == cb then return true
+  return false
+
 /-- `bridge_finish` on one goal: the cheap closers, else a case split on a
 candidate `Expr` and the closers on every constructor (depth two); else the
 pure functions unfolded once and the split tried again. -/
@@ -2026,12 +2059,18 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
   try
     evalTactic (← `(tactic| first
       | rfl
-      | contradiction
       | assumption
       | exact True.intro))
     if (← getUnsolvedGoals).isEmpty then return true
   catch _ => pure ()
   s.restore
+  if ← contraGate g then
+    setGoals [g]
+    try
+      evalTactic (← `(tactic| contradiction))
+      if (← getUnsolvedGoals).isEmpty then return true
+    catch _ => pure ()
+    s.restore
   if ← closeByNegCtor g then return true
   -- an `∃` goal (`SimBOp`) from a hypothesis, or by `rfl` at a default
   -- witness: only at the top (its bounded default-transparency check, at every
@@ -2106,7 +2145,6 @@ syntax (name := bridgeFinish) "bridge_finish" (" [" term,* "]")? : tactic
 def finishCloser (fns : Array Term) : TacticM Syntax := do
   let base ← `(tactic| first
     | rfl
-    | contradiction
     | assumption
     | exact True.intro)
   if fns.isEmpty then `(tactic| first | $(⟨base⟩):tactic | trivial)
