@@ -963,15 +963,14 @@ theorem idxOfName_eq {st : NStore} (hwf : NStoreWF st) {n : NIdx} {nm : ConLeche
   exact denoteN_inj hwf (Classical.choose_spec hex) h
 
 /-- con-leche: none — two name handles of one store with one denotation are one handle
-(`denoteN`'s injectivity), instantiated only for pairs `grind` knows to denote alike. -/
+(`denoteN`'s injectivity).  Registered locally where a walk needs it (`grind_pattern …
+where guard denoteN st.ns a = denoteN st.ns b, a =/= b`): globally it costs the walks
+that never compare name handles, as the inverses below do. -/
 theorem nidx_eq_of_denote {st : EStore} (hwf : StoreWF st) {a b : NIdx}
     (h : denoteN st.ns a = denoteN st.ns b) (hs : denoteN st.ns a ≠ none) : a = b := by
   obtain ⟨x, hx⟩ := Option.ne_none_iff_exists'.mp hs
   obtain ⟨rk, hrk⟩ := hwf
   exact denoteN_inj hrk.nsWF hx (h ▸ hx)
-grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.ns a, denoteN st.ns b where
-  guard denoteN st.ns a = denoteN st.ns b
-  a =/= b
 
 /-! **The handle inverses at the other stores** (`idxOfName` at the level-list
 and expression stores, and the name store's keyed by the denotation term).

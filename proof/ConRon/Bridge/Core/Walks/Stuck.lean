@@ -53,6 +53,8 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## The index at an inductive, and the children's answers -/
 
+grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
+
 /-- con-leche: none — an environment inductive's capabilities. -/
 def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
 attribute [bridge_grind =] cIndCaps

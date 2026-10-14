@@ -188,12 +188,14 @@ def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none =
 @[bridge_grind =] theorem DenWS.some_eq (d : Nat) (e : Expr) :
     DenWS d (some e) = Expr.WScoped d e := rfl
 
-/-- con-leche: none — a `DenWS` precondition: the subject denotes. -/
+/-- con-leche: none — a `DenWS` precondition: the subject denotes.  Registered from
+`Core/Walks/Stuck.lean` on (the walks that chain knot calls on an answer's
+denotation); for `Core/Arms/Whnf.lean`, whose preconditions are `DenWS` too, it
+costs 7 %. -/
 theorem DenWS.isSome {d : Nat} {o : Option Expr} (h : DenWS d o) : o.isSome = true := by
   cases o with
   | none => exact h.elim
   | some _ => rfl
-grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
 
 /-- con-leche: none — a knot slot's answer about an optional subject: at a
 denoting subject `e`, the slot's `SimE` at `e`. -/

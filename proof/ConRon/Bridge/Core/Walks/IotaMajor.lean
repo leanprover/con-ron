@@ -34,6 +34,10 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
+local grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.ns a, denoteN st.ns b where
+  guard denoteN st.ns a = denoteN st.ns b
+  a =/= b
+
 /-! ## The fuel-free answers
 
 The knot slots' and the walks' answers with the pure run's fuel inside a
