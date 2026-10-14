@@ -42,17 +42,21 @@ Everything else is clause for clause: the five leaf kinds answer without
 touching the memo, and the four branching kinds probe the memo, run the body
 one level down and insert.
 
-## The tag dispatch
+## The tag dispatch, and the closer (task #123)
 
 The twin tests `h.tag` before reading the store (task #97-P6-13), so the arms
-are guarded by tag equations rather than by `view` patterns.
-`Bridge/Rel.lean`'s group 6 turns each guard into a `view` fact
-(`view_of_viewApp` and its siblings), and `EStore.tagOf_of_view` +
-`denote_leaf_of_tag` are what let the catch-all `else` arm know it is looking
-at one of the four leaves.
+are guarded by tag equations rather than by `view` patterns.  Every proof is
+`sym only [bridge_grind] => vcgen [f, callee specs…] <;> finish` (DESIGN
+`### Task #122`): `grind` sees the arm's projection read as a `DenoteView`
+fact on the subject (`Bridge/Grind.lean` §5), the subject's denotation as its
+constructor with projected fields (the tag-guarded `exprTag_*` etas), the
+children's answers as `MapRel` equations, and `Expr.instantiate1`'s own
+equations — so the arm's step is congruence closure, with no step lemma and
+no case split.  The cutoff and the catch-all are one equation each
+(`inst1_cut`, `inst1_leaf`), keyed on the term they rewrite.
 -/
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
 
@@ -63,16 +67,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ### Attribute hygiene (task #97s round 2, item 1)
-
-`RelE.ext`, `.of_ext` and `.retarget` close the answer relation under `Ext` in
-both directions, so every intermediate store multiplies every answer already
-known.  The `_step` lemmas below already carry the whole chain, so the three
-are redundant *and* explosive — measured on the spike's one file, 11.5 s
-against 70 s.  `attribute [-grind]` does not travel through an import, so
-every file of this tier repeats the line. -/
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
 /-- con-leche: none — `mvcgen` hands an arm its projection read as
 `some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
 supplies a step lemma's hypothesis has to try both orientations. -/
@@ -80,14 +74,6 @@ macro "arm_hyp" : tactic => `(tactic| first
   | assumption
   | (symm; assumption)
   | grind only [Ext.trans, Ext.refl])
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — a memo HIT
-at the arm's own hypothesis (`vcgen` hands the probe reversed): the recorded
-answer is the real one (task #120: `bridge_auto`'s list). -/
-theorem MemoOK.get' {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
-    {st : EStore} {c r : EIdx} {d : Nat} (hm : MemoOK f tbl st)
-    (hk : some r = tbl[(c, d)]?) : RelE (f d) st c st r :=
-  MemoOK.get (k := (c, d)) hm hk.symm
 
 /-! ## The cutoff's licence
 
@@ -160,7 +146,12 @@ finding of its own: the spike could tag its monomorphic `Inst1At.app_step`
 because its `Inst1At` was a `def` with a head symbol, while the generic `RelE`
 behind this tier's `abbrev` leaves `grind` reporting *failed to find patterns
 in the antecedents of the theorem*.  Round 2's item 3 asks for the hand
-application anyway, so the generic relation costs nothing here. -/
+application anyway, so the generic relation costs nothing here.
+
+**Since task #123 no proof uses them**: the arms are closed by `grind` from
+the vocabulary below (§ "Vocabulary candidates").  They stay only because
+`Bridge/Axioms.lean` prints their axioms; they and those lines are deletion
+candidates. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiate1`'s answer
 relation. -/
@@ -286,26 +277,6 @@ theorem Inst1At.bind_step' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
   rw [htg2]
   exact view_of_viewBind hvb.symm
 
-/-- con-leche: none — `Inst1At.bind_step'` at the tag the twin passes
-(`internBindE h.tag …`), so that no tag variable is left to guess (task #120:
-`bridge_auto`'s list). -/
-theorem Inst1At.bind_step'' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} (hwf : StoreWF st) (htg : ETag.isBind h.tag = true)
-    (hvb : some (ty, b) = st.viewBind h)
-    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView h.tag rt rb)) :
-    Inst1At ve d st h s3 r :=
-  Inst1At.bind_step' hwf htg rfl hvb hx1 ht hx2 hb hx3 hr
-
-/-- con-leche: none — a binder node's children denote, at the arm's own
-hypotheses (the view read reversed). -/
-theorem isSome_viewBind {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    (hvb : some (ty, b) = st.viewBind h) (hs : (denoteE st h).isSome = true) :
-    (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true :=
-  isSome_eBindView hwf (view_of_viewBind hvb.symm) hs
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the CUTOFF
 arm, packaged as one step lemma.  Left as three separate hints
 (`EStore.derived_exact`, `Expr.bvarBRaw`, `instantiate1_of_raw_le`) it sends
@@ -337,26 +308,245 @@ theorem Inst1At.leaf {st : EStore} (hwf : StoreWF st) {h : EIdx}
   exact he
 
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
-cutoff at the dispatcher's own test (task #120: `bridge_auto`'s list). -/
-theorem Inst1At.cutoff' {st : EStore} (hwf : StoreWF st) {h : EIdx} {d : Nat}
-    {ve : Expr} (hc : (decide ((bvarOfData (st.derived h)).toNat < satRange) &&
-      decide ((bvarOfData (st.derived h)).toNat ≤ d)) = true) :
-    Inst1At ve d st h st h := by
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
-  exact Inst1At.cutoff hwf hc.1 hc.2
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
-catch-all at the dispatcher's own five failed tag tests. -/
-theorem Inst1At.leaf' {st : EStore} (hwf : StoreWF st) {h : EIdx} {d : Nat}
-    {ve : Expr} (hden : (denoteE st h).isSome = true)
-    (happ : ¬ (h.tag == ETag.app) = true) (hbind : ¬ ETag.isBind h.tag = true)
-    (hbvar : ¬ (h.tag == ETag.bvar) = true) (hlet : ¬ (h.tag == ETag.letE) = true)
-    (hproj : ¬ (h.tag == ETag.proj) = true) : Inst1At ve d st h st h := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
-  obtain ⟨vw, hvw⟩ := denoteE_view he
-  exact Inst1At.leaf hwf hvw (by simpa using happ) (by simpa using hbind)
-    (by simpa using hbvar) (by simpa using hlet) (by simpa using hproj)
+What `grind` needs to close the arms, in `Bridge/Grind.lean`'s §5 style:
+every fact an equation between terms built from the subject, keyed on the
+terms the verification condition already has.  The declarations are
+`private` and their patterns `local`, so that no importer of this module
+(`Subst`, `ExprOps/Spine`, `Core/Walks/Spine`, …) sees them before the
+coordinator hoists them.
+
+* the state invariant and the answer relation as equations (`StateOK` is its
+  store's well-formedness; `RelE` is `MapRel` on the two denotation terms,
+  and `MapRel` at a denoting subject is the equation it says);
+* the per-call memo table as a fact per probe (`MemoAt`, the `MemoOK.get`
+  of a `getElem?` term), carried along the store order (`memoOK_le`) and
+  satisfied by a dropped table;
+* each projection read under its tag as the `DenoteView` fact on the
+  subject, and the extraction lemmas `Bridge/Grind.lean` §5 does not have
+  yet (`bvar`, `lam`, `forallE`, `letE`, `proj`);
+* the denotation's constructor from its tag, as an eta over the §5
+  projections — guarded, so it fires only where the tag is KNOWN (unguarded,
+  `grind` case-splits on equalities between the tag constants);
+* a node whose children denote has a view (`view_isSome`), at the two
+  stores the intern specs ask about. -/
+
+/-- con-leche: none — `StateOK` is its store's well-formedness. -/
+private theorem stateOK_eq (s : AState) : StateOK s = StoreWF s.store :=
+  propext ⟨fun h => h.wf, fun h => ⟨h⟩⟩
+attribute [local bridge_grind =] stateOK_eq
+
+/-- con-leche: none — `RelE` is `MapRel` on the two denotation terms (both
+directions, so a `RelE` goal is one too). -/
+private theorem relE_eq_mapRel (g : Expr → Expr) (st : EStore) (c : EIdx) (st' : EStore)
+    (r : EIdx) : RelE g st c st' r = MapRel g (denoteE st c) (denoteE st' r) := by
+  apply propext; constructor
+  · exact RelE.mapRel
+  · intro h e he; rw [he] at h; exact h
+attribute [local bridge_grind =] relE_eq_mapRel
+
+/-- con-leche: none — `MapRel` at a denoting subject, as an equation (so a
+`MapRel` goal is one too). -/
+private theorem mapRel_some_eq (g : Expr → Expr) (e : Expr) (o : Option Expr) :
+    MapRel g (some e) o = (o = some (g e)) := rfl
+attribute [local bridge_grind =] mapRel_some_eq
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — what a
+cursor-keyed memo table says at one probe: a recorded entry is the answer. -/
+private def MemoAt (f : Nat → Expr → Expr) (st : EStore) (k : EIdx × Nat) :
+    Option EIdx → Prop
+  | some r => MapRel (f k.2) (denoteE st k.1) (denoteE st r)
+  | none => True
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — `MemoOK.get`
+at every probe of the table, keyed by the invariant and the probe. -/
+private theorem memoAt {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
+    {st : EStore} (hm : MemoOK f tbl st) (k : EIdx × Nat) : MemoAt f st k tbl[k]? := by
+  cases h : tbl[k]? with
+  | none => trivial
+  | some r => exact RelE.mapRel (MemoOK.get hm h)
+local grind_pattern [bridge_grind] memoAt => MemoOK f tbl st, tbl[k]?
+
+/-- con-leche: none — `MemoAt` at a hit. -/
+private theorem memoAt_some_eq (f : Nat → Expr → Expr) (st : EStore) (k : EIdx × Nat)
+    (r : EIdx) : MemoAt f st k (some r) = MapRel (f k.2) (denoteE st k.1) (denoteE st r) := rfl
+attribute [local bridge_grind =] memoAt_some_eq
+
+/-- con-leche: none — `MemoOK.mono` along the store order, keyed by the two
+invariant terms. -/
+private theorem memoOK_le {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
+    {st st' : EStore} (hm : MemoOK f tbl st) (hx : st ≤ st') : MemoOK f tbl st' :=
+  MemoOK.mono hm hx rfl
+local grind_pattern [bridge_grind] memoOK_le => MemoOK f tbl st, MemoOK f tbl st'
+
+/-- con-leche: none — a dropped table satisfies the invariant (guarded: only
+at a table known to be empty). -/
+private theorem memoOK_of_empty {f : Nat → Expr → Expr}
+    {tbl : Std.HashMap (EIdx × Nat) EIdx} {st : EStore} (h : tbl = ∅) : MemoOK f tbl st :=
+  MemoOK.of_empty h
+local grind_pattern [bridge_grind] memoOK_of_empty => MemoOK f tbl st where
+  guard tbl = ∅
+
+/-- con-leche: none — the `app` projection under its tag is the subject's
+view fact. -/
+private theorem denoteView_viewApp {st : EStore} (hwf : StoreWF st) {i f a : EIdx}
+    (htg : i.tag = ETag.app) (h : st.viewApp i = some (f, a)) :
+    DenoteView st (some (.app f a)) (denoteE st i) :=
+  view_of_viewApp htg h ▸ denote_view hwf i
+local grind_pattern [bridge_grind] denoteView_viewApp => st.viewApp i, some (f, a) where
+  guard st.viewApp i = some (f, a)
+
+/-- con-leche: none — the binder projection is the subject's view fact, at
+the tag the handle carries. -/
+private theorem denoteView_viewBind {st : EStore} (hwf : StoreWF st) {i ty b : EIdx}
+    (h : st.viewBind i = some (ty, b)) :
+    DenoteView st (some (eBindView i.tag ty b)) (denoteE st i) :=
+  view_of_viewBind h ▸ denote_view hwf i
+local grind_pattern [bridge_grind] denoteView_viewBind => st.viewBind i, some (ty, b) where
+  guard st.viewBind i = some (ty, b)
+
+/-- con-leche: none — the `letE` projection under its tag. -/
+private theorem denoteView_viewLet {st : EStore} (hwf : StoreWF st) {i ty w b : EIdx}
+    (htg : i.tag = ETag.letE) (h : st.viewLet i = some (ty, w, b)) :
+    DenoteView st (some (.letE ty w b)) (denoteE st i) :=
+  view_of_viewLet htg h ▸ denote_view hwf i
+local grind_pattern [bridge_grind] denoteView_viewLet => st.viewLet i, some (ty, w, b) where
+  guard st.viewLet i = some (ty, w, b)
+
+/-- con-leche: none — the `proj` projection under its tag. -/
+private theorem denoteView_viewProj {st : EStore} (hwf : StoreWF st) {i : EIdx} {n : NIdx}
+    {k : Nat} {sub : EIdx} (htg : i.tag = ETag.proj) (h : st.viewProj i = some (n, k, sub)) :
+    DenoteView st (some (.proj n k sub)) (denoteE st i) :=
+  view_of_viewProj htg h ▸ denote_view hwf i
+local grind_pattern [bridge_grind] denoteView_viewProj => st.viewProj i, some (n, k, sub) where
+  guard st.viewProj i = some (n, k, sub)
+
+/-- con-leche: none — the `bvar` projection under its tag. -/
+private theorem denoteView_viewBVar {st : EStore} (hwf : StoreWF st) {i : EIdx} {k : Nat}
+    (htg : i.tag = ETag.bvar) (h : st.viewBVar i = some k) :
+    DenoteView st (some (.bvar k)) (denoteE st i) :=
+  view_of_viewBVar htg h ▸ denote_view hwf i
+local grind_pattern [bridge_grind] denoteView_viewBVar => st.viewBVar i, some k where
+  guard st.viewBVar i = some k
+
+/-- con-leche: none — a `bvar` view's index is the denotation's. -/
+private theorem DenoteView.bvar {st : EStore} {i : Nat} {e : Expr}
+    (H : DenoteView st (some (.bvar i)) (some e)) : exprBVar e = i := H
+local grind_pattern [bridge_grind] DenoteView.bvar => DenoteView st (some (.bvar i)) (some e)
+
+/-- con-leche: none — a `lam` view's children denote the binder type and
+body. -/
+private theorem DenoteView.lam {st : EStore} {t b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.lam t b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.lam => DenoteView st (some (.lam t b)) (some e)
+
+/-- con-leche: none — a `forallE` view's children, likewise. -/
+private theorem DenoteView.forallE {st : EStore} {t b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.forallE t b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.forallE =>
+  DenoteView st (some (.forallE t b)) (some e)
+
+/-- con-leche: none — a `letE` view's three children. -/
+private theorem DenoteView.letE {st : EStore} {t w b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.letE t w b)) (some e)) :
+    denoteE st t = some (exprBinderType e) ∧ denoteE st w = some (exprLetVal e) ∧
+      denoteE st b = some (exprBody e) := H
+local grind_pattern [bridge_grind] DenoteView.letE => DenoteView st (some (.letE t w b)) (some e)
+
+/-- con-leche: none — a `proj` view's name, index and structure. -/
+private theorem DenoteView.proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
+    (H : DenoteView st (some (.proj n i sub)) (some e)) :
+    denoteN st.ns n = some (exprProjName e) ∧ exprProjIdx e = i ∧
+      denoteE st sub = some (exprProjStruct e) := ⟨H.1, H.2.2⟩
+local grind_pattern [bridge_grind] DenoteView.proj =>
+  DenoteView st (some (.proj n i sub)) (some e)
+
+/-- con-leche: none — an expression tagged `app` IS an application of its
+projections (guarded: only where the tag is known). -/
+private theorem exprTag_app {e : Expr} (h : exprTag e = ETag.app) :
+    e = .app (exprFn e) (exprArg e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_app => exprTag e where
+  guard exprTag e = ETag.app
+
+/-- con-leche: none — tagged `lam`. -/
+private theorem exprTag_lam {e : Expr} (h : exprTag e = ETag.lam) :
+    e = .lam (exprBinderType e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_lam => exprTag e where
+  guard exprTag e = ETag.lam
+
+/-- con-leche: none — tagged `forallE`. -/
+private theorem exprTag_forallE {e : Expr} (h : exprTag e = ETag.forallE) :
+    e = .forallE (exprBinderType e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_forallE => exprTag e where
+  guard exprTag e = ETag.forallE
+
+/-- con-leche: none — tagged `letE`. -/
+private theorem exprTag_letE {e : Expr} (h : exprTag e = ETag.letE) :
+    e = .letE (exprBinderType e) (exprLetVal e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_letE => exprTag e where
+  guard exprTag e = ETag.letE
+
+/-- con-leche: none — tagged `proj`. -/
+private theorem exprTag_proj {e : Expr} (h : exprTag e = ETag.proj) :
+    e = .proj (exprProjName e) (exprProjIdx e) (exprProjStruct e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_proj => exprTag e where
+  guard exprTag e = ETag.proj
+
+/-- con-leche: none — tagged `bvar`. -/
+private theorem exprTag_bvar {e : Expr} (h : exprTag e = ETag.bvar) :
+    e = .bvar (exprBVar e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+local grind_pattern [bridge_grind] exprTag_bvar => exprTag e where
+  guard exprTag e = ETag.bvar
+
+/-- con-leche: none — a handle that denotes has a view, keyed by the view
+test the intern specs ask for. -/
+private theorem view_isSome' {st : EStore} {h : EIdx} (hs : (denoteE st h).isSome = true) :
+    (st.view h).isSome = true := view_isSome hs
+local grind_pattern [bridge_grind] view_isSome' => (st.view h).isSome
+
+/-- con-leche: none — a name handle that denotes has a view. -/
+private theorem nview_isSome' {st : NStore} {c : NIdx} (hs : (denoteN st c).isSome = true) :
+    (st.view c).isSome = true := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs; exact nview_isSome_of_denote hx
+local grind_pattern [bridge_grind] nview_isSome' => (NStore.view st c).isSome
+
+/-! ### `instantiate1`'s two non-structural clauses as equations
+
+The derived-word cutoff and the catch-all, each keyed on the term it
+rewrites, so that the dispatcher's two exits need no step lemma. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1456 bvarBRaw_exact — the
+CUTOFF as an equation: below the packed bound, `instantiate1` is the identity
+on the handle's denotation (guarded by the denotation). -/
+private theorem inst1_cut {st : EStore} (hwf : StoreWF st) {h : EIdx} {e v : Expr} {d : Nat}
+    (he : denoteE st h = some e) (hsat : (bvarOfData (st.derived h)).toNat < satRange)
+    (hle : (bvarOfData (st.derived h)).toNat ≤ d) : e.instantiate1 v d = e := by
+  have hd := EStore.derived_exact hwf he
+  rw [hd] at hsat hle
+  exact instantiate1_of_raw_le hsat hle
+local grind_pattern [bridge_grind] inst1_cut =>
+    bvarOfData (st.derived h), Expr.instantiate1 e v d where
+  guard denoteE st h = some e
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the
+CATCH-ALL as an equation: a term whose tag is none of the six the walk
+dispatches on is a fixed point. -/
+private theorem inst1_leaf {e v : Expr} {d : Nat} (happ : ¬ exprTag e = ETag.app)
+    (hbind : ETag.isBind (exprTag e) = false) (hbvar : ¬ exprTag e = ETag.bvar)
+    (hlet : ¬ exprTag e = ETag.letE) (hproj : ¬ exprTag e = ETag.proj) :
+    e.instantiate1 v d = e := by
+  cases e <;> simp_all [exprTag, ETag.isBind, Expr.instantiate1] <;> contradiction
+local grind_pattern [bridge_grind] inst1_leaf => Expr.instantiate1 e v d, exprTag e
+
 /-! ## Theorem 1 for `instantiate1Go`
 
 One level of the recursion as a record, so that the fuel induction has
@@ -404,11 +594,10 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
-  vcgen [instantiate1ArmBVar]
-  all_goals (bridge_peel; subst_vars)
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   -- the three branches are `Expr.instantiate1`'s own three
-  bridge_auto [denote_bvar_inv, MemoOK.mono]
-    unfolding [Expr.instantiate1, denoteEView, Option.map_some, ite_true, ite_false]
+  sym only [bridge_grind, denoteEView, Expr.instantiate1] =>
+    vcgen [instantiate1ArmBVar] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `app`
 ARM: probe, project, recurse into both children, rebuild, insert. -/
@@ -422,11 +611,9 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [instantiate1ArmApp, hrec, inst1Set_spec (ve := ve)]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [Inst1At.app_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
-    isSome_app]
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+  sym only [bridge_grind, denoteEView, opt2, Expr.instantiate1] =>
+    vcgen [instantiate1ArmApp, ih.run, inst1Set_spec (ve := ve)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the BINDER
 ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
@@ -440,11 +627,10 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [instantiate1ArmBind, hrec, inst1Set_spec (ve := ve)]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [Inst1At.bind_step'', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
-    isSome_viewBind, view_isSome]
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+  -- `lam` or `forallE`: the one case split, on `ETag.isBind`'s disjunction
+  sym only [bridge_grind, denoteEView, opt2, Expr.instantiate1, ETag.isBind] =>
+    vcgen [instantiate1ArmBind, ih.run, inst1Set_spec (ve := ve)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `letE`
 ARM; the body descends at `dd + 1`. -/
@@ -458,11 +644,9 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [instantiate1ArmLet, hrec, inst1Set_spec (ve := ve)]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [Inst1At.letE_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
-    isSome_letE]
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+  sym only [bridge_grind, denoteEView, opt3, Expr.instantiate1] =>
+    vcgen [instantiate1ArmLet, ih.run, inst1Set_spec (ve := ve)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `proj`
 ARM.  The struct NAME is carried unchanged, and its denotation comes from
@@ -477,11 +661,9 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [instantiate1ArmProj, hrec, inst1Set_spec (ve := ve)]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [Inst1At.proj_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
-    denote_eq_proj, nview_isSome_of_denote]
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+  sym only [bridge_grind, denoteEView, opt2, Expr.instantiate1] =>
+    vcgen [instantiate1ArmProj, ih.run, inst1Set_spec (ve := ve)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1
 con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
@@ -495,21 +677,16 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    vcgen [instantiate1Go_zero]
-    all_goals (bridge_peel; subst_vars)
-    bridge_auto
+    sym only [bridge_grind] => vcgen [instantiate1Go_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h d hok hm hv hden
-    have happ := instantiate1ArmApp_spec v ve fuel ih
-    have hbind := instantiate1ArmBind_spec v ve fuel ih
-    have hbvar := instantiate1ArmBVar_spec v ve
-    have hlet := instantiate1ArmLet_spec v ve fuel ih
-    have hproj := instantiate1ArmProj_spec v ve fuel ih
-    vcgen [instantiate1Go_succ, happ, hbind, hbvar, hlet, hproj]
-    all_goals (bridge_peel; subst_vars)
+    obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
     -- the five arms' preconditions, the derived-word cutoff and the catch-all
-    bridge_auto [Inst1At.cutoff', Inst1At.leaf']
+    sym only [bridge_grind] =>
+      vcgen [instantiate1Go_succ, instantiate1ArmApp_spec v ve fuel ih,
+        instantiate1ArmBind_spec v ve fuel ih, instantiate1ArmBVar_spec v ve,
+        instantiate1ArmLet_spec v ve fuel ih, instantiate1ArmProj_spec v ve fuel ih] <;> finish
 /-! ## The top-level entry, and Theorem 1 as a statement about a RUN
 
 `instantiate1Fast` is con-leche's `(instantiate1Go v {} e d).1`: the memo is
@@ -528,10 +705,8 @@ theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1C = ∅ ∧
         Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
-  have hr := (instantiate1Go_spec v ve fuel).run
-  vcgen [instantiate1Fast, hr]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.of_empty]
+  sym only [bridge_grind] =>
+    vcgen [instantiate1Fast, (instantiate1Go_spec v ve fuel).run] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN, which is the form the tier above consumes. -/
