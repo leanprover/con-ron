@@ -83,7 +83,7 @@ a walk module adds only what is about its own walk.
    entry; a definition's hint, record and value, a constructor's record and
    counts, an inductive's record, level parameters and capabilities, a
    recursor's record, rules and indices, any record off the tower.  A lookup
-   that is a definition (an inductive, a constructor, a recursor) IS one
+   that is a definition (an inductive, a constructor) IS one
    (`iDefn?_eta`, …), which refutes a match's fall-through arm; the one case
    split left is on "definition or not" where a walk needs the hint of a
    lookup it did not match (`iDefnHint_cases`).  A capability record's
@@ -183,13 +183,6 @@ theorem denoteRules_le {st st' : EStore} {rs : List IRecRule} (hx : st ≤ st')
   rw [h]; exact denoteRules_ext hx _ _ h
 grind_pattern [bridge_grind] denoteRules_le => st ≤ st', Frontend.denoteRules st rs
 
-/-- con-leche: none — `denote_le` for a constant record. -/
-theorem denoteCV_le {st st' : EStore} {cv : IConstantVal} (hx : st ≤ st')
-    (hd : Frontend.denoteCV st cv ≠ none) :
-    Frontend.denoteCV st' cv = Frontend.denoteCV st cv := by
-  obtain ⟨c, h⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [h]; exact denoteCV_ext h hx
-grind_pattern [bridge_grind] denoteCV_le => st ≤ st', Frontend.denoteCV st cv
 
 /-- con-leche: none — `denote_le` for a level-handle LIST. -/
 theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
@@ -1307,7 +1300,7 @@ grind_pattern [bridge_grind] ENodeView.tagOf_proj => ENodeView.tagOf v where
   guard ENodeView.tagOf v = ETag.proj
 
 /-! The one-constructor projections the tag-dispatching walks read
-(`Bridge/Rel.lean` group 5) give the view, guarded so that each fires at the
+(`Bridge/Rel.lean` group 4) give the view, guarded so that each fires at the
 projection the program read and nowhere else; `denote_view` then turns the
 view into the `DenoteView` fact. -/
 
@@ -1546,9 +1539,6 @@ with a `fun` (`grind`'s `funext` would split on it). -/
 /-- con-leche: none — `denoteEView` at a `bvar` view. -/
 @[bridge_grind =] theorem denoteEView_bvar_eq (st : EStore) (k : Nat) :
     denoteEView st (.bvar k) = some (.bvar k) := rfl
-/-- con-leche: none — `denoteEView` at an `fvar` view. -/
-@[bridge_grind =] theorem denoteEView_fvar_eq (st : EStore) (k : Nat) (ty : EIdx) :
-    denoteEView st (.fvar k ty) = (denoteE st ty).map (Expr.fvar k) := rfl
 /-- con-leche: none — `denoteEView` at a `sort` view. -/
 @[bridge_grind =] theorem denoteEView_sort_eq (st : EStore) (u : LIdx) :
     denoteEView st (.sort u) = (denoteL st.ls u).map Expr.sort := rfl
@@ -1689,23 +1679,8 @@ case-splits on. -/
 @[bridge_grind =] theorem iInd?_ind (v : IConstantVal) (caps : IIndCaps) :
     iInd? (some (.indInfo v caps)) = true := rfl
 /-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iIndVal_ind (v : IConstantVal) (caps : IIndCaps) :
-    iIndVal (some (.indInfo v caps)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iIndCaps_ind (v : IConstantVal) (caps : IIndCaps) :
-    iIndCaps (some (.indInfo v caps)) = caps := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
 @[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) :
     iCtor? (some (.ctorInfo v n f)) = true := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iCtorVal_ctor (v : IConstantVal) (n f : Nat) :
-    iCtorVal (some (.ctorInfo v n f)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iCtorNP_ctor (v : IConstantVal) (n f : Nat) :
-    iCtorNP (some (.ctorInfo v n f)) = n := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iCtorNF_ctor (v : IConstantVal) (n f : Nat) :
-    iCtorNF (some (.ctorInfo v n f)) = f := rfl
 
 /-- con-leche: none — a lookup that is an inductive IS one. -/
 theorem iInd?_eta {o : Option IConstantInfo} (h : iInd? o = true) :
@@ -1749,15 +1724,6 @@ def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ =>
 def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
 /-- con-leche: none — an environment constructor's field count. -/
 def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
-/-- con-leche: none — `cIndCaps` at an inductive. -/
-@[bridge_grind =] theorem cIndCaps_ind (v : ConstantVal) (c : IndCaps) :
-    cIndCaps (some (.indInfo v c)) = c := rfl
-/-- con-leche: none — `cCtorNP` at a constructor. -/
-@[bridge_grind =] theorem cCtorNP_ctor (v : ConstantVal) (n f : Nat) :
-    cCtorNP (some (.ctorInfo v n f)) = n := rfl
-/-- con-leche: none — `cCtorNF` at a constructor. -/
-@[bridge_grind =] theorem cCtorNF_ctor (v : ConstantVal) (n f : Nat) :
-    cCtorNF (some (.ctorInfo v n f)) = f := rfl
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
@@ -1778,29 +1744,6 @@ def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
 def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
 /-- con-leche: none — a recursor's rules. -/
 def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
-
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iRec?_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRec? (some (.recInfo v m r rs)) = true := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iRecVal_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecVal (some (.recInfo v m r rs)) = v := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iRecMI_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecMI (some (.recInfo v m r rs)) = m := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iRecRP_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecRP (some (.recInfo v m r rs)) = r := rfl
-/-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iRecRules_rec (v : IConstantVal) (m r : Nat) (rs : List IRecRule) :
-    iRecRules (some (.recInfo v m r rs)) = rs := rfl
-
-/-- con-leche: none — a lookup that is a recursor IS one (registered by the ι
-walks, `Core/Walks/IotaMajor.lean` and `Core/Walks/Iota.lean`). -/
-theorem iRec?_eta {o : Option IConstantInfo} (h : iRec? o = true) :
-    o = some (.recInfo (iRecVal o) (iRecMI o) (iRecRP o) (iRecRules o)) := by
-  match o, h with
-  | some (.recInfo _ _ _ _), _ => rfl
 
 /-- con-leche: none — a denoting record's level parameters denote. -/
 theorem denoteCV_levelParams {st : EStore} {cv : IConstantVal} {c : ConstantVal}

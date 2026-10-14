@@ -119,10 +119,6 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
       vcgen [ConRon.Arena.instSpinePins, ExprOps.instLPFast_spec (ksv := ksv) (usv := usv),
         ExprOps.instSpine_spec, step] <;> finish
 
-/-! The recursor projections' eta (`Bridge/Grind.lean` §8), registered as in
-`Core/Walks/IotaMajor.lean`. -/
-local grind_pattern [bridge_grind] iRec?_eta => iRec? o
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:72-93 iotaCtorNeverProp — as one equation
 over the head's tag and the lookup's projections. -/
 theorem iotaCtorNeverProp_eq (find? : ConLeche.Name → Option ConstantInfo) (cvj : ConstantVal)
@@ -480,10 +476,6 @@ theorem allWS_drop {d : Nat} {xs : List Expr} (h : AllWS d xs) (n : Nat) :
     AllWS d (xs.drop n) := fun x hx => h x (List.mem_of_mem_drop hx)
 grind_pattern [bridge_grind] allWS_drop => AllWS d xs, xs.drop n
 
-/-- con-leche: none — a prefix of a well-scoped list is well-scoped. -/
-theorem allWS_take {d : Nat} {xs : List Expr} (h : AllWS d xs) (n : Nat) :
-    AllWS d (xs.take n) := fun x hx => h x (List.mem_of_mem_take hx)
-grind_pattern [bridge_grind] allWS_take => AllWS d xs, xs.take n
 
 /-- con-leche's `iotaIndexOk` at its fixed arguments, as a fuelled run -/
 def iotaIndexOkOp (mode : CheckMode) (env : Env) (d mI rP cnP : Nat) (ty : Expr)

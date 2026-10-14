@@ -344,29 +344,6 @@ theorem leafMem_spec {st : EStore} (hwf : StoreWF st) :
       grind
     · exact absurd hb (by simp)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1157-1162 leafMem — the same,
-keyed so the closer derives it itself.  **Two lemmas and not one equation**:
-with the equation as the conclusion the leaf INDEX occurs nowhere in the antecedents, so `grind` reports *failed to find
-patterns in the antecedents of the theorem* and the rule cannot be
-registered.  Both twins that use `leafMem` TEST it (`if leafMem bl idx ty
-then …`), so `vcgen` hands the arm the verdict as a hypothesis and the
-index is bound there. -/
-@[grind →] theorem leafMem_of_true {st : EStore} (hwf : StoreWF st)
-    {bl : List (Nat × EIdx)} {bl' : List (Nat × Expr)} {idx : Nat} {ty : EIdx}
-    {t : Expr} (h : leafMem bl idx ty = true)
-    (hb : denoteLeaves st bl = some bl') (ht : denoteE st ty = some t) :
-    bl'.contains (idx, t) = true := by
-  rw [← leafMem_spec hwf bl bl' hb idx ty t ht]; exact h
-
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1157-1162 leafMem — the negative
-verdict, which is the `else` arm of both callers. -/
-@[grind →] theorem leafMem_of_false {st : EStore} (hwf : StoreWF st)
-    {bl : List (Nat × EIdx)} {bl' : List (Nat × Expr)} {idx : Nat} {ty : EIdx}
-    {t : Expr} (h : leafMem bl idx ty = false)
-    (hb : denoteLeaves st bl = some bl') (ht : denoteE st ty = some t) :
-    bl'.contains (idx, t) = false := by
-  rw [← leafMem_spec hwf bl bl' hb idx ty t ht]; exact h
-
 /-! ## 7. `fvarLeavesGo` and `fvarLeavesFast` — `ExprOps.lean:876`, `:906`
 
 The `seen`-set walk and its entry point.  Both statements are
@@ -906,7 +883,6 @@ private theorem SeenOK.empty {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx}
 local grind_pattern [bridge_grind] SeenOK.empty => SeenOK st acc ∅ c
 attribute [local bridge_grind =] denoteLeaves_nil
 
-
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `fvarLeavesGo`'s recursion. -/
 structure FvarLeavesGoSpec (rec : List (Nat × EIdx) → Std.HashMap EIdx Unit →
@@ -942,7 +918,6 @@ theorem fvarLeavesGo_spec :
     sym only [bridge_grind, leafV, ochildren, ENodeView.echildren, List.mem_cons] =>
       vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
         fvarLeavesGoArmLet, ih.run] <;> finish
-
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1154-1155 fvarLeavesC —
 **THEOREM 1 for `fvarLeavesFast`**: the reachable `fvar` leaves, up to

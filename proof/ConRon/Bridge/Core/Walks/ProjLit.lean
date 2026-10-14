@@ -116,24 +116,6 @@ theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx
   rw [hls]
   exact IProjEntry.fireOk_spec s₀ entry us _ ls hok (projOf_eta hden) hls
 
-/-- con-leche: none — a handle that denotes a literal views as that literal. -/
-theorem view_of_denote_lit {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {v : ENodeView} {l : Literal} (hv : st.view h = some v)
-    (hd : denoteE st h = some (.lit l)) : v = .lit l := by
-  cases v with
-  | bvar i => have := denote_bvar_inv hwf hv hd; cases this
-  | fvar k t => obtain ⟨_, h, _⟩ := denote_fvar_inv hwf hv hd; cases h
-  | sort u => obtain ⟨_, h, _⟩ := denote_sort_inv hwf hv hd; cases h
-  | const n us => obtain ⟨_, _, h, _, _⟩ := denote_const_inv hwf hv hd; cases h
-  | app f a => obtain ⟨_, _, h, _, _⟩ := denote_app_inv hwf hv hd; cases h
-  | lam ty b => obtain ⟨_, _, h, _, _⟩ := denote_lam_inv hwf hv hd; cases h
-  | forallE ty b =>
-    obtain ⟨_, _, h, _, _⟩ := denote_forallE_inv hwf hv hd; cases h
-  | letE ty w b =>
-    obtain ⟨_, _, _, h, _, _, _⟩ := denote_letE_inv hwf hv hd; cases h
-  | lit l' => have := denote_lit_inv hwf hv hd; cases this; rfl
-  | proj n i sub => obtain ⟨_, _, h, _, _⟩ := denote_proj_inv hwf hv hd; cases h
-
 /-- con-leche: ConLeche/Kernel/Core.lean:680-685 projLitToCtor — does the
 expansion fire: a string literal, and the stored declarations support it. -/
 def projLitFires (env : Env) (x : Expr) : Bool :=

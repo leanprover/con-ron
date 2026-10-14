@@ -98,16 +98,6 @@ theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
     rw [hv] at h
     rw [lsStore_viewLen_eq, hv, Option.map_some, denoteLList_len h]
 
-/-- con-leche: none — the same at the full VIEW: a level-list handle that
-denotes `us` views as a list of `us.length` handles (`unfoldDefinition`
-compares the view's length, not `viewLsLen`'s). -/
-theorem view_len_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
-    {v : LsNodeView} (h : denoteLs st i = some us) (hv : st.view i = some v) :
-    v.length = us.length := by
-  have hl := viewLen_of_denoteLs h
-  rw [lsStore_viewLen_eq, hv, Option.map_some] at hl
-  exact Option.some.inj hl
-
 /-- con-leche: none — the denotation of a stored DEFINITION is a
 definition, with the same reducibility hint and a denoting value. -/
 theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
@@ -890,7 +880,6 @@ section Census
 #print axioms headHint_spec
 #print axioms sameConstHeads_spec
 #print axioms defeqSpine_spec
-#print axioms view_len_of_denoteLs
 #print axioms denote_not_forallE
 #print axioms unfoldDefinition_spec
 #print axioms etaCert_spec

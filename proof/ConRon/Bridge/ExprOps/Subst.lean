@@ -137,7 +137,7 @@ theorem reverse_drop_eq_take_reverse {α : Type} (l : List α) (m : Nat) :
 
 /-! ## B. `Frontend.denoteEList`, pointwise
 
-Four facts, in the shape `denoteEList_ext` (`Bridge/Rel.lean` group 6c) is
+Four facts, in the shape `denoteEList_ext` (`Bridge/Rel.lean` group 4c) is
 written in.  **They morally belong in `Bridge/Rel.lean`** next to
 `denoteEList_ext`; they are stated here, next to their only consumers. -/
 
@@ -931,8 +931,7 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     vcgen [instListArmLet, ih.run] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
-`proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
-from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
+`proj` ARM.  The struct NAME is carried unchanged. -/
 theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
@@ -1063,8 +1062,7 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
       instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
-`proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
-from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
+`proj` ARM.  The struct NAME is carried unchanged. -/
 theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)

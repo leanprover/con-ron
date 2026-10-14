@@ -253,8 +253,7 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     vcgen [instantiate1ArmLet, ih.run, inst1Set_spec (ve := ve)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `proj`
-ARM.  The struct NAME is carried unchanged, and its denotation comes from
-`denote_eq_proj`'s existential, which `grind` cannot see through. -/
+ARM.  The struct NAME is carried unchanged. -/
 theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (ih : Inst1Spec v ve (instantiate1Go v fuel)) (s₁ : AState) (c : EIdx)
     (dd : Nat) (hok : StateOK s₁) (hm : Inst1MemoA ve s₁)

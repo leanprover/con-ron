@@ -1044,23 +1044,6 @@ theorem proofIrrel_specA {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       KnotSpec.whnfS hsim, pinZeroLevel_spec, lvlEq?_specA (mode := mode) (env := env) (fe := fe),
       liftFueled_spec] <;> finish
 
-/-- con-leche: ConLeche/Kernel/Core.lean:327-341 proofIrrel — **THEOREM 1 for
-`proofIrrel`**: the stuck fallback's proof irrelevance — both types' sorts
-`Prop` (`proofIrrel_specA`). -/
-theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.proofIrrelFueled mode env F d x y) r; ⊤⦄ :=
-  triple_mono (proofIrrel_specA hsim s₀ d a b hok (by rw [hda]; exact hwa)
-    (by rw [hdb]; exact hwb)) (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, by
-      rw [hda, hdb] at h4; exact h4⟩)
-
 /-! ## 2. The pure side: `stuckIrrel` at its four exits -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the first η
@@ -1213,7 +1196,6 @@ section Census
 #print axioms liftFueled_spec
 #print axioms proofIrrel_sorts
 #print axioms proofIrrel_specA
-#print axioms proofIrrel_spec
 #print axioms reservedBasisNames_spec
 #print axioms env_ind_of_index
 #print axioms structUnitCert_specA

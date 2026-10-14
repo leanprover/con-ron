@@ -622,7 +622,7 @@ this is a case split over the two. -/
 /-! ## The per-constructor projections of `view` (tasks #97-P6-10, #97-P6-13)
 
 Thirteen specs, all of the same shape: the state does not move and the answer
-is the store's own projection.  `Bridge/Rel.lean`'s group 6 turns each into a
+is the store's own projection.  `Bridge/Rel.lean`'s group 4 turns each into a
 `view` fact at the tag the caller has already tested. -/
 
 @[spec] theorem viewApp_spec (s₀ : AState) (h : EIdx) :

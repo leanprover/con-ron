@@ -146,10 +146,6 @@ theorem denoteEList_drop_rel (st : EStore) (hs : List EIdx) (n : Nat) :
   | some xs => exact ExprOps.denoteEList_drop _ _ _ h
 grind_pattern [bridge_grind] denoteEList_drop_rel => Frontend.denoteEList st (hs.drop n)
 
-/-! The recursor projections' eta (`Bridge/Grind.lean` §8), registered for the ι
-walks. -/
-local grind_pattern [bridge_grind] iRec?_eta => iRec? o
-
 /-! ## The pure side: con-leche's text at its exits -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — every
@@ -272,19 +268,6 @@ theorem majorToCtorFueled_ctor {F d : Nat} {cn : ConLeche.Name}
     {rules : List RecRule} {x : Expr} (h : ConLeche.isCtorApp env x = true) :
     ConLeche.majorToCtorFueled mode env F d cn rules x = .ok x := by
   simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, h, ite_true]; rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — every prefix
-miss leaves the major alone. -/
-theorem majorToCtorFueled_nrules {F d : Nat} {cn : ConLeche.Name}
-    {rules : List RecRule} {x : Expr} (hnc : ConLeche.isCtorApp env x = false)
-    (h : ∀ rl, rules ≠ [rl]) :
-    ConLeche.majorToCtorFueled mode env F d cn rules x = .ok x := by
-  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc,
-    Bool.false_eq_true, ite_false]
-  match rules, h with
-  | [], _ => rfl
-  | [rl], h => exact absurd rfl (h rl)
-  | _ :: _ :: _, _ => rfl
 
 /-- con-leche: none — a denoted capability record's fields. -/
 theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}

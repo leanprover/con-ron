@@ -350,24 +350,6 @@ def LeafGuardAt (st : EStore) (fab base : EIdx) (r : Bool) : Prop :=
   ∀ eb, denoteE st base = some eb →
     RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r
 
-/-- con-leche: none — `LeafGuardAt`'s answer at `base`'s optional
-denotation. -/
-def LeafGuardO (st : EStore) (fab : EIdx) (r : Bool) : Option Expr → Prop
-  | some eb => RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r
-  | none => True
-
-/-- con-leche: none — `LeafGuardAt` IS `LeafGuardO` at `base`'s denotation. -/
-@[bridge_grind =] theorem leafGuardAt_eq (st : EStore) (fab base : EIdx) (r : Bool) :
-    LeafGuardAt st fab base r = LeafGuardO st fab r (denoteE st base) := by
-  unfold LeafGuardAt
-  cases denoteE st base <;> simp [LeafGuardO]
-
-/-- con-leche: none — `LeafGuardO` at a denoting `base`. -/
-@[bridge_grind =] theorem LeafGuardO.some_eq (st : EStore) (fab : EIdx) (r : Bool)
-    (eb : Expr) :
-    LeafGuardO st fab r (some eb) = RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r :=
-  rfl
-
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — the
 cutoff: an `fvar`-free fabrication passes. -/
 theorem LeafGuardAt.cut {st : EStore} (hwf : StoreWF st) {fab : EIdx} (base : EIdx)

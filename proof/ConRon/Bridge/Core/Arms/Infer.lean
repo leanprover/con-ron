@@ -121,7 +121,7 @@ literal clause as an answer. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
 clause as an answer, at the denoted level list's length (the
 twin's arity guard on the level list's VIEW reaches it through
-`view_len_of_denoteLs`, a `grind` rule; the constant is not in the
+`Core/Walks/Spine.lean`'s `lsLenAt`; the constant is not in the
 conclusion, so the arm passes this lemma instantiated at it). -/
 theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     {ls : List Level} {c : ConstantInfo} (henv : ConLeche.EnvWF env)

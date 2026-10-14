@@ -5,34 +5,27 @@ DESIGN.md §8.2, Theorem 1.  This module is the *representation* half of the
 bridge's foundation: everything that says "this handle denotes that term",
 and nothing that mentions `AState`, a memo table or a Hoare triple.
 
-It is eight lemma groups over the `EStore` (DESIGN `### Task #97s`), and
+It is six lemma groups over the `EStore` (DESIGN `### Task #97s`), and
 **the answer relation is GENERIC** (DESIGN `### Task #97b`, finding 1):
 `RelE f st c st' r` — "`r` in `st'` denotes `f` of what `c` denotes in
-`st`" — gives all eleven structural walks one set of eliminators and one set
-of step lemmas, where a monomorphic relation per walk would need eleven
-copies.  The per-walk relations are `abbrev`s that fix `f`, so the generic
-lemmas still match syntactically and `grind` still sees a head symbol.
-
-The exception: a generic *step* lemma cannot be `@[grind →]`, because its
-decomposition hypothesis (`∀ x y, f (.app x y) = .app (ff x) (fa y)`) has a
-variable at its head and `grind` finds no pattern.  The step lemmas below are
-therefore applied by hand.
+`st`" — gives all eleven structural walks one relation, where a monomorphic
+relation per walk would need eleven.  The per-walk relations are `abbrev`s
+that fix `f`, so `grind` still sees a head symbol (`Bridge/Grind.lean` reads
+each as `MapRel`).
 
 The groups, in order:
 
 1. soundness — `AM.of_run`, the one step from a Hoare triple to a run;
 2. transport — a denotation survives `Ext`, at all four handle kinds;
 3. the ten denote INVERSIONS — the only place this tier unfolds `denoteE`;
-4. the `isSome` calculus — a precondition with no `Expr` in it, so that a
-   recursive call's side goal carries no metavariable (template rule 4);
-5. the `isSome`-flavoured inversions — the same ten facts with the VIEW as
-   the ematch pattern, which is what makes the uniform closer work;
-6. the PROJECTIONS' exactness — `viewApp`, `viewBind` and their
+4. the PROJECTIONS' exactness — `viewApp`, `viewBind` and their
    eleven siblings against `view`, the lemma `Arena/Store.lean` says "the
-   bridge owes for each";
-7. the answer relations `RelE` / `RelV` / `RelEO` / `RelEL` / `RelL` with
-   their five eliminators and their generic step lemmas;
-8. `ViewOK` — `intern`'s precondition, one lemma per node shape.
+   bridge owes for each"; `denoteEView` and the declaration layer's
+   denotations along `Ext` (4b, 4c);
+5. the answer relations `RelE` / `RelV` / `RelEO` / `RelEL` / `RelL` /
+   `RelLs` and the eliminators of the shapes `grind` does not read as
+   `MapRel`;
+6. `ViewOK` — `intern`'s precondition, one lemma per node shape.
 -/
 import ConRon.Arena
 import ConLeche.Kernel.ExprOps
@@ -207,150 +200,7 @@ theorem denote_proj_inv {st : EStore} (hwf : StoreWF st) {h : EIdx} {n : NIdx}
   rw [denoteE_view_eq hwf hw, denoteEView, opt2_eq_some_iff] at he
   obtain ⟨x, y, hx, hy, rfl⟩ := he; exact ⟨x, y, rfl, hx, hy⟩
 
-/-! ## 4. The `isSome` calculus
-
-A (B) function's *precondition* is "this handle denotes" — `isSome`, with no
-`Expr` in it, so that a recursive call's side goal carries **no
-metavariable** (DESIGN `### Task #97s`, template rule 4).  These lemmas
-push `isSome` down a node. -/
-
-@[grind →] theorem isSome_fvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {k : Nat} {ty : EIdx} (hw : st.view h = some (.fvar k ty))
-    (hs : (denoteE st h).isSome = true) : (denoteE st ty).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨t, _, ht⟩ := denote_fvar_inv hwf hw he
-  rw [ht]; rfl
-
-@[grind →] theorem isSome_app {st : EStore} (hwf : StoreWF st) {h f a : EIdx}
-    (hw : st.view h = some (.app f a)) (hs : (denoteE st h).isSome = true) :
-    (denoteE st f).isSome = true ∧ (denoteE st a).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, _, hx, hy⟩ := denote_app_inv hwf hw he
-  exact ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
-
-@[grind →] theorem isSome_lam {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    (hw : st.view h = some (.lam ty b))
-    (hs : (denoteE st h).isSome = true) :
-    (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, _, hx, hy⟩ := denote_lam_inv hwf hw he
-  exact ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
-
-@[grind →] theorem isSome_forallE {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} (hw : st.view h = some (.forallE ty b))
-    (hs : (denoteE st h).isSome = true) :
-    (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, _, hx, hy⟩ := denote_forallE_inv hwf hw he
-  exact ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
-
-@[grind →] theorem isSome_letE {st : EStore} (hwf : StoreWF st)
-    {h ty w b : EIdx} (hw : st.view h = some (.letE ty w b))
-    (hs : (denoteE st h).isSome = true) :
-    (denoteE st ty).isSome = true ∧ (denoteE st w).isSome = true ∧
-      (denoteE st b).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, z, _, hx, hy, hz⟩ := denote_letE_inv hwf hw he
-  exact ⟨by rw [hx]; rfl, by rw [hy]; rfl, by rw [hz]; rfl⟩
-
-@[grind →] theorem isSome_proj {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {n : NIdx} {i : Nat} {sub : EIdx} (hw : st.view h = some (.proj n i sub))
-    (hs : (denoteE st h).isSome = true) :
-    (denoteE st sub).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, _, _, hy⟩ := denote_proj_inv hwf hw he
-  rw [hy]; rfl
-
-/-! ## 5. The `isSome`-flavoured inversions — the form `grind` can use
-
-The same ten facts as group 3, but stated so that the *view* is the ematch
-pattern and the denotation is a conclusion rather than a hypothesis.  This is
-what makes the uniform closer work: `vcgen` hands each branch its view, and
-these fire on it. -/
-
-@[grind →] theorem denote_eq_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {i : Nat} (hw : st.view h = some (.bvar i))
-    (hs : (denoteE st h).isSome = true) : denoteE st h = some (.bvar i) := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  rw [he, denote_bvar_inv hwf hw he]
-
-@[grind →] theorem denote_eq_fvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {k : Nat} {ty : EIdx} (hw : st.view h = some (.fvar k ty))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ t, denoteE st h = some (.fvar k t) ∧ denoteE st ty = some t := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨t, rfl, ht⟩ := denote_fvar_inv hwf hw he
-  exact ⟨t, he, ht⟩
-
-@[grind →] theorem denote_eq_sort {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {u : LIdx} (hw : st.view h = some (.sort u))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ l, denoteE st h = some (.sort l) ∧ denoteL st.ls u = some l := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hw he
-  exact ⟨l, he, hl⟩
-
-@[grind →] theorem denote_eq_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {n : NIdx} {us : LsIdx} (hw : st.view h = some (.const n us))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ nm ls, denoteE st h = some (.const nm ls) ∧ denoteN st.ns n = some nm ∧
-      denoteLs st.lss us = some ls := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨nm, ls, rfl, hn, hl⟩ := denote_const_inv hwf hw he
-  exact ⟨nm, ls, he, hn, hl⟩
-
-@[grind →] theorem denote_eq_lit {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {l : Literal} (hw : st.view h = some (.lit l))
-    (hs : (denoteE st h).isSome = true) : denoteE st h = some (.lit l) := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  rw [he, denote_lit_inv hwf hw he]
-
-@[grind →] theorem denote_eq_app {st : EStore} (hwf : StoreWF st) {h f a : EIdx}
-    (hw : st.view h = some (.app f a)) (hs : (denoteE st h).isSome = true) :
-    ∃ ef ea, denoteE st h = some (.app ef ea) ∧
-      denoteE st f = some ef ∧ denoteE st a = some ea := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, rfl, hx, hy⟩ := denote_app_inv hwf hw he
-  exact ⟨x, y, he, hx, hy⟩
-
-@[grind →] theorem denote_eq_lam {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} (hw : st.view h = some (.lam ty b))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ et eb, denoteE st h = some (.lam et eb) ∧
-      denoteE st ty = some et ∧ denoteE st b = some eb := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, rfl, hx, hy⟩ := denote_lam_inv hwf hw he
-  exact ⟨x, y, he, hx, hy⟩
-
-@[grind →] theorem denote_eq_forallE {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} (hw : st.view h = some (.forallE ty b))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ et eb, denoteE st h = some (.forallE et eb) ∧
-      denoteE st ty = some et ∧ denoteE st b = some eb := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, rfl, hx, hy⟩ := denote_forallE_inv hwf hw he
-  exact ⟨x, y, he, hx, hy⟩
-
-@[grind →] theorem denote_eq_letE {st : EStore} (hwf : StoreWF st)
-    {h ty w b : EIdx} (hw : st.view h = some (.letE ty w b))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ et ew eb, denoteE st h = some (.letE et ew eb) ∧
-      denoteE st ty = some et ∧ denoteE st w = some ew ∧
-      denoteE st b = some eb := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, z, rfl, hx, hy, hz⟩ := denote_letE_inv hwf hw he
-  exact ⟨x, y, z, he, hx, hy, hz⟩
-
-@[grind →] theorem denote_eq_proj {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {n : NIdx} {i : Nat} {sub : EIdx} (hw : st.view h = some (.proj n i sub))
-    (hs : (denoteE st h).isSome = true) :
-    ∃ nm es, denoteE st h = some (.proj nm i es) ∧
-      denoteN st.ns n = some nm ∧ denoteE st sub = some es := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  obtain ⟨x, y, rfl, hx, hy⟩ := denote_proj_inv hwf hw he
-  exact ⟨x, y, he, hx, hy⟩
-
-/-! ## 6. The projections' exactness
+/-! ## 4. The projections' exactness
 
 `Arena/Store.lean` states the obligation for each: "the exactness lemma the
 bridge owes for each is `getApp t i = (t.get i).bind appParts` and its
@@ -583,7 +433,7 @@ theorem viewBind_of_view_lam {st : EStore} {i ty b : EIdx}
 
 A twin tests `h.tag == ETag.C` (a `Bool`) and then takes the projection, so
 what `vcgen` hands each arm is `(i.tag == ETag.C) = true` and an equation on
-`st.viewC i`.  These are group 6's lemmas at that spelling, and they are
+`st.viewC i`.  These are group 4's lemmas at that spelling, and they are
 `@[grind →]` — the projection read is their ematch pattern, so the closer
 derives the `view` fact itself and the arm proofs never mention it. -/
 
@@ -663,7 +513,7 @@ theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}
     st.view h = some (.forallE ty b) :=
   view_of_viewBind_forallE (by simpa using htg) h1
 
-/-! ## 6b. `denoteEView` transports too
+/-! ## 4b. `denoteEView` transports too
 
 `internRebuilt`'s `same` branch (the upward cutoff, DESIGN `### Task #97-P6-5`)
 answers the ORIGINAL handle, and what its caller must then show is that the
@@ -711,7 +561,7 @@ theorem denoteEView_ext {st st' : EStore} {w : ENodeView} {e : Expr}
     obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
     exact ⟨x, y, denoteN_ext hxx hx, denote_ext hyy hx, rfl⟩
 
-/-! ## 6c. The declaration layer's denotation transports
+/-! ## 4c. The declaration layer's denotation transports
 
 `Arena/Frontend/Readback.lean` denotes the declaration layer
 (`IConstantVal`, `IRecRule`, `IIndCaps`, `IProjTable`, `IConstantInfo`) and
@@ -1250,7 +1100,7 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
         rw [hcv, hrs] at h
         rw [denoteCV_ext hcv hx, denoteRules_ext hx _ rules hrs]; exact h
 
-/-! ## 7. The answer relations
+/-! ## 5. The answer relations
 
 **Generic** (DESIGN `### Task #97b`, finding 1): one relation per RESULT SHAPE,
 not one per walk.  The per-walk relation is an `abbrev` that fixes the pure
@@ -1276,7 +1126,7 @@ The level and name shapes (`RelL`, `RelLs`) are the same at `denoteL` /
 Written as a bare `∀ e, denoteE st c = some e → …` at every call site it would
 cost the automation dearly: a `∀`-hypothesis has no head symbol, so `grind`
 cannot ematch on it and every use has to be supplied by hand.  Behind a `def`
-it has one, and the five eliminators below carry every use. -/
+it has one, and `Bridge/Grind.lean`'s `relE_eq_mapRel` reads it as `MapRel`. -/
 def RelE (f : Expr → Expr) (st : EStore) (c : EIdx) (st' : EStore) (r : EIdx) :
     Prop :=
   ∀ e, denoteE st c = some e → denoteE st' r = some (f e)
@@ -1321,15 +1171,6 @@ def RelLs (f : List Level → List Level) (st : EStore) (c : LsIdx) (st' : EStor
 The walks' proofs read `RelE` as `Bridge/Grind.lean`'s `MapRel`; the other
 shapes keep these. -/
 
-@[grind →] theorem RelV.apply {α : Type} {f : Expr → α} {st : EStore} {c : EIdx}
-    {x : α} {e : Expr} (h : RelV f st c x) (he : denoteE st c = some e) :
-    x = f e := h e he
-
-@[grind →] theorem RelV.of_ext {α : Type} {f : Expr → α} {st st0 : EStore}
-    {c : EIdx} {x : α} (h : RelV f st c x) (hx : Ext st0 st) :
-    RelV f st0 c x :=
-  fun e he => h e (denote_ext he hx)
-
 theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x : α}
     (h : RelV f st c x) (hfg : ∀ e, f e = g e) : RelV g st c x :=
   fun e he => by rw [← hfg e]; exact h e he
@@ -1344,7 +1185,7 @@ theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x :
     (hx : Ext st0 st) : RelLs f st0 c st' r :=
   fun u hu => h u (denoteLs_ext hu hx)
 
-/-! ## 8. `ViewOK` — `intern`'s precondition
+/-! ## 6. `ViewOK` — `intern`'s precondition
 
 One lemma per node shape the twins build.  Each is "the children denote, hence
 they have views". -/
