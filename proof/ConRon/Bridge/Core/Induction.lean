@@ -16,9 +16,9 @@ theorem knot_spec … : ∀ f, KnotSpec mode env fe f
 
 Each slot at `f + 1` is its memo wrapper applied to its body walk applied to
 the induction hypothesis at `f`.  Nothing else is in it — which is the point
-of splitting the tower this way: the wrappers are closed
-(`Bridge/Core/Memo.lean`), the induction is closed (here), and the six body
-walks, where every `sorry` of the tier once sat, are closed too.
+of splitting the tower this way: the wrappers are proved
+(`Bridge/Core/Memo.lean`), the induction is here, and the six body walks
+are proved in `Bridge/Core/Arms/*.lean`.
 
 ## What the Checker tier gets
 
@@ -26,7 +26,7 @@ walks, where every `sorry` of the tier once sat, are closed too.
 hypothesis DESIGN §8.2's per-declaration bridge is written against, and the
 reason `Bridge/Checker/**` can be developed against a `KnotSpec` hypothesis
 without waiting for the arms.  `checkFuel` is con-leche's own number
-(`ConLeche/Kernel/Core.lean:1960`), twinned verbatim by task #97c, so the two
+(`ConLeche/Kernel/Core.lean:1960`), twinned verbatim, so the two
 sides' fuel constants are literally equal — but nothing here depends on that:
 the statement is at an arbitrary `f`.
 -/
@@ -86,8 +86,7 @@ theorem knot_spec_checkFuel {mode : CheckMode} {env : Env} {fe : IFEnv}
 /-! ## The axiom census
 
 DESIGN §8's gate for every tier of this library: `#print axioms` at the three
-standard axioms on every CLOSED theorem, and a `sorryAx` on exactly the
-declarations the task section lists.  The three come in through
+standard axioms on every theorem.  The three come in through
 `Std.HashMap`, `Classical` in `Option`'s lemmas and `Quot` in `String`, which
 is what every tier of this repository already carries. -/
 
@@ -172,20 +171,7 @@ standard axioms. -/
 #print axioms defeqBody_verdict
 #print axioms defeqBody_unknown
 
-/-! ### The former open list — closed
-
-These nine declarations were the tier's open list (each with its reason in
-DESIGN §8's task section `### Task #97-P3-Core`: the six body walks, the three
-batched-clause carries and the port-side peel; `knot_spec` inherited from the
-six).  All of them are closed since task #97-P3-Core round 6 and its
-follow-ups, and print the three standard axioms only.  The paragraph below
-is the history.
-
-**`whnfBody_spec` is no longer one of them in substance** (task
-#97-P3-Core-2): its induction, its fuel merge and its entry bracket are
-written, and the `sorryAx` it then printed came from two walk theorems of
-`Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
-— and from nothing else. -/
+/-! ### The body walks, the batched-clause carries and the knot -/
 
 #print axioms betaPeel_carry
 #print axioms whnfApp_carry
