@@ -333,7 +333,7 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
 clause**: the index lookup, the tower-entry and level-arity guards, and the
-stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec'`,
+stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec`,
 CLOSED); pure side `infer_const`.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}
