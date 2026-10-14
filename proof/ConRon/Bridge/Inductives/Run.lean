@@ -14,7 +14,6 @@ and adds the core-grade shapes.
 import ConRon.Bridge.Inductives.Records
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Promote.Pers
-import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.Inductives
 

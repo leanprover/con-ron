@@ -244,6 +244,25 @@ theorem denoteEList_snoc {st : EStore} {a : EIdx} {ea : Expr}
   intro rs xs h
   simp only [denoteEList_concat_eq, h, ha, opt2, List.concat_eq_append]
 
+/-! ### `denoteEView` preserves the head constructor
+
+A node view's denotation has the view's own head constructor, as the
+negative facts a caller holding an abstract `ENodeView` needs. -/
+
+/-- con-leche: none — a non-`∀` view denotes a non-`∀`. -/
+theorem denoteEView_not_forallE {st : EStore} {v : ENodeView} {e : Expr}
+    (h : denoteEView st v = some e) (hv : ∀ ty b, v ≠ .forallE ty b) :
+    ∀ ty b, e ≠ .forallE ty b := by
+  rintro ty b rfl
+  cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff, Option.map_eq_some_iff]
+
+/-- con-leche: none — a non-`sort` view denotes a non-`sort`. -/
+theorem denoteEView_not_sort {st : EStore} {v : ENodeView} {e : Expr}
+    (h : denoteEView st v = some e) (hv : ∀ u, v ≠ .sort u) :
+    ∀ l, e ≠ .sort l := by
+  rintro l rfl
+  cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff, Option.map_eq_some_iff]
+
 /-! ## 3. The con-leche functions as equations
 
 Each function this group compares against, as `grind` needs it: the
@@ -536,5 +555,7 @@ DESIGN §8.2 asks for it on every closed theorem of the tier. -/
 #print axioms fvarTypeD_spec
 #print axioms instSpine_spec
 #print axioms denoteEList_snoc
+#print axioms denoteEView_not_forallE
+#print axioms denoteEView_not_sort
 
 end ConRon.Bridge.ExprOps

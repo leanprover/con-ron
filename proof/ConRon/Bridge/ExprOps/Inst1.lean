@@ -67,15 +67,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-- con-leche: none — an arm's projection read can reach the context
-REVERSED (`some fields = st.viewC h`), so the one-line `assumption` that
-supplies a step lemma's hypothesis tries both orientations, then `grind`
-over `Ext`. -/
-macro "arm_hyp" : tactic => `(tactic| first
-  | assumption
-  | (symm; assumption)
-  | grind only [Ext.trans, Ext.refl])
-
 /-! ## The cutoff's licence
 
 The one pure lemma this twin needs that con-leche does not have, because
