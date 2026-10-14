@@ -302,7 +302,7 @@ theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
 field's guard level must be a proposition at this instantiation; at every
 other family the rule fires unconditionally.
 
-`lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`) decides the
+`lvlEq?_specA` (`Bridge/Core/Walks/Cached.lean`) decides the
 structure sort against the zero pin, the three readbacks give the level
 parameters, the instantiation levels and the field sort, and the rest is
 `Level.subst`/`Level.isEquiv` on values both tiers share — no `ExprOps` rule,
@@ -319,7 +319,7 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
   simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
   sym only [bridge_grind, ConLeche.ProjEntry.fireOk, → CheckOK.readL', → CheckOK.readLs',
       → CheckOK.readN', hok.pins] =>
-    vcgen [lvlEq?_spec (mode := mode) (env := env) (fe := fe), -readNamesM_spec,
+    vcgen [lvlEq?_specA (mode := mode) (env := env) (fe := fe), -readNamesM_spec,
       readNamesM_frame] <;> finish
 
 /-! ## 5. The two that stand on `ExprOps` -/
