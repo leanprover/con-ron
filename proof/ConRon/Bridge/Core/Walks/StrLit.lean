@@ -72,42 +72,106 @@ theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
     · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
     · simp at h
 
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+
+The interning of a level and a sort at the tier's invariant, with the
+readbacks as equations and the `ViewOK` preconditions as `grind` lemmas
+over `isSome` (so that a view an intern just produced discharges them). -/
+
+/-- con-leche: none — `internLNode` at the tier's invariant. -/
+theorem internLNode_okS (s₀ : AState) (w : LNodeView)
+    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ls.ViewOK w) :
+    ⦃fun s => s = s₀⦄ internLNode w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ s'.store.ls.view h = some w ∧
+        denoteL s'.store.ls h = denoteLView s'.store.ls w; ⊤⦄ :=
+  triple_mono (internLNode_spec s₀ w hok.state.wf hv)
+    (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hv', hd⟩ =>
+      ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
+
+/-- con-leche: none — `denoteLView` at `zero`. -/
+@[bridge_grind =] theorem denoteLView_zero (st : LStore) : denoteLView st .zero = some .zero := rfl
+
+/-- con-leche: none — `denoteLView` at a `succ`. -/
+@[bridge_grind =] theorem denoteLView_succ (st : LStore) (u : LIdx) :
+    denoteLView st (.succ u) = (denoteL st u).map Level.succ := rfl
+
+/-- con-leche: none — `denoteEView` at a `sort`. -/
+@[bridge_grind =] theorem denoteEView_sort (st : EStore) (u : LIdx) :
+    denoteEView st (.sort u) = (denoteL st.ls u).map Expr.sort := rfl
+
 /-- con-leche: none — `internLNode .zero`'s precondition. -/
-theorem lviewOK_zero' {st : EStore} : st.ls.ViewOK .zero :=
+@[bridge_grind .] theorem lviewOK_zero' {st : EStore} : st.ls.ViewOK .zero :=
   ⟨fun c hc => by simp [LNodeView.lchildren] at hc,
    fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
-/-- con-leche: none — `internLNode (.succ u)`'s precondition (the shape
-`bridge_frame` applies; `lviewOK_succ` below is the same). -/
-theorem lviewOK_succ' {st : EStore} {u : LIdx} {w : LNodeView}
-    (h : st.ls.view u = some w) : st.ls.ViewOK (.succ u) :=
-  ⟨fun c hc => by
-     simp [LNodeView.lchildren] at hc; subst hc; rw [h]; rfl,
+/-- con-leche: none — `internLNode (.succ u)`'s precondition, at a level
+handle that has a view. -/
+@[bridge_grind ←] theorem lviewOK_succA {st : EStore} {u : LIdx}
+    (h : (st.ls.view u).isSome = true) : st.ls.ViewOK (.succ u) :=
+  ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
    fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
-/-- con-leche: none — an interned `zero` level reads back (task #120: the
-readbacks as forward rules for `bridge_auto`). -/
-theorem denoteL_zero_of_view {st : LStore} {h : LIdx}
-    (hd : denoteL st h = denoteLView st .zero) : denoteL st h = some .zero := by
-  rw [hd]; simp [denoteLView]
+attribute [bridge_grind ←] viewOK_sort
 
-/-- con-leche: none — an interned `succ` level reads back. -/
-theorem denoteL_succ_of_view {st : LStore} {h u : LIdx} {U : Level}
-    (hd : denoteL st h = denoteLView st (.succ u)) (hu : denoteL st u = some U) :
-    denoteL st h = some (.succ U) := by
-  rw [hd]; simp [denoteLView, hu]
+/-- con-leche: none — a name-handle list's length is its denotation's. -/
+def NListLen (hs : List NIdx) : Option (List ConLeche.Name) → Prop
+  | some xs => xs.length = hs.length
+  | none => True
 
-/-- con-leche: none — an interned `sort` reads back. -/
-theorem denoteE_sort_of_view {st : EStore} {h : EIdx} {u : LIdx} {U : Level}
-    (hd : denoteE st h = denoteEView st (.sort u)) (hu : denoteL st.ls u = some U) :
-    denoteE st h = some (.sort U) := by
-  rw [hd]; simp [denoteEView, hu]
+/-- con-leche: none — `denoteNList_len` at the denotation term. -/
+theorem nListLen (st : NStore) (hs : List NIdx) :
+    NListLen hs (Frontend.denoteNList st hs) := by
+  cases h : Frontend.denoteNList st hs with
+  | none => trivial
+  | some xs => exact denoteNList_len h
+grind_pattern [bridge_grind] nListLen => Frontend.denoteNList st hs
 
-/-- con-leche: none — `viewOK_sort` at a level handle that has a VIEW (what
-`internLNode`'s postcondition hands). -/
-theorem viewOK_sort' {st : EStore} {u : LIdx} {w : LNodeView}
-    (hv : st.ls.view u = some w) : st.ViewOK (.sort u) :=
-  viewOK_sort (by rw [hv]; rfl)
+/-- con-leche: none — `NListLen` at a denoting list. -/
+theorem NListLen.some {hs : List NIdx} {xs : List ConLeche.Name} (H : NListLen hs (some xs)) :
+    xs.length = hs.length := H
+grind_pattern [bridge_grind] NListLen.some => NListLen hs (some xs)
+
+/-- con-leche: none — `toConstantVal`'s two fields the shape guards read, at
+an optional stored constant's denotation. -/
+def CVFields (st₀ st : EStore) (cv : IConstantVal) : Option ConstantInfo → Prop
+  | some c => Frontend.denoteNList st₀.ns cv.levelParams = some c.toConstantVal.levelParams ∧
+      denoteE st cv.type = some c.toConstantVal.type
+  | none => True
+
+/-- con-leche: none — `CVFields` at a denoting constant. -/
+theorem CVFields.some {st₀ st : EStore} {cv : IConstantVal} {c : ConstantInfo}
+    (H : CVFields st₀ st cv (some c)) :
+    Frontend.denoteNList st₀.ns cv.levelParams = some c.toConstantVal.levelParams ∧
+      denoteE st cv.type = some c.toConstantVal.type := H
+grind_pattern [bridge_grind] CVFields.some => CVFields st₀ st cv (some c)
+
+attribute [bridge_grind =] OptCI
+
+grind_pattern [bridge_grind] optCI_find => OptCI s.store (fe.find? n) (env.find? nm),
+  CheckOK mode env fe s
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_STRING` slot names `stringName`. -/
+@[bridge_grind =] theorem pinNames_eq_stringName : pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_STRING_OF_LIST` slot names `stringOfListName`. -/
+@[bridge_grind =] theorem pinNames_eq_stringOfListName : pinNames[PIN_STRING_OF_LIST]? = some ConLeche.stringOfListName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST` slot names `listName`. -/
+@[bridge_grind =] theorem pinNames_eq_listName : pinNames[PIN_LIST]? = some ConLeche.listName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST_NIL` slot names `listNilName`. -/
+@[bridge_grind =] theorem pinNames_eq_listNilName : pinNames[PIN_LIST_NIL]? = some ConLeche.listNilName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST_CONS` slot names `listConsName`. -/
+@[bridge_grind =] theorem pinNames_eq_listConsName : pinNames[PIN_LIST_CONS]? = some ConLeche.listConsName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_CHAR` slot names `charName`. -/
+@[bridge_grind =] theorem pinNames_eq_charName : pinNames[PIN_CHAR]? = some ConLeche.charName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_CHAR_OF_NAT` slot names `charOfNatName`. -/
+@[bridge_grind =] theorem pinNames_eq_charOfNatName : pinNames[PIN_CHAR_OF_NAT]? = some ConLeche.charOfNatName := rfl
 
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 **THEOREM 1 for `toConstantVal`**, at the two fields the shape guards read:
@@ -127,9 +191,7 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
   · obtain ⟨_, v, hv, hcv⟩ := denoteCI_nonTower hci hti
     obtain ⟨_, hlp, hty⟩ := denoteCV_inv hcv
     rw [hv]
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, hlp, hty⟩
+    sym only [bridge_grind] => vcgen <;> finish
   · cases ci with
     | projInfo t =>
       simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
@@ -143,12 +205,27 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
           · cases ht'; exact hlps
           · simp at ht'
         · simp at ht'
-      vcgen [IConstantInfo.toConstantVal]
-      all_goals (bridge_peel; subst_vars)
-      all_goals clear_tag_hyps
-      bridge_auto [lviewOK_zero', lviewOK_succ', viewOK_sort', denoteL_zero_of_view,
-        denoteL_succ_of_view, denoteE_sort_of_view] unfolding [ConstantInfo.toConstantVal]
+      sym only [bridge_grind, ConstantInfo.toConstantVal] =>
+        vcgen [IConstantInfo.toConstantVal,
+          internLNode_okS (mode := mode) (env := env) (fe := fe),
+          internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
     | _ => simp [IConstantInfo.isTowerEntry] at hti
+
+/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
+`toConstantVal_spec` in answer shape: the two fields at whatever the stored
+constant denotes (`CVFields`). -/
+theorem toConstantVal_specA (s₀ : AState) (ci : IConstantInfo)
+    (hok : CheckOK mode env fe s₀)
+    (hci : (Frontend.denoteCI s₀.store ci).isSome = true) :
+    ⦃fun s => s = s₀⦄ ci.toConstantVal
+    ⦃fun cv s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        CVFields s₀.store s'.store cv (Frontend.denoteCI s₀.store ci); ⊤⦄ := by
+  obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hci
+  refine triple_mono (toConstantVal_spec s₀ ci c hok hc) ?_
+  rintro cv s' ⟨h1, h2, h3, h4, h5⟩
+  rw [hc]
+  exact ⟨h1, h2, h3, h4, h5⟩
 
 /-! ## 3. The two `Type`-valued shapes: `String` and `Char` -/
 
@@ -160,20 +237,9 @@ theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     ⦃fun s => s = s₀⦄ ConRon.Arena.stringTyOk oc
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.stringTyOk oc'; ⊤⦄ := by
-  cases oc with
-  | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.stringTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
-  | some ci =>
-    obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, htc]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    bridge_auto [CheckOK.pins, isEmpty_of_denoteNList, beq_of_denoteE]
-      unfolding [ConLeche.stringTyOk]
+  sym only [bridge_grind, ConLeche.stringTyOk] =>
+    vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne,
+      toConstantVal_specA (mode := mode) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:309-315 charTyOk — **THEOREM 1
 for `charTyOk`**. -/
@@ -183,20 +249,9 @@ theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     ⦃fun s => s = s₀⦄ ConRon.Arena.charTyOk oc
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.charTyOk oc'; ⊤⦄ := by
-  cases oc with
-  | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.charTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
-  | some ci =>
-    obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, htc]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    bridge_auto [CheckOK.pins, isEmpty_of_denoteNList, beq_of_denoteE]
-      unfolding [ConLeche.charTyOk]
+  sym only [bridge_grind, ConLeche.charTyOk] =>
+    vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne,
+      toConstantVal_specA (mode := mode) (env := env) (fe := fe)] <;> finish
 
 /-! ## 4. The `List` shapes -/
 
@@ -380,17 +435,6 @@ theorem triple_pureS {α : Type} {s₀ : AState} {v : α}
   vcgen
   subst_vars; exact h
 
-/-- con-leche: none — `internLNode` at the tier's invariant. -/
-theorem internLNode_okS (s₀ : AState) (w : LNodeView)
-    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ls.ViewOK w) :
-    ⦃fun s => s = s₀⦄ internLNode w
-    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ s'.store.ls.view h = some w ∧
-        denoteL s'.store.ls h = denoteLView s'.store.ls w; ⊤⦄ :=
-  triple_mono (internLNode_spec s₀ w hok.state.wf hv)
-    (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hv', hd⟩ =>
-      ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
-
 /-- con-leche: none — `internLsNode` at the tier's invariant. -/
 theorem internLsNode_okS (s₀ : AState) (w : LsNodeView)
     (hok : CheckOK mode env fe s₀) (hv : s₀.store.lss.ViewOK w) :
@@ -430,9 +474,8 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.listTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.listTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+    sym only [bridge_grind, ConLeche.listTyOk] =>
+      vcgen [ConRon.Arena.listTyOk] <;> finish
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listTyOk]
@@ -512,9 +555,8 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.listNilTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.listNilTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+    sym only [bridge_grind, ConLeche.listNilTyOk] =>
+      vcgen [ConRon.Arena.listNilTyOk] <;> finish
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listNilTyOk]
@@ -696,9 +738,8 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.listConsTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.listConsTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+    sym only [bridge_grind, ConLeche.listConsTyOk] =>
+      vcgen [ConRon.Arena.listConsTyOk] <;> finish
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listConsTyOk]
@@ -846,22 +887,6 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm
 /-! ## 5. The two function shapes: `Char.ofNat` and `String.ofList` -/
 
-/-- con-leche: none — `constE_spec` in ANSWER shape: the name handle comes
-off a pin, so its denotation goes in as an existential and out as a
-universal (round 3's rule; two `constE`s at different names share one
-`vcgen` call here). -/
-theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
-    (hn : ∃ nm, denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns n = some nm →
-          denoteE s'.store r = some (.const nm []); ⊤⦄ := by
-  obtain ⟨nm, hnm⟩ := hn
-  have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
-  vcgen [h]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — in the
 twin's order, at a level-monomorphic constant whose type is a `∀`. -/
 theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstantVal.levelParams.isEmpty = true)
@@ -910,9 +935,8 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.charOfNatTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.charOfNatTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+    sym only [bridge_grind, ConLeche.charOfNatTyOk] =>
+      vcgen [ConRon.Arena.charOfNatTyOk] <;> finish
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.charOfNatTyOk]
@@ -931,19 +955,19 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (pinAt_okS s1 _ hok1) ?_
     rintro nt s2 ⟨hs2, hnt⟩
     subst s2
-    refine triple_seq (constE_spec' s1 nt hok1 ⟨_, hnt _ rfl⟩) ?_
+    refine triple_seq (constE_spec s1 nt _ hok1 (hnt _ rfl)) ?_
     rintro nc s2 ⟨hok2, hx2, hp2, hnc⟩
     refine triple_seq (pinAt_okS s2 _ hok2) ?_
     rintro ch s3 ⟨hs3, hch⟩
     subst s3
-    refine triple_seq (constE_spec' s2 ch hok2 ⟨_, hch _ rfl⟩) ?_
+    refine triple_seq (constE_spec s2 ch _ hok2 (hch _ rfl)) ?_
     rintro cc s3 ⟨hok3, hx3, hp3, hcc⟩
     have hwf := hok3.state.wf
     have hx13 := hx2.trans hx3
     have hx03 : Ext s₀.store s3.store := hx1.trans hx13
     have hp03 : s3.pins = s₀.pins := by rw [hp3, hp2, hp1]
-    have hnc' := denote_ext (hnc _ (hnt _ rfl)) hx3
-    have hcc' := hcc _ (hch _ rfl)
+    have hnc' := denote_ext hnc hx3
+    have hcc' := hcc
     have hty' := denote_ext hty hx13
     obtain ⟨v, hv⟩ := denoteE_view hty'
     refine tag_view_bind_triple hv ?_
@@ -987,9 +1011,8 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.stringOfListTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
-    simp only [OptCI] at hrel; subst hrel
-    vcgen [ConRon.Arena.stringOfListTyOk]
-    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+    sym only [bridge_grind, ConLeche.stringOfListTyOk] =>
+      vcgen [ConRon.Arena.stringOfListTyOk] <;> finish
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.stringOfListTyOk]
@@ -1028,9 +1051,9 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (pinAt_okS s3 _ hok3) ?_
     rintro ch s4 ⟨hs4, hch⟩
     subst s4
-    refine triple_seq (constE_spec' s3 ch hok3 ⟨_, hch _ rfl⟩) ?_
+    refine triple_seq (constE_spec s3 ch _ hok3 (hch _ rfl)) ?_
     rintro cc s4 ⟨hok4, hx4, hp4, hcc⟩
-    have hcc' := hcc _ (hch _ rfl)
+    have hcc' := hcc
     refine triple_seq (internE_okS s4 (.app lc cc) hok4
       (viewOK_app (by rw [denote_ext hlc hx4]; rfl) (by rw [hcc']; rfl))) ?_
     rintro dom s5 ⟨hok5, hx5, hp5, _, hd5⟩
@@ -1040,9 +1063,9 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (pinAt_okS s5 _ hok5) ?_
     rintro st s6 ⟨hs6, hst⟩
     subst s6
-    refine triple_seq (constE_spec' s5 st hok5 ⟨_, hst _ rfl⟩) ?_
+    refine triple_seq (constE_spec s5 st _ hok5 (hst _ rfl)) ?_
     rintro sc s6 ⟨hok6, hx6, hp6, hsc⟩
-    have hsc' := hsc _ (hst _ rfl)
+    have hsc' := hsc
     have hwf := hok6.state.wf
     have hx16 : Ext s1.store s6.store :=
       hx2.trans (hx3.trans (hx4.trans (hx5.trans hx6)))
@@ -1073,44 +1096,19 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.strLitSupported fe
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env; ⊤⦄ := by
-  have hn := fun (s : AState) =>
-    natLitSupported_spec (mode := mode) (env := env) (fe := fe) s
-  have h1 := fun (s : AState) (oc : Option IConstantInfo) =>
-    stringTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.stringName)
-  have h2 := fun (s : AState) (oc : Option IConstantInfo) =>
-    stringOfListTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.stringOfListName)
-  have h3 := fun (s : AState) (oc : Option IConstantInfo) =>
-    listTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.listName)
-  have h4 := fun (s : AState) (oc : Option IConstantInfo) =>
-    listNilTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.listNilName)
-  have h5 := fun (s : AState) (oc : Option IConstantInfo) =>
-    listConsTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.listConsName)
-  have h6 := fun (s : AState) (oc : Option IConstantInfo) =>
-    charTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.charName)
-  have h7 := fun (s : AState) (oc : Option IConstantInfo) =>
-    charOfNatTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
-      (env.find? ConLeche.charOfNatName)
-  vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
-    ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
-    ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
-    ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
-  all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  bridge_auto [CheckOK.pins]
-  -- each guard's environment lookup: the pinned name's index entry (the pin's
-  -- `pinNames[i]? = some x` premise is closed by evaluation, `rfl`)
-  vc_arm ⊢ OptCI _ _ _ =>
-    apply optCI_find (by assumption); apply_assumption; rfl
-  -- the verdict: the first failing guard decides the `&&` chain (its
-  -- hypothesis is `(!g) = true`, which `simp only [*]` cannot use as stated)
-  vc_arm ⊢ _ = ConLeche.strLitSupported env =>
-    simp_all [ConLeche.strLitSupported]
+  sym only [bridge_grind, ConLeche.strLitSupported] =>
+    vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
+      ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
+      ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
+      ConRon.Arena.pinCharOfNat, natLitSupported_spec (mode := mode) (env := env) (fe := fe),
+      stringTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.stringName),
+      stringOfListTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.stringOfListName),
+      listTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.listName),
+      listNilTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.listNilName),
+      listConsTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.listConsName),
+      charTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.charName),
+      charOfNatTyOk_spec (mode := mode) (env := env) (fe := fe) (oc' := env.find? ConLeche.charOfNatName),
+      pinAt_specE] <;> finish
 
 /-! ## 7. The axiom census -/
 
