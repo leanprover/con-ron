@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.Core.Arms.DefeqLazy` — Theorem 1 for the easy cases and lazy delta
 
-Task #109.  con-leche 8afe1815 restructures definitional equality after the
-official `is_def_eq_core`; this module holds one spec per twin function of
+con-leche's definitional equality follows the official `is_def_eq_core`
+(DESIGN `### Task #109`); this module holds one spec per twin function of
 the part between the cheap head normalization and the stuck comparison,
 each relating `Arena/Core.lean`'s function to con-leche's at
 `pureFns mode env F` with the frame (`CheckOK`, `Ext`, pins) and the answer

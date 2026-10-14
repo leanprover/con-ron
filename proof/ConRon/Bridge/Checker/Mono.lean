@@ -22,7 +22,7 @@ statement is at `fueledOps μ F` specifically, so a per-step `F` has to be
 raised to a common one, and the raise is one `max` per step.
 
 **The import.**  This module is the only one of the tier that reaches past
-con-leche's `Kernel/*` into its `Verify/*` (task #97-P3-0's import rule).  It
+con-leche's `Kernel/*` into its `Verify/*` (DESIGN `### Task #97-P3-0`'s import rule).  It
 takes exactly two declarations — `checkDecl_datF` and `FueledM`'s subtype
 property — and the capstone module takes `Model/Fold.lean`.  Both are
 prebuilt in con-leche's `.lake`, so neither costs elaboration here.

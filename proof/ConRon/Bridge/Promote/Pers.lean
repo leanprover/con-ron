@@ -3,7 +3,7 @@
 
 DESIGN.md §8.2 states Theorem 1's second conjunct as `Ext st st'`.  **At the
 per-declaration STEP that conjunct is false as written**, and this module is
-the correction (task #97-P3-Checker, finding 1).
+the correction (DESIGN `### Task #97-P3-Checker`).
 
 `Ext st st'` (`Arena/Denote.lean:274`) is TOTAL: *every* handle of `st`
 denotes the same in `st'`.  `Arena/Checker.lean`'s `checkDeclStep` ends in
@@ -234,10 +234,9 @@ handle reads the untouched `pers` arrays in both, and a scratch handle reads
 being `false` on the `dropScratch` side).  So the two stores' readbacks are
 equal FUNCTIONS, which is what `PExt.enterScratch` below stands on.
 
-This is task #97-P3-Checker's item 21, paid here rather than in
-`Arena/WFProofs.lean` and paid cheaper than it was priced: **none of the eight
-lemmas mentions the well-formedness invariant**, because `view` equality is
-decided by the two stores' fields alone and no rank is involved. -/
+**None of the eight lemmas mentions the well-formedness invariant**, because
+`view` equality is decided by the two stores' fields alone and no rank is
+involved. -/
 
 /-- con-leche: none — the name store's view is the same at both ends of the
 bracket. -/
@@ -359,8 +358,7 @@ theorem PExt.dropScratch {st : EStore} (h : StoreWF st) :
     fun i us hp hd => (LsStore.dropScratch_spec hlss).2.2 i us hp hd⟩,
     fun i e hp hd => EStore.dropScratch_denote_pers hw hp hd⟩
 
-/-- con-leche: none — **the bracket's OPENING step, and the one-lemma gap in
-`Arena/WFProofs.lean`** (task #97-P3-Checker, finding 4).
+/-- con-leche: none — **the bracket's OPENING step**.
 
 `enterScratch` turns the scratch tier on.  It changes nothing persistent —
 `enableScratch` and `dropScratch` "differ only in the flag they leave behind"
@@ -368,28 +366,17 @@ theorem PExt.dropScratch {st : EStore} (h : StoreWF st) :
 `empty` — so a persistent handle keeps its denotation across it, exactly as it
 does across a drop.
 
-**But `WFProofs.lean` states that only for `dropScratch`.**  For
-`enableScratch` it states the `view` half (`EStore.view_enableScratch_pers`,
-`NStore.view_enableScratch_pers`, …) and the scratch half
-(`denoteE_enableScratch_scr`) and stops; there is no
-`denoteE_enableScratch_pers` to match `denoteE_dropScratch_pers`, and
-`EStore.enableScratch_spec`'s three conjuncts are `StoreWF`, `view` and the
-scratch handles' `none`.  So the persistent DENOTATION across an
-`enterScratch` cannot be assembled from the store layer as it stands, and
-`Arena.checkDeclStep_bridge` — whose first two operations are `flushCaches`
-and `enterScratch` — stops here.
-
-**CLOSED (task #97-P3-Checker-2), and not the way item 21 expected.**  The
-lemma that was asked for — `denote*_enableScratch_pers` beside
-`denote*_dropScratch_pers`, i.e. the `dropScratch` argument re-run — is not
-needed at all: `enableScratch` and `dropScratch` produce stores whose `view`
-agrees at EVERY handle, persistent or not (a persistent handle reads the same
-untouched `pers` arrays; a scratch handle reads `none` on both sides, from
-`ETables.empty`'s getter on one and from the flag on the other), so the two
-readbacks are equal FUNCTIONS and this is `PExt.dropScratch` transported
-across that equality.  The eight congruences are the section just above and none
-of them mentions the well-formedness invariant, which is why this costs a
-tenth of what the item priced. -/
+`WFProofs.lean` states the persistent DENOTATION only for `dropScratch`
+(`denoteE_dropScratch_pers`); for `enableScratch` it states the `view` half
+(`EStore.view_enableScratch_pers`, `NStore.view_enableScratch_pers`, …) and
+the scratch half (`denoteE_enableScratch_scr`).  The proof does not re-run the
+`dropScratch` argument: `enableScratch` and `dropScratch` produce stores whose
+`view` agrees at EVERY handle, persistent or not (a persistent handle reads the
+same untouched `pers` arrays; a scratch handle reads `none` on both sides,
+from `ETables.empty`'s getter on one and from the flag on the other), so the
+two readbacks are equal FUNCTIONS and this is `PExt.dropScratch` transported
+across that equality.  The eight congruences are the section just above and
+none of them mentions the well-formedness invariant. -/
 theorem PExt.enterScratch {st : EStore} (h : StoreWF st) :
     PExt st st.enableScratch := by
   have hd := PExt.dropScratch h
@@ -536,8 +523,7 @@ structure PersPinSet (p : INatOpPinSet) : Prop where
 /-- con-leche: none — every pin variant is persistent. -/
 def PersPinSets (ps : List INatOpPinSet) : Prop := ∀ p ∈ ps, PersPinSet p
 
-/-- con-leche: none — **the pin TABLE is persistent** — task #97-P3-0 §7's
-"one more clause: the pin handles are persistent", which is what makes
+/-- con-leche: none — **the pin TABLE is persistent**, which is what makes
 `PinsOK` survive `dropScratch`.  It is free: the driver runs
 `internReservedPins` before the prelude with the scratch tier closed. -/
 structure PersPins (s : AState) : Prop where

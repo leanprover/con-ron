@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Checker.Phased` — Theorem 1 at the fold the driver runs
 
-**Task #97-P5-Driver.**  `Arena/Phased.lean`'s `installThenCheckPhased` is the
+(DESIGN `### Task #97-P5-Driver`.)  `Arena/Phased.lean`'s `installThenCheckPhased` is the
 twin of `arena::checker::check_decls_phased`, the Rust driver's sequential
 projection: phase A, then phase B on one WORKER whose state is the phase-A
 state with the scratch tier emptied and the memos and caches fresh
@@ -24,7 +24,7 @@ open ConLeche ConRon.Arena
 
 namespace ConRon.Bridge
 
-/-! ## The pool (task #97-P5-POOL)
+/-! ## The pool (DESIGN `### Task #97-P5-POOL`)
 
 `Arena.PooledAccepts` is the binary's phase B: record lists, one per worker,
 covering the pending records, each accepted from the phase-A state's worker.

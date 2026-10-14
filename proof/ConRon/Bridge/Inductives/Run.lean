@@ -28,8 +28,7 @@ PURE grade**: the store grows, the pin table stands still, and the fourteen per-
 `readLC` and `lvlEqC` — the two a `lvlEq?` call may write (task #97-P3-Frame;
 `Bridge/StateOK.lean`'s `CacheFrame` is the clause, and `PStep.of_caches` is
 what a twin that writes neither uses).  The memo tables are NOT framed: every
-rebuilding walk of `Arena/ExprOps.lean` writes its own, and task #97-P3-0 §7's
-"per-call memo FRAME" is the item that would say which. -/
+rebuilding walk of `Arena/ExprOps.lean` writes its own. -/
 structure PStep (s s' : AState) : Prop where
   ok : StateOK s'
   ext : Ext s.store s'.store
@@ -62,13 +61,11 @@ Partial correctness, as everywhere in this library: a (B) function may fail
 and Theorem 1 claims nothing then — which is why the hypothesis is
 `c s0 = .ok (r, s')` and not an unconditional equation.
 
-**RUN form rather than a Hoare triple**, and the reason is task
-#97-P3-Checker §1's: this tier's work is composition, inversion and list
-induction rather than verification conditions, and `Bridge/Checker/Fold.lean`
-— the module that consumes `IndSpec` — is already written in run form
-(`AM.bind_ok` is its only inversion).  A leaf walk proved with `vcgen` in
-task #97-P3-0's idiom reaches this shape by reading its triple at the `.ok`
-branch; `Bridge/Inductives/Decl.lean`'s note says what that costs. -/
+**RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
+§1): this tier's work is composition, inversion and list induction rather
+than verification conditions, and the checker tier that consumes `IndSpec`
+(`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
+inversion). -/
 def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
@@ -78,8 +75,8 @@ def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → P
 all `Nat`s. -/
 abbrev PT : EStore → Prop := fun _ => True
 
-/-- con-leche: none — **the PURE grade AT A PIN READ** (task #97-P3-Ind round
-3's finding; see `Bridge/Inductives/StructParts.lean`'s `structProjGuards_spec`).
+/-- con-leche: none — **the PURE grade AT A PIN READ** (see
+`Bridge/Inductives/StructParts.lean`'s `structProjGuards_spec`).
 
 `PSpec`'s precondition is a predicate on the STORE, so it cannot see the pin
 table — and `Arena/Pins.lean`'s `pinsReady` tests only that the name array has
@@ -96,11 +93,10 @@ def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → 
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
     c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
 
-/-- con-leche: none — **the pure grade with the level-readback cache** (task
-#97-T2-LOCKSTEP lane Inductives round 3, ruling 1).  A twin that reads a level
-back through the CACHED `readLevelM` answers the denotation only under
-`ReadLCacheOK`, which `StateOK` does not carry.  This grade asks for that one
-table and nothing else; the core grade's `CheckOK` carries it
+/-- con-leche: none — **the pure grade with the level-readback cache**.  A twin
+that reads a level back through the CACHED `readLevelM` answers the denotation
+only under `ReadLCacheOK`, which `StateOK` does not carry.  This grade asks for
+that one table and nothing else; the core grade's `CheckOK` carries it
 (`CheckOK.caches.readL`). -/
 def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
@@ -268,10 +264,10 @@ callers read.  A proof downstream is then `AM.bind_ok` plus one of these plus th
 answer's own algebra, which is what task #97-P3-0 §4's rule 3 asks of a
 statement layer. -/
 
-/-- con-leche: none — **the tag-first twin's test, in run form** (task
-#97-P5-Core round 4): at a handle whose view is known, `if h.tag == t then
-view h >>= f else e` ran as `view h >>= f`, because on the `else` side the
-continuation's catch-all arm IS `e`. -/
+/-- con-leche: none — **the tag-first twin's test, in run form**: at a handle
+whose view is known, `if h.tag == t then view h >>= f else e` ran as
+`view h >>= f`, because on the `else` side the continuation's catch-all arm IS
+`e`. -/
 theorem tagIf_view_run {α : Type} {h : EIdx} {t : UInt32} {v : ENodeView}
     {f : ENodeView → AM α} {e : AM α} {s s' : AState} {r : α}
     (hv : s.store.view h = some v) (he : v.tagOf ≠ t → f v = e)

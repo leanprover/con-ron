@@ -28,15 +28,13 @@ together because the recursion threads all three:
 makes `.mono` across an `Ext` the only transport it needs: a row recorded
 before an append is still a promoted pair after it.
 
-**Status (task #97-P3-Promote).**  Every statement here is PROVED, one
-conjunct in `Coh.lean`: the four handle-kind specs and the declaration layer's four are the
-walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and list
-inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s promote
-window invariant `StoreWF'`), and `promoteNew_spec` is `promoteCIList` plus
-the two index passes.  Its `IFEnvCoh fe'` conjunct needs
+**How it is proved.**  The four handle-kind specs and the declaration layer's
+four are the walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and
+list inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s
+promote window invariant `StoreWF'`), and `promoteNew_spec` is
+`promoteCIList` plus the two index passes.  Its `IFEnvCoh fe'` conjunct needs
 `Bridge/Promote/Coh.lean`'s `promoteNew_cohX`, so `promoteNew_spec` itself
-lives there (task #97-P3-Checker round 9, on the coordinator's ruling that
-`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
+lives there (`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
 `Bridge/Checker/**`'s per-declaration brackets read `promoteNew_spec`,
 `promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
 `promoteBracket_close`.
@@ -62,7 +60,7 @@ promoted exactly**: an `opaque`'s value is not in the environment, so the
 `ValueGroup` is promoted beside it and at the SAME memo, and phase B therefore
 checks the same term phase A installed.
 
-PROVED (task #97-P3-Promote): `promoteVG_step`. -/
+The proof is `promoteVG_step`. -/
 theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
     {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cv = some c)
@@ -116,13 +114,12 @@ EXTENSIONALLY: the same counter, and the same answer at every key.
 B's prefix view is handled by a congruence (`mkFEnv_find?_visibleBelow`) and
 not by this.
 
-**Redefined** (task #97-P3-Checker round 9, the coordinator's ruling on task
-#97-P3-Promote's finding).  It was `fe = mkIFEnv fe.env`, an equation between
-two `Std.HashMap` VALUES, which includes their bucket layout: `promoteNew`
-inserts newest-first where `mkIFEnv` inserts oldest-first, so the two differ
-under a bucket collision and the promotion could not meet it.  Every consumer
-reads only the counter and the lookups, which is what this says (it was
-`Bridge/Promote/Coh.lean`'s `IFEnvCohX`). -/
+**Why extensional** (DESIGN `### Task #97-P3-Promote`).  The structural
+`fe = mkIFEnv fe.env` is an equation between two `Std.HashMap` VALUES, which
+includes their bucket layout: `promoteNew` inserts newest-first where
+`mkIFEnv` inserts oldest-first, so the two differ under a bucket collision and
+the promotion could not meet it.  Every consumer reads only the counter and
+the lookups, which is what this says. -/
 def IFEnvCoh (fe : IFEnv) : Prop :=
   fe.visibleBelow = fe.env.consts.length ∧
     ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
@@ -154,9 +151,8 @@ which is precisely what `IFEnv.push` does to `fe.idx` at `fe.visibleBelow`,
 once `IFEnvCoh fe` says those two are `mkIFEnvGo fe.env.consts`'s two
 components.
 
-One of the two `IFEnv.push` lemmas task #97-P3-Ind §8 asks for (the other is
-`Pushed.push` just below); fourteen install statements of
-`Bridge/Inductives/**` want the pair. -/
+One of the two `IFEnv.push` lemmas (the other is `Pushed.push` just below);
+fourteen install statements of `Bridge/Inductives/**` want the pair. -/
 theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
   refine ⟨by simp [IFEnv.push, h.1], fun n => ?_⟩
@@ -167,8 +163,7 @@ theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
 index build hands out is BELOW the counter it stops at**, which is what makes
 `IFEnv.push`'s raised `visibleBelow` safe: a push cannot REVEAL an entry the
 old index was hiding.  `Bridge/Inductives/Rel.lean`'s `ProjOut.push` is the
-consumer (task #97-P3-Ind round 2 proved it there and said it belonged here;
-round 3 moved it). -/
+consumer. -/
 theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
     (c : Nat) (ci : IConstantInfo),
     (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by

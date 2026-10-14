@@ -1,8 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Arms.DefeqPeel` — the batched ∀ descent's identification
 
-Task #97-P3-Core round 6, restated for tasks #109 and #119.  The twin's
-`quickDefEq` runs its `.forallE` arm as `defeqBinders`: the first domains
+The twin's `quickDefEq` runs its `.forallE` arm as `defeqBinders`: the first domains
 compared, then the batched `defeqPeel` for the rest of the two telescopes —
 the one obligation of the Core tier that con-leche has no lemma for (task
 #97-P6-14's batched defeq binder descent is the port's own algorithm).  It
@@ -12,8 +11,8 @@ is proved here, by induction on the peel's budget, over one invariant:
 `isDefEqCore` at depth `d + k` on the two OPENED residuals
 `ca.instantiateList ws`, `cb.instantiateList ws` answers `x`*;
 `defeqBinders_spec` folds the first level in and concludes con-leche's
-`quickDefEq` on the two ∀s (`quick_step_pure`).  Since con-leche's task #342
-the λ pair is not peeled (its arm is `defeqLams`, `Arms/DefeqLazy.lean`), and
+`quickDefEq` on the two ∀s (`quick_step_pure`).  The λ pair is not peeled
+(its arm is `defeqLams`, `Arms/DefeqLazy.lean`, con-leche's task #342), and
 no binder datum is compared, so the invariant carries no pending mismatch.
 
 The parts of the argument written on `Arena/Core.lean`'s `defeqPeel` are the

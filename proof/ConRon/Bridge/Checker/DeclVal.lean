@@ -13,7 +13,7 @@ module is its bridge tier.  Four groups, and they are exactly the four things
    and `Bridge/Checker/Inv.lean`'s **`StepOK env' fe' s'`** for the extended
    environment — the index answers, the environment is well formed, the index
    is its list's index, and it denotes.  Their state frame is `CoreStep` and
-   not `StateOK` (task #97-P3-Checker-2): each CALLS the core, so the caches
+   not `StateOK`: each CALLS the core, so the caches
    move, and what survives is the invariant at the environment the core ran at
    — which is the pre-insertion one, exactly as `checkConstantVal_bridge`
    concludes.  `StepOK` is what the two pin gates below read `fe2` for;
@@ -32,16 +32,14 @@ take both for the same reason.  So each needs two invariants at once, which is
 a shape nothing else in the tier has, and stating them here keeps the arms
 uniform.
 
-**What the second one is, corrected** (task #97-P3-Checker-2, named in task
-#97-P3-Checker-3).  The round that stated these asked for
-`FoldOK μ env2 fe2 s` — and `FoldOK` carries `PersIFEnv fe2`, which is
-**false**: `fe2` is the environment the value check has just extended INSIDE
-the per-declaration bracket, so the constant it holds carries a freshly
-interned, hence scratch, type.  It is task #97-P3-Ind's finding at a second
-site.  What the gates actually read `fe2` for is `reduceStoredOk fe2 c` /
+**What the second one is.**  Not `FoldOK μ env2 fe2 s`: `FoldOK` carries
+`PersIFEnv fe2`, which is **false** — `fe2` is the environment the value check
+has just extended INSIDE the per-declaration bracket, so the constant it holds
+carries a freshly interned, hence scratch, type (the same reason `IndSpec`
+omits it).  What the gates actually read `fe2` for is `reduceStoredOk fe2 c` /
 `divModEnvGuard fe2 c`, two index lookups and no core call, so the clause they
 need is **`StepOK env2 fe2 s`** — `Bridge/Checker/Inv.lean`'s name for exactly
-that, and what the three value checks above now hand back.
+that, and what the three value checks above hand back.
 
 **Both gates only ever DECLINE or pass.**  Neither installs anything: their
 result is `Unit` on both sides, and the environment the arm returns is the one
@@ -128,7 +126,7 @@ theorem checkReducePin_mono {μ : CheckMode} {env env2 : Env}
 `installValueGuards_pure` and `installValueGuards_bridge` are what the three
 value checks below BEGIN with (`Arena.installValueGuards`), and what
 `Split.lean` reads for `checkValueGroup_bridge` and `installStep_bridge`.
-Since con-leche's task #342 there is no annotation: the half is four guards,
+There is no annotation: the half is four guards,
 pure on con-leche's side and four memoised walks on the twin's. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:85-94 installValueGuards —
@@ -226,7 +224,7 @@ theorem installValueGuards_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## `ConstWF`, and what the guards already establish
 
-**Round 5's scheduling finding, discharged.**  Each of the three value checks
+**What the value checks owe for `EnvWF`.**  Each of the three value checks
 ends in `IFEnv.push` and so concludes `StepOK env' fe' s'`, whose `envWF`
 clause is `EnvWF ⟨c :: env.consts⟩` — and *con-leche does not prove that
 `checkDefnVal` preserves `EnvWF`*: `Verify/BridgeWfImp.lean`'s
@@ -234,16 +232,15 @@ clause is `EnvWF ⟨c :: env.consts⟩` — and *con-leche does not prove that
 `EnvWF` as a hypothesis (`EnvModelM.toEnvFacts.wf`) rather than
 re-establishing it.  What it DOES have, in `Verify/EnvWF.lean`, is
 `EnvWF.cons` — so the debt is exactly `ConstWF ⟨c :: env.consts⟩ c`, and it is
-one lemma shared by all three arms and by the deleted sequential fold's step
-(`Bridge/Checker/Inv.lean`'s `StepOK.push`).
+one lemma shared by all three arms (`Bridge/Checker/Inv.lean`'s
+`StepOK.push`).
 
 `ConstWF` splits in two along the constructor:
 
 * **the four TYPE clauses**, which `checkDefnVal` never looks at — the value
   checks run at an ALREADY CHECKED header — so they are a *hypothesis*,
   `CVTypeWF`, discharged at every call site by `checkConstantVal_typeWF` from
-  the front door's own pure run.  This is round 4's `PinsOK` and round 5's
-  `hwsty`/`hwsjv` precedent: a missing precondition, repaired in place;
+  the front door's own pure run;
 * **the four VALUE clauses**, which `installValueGuards` checks directly —
   con-leche's own `installValueGuards_inv`.
 
@@ -335,21 +332,18 @@ theorem constWF_axiomInfo {env : Env} {cv : ConstantVal}
 /-- con-leche: ConLeche/Kernel/Checker.lean:32-50 checkDefnVal — a
 definition's value against its checked constant, returning the pushed index.
 
-**PROVED** (task #97-P3-Checker round 6): `installValueGuards_bridge`, one
-`KnotSpec.infer`, one `KnotSpec.defeq`, then `StepOK.push`.
+The proof: `installValueGuards_bridge`, one `KnotSpec.infer`, one
+`KnotSpec.defeq`, then `StepOK.push`.
 
-**The statement gained `htw : CVTypeWF env c`.**  `StepOK` carries
+**Why `htw : CVTypeWF env c`.**  `StepOK` carries
 `EnvWF ⟨.defnInfo c y hint :: env.consts⟩`, hence
 `ConstWF … (.defnInfo c y hint)`, hence the four clauses about `c.type` — and
 `checkDefnVal` never looks at the type: the value checks run at an ALREADY
-CHECKED header, whose guards are `checkConstantVal`'s.  Nothing in the
-round-1 hypotheses delivers them (`FoldOK` speaks about `env`, and the
-statement does not say `c` is a constant OF `env`), so as stated the theorem
-was not provable.  It is free at the one call site —
+CHECKED header, whose guards are `checkConstantVal`'s.  Nothing else in the
+hypotheses delivers them (`FoldOK` speaks about `env`, and the statement does
+not say `c` is a constant OF `env`).  It is free at the one call site —
 `Bridge/Checker/Arms.lean`'s `defn` arm has `checkConstantVal_bridge`'s own
-pure run, and `checkConstantVal_typeWF` reads it off.  Round 4's `PinsOK` and
-round 5's `hwsty`/`hwsjv` precedent: a missing precondition, repaired in
-place. -/
+pure run, and `checkConstantVal_typeWF` reads it off. -/
 theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {hint : ReducibilityHint} {s s' : AState}
@@ -418,12 +412,12 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
 stored by its statement**: the value is a witness, guarded, checked and
 discarded.
 
-**PROVED** (task #97-P3-Checker round 6): the widest of the three, because
+The proof is the widest of the three, because
 the is-a-proposition test is three steps the other two do not have —
 `EnsureSortSpec`, the pinned `zeroLevel` (`pinZeroLevel_spec`) and
 `lvlEq?_spec`, whose verdict IS `Level.isEquiv` at the two handles'
 denotations, read at BOTH signs (the `none` case is `liftFueled`'s failure and
-cannot occur on a successful run).  It gains the same `htw` as the other two —
+cannot occur on a successful run).  It takes the same `htw` as the other two —
 and here it is spent twice, once for `WScoped 0 c.type` at the FIRST
 inference (which the other two do not make) and once at the conversion.
 
@@ -551,11 +545,11 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
 theorem check without the is-a-proposition requirement; the result is stored
 as an `axiomInfo`.
 
-**PROVED** (task #97-P3-Checker round 6): `checkDefnVal_bridge`'s proof, word
-for word, with `.axiomInfo` in place of `.defnInfo` — and the `ConstWF`
-introduction is the cheaper one, because an `axiomInfo` has no value clause at
-all (the checked value is a realizability witness, consumed by the model
-extension and then discarded).  It gains the same `htw`. -/
+The proof is `checkDefnVal_bridge`'s, word for word, with `.axiomInfo` in place
+of `.defnInfo` — and the `ConstWF` introduction is the cheaper one, because an
+`axiomInfo` has no value clause at all (the checked value is a realizability
+witness, consumed by the model extension and then discarded).  It takes the
+same `htw`. -/
 theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {s s' : AState}
@@ -621,10 +615,9 @@ environment index and intern pinned literals — so each has `PinStep`'s frame
 and an answer relation, and the certifier alone is a `CoreStep`. -/
 
 /-- con-leche: none — a list of equation PAIRS denotes, pointwise.  The
-`certifyNatEqs` chain is stated with it rather than with the membership shape
-the round that stated it used, because the recursion is positional: the arena
-certifies the `i`-th pair against con-leche's `i`-th (task
-#97-P3-Checker-2). -/
+`certifyNatEqs` chain is stated with it rather than with a membership shape,
+because the recursion is positional: the arena certifies the `i`-th pair
+against con-leche's `i`-th. -/
 def EqPairsDenote (st : EStore) :
     List (EIdx × EIdx) → List (Expr × Expr) → Prop
   | [], [] => True
@@ -666,7 +659,7 @@ theorem certifyNatEqs_cons_pure {μ : CheckMode} {env : Env} {F : Nat}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames — the seven
 structural fast-path operations, off the pin table.
 
-**PROVED** (task #97-P3-Checker-3): seven `pinAt_run`s, in
+The proof: seven `pinAt_run`s, in
 `reservedBasisNames_run`'s shape and under its rule — the seven facts are
 carried separately and the list is assembled once, at the end, against the
 literal the `do`-block returns.  A pin read leaves the state alone, so there
@@ -702,8 +695,7 @@ theorem natOpNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:483-498 natDivModNames — the
 eight WF-recursive operations, off the pin table.
 
-**PROVED** (task #97-P3-Checker-3): `natOpNames_run`'s proof, one slot
-longer. -/
+The proof is `natOpNames_run`'s, one slot longer. -/
 theorem natDivModNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
     (hr : natDivModNames s = .ok (ns, s')) :
     s' = s ∧ denoteNL s.store ns ConLeche.natDivModNames := by
@@ -740,14 +732,14 @@ operations (transitively) involved in `c`'s recurrences.  The twin's dispatch
 is a chain of HANDLE comparisons where con-leche's is a chain of name
 comparisons, so the answer is exact for `denoteN_inj`'s reason.
 
-**PROVED** (task #97-P3-Checker-3): fifteen `pinAt_run`s, `beq_handle_iff` at
+The proof: fifteen `pinAt_run`s, `beq_handle_iff` at
 each of the fifteen tests, and the sixteen arms.  A pin read leaves the state
 alone, so every arm's frame is the same `rfl`-shaped record and the only
 content is which list comes out.
 
-**The statement gained `PinsOK s`** — it read the pin table fifteen times and
-did not ask for it, so as stated it was not provable (nothing made the handles
-`pinAt` hands back denote anything).  It is free at the one call site
+**Why `PinsOK s`**: it reads the pin table fifteen times, and without it
+nothing makes the handles `pinAt` hands back denote anything.  It is free at
+the one call site
 (`Bridge/Checker/Arms.lean`'s `defn` arm has `FoldOK`, hence
 `hok.check.pins`). -/
 theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
@@ -1237,19 +1229,17 @@ theorem natOpDepsStored_run {env : Env} {fe : IFEnv} :
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
 structural-`Nat` environment guard is con-leche's at the denoted environment.
 
-**The statement gained `PinsOK s`** (task #97-P3-Checker round 4 — the same
-defect as `natOpDeps_run`'s above, found by the grep that round asks for):
-`natOpGuard` reads eight pins (`natLitSupported`'s three, `natBeqName`,
-`natBleName`, `natDivModNames`, `boolTrueName`, `boolFalseName`) and asked
-only for `StateOK`, so nothing made the handles `pinAt` hands back denote
-anything and the conclusion was not provable.  Free at the one call site
-(`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
+**Why `PinsOK s`** (as for `natOpDeps_run` above): `natOpGuard` reads eight
+pins (`natLitSupported`'s three, `natBeqName`, `natBleName`,
+`natDivModNames`, `boolTrueName`, `boolFalseName`), and `StateOK` alone does
+not make the handles `pinAt` hands back denote anything.  Free at the one call
+site (`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
 
-**PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
+The proof reads the `do`-block link by link
 through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
 `natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
-constructor lookups (whose `.projInfo` premise `IFEnvOK.proj` discharges).  Round 10 moved the chain into
-`natOpGuard_runsB` (below), which `divModEnvGuard` binds. -/
+constructor lookups (whose `.projInfo` premise `IFEnvOK.proj` discharges); the
+chain is `natOpGuard_runsB`, which `divModEnvGuard` binds too. -/
 theorem natOpGuard_runsB {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {s : AState} (hok : StateOK s) (hp : PinsOK s)
     (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm) :
@@ -1451,12 +1441,12 @@ theorem natOpStoredOkAll_runs {env : Env} {fe : IFEnv} :
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
 recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
 
-**The statement gained `PinsOK s`** (task #97-P3-Checker round 4): each step
-is `natOpStoredOk`, which is `natOpTyPinned` on a hit, which reads the pin
-table — so this walk is a pin reader too and `StateOK` alone was not enough.
-Free at the one call site (`hok5.check.pins`).
+**Why `PinsOK s`**: each step is `natOpStoredOk`, which is `natOpTyPinned` on
+a hit, which reads the pin table — so this walk is a pin reader too and
+`StateOK` alone is not enough.  Free at the one call site
+(`hok5.check.pins`).
 
-**PROVED** (task #97-P3-Checker round 8): `natOpStoredOkAll_runs`, a list
+The proof: `natOpStoredOkAll_runs`, a list
 induction over `natOpStoredOk_run` (`natOpTyPinned_run`, `natOpCod_run`). -/
 theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
@@ -1515,7 +1505,7 @@ theorem natAp2_run {n : NIdx} {a b h : EIdx} {nm : ConLeche.Name} {ea eb : Expr}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpEquations) — the recurrence
 equations, interned.
 
-**PROVED** (task #97-P3-Checker round 8): seventeen shared links (pin reads,
+The proof: seventeen shared links (pin reads,
 `constE_run`, `internFvar_run`, `natAp1_run`) and one branch per operation of
 `natAp1_run` / `natAp2_run`; the proof is generated text, every denotation
 fact transported to the final state by the chain of `IStepS` behind it. -/
@@ -1786,14 +1776,12 @@ theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean (Expr.substConst0) — the
 self-reference substitution, pair by pair.
 
-**The statement gained `PinsOK s`** (task #97-P3-Checker round 4):
-`substConst0`'s `.const` arm reads `emptyLevels` and compares the stored
-universe-argument handle against it, so without the pin invariant nothing
-ties that comparison to con-leche's `us = []`.  Free at the one call site
-(`hok7.check.pins`).
+**Why `PinsOK s`**: `substConst0`'s `.const` arm reads `emptyLevels` and
+compares the stored universe-argument handle against it, so without the pin
+invariant nothing ties that comparison to con-leche's `us = []`.  Free at the
+one call site (`hok7.check.pins`).
 
-**PROVED** (task #97-P3-Checker round 8): a list recursion over
-`substConst0_run`. -/
+The proof: a list recursion over `substConst0_run`. -/
 theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
     {x : Expr} {eqs r : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
     {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
@@ -1851,14 +1839,12 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
 recurrence equations, certified by definitional equality in the pre-insertion
 environment.
 
-**PROVED** (task #97-P3-Checker round 5): a list induction over
-`KnotSpec.defeq`, in the shape of the (since deleted) list checks of
-`Bridge/Checker/Base.lean` — one `max` over the head's fuel and the tail's, `isDefEqCore_mono` and
-`certifyNatEqs_mono` to raise each.  The equations' own exactness
+The proof: a list induction over `KnotSpec.defeq` — one `max` over the head's
+fuel and the tail's, `isDefEqCore_mono` and `certifyNatEqs_mono` to raise
+each.  The equations' own exactness
 (`natOpEquations_run`, `substConst0Pairs_run`) is NOT part of it: this theorem
 takes the pairing as `hden` and the well-scopedness as `hws`, so it is
-independent of how the pinned terms were built.  Task #97-P3-Checker's sorry
-list, item 23, closed. -/
+independent of how the pinned terms were built. -/
 theorem certifyNatEqs_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
     ∀ (eqs : List (EIdx × EIdx)) (xs : List (Expr × Expr)) (r : Bool)
@@ -1964,7 +1950,7 @@ runs them at (`isDefEq … 2`: the equations' variables are `fvar 0` and
 `fvar 1`).  A pure fact about con-leche's own pinned construction, which
 `certifyNatEqs_bridge`'s `KnotSpec.defeq` calls need as their precondition.
 
-**PROVED** (task #97-P3-Checker round 8): `natOpEquations_wscoped` (the
+The proof: `natOpEquations_wscoped` (the
 literal shapes, by cases) and `substConst0_wscoped` at the stored value,
 which `EnvWF env2`'s `defnInfo` clause makes free of free variables. -/
 theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
@@ -2043,8 +2029,8 @@ theorem reduceCertVar_run {cH : NIdx} {cn : ConLeche.Name} {v : EIdx}
 con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — **the four
 syntactic guards on an interned pin** (bounded, closed, level-monomorphic,
 resolving), as the two pin guards share them: the Fast walks answer
-con-leche's `Bool`s at the pin's denotation.  (Task #97-P3-Checker round 10
-lifted it out of `reducePinGuard_run`, whose tail it was.) -/
+con-leche's `Bool`s at the pin's denotation; `reducePinGuard_run` and
+`divModPinGuard_run` both end in it. -/
 theorem pinGuardWalk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {p : EIdx} {E : Expr} {r : Bool} {s s1 s' : AState}
     (hck1 : CheckOK μ env fe s1) (hs1x : Ext s.store s1.store)
@@ -2167,7 +2153,7 @@ theorem checkOpaqueVal_noFvar {μ : CheckMode} {env env' : Env} {F : Nat}
 definitionally equal to the build-time pin.
 
 Proved: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
-`IFEnvOK`, then `KnotSpec.defeq` at the pinned term.  Was task #97-P3-Checker's sorry list, item 24. -/
+`IFEnvOK`, then `KnotSpec.defeq` at the pinned term. -/
 theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
     {x : Expr} {s s' : AState} (_hμ : μ.verifiedChecks = true)
@@ -2207,7 +2193,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   rotate_left
   · exact absurd r5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   have hx03 : Ext s.store s3.store := hs12.ext.trans hx3
-  -- the pin, interned again (no annotation since con-leche's task #342)
+  -- the pin, interned again (no annotation)
   have hx3v : denoteE s3.store value = some x := denote_ext hv hx03
   obtain ⟨p, s5, g5, r7⟩ := AM.bind_ok r5
   obtain ⟨hs5, hpd⟩ := reduceDeclPin_run hck3.state hck3.pins

@@ -1,13 +1,13 @@
 /-
 # `ConRon.Bridge.Core.Arms.DefeqStuck` — Theorem 1 for `defeqStuck`
 
-Task #109.  con-leche's `defeqStuck` (the tail of the official kernel's
+con-leche's `defeqStuck` (the tail of the official kernel's
 `is_def_eq_core`, after lazy delta, the proj/proj check and the full
-`whnfCore` restart) is the old `defeqStep`'s congruence half minus the arms
-that moved: the sorts, literals and binders went to `quickDefEq`
-(`Arms/DefeqLazy.lean`), the `Nat` literal/constructor pairs to
-`defeqOffset`, the proj/proj pair to `defeqProjPair`.  What is left is
-proved here, arm by arm, as before:
+`whnfCore` restart; DESIGN `### Task #109`) is the congruence comparison of
+two stuck terms.  The sorts, literals and binders are `quickDefEq`'s
+(`Arms/DefeqLazy.lean`), the `Nat` literal/constructor pairs
+`defeqOffset`'s, the proj/proj pair `defeqProjPair`'s.  The remaining arms
+are proved here, arm by arm:
 
 | arm | lemma |
 |---|---|

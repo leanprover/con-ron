@@ -1,10 +1,9 @@
 /-
 # `ConRon.Bridge.Promote.Memo` — the promotion memo's invariant and the frame
 
-`Bridge/Promote/Exact.lean`'s vocabulary, moved below the walks that prove it
-(task #97-P3-Promote): `PMemoOK` (every row of the promotion memo is a
-promoted pair) and `PFrame` (a promotion touches nothing but the store).
-Nothing about either definition changed.
+`Bridge/Promote/Exact.lean`'s vocabulary, below the walks that prove it:
+`PMemoOK` (every row of the promotion memo is a promoted pair) and `PFrame`
+(a promotion touches nothing but the store).
 -/
 import ConRon.Bridge.Promote.Pers
 import ConRon.Arena.PromoteExt
@@ -85,9 +84,8 @@ grows, the memo stays sound, the answer is persistent, the answer denotes what
 the subject denoted, and the rest of the state (the per-call memos, the
 caches, the pin table, the scratch flag) stood still.
 
-The last conjunct is the per-call memo FRAME task #97-P3-0 §7 asks for, at the
-one place it is free: a promotion touches no memo table of `Monad.lean` at
-all. -/
+The last conjunct is the per-call memo FRAME, at the one place it is free: a
+promotion touches no memo table of `Monad.lean` at all. -/
 
 /-- con-leche: none — arena infrastructure; a promotion leaves everything but
 the store alone.  One predicate rather than four conjuncts, so that a caller's

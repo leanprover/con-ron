@@ -3,7 +3,7 @@
 
 `Arena/Frontend/Readback.lean`'s `internExpr` puts a transient con-leche value
 into the store; the frontend needs it for the pin variants
-(`Bridge/Checker/Pins.lean`'s item 13).  Its exactness is
+(`Bridge/Checker/Pins.lean`).  Its exactness is
 `denoteE st' (internExpr e) = some e`, with `Ext` and `StoreWF` threaded: it
 is `Bridge/Specs.lean`'s `internE_spec` composed along a `ConLeche.Expr`'s own
 structural recursion, with the `EMemo` invariant
@@ -81,7 +81,7 @@ persistence is a CONSEQUENCE of the denotation at a state whose scratch tier is
 closed and not extra content the intern has to prove.  The five leaves that
 conclude a `denoteEView`/`denoteNView` equation rather than a `some` keep their
 own four-line derivation from the spec's `view` conjunct, since a view equation
-is not a denotation.  DESIGN #97-P3-Frontend round 6. -/
+is not a denotation. -/
 structure IStepS (s s' : AState) : Prop where
   ok : StateOK s'
   ext : Ext s.store s'.store
@@ -598,10 +598,9 @@ theorem internLsNode_sstep {s s' : AState} (hok : StateOK s)
   exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
 
 /-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName — the reserved
-table name, interned.  **The denotation conjunct is round 5's addition**: it is
-the whole of what `Bridge/Frontend/Rel.lean`'s `IProjNamed` asks of an interned
-table, and therefore the whole of what the seam's new clause rests on
-(DESIGN #97-P3-Frontend round 5, the repair of finding 16). -/
+table name, interned.  **The denotation conjunct** is the whole of what
+`Bridge/Frontend/Rel.lean`'s `IProjNamed` asks of an interned table, and
+therefore the whole of what the parse state's `projNamed` clause rests on. -/
 theorem projTableName_sstep {s s' : AState} (hok : StateOK s)
     {T : NIdx} {Tn : ConLeche.Name}
     (hT : denoteN s.store.ns T = some Tn) {h : NIdx}

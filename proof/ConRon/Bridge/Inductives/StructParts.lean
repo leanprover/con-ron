@@ -65,7 +65,7 @@ theorem LooseMemoOK.insert {tbl : Std.HashMap (EIdx × Nat) Bool} {st : EStore}
 inline at every use; over handles a level list is a node, so the twin builds
 it once and this is the one statement that says the node is that list.
 
-**CLOSED** (task #97-P3-Ind round 2): the `let rec go` by list induction over
+**Proof:** the `let rec go` by list induction over
 `internParamL_run`, then `internLsNode_run` at the result.  Both run forms are
 `Bridge/Inductives/Rel.lean`'s, which is where this tier's `AM.of_run`
 boilerplate lives. -/
@@ -120,7 +120,7 @@ theorem paramLevels_spec (lps : List NIdx) (lpsP : List ConLeche.Name) :
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
 The parameter variables as seen from under `o` extra binders.
 
-**CLOSED** (task #97-P3-Ind round 2): a `Nat` recursion over
+**Proof:** a `Nat` recursion over
 `internBVarE_run` with the cursor `k` generalised.  The pure side is a
 `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
 the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
@@ -166,7 +166,7 @@ theorem structPsAt_spec (o nP : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:57-58 structElimLevel
 The recursor's elimination level.
 
-**CLOSED** (task #97-P3-Ind round 2): `internParamL_run` / `internZeroL_run`
+**Proof:** `internParamL_run` / `internZeroL_run`
 under one `cases` on the eliminator bit. -/
 theorem structElimLevel_spec (elim : NIdx) (elimP : ConLeche.Name)
     (large : Bool) :
@@ -190,9 +190,9 @@ theorem structElimLevel_spec (elim : NIdx) (elimP : ConLeche.Name)
 Does the constructor's residual target the family?  A `Bool` answer, so `RV`
 and no target store — task #97-P3-0 §5's finding 1.
 
-**CLOSED** (task #97-P3-Ind round 3): `paramLevels_spec` and
-`structPsAt_spec` (both closed in round 2), `Bridge/ExprOps/Spine.lean`'s
-closed `getAppFn_spec`/`getAppArgs_spec` in run form, and the THREE handle
+**Proof:** `paramLevels_spec` and
+`structPsAt_spec`, `Bridge/ExprOps/Spine.lean`'s
+`getAppFn_spec`/`getAppArgs_spec` in run form, and the THREE handle
 comparisons — one at a handle (`beq_of_denoteE`), one at a length
 (`denoteEList_len`) and one at a handle LIST (`beq_of_denoteEList` after
 `denoteEList_take`).  Two of the three are `denoteE_inj`, DESIGN §8.3's
@@ -240,9 +240,9 @@ theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
 **The one arithmetic identification of this module**: con-leche writes the
 projection parameter spine as `bvar (nP - k)` and `structPsAt 1 nP` as
 `bvar (1 + nP - 1 - k)`.  The arena's `structProjPs` is `structPsAt 1 nP` by
-definition (task #97d-2 kept the twin's two names apart because con-leche
-writes them at different frames), so the twins agree exactly when these two
-`Nat` expressions do — which they do, and `omega` says so. -/
+definition (the twin keeps the two names apart because con-leche writes
+them at different frames; DESIGN `### Task #97d-2`), so the twins agree exactly
+when these two `Nat` expressions do — which they do, and `omega` says so. -/
 theorem structProjPs_eq (nP : Nat) :
     ConLeche.structPsAt 1 nP = ConLeche.structProjPs nP := by
   simp only [ConLeche.structPsAt, ConLeche.structProjPs]
@@ -261,7 +261,7 @@ theorem structProjPs_spec (nP : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:100-101 structProjArgP
 The `j`-th projection applied to the structure variable.
 
-**CLOSED** (task #97-P3-Ind round 2): `internBVarE_run` then
+**Proof:** `internBVarE_run` then
 `internProjE_run`. -/
 theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP)
@@ -358,7 +358,7 @@ theorem hasLooseBVarB_proj {i : Nat} {n : ConLeche.Name} {k : Nat} {e : Expr}
 The memoised walk: the answer is the real one AND the memo it hands back is
 still sound.
 
-**CLOSED** (task #97-P3-Ind round 3): a fuel induction generalising the memo,
+**Proof:** a fuel induction generalising the memo,
 the cursor and the handle, with the ten-way `view` dispatch as its arm.  The
 memo travels as a HYPOTHESIS (`LooseMemoOK`) and comes back as a CONCLUSION,
 so a hit is discharged by the invariant itself (`hit`) and a miss by
@@ -559,7 +559,7 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:380-381 Expr.hasLooseBVarBFast
 The entry: an empty memo is sound, so the answer is the real one.
 
-**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` at the empty
+**Proof:** `hasLooseBVarBGo_spec` at the empty
 memo, which `LooseMemoOK.empty` says is sound. -/
 theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
@@ -578,7 +578,7 @@ theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:393-396 structUsedLater
 Is field `j` mentioned by a later field's domain?
 
-**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBFast_spec` under the
+**Proof:** `hasLooseBVarBFast_spec` under the
 constructor type's telescope, with `stripPis_pstep`'s two inversions for the
 dispatch. -/
 theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
@@ -606,7 +606,7 @@ theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
 The same with the memo threaded (task #236's one shared memo across `nF`
 calls).
 
-**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` under the
+**Proof:** `hasLooseBVarBGo_spec` under the
 telescope, the memo travelling verbatim through the `none` arm. -/
 theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
     (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
@@ -637,7 +637,7 @@ theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:442-447 structUsedLaterList
 The `n` answers from `base` up, one memo through all of them.
 
-**CLOSED** (task #97-P3-Ind round 3): a `Nat` recursion over
+**Proof:** a `Nat` recursion over
 `structUsedLaterGo_spec`, generalising the memo AND the base.  Stronger than
 con-leche's own `structUsedLaterList_spec`, which says only what the `t`-th
 entry is: here the LIST is named, which is what `structProjGuards_spec`'s
@@ -691,8 +691,7 @@ The guard level of each field: `Prop` where the field is used later, the
 field's own sort otherwise.  The answer is a `List LIdx` and NOT an `LsIdx`
 (task #97d-2's deviation 6), so the relation is `RLL`.
 
-**CLOSED** (task #97-P3-Ind round 3), and **at `PSpecP`, not `PSpec`** —
-round 3's finding, the campaign's sixth statement defect.  The twin opens with
+**At `PSpecP`, not `PSpec`.**  The twin opens with
 `let z ← zeroLevel`, a PIN READ, and `PSpec`'s precondition is a predicate on
 the STORE: it cannot say what `s.pins.zeroLevel` denotes, and
 `Arena/Pins.lean`'s `pinsReady` tests only the name array's SIZE.  At a state
@@ -813,9 +812,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:516-521 structProjBodiesGo
 Peel `k` field binders, substituting the projection of the structure variable
-for each.
-
-**CLOSED** (task #97-P3-Ind round 6). -/
+for each. -/
 theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP)
@@ -877,9 +874,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       cases hP <;> first | rfl | exact absurd rfl (hns _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
-The entry, after `nP` parameter binders.
-
-**CLOSED** (task #97-P3-Ind round 6). -/
+The entry, after `nP` parameter binders. -/
 theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
     (cty : EIdx) (ctyP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)

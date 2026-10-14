@@ -43,7 +43,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 one-sided check, run before the dispatch and for both routes (con-leche's task
 #228).  A `Bool` answer, so `RV` and no target store.
 
-**CLOSED** (task #97-P3-Ind round 2): a list induction over
+**Proof:** a list induction over
 `piSortTeleLen?_spec` (`Bridge/Inductives/Rel.lean`, proved there on loan from
 `Bridge/ExprOps/Spine.lean`) and `Frontend.denoteCI`'s case split — the
 `.indInfo` and `.ctorInfo` arms are the only two that read anything, and the

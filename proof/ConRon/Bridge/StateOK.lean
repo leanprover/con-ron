@@ -11,8 +11,8 @@ split, and for the same reason con-leche split `ISOK` from `ISOKF`:
   the cache clauses would carry con-leche's pure knot into a module about
   `instantiate1`, and the caches are transported past an `ExprOps` call by
   `CheckOK.mono` below instead (`Ext` plus the frame equation
-  `s'.caches = s₀.caches`, which is one equation because task #97b put the
-  tables in one record).
+  `s'.caches = s₀.caches`, which is one equation because the tables are one
+  record, DESIGN `### Task #97b`).
 * **`CacheOK mode env s`** is the per-DECLARATION tables' clause, in
   con-leche's `CacheOK` shape and **depth-universal** (the history report's
   lesson 8: "memo keys carry no ambient depth … entries are justified by a
@@ -32,16 +32,12 @@ substituted term, the lift amount, the level vectors), which is not a
 function of the state.  They are one predicate each, as con-leche's eleven
 `…MemoInv` are, and they arrive as ordinary hypotheses of a walk's theorem.
 
-Task #97b's finding 2 is why each is an `abbrev` over one generic `MemoOK`
-rather than an application of it:
-
-> A generic memo invariant breaks `mspec` outright.  With `MemoOK f tbl st`
-> the memo insert's spec leaves `f` a higher-order metavariable and the arm's
-> verification condition comes out as `RelAt (?f d) …`, which is not a Miller
-> pattern and no `exact` can close.  The fix is an `abbrev` per table fixing
-> `f` to a concrete lambda whose only metavariable is first-order.
-
-`abbrev` and not `def`, so the generic lemmas still match syntactically.
+Each is an `abbrev` over one generic `MemoOK` rather than an application of
+it (DESIGN `### Task #97b`, finding 2): an `abbrev` per table fixes `f` to a
+concrete lambda whose only metavariables are first-order, where the generic
+`MemoOK f tbl st` would leave `f` a higher-order metavariable in the memo
+insert's spec.  `abbrev` and not `def`, so the generic lemmas still match
+syntactically.
 -/
 import ConRon.Bridge.Rel
 import ConLeche.Kernel.TypeChecker
@@ -88,7 +84,7 @@ def MemoVOK {α : Type} (f : Expr → α) (tbl : Std.HashMap EIdx α)
     ∃ e, denoteE st k = some e ∧ v = f e
 
 /-- con-leche: none — the generic LEVEL-handle memo invariant
-(`instLPLC`, task #97-P6-13). -/
+(`instLPLC`, DESIGN `### Task #97-P6-13`). -/
 def MemoLOK (f : Level → Level) (tbl : Std.HashMap LIdx LIdx)
     (st : EStore) : Prop :=
   ∀ (k r : LIdx), tbl[k]? = some r →
@@ -126,8 +122,8 @@ theorem MemoOK.of_empty {f : Nat → Expr → Expr}
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — **the memo
 hit**: a recorded entry *is* the answer.  Stated as `RelE` so that the caller
 never has to unfold `MemoOK` (and so that `MemoOK` can stay out of `grind`'s
-unfold list, where it would skolemise the goal — task #97s template rule
-6). -/
+unfold list, where it would skolemise the goal — DESIGN `### Task #97s`,
+template rule 6). -/
 @[grind →] theorem MemoOK.get {f : Nat → Expr → Expr}
     {tbl : Std.HashMap (EIdx × Nat) EIdx} {st : EStore} {k : EIdx × Nat}
     {r : EIdx} (hm : MemoOK f tbl st) (hk : tbl[k]? = some r) :
@@ -261,10 +257,10 @@ theorem MemoLsOK.insert {f : List Level → List Level}
 /-! ### The ten tables, one `abbrev` each
 
 Each fixes the generic `f` to a concrete lambda whose free variables are the
-walk's own parameters and are all first-order (task #97b finding 2).  The one
-table `Monad.lean` keys at cursor `0` (`instLPC`) ignores the cursor in the
-lambda, which is what makes it one invariant with the other six
-handle-valued tables. -/
+walk's own parameters and are all first-order (DESIGN `### Task #97b`,
+finding 2).  The one table `Monad.lean` keys at cursor `0` (`instLPC`)
+ignores the cursor in the lambda, which is what makes it one invariant with
+the other six handle-valued tables. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv. -/
 abbrev Inst1MemoA (ve : Expr) (s : AState) : Prop :=
@@ -301,7 +297,7 @@ abbrev MemoFA (s : AState) : Prop :=
   MemoVOK Expr.fvarRange s.memos.fvarBC s.store
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the LEVEL
-substitution's own per-call memo (task #97-P6-13). -/
+substitution's own per-call memo (DESIGN `### Task #97-P6-13`). -/
 abbrev InstLPLMemoA (ks : List ConLeche.Name) (us : List Level) (s : AState) :
     Prop :=
   MemoLOK (Level.subst ks us) s.memos.instLPLC s.store
@@ -393,8 +389,9 @@ def RuleRhsCacheOK (env : Env) (tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx)
       rules.find? (fun r => r.ctor == cn) = some rl ∧
       denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)
 
-/-- con-leche: none — the READBACK memos (task #97-P6-13) are the identity on
-the denotation, so their clause is an equation and not a simulation. -/
+/-- con-leche: none — the READBACK memos (DESIGN `### Task #97-P6-13`) are
+the identity on the denotation, so their clause is an equation and not a
+simulation. -/
 def ReadLCacheOK (tbl : Std.HashMap LIdx Level) (st : EStore) : Prop :=
   ∀ (k : LIdx) (u : Level), tbl[k]? = some u → denoteL st.ls k = some u
 
@@ -439,12 +436,12 @@ def denoteNL (st : EStore) : List NIdx → List ConLeche.Name → Prop
   | h :: hs, x :: xs => denoteN st.ns h = some x ∧ denoteNL st hs xs
   | _, _ => False
 
-/-- con-leche: none — **the pin table denotes** (task #97-P6-4a): the
-fifty `PIN_*` slots hold handles for `pinNames`, the reserved-basis list
-holds handles for `reservedBasisNameValues`, and the three nullary values
-denote `[]`, `Level.zero` and `Sort 1`.  `pinsReady` is the executable half of
-the first conjunct and is what makes an early read a stop rather than a wrong
-answer. -/
+/-- con-leche: none — **the pin table denotes** (DESIGN
+`### Task #97-P6-4a`): the fifty `PIN_*` slots hold handles for `pinNames`, the
+reserved-basis list holds handles for `reservedBasisNameValues`, and the three
+nullary values denote `[]`, `Level.zero` and `Sort 1`.  `pinsReady` is the
+executable half of the first conjunct and is what makes an early read a stop
+rather than a wrong answer. -/
 structure PinsOK (s : AState) : Prop where
   ready : s.pins.names.size = pinCount
   names : denoteNL s.store s.pins.names.toList pinNames
@@ -452,17 +449,16 @@ structure PinsOK (s : AState) : Prop where
   emptyLevels : denoteLs s.store.lss s.pins.emptyLevels = some []
   zeroLevel : denoteL s.store.ls s.pins.zeroLevel = some .zero
   sortOne : denoteE s.store s.pins.sortOne = some (.sort (.succ .zero))
-  /-- **the ZERO name handle decodes, and it decodes to `.anonymous`** (task
-  #97-P3-Ind round 5's finding, ruled on by the maintainer).
+  /-- **the ZERO name handle decodes, and it decodes to `.anonymous`**.
 
   `Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to `(default : NIdx)` — the
   zero word — where `ConLeche.IndCaps.etaCtor` defaults to `.anonymous`, and
   `Frontend.denoteCaps` reads the field UNCONDITIONALLY.  So every capability
   record built at a block that earns nothing — which is every multi-constructor
-  block the fixpoint route installs — denotes only if the zero handle decodes
-  to `.anonymous`, and until this clause nothing said it did:
-  `Frontend.denoteCI` of the pushed `.indInfo` row was `none`, and with it
-  `denoteFEnv`, `InstRel.denote` and `FoldOK.denote`.
+  block the inductive route installs — denotes only if the zero handle
+  decodes to `.anonymous`; without this clause `Frontend.denoteCI` of the
+  pushed `.indInfo` row is `none`, and with it `denoteFEnv`, `InstRel.denote`
+  and `FoldOK.denote`.
 
   The clause is EXACT rather than a weakening.  `.anonymous` is nullary, so
   the persistent name store's `anons` table holds at most one element, at slot
@@ -486,14 +482,12 @@ projection table's NAME clause, standing alone**: the stored `tableName`
 decodes to the name con-leche recomputes from the structure's.
 
 It is separated from the other two clauses because the two halves have
-different debtors (task #97-P3-Frontend round 5's finding, ruled on by the
-maintainer).  `IProjTableOK`'s size clauses are established by the INSTALL
-(`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable`, through
-`Bridge/Checker/Inv.lean`'s `projTableOK_of_install`); this one is also true
-by CONSTRUCTION of the modeller's readback, because
+different debtors.  `IProjTableOK`'s size clauses are established by the
+INSTALL (`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable`,
+through `Bridge/Checker/Inv.lean`'s `projTableOK_of_install`); this one is
+also true by CONSTRUCTION of the readback, because
 `Arena/Frontend/Readback.lean`'s `internProjTable` interns `projTableName sn`
-itself — and it is the only one of the three that the modeller seam can
-discharge, since `bodies.size = numFields` would have to come from a con-leche
+itself, while `bodies.size = numFields` would have to come from a con-leche
 fact about `ProjTable` that nothing states.  So the NAME clause is the one
 that travels, and every consumer that only reads the name takes this. -/
 def IProjNamed (st : EStore) (t : IProjTable) : Prop :=
@@ -524,10 +518,9 @@ Three clauses, and not one of them is visible in the denotation:
   `tableName` entirely.  Without this clause nothing ties the two, and
   `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` is false.
 
-Both findings are the SAME problem — the projection-table denotation does not
-carry what its consumers need — and both are fixed here, on our side, rather
-than by strengthening `Arena/Frontend/Readback.lean` (task #97-P3-Checker-2's
-answer to task #97-P3-Core-2's `ProjTablesShaped`). -/
+Both are the SAME problem — the projection-table denotation does not carry
+what its consumers need — and both are stated here, on our side, rather than
+by strengthening `Arena/Frontend/Readback.lean`. -/
 structure IProjTableOK (st : EStore) (t : IProjTable) : Prop where
   bodies : t.bodies.size = t.numFields
   guards : t.guards.length = t.numFields
@@ -559,10 +552,8 @@ structure IFEnvOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
     ∃ n ci, denoteN s.store.ns n = some nm ∧ fe.find? n = some ci ∧
       Frontend.denoteCI s.store ci = some c
   /-- **the stored projection tables are well shaped and rightly named** —
-  the clause task #97-P3-Core-2 carried as a free hypothesis on
-  `IFEnv.findProj?_spec` and task #97-P3-Checker-2's `IFEnvOK_of_denote`
-  needed and did not have.  Its one debtor is the projection-table install;
-  see `IProjTableOK`. -/
+  what `IFEnv.findProj?_spec` and `IFEnvOK_of_denote` read.  Its one debtor
+  is the projection-table install; see `IProjTableOK`. -/
   proj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half,
@@ -673,8 +664,8 @@ theorem ReadLsCacheOK.mono {tbl : Std.HashMap LsIdx (List Level)}
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the cache record
 transports in one equation**, which is what putting the fourteen tables in a
-record bought (task #97b: "a frame condition … is one equation instead of
-eleven"). -/
+record buys (DESIGN `### Task #97b`: "a frame condition … is one equation
+instead of eleven"). -/
 theorem CacheOK.mono {mode : CheckMode} {env : Env} {s s' : AState}
     (h : CacheOK mode env s) (hx : Ext s.store s'.store)
     (hc : s'.caches = s.caches) : CacheOK mode env s' where
@@ -753,7 +744,7 @@ theorem CheckOK.mono {mode : CheckMode} {env : Env} {fe : IFEnv}
   pins := h.pins.mono hx hp
   ienv := h.ienv.mono hx
 
-/-! ### The LEVEL-VERDICT frame (task #97-P3-Frame)
+/-! ### The LEVEL-VERDICT frame
 
 `CheckOK.mono` above wants `s'.caches = s.caches`, and that equation is FALSE
 of any call that compares two LEVEL handles.  `Arena/Core.lean`'s `lvlEq?` is
@@ -783,9 +774,8 @@ alone does not survive the call; the pair does.
 **Four tables.**  `instLPFast`'s readbacks write `readNC` and `readLsC` as
 well (`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`), so the frame names the
 two other readback tables too, with their invariants carried as implications
-in the same way.  A call that
-compares levels only is the special case, and every consumer reads the frame
-through `CacheOK.monoF`, which is unchanged in statement. -/
+in the same way.  A call that compares levels only is the special case, and
+every consumer reads the frame through `CacheOK.monoF`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
 **the frame of a call that may compare LEVELS or read handles back**: it moved
@@ -866,12 +856,10 @@ theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## The stored constant's NAME, and the `.projInfo` name gap
 
-Task #97-P3-Ind round 3 found and proved these five, in
-`Bridge/Inductives/Rel.lean`, and named this module as where they belong:
-the lowest one that has both `Frontend.denoteCI` and `IProjTableOK`, and the
-one below the Checker tier — whose `IFEnvOK_of_denote`, `IFEnvOK_restrictTo`
-and `installBasisDecl_bridge` were the three sites stuck on them and cannot
-see `Bridge/Inductives/**`.  Round 4 moved them here unchanged.
+These five live in this module because it is the lowest one that has both
+`Frontend.denoteCI` and `IProjTableOK`, and it is below the Checker tier —
+whose `IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and `installBasisDecl_bridge`
+need them and cannot see `Bridge/Inductives/**`.
 
 `Frontend.denoteProjTable` drops `tableName`, so
 `Frontend.denoteCI st ci = some c` does NOT give
@@ -950,12 +938,11 @@ theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
 `Frontend.denoteCI st ci = some c` does NOT give
 `denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
 STORED `t.tableName` and the pure side is the RECOMPUTED
-`projTableName t.structName`.  Three sites above this tier have hit the same
-wall — `IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and (task #97-P3-Checker
-round 2) `installBasisDecl_bridge` — and the fix is NOT to add a hypothesis to
-any of them, nor to make `denoteProjTable` read `tableName` (the denotation is
-deliberately forgetful; `tableName` is the arena's own redundancy, kept so the
-index's key is pure).
+`projTableName t.structName`.  Three sites above this tier need the name —
+`IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and `installBasisDecl_bridge` — and
+the fix is NOT to add a hypothesis to any of them, nor to make `denoteProjTable`
+read `tableName` (the denotation is deliberately forgetful; `tableName` is the
+arena's own redundancy, kept so the index's key is pure).
 
 The fix is these three lemmas.  `IProjTableOK.named` is the invariant that
 ties the two names, and it is available at every site that needs it: inside

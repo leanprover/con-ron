@@ -1,46 +1,34 @@
 /-
 # `ConRon.Bridge.Core.Walks.Frame` — the frame every non-slot walk needs
 
-Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 named what the
-six body walks were waiting on: *"a `BodySpec`-shaped theorem for the
-`Arena/Core.lean` walks that are not knot slots"*.  This module is that
-tier's foundation — the one fact all of them share, and the item task
-#97-P3-0's own §7 lists as owed ("the per-call memo FRAME").
+The six body walks rest on a `BodySpec`-shaped theorem for each
+`Arena/Core.lean` walk that is not a knot slot (DESIGN `### Task #97-P3-Core`
+§6).  This module is that tier's foundation — the one fact all of them share,
+the per-call memo FRAME.
 
 ## The problem, concretely
 
 `CheckOK` (`Bridge/StateOK.lean`) carries the invariant of **all fourteen**
 per-declaration cache tables, and *most* of the non-slot walks of
 `Arena/Core.lean` read a name, a level or a universe-argument list back.
-`Bridge/Specs.lean`'s three readback specs used to conclude
-`s'.store = s₀.store ∧ s'.memos = s₀.memos ∧ s'.pins = s₀.pins` plus their
-own table's invariant and **nothing about the other thirteen tables**, so no
-such walk could rebuild `CheckOK` at all.
+A readback spec that concluded only
+`s'.store = s₀.store ∧ s'.memos = s₀.memos ∧ s'.pins = s₀.pins` plus its
+own table's invariant would say **nothing about the other thirteen tables**,
+and no such walk could rebuild `CheckOK` from it.
 
-`ReadbackFrame` below is the fact that was missing, and it is ONE equation
+`ReadbackFrame` below is the fact that closes that gap, and it is ONE equation
 rather than fourteen: *the cache record after the call is the cache record before
 it with the three readback tables replaced*.  From that, `rw` recovers each
 of the eleven clauses that did not move; the three that did are carried as
 implications in the same structure, which is what makes `.trans` compose.
 
-## Where the equation lives, and the detour that is no longer needed
+## Where the equation lives
 
-The equation is a conjunct of `Bridge/Specs.lean`'s three readback specs.
-It was NOT there when this module was first written, and the round's first
-shape worked round the gap with a body copy per readback
-(`readLevelMB`, `readNameMB`, `readLevelsMB`, each `= rfl` to the real
-function and each with no spec of its own) plus a
-`simp only [<the walk>, readLevelM_eq, …]` line in front of every walk's
-`mvcgen` — because `mvcgen` prefers a registered `@[spec]` theorem to
-unfolding the definition, and **`attribute [-spec]` is not available**
-(`[spec]` cannot be erased), so the frame could be proved neither *from* the
-weaker spec nor by unfolding past it.
-
-Strengthening the three specs is a ONE-CONJUNCT edit that costs their proofs
-one `rfl` each, and it deletes the three copies, the three `= rfl` bridges,
-the three body-level frame theorems and the `simp only` line from every walk
-of the tier.  `ReadbackFrame.ofReadL` / `.ofReadN` / `.ofReadLs` below are
-what is left: one constructor per readback, taking the spec's own conjuncts.
+The equation is a conjunct of `Bridge/Specs.lean`'s three readback specs, so
+the frame is read off the spec a walk already uses, with no body copy of the
+readback and no unfolding past its spec.  `ReadbackFrame.ofReadL` /
+`.ofReadN` / `.ofReadLs` below are one constructor per readback, taking the
+spec's own conjuncts.
 -/
 import ConRon.Bridge.Core.Memo
 

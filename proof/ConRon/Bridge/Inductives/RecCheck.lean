@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Inductives.RecCheck` — Theorem 1 for the recursor stage's class kit
 
 `Arena/Inductives/RecCheck.lean` against `ConLeche/Kernel/Inductives/RecCheck.lean`
-(task #105, lane B-IND): the member abstraction (`targetAbs`), the holes, the
+(task #105): the member abstraction (`targetAbs`), the holes, the
 class record and its default, the two `FvMap` readbacks, the per-component
 class match and the three functions over it (`targetParamsDefEq`,
 `targetClassMatch`, `targetMajorNfs`), a class resolved and typed
@@ -13,7 +13,7 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 
 **The twin module note's deviations, as the statements read them:**
 
-* `ShadowOps` is gone: the twin calls the core at the `IFEnv` it is handed.
+* The twin has no `ShadowOps`: it calls the core at the `IFEnv` it is handed.
   Upstream's pure route runs `ShadowOps.ofOps ops`, whose `opsAt fe` is the
   constant `ops`, so every core-grade statement here is `CSpecF` against the
   con-leche function at `fueledOpsM μ` (`Bridge/Inductives/Rel.lean`).
@@ -34,8 +34,8 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 
 **Grades.**  The pure walks are `PSpec`/`PSpecP`; everything that calls the
 knot or reads the readback caches (`instLPFast`, `lvlEq?`, `lvlsEq?`) is
-`CSpec`/`CSpecF`; `auxRuleFire` (con-leche's task #342: computed from the
-major, no longer read off the recursor's type) is a pure walk.
+`CSpec`/`CSpecF`; `auxRuleFire` (computed from the major, not read off the
+recursor's type) is a pure walk.
 The stored-family statements (`sumRules_spec`, `tgtStoredRules_spec`,
 `consBlockRecsTF_spec`) carry TWO environments: the knot's caches' (`CheckOK
 μ envC feC`) and the lookup index's (`IFEnvOK env fe`), because the rules are

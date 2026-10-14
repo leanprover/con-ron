@@ -5,23 +5,18 @@ DESIGN.md §8.2, Theorem 1.  This module is the *representation* half of the
 bridge's foundation: everything that says "this handle denotes that term",
 and nothing that mentions `AState`, a memo table or a Hoare triple.
 
-It is task #97s's eight lemma groups (§"For P2b"), grown from the spike's
-three-primitive store to the real `EStore`, with ONE change of shape that
-task #97b measured and recommends (§"The spec layer, written and set
-aside", finding 1):
+It is eight lemma groups over the `EStore` (DESIGN `### Task #97s`), and
+**the answer relation is GENERIC** (DESIGN `### Task #97b`, finding 1):
+`RelE f st c st' r` — "`r` in `st'` denotes `f` of what `c` denotes in
+`st`" — gives all eleven structural walks one set of eliminators and one set
+of step lemmas, where a monomorphic relation per walk would need eleven
+copies.  The per-walk relations are `abbrev`s that fix `f`, so the generic
+lemmas still match syntactically and `grind` still sees a head symbol.
 
-> **the answer relation is GENERIC.**  `RelE f st c st' r` — "`r` in `st'`
-> denotes `f` of what `c` denotes in `st`" — gives all eleven structural
-> walks one set of eliminators and one set of step lemmas, where the spike's
-> monomorphic `Inst1At` would need eleven copies of its 822-line layer.  The
-> per-walk relations are `abbrev`s that fix `f`, so the generic lemmas still
-> match syntactically and `grind` still sees a head symbol.
-
-The exception the same finding names: a generic *step* lemma cannot be
-`@[grind →]`, because its decomposition hypothesis
-(`∀ x y, f (.app x y) = .app (ff x) (fa y)`) has a variable at its head and
-`grind` finds no pattern.  The step lemmas below are therefore applied by
-hand, which is what task #97s round 2's recipe (item 3) asks for anyway.
+The exception: a generic *step* lemma cannot be `@[grind →]`, because its
+decomposition hypothesis (`∀ x y, f (.app x y) = .app (ff x) (fa y)`) has a
+variable at its head and `grind` finds no pattern.  The step lemmas below are
+therefore applied by hand.
 
 The groups, in order:
 
@@ -32,7 +27,7 @@ The groups, in order:
    recursive call's side goal carries no metavariable (template rule 4);
 5. the `isSome`-flavoured inversions — the same ten facts with the VIEW as
    the ematch pattern, which is what makes the uniform closer work;
-6. the PROJECTIONS' exactness — `viewApp`, `viewBindI`/`viewBM` and their
+6. the PROJECTIONS' exactness — `viewApp`, `viewBind` and their
    eleven siblings against `view`, the lemma `Arena/Store.lean` says "the
    bridge owes for each";
 7. the answer relations `RelE` / `RelV` / `RelEO` / `RelEL` / `RelL` with
@@ -130,7 +125,7 @@ theorem view_isSome_of_denote {st : EStore} {h : EIdx} {e : Expr}
 
 Ten lemmas, one per constructor — the *only* place this tier unfolds
 `denoteE`.  Each says: given the handle's view, the denoted term has the
-matching shape and the children denote.  `mvcgen` hands the view as a branch
+matching shape and the children denote.  `vcgen` hands the view as a branch
 condition, so one `obtain` per branch puts the children's denotations in
 context and everything after is pure.  (con-leche's `Verify/Disc.lean` is the
 same layer, site by site.) -/
@@ -216,8 +211,9 @@ theorem denote_proj_inv {st : EStore} (hwf : StoreWF st) {h : EIdx} {n : NIdx}
 
 A (B) function's *precondition* is "this handle denotes" — `isSome`, with no
 `Expr` in it, so that a recursive call's side goal carries **no
-metavariable** (task #97s template rule 4).  These lemmas push `isSome` down
-a node and along an extension, which is all the automation needs. -/
+metavariable** (DESIGN `### Task #97s`, template rule 4).  These lemmas push
+`isSome` down a node and along an extension, which is all the automation needs.
+-/
 
 /-- con-leche: none — `isSome` survives an arena extension. -/
 @[grind →] theorem denote_isSome_ext {st st' : EStore} {c : EIdx}
@@ -277,7 +273,7 @@ a node and along an extension, which is all the automation needs. -/
 
 The same ten facts as group 3, but stated so that the *view* is the ematch
 pattern and the denotation is a conclusion rather than a hypothesis.  This is
-what makes the uniform closer work: `mvcgen` hands each branch its view, and
+what makes the uniform closer work: `vcgen` hands each branch its view, and
 these fire on it. -/
 
 @[grind →] theorem denote_eq_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -375,13 +371,13 @@ The tag hypothesis is not decoration.  `ETables.getApp` reads
 `t.apps.node? i.idxNat` **without** testing the tag (that is the whole point
 of a projection — the caller tested it already), so without `i.tag = ETag.app`
 the conclusion is false: a `lit` handle whose index happens to be in range of
-the `apps` array projects an `app`.  The twins always test first (task
-#97-P6-13: "a clause that is one constructor plus a fallthrough tests the
-handle's own tag word BEFORE reading the store"), so the hypothesis is always
-available. -/
+the `apps` array projects an `app`.  The twins always test first (DESIGN
+`### Task #97-P6-13`: "a clause that is one constructor plus a fallthrough tests
+the handle's own tag word BEFORE reading the store"), so the hypothesis is
+always available. -/
 
-/-- con-leche: none — `view` IS the tier select over `ETables.get` (task
-#119: the binder arms no longer go through a datum store). -/
+/-- con-leche: none — `view` IS the tier select over `ETables.get`, the binder
+arms included. -/
 theorem EStore.view_eq_tier {st : EStore} {i : EIdx} :
     st.view i = (if i.isPersistent then st.pers.get i
       else if st.scratchOn then st.scr.get i else none) := by
@@ -493,8 +489,8 @@ theorem view_of_viewBVar {st : EStore} {i : EIdx} {k : Nat}
   EStore.view_of_proj (fun _ hh => ETables.get_of_getBVar htg hh) h
 
 /-- con-leche: none — the `fvar` node is the one whose fields are read by TWO
-projections (`viewFVarIdx` and `viewFVarTy`, task #97-P6-10), so the tier
-select is taken by hand here instead of through `view_of_proj`. -/
+projections (`viewFVarIdx` and `viewFVarTy`, DESIGN `### Task #97-P6-10`), so
+the tier select is taken by hand here instead of through `view_of_proj`. -/
 theorem view_of_viewFVar {st : EStore} {i : EIdx} {k : Nat} {ty : EIdx}
     (htg : i.tag = ETag.fvar) (hk : st.viewFVarIdx i = some k)
     (hty : st.viewFVarTy i = some ty) : st.view i = some (.fvar k ty) := by
@@ -594,7 +590,7 @@ theorem viewBind_of_view_lam {st : EStore} {i ty b : EIdx}
 /-! ### The same eight, in the form the twins' tag dispatch produces
 
 A twin tests `h.tag == ETag.C` (a `Bool`) and then takes the projection, so
-what `mvcgen` hands each arm is `(i.tag == ETag.C) = true` and an equation on
+what `vcgen` hands each arm is `(i.tag == ETag.C) = true` and an equation on
 `st.viewC i`.  These are group 6's lemmas at that spelling, and they are
 `@[grind →]` — the projection read is their ematch pattern, so the closer
 derives the `view` fact itself and the arm proofs never mention it. -/
@@ -622,12 +618,12 @@ derives the `view` fact itself and the arm proofs never mention it. -/
 
 /-! ### The handle carries the tag of its own view
 
-Task #97-P6-13's licence for the tag dispatch, as a lemma: "a handle in a
-well-formed store carries the tag of its own view (`StoreWF`'s `intern`/`push`
-clause), and the two forms differ only on a DANGLING handle, which `StoreWF`
-excludes".  It needs no `StoreWF` at all — `ETables.get` dispatches on
-`i.tag` FIRST, so a handle that decodes decodes to that tag's constructor —
-and it is what lets a walk's catch-all `else` arm know which four
+DESIGN `### Task #97-P6-13`'s licence for the tag dispatch, as a lemma: "a
+handle in a well-formed store carries the tag of its own view (`StoreWF`'s
+`intern`/`push` clause), and the two forms differ only on a DANGLING handle,
+which `StoreWF` excludes".  It needs no `StoreWF` at all — `ETables.get`
+dispatches on `i.tag` FIRST, so a handle that decodes decodes to that tag's
+constructor — and it is what lets a walk's catch-all `else` arm know which four
 constructors it is looking at. -/
 
 /-- con-leche: none — a tier that decodes a handle decodes it to the
@@ -655,13 +651,13 @@ theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at h; simp at h
 
-/-! ### The tag-first twin's two arms (task #97-P5-Core round 4)
+/-! ### The tag-first twin's two arms
 
-Round 4 made the twin test a handle's TAG before it reads the node wherever
-the Rust does.  A Theorem-1 proof then meets two new shapes: the `else` arm,
-where it has the tag test's negation and the handle's denotation but no view,
-and the binder arms that read `viewBindI` where the old twin read `view`.
-These three lemmas are the whole of what those shapes need. -/
+The twin tests a handle's TAG before it reads the node wherever the Rust does.
+A Theorem-1 proof then meets two shapes: the `else` arm, where it has the tag
+test's negation and the handle's denotation but no view, and the binder arms
+that read `viewBind` rather than `view`.  These three lemmas are the whole of
+what those shapes need. -/
 
 /-- con-leche: none — a handle that denotes has a view. -/
 theorem view_of_denote_isSome {st : EStore} {h : EIdx}
@@ -685,9 +681,10 @@ theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}
 
 /-! ## 6b. `denoteEView` transports too
 
-`internRebuilt`'s `same` branch (task #97-P6-5's upward cutoff) answers the
-ORIGINAL handle, and what its caller must then show is that the original
-handle denotes the rebuilt view — which is `denoteE_view_eq` plus this. -/
+`internRebuilt`'s `same` branch (the upward cutoff, DESIGN `### Task #97-P6-5`)
+answers the ORIGINAL handle, and what its caller must then show is that the
+original handle denotes the rebuilt view — which is `denoteE_view_eq` plus this.
+-/
 
 /-- con-leche: none — a node view's denotation survives an arena extension.
 One `cases` over the ten constructors, each arm a transport of group 2. -/
@@ -936,11 +933,10 @@ theorem denoteProjTable_ext {st st' : EStore} {t : IProjTable} {p : ProjTable}
 
 /-! ### `denoteProjEntry` — the projection table's PER-FIELD denotation
 
-Task #97-P3-Core-2, and DESIGN §8's `### Task #97-P3-CoreWalks` §5: *"the
-projection table has no denotation … `denoteProjEntry` is the one piece of
-new denotation machinery the Core walks tier needs, it belongs beside the
-other ten transports in `Bridge/Rel.lean`, and it should be the next round's
-first commit."*  This is that commit.
+The projection table has no per-field denotation of its own;
+`denoteProjEntry` is the one piece of denotation machinery the Core walks tier
+needs beyond the other ten transports (DESIGN `### Task #97-P3-CoreWalks`
+§5).
 
 **Why it is not `denoteProjTable` composed with `entry`.**
 `Arena/Env.lean`'s `IProjTable.entry` and con-leche's `ProjTable.entry` both
@@ -1272,10 +1268,10 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
 
 /-! ## 7. The answer relations
 
-**Generic** (task #97b, finding 1): one relation per RESULT SHAPE, not one
-per walk.  The per-walk relation is an `abbrev` that fixes the pure function
-(`Bridge/ExprOps/*`), so the eliminators below still ematch and `grind` still
-sees a head symbol.
+**Generic** (DESIGN `### Task #97b`, finding 1): one relation per RESULT SHAPE,
+not one per walk.  The per-walk relation is an `abbrev` that fixes the pure
+function (`Bridge/ExprOps/*`), so the eliminators below still ematch and `grind`
+still sees a head symbol.
 
 Four shapes cover the whole `ExprOps` tier:
 

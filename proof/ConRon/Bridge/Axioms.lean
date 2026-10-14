@@ -4,16 +4,15 @@
 DESIGN §3.7 / OVERVIEW §8: every closed result of this library must reach
 `[propext, Classical.choice, Quot.sound]` and **nothing else** — in
 particular no `sorryAx` (which is what makes "closed" mean closed) and no
-`…_native.bv_decide.ax_…` (task #97a's reason for packing the handle word
-with `*`/`/`/`%` instead of `<<<`/`&&&`).
+`…_native.bv_decide.ax_…` (DESIGN `### Task #97a`'s reason for packing the
+handle word with `*`/`/`/`%` instead of `<<<`/`&&&`).
 
 The three standard axioms come in through `Std.HashMap`, `Classical` in
 `Option`'s lemmas and `Quot` in `String`; they are the same three every tier
-of this repository already carries.
+of this repository carries.
 
-This module is the counterpart of `Spike/Axioms.lean` (task #97s).  It prints,
-not asserts: the gate is reading the output, and a `sorryAx` in any line is a
-failure of the task rather than of the build.
+It prints, not asserts: the gate is reading the output, and a `sorryAx` in any
+line is a failure of the task rather than of the build.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
@@ -23,7 +22,7 @@ import ConRon.Bridge.ExprOps.Guards
 
 namespace ConRon.Bridge
 
-/-! ## The store obligations this phase closed -/
+/-! ## The store obligations -/
 
 #print axioms EStore.internName_spec
 #print axioms EStore.internLevel_spec
@@ -94,16 +93,12 @@ namespace ConRon.Bridge
 #print axioms pinReserved_spec
 #print axioms pinSortOne_spec
 
-/-! ## The `ExprOps` tier's exemplar — **closed** (task #97-P3-1)
+/-! ## The `ExprOps` tier's exemplar: `instantiate1`
 
-Task #97-P3-0 left `instantiate1Go_spec` with five open goals and printed only
-what the file proved on its own.  All five are closed: the binder arm's two
-through the intern specs (task #119: binders carry no datum, so the binder-datum
-store and its extension relation `BMExt` are gone), the `bvar` arm's three by
-the arm-split ruling, which makes the `bvar` arm a theorem of its own where
-unfolding the answer relation cannot reach any other arm.  So the whole chain
-is printed here — the five arm theorems, the dispatcher, the entry bracket and
-the run form — and every one of them must report the three. -/
+The binder arm goes through the intern specs; the `bvar` arm is a theorem of
+its own, where unfolding the answer relation cannot reach any other arm.  The
+whole chain is printed here — the five arm theorems, the dispatcher, the entry
+bracket and the run form — and every one of them must report the three. -/
 
 #print axioms ConRon.Arena.EStore.view_of_find
 #print axioms ConRon.Arena.NStore.view_of_find
@@ -122,16 +117,15 @@ the run form — and every one of them must report the three. -/
 #print axioms ExprOps.instantiate1_of_bvarBound_le
 #print axioms ExprOps.instantiate1_of_raw_le
 
-/-! ## The `fvar`-leaf group — **closed** (task #97-P3-2)
+/-! ## The `fvar`-leaf group
 
-Task #97-P3-1's open list called `fvarLeavesGo_spec` "the one entry that is a
-mathematical gap and not a plumbing gap": con-leche's GRAY invariant
+`fvarLeavesGo_spec` carries con-leche's GRAY invariant
 (`Verify/Cached/GuardsC.lean`'s `SeenInv`), whose "is being processed by an
-ancestor of the current call" needs the store's acyclicity.  It is closed with
+ancestor of the current call" needs the store's acyclicity.  It takes
 `StoreWF`'s rank as a second PARAMETER of the invariant rather than as a
-second induction — `SeenOK.of_grow` is the whole argument — and with it the
-two theorems that inherited its `sorryAx`, `fvarLeavesFast_spec` and
-`ExprOps/Guards.lean`'s `leafGuard_spec`.
+second induction — `SeenOK.of_grow` is the whole argument — and the two
+theorems built on it, `fvarLeavesFast_spec` and `ExprOps/Guards.lean`'s
+`leafGuard_spec`, are printed with it.
 
 These three modules share one import closure, which is why they are printed
 here and the rest of the tier prints in its own files (lakefile's note: two

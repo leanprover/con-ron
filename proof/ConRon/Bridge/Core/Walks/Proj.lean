@@ -277,7 +277,7 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
 
 /-! ## 4. `IProjEntry.fireOk`
 
-The module note's §2 detour, then the walk. -/
+The module note's §2 frame, then the walk. -/
 
 /-- con-leche: none — **the frame of a `readNamesM` call**, as
 `ReadbackFrame` with the list's denotation.  One list induction over

@@ -69,11 +69,11 @@ The first `j` parameter domains are definitionally the declared ones.  A
 `Unit` answer: what it claims is that con-leche's own check SUCCEEDS at some
 fuel.
 
-**CLOSED** (task #97-P3-Ind round 6): a `Nat` recursion over `CoreSpec.knot`'s
+**Proof:** a `Nat` recursion over `CoreSpec.knot`'s
 `defeq` slot, `fvarTypeD_run` for the left side, and one fuel for the whole
 walk (`ConLeche.isDefEqCore_mono` at `max`).
 
-**Two preconditions it was missing** (round 6), both the knot's own: the
+**Two preconditions**, both the knot's own: the
 `defeq` slot is stated at a well-formed environment (`CoreSpec.knot` takes
 `EnvWF env`) and at WELL-SCOPED arguments (`Expr.WScoped` at the depth of the
 comparison, `off + i` at the `i`-th pair).  `Bridge/Checker/Base.lean`'s
@@ -153,7 +153,7 @@ con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjT
 (task #175 S1), carrying the fields' bodies off the annotated constructor type
 and the guard levels the constructors' stage measured.
 
-**The `guards` hypothesis, and what it buys** (task #97-P3-Ind round 2).
+**The `guards` hypothesis, and what it buys.**
 `InstRel`'s `proj` field is `ProjOut` — "every projection table the new index
 holds was already in the old one, or is well shaped at the new store" — and
 this is the ONE install of the whole arena that pushes a `.projInfo` row, so
@@ -168,7 +168,7 @@ discharges it from `structProjGuards_length`.  `Bridge/Checker/Inv.lean`'s
 `projTableOK_of_install` is the same statement at the same hypothesis, stated
 there so that `IFEnvOK`'s new field has one named debtor; this is its site.
 
-**CLOSED** (task #97-P3-Ind round 8), over `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`), the
+**Proof:** over `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`), the
 `IProjTable` record's denotation (`Bridge/Rel.lean`'s `denoteProjTable`), and
 `IFEnv.push`'s own two lemmas — `IFEnvCoh` is preserved by `push` and `Pushed`
 is `⟨[ci], rfl⟩`.  The `denoteFEnv` clause is the push's `denoteCI` at the new

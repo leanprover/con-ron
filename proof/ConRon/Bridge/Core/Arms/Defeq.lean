@@ -3,7 +3,7 @@
 
 DESIGN §8.2, rule 8's inventory for con-leche 8afe1815's definitional
 equality (`ConLeche/Kernel/Core.lean:1478-1831`, `quickDefEq` … `defeqBody`),
-restructured after the official `is_def_eq_core` (task #109).  One spec per
+restructured after the official `is_def_eq_core` (DESIGN `### Task #109`).  One spec per
 twin function, each relating `Arena/Core.lean`'s function to con-leche's at
 `pureFns mode env F`, with the frame (`CheckOK`, `Ext`, pins) and the pure
 answer at some fuel (`Ev`, `DqPost`: `Arms/DefeqBase.lean`):

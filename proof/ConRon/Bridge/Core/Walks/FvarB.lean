@@ -1,7 +1,6 @@
 /-
 # `ConRon.Bridge.Core.Walks.FvarB` — `FvarBSpec`, discharged for the Core tier
 
-Task #97-P3-Core round 6 (the maintainer's ruling 2 on round 5's question).
 `Bridge/ExprOps/Abs.lean` takes `fvarB`'s Theorem 1 as the hypothesis
 `ExprOps.FvarBSpec`; `Bridge/ExprOps/Ranges.lean`'s `fvarB_spec` states
 everything it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).

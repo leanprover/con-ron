@@ -1,20 +1,16 @@
 /-
 # `ConRon.Bridge.Promote.Coh` — the promotion's index coherence, extensionally
 
-Task #97-P3-Promote's finding: `IFEnvCoh fe` (`fe = mkIFEnv fe.env`) is an
-equation between `Std.HashMap` VALUES, and `promoteNew` does not preserve it —
-its two index passes (`eraseInstalled`, then `indexPromoted` newest first)
-build the same bindings as `mkIFEnv` (oldest first) in a different insertion
-order, which is a different bucket array whenever two keys share a bucket or
-a resize happened on one side only (the `sorry` stub `promoteNew_coh` once in
-`Bridge/Promote/Exact.lean` said why in full).
-
-This module is the repair, proved: the EXTENSIONAL coherence (`IFEnvCohX`
-when this module was written, `IFEnvCoh` itself since task #97-P3-Checker
-round 9) —
-the same counter, the same answer at every key — which is all any consumer of
-`IFEnvCoh` reads, holds after the promotion (`promoteNew_cohX`).  It needs one
-precondition the structural statement did not: the step's constants name
+The structural coherence `fe = mkIFEnv fe.env` is an equation between
+`Std.HashMap` VALUES, and `promoteNew` does not preserve it — its two index
+passes (`eraseInstalled`, then `indexPromoted` newest first) build the same
+bindings as `mkIFEnv` (oldest first) in a different insertion order, which is
+a different bucket array whenever two keys share a bucket or a resize happened
+on one side only.  So `IFEnvCoh` is EXTENSIONAL (DESIGN
+`### Task #97-P3-Promote`): the same counter, the same answer at every key —
+which is all any consumer reads — and this module proves it holds after the
+promotion (`promoteNew_cohX`).  It needs one precondition the structural
+statement would not: the step's constants name
 pairwise DIFFERENT names (`NamesDistinct`).  Without it `indexPromoted`'s
 newest-first insertion lets the OLDEST of two equally-named step constants
 win, where `mkIFEnv` lets the newest win — a real difference in what
@@ -23,11 +19,8 @@ duplicate names (`Bridge/Checker/Split.lean`'s `checkDecl_nodup` /
 `SplitInstall.nodup`), and a split step installs one constant, for which the
 precondition is trivial.
 
-Switching `IFEnvCoh` to `IFEnvCohX` was a change of definition that reached
-four lanes' statements (`FoldOK.coh`, `StepOK.coh`, `DeclOut.coh`,
-`InstRel.coh`, `IndOut.coh`, …); the coordinator ruled for it and task
-#97-P3-Checker round 9 made it.  `promoteNew_spec` lives here, at the end,
-because its coherence conjunct is `promoteNew_cohX`.
+`promoteNew_spec` lives here, at the end, because its coherence conjunct is
+`promoteNew_cohX`.
 -/
 import ConRon.Bridge.Promote.Exact
 
@@ -255,7 +248,12 @@ what `Arena/Checker.lean`'s `checkDeclStep` and `installStep` compute; the
 hypotheses say the step only pushed and that everything below it was already
 persistent, which is the fold's own invariant one step earlier.
 
-PROVED (task #97-P3-Promote): `promoteCIList_step` on the step's constants (`Pushed.split` locates them), the two index passes read row by row (`eraseInstalled_getElem?`, `indexPromoted_getElem?`), and the denotation split at the `take`/`drop`.  The `IFEnvCoh fe'` conjunct is `promoteNew_cohX` (task #97-P3-Checker round 9: `IFEnvCoh` redefined extensionally, and the statement gained `hnd`, the step's constants name pairwise different names — the one precondition the coherence needs, see this module's note; it moved here from `Exact.lean` for it). -/
+The proof: `promoteCIList_step` on the step's constants (`Pushed.split`
+locates them), the two index passes read row by row
+(`eraseInstalled_getElem?`, `indexPromoted_getElem?`), and the denotation
+split at the `take`/`drop`.  The `IFEnvCoh fe'` conjunct is `promoteNew_cohX`,
+which needs `hnd` — the step's constants name pairwise different names, see
+this module's note. -/
 theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
     {env : Env} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcoh0 : IFEnvCoh fe0) (hp0 : PersIFEnv fe0)

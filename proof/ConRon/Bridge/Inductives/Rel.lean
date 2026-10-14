@@ -162,9 +162,9 @@ theorem IFEnvOKS.mono {env : Env} {fe : IFEnv} {st st' : EStore}
   exact h1
 
 /-- con-leche: none — **`Bridge/ExprOps/Spine.lean`'s `denoteBL` IS
-`Frontend.denoteEList`**: a binder telescope is its list of domains (con-leche's
-task #342: a binder carries its type and nothing else), and the two tiers wrote
-the readback independently.  One induction identifies them, and it is what lets
+`Frontend.denoteEList`**: a binder telescope is its list of domains (in con-leche
+a binder carries its type and nothing else), and the two tiers each write
+the readback.  One induction identifies them, and it is what lets
 this tier read the BINDERS off `stripPis` rather than only the residual. -/
 theorem denoteBL_eq_denoteEList {st : EStore} :
     ∀ (bs : List EIdx), ExprOps.denoteBL st bs = Frontend.denoteEList st bs := by
@@ -501,8 +501,7 @@ def ProjOutF (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
     fe.find? n = some (.projInfo t) ∨ IProjTableOK st t
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
-clause) — **the same obligation over MEMBERSHIP** (task #97-P3-Ind round 9,
-the coordinator's round-8 ruling 1): every table the new index's list holds
+clause) — **the same obligation over MEMBERSHIP**: every table the new index's list holds
 is in the old list, or well shaped at the new store.  This is the shape
 `Bridge/Checker/Hyp.lean`'s `IndWFSpec.run` asks for (the bracket's close,
 `IFEnvOK_of_denote`, consumes membership), and it is NOT derivable from
@@ -592,7 +591,7 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a pushed
 projection table owes its own shape**: the one install that pushes a
 `.projInfo` row (`checkStructProjTable`) discharges `ProjOut` with the new
-table's `IProjTableOK` (task #97-P3-Ind round 8). -/
+table's `IProjTableOK`. -/
 theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     {t : IProjTable} (ht : IProjTableOK st t) :
     ProjOut fe st (fe.push (.projInfo t)) := by
@@ -722,21 +721,18 @@ structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop wh
   pushed : Pushed fe fe'
   visible : fe.visibleBelow ≤ fe'.visibleBelow
   denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
-  /-- **the eighth clause** (task #97-P3-Ind round 2): the arm's own
+  /-- **the eighth clause**: the arm's own
   `ProjOut`.  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
   `IProjTableOK` at every stored table of the index the step produced, and
   `ProjOut.absolute` is what turns this clause plus the fold's incoming
   `IFEnvOK` into that.  `Bridge/Checker/Hyp.lean`'s `IndSpec` and
-  `Bridge/Checker/Decl.lean`'s `DeclOut` do not carry it yet — that is the
-  checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
-  until then. -/
+  `Bridge/Checker/Decl.lean`'s `DeclOut` carry its membership half
+  (`ProjOutM`), which `indSpec_of_bridge` projects out. -/
   proj : ProjOut fe s'.store fe'
-  /-- **the ninth clause** (task #97-P3-Ind round 7, the coordinator's
-  authorised conclusion change): the environment the new index denotes is
+  /-- **the ninth clause**: the environment the new index denotes is
   well formed.  The fold boundary after each declaration needs `EnvWF` at the
-  pushed index (task #97-P3-Checker round 9's finding); `DeclOut` gains the
-  same clause.  Stated for every denotation — `denoteFEnv` is a function, so
-  this is the `denote` clause's witness. -/
+  pushed index; `DeclOut` carries the same clause.  Stated for every denotation
+  — `denoteFEnv` is a function, so this is the `denote` clause's witness. -/
   envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
 
 /-! ## The recognisers' readers
@@ -796,9 +792,9 @@ theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
     hcf, hp⟩
 
-/-- con-leche: none — **`readLevelM` at the pure grade's frame** (task
-#97-T2-LOCKSTEP lane Inductives round 3, ruling 1: the twin reads a level back
-through the CACHED readback, as the port's `read_level_m` does).  The frame
+/-- con-leche: none — **`readLevelM` at the pure grade's frame** (the twin
+reads a level back through the CACHED readback, as the port's `read_level_m`
+does).  The frame
 needs nothing: the store, memos and pins stand still and the one table that
 moves is `readLC` (`Core.CacheFrame.ofReadLevelM`). -/
 theorem readLevelM_pstep {s s' : AState} {h : LIdx} {u : Level}
@@ -1001,7 +997,7 @@ theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean constsResolveFFast — `Bridge/Checker/Names.lean`'s
 `constsResolveFFast_run` at `ReadOK`: the walk reads the store, the pins and
-the index, never the caches (task #97-P3-Ind round 8). -/
+the index, never the caches. -/
 theorem constsResolveFFast_runR {env : Env} {fe : IFEnv}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
     (hck : ReadOK env fe s) (hd : denoteE s.store e = some x)
@@ -1225,7 +1221,7 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
   | succ n ih =>
     intro i h hP s₀ s' r hok hh hrun
     simp only [Arena.openPisAtFvars] at hrun
-    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    -- the tag-first twin
     obtain ⟨v₀, hv₀⟩ := denoteE_view hh
     replace hrun := tagIf_view_run hv₀
       (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
@@ -1297,7 +1293,7 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
   | succ n ih =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
     simp only [Arena.openPisAtFvarsFGo] at hrun
-    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    -- the tag-first twin
     obtain ⟨v₀, hv₀⟩ := denoteE_view hh
     replace hrun := tagIf_view_run hv₀
       (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun

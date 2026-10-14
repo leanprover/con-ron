@@ -3,10 +3,7 @@
 memoised name-list readback
 
 The four `@[spec]` theorems of `Monad.lean` that `Bridge/Specs.lean` does not
-carry, in a module of their own only because they were written after the four
-`ExprOps` groups had started against `Specs.lean`'s interface and adding to
-that file would have moved the ground under them.  They belong in
-`Specs.lean` and should be moved there at the next quiet moment.
+carry, built on `Specs.lean`'s interface.
 
 * `internLevel` — intern a transient `Level` tree.  Structural on `Level`, so
   no fuel (DESIGN §8.4: "a recursion structural on something else … takes
@@ -16,7 +13,7 @@ that file would have moved the ground under them.  They belong in
 * `readNamesM` — the memoised `readNames`, whose recursion is on the list as
   `readNames`' is.
 
-`internPersistentE` / `…N` / `…L` / `…Ls` are still deliberately absent:
+`internPersistentE` / `…N` / `…L` / `…Ls` are deliberately absent:
 `Arena/Store.lean`'s own note states their obligation **for the bracket** and
 not for the operation (`internPersistent` breaks `fresh` transiently, and it
 is `promote … dropScratch` as a whole that takes `StoreWF` to `StoreWF`), so
@@ -67,8 +64,8 @@ its level-handle list denotes. -/
   exact h
 
 /-- con-leche: none — the cons rule with the extension chain already inside
-it (task #97s's rule: "the same fact with the chain already inside it … is
-not a liability"). -/
+it (DESIGN `### Task #97s`'s rule: "the same fact with the chain already
+inside it … is not a liability"). -/
 @[grind ->] theorem denoteLList_cons_ext {st st' : EStore} {hd : LIdx}
     {tl : List LIdx} {u : Level} {us : List Level} (hx : Ext st st')
     (h1 : denoteL st.ls hd = some u)

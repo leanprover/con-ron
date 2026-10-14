@@ -4,15 +4,15 @@
 The twin of `ConLeche/Kernel/CheckerBase.lean` is `Arena/CheckerBase.lean`,
 and this module is its bridge tier: the variant fallback, the two memoised
 DAG walks the declaration front door runs, and the per-declaration constant
-check.  (The three list checks are gone: con-leche deleted them with its
-modeled route, task #105.)
+check.
 
-## `orElseAttempt` — the only recovery, and the only thing here that is CLOSED
+## `orElseAttempt` — the only recovery
 
 `Arena/CheckerBase.lean`'s `orElseAttempt` is the one place (B) recovers from
 a thrown error.  A throw in `StateT σ (Except ε)` carries no state at all, so
 the twin's error arm can only resume at `s`; the port moves back a full copy
-of the pre-attempt state (task #97-T2-LOCKSTEP D4b), which is the same state.
+of the pre-attempt state (DESIGN `### Task #97-T2-LOCKSTEP` D4b), which is
+the same state.
 
 `orElseAttempt_run` below is that, as a theorem: the attempt's outcome
 determines the step, and on a recovered error the state is *literally* the
@@ -26,7 +26,7 @@ the two agree on the verdict and on everything the bridge can observe.
 carries only a `native` error (DESIGN §8.3's ruling), and a `native` claims
 nothing.  So the bridge says nothing about that arm and does not need to.
 
-## The rest, and why it is stated rather than proved
+## The rest
 
 Everything else here bottoms out in `KnotSpec` (the inference call) and in the `ExprOps` tier's walks, and the guards that do
 NOT are the memoised ones — `allLevelParamsDefined` and `constsResolveFFast`
@@ -34,7 +34,6 @@ NOT are the memoised ones — `allLevelParamsDefined` and `constsResolveFFast`
 not terminate on a shared DAG (con-leche's task #210 Part B).  Each is a
 memoised walk with an explicitly threaded table, so each needs its own memo
 invariant and its own fuel induction, in `Bridge/ExprOps/Walks.lean`'s shape.
-That is a tier of its own and this round states it.
 -/
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Checker.Names
@@ -58,7 +57,7 @@ The `rfl` in the last arm is the whole content of the snapshot/restore pair:
 `attemptRestore s (attemptSnapshot s)` is `s`.  In (C) the restore moves the
 snapshot, a full copy of the pre-attempt state, back as the state, and
 Theorem 2 (`Refine2/Checker/Base.lean`'s `attempt_restore_refines₀`) relates
-that to `s` (task #97-T2-LOCKSTEP D4b). -/
+that to `s` (DESIGN `### Task #97-T2-LOCKSTEP` D4b). -/
 theorem orElseAttempt_run {att : AM Bool} {s s' : AState} {r : OrElseStep}
     (h : orElseAttempt att s = .ok (r, s')) :
     (∃ b, att s = .ok (b, s') ∧ r = orElseStepOf (.ok b)) ∨
@@ -84,8 +83,8 @@ Pure tests on handles.  Each is a handle comparison where con-leche has a
 `Name` comparison, and each is exact for the same reason: `denoteN` is
 injective (`Arena/WFProofs.lean`'s `denoteN_inj`, DESIGN §8.3's soundness
 obligation).  The LIST membership test of the family,
-`denoteNList_contains`, moved to `Bridge/Checker/Names.lean` with the
-reserved-name chain that is its only caller here (task #97-P3-Layout).
+`denoteNList_contains`, lives in `Bridge/Checker/Names.lean` with the
+reserved-name chain that is its only caller here.
 
 **The `AM` readers, as equations.**  `viewN` is a `get` and a `match`, so its
 run form is `rfl`; after `viewN_apply` no proof below mentions `StateT`. -/
@@ -169,7 +168,7 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
   obtain ⟨rk, hrk⟩ := hok.wf
   have hns : NStoreWF s.store.ns := hrk.nsWF
   obtain ⟨rkn, hn⟩ := hns
-  -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1): the handle's
+  -- the tag-first twin (DESIGN `### Task #97-T2-LOCKSTEP` D1): the handle's
   -- tag is its view's constructor, and a denoting handle has a view
   obtain ⟨v, hv⟩ := denoteN_view hd
   have htv := NStore.tagOf_of_view hv
@@ -248,16 +247,12 @@ and `isProjFnShape` through the two lemmas above, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
 then `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
-`EnsureSortSpec.ensureSort`, in that order.  Task #97-P3-Checker's sorry list,
-item 11 — then the single highest-value proof of the tier, since all
-seven arms rest on it. 
+`EnsureSortSpec.ensureSort`, in that order.  All seven arms rest on it.
 
-**Restated in task #97-P3-Checker round 10** (the coordinator's ruling, for
-the Inductives tier): the hypotheses are `CheckOK` and `EnvWF`, not `FoldOK`.
-The inductive routes call it at an index that already holds a scratch
-constant, where `FoldOK`'s `PersIFEnv` is false; the proof never read
-`PersIFEnv` (the two sites that did computed an unused denotation).  The
-arms use `checkConstantVal_bridge_of_fold`. -/
+**The hypotheses are `CheckOK` and `EnvWF`, not `FoldOK`**, for the
+Inductives tier: the inductive routes call it at an index that already holds
+a scratch constant, where `FoldOK`'s `PersIFEnv` is false, and the proof
+does not read `PersIFEnv`.  The arms use `checkConstantVal_bridge_of_fold`. -/
 theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     {c : ConstantVal} {sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)

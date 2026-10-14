@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.Spec` — the shape of a non-slot walk's theorem
 
-Task #97-P3-CoreWalks.  `Bridge/Core/Knot.lean` fixes ONE shape for the six
+`Bridge/Core/Knot.lean` fixes ONE shape for the six
 bodies (`BodySpec`, `BodySpecV`) because all six take one or two `EIdx`
 subjects and answer an `EIdx` or a `Bool`.  The ~110 walks of
 `Arena/Core.lean` that are not knot slots do not: they answer `Option EIdx`

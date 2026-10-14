@@ -16,9 +16,9 @@ all of them — so their frame is `CoreStep` and their hypothesis is
 resolution walks are pure grade.  The last section restates every core-grade
 statement as a `CSpecF` against con-leche's `FueledM` function (task #105).
 
-## Task #97d-2's removed higher-order argument here
+## The higher-order argument the twin takes as an index (DESIGN `### Task #97d-2`)
 
-* `sumRules`' `find? : Name → Option ConstantInfo` became `fe : IFEnv`.  The
+* `sumRules`' `find? : Name → Option ConstantInfo` is `fe : IFEnv` in the twin.  The
   statement compares it at `find? := env.find?`, which is what `IFEnvOK`'s
   `hit`/`cover` pair says the index is.
 -/
@@ -113,12 +113,12 @@ theorem whnfTelescope_mono {μ : CheckMode} {env : Env} {F F' : Nat}
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-57 whnfTelescope
 Peel `n` Π binders, reducing at each step, down to the result `Sort`.
 
-**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over
+**Proof:** a `Nat` recursion over
 `CoreSpec.knot`'s `whnf` slot, `Bridge/Rel.lean`'s `forallE`/`sort`
 inversions and `instantiate1Fast_run`, one fuel for the walk by
 `whnfTelescope_mono` at `max`.
 
-**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+**Two preconditions**: `EnvWF env`
 and `Expr.WScoped i eP` — the `whnf` slot's own; the answer's `SimE` scope
 and one `WScoped.instantiate1` carry it to the next binder. -/
 theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
@@ -215,7 +215,7 @@ private theorem sortTag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {u
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
 The type former's stage: the telescope checked and the result sort measured.
 
-**CLOSED** (task #97-P3-Ind round 8), over `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
+**Proof:** over `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
 `defeq` slot for the stored type's comparison. -/
 theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
@@ -427,13 +427,13 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:50-68 checkStructFieldSor
 Each field's sort, checked against the family's — official's
 subsingleton-elimination criterion at a one-constructor block.
 
-**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over `CoreSpec.knot`'s
+**Proof:** a `Nat` recursion over `CoreSpec.knot`'s
 `infer` slot, `CoreSpec.sort`'s `EnsureSortSpec`, `fvarTypeD_run`, the
 universe comparison (`readLevel` twice and `liftFueled`), `lvlEq?_spec` at the
 zero pin, and `denoteEList_contains` for the index test — one fuel for the
 walk by `checkStructFieldSortsI_mono` at `max`.
 
-**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+**Two preconditions**: `EnvWF env`
 and, for each field it infers, the scope of that field's type at its depth —
 `Expr.WScoped (nP + i) fvsP[i].fvarTypeD`, exactly `checkStructDomsAt_spec`'s
 hypothesis on its left column. -/
@@ -749,8 +749,7 @@ One constructor checked: its constant check (stored as declared), its
 residual, its parameter domains, its field and index resolution, and its
 field sorts.
 
-**CLOSED** (task #97-P3-Ind round 8; task #105 dropped the normalisation),
-over `checkConstantVal_bridge`, `checkStructDomsAt_spec`
+**Proof:** over `checkConstantVal_bridge`, `checkStructDomsAt_spec`
 (`Bridge/Inductives/StructInstall.lean`), `checkStructFieldSortsI_spec`,
 `fieldDomsResolve_spec`, `idxArgsResolve_spec` and `structCtorResidOk_spec`. -/
 theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
@@ -945,7 +944,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
 The whole constructor list.
 
-**CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkSumCtor_spec`. -/
+**Proof:** a list induction over `checkSumCtor_spec`. -/
 theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
@@ -1024,9 +1023,7 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:163-166 consSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:114-117 consSumCtorsF
-The constructors pushed into the index.  PURE on both sides.
-
-**CLOSED** (task #97-P3-Ind round 6). -/
+The constructors pushed into the index.  PURE on both sides. -/
 theorem consSumCtors_spec (st : EStore) (nP : Nat)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
     (fe : IFEnv) (env : Env) (hcs : denoteCtors st cs = some csP)
@@ -1059,7 +1056,7 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
       hrest hpush (hcoh.push _)
     exact InstRel.trans (Ext.refl _) h1 h2
 
-/-! ## The two rescue bits (task #97-P3-Ind round 6)
+/-! ## The two rescue bits
 
 `Arena/Core.lean`'s `recRuleKOf` / `recRuleEtaOf` / `recRuleBits` have no
 Theorem 1 anywhere in the Bridge; `sumRules` is their first consumer, so
@@ -1069,7 +1066,7 @@ their run forms are here, **on loan from the Core tier** (their module is
 
 /-- con-leche: none — a constructor type's result head, two steps deep
 (`piResult`, `getAppFn`), both read-only: the part of the head read that
-precedes the tag-first twin's `view` (task #97-P5-Core round 4). -/
+precedes the tag-first twin's `view`. -/
 theorem ctorHead_facts {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
     (hok : StateOK s) (hd : denoteE s.store ty = some tyP)
     (k1 : Arena.piResult Arena.coreWalkFuel ty s = .ok (pr, s1))
@@ -1173,8 +1170,8 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   · simp at hcaps
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:818-841 recRuleEtaOf — the
-η-rescue bit at install, in run form.  Read-only (con-leche's task #342 dropped
-the recursor-name read), so the frame is `ReadbackFrame.refl`. -/
+η-rescue bit at install, in run form.  Read-only (con-leche reads no
+recursor name), so the frame is `ReadbackFrame.refl`. -/
 theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
     (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)

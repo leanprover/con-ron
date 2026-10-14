@@ -12,8 +12,8 @@ steps, one knot induction**:
   fuel-zero base case;
 * `Core/Memo.lean` — the six slots unfolded once, the six cache setters'
   `@[spec]` theorems, the `CacheOK` insert lemmas, the **stuck-tag branch**
-  (task #97-P6-7's lever 2, which con-leche's `memoEI` has no counterpart
-  for) and **the five memo-wrapper steps**;
+  (DESIGN `### Task #97-P6-7`'s lever 2, which con-leche's `memoEI` has no
+  counterpart for) and **the five memo-wrapper steps**;
 * `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq*}.lean` — rule 8's
   step-lemma inventory, one per exit of each PURE clause, plus that body's
   `BodySpec` theorem;
@@ -22,19 +22,17 @@ steps, one knot induction**:
   `#print axioms` census;
 * `Core/EnsureSort.lean` — **the seventh entry point**, which is not a
   `coreKnot` slot and which `Bridge/Checker/Hyp.lean`'s `EnsureSortSpec`
-  asked for (task #97-P3-CoreWalks).  CLOSED;
+  asks for;
 * `Core/Walks/**` — **Theorem 1 for the walks of `Arena/Core.lean` that are
   NOT knot slots**, 133 of them by the census in `Core/Walks.lean`: the
   readback frame (`Walks/Frame.lean`), the five answer relations
-  (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`,
-  two of them CLOSED), the `defeq` body's cheap tests (`Walks/Guards.lean`,
-  `isBoolTrue_spec` CLOSED), **the fuel merge** (`Walks/Mono.lean`, task
-  #97-P3-Core-2 — one `…_mono` and one `…Fueled_mono` per knot-calling walk
-  of con-leche's `Kernel/Core.lean`, all CLOSED), **the projection table**
-  (`Walks/Proj.lean`, task #97-P3-Core-2 — `projTableName_spec`,
-  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED on
-  `Bridge/Rel.lean`'s new `denoteProjEntry`) and the sixteen statements
-  (`Walks/Owed.lean`).
+  (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`),
+  the `defeq` body's cheap tests (`Walks/Guards.lean`), **the fuel merge**
+  (`Walks/Mono.lean` — one `…_mono` and one `…Fueled_mono` per knot-calling
+  walk of con-leche's `Kernel/Core.lean`), **the projection table**
+  (`Walks/Proj.lean` — `projTableName_spec`, `IFEnv.findProj?_spec` and
+  `IProjEntry.fireOk_spec` on `Bridge/Rel.lean`'s `denoteProjEntry`) and the
+  sixteen statements (`Walks/Owed.lean`).
 
 **This module imports none of them** — the same rule
 `ConRon/Bridge/ExprOps.lean` carries and for the same reason
@@ -45,15 +43,11 @@ them as siblings; this file is the index.
 
 ## Where the tier stands
 
-Closed: the statement layer, the whole memo layer (all six wrappers), the
-stuck-tag branch, **fifty-two per-arm step lemmas** over the six pure bodies,
-**the seventh entry point**, the non-slot walk tier's foundation and six of
-its walks, **the whole fuel merge** and **`whnfBody_spec`** — the first of the
-six bodies, and since task #97-P3-Core round 4 **sorry-free** (its two walks,
-`reduceNat_spec` in `Walks/Nat.lean` and `unfoldDefinition_spec` in
-`Walks/Spine.lean`, closed there).  Open then, CLOSED since round 6: the other
-five `…Body_spec` walks, the four batched-clause carries under them, and 127 of
-the 133 non-slot walks — see DESIGN §8's `### Task #97-P3-Core`,
-`### Task #97-P3-CoreWalks` and `### Task #97-P3-Core-2` for the tables.
+The tier is sorry-free: the statement layer, the whole memo layer (all six
+wrappers), the stuck-tag branch, the per-arm step lemmas over the six pure
+bodies, the six `…Body_spec` walks and the batched-clause carries under them,
+**the seventh entry point**, **the whole fuel merge** and all 133 non-slot
+walks — see DESIGN §8's `### Task #97-P3-Core`, `### Task #97-P3-CoreWalks`
+and `### Task #97-P3-Core-2` for the tables.
 -/
 import ConRon.Bridge.Core.Knot

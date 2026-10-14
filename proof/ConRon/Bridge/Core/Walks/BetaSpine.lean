@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.BetaSpine` — the batched β spine's carry
 
-Task #97-P3-Core round 6 (lane `whnfapp`).  The twin's `whnfCoreBody` `.app`
+The twin's `whnfCoreBody` `.app`
 clause is con-leche's CACHED-tier clause (`Cached/CoreC.lean:942-996
 whnfCoreStepI`, over `whnfAppI`/`betaPeelI`), not the chained spec clause.
 con-leche proves the `Expr`-level identification of that batched walk with
@@ -18,7 +18,7 @@ twin's handle-level `whnfApp` / `betaPeel` denote the mirrors at
 | `whnfApp_carry` / `betaPeel_carry` | `:2154` / `:2201` | `Verify/BetaSpine.lean` `whnfApp` / `betaPeel` |
 
 The iota step inside the spine is `iotaRecAt` at the spine the walk already
-holds; its rule `iotaRecAt_spec` is stated here as a named child (§2) — the
+holds; its rule `iotaRecAt_spec` (`Walks/Iota.lean`, see §2) is the
 `iotaRec` tower's own entry point, which `iotaRec_spec` (`Walks/Owed.lean`)
 is `getAppFn`/`getAppArgs` over.
 -/
@@ -203,16 +203,16 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
 
 `whnfApp` asks for one ι step at every non-λ reduction step of the spine it
 is walking, through `iotaRecAt` at the head and the argument vector it
-already holds (task #97-P6-9's hoist).  `iotaRec` is `getAppFn`/`getAppArgs`
+already holds (DESIGN `### Task #97-P6-9`'s hoist).  `iotaRec` is `getAppFn`/`getAppArgs`
 over the same entry, so `iotaRecAt_spec` below is the `iotaRec` tower's own
 entry rule; `iotaRec_spec` (`Walks/Owed.lean`) cannot stand in for it,
 because its two spine reads are fuelled walks whose success at the spine
 `whnfApp` holds is not provable (a partial-correctness triple claims nothing when they
 throw). -/
 
-/-! `iotaRecAt_spec` is `Walks/Iota.lean`'s (the `iota` lane of round 6,
-CLOSED there): the held head is not an application (`hnapp`, a spine head) and
-the count is the whole vector (`hn`), both discharged at the call below. -/
+/-! `iotaRecAt_spec` is `Walks/Iota.lean`'s: the held head is not an application
+(`hnapp`, a spine head) and the count is the whole vector (`hn`), both
+discharged at the call below. -/
 
 
 /-- con-leche: ConLeche/Model/Inductives/TargetCallWalk.lean:198
@@ -276,7 +276,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
 /-! ## 3. The pure mirrors at the pure knot
 
 con-leche's step-returning `whnfAppW`/`betaPeelW` (`Verify/BetaSpine.lean`)
-at `pureFns mode env F`: since con-leche's task #342 R2 the batched walks
+at `pureFns mode env F`: the batched walks (con-leche's task #342 R2)
 RETURN their continuation (`WhnfStep.cont`), so the carry targets the `W`
 mirrors and the loop (`Arms/WhnfCore.lean`) runs `whnfCoreLoopM` over them.
 One equation per clause, and the fuel monotonicity through the mirrors'
@@ -351,7 +351,7 @@ theorem mBP_nonlam {F d : Nat} {t a : Expr} {acc rest : List Expr}
 
 /-! ## 4. The carry: the twin's spine walk denotes the mirrors
 
-The twin's `betaPeel` no longer calls `whnfApp` (a finished peel RETURNS its
+The twin's `betaPeel` does not call `whnfApp` (a finished peel RETURNS its
 reduct), so the carry is two plain inductions on `args.size - i`: `betaPeel`
 first, then `whnfApp`, which calls `betaPeel` at a λ head.  The answer is a
 `WhnfStep` over handles, read back by `denoteStep`. -/

@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Promote.WalkDecl` — the declaration layer's promotion, run forwards
 
 `Arena/Promote.lean`'s record walk, field for field, over
-`Bridge/Promote/Walk.lean`'s four handle-kind cores (task #97-P3-Promote).
+`Bridge/Promote/Walk.lean`'s four handle-kind cores.
 Every lemma has the cores' shape — the invariant and the memo survive, the
 arena only grows, the answer is persistent, and it denotes whatever the
 subject denoted — at the `Arena/Frontend/Readback.lean` denotation of its

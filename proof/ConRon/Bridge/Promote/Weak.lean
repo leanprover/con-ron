@@ -1,19 +1,18 @@
 /-
 # `ConRon.Bridge.Promote.Weak` — the readback at the promote window's invariant
 
-`Arena/WF.lean`'s `StoreWF'` (task #97-P5-Fresh) is the invariant a store has
-while a promotion is in flight: `StoreWF` minus the freshness clauses at every
-tier, and minus `consS`'s `←` half.  None of the three
-missing clauses is about the RANK, and the rank is all the readback needs: a
-node's children rank below it, so the fuel `denote*` is run at is invisible.
+`Arena/WF.lean`'s `StoreWF'` (DESIGN `### Task #97-P5-Fresh`) is the invariant a
+store has while a promotion is in flight: `StoreWF` minus the freshness clauses
+at every tier, and minus `consS`'s `←` half.  None of the three missing clauses
+is about the RANK, and the rank is all the readback needs: a node's children
+rank below it, so the fuel `denote*` is run at is invisible.
 
 So this module is `Arena/WFProofs.lean`'s "the fuel disappears" layer and its
 `dropScratch` layer, re-run from the weak invariant — the argument verbatim,
 one word changed per lemma.  It is what the promotion's exactness
 (`Bridge/Promote/Exact.lean`) unfolds `denote*` with, and what carries a
 persistent denotation across the bracket's closing `dropScratch`
-(`PExt.dropScratch'`), which task #97-P3-Checker's `Fold.lean` note names as
-the second of `checkDeclStep_bridge`'s three blockers.
+(`PExt.dropScratch'`), which the per-declaration bracket needs.
 
 Every name here is primed and lives in `ConRon.Bridge`: the strong lemmas are
 `ConRon.Arena.*`, and `Refine2/Checker/Shape.lean` has its own
@@ -477,7 +476,7 @@ theorem denoteE_dropScratch_pers' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' 
 carries every persistent denotation**, from the promote window's invariant.
 `PExt.dropScratch` with `StoreWF` weakened to `StoreWF'`: the one form of it
 the promotion bracket can use, because the promotion leaves only `StoreWF'`
-behind (task #97-P5-Fresh). -/
+behind. -/
 theorem PExt.dropScratch' {st : EStore} (h : StoreWF' st) :
     PExt st st.dropScratch := by
   obtain ⟨rk, hwa⟩ := h

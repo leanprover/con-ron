@@ -18,19 +18,19 @@ which is con-leche's own join-point shape
 (`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env ∧ ∃ F, … = .ok
 fe'.env`) with the readback where con-leche has the identity.
 
-`Arena.checkDecl_bridge` is `cases pd` over `Bridge/Checker/Decl.lean`'s
+`Arena.checkDecl_bridge` is `cases pd` over `Bridge/Checker/Arms.lean`'s
 seven arm theorems.  Its consumer is `Bridge/Checker/Split.lean`'s
 install/check seam, whose fold (`Arena.installThenCheck_bridge`, and
 `Bridge/Checker/Phased.lean` above it) is the one the binary runs.
 
-**The sequential fold is gone** (task #97-T2-CLEANUP).  This module used to
-carry the bracketed step `Arena.checkDeclStep_bridge` (a `sorry`, waiting on
-`IFEnvOK` at the new environment), the list induction
-`Arena.checkDeclsPureGo_bridge`/`Arena.checkDeclsPure_bridge` over it, and
-`Bridge/Checker/Capstone.lean` the letters `Arena.model_exists` /
-`no_proof_of_False` / `no_proof_of_Empty` at that fold.  None of them was
-reached by `ConRon.Capstone`, which goes through the phased/pooled fold, so
-the chain was deleted rather than proved.
+**There is no sequential fold here.**  The per-declaration theorem is the
+only fold-level fact this module states: the list of declarations is folded
+by `Bridge/Checker/Split.lean`'s install/check seam and the phased/pooled
+fold above it, which is the one `ConRon.Capstone` goes through.  A
+bracketed per-declaration step and a list induction over
+`Arena.checkDecl_bridge` alone would be a second, unused route to the same
+capstone (DESIGN `### Task #97-T2-CLEANUP`).
+
 -/
 import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Arms
@@ -43,10 +43,10 @@ set_option autoImplicit false
 
 /-! ## Running an `AM` do-block
 
-Three `rfl` equations; the bind's inversion (`AM.bind_ok`) moved down to
-`Bridge/Promote/Pers.lean` in task #97-P3-Checker-2, because
-`Bridge/Checker/Base.lean` needs it too and sits below this module.  After
-them no proof in this module mentions `StateT`. -/
+Three `rfl` equations; the bind's inversion (`AM.bind_ok`) lives in
+`Bridge/Promote/Pers.lean`, because `Bridge/Checker/Base.lean` needs it too
+and sits below this module.  After them no proof in this module mentions
+`StateT`. -/
 
 /-- con-leche: none — `flushCaches` as an equation. -/
 theorem flushCaches_run (s : AState) :
@@ -111,7 +111,7 @@ theorem PinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
 /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
 **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
-`Bridge/Checker/Decl.lean`'s seven arms; the arms are where the content is
+`Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
 (all proved: the tier is `sorry`-free).
 
 `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of

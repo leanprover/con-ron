@@ -1,20 +1,19 @@
 /-
 # `ConRon.Bridge.Core.Arms.DefeqBase` — the definitional-equality arm's toolkit
 
-Task #109 (con-leche 8afe1815, `is_def_eq_core` restructured).  The pieces
-every spec of `Arms/DefeqLazy.lean`, `Arms/DefeqStuck.lean` and
-`Arms/Defeq.lean` shares, moved here from the old `Arms/Defeq.lean` (where
-they served `defeqStep`, the loop step con-leche 8afe1815 replaced) so that
-the three can build in parallel:
+The pieces every spec of `Arms/DefeqLazy.lean`, `Arms/DefeqStuck.lean` and
+`Arms/Defeq.lean` shares (con-leche's definitional equality after the
+official `is_def_eq_core`, DESIGN `### Task #109`), in a module of their own
+so that the three can build in parallel:
 
 | group | contents |
 |---|---|
 | fuel | `Ev` ("from some fuel on") and its rules; `DqPost`, the frame-and-verdict postcondition |
 | stage rules | `triple_pure_post`, `triple_ite_bind`, `CheckOK.of_store_eq` |
 | guarded calls | `boolTrueShortcutIf_spec`, `defeqNoFvars_spec`, `reduceNatIf_spec` |
-| denotations | `exprTag` / `tag_of_denote`, `VD` / `VD.of_view`, `ls_eq_iff_nil`, `n_eq_iff_pin` |
+| denotations | `VD` / `VD.of_view`, `ls_eq_iff_nil`, `n_eq_iff_pin` |
 | exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit` |
-| monotonicity | `…F_mono` for the helpers of the new defeq block the specs merge at (`Walks/Mono.lean`'s shape) |
+| monotonicity | `…F_mono` for the helpers of the defeq block the specs merge at (`Walks/Mono.lean`'s shape) |
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.PropRead
@@ -155,7 +154,7 @@ theorem boolTrueShortcutIf_spec {fe : IFEnv} {fuel : Nat}
 
 /-! ## 2. Denotations and guards -/
 
-/-! `exprTag` / `tag_of_denote` moved to `Walks/PropRead.lean` (task #119). -/
+/-! `exprTag` / `tag_of_denote` are `Walks/PropRead.lean`'s. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — the literal
 guard: the twin's two eager fvar-range reads are con-leche's
@@ -251,8 +250,8 @@ theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
       (Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hr)⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
-fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Owed.lean`,
-closed since).  The one call site of that rule in this module. -/
+fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Stuck.lean`).
+The one call site of that rule in this module. -/
 theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     (hμ : mode.verifiedChecks = true) (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
@@ -356,7 +355,7 @@ theorem n_eq_iff_pin {st : EStore} (hwf : StoreWF st) {c nz : NIdx}
   obtain ⟨rk, hrk⟩ := hwf
   exact name_eq_iff_of_denoteN hrk.nsWF hc hnz
 
-/-! ## 4. Monotonicity of the new defeq block
+/-! ## 4. Monotonicity of the defeq block
 
 `Walks/Mono.lean`'s shape (the record-level `MRefines` from `Verify/PairM`'s
 two projections, then the fueled corollary at `pureFns_mono`), for every

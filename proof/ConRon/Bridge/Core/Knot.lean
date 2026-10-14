@@ -105,8 +105,8 @@ denote and are well scoped at the query's depth.
 
 The record is what makes the arms writable: a body's theorem takes
 `KnotSpec f` as a hypothesis and `hsim.whnfCore` goes into `vcgen`'s spec
-list like any other `@[spec]` theorem (task #97s
-round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
+list like any other `@[spec]` theorem (DESIGN `### Task #97s`,
+rule 8 — "the record of knot hypotheses costs nothing"). -/
 structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop where
   /-- Head normalization without delta, in either mode (`c` is the official
@@ -168,22 +168,16 @@ theorem knotSpec_zero (mode : CheckMode) (env : Env) (fe : IFEnv) :
   defeq := fun _ _ _ _ _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   inferIO := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
 
-/-! ## The six slots in ANSWER shape (task #97-P3-Core round 3)
+/-! ## The six slots in ANSWER shape
 
 `KnotSpec`'s six fields take the subject's denotation as an explicit
 `(e : Expr)` argument with a `denoteE s₀.store i = some e` hypothesis.  That
 is the right shape for a caller that already holds the denotation, and it is
-the WRONG shape for a caller that reaches the slot through another call —
-task #97-P3-Core-2's finding 5.2, which re-shaped `reduceNat_spec` and
-`unfoldDefinition_spec` for exactly this reason:
-
-> `mvcgen` must guess `e` when it applies the spec; it guesses the only
-> `Expr` in scope — the *original* subject — and the side goal it leaves is
-> false.
-
-(`vcgen`, task #111, does not guess at all: an `Expr` parameter that the
-program does not name is left as a goal of its own, so the answer shape
-serves it the same way.)
+the WRONG shape for a caller that reaches the slot through another call:
+the program does not name that `e`, so `vcgen` leaves it as a goal of its
+own, and the only `Expr` in scope is the *original* subject, at which the
+side goal is false.  `reduceNat_spec` and `unfoldDefinition_spec` take the
+existential-precondition shape for the same reason.
 
 Every walk of `Bridge/Core/Walks/Owed.lean` that chains two knot calls
 (`r.inferIO d ty'` on `r.whnf`'s ANSWER, say) meets it.  So

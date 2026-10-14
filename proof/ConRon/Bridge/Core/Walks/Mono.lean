@@ -1,21 +1,20 @@
 /-
 # `ConRon.Bridge.Core.Walks.Mono` — the fuel merge
 
-Task #97-P3-Core-2.  DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 names this
-module's contents and prices them:
+DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 names this module's contents and
+prices them.  The fuel existential sits inside the answer relation, so
+con-leche's `FueledM` wrapper is not needed for a body: a walk that calls the
+knot ONCE per clause hands its `∃ F` straight out.  **A LOOP is different.**
+A walk that calls the knot in a `List` recursion (`defEqList`,
+`iotaCertsFull`) or in a fuel loop (`whnfLoop`, `lazyDeltaReduction`,
+`lazyDeltaProjReduction`) gets one existential per iteration and has to merge
+them into one — which is exactly `Verify/Mono.lean`'s job.  con-leche has
+`isDefEqCore_mono` and `pureFns_mono`; it does NOT have `defEqList_mono`,
+because its own proof never needs one (`FueledM` does the merging).  So the
+bridge needs one `…_mono` per LOOPING walk, each ten lines in
+`Verify/Mono.lean`'s own shape.
 
-> Task #97-P3-Core's §2 recorded that *"con-leche's `FueledM` wrapper is not
-> needed … the fuel existential sits inside the answer relation and `mvcgen`
-> never touches it."*  **That is true of a body and false of a LOOP.**  A walk
-> that calls the knot ONCE per clause hands its `∃ F` straight out.  A walk
-> that calls it in a `List` recursion (`defEqList`, `iotaCertsFull`) or in a fuel loop (`whnfLoop`, `lazyDeltaReduction`, `lazyDeltaProjReduction`) gets one
-> existential per iteration and has to merge them into one — which is exactly
-> `Verify/Mono.lean`'s job.  con-leche has `isDefEqCore_mono` and
-> `pureFns_mono`; it does NOT have `defEqList_mono`, because its own proof
-> never needed one (`FueledM` did the merging).  So the bridge owes one
-> `…_mono` per LOOPING walk, each ten lines in `Verify/Mono.lean`'s own shape.
-
-This module pays that debt, and pays it for **every** knot-calling helper of
+This module supplies them, for **every** knot-calling helper of
 `ConLeche/Kernel/Core.lean` rather than only the looping ones — because the
 cost of the non-looping rows is one line each and a body theorem that merges
 two arms' existentials wants them all in hand.
@@ -48,8 +47,8 @@ At a `List` recursion the bridge holds the head's `∃ F₁` (from
 hypothesis).  It takes `F := max F₁ F₂`, lifts the head with con-leche's own
 `isDefEqCore_mono` and the tail with `defEqListFueled_mono` below, and then
 the step equation applies at ONE fuel.  The same at a fuel loop, with
-`whnfLoopFueled_mono` / `lazyDeltaProjReductionFueled_mono` — and those two are the debt
-DESIGN §6.1 says sits unpaid under `whnfBody_spec` and `defeqBody_spec`.
+`whnfLoopFueled_mono` / `lazyDeltaProjReductionFueled_mono` — the two that
+`whnfBody_spec` and `defeqBody_spec` rest on (DESIGN §6.1).
 
 **This module mentions no arena state at all**: it is pure con-leche, and it
 imports `ConLeche.Verify.Mono` and nothing of `ConRon.Arena`.  That is why it
@@ -71,8 +70,8 @@ variable {mode : CheckMode} {env : Env} {r₁ r₂ : CoreFns CheckM}
 
 Each is `Verify/Mono.lean`'s `whnfCoreBody_mono` with the walk's own pair of
 projections.  Ordered as `ConLeche/Kernel/Core.lean` orders the definitions.
-(`projCert`/`projCertAt` read the environment only since task #119 — the
-syntactic `teleArityOk` — so they need none.) -/
+(`projCert`/`projCertAt` read only the environment — the syntactic
+`teleArityOk` — so they need none.) -/
 
 /-- con-leche: ConLeche/Verify/PairM.lean:351 fst_tac — `boolTrueShortcut`'s
 first projection (con-leche proves the pair inline in `defeqBody_fst_proj`;
