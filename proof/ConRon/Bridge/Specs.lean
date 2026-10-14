@@ -855,11 +855,11 @@ name, by induction on the `Name` tree (the recursion `internName` takes: a
       vcgen [internName, internNNode_spec] <;> finish
   | str p str ih =>
     sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
-        List.mem_singleton, Option.map_some, nview_isSome_of_denote] =>
+        List.mem_singleton, nview_isSome_of_denote] =>
       vcgen [internName, ih, internNNode_spec] <;> finish
   | num p k ih =>
     sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
-        List.mem_singleton, Option.map_some, nview_isSome_of_denote] =>
+        List.mem_singleton, nview_isSome_of_denote] =>
       vcgen [internName, ih, internNNode_spec] <;> finish
 
 /-! ## The level store -/
