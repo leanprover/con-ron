@@ -1246,25 +1246,20 @@ def openIsSome (g : MVarId) (done : Std.HashSet FVarId) :
 
 /-- `peelNew` at every hypothesis that is (or unfolds to) a conjunction or an
 existential. -/
-def peelAll (g : MVarId) (boolAnd : Bool := false) : MetaM MVarId := do
+def peelAll (g : MVarId) (boolAnd : Bool := false) (old : Std.HashSet FVarId := {}) :
+    MetaM MVarId := do
   let exs ← g.withContext do
     let mut out := #[]
     for d in (← getLCtx) do
-      if d.isImplementationDetail then continue
+      if d.isImplementationDetail || old.contains d.fvarId then continue
       let t := (← instantiateMVars d.type).cleanupAnnotations
-      if t.isAppOfArity ``Exists 2 || t.isAppOfArity ``And 2 then out := out.push d.fvarId
-      else if boolAnd && (andTrue? t).isSome then out := out.push d.fvarId
-      -- a definition that unfolds to one (`peelNew` unfolds it)
+      if t.isAppOfArity ``Exists 2 || t.isAppOfArity ``And 2 ||
+          (boolAnd && (andTrue? t).isSome) then
+        out := out.push d.fvarId
+      -- a definition that may unfold to one (`peelNew` decides)
       else if let some n := t.getAppFn.constName? then
         if (← getEnv).find? n matches some (.defnInfo _) then
-          if peelable n && !(mentionsTriple t) && (← isProp t) then
-            let t' ← whnfD t
-            if t'.isAppOfArity ``Exists 2 || t'.isAppOfArity ``And 2 then
-              out := out.push d.fvarId
-            else if let some r ← observing? (Meta.unfold t n) then
-              let e := r.expr.cleanupAnnotations
-              if e.isAppOfArity ``Exists 2 || e.isAppOfArity ``And 2 then
-                out := out.push d.fvarId
+          if peelable n && !(mentionsTriple t) && (← isProp t) then out := out.push d.fvarId
     pure out
   if exs.isEmpty then return g
   g.withContext (peelNew g exs)
@@ -1490,16 +1485,16 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
     -- a round's new `isSome` facts (a binder's children) opened too
     let (g', o) ← openIsSome g opened
     g := g'; opened := o
-  -- to a fixpoint: a function's answer is unique (two denotations of one
-  -- handle are one value: `unifyFacts`), the new equations substituted (only
-  -- those, and only after the rounds, which name the locals: on a
-  -- verification condition's context `substVars` is the dearest step), and
-  -- what the substitution made a constructor split (`Expr.WScoped d x` at
-  -- `x := .app …`); an identification can make two lookups' keys equal
-  for _ in [0:3] do
-    let g' ← substNew (← peelAll (← g.withContext (unifyFacts g))) old
-    if g' == g then break
-    g := g'
+  -- a function's answer is unique: two denotations of one handle are one
+  -- value (`unifyFacts`); the new equations substituted (only those, and only
+  -- after the rounds, which name the locals: on a verification condition's
+  -- context `substVars` is the dearest step); once more, since an
+  -- identification can make two lookups' keys equal; and what the
+  -- substitution made a constructor split (`Expr.WScoped d x` at `x := .app …`)
+  let then_subst (g' : MVarId) : MetaM MVarId := if g' == g then pure g' else substNew g' old
+  g ← substNew (← g.withContext (unifyFacts g)) old
+  g ← then_subst (← g.withContext (unifyFacts g))
+  g ← then_subst (← peelAll g)
   clearTrivial g old
 
 /-- Carry the context's denotation facts to the stores the GOAL mentions: a
