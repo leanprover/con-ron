@@ -79,11 +79,15 @@ a walk module adds only what is about its own walk.
 8. **The environment index as equations.**  A lookup `fe.find? c` and the
    environment's `env.find? nm` at the name `c` denotes agree on every
    projection the walks read — ONE fact per lookup (`IndexAt`): is it
-   present, a definition, a constructor, a tower entry; a definition's hint,
-   record and value, a constructor's record, any record off the tower.  A lookup that is a definition IS one (`iDefn?_eta`),
-   which refutes a match's fall-through arm; the one case split left is on
-   "definition or not" where a walk needs the hint of a lookup it did not
-   match (`iDefnHint_cases`).
+   present, a definition, a constructor, an inductive, a recursor, a tower
+   entry; a definition's hint, record and value, a constructor's record and
+   counts, an inductive's record, level parameters and capabilities, a
+   recursor's record, rules and indices, any record off the tower.  A lookup
+   that is a definition (an inductive, a constructor, a recursor) IS one
+   (`iDefn?_eta`, …), which refutes a match's fall-through arm; the one case
+   split left is on "definition or not" where a walk needs the hint of a
+   lookup it did not match (`iDefnHint_cases`).  A capability record's
+   denotation keeps its scalar fields (`CapsFields`).
 -/
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.GrindAttr
@@ -1663,12 +1667,60 @@ def cTower? : Option ConstantInfo → Bool | some ci => ci.isTowerEntry | none =
 def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
 attribute [bridge_grind =] iTower? iValP
 
+/-! The projections at the inductives' capabilities, the constructors' counts
+and the recursors. -/
+
+/-- con-leche: none — an environment inductive's capabilities. -/
+def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
+/-- con-leche: none — an environment constructor's parameter count. -/
+def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+/-- con-leche: none — an environment constructor's field count. -/
+def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+/-- con-leche: none — is a stored lookup a recursor. -/
+def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+/-- con-leche: none — a stored recursor's record. -/
+def iRecVal : Option IConstantInfo → IConstantVal | some (.recInfo v _ _ _) => v | _ => default
+/-- con-leche: none — a stored recursor's major index. -/
+def iRecMI : Option IConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+/-- con-leche: none — a stored recursor's rule prefix. -/
+def iRecRP : Option IConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+/-- con-leche: none — a stored recursor's rules. -/
+def iRecRules : Option IConstantInfo → List IRecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+/-- con-leche: none — is an environment lookup a recursor. -/
+def cRec? : Option ConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+/-- con-leche: none — a recursor's record. -/
+def cRecVal : Option ConstantInfo → ConstantVal | some (.recInfo v _ _ _) => v | _ => default
+/-- con-leche: none — a recursor's major index. -/
+def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+/-- con-leche: none — a recursor's rule prefix. -/
+def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+/-- con-leche: none — a recursor's rules. -/
+def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+
+/-- con-leche: none — a lookup that is a recursor IS one (registered by the ι
+walks, `Core/Walks/IotaMajor.lean` and `Core/Walks/Iota.lean`). -/
+theorem iRec?_eta {o : Option IConstantInfo} (h : iRec? o = true) :
+    o = some (.recInfo (iRecVal o) (iRecMI o) (iRecRP o) (iRecRules o)) := by
+  match o, h with
+  | some (.recInfo _ _ _ _), _ => rfl
+
+/-- con-leche: none — a denoting record's level parameters denote. -/
+theorem denoteCV_levelParams {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    Frontend.denoteNList st.ns cv.levelParams = some c.levelParams := by
+  simp only [Frontend.denoteCV] at h
+  split at h
+  · next hl _ => cases h; exact hl
+  · cases h
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a stored lookup against
 the environment's, through every projection the walks read: the two
-lookups agree on being present, a definition, a constructor and a tower
-entry, on a definition's hint, and the stored records denote the
-environment's (a definition's record and value, a constructor's record, any
-record off the tower). -/
+lookups agree on being present, a definition, a constructor, an inductive, a
+recursor and a tower entry, on a definition's hint, a constructor's counts
+and a recursor's indices, and the stored records denote the environment's (a
+definition's record and value, a constructor's record, an inductive's record,
+level parameters and capabilities, a recursor's record and rules, any record
+off the tower). -/
 def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
   cDefn? oc = iDefn? oi ∧ cDefnHint oc = iDefnHint oi ∧
   (iDefn? oi = true →
@@ -1678,7 +1730,17 @@ def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo)
   (iCtor? oi = true → Frontend.denoteCV st (iCtorVal oi) = some (cCtorVal oc)) ∧
   oi.isSome = oc.isSome ∧ iTower? oi = cTower? oc ∧
   (oi.isSome = true → iTower? oi = false →
-    Frontend.denoteCV st (iValP oi) = some (cValP oc))
+    Frontend.denoteCV st (iValP oi) = some (cValP oc)) ∧
+  cInd? oc = iInd? oi ∧
+  (iInd? oi = true →
+    Frontend.denoteCV st (iIndVal oi) = some (cIndVal oc) ∧
+    Frontend.denoteNList st.ns (iIndVal oi).levelParams = some (cIndVal oc).levelParams ∧
+    Frontend.denoteCaps st (iIndCaps oi) = some (cIndCaps oc)) ∧
+  (iCtor? oi = true → cCtorNP oc = iCtorNP oi ∧ cCtorNF oc = iCtorNF oi) ∧
+  cRec? oc = iRec? oi ∧
+  (iRec? oi = true → Frontend.denoteCV st (iRecVal oi) = some (cRecVal oc) ∧
+    Frontend.denoteRules st (iRecRules oi) = some (cRecRules oc) ∧
+    cRecMI oc = iRecMI oi ∧ cRecRP oc = iRecRP oi)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
 handle `c` denoting `nm`**: `IndexCI` between the two lookups. -/
@@ -1696,39 +1758,45 @@ theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv hx; cases h
-      exact ⟨rfl, rfl, fun _ => ⟨hcv, hx⟩, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+      exact ⟨rfl, rfl, fun _ => ⟨hcv, hx⟩, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun,
+        nofun, rfl, nofun⟩
     · cases h
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     split at h
-    · rename_i cv x hcv _; cases h
-      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    · rename_i cv x hcv hcaps; cases h
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl,
+        fun _ => ⟨hcv, denoteCV_levelParams hcv, hcaps⟩, nofun, rfl, nofun⟩
     · cases h
   | recInfo v mI rP rs =>
     simp only [Frontend.denoteCI] at h
     split at h
-    · rename_i cv x hcv _; cases h
-      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    · rename_i cv x hcv hrs; cases h
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl,
+        fun _ => ⟨hcv, hrs, rfl, rfl⟩⟩
     · cases h
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
   | thmInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
   | ctorInfo v nP nF =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, rfl, fun _ _ => hcv⟩
+    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, rfl, fun _ _ => hcv, rfl, nofun,
+      fun _ => ⟨rfl, rfl⟩, rfl, nofun⟩
   | projInfo t =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨t', _, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ h => nomatch h⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, (fun _ h => nomatch h), rfl, nofun, nofun, rfl,
+      nofun⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
-every lookup the program makes, keyed by the invariant and the lookup. -/
+every lookup the program makes, keyed by the invariant and the lookup: ONE
+fact per lookup. -/
 theorem indexAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hok : CheckOK mode env fe s) (c : NIdx) :
     IndexAt env fe s.store c (denoteN s.store.ns c) := by
@@ -1739,7 +1807,7 @@ theorem indexAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
   | none =>
     show IndexCI s.store (fe.find? c) (env.find? nm)
     simp only [hf, IFEnvOK.miss hok.state hok.ienv hn hf]
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, nofun⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, nofun, rfl, nofun, nofun, rfl, nofun⟩
   | some ci =>
     obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
@@ -1748,7 +1816,9 @@ theorem indexAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     exact indexAt_hit hci
 grind_pattern [bridge_grind] indexAt => CheckOK mode env fe s, fe.find? c
 
-/-- con-leche: none — `IndexAt` at a denoting handle. -/
+/-- con-leche: none — `IndexAt` at a denoting handle, `IndexCI` spelled out (an
+equation unfolding `IndexCI` would cost every reader of the index one more
+e-matching round). -/
 theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : ConLeche.Name}
     (H : IndexAt env fe st c (some nm)) :
     cDefn? (env.find? nm) = iDefn? (fe.find? c) ∧
@@ -1762,7 +1832,46 @@ theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : Con
       (fe.find? c).isSome = (env.find? nm).isSome ∧
       iTower? (fe.find? c) = cTower? (env.find? nm) ∧
       ((fe.find? c).isSome = true → iTower? (fe.find? c) = false →
-        Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm))) := H
+        Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm))) ∧
+      cInd? (env.find? nm) = iInd? (fe.find? c) ∧
+      (iInd? (fe.find? c) = true →
+        Frontend.denoteCV st (iIndVal (fe.find? c)) = some (cIndVal (env.find? nm)) ∧
+        Frontend.denoteNList st.ns (iIndVal (fe.find? c)).levelParams =
+          some (cIndVal (env.find? nm)).levelParams ∧
+        Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm))) ∧
+      (iCtor? (fe.find? c) = true →
+        cCtorNP (env.find? nm) = iCtorNP (fe.find? c) ∧
+        cCtorNF (env.find? nm) = iCtorNF (fe.find? c)) ∧
+      cRec? (env.find? nm) = iRec? (fe.find? c) ∧
+      (iRec? (fe.find? c) = true →
+        Frontend.denoteCV st (iRecVal (fe.find? c)) = some (cRecVal (env.find? nm)) ∧
+        Frontend.denoteRules st (iRecRules (fe.find? c)) = some (cRecRules (env.find? nm)) ∧
+        cRecMI (env.find? nm) = iRecMI (fe.find? c) ∧
+        cRecRP (env.find? nm) = iRecRP (fe.find? c)) := H
 grind_pattern [bridge_grind] IndexAt.some => IndexAt env fe st c (some nm)
+
+/-- con-leche: none — a capability record's denotation, the scalar fields the
+walks compare (shared by the two tiers). -/
+def CapsFields (c : IIndCaps) : Option IndCaps → Prop
+  | some dc => dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ
+  | none => True
+
+/-- con-leche: none — `CapsFields` at the denotation term. -/
+theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteCaps st c) := by
+  cases h : Frontend.denoteCaps st c with
+  | none => trivial
+  | some dc =>
+    simp only [Frontend.denoteCaps] at h
+    split at h
+    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+    · simp at h
+grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
+
+/-- con-leche: none — `CapsFields` at a denoting record. -/
+theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
+    dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ := H
+grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
 
 end ConRon.Bridge

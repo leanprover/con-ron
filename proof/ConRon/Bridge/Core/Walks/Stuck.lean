@@ -55,43 +55,7 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
 
-/-- con-leche: none — an environment inductive's capabilities. -/
-def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
-attribute [bridge_grind =] cIndCaps
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index at a name handle
-`c` denoting `nm`, at an inductive: the two lookups agree on being one, and
-the stored record and capabilities denote the environment's. -/
-def IndAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => cInd? (env.find? nm) = iInd? (fe.find? c) ∧
-      (iInd? (fe.find? c) = true →
-        Frontend.denoteCV st (iIndVal (fe.find? c)) = some (cIndVal (env.find? nm)) ∧
-        Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm)))
-  | none => True
-
-/-- con-leche: none — a capability record's denotation, the scalar fields the
-walks compare (shared by the two tiers). -/
-def CapsFields (c : IIndCaps) : Option IndCaps → Prop
-  | some dc => dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ
-  | none => True
-
-/-- con-leche: none — `CapsFields` at the denotation term. -/
-theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteCaps st c) := by
-  cases h : Frontend.denoteCaps st c with
-  | none => trivial
-  | some dc =>
-    simp only [Frontend.denoteCaps] at h
-    split at h
-    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
-    · simp at h
-grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
-
-/-- con-leche: none — `CapsFields` at a denoting record. -/
-theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
-    dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ := H
-grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
+attribute [bridge_grind =] cIndCaps cCtorNP cCtorNF
 
 /-! ### The children's answers, named -/
 
@@ -264,73 +228,6 @@ theorem env_not_ind_of_index {s : AState} (hok : CheckOK mode env fe s)
     (hnd : ∀ v caps, fe.find? T ≠ some (.indInfo v caps)) :
     ∀ cv caps, env.find? Tn ≠ some (.indInfo cv caps) :=
   optCI_ind_none (optCI_find hok hn) hnd
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `env_ind_of_index` and
-`env_not_ind_of_index` as one fact at every lookup the program makes. -/
-theorem indAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
-    IndAt env fe s.store c (denoteN s.store.ns c) := by
-  cases hn : denoteN s.store.ns c with
-  | none => trivial
-  | some nm =>
-  show _ ∧ _
-  by_cases hc : iInd? (fe.find? c) = true
-  · obtain ⟨dcv, dcaps, hdcv, hdcaps, hfind⟩ := env_ind_of_index hok hn (iInd?_eta hc)
-    refine ⟨by rw [hc, hfind]; rfl, fun _ => ?_⟩
-    rw [hfind]
-    have he := iInd?_eta hc
-    rw [he] at hdcv hdcaps
-    exact ⟨hdcv, hdcaps⟩
-  · refine ⟨?_, fun h => absurd h hc⟩
-    rw [Bool.not_eq_true] at hc
-    rw [hc]
-    have hnot := env_not_ind_of_index hok hn (fun v caps h => by rw [h] at hc; cases hc)
-    generalize env.find? nm = o at hnot
-    match o, hnot with
-    | some (.indInfo cv caps), hnot => exact absurd rfl (hnot cv caps)
-    | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
-    | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _ | some (.projInfo _), _
-    | none, _ => rfl
-grind_pattern [bridge_grind] indAt => CheckOK mode env fe s, fe.find? c
-
-/-- con-leche: none — `IndAt` at a denoting handle. -/
-theorem IndAt.some {st : EStore} {c : NIdx} {nm : ConLeche.Name}
-    (H : IndAt env fe st c (some nm)) : cInd? (env.find? nm) = iInd? (fe.find? c) ∧
-      (iInd? (fe.find? c) = true →
-        Frontend.denoteCV st (iIndVal (fe.find? c)) = some (cIndVal (env.find? nm)) ∧
-        Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm))) := H
-grind_pattern [bridge_grind] IndAt.some => IndAt env fe st c (some nm)
-
-/-- con-leche: none — an environment constructor's parameter count. -/
-def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
-/-- con-leche: none — an environment constructor's field count. -/
-def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
-attribute [bridge_grind =] cCtorNP cCtorNF
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index at a constructor
-name handle: its parameter and field counts are the environment's. -/
-def CtorCountsAt (env : Env) (fe : IFEnv) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => iCtor? (fe.find? c) = true →
-      cCtorNP (env.find? nm) = iCtorNP (fe.find? c) ∧ cCtorNF (env.find? nm) = iCtorNF (fe.find? c)
-  | none => True
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `env_ctor_of_index`'s
-counts, at every lookup the program makes. -/
-theorem ctorCountsAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
-    CtorCountsAt env fe c (denoteN s.store.ns c) := by
-  cases hn : denoteN s.store.ns c with
-  | none => trivial
-  | some nm =>
-    intro hc
-    obtain ⟨_, _, hfind⟩ := env_ctor_of_index hok hn (iCtor?_eta hc)
-    rw [hfind]; exact ⟨rfl, rfl⟩
-grind_pattern [bridge_grind] ctorCountsAt => CheckOK mode env fe s, fe.find? c
-
-/-- con-leche: none — `CtorCountsAt` at a denoting handle. -/
-theorem CtorCountsAt.some {c : NIdx} {nm : ConLeche.Name}
-    (H : CtorCountsAt env fe c (some nm)) : iCtor? (fe.find? c) = true →
-      cCtorNP (env.find? nm) = iCtorNP (fe.find? c) ∧
-        cCtorNF (env.find? nm) = iCtorNF (fe.find? c) := H
-grind_pattern [bridge_grind] CtorCountsAt.some => CtorCountsAt env fe c (some nm)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-737 etaCtorShape — the reader
 as ONE equation over the head's tag, its constant name and the environment's
@@ -998,7 +895,7 @@ grind_pattern [bridge_grind] UnitCertE.defeq =>
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
 for `structUnitCert`**, in answer shape (`PairAns` of `UnitCertE`): `a` and
 `b` inhabit the same stored unit-like family.  Two `inferIO`/`whnf` pairs,
-`getAppFn` and the head's `view`, the index (`IndAt`), `getAppArgs`, the
+`getAppFn` and the head's `view`, the index (`IndexAt`), `getAppArgs`, the
 reserved names, `viewLsLen`, the guard (`unitGuard`), `isForallE` and the
 knot's `defeq`. -/
 theorem structUnitCert_specA {fuel : Nat} (_hμ : mode.verifiedChecks = true)

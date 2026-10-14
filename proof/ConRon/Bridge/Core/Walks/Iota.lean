@@ -119,12 +119,10 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
       vcgen [ConRon.Arena.instSpinePins, ExprOps.instLPFast_spec (ksv := ksv) (usv := usv),
         ExprOps.instSpine_spec, step] <;> finish
 
-/-! `IotaMajor`'s environment index facts, registered here too (they are local
-there; candidates for `Bridge/Grind.lean`'s `IndexCI`). -/
-local grind_pattern [bridge_grind] iotaAt => CheckOK mode env fe s, fe.find? c
-local grind_pattern [bridge_grind] IotaAt.some => IotaAt env fe st c (some nm)
+/-! The recursor projections of `Bridge/Grind.lean` §8, registered as in
+`Core/Walks/IotaMajor.lean`. -/
 local grind_pattern [bridge_grind] iRec?_eta => iRec? o
-attribute [local bridge_grind =] IotaCI iInd?_ind iIndVal_ind iIndCaps_ind iCtor?_ctor
+attribute [local bridge_grind =] iInd?_ind iIndVal_ind iIndCaps_ind iCtor?_ctor
   iCtorVal_ctor iCtorNP_ctor iRec?_rec iRecVal_rec iRecMI_rec iRecRP_rec iRecRules_rec
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:72-93 iotaCtorNeverProp — as one equation
