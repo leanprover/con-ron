@@ -339,9 +339,9 @@ def pinNatShiftLeft : AM NIdx := pinAt PIN_NAT_SHIFT_LEFT
 def pinNatShiftRight : AM NIdx := pinAt PIN_NAT_SHIFT_RIGHT
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:418 boolName — off the table. -/
 def pinBool : AM NIdx := pinAt PIN_BOOL
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:419 boolTrueName — off the table. -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:430 boolTrueName — off the table. -/
 def pinBoolTrue : AM NIdx := pinAt PIN_BOOL_TRUE
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:420 boolFalseName — off the table. -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:431 boolFalseName — off the table. -/
 def pinBoolFalse : AM NIdx := pinAt PIN_BOOL_FALSE
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:34 propextName — off the table. -/
 def pinPropext : AM NIdx := pinAt PIN_PROPEXT

@@ -128,6 +128,7 @@ driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
 /-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+-- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
@@ -162,6 +163,7 @@ def runPipelineHead :
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
 /-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+-- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
 The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
 #97d), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
@@ -270,6 +272,7 @@ partial def readFold (h : IO.FS.Handle)
       readFold h st carry lineNo total (chunks + 1) s
 
 /-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+-- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -395,6 +398,7 @@ def parseArgs : List String → Args → Args
     else parseArgs rest { a with files := a.files.push s }
 
 /-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+-- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a

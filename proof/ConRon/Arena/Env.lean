@@ -59,7 +59,7 @@ open ConLeche
 
 /-! ## The constant's common data -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:81-86 ConstantVal — data common to
+/-- con-leche: ConLeche/Kernel/Env.lean:121-126 ConstantVal — data common to
 all constants, with the name and the type as handles. -/
 structure IConstantVal where
   name : NIdx
@@ -69,7 +69,7 @@ structure IConstantVal where
 
 /-! ## Recursor rules -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire — how a stored
+/-- con-leche: ConLeche/Kernel/Env.lean:128-154 RecRuleFire — how a stored
 recursor rule fires.  `.nested`'s level and pin lists become handle lists;
 the parse writes the placeholder `.plain`. -/
 inductive IRecRuleFire where
@@ -77,7 +77,7 @@ inductive IRecRuleFire where
   | nested (lvls : List LIdx) (pins : List EIdx)
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule — one iota rule of a
+/-- con-leche: ConLeche/Kernel/Env.lean:156-187 RecRule — one iota rule of a
 recursor.  `ctorParams`, `fire`, `k` and `eta` are install-computed and carry
 the parse placeholders `0`/`.plain`/`false`, exactly as con-leche's do. -/
 structure IRecRule where
@@ -92,7 +92,7 @@ structure IRecRule where
 
 /-! ## Inductive capabilities -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:192-239 IndCaps — the definitional
+/-- con-leche: ConLeche/Kernel/Env.lean:232-279 IndCaps — the definitional
 capabilities of a stored inductive type.  `etaCtor` is a handle; `sortZ` stays
 con-leche's `PropWhen` (see the module note). -/
 structure IIndCaps where
@@ -117,7 +117,7 @@ structure IIndCaps where
 
 /-! ## Projection tables -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:241-293 ProjTable — one structure's
+/-- con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable — one structure's
 projection table, every term field a handle. -/
 structure IProjTable where
   structName : NIdx
@@ -136,7 +136,7 @@ structure IProjTable where
   off : Nat
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:295-314 ProjEntry — the per-field view
+/-- con-leche: ConLeche/Kernel/Env.lean:335-354 ProjEntry — the per-field view
 of a projection table. -/
 structure IProjEntry where
   structName : NIdx
@@ -151,7 +151,7 @@ structure IProjEntry where
   off : Nat
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:316-320 ProjTable.entry — the view at
+/-- con-leche: ConLeche/Kernel/Env.lean:356-360 ProjTable.entry — the view at
 field `i`.  con-leche's `default` expression and its `.zero` guard level become
 the `Inhabited` handle of each kind: a table is only read at `i < numFields`,
 where neither default is reachable. -/
@@ -161,7 +161,7 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 
 /-! ## Stored constants -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:322-348 ConstantInfo — the information
+/-- con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo — the information
 stored about an accepted constant, over handles.  A theorem is stored by its
 statement only (con-leche task #329 THMVAL). -/
 inductive IConstantInfo where
@@ -176,7 +176,7 @@ inductive IConstantInfo where
 
 /-! ## Declaration records -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:368-421 Declaration — a declaration
+/-- con-leche: ConLeche/Kernel/Env.lean:408-461 Declaration — a declaration
 presented to the checker, over handles.  Seven constructors, con-leche's own
 order; the frontend produces every one but `basisDecl`, which is the fold's own
 record for "install the pinned basis block". -/
@@ -192,7 +192,7 @@ inductive IDeclaration where
 
 /-! ## The reserved names -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:478-482 projTableName — the reserved
+/-- con-leche: ConLeche/Kernel/Env.lean:518-522 projTableName — the reserved
 name of structure `T`'s projection table. -/
 def projTableName (T : NIdx) : AM NIdx := do
   let s ← internNNode (.str T "projTable")
@@ -200,7 +200,7 @@ def projTableName (T : NIdx) : AM NIdx := do
 
 /-! ## Reading a stored constant -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:486-489 ConstantInfo.toConstantVal —
+/-- con-leche: ConLeche/Kernel/Env.lean:526-529 ConstantInfo.toConstantVal —
 the constant's common data.  The `.projInfo` arm BUILDS the reserved table name
 and the closed dummy type `Sort 1`, which over handles means interning them:
 that is the one reason this projection is monadic (see the module note). -/
@@ -213,7 +213,7 @@ def IConstantInfo.toConstantVal : IConstantInfo → AM IConstantVal
     let ty ← internE (.sort one)
     pure ⟨tbl.tableName, tbl.levelParams, ty⟩
 
-/-- con-leche: ConLeche/Kernel/Env.lean:491 name — the constant's
+/-- con-leche: ConLeche/Kernel/Env.lean:531 name — the constant's
 name, `ConstantInfo.name` at line 644.  PURE, unlike `toConstantVal`: it is
 the environment index's key, and `IProjTable.tableName` is the stored handle
 that makes it so (see the module note). -/
@@ -222,13 +222,13 @@ def IConstantInfo.name : IConstantInfo → NIdx
   | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => v.name
   | .projInfo tbl => tbl.tableName
 
-/-- con-leche: ConLeche/Kernel/Env.lean:493-498 ConstantInfo.isTowerEntry — a
+/-- con-leche: ConLeche/Kernel/Env.lean:533-538 ConstantInfo.isTowerEntry — a
 projection table is a table, not a term. -/
 def IConstantInfo.isTowerEntry : IConstantInfo → Bool
   | .projInfo _ => true
   | _ => false
 
-/-- con-leche: ConLeche/Kernel/Env.lean:504-515 Declaration.names — the names a
+/-- con-leche: ConLeche/Kernel/Env.lean:544-555 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's
 name index read it. -/
 def IDeclaration.names : IDeclaration → List NIdx
@@ -239,18 +239,18 @@ def IDeclaration.names : IDeclaration → List NIdx
 
 /-! ## The environment -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:519-524 Env — the global environment:
+/-- con-leche: ConLeche/Kernel/Env.lean:559-564 Env — the global environment:
 the list of constants accepted so far, newest first.  Names are unique (the
 checker rejects duplicates), so the order is irrelevant for lookup. -/
 structure IEnv where
   consts : List IConstantInfo
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:528-529 Env.empty — the empty
+/-- con-leche: ConLeche/Kernel/Env.lean:568-569 Env.empty — the empty
 environment; the starting point of every checker run. -/
 def IEnv.empty : IEnv := ⟨[]⟩
 
-/-- con-leche: ConLeche/Kernel/Env.lean:531-532 Env.find? — the linear lookup.
+/-- con-leche: ConLeche/Kernel/Env.lean:571-572 Env.find? — the linear lookup.
 A name comparison is a handle comparison, which is sound because `denoteN` is
 injective (task #97a's `denoteN_inj`; DESIGN §8.3 makes exactness a soundness
 obligation for exactly this reason). -/
@@ -319,7 +319,7 @@ def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : AM (Option IProjEntry) :
 
 /-! ## The syntactic Π-telescope -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:427-441 Expr.piSortTeleLen? — the length
+/-- con-leche: ConLeche/Kernel/Env.lean:467-481 Expr.piSortTeleLen? — the length
 of a syntactic Π-telescope ending in a SORT.  A spine walk, so the fuel is the
 store's node count; con-leche's structural recursion is the same walk with the
 node read through `view`. -/

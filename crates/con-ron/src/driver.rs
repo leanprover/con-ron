@@ -663,6 +663,7 @@ pub struct Heartbeat {
 /// and success arms share.
 impl Heartbeat {
     /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+    /// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove driver::new_refines, then delete this line
     /// A heartbeat at `stride` (0 for none), starting now.
     pub fn new(stride: u64, t0: Instant) -> Heartbeat {
         Heartbeat {
@@ -680,6 +681,7 @@ impl Heartbeat {
     }
 
     /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+    /// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
     /// `con-ron: parse done: …`, the heartbeat's first line.  Records
     /// `t_parse`, so the summary can price the parse whatever happens next.
     pub fn parse_done(
@@ -874,6 +876,7 @@ impl PhaseObserver for Heartbeat {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove driver::verdict_accept_refines, then delete this line
 /// **The accept line**, `crate::driver::verdict_accept`'s with this
 /// binary's name: `records` is the FILE's declaration-record count — what the
 /// parse produced — and nothing the preparation does moves it.  It is not the
@@ -889,6 +892,7 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove driver::verdict_failure_refines, then delete this line
 /// The failure line: the error, the declaration it names and its FOLD
 /// position, the mode, the elapsed time.  There is no second pass — the fold's
 /// error carries the position, so the label is read off the record array the

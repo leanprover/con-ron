@@ -212,7 +212,7 @@ is why `#print axioms` does not list any of them.
 | premise | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
-| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L364-L383); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
+| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L365-L384); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
 | `h6`, `h7`, `h8` (phase A, the freeze, phase B) | the install phase (`install_fold_hooked`) accepted, `freeze_tier` moved the persistent tables into the tier, and phase B's `parallel_all` accepted: there are index lists `ws`, one per worker, that together cover every pending record, and for each list the worker's run (one `worker_state`, then the verified `check_pending` folded over the list, a rejection being the fold's `fail`) accepted.  Nothing is assumed about a record being claimed only once or in order | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  They hold for every install hook, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
@@ -310,7 +310,7 @@ empty scratch tier and FREEZES the store — its persistent tables leave it as
 the tier every read inside the bracket goes through (§4.4) — and
 `drop_scratch` discards the scratch tier, flushes the caches and thaws the
 tier back into the store
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10118-L10158)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10157-L10197)).
 Dropping the tier leaves persistent handles valid, because a persistent node
 never points into the scratch tier.
 
@@ -416,7 +416,7 @@ O(1).  It is proved to implement a finite map in
 
 The binary's `check_main` calls six verified functions in order, on one
 `AState`
-([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L351-L538)).
+([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L352-L539)).
 They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three steps `h6`…`h8`.
 
 1. **`intern_reserved_pins`**
@@ -451,7 +451,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three 
 The parser is in the verified crate
 ([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30)).
 The driver reads the file forward in 4 MiB chunks through the
-[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L931-L976)
+[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L935-L980)
 chunk source and never holds the whole file.  Each line goes through a byte
 recogniser ported from con-leche's `Scan/Fast.lean`, the scanner
 con-leche's binary actually runs.  Records are interned straight into the

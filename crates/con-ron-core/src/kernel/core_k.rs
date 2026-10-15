@@ -254,14 +254,14 @@ pub fn bool_name() -> Name {
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:419 boolTrueName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:430 boolTrueName
 /// `Bool.true`.
 pub fn bool_true_name() -> Name {
     const S: [u32; 4] = [116, 114, 117, 101];
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:420 boolFalseName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:431 boolFalseName
 /// `Bool.false`.
 pub fn bool_false_name() -> Name {
     const S: [u32; 5] = [102, 97, 108, 115, 101];

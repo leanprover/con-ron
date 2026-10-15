@@ -422,7 +422,7 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
 A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
 `.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:443-477 indParamsOk — **the stream's
+/-- con-leche: ConLeche/Kernel/Env.lean:483-517 indParamsOk — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official rejects. -/
 def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
