@@ -798,7 +798,7 @@
 
 == crates/con-ron-core/src/arena/core.rs#L10305-L10345
  10305  /// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
- 10306  /// Lean twin: `proof/ConRon/Arena/Core.lean:3580-3586 flushCaches` — **what
+ 10306  /// Lean twin: `proof/ConRon/Arena/Core.lean:3664-3670 flushCaches` — **what
  10307  /// the per-declaration bracket does to the caches**: it drops them whole,
  10308  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
  10309  /// this point.
@@ -816,7 +816,7 @@
  10321  }
  10322  
  10323  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10324  /// Lean twin: `proof/ConRon/Arena/Core.lean:3588-3596 dropScratch` — drop the
+ 10324  /// Lean twin: `proof/ConRon/Arena/Core.lean:3672-3680 dropScratch` — drop the
  10325  /// scratch tier of the store and the cache entries that name it, in one
  10326  /// operation, so the two halves cannot drift apart; and **thaw** the store:
  10327  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -827,7 +827,7 @@
  10332  }
  10333  
  10334  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10335  /// Lean twin: `proof/ConRon/Arena/Core.lean:3598-3605 enterScratch` — turn the
+ 10335  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3689 enterScratch` — turn the
  10336  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
  10337  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
  10338  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -1104,12 +1104,12 @@
    373  // ---------------------------------------------------------------------------
    374  
    375  /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-   376  /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot` — **the
+   376  /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — **the
    377  /// executed knot**: the memoized one, `pureFnsA`'s.
    378  pub const LANE_FULL: u32 = 0;
    379  
    380  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-   381  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — the io knot
+   381  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
    382  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
    383  /// unmemoized; every other slot is the full knot's.
    384  pub const LANE_IO: u32 = 2;
