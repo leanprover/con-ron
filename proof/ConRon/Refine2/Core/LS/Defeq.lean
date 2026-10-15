@@ -272,11 +272,16 @@ theorem eidx_rev_abs (xs : alloc.vec.Vec arena.handle.EIdx) :
     simp
 
 /-- The whole spine reversed into a fresh vector, against the twin's
-`List.reverse` (a Rust-only step whose twin partner is a pure expression). -/
-@[lockstep] theorem eidx_rev_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.Usize) :
-    LSP (arena.core.eidx_rev xs (alloc.vec.Vec.len xs)
+`List.reverse` (a Rust-only step whose twin partner is a pure expression).
+The start index is any `i` equal to the length, as a premise: the spine
+comparison has already tested `aa.len() == bb.len()`, and the lockstep
+context may present the first call's `aa.len()` as `bb.len()`. -/
+@[lockstep] theorem eidx_rev_twin (xs : alloc.vec.Vec arena.handle.EIdx) (i n : Std.Usize)
+    (hi : alloc.vec.Vec.len xs = i) :
+    LSP (arena.core.eidx_rev xs i
         (alloc.vec.Vec.with_capacity arena.handle.EIdx n))
       (fun o => TwinEq ((xs.val.map absEIdx).reverse) (absEIdxListFrom o 0#usize)) := by
+  subst hi
   intro o h
   rw [TwinEq, absEIdxListFrom,
     eidx_rev_abs xs _ _ _ o rfl (by simp [alloc.vec.Vec.len]) h]
