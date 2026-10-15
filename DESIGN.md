@@ -69272,3 +69272,149 @@ not fire on a `denoteE` term created late by an `∃`-split of `SimE.inv`
 level specs; IotaMajor/Stuck exit lemmas; …); `mtcK_eq`/`mtcEta_eq`/
 `mtcAnd_eq` allowlisted (rfl lemmas `simp only` needs, invisible to the
 census).
+### Task #125 — con-leche sync e74d32ad → c26f7931: official reduction order, the eager tower, unbounded fuel; how stable is Theorem 1 now (2026-10-15, Opus)
+
+con-leche goes from `e74d32ad` to **`c26f7931`** (12 commits, no toolchain
+move): its task #353 ("official reduction order") and #354 (`checkFuel`
+effectively unbounded), plus scripts, whitepaper and DESIGN commits (#352)
+that touch nothing executed.  All of #353/#354 is the kernel's algorithm, so
+the port mirrors it through the Rust, the twin, Theorem 1 and Theorem 2.
+
+| upstream | what it did | here |
+|---|---|---|
+| #353 part 1 | `defeqSpine`/`defeqSpineI` compare the spines **last to first** (official `is_def_eq_args`) | **ported**: `defeq_spine` hands `eidx_rev`ed spines to `def_eq_list` (twin: `aa.reverse`) |
+| #353 part 3 | `CheckMode.verifiedEager`/`trustedEager`, `eager`, `toEager`; `CoreFns.defeqE`, the knot's eager slot (the knot at `mode.toEager` one level down); `defeqArg` at the full grade's argument check for an `eagerReduce _ _` argument; the `Bool.true` shortcut and the lazy-delta literal fold fire under the flag with free variables present | **ported**: `env::{eager,to_eager}`, `is_eager_reduce` (the new pin slot `PIN_EAGER_REDUCE`, 51 pins), `defeq_arg` at both argument checks of `infer_spine`, `lazy_fold_ok`, the shortcut guard, `knot_defeq_e` |
+| #353 cached | `withFreshMemos`: the eager slot runs under emptied mode-dependent memos (`ModeMemos`, `takeModeMemos`/`putModeMemos`), the caller's restored | **ported**: `core_state::ModeMemos`, `take_mode_memos`/`put_mode_memos` (`mem::replace`), twin `takeModeMemos`/`putModeMemos`.  con-leche runs the body under `memoBI` on the emptied table (a probe that always misses, an insert the restore drops); the port runs the body directly.  On an error the caller's memos are not restored, as con-leche's (no caller reads the state after an error) |
+| #353 part 2, #354 | `checkFuel` 100000 → 500000 → `2^62` (`@[irreducible, noinline]`); a recursion deeper than the stack aborts (exit 134), never accepts | **ported**: `CHECK_FUEL = 2^62`, twin `checkFuel` (`@[noinline]`) |
+| #353 | `CheckMode.isVerified`: the model tier and capstones under `μ.isVerified` | proof-only, **skipped** (`provenance-skip.txt`); the pure-fold capstone `no_False_theorem_accepted_pure` now takes `μ.isVerified = true` |
+| driver | the mode tag covers the eager variants | **ported** in the twin's `checkMain`; the Rust driver prints from its own `--verified` flag and never sees an eager mode |
+
+**The stack (the brief's question).**  Each knot level is native recursion
+in the Rust as in con-leche, so with `CHECK_FUEL = 2^62` what bounds the
+depth is the native stack.  Every checker thread is spawned with
+`driver::STACK_BYTES` = 1 GiB (the checking thread in `con-ron.rs`'s `main`,
+each pool worker in `pool.rs`) — the same 1 GiB con-leche relies on (the Lean
+runtime's default thread stack).  A deeper recursion runs into the thread's
+guard page, which the Rust runtime turns into `fatal runtime error: stack
+overflow, aborting` (SIGABRT, exit 134): an error, never an accept.  Measured
+with a probe binary (stack size from an environment variable, fuel patched;
+deleted afterwards): `natmul_deep_major` (200 033 levels) needs ~28 MB of
+stack, i.e. ~140 bytes a level against con-leche's 0.8–1.2 KB;
+`stack_fuel_offset` (3 000 000 levels) runs out of fuel cleanly (exit 3) at
+fuel 1 M, 2 M, 2.9 M, 4 M, 8 M and 30 M on the 1 GiB stack, and at `2^62` it
+aborts (134, after 7 s) — also at 2, 4 and 8 GiB stacks, i.e. the deepest
+chain is not the fuel-limited one (a gdb backtrace shows the
+`lazy_delta_reduction`/`knot_defeq` chain of the successor-offset
+comparison).  This matches con-leche's expectation (`134 stack_fuel_offset`)
+and the arena's verdict.  Decision: **keep `STACK_BYTES` at 1 GiB**, as
+con-leche keeps the runtime default; no stack-pointer check (con-leche
+declined one too: it would need a trust-surface entry).
+
+**Findings.**  `update --auto`: 65 findings (65 `CHANGED`, 0 `GONE`), 490
+citations merely moved; buckets 2 doc-only, 63 changed; **63 markers after
+the mechanical pass, 0 at the end**.  Coverage 837/919 at the old pin, 837/930
+at the new before the port → **847/929** (197 skipped: `CheckMode.isVerified`
+added).  diff-e2e with master's binary at the new pin: 621/625
+(`spine_arg_order`, `natmul_deep_major`, `stack_fuel_offset` — exit 3 where
+134 is expected — and `eager_open_nat`); the branch's binary: **625/625** at
+`--verified --jobs=1` and at `--trusted --jobs=4`.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `54f0a5a4` | 185 482 534 246 | 89 474 763 884 |
+| this branch `045aead0` | **186 496 875 379** (+0.55 %) | 98 219 484 460 |
+
+Both accept 57 919.  Upstream measured +1.14 % on its `init-full` (the eager
+semantics proper, `Init` has `eagerReduce` arguments).  The cycles are from a
+loaded machine (a wall-time measurement ran beside it) and say nothing.
+
+**Size** (against master): Rust core +672 −400; twin +307 −199; generated
+model +758 −457; Theorem 1 (`Bridge/`) +335 −54 in 11 files; Theorem 2
+(`Refine/`, `Refine2/`) +369 −16 in 14 files.  `Refine2/Core/Eqns.lean`
+re-derives the knot (778 s, one more slot).  No twin fix was needed for
+lockstep.
+
+**How it was done.**  Rust, extraction and twin by the coordinator; then a
+Theorem 2 lane (worktree `_tmp/wt-125-t2`) in parallel with Theorem 1 on the
+bump worktree.  The machine rebooted mid-task; the T2 lane was re-spawned
+from its WIP commit and finished.
+
+#### How stable is Theorem 1 after tasks #120–#124? (the maintainer's question)
+
+Every file touched in either theorem was classified: **(a)** a statement
+changed or a lemma was added because the code changed; **(b)** a proof broke
+although its statement and mathematics did not change (brittleness); **(c)**
+mechanical.
+
+*Theorem 1* (`Bridge/`, +335 −54, 11 files; ~12 module builds and 5
+`ConRonBridge` builds, 8 minutes of build wall time from the first build to
+green):
+
+| file | +/− | cat. | what |
+|---|---:|---|---|
+| `Core/Knot.lean` | 20/6 | a | `KnotSpec.defeqE`, its zero case, prose |
+| `Core/Memo.lean` | 143/6 | a (+c) | `coreKnot_defeqE_succ`; `ModeMemosOK`, `takeModeMemos_ok_spec`, `putModeMemos_ok_spec`, `memoDefeqE_step` (`sym`/`vcgen`/`finish`); (c) `CheckOK.ofCache` at any mode |
+| `Core/Induction.lean` | 34/14 | a | `knot_spec_all`: the induction over every mode (as con-leche's `pureFns_mono_all`) |
+| `Core/Walks/Guards.lean` | 53/0 | a | `isEagerReduce_spec` in the idiom, `isEagerReduce_eq`, the pin lemmas |
+| `Core/Walks/InferSpine.lean` | 35/12 | a | `defeqArg_spec` (idiom, first try); the STAGED `inferSpine_go` calls it at two sites, its step lemmas at `argMode` |
+| `Core/Arms/DefeqBase.lean` | 12/0 | a | `lazyFoldOk_spec` (idiom, first try) |
+| `Core/Arms/DefeqLazy.lean` | 3/3 | a | the STAGED `lazyDeltaReduction_spec` restates con-leche's fold guard in a `have` (2 lines) and calls `lazyFoldOk_spec` |
+| `Core/Arms/Defeq.lean` | 3/3 | a | the staged `defeqBody_at`'s exit lemmas restate the shortcut guard (3 statements) |
+| `Core/Walks/Spine.lean` | 23/4 | a | `spineDefEq_eq` over the reversed spines; `denoteEList_reverse_eq`, `allWS_reverse_eq` |
+| `Frontend/Capstone.lean` | 3/2 | a | `isVerified`, following con-leche's model tier |
+| `Core.lean` | 6/4 | c | prose |
+
+**(b): none.**  No existing proof script was edited because a proof broke.
+The data point worth having is `defeqSpine_spec`: its STATEMENT changed (the
+answer is over reversed spines) and its proof — `sym only [bridge_grind] =>
+vcgen […] <;> finish` — did not, because the change went into the one
+equation the vocabulary keeps for con-leche's function (`spineDefEq_eq`) plus
+two `@[bridge_grind =]` facts about `reverse`.  The three new walks
+(`isEagerReduce_spec`, `defeqArg_spec`, `lazyFoldOk_spec`) and the new memo
+step were written in the idiom and two of them closed on the first build;
+`isEagerReduce_spec` needed a guarded `view_of_viewConst` pattern, which the
+vocabulary did not have (missing vocabulary for a new walk, not a broken
+proof).  Where edits to existing proofs were needed, they were in the
+**still-staged** proofs (#124's "still staged" list and the
+`triple_seq` arms of `Arms/Defeq*`): `inferSpine_go` (a callee swap at two
+call sites), `lazyDeltaReduction_spec` and `defeqBody_at`'s exit lemmas, which
+restate con-leche's guards TEXTUALLY in `have`s and lemma statements — copies
+of code that must be edited whenever the guard changes.  In the idiom the
+guard lives once, in the callee's spec.
+
+*Theorem 2* (+369 −16, 14 files; one ~16 min build dominated by `Eqns`, then
+two short ones): a 346/0, **b 0/0**, c 23/16.  The c lines are the pin list at
+51 names and positional `.2.2.2.2` projections into the zero-fuel conjunction,
+renumbered when the knot gained a slot (named fields would avoid that).  The
+one failure was in a lemma new in this lane: `eidx_rev_twin`, keyed on the
+literal `eidx_rev xs (len xs)`, did not fire because `lockstep` had already
+rewritten `aa.len` to `bb.len` from the spine's length test; it now takes the
+start index with a premise.
+
+*Against task #119 (the old style).*  #119 changed Theorem 1 by +8 373
+−15 249 lines in 100 files for 1 217 findings (956 changed, 261 deleted):
+~19 lines a finding; #125, +335 −54 for 63: ~6 lines a finding.  The two
+syncs differ in kind, so the per-finding number flatters neither: #119
+deleted a representation (binder data) and most of its churn is (a) and
+deletion.  What can be read off the history is the positional brittleness the
+old style had: #119 removed **301 `case vcN` lines** (of 572 in `Bridge/`) and
+re-added 15, and three commits are titled "restaged" — e.g. `Walks/StrLit`'s
+`listTyOk_spec` … `stringOfListTyOk_spec` (+242 −130 in one commit), whose
+mathematics did not change but whose verification conditions were renumbered
+by the binder-free intern.  The tree has no `case vcN` left, so that failure
+mode is gone.  What #119's history cannot give is a (b) count for the old
+style, since nobody classified it then; the honest summary is:
+
+* the new style was **not tested** on a change that moves a walk's
+  verification conditions without changing its statement (this sync had none
+  such), which is where #119's restaging came from;
+* where a statement changed (`defeqSpine_spec`), the idiom absorbed it in
+  vocabulary, not in proof text — the claimed benefit, observed once;
+* the remaining exposure is the staged proofs (`triple_seq` chains and the
+  `Arms/Defeq*` exit lemmas): every edit to an existing proof in this sync was
+  in one of them, as textual restatements of con-leche's guards.  Converting
+  `defeqBody_at`/`lazyDeltaReduction_spec` to the idiom (their guards would
+  then live only in `lazyFoldOk_spec` and the shortcut's callee) is the lever
+  for the next sync.
