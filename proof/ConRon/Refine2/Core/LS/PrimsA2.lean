@@ -34,6 +34,21 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
+/-- `env::eager` — the official kernel's `m_eager_reduce` flag (task #125). -/
+@[lockstep] theorem eager_ls (m : kernel.env.CheckMode) :
+    LSP (kernel.env.eager m) (fun b => b = (ConRon.Refine.absMode m).eager) :=
+  by
+  intro b h
+  cases m <;> (simp only [kernel.env.eager, Result.ok.injEq] at h; rw [← h]; rfl)
+
+/-- `env::to_eager` — the eager tower's mode (task #125). -/
+@[lockstep] theorem to_eager_ls (m : kernel.env.CheckMode) :
+    LSP (kernel.env.to_eager m)
+      (fun m' => ConRon.Refine.absMode m' = (ConRon.Refine.absMode m).toEager) :=
+  by
+  intro m' h
+  cases m <;> (simp only [kernel.env.to_eager, Result.ok.injEq] at h; rw [← h]; rfl)
+
 /-- `usize as u64`: a widening, so the value is kept. -/
 @[lockstep] theorem cast_u64_usize_ls (i : Std.Usize) :
     LSP (lift (UScalar.cast .U64 i)) (fun r : Std.U64 => r.val = i.val) := by

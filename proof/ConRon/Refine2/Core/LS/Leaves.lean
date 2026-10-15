@@ -246,6 +246,20 @@ the twin's `what` is free (messages are never compared). -/
   rw [arena.core.is_bool_true, isBoolTrue]
   lockstep_core
 
+@[lockstep] theorem eager_reduce_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.eager_reduce_name st) lst
+      eagerReduceName := by
+  rw [arena.core.eager_reduce_name, eagerReduceName, ← bind_pure pinEagerReduce]
+  lockstep_core
+
+@[lockstep] theorem is_eager_reduce_ls {pers st h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.is_eager_reduce pers st h) lst
+      (isEagerReduce (absEIdx h)) := by
+  rw [arena.core.is_eager_reduce, isEagerReduce]
+  lockstep_core
+
 @[lockstep] theorem head_hint_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) :

@@ -663,6 +663,8 @@ def absConstantInfos (cs : alloc.vec.Vec env.ConstantInfo) :
 def absMode : env.CheckMode → ConLeche.CheckMode
   | .Verified => .verified
   | .Trusted => .trusted
+  | .VerifiedEager => .verifiedEager
+  | .TrustedEager => .trustedEager
 
 /-- `ConLeche/Kernel/Env.lean:352` — `BasisKind`. -/
 def absBasisKind : env.BasisKind → ConLeche.BasisKind

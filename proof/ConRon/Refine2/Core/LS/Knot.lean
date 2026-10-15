@@ -76,4 +76,14 @@ open ConRon.Arena ConRon.Refine2
         (absEIdx b)) :=
   LS.ofSim₀ (A := id) fun _ h => hk.defeq hrel hinv hctx hf h
 
+@[lockstep] theorem knot_defeq_e_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun x y => y = x)
+      (arena.core.knot_defeq_e pers vis st mode lane fu fe depth a b) lst
+      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeqE (absU depth) (absEIdx a)
+        (absEIdx b)) :=
+  LS.ofSim₀ (A := id) fun _ h => hk.defeqE hrel hinv hctx hf h
+
 end ConRon.Refine2.Lockstep

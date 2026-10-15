@@ -111,6 +111,15 @@ end
   rw [arena.core.defeq_no_fvars, defeqNoFvars]
   lockstep
 
+/-- The literal fold's guard (task #125): the eager flag, or both sides free
+of free variables. -/
+@[lockstep] theorem lazy_fold_ok_ls {pers st mode a b lst}
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lazy_fold_ok pers st mode a b) lst
+      (lazyFoldOk (ConRon.Refine.absMode mode) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.lazy_fold_ok, lazyFoldOk]
+  lockstep
+
 @[lockstep] theorem fab_scope_ok_ls {pers st depth fab major lst}
     (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.fab_scope_ok pers st depth fab major) lst

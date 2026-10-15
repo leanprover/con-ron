@@ -47,10 +47,10 @@ elab "force_eqns" ids:ident+ : command => do
       let _ ← Lean.Meta.getEqnsFor? n
       let _ ← Lean.Meta.getUnfoldEqnFor? n
 
-/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 102 functions
+/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 104 functions
 
 `ConRon/Generated/Funs.lean:25433-31349`: `arena.core.reduce_nat` …
-`arena.core.knot_defeq`.  (The `annotate` block of 9 went with the annotate
+`arena.core.knot_defeq_e`.  (The `annotate` block of 9 went with the annotate
 pass, task #119.) -/
 
 open ConRon.Generated in
@@ -111,6 +111,7 @@ force_eqns
   arena.core.infer_lam_open
   arena.core.infer_let
   arena.core.infer_let_io
+  arena.core.defeq_arg
   arena.core.infer_spine
   arena.core.infer_app
   arena.core.infer_lams_leaf
@@ -157,5 +158,6 @@ force_eqns
   arena.core.knot_infer_io
   arena.core.knot_infer_at
   arena.core.knot_defeq
+  arena.core.knot_defeq_e
 
 end ConRon.Refine2.Core.Eqns

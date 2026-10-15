@@ -257,6 +257,19 @@ theorem bool_false_name_refines {n : name.Name} (h : core_k.bool_false_name = ok
     (L := [102#u32, 97#u32, 108#u32, 115#u32,
       101#u32]) (by simp [core_k.bool_false_name.S]) (by decide)
   exact ⟨by rw [h1, hp]; rfl, h1wf⟩
+
+/-- `ConLeche/Kernel/CoreDefs.lean:422 eagerReduceName` --
+`core_k::eager_reduce_name` refines `eagerReduceName` (task #125: the
+`PIN_EAGER_REDUCE` slot). -/
+theorem eager_reduce_name_refines {n : name.Name} (h : core_k.eager_reduce_name = ok n) :
+    absName n = ConLeche.eagerReduceName ∧ NameWF n := by
+  rw [core_k.eager_reduce_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
+  obtain ⟨h1, h1wf⟩ := str_lit_step (Name.anonymous_wf ha) hs hv hmk
+    (L := [101#u32, 97#u32, 103#u32, 101#u32, 114#u32, 82#u32, 101#u32, 100#u32,
+      117#u32, 99#u32, 101#u32]) (by simp [core_k.eager_reduce_name.S]) (by decide)
+  exact ⟨by rw [h1, Name.anonymous_refines ha]; rfl, h1wf⟩
 /-! ## `projModelName`: the decimal recursion and the model-side name -/
 
 /-- The `%` twin of `HashMap.uscalar_div_eq`.  **Belongs in `CoreKBase.lean`**

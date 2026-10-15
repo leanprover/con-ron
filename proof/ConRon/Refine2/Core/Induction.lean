@@ -113,8 +113,10 @@ theorem coreKnot_zero_run (mode fe c d a b lst) :
       (((coreKnot mode fe id 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
       (((coreKnot mode fe id 0).defeq d a b).run lst
+        = .error (.internal "fuel exhausted: defeq")) ∧
+      (((coreKnot mode fe id 0).defeqE d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) := by
-  rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem coreKnotIO_zero_run (mode fe c d a b lst) :
     (((coreKnotIO mode fe 0).whnfCore c d a).run lst
@@ -126,8 +128,10 @@ theorem coreKnotIO_zero_run (mode fe c d a b lst) :
       (((coreKnotIO mode fe 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
       (((coreKnotIO mode fe 0).defeq d a b).run lst
+        = .error (.internal "fuel exhausted: defeq")) ∧
+      (((coreKnotIO mode fe 0).defeqE d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) := by
-  rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The two reduction slots at fuel `0`, **at every lane**. -/
 theorem laneKnot_zero_whnfCore (mode fe lane c d e lst) :
@@ -162,8 +166,15 @@ theorem laneKnot_zero_defeq (mode fe lane d a b lst) :
     ((laneKnot mode fe lane 0).defeq d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2
-  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2
+  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2.1
+  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2.1
+
+theorem laneKnot_zero_defeqE (mode fe lane d a b lst) :
+    ((laneKnot mode fe lane 0).defeqE d a b).run lst
+      = .error (.internal "fuel exhausted: defeq") := by
+  rw [laneKnot]; split
+  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2.2
+  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2.2
 
 /-! ## The base case
 
@@ -215,6 +226,14 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ hf hrun
+    rw [arena.core.knot_defeq_e, ite_eq_left (absU_eq_zero hf)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hr] at hrun
+    rw [← Result.ok_injective hrun]
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeqE _ _ _ _ _ _ _))
 
 /-! ## The twin's `do` block, split at a bind -/
 
@@ -317,6 +336,86 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
                 pure r1 : AM Bool)).run lst1 = _
       rw [am_run_bind, hset]
       rfl
+
+/-! ## The eager slot (task #125)
+
+`knot_defeq_e` has no memo of its own and no lane test: at `fuel ≠ 0` it
+detaches the six mode-dependent memos, runs `defeq_body` at `to_eager(mode)`
+and `LANE_FULL` one level down, and puts them back.  The twin's slot is the
+same three steps, and `coreKnotIO`'s is the full knot's at the same fuel, so
+the step is `BodyRel.defeq` at the eager mode between `Probes.lean`'s
+`take_mode_memos_run` and `put_mode_memos_run`. -/
+
+theorem coreKnotIO_succ_defeqE (mode lfe f d a b) :
+    (coreKnotIO mode lfe (f + 1)).defeqE d a b
+      = (coreKnot mode lfe id (f + 1)).defeqE d a b := by
+  rw [coreKnotIO]
+
+theorem coreKnot_succ_defeqE (mode lfe f d a b) :
+    (coreKnot mode lfe id (f + 1)).defeqE d a b
+      = (do
+          let saved ← takeModeMemos
+          let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+          putModeMemos saved
+          pure x : AM Bool) := by
+  rw [coreKnot]; rfl
+
+theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_defeq_e pers vis st mode lane fu fe depth a b = ok o) :
+    Sim₀ id pers lst o
+      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.knot_defeq_e, ite_eq_right (absU_ne_zero hf)] at hrun
+  have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+      (absU depth) (absEIdx a) (absEIdx b)
+      = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeqE
+          (absU depth) (absEIdx a) (absEIdx b) := by
+    by_cases hio : lane = arena.core.LANE_IO
+    · rw [hio, laneKnot_io, coreKnotIO_succ_defeqE]
+    · rw [laneKnot_of_ne _ _ _ hio]
+  rw [htwin, coreKnot_succ_defeqE]
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨saved, st1⟩ := p
+  obtain ⟨lmm, lst1, htk, hmm, hmi, hrel1, hinv1⟩ := take_mode_memos_run hrel hinv hp
+  obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hme' : ConRon.Refine.absMode me = (ConRon.Refine.absMode mode).toEager := by
+    cases mode <;> (simp only [kernel.env.to_eager, Result.ok.injEq] at hme; rw [← hme]; rfl)
+  obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st2⟩ := p
+  have hbody := hb.defeq hrel1 hinv1 hctx (absU_pred hf hi) hbd
+  rw [hme', laneKnot_full] at hbody
+  unfold Sim₀
+  rw [am_run_bind, htk]
+  show AOut₀ id pers o.1 o.2
+    ((do
+        let x ← defeqBody (ConRon.Refine.absMode mode).toEager
+          (coreKnot (ConRon.Refine.absMode mode).toEager lfe id f) lfe
+          (absU depth) (absEIdx a) (absEIdx b)
+        putModeMemos lmm
+        pure x : AM Bool).run lst1)
+  rw [am_run_bind]
+  cases r with
+  | Err er =>
+    have ho : (core.result.Result.Err er, st2) = o := Result.ok_injective hrun
+    rw [← ho]
+    exact AOut₀.err (AErrSim.bind (Sim₀.apply_err hbody) _)
+  | Ok r1 =>
+    obtain ⟨lst2, hb2, hrel2, hinv2⟩ := Sim₀.apply hbody
+    obtain ⟨st3, hs3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho : (core.result.Result.Ok r1, st3) = o := Result.ok_injective hrun
+    rw [← ho]
+    obtain ⟨lst3, hput, hrel3, hinv3⟩ :=
+      SimS₀.apply (put_mode_memos_run hrel2 hinv2 hmm hmi hs3)
+    refine AOut₀.ok ?_ hrel3 hinv3
+    rw [hb2]
+    show ((do putModeMemos lmm
+              pure r1 : AM Bool)).run lst2 = _
+    rw [am_run_bind, hput]
+    rfl
 
 /-! ## The `infer` field -/
 
@@ -954,6 +1053,7 @@ theorem knotRel_succ {f : Nat} (hb : BodyRel f) : KnotRel (f + 1) where
   infer h1 h2 h3 h4 h5 := knotRel_succ_infer hb h1 h2 h3 h4 h5
   inferIO h1 h2 h3 h4 h5 := knotRel_succ_inferIO hb h1 h2 h3 h4 h5
   defeq h1 h2 h3 h4 h5 := knotRel_succ_defeq hb h1 h2 h3 h4 h5
+  defeqE h1 h2 h3 h4 h5 := knotRel_succ_defeqE hb h1 h2 h3 h4 h5
 
 /-- **The fuel induction**: `KnotRel` at every fuel, given the arms.  The
 premise is `Core/Arms/*`'s obligation — *"given the knot at `f`, the five

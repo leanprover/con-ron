@@ -33,6 +33,20 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 -- `absEIdxArr_getElem`: the shared one (`Tactic/Prims`)
 
+/-- The argument check of a full-grade application (task #125): an
+`eagerReduce _ _` argument's type is compared in the eager tower (the knot's
+`defeqE` slot), every other argument's in the knot's own. -/
+@[lockstep] theorem defeq_arg_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a ta ty lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun x y => y = x)
+      (arena.core.defeq_arg pers vis st mode lane fu fe depth a ta ty) lst
+      (defeqArg (laneKnot (ConRon.Refine.absMode mode) lfe lane f) (absU depth)
+        (absEIdx a) (absEIdx ta) (absEIdx ty)) := by
+  rw [arena.core.defeq_arg, defeqArg]
+  lockstep_e
+
 theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode lane fu fe lfe depth ty acc args i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →

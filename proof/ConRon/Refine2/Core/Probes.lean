@@ -437,6 +437,95 @@ theorem const_val_set_rel (hrel : AStateRel₀ pers st lst)
 
 end Writes
 
+/-! ## The mode-dependent memos, detached and put back (task #125)
+
+The knot's eager slot (`knot_defeq_e` against `coreKnot`'s `defeqE`) moves the
+six entry-point tables out of the state for the length of an eager comparison
+(`take_mode_memos` / `takeModeMemos`) and puts them back afterwards
+(`put_mode_memos` / `putModeMemos`).  The detached record is related table for
+table, as `CachesRel` relates the six in place; its `Inv` travels with it, so
+that the state it is put back into satisfies `CachesInv` again. -/
+
+/-- The detached record, table for table — `CachesRel`'s first six clauses. -/
+structure ModeMemosRel (rm : arena.core_state.ModeMemos) (lm : ModeMemos) : Prop where
+  whnfCoreC : RelOn (fun _ => True) rm.whnf_core_c lm.whnfCoreC absEIdx absEIdx
+  whnfCoreCheapC : RelOn (fun _ => True) rm.whnf_core_cheap_c lm.whnfCoreCheapC
+    absEIdx absEIdx
+  whnfC : RelOn (fun _ => True) rm.whnf_c lm.whnfC absEIdx absEIdx
+  inferC : RelOn (fun _ => True) rm.infer_c lm.inferC absEIdx absEIdx
+  inferIOC : RelOn (fun _ => True) rm.infer_io_c lm.inferIOC absEIdx absEIdx
+  defeqC : RelOn (fun _ => True) rm.defeq_c lm.defeqC absEIdxPair id
+
+/-- The detached record's tables are well-formed — `CachesInv`'s first six. -/
+structure ModeMemosInv (rm : arena.core_state.ModeMemos) : Prop where
+  whnfCoreC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.whnf_core_c
+  whnfCoreCheapC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+    rm.whnf_core_cheap_c
+  whnfC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.whnf_c
+  inferC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.infer_c
+  inferIOC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.infer_io_c
+  defeqC : Inv arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable rm.defeq_c
+
+section ModeMemos
+
+variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+
+/-- `arena::core::take_mode_memos` against `Arena.takeModeMemos`: the detached
+tables are related and well-formed, and the state left behind (six fresh
+tables against six `∅`) is related again. -/
+theorem take_mode_memos_run (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {mm : arena.core_state.ModeMemos} {st'}
+    (hrun : arena.core.take_mode_memos st = ok (mm, st')) :
+    ∃ lmm lst', takeModeMemos.run lst = .ok (lmm, lst') ∧
+      ModeMemosRel mm lmm ∧ ModeMemosInv mm ∧
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [arena.core.take_mode_memos] at hrun
+  obtain ⟨hm, hhm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hm11, hhm11, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have h := Result.ok_injective hrun
+  simp only [Prod.mk.injEq] at h
+  obtain ⟨rfl, rfl⟩ := h
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hhm
+  obtain ⟨i1, -, n1⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable) hhm11
+  refine ⟨_, _, rfl, ⟨hrel.caches.whnfCoreC, hrel.caches.whnfCoreCheapC,
+      hrel.caches.whnfC, hrel.caches.inferC, hrel.caches.inferIOC, hrel.caches.defeqC⟩,
+    ⟨hinv.caches.whnfCoreC, hinv.caches.whnfCoreCheapC, hinv.caches.whnfC,
+      hinv.caches.inferC, hinv.caches.inferIOC, hinv.caches.defeqC⟩,
+    { hrel with caches := { hrel.caches with
+        whnfCoreC := ConRon.Refine.HashMap2.RelOn_empty n0
+        whnfCoreCheapC := ConRon.Refine.HashMap2.RelOn_empty n0
+        whnfC := ConRon.Refine.HashMap2.RelOn_empty n0
+        inferC := ConRon.Refine.HashMap2.RelOn_empty n0
+        inferIOC := ConRon.Refine.HashMap2.RelOn_empty n0
+        defeqC := ConRon.Refine.HashMap2.RelOn_empty n1 } },
+    { hinv with caches := { hinv.caches with
+        whnfCoreC := i0, whnfCoreCheapC := i0, whnfC := i0, inferC := i0,
+        inferIOC := i0, defeqC := i1 } }⟩
+
+/-- `arena::core::put_mode_memos` against `Arena.putModeMemos`: related
+detached tables put back into related states give related states. -/
+theorem put_mode_memos_run (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {mm : arena.core_state.ModeMemos} {lmm : ModeMemos}
+    (hmm : ModeMemosRel mm lmm) (hmi : ModeMemosInv mm) {st'}
+    (hrun : arena.core.put_mode_memos st mm = ok st') :
+    SimS₀ pers lst st' (putModeMemos lmm) := by
+  rw [arena.core.put_mode_memos] at hrun
+  have h := (Result.ok_injective hrun).symm
+  subst h
+  exact SimS₀.mk rfl
+    { hrel with caches := { hrel.caches with
+        whnfCoreC := hmm.whnfCoreC, whnfCoreCheapC := hmm.whnfCoreCheapC,
+        whnfC := hmm.whnfC, inferC := hmm.inferC, inferIOC := hmm.inferIOC,
+        defeqC := hmm.defeqC } }
+    { hinv with caches := { hinv.caches with
+        whnfCoreC := hmi.whnfCoreC, whnfCoreCheapC := hmi.whnfCoreCheapC,
+        whnfC := hmi.whnfC, inferC := hmi.inferC, inferIOC := hmi.inferIOC,
+        defeqC := hmi.defeqC } }
+
+end ModeMemos
+
 /-! ## The axiom census
 
 Three standard axioms and nothing else, `Specs.lean`'s rule: no `sorryAx` on a

@@ -10,7 +10,7 @@ dispatch on it:
 | port | twin |
 |---|---|
 | `knot_whnf_core … lane fuel … cheap …` | `(<lane's knot> f).whnfCore cheap` (the official `cheap_proj` flag is an argument on both sides) |
-| `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq` | the record's other four slots |
+| `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`, `knot_defeq_e` | the record's other five slots (`knot_defeq_e` is the eager slot, task #125) |
 | `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode fe id` |
 | `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode fe` |
 
@@ -232,6 +232,17 @@ structure KnotRel (f : Nat) : Prop where
     arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeq
+        (absU depth) (absEIdx a) (absEIdx b))
+  /-- **The eager slot** (task #125, con-leche #353): `knot_defeq_e` against
+  the record's `defeqE` — the defeq body at `toEager mode` one level down,
+  under detached mode-dependent memos, at every lane (`coreKnotIO`'s slot is
+  the full knot's). -/
+  defeqE : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
+    arena.core.knot_defeq_e pers vis st mode lane fu fe depth a b = ok o →
+    Sim₀ id pers lst o
+      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeqE
         (absU depth) (absEIdx a) (absEIdx b))
 
 /-- **`knot_infer_at`, derived.**  `if io then knot_infer_io else knot_infer`

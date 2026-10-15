@@ -237,6 +237,51 @@ macro "lockstep_f" : tactic =>
   rw [arena.core.bool_true_shortcut, boolTrueShortcut]
   lockstep_f
 
+/-- `eidx_rev xs i out` pushes `xs[i-1], …, xs[0]` onto `out` (task #125:
+the spines compared last to first; `Inductives/RecCheck.lean`'s
+`nfs_reverse_abs` is the same loop at another element type). -/
+theorem eidx_rev_abs (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (n : Nat) (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.EIdx),
+      i.val = n → i.val ≤ xs.val.length →
+      arena.core.eidx_rev xs i out = ok o →
+      o.val = out.val ++ (xs.val.take i.val).reverse := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out o hn _ h
+    rw [arena.core.eidx_rev.eq_def, ite_eq_left (by scalar_tac),
+      Result.ok.injEq] at h
+    subst h; simp [hn]
+  | succ n ih =>
+    intro i out o hn hle h
+    rw [arena.core.eidx_rev.eq_def, ite_eq_right (by scalar_tac),
+      ite_eq_right (by simp [alloc.vec.Vec.len]; omega)] at h
+    obtain ⟨i1, hi1, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi1v : i1.val = n := by
+      have := ConRon.Refine.Nat.usub_val hi1; simp at this; omega
+    obtain ⟨x, hx, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
+    obtain ⟨x1, hx1, h3⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+    obtain ⟨out1, hout1, h4⟩ := ConRon.Refine.bind_eq_ok_iff.mp h3
+    have hxx : x1 = x := dupId_eidx _ _ hx1
+    have hlt : n < xs.val.length := by omega
+    have hxv : xs.val[n] = x := by
+      have := vec_index_some hx; rw [hi1v, List.getElem?_eq_getElem hlt] at this
+      exact Option.some_inj.mp this
+    rw [ih i1 out1 o hi1v (by omega) h4, ConRon.Refine.vec_push_val hout1, hi1v, hn,
+      List.take_add_one, List.getElem?_eq_getElem hlt, hxx, hxv]
+    simp
+
+/-- The whole spine reversed into a fresh vector, against the twin's
+`List.reverse` (a Rust-only step whose twin partner is a pure expression). -/
+@[lockstep] theorem eidx_rev_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.Usize) :
+    LSP (arena.core.eidx_rev xs (alloc.vec.Vec.len xs)
+        (alloc.vec.Vec.with_capacity arena.handle.EIdx n))
+      (fun o => TwinEq ((xs.val.map absEIdx).reverse) (absEIdxListFrom o 0#usize)) := by
+  intro o h
+  rw [TwinEq, absEIdxListFrom,
+    eidx_rev_abs xs _ _ _ o rfl (by simp [alloc.vec.Vec.len]) h]
+  simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.len, List.map_reverse]
+
 set_option maxHeartbeats 2000000 in
 @[lockstep] theorem defeq_spine_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth a b lst}

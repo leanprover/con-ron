@@ -512,6 +512,21 @@ theorem pin_and_rec_run₀ {pers st lst} {o}
   rw [hc] at h
   exact h
 
+/-- `pin_eager_reduce` ⊑ `pinEagerReduce`, at slot `PIN_EAGER_REDUCE` (task
+#125: the argument check's `eagerReduce` test). -/
+theorem pin_eager_reduce_run₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.pins.pin_eager_reduce st = ok o) :
+    PinRE absNIdx lst o pinEagerReduce := by
+  rw [arena.pins.pin_eager_reduce] at hrun
+  have h := pin_at_run₀ hrel hinv hrun
+  have hc : absSz arena.pins.PIN_EAGER_REDUCE = Arena.PIN_EAGER_REDUCE := by
+    show (arena.pins.PIN_EAGER_REDUCE).val = _
+    rw [arena.pins.PIN_EAGER_REDUCE]
+    rfl
+  rw [hc] at h
+  exact h
+
 /-! ### As `@[lockstep]` reads -/
 
 @[lockstep] theorem reserved_basis_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -583,6 +598,12 @@ theorem pin_and_rec_run₀ {pers st lst} {o}
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_quot st) st lst pinQuot :=
   pinRE_lsr hrel hinv fun _ h => pin_quot_run₀ hrel hinv h
+
+@[lockstep] theorem pin_eager_reduce_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_eager_reduce st) st lst
+      pinEagerReduce :=
+  pinRE_lsr hrel hinv fun _ h => pin_eager_reduce_run₀ hrel hinv h
 
 /-! ## Handle `dup2` / `eq2` (Rust-only steps) -/
 
