@@ -31,17 +31,15 @@ mutation, one `def` per intended Rust function.
    key.  Each `…Fast` entry is con-leche's `(…Go v {} e d).1`: clear, walk,
    clear.
 
-4. **One `def` per intended Rust function, and nothing that is not one.**
-   Task #97s round 2 asks (B) to be written with one `def` per CONSTRUCTOR
-   ARM, because that is what makes the later `mvcgen` proofs elaborate in
-   seconds instead of minutes.  It cannot be done the way the spike does it —
-   the spike passes the dispatcher to each arm as a function ARGUMENT, and a
-   closure is exactly what DESIGN §3.4 forbids in code Aeneas must translate.
-   The arms are therefore inlined here, which is also con-leche's own shape
-   (one function per walk, all ten arms inside it).  When P3 splits them the
-   split must be a `mutual` block whose arms call the dispatcher by name, not
-   a function passed in; it is mechanical, and the memo probes mark where the
-   cuts go.
+4. **One `def` per constructor arm.**  Each walk is a `mutual` block: the
+   dispatcher (`…Go`) and one `def` per constructor arm (`…ArmApp`,
+   `…ArmBind`, …), each arm calling the dispatcher by name.  This keeps every
+   Theorem 1 proof about one arm small.  The arms take no function argument
+   (a closure is what DESIGN §3.4 forbids in code Aeneas must translate).
+   The Rust keeps con-leche's shape, one function per walk with the arms
+   inline; Theorem 2 unfolds the twin's arm `def`s (`lockstep_simp`,
+   `Refine2/ExprOps/Mut.lean`) to meet it.  The memo probes sit at the
+   same places in both.
 
 ## The cutoffs (§8.3 lesson 20)
 
@@ -350,9 +348,9 @@ termination_by (fuel, 1)
 end
 
 /-- con-leche: none — `instantiate1Go`'s clause at fuel `0`, as an equation
-lemma.  Template rule 9 (DESIGN, task #97-P3-0 §4): a walk whose measure is
-`termination_by` rather than a constructor pattern needs its clauses as
-lemmas, or `mvcgen [f]` rewrites the recursive call forever. -/
+lemma.  A walk whose measure is `termination_by` rather than a constructor
+pattern has its clauses as lemmas, and its proofs hand `vcgen` the clause
+(`Bridge/ExprOps/Inst1.lean`), not the definition. -/
 theorem instantiate1Go_zero (v h : EIdx) (d : Nat) :
     instantiate1Go v 0 h d =
       fail (.internal "fuel exhausted: instantiate1") := by

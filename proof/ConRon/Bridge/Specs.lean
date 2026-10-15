@@ -22,13 +22,13 @@ The shape is the seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task
 3. **the postcondition names `s₀`**, the only way to state
    `Ext s₀.store s'.store` in a triple;
 4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
-5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
-   never a bare `∀ e, … → …`;
+5. **the answer is a named relation or predicate** (`Rel.lean`'s `RelE`
+   family, `Grind.lean`'s `Ans`/`MapRel`), never a bare `∀ e, … → …`;
 6. **a memo insert's spec states that the INVARIANT is preserved**, not that
    the table grew — the rule that matters most;
-7. **one named failure primitive** (`fail`), because a bare `throw` in
-   `StateT σ (Except ε)` leaves universe metavariables in the verification
-   conditions.
+7. **one named failure primitive** (`fail`): every failure site goes
+   through it, so one spec covers them all and the Rust has one function to
+   match.
 
 ## The frame conditions
 

@@ -13,9 +13,9 @@ It adds no store lemma of its own; what it adds is
   cleared at every top-level entry, so the substitution vector is never in the
   key), grouped in one `Memos` record so that a spec theorem states what a
   call touched in ONE equation instead of eleven;
-* `fail` — **the one named failure primitive** (task #97s's template rule 7: a
-  bare `throw` in `StateT σ (Except ε)` leaves `mvcgen` with universe
-  metavariables and no spec applies);
+* `fail` — **the one named failure primitive**: every failure site goes
+  through it, so the Rust has one function to match and Theorem 2 one
+  `@[lockstep]` lemma (`fail_spec`);
 * `view` / `derivedE` / `internE` and their name-, level- and level-list
   counterparts, each written the way the Rust will be (detach before update,
   DESIGN §8.4 lesson 14), with **the capacity test at the wrapper**: DESIGN
@@ -142,10 +142,10 @@ abbrev AM := StateT AState (Except CheckError)
 def AState.init (st : EStore) : AState := ⟨st, .empty, .empty, .empty⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError — **the one failure
-primitive of (B)** (task #97s template rule 7).  Written as a bare `throw`,
-the `MonadExceptOf` instance path through `StateT` leaves `mvcgen` with
-universe metavariables (`Spec.throw_Except.{?u, ?u, 0}`) and no spec applies;
-behind this `def`, one `@[spec]` theorem covers every failure site. -/
+primitive of (B)**.  Every failure site goes through this `def`, so the
+Rust has one function to match (`arena::monad::fail`) and Theorem 2 one
+`@[lockstep]` lemma (`Refine2/Tactic/Prims.lean`'s `fail_spec`) for all of
+them. -/
 def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 
 /-! ## The expression store's primitives -/

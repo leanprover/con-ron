@@ -352,11 +352,11 @@ impl AState {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:144-149 fail` — **the one failure
 /// primitive of (C)**, as it is of (B).
 ///
-/// In the twin it exists because a bare `throw` in `StateT σ (Except ε)`
-/// leaves `mvcgen` with universe metavariables and no spec applies (task
-/// #97s's template rule 7); here it exists so that the two modules have the
-/// same shape and so that a later `@[spec]`-style lemma about the Rust has
-/// one function to talk about.  It is `Err`, spelled once.
+/// Every failure site of both modules goes through it, so the two have the
+/// same shape and Theorem 2 relates them with one lemma
+/// (`proof/ConRon/Refine2/Tactic/Prims.lean`'s `fail_spec`) instead of one
+/// per site.
+/// It is `Err`, spelled once.
 pub fn fail<T>(e: CheckError) -> Result<T, CheckError> {
     Err(e)
 }

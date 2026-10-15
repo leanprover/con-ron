@@ -2020,13 +2020,13 @@
     22  3. **the postcondition names `s₀`**, the only way to state
     23     `Ext s₀.store s'.store` in a triple;
     24  4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
-    25  5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
-    26     never a bare `∀ e, … → …`;
+    25  5. **the answer is a named relation or predicate** (`Rel.lean`'s `RelE`
+    26     family, `Grind.lean`'s `Ans`/`MapRel`), never a bare `∀ e, … → …`;
     27  6. **a memo insert's spec states that the INVARIANT is preserved**, not that
     28     the table grew — the rule that matters most;
-    29  7. **one named failure primitive** (`fail`), because a bare `throw` in
-    30     `StateT σ (Except ε)` leaves universe metavariables in the verification
-    31     conditions.
+    29  7. **one named failure primitive** (`fail`): every failure site goes
+    30     through it, so one spec covers them all and the Rust has one function to
+    31     match.
 
 == proof/ConRon/Bridge/Inductives/Run.lean#L55-L71
     55  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's

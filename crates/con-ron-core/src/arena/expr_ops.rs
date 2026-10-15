@@ -26,12 +26,12 @@
 //!    dropped at the top-level entry — which is why the substituted term is
 //!    not in the key.  Each `…_fast` entry is con-leche's `(…Go v {} e d).1`:
 //!    clear, walk, clear.
-//! 4. **One function per intended Rust function, arms inline.**  The twin
-//!    inlines its constructor arms deliberately (its own note: the only way
-//!    to split them that `mvcgen` likes passes the dispatcher in as a
-//!    function argument, and a closure is what DESIGN.md §3.4 forbids).  The
-//!    Rust does the same, so the two are one-to-one; when P3 splits them into
-//!    a `mutual` block the Rust splits the same way.
+//! 4. **One function per walk, arms inline**, as in con-leche.  The twin
+//!    splits each walk into a `mutual` block of a dispatcher and one `def`
+//!    per constructor arm, which keeps its Theorem 1 proofs per arm; Theorem
+//!    2 unfolds those arm `def`s (`lockstep_simp`,
+//!    `proof/ConRon/Refine2/ExprOps/Mut.lean`) to meet the inline arms here.
+//!    No arm takes a function argument (DESIGN.md §3.4 forbids closures).
 //!
 //! ## The cutoffs (DESIGN.md §8.3 lesson 20)
 //!
@@ -210,7 +210,7 @@ const M_FUEL_INST_LP: [u32; 38] = [
 /// con-leche: none — `List.take`/`List.append` over a `Vec<EIdx>`
 /// The first `k` entries of `xs` appended to `out`.  A handle is a `u32`, so
 /// the copy is a word each.
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:180-186 eidxCopyUpto` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:178-184 eidxCopyUpto` — the
 /// same window copy, `Array.push` for `Vec::push`.
 pub fn eidx_copy_upto(xs: &Vec<EIdx>, k: usize, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i >= k || i >= xs.len() {
@@ -224,7 +224,7 @@ pub fn eidx_copy_upto(xs: &Vec<EIdx>, k: usize, i: usize, out: Vec<EIdx>) -> Vec
 
 /// con-leche: none — `List.take` over a `Vec<EIdx>`
 /// `xs.take k`.
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:196-197 takeEidx` — the same
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:194-195 takeEidx` — the same
 /// prefix of a push-order vector.
 pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     let n: usize = if k < xs.len() { k } else { xs.len() };
@@ -240,7 +240,7 @@ pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
 /// where the twin's `List.take` takes the whole list.  The count is consumed
 /// by the recursion instead of converted: `i` walks the `Vec` and `n` counts
 /// down, so no value ever crosses between the two widths.
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:196-197 takeEidx` — the same
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:194-195 takeEidx` — the same
 /// prefix of a push-order vector.
 pub fn take_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
     take_eidx_n_from(xs, n, 0, Vec::new())
@@ -249,7 +249,7 @@ pub fn take_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
 /// con-leche: none — `List.take` over a `Vec<EIdx>` at a `u64` count
 /// The index recursion behind `take_eidx_n`; the accumulator is passed by
 /// value and returned (task #6's rule).
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:196-197 takeEidx` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:194-195 takeEidx` — the
 /// window copy, one handle per step.
 pub fn take_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if n == 0 || i >= xs.len() {
@@ -309,7 +309,7 @@ pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
 /// `vs.take k`, the first `k` of the list, is this SUFFIX of the vector.
 /// `take_eidx` is the same function on a vector that is in list order, and
 /// both are `eidx_copy_upto` over a window.
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:199-202 lastEidx` — the same
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:197-200 lastEidx` — the same
 /// suffix of a push-order vector.
 pub fn last_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     let n: usize = if k < xs.len() { xs.len() - k } else { 0 };
@@ -366,7 +366,7 @@ pub fn binder_copy_from(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:136-138 internRebuiltFVar` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:134-136 internRebuiltFVar` —
 /// `internRebuiltFVar`, the `fvar` arm of `intern_rebuilt`: the same cutoff,
 /// over the arm's FIELDS.
 ///
@@ -390,7 +390,7 @@ pub fn intern_rebuilt_fvar(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:139-141 internRebuiltSort` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:137-139 internRebuiltSort` —
 /// `internRebuiltSort`, the `sort` arm of `intern_rebuilt`: the same cutoff,
 /// over the arm's FIELDS.
 ///
@@ -413,7 +413,7 @@ pub fn intern_rebuilt_sort(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:142-144 internRebuiltConst` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:140-142 internRebuiltConst` —
 /// `internRebuiltConst`, the `const` arm of `intern_rebuilt`: the same cutoff,
 /// over the arm's FIELDS.
 ///
@@ -437,7 +437,7 @@ pub fn intern_rebuilt_const(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:145-147 internRebuiltApp` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:143-145 internRebuiltApp` —
 /// `internRebuiltApp`, the `app` arm of `intern_rebuilt`: the same cutoff, over
 /// the arm's FIELDS.
 ///
@@ -461,7 +461,7 @@ pub fn intern_rebuilt_app(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:148-150 internRebuiltLam` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:146-148 internRebuiltLam` —
 /// `internRebuiltLam`, the `lam` arm of `intern_rebuilt`: the same cutoff, over
 /// the arm's FIELDS.
 ///
@@ -485,7 +485,7 @@ pub fn intern_rebuilt_lam(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:151-154 internRebuiltForallE` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:149-152 internRebuiltForallE` —
 /// `internRebuiltForallE`, the `forall_e` arm of `intern_rebuilt`: the same
 /// cutoff, over the arm's FIELDS.
 ///
@@ -509,7 +509,7 @@ pub fn intern_rebuilt_forall_e(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:155-157 internRebuiltLetE` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:153-155 internRebuiltLetE` —
 /// `internRebuiltLetE`, the `let_e` arm of `intern_rebuilt`: the same cutoff,
 /// over the arm's FIELDS.
 ///
@@ -534,7 +534,7 @@ pub fn intern_rebuilt_let_e(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:158-160 internRebuiltProj` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:156-158 internRebuiltProj` —
 /// `internRebuiltProj`, the `proj` arm of `intern_rebuilt`: the same cutoff,
 /// over the arm's FIELDS.
 ///
@@ -559,7 +559,7 @@ pub fn intern_rebuilt_proj(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:162-167 internRebuiltBind` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:160-165 internRebuiltBind` —
 /// `internRebuiltBind`, the two binder arms of `intern_rebuilt` at a tag the
 /// walk carries.  (Task #119: was `internRebuiltBindI`, carrying a
 /// binder-datum handle across as well.)
@@ -585,7 +585,7 @@ pub fn intern_rebuilt_bind(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:23-39 instantiate1
 /// con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:253-279 instantiate1Go` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:251-277 instantiate1Go` —
 /// replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 /// derived-word cutoff comes first (`bvarB <= d`, read off the packed word in
 /// `O(1)`); the five leaf kinds answer without touching the memo; everything
@@ -742,7 +742,7 @@ pub fn instantiate1_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:379-386 instantiate1Fast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:377-384 instantiate1Fast` — the
 /// top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh
 /// before and dropped after, because it depends on the substituted term.
 pub fn instantiate1_fast(
@@ -768,7 +768,7 @@ pub fn instantiate1_fast(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — a derived-word cutoff con-leche does not have (task #97f)
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:396-422 instantiateList` (and
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:394-420 instantiateList` (and
 /// `:264-267 instantiateListGo`, `:343-346 liftLooseBVarsGo`) — the cutoff
 /// `bvarBRaw < satRange && bvarBRaw ≤ k`.
 ///
@@ -791,7 +791,7 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:396-422 instantiateList` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:394-420 instantiateList` — the
 /// unmemoized bulk instantiation.  con-leche's termination measure is
 /// `(vs.length, sizeOf e)`; the single fuel counter decreases on both kinds of
 /// recursive call, which is that order flattened.  **Two twins, not one**:
@@ -933,7 +933,7 @@ pub fn instantiate_list(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:526-549 instantiateListGo` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:524-547 instantiateListGo` —
 /// the memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 /// above, exactly as con-leche's does.
 pub fn instantiate_list_go(
@@ -1070,7 +1070,7 @@ pub fn instantiate_list_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:365-367 instantiateListFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:644-651 instantiateListFast` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:642-649 instantiateListFast` —
 /// the top-level entry.
 pub fn instantiate_list_fast(
     pers: &PersTier,
@@ -1096,7 +1096,7 @@ pub fn instantiate_list_fast(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:452-472 liftLooseBVars
 /// con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:657-690 liftLooseBVarsGo` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:655-688 liftLooseBVarsGo` —
 /// bump every loose bound variable `>= cutoff` by `amount`.
 pub fn lift_loose_bvars_go(
     pers: &PersTier,
@@ -1226,7 +1226,7 @@ pub fn lift_loose_bvars_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:604-606 liftLooseBVarsFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:791-797 liftLooseBVarsFast` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:789-795 liftLooseBVarsFast` —
 /// the top-level entry.
 pub fn lift_loose_bvars_fast(
     pers: &PersTier,
@@ -1301,7 +1301,7 @@ pub fn lift_loose_bvars_fast(
 // unchanged.
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:955-983 wscopedBGo` — probe the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:953-981 wscopedBGo` — probe the
 /// scope memo (extraction rule 5: a `HashMap::get` match that produces a value
 /// is its own function).
 pub fn wscoped_memo_get(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
@@ -1312,7 +1312,7 @@ pub fn wscoped_memo_get(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bo
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:955-983 wscopedBGo` — the cited
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:953-981 wscopedBGo` — the cited
 /// `memo'.insert (h, d) r`, on the owned table.
 pub fn wscoped_memo_set(
     memo: HashMap<EIdxNat, bool>,
@@ -1325,7 +1325,7 @@ pub fn wscoped_memo_set(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:955-983 wscopedBGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:953-981 wscopedBGo` — the
 /// memoized scope walk.  `fvar` annotations are descended (at the annotation's
 /// own index, not `d`), so the cached fvar range does not decide it and the
 /// memo key carries `d`.
@@ -1357,7 +1357,7 @@ pub fn wscoped_b_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:955-983 wscopedBGo` — the arms,
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:953-981 wscopedBGo` — the arms,
 /// past the probe.  Split off so the `view`'s loans are dead at the memo's
 /// join (extraction rule 5, `frontend::proj_rec`'s arrangement).
 pub fn wscoped_b_node(
@@ -1393,7 +1393,7 @@ pub fn wscoped_b_node(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:955-983 wscopedBGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:953-981 wscopedBGo` — the
 /// two-child arms, whose `if rf then … else pure (false, memo)` is the cited
 /// short-circuit.
 pub fn wscoped_b_two(
@@ -1413,7 +1413,7 @@ pub fn wscoped_b_two(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1081-1086 wscopedBC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1045-1049 wscopedBFast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1043-1047 wscopedBFast` — the
 /// executed `wscoped_b`: one memoized DAG walk from the empty memo.
 pub fn wscoped_b_fast(
     pers: &PersTier,
@@ -1430,7 +1430,7 @@ pub fn wscoped_b_fast(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1053-1080 fvarLeavesGo` — probe the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1051-1078 fvarLeavesGo` — probe the
 /// `seen` set (extraction rule 5).
 pub fn fvl_seen(seen: &HashMap<EIdx, bool>, h: &EIdx) -> bool {
     match seen.get(h) {
@@ -1440,7 +1440,7 @@ pub fn fvl_seen(seen: &HashMap<EIdx, bool>, h: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1053-1080 fvarLeavesGo` — the cited
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1051-1078 fvarLeavesGo` — the cited
 /// `seen.insert h ()`, on the owned table.
 pub fn fvl_record(seen: HashMap<EIdx, bool>, h: &EIdx) -> HashMap<EIdx, bool> {
     let mut m: HashMap<EIdx, bool> = seen;
@@ -1449,7 +1449,7 @@ pub fn fvl_record(seen: HashMap<EIdx, bool>, h: &EIdx) -> HashMap<EIdx, bool> {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1053-1080 fvarLeavesGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1051-1078 fvarLeavesGo` — the
 /// reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm
 /// is walked once.
 ///
@@ -1481,7 +1481,7 @@ pub fn fvar_leaves_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1053-1080 fvarLeavesGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1051-1078 fvarLeavesGo` — the
 /// arms, past the probe and the `seen` insert (extraction rule 5).
 pub fn fvar_leaves_node(
     pers: &PersTier,
@@ -1513,7 +1513,7 @@ pub fn fvar_leaves_node(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1053-1080 fvarLeavesGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1051-1078 fvarLeavesGo` — the
 /// two-child arms, one `let (acc, seen) ←` pair in the twin.
 pub fn fvar_leaves_two(
     pers: &PersTier,
@@ -1531,7 +1531,7 @@ pub fn fvar_leaves_two(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1145-1146 fvarLeavesC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1140-1144 fvarLeavesFast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1138-1142 fvarLeavesFast` — the
 /// executed `fvar_leaves`: one `seen`-guarded DAG walk.
 pub fn fvar_leaves_fast(
     pers: &PersTier,
@@ -1547,7 +1547,7 @@ pub fn fvar_leaves_fast(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1150-1153 leafMem
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1146-1153 leafMem` — is
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1144-1151 leafMem` — is
 /// `(idx, ty)` in the base leaf list?  con-leche compares the annotation with
 /// `Expr.beq`; over handles it is handle equality, which is the same test
 /// (`denoteE` is injective, DESIGN.md §8.3).
@@ -1556,7 +1556,7 @@ pub fn leaf_mem(bl: &Vec<(u64, EIdx)>, idx: u64, ty: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1150-1153 leafMem
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1146-1153 leafMem` — the cursor
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1144-1151 leafMem` — the cursor
 /// recursion the cited `List` recursion becomes (DESIGN.md §3.4).
 pub fn leaf_mem_from(bl: &Vec<(u64, EIdx)>, idx: u64, ty: &EIdx, i: usize) -> bool {
     if i >= bl.len() {
@@ -1569,7 +1569,7 @@ pub fn leaf_mem_from(bl: &Vec<(u64, EIdx)>, idx: u64, ty: &EIdx, i: usize) -> bo
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1157-1185 leavesSubGo` — probe the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1155-1183 leavesSubGo` — probe the
 /// subset memo (extraction rule 5).
 pub fn leaves_sub_get(memo: &HashMap<EIdx, bool>, h: &EIdx) -> Option<bool> {
     match memo.get(h) {
@@ -1579,7 +1579,7 @@ pub fn leaves_sub_get(memo: &HashMap<EIdx, bool>, h: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1157-1185 leavesSubGo` — the cited
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1155-1183 leavesSubGo` — the cited
 /// `memo'.insert h r`, on the owned table.
 pub fn leaves_sub_set(memo: HashMap<EIdx, bool>, h: &EIdx, r: bool) -> HashMap<EIdx, bool> {
     let mut m: HashMap<EIdx, bool> = memo;
@@ -1588,7 +1588,7 @@ pub fn leaves_sub_set(memo: HashMap<EIdx, bool>, h: &EIdx, r: bool) -> HashMap<E
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1157-1185 leavesSubGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1155-1183 leavesSubGo` — the
 /// fabrication-side leaf-subset test: every reachable `fvar` leaf of the
 /// walked term is one of `bl`.  Memoized on the node, because `bl` is fixed
 /// for the call.
@@ -1619,7 +1619,7 @@ pub fn leaves_sub_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1157-1185 leavesSubGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1155-1183 leavesSubGo` — the
 /// arms, past the probe (extraction rule 5).
 pub fn leaves_sub_node(
     pers: &PersTier,
@@ -1654,7 +1654,7 @@ pub fn leaves_sub_node(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1157-1185 leavesSubGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1155-1183 leavesSubGo` — the
 /// two-child arms and their short-circuit.
 pub fn leaves_sub_two(
     pers: &PersTier,
@@ -1673,7 +1673,7 @@ pub fn leaves_sub_two(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1255-1259 leafGuard
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1247-1258 leafGuard` — **the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1245-1256 leafGuard` — **the
 /// fabrication leaf guard**: every `fvar` leaf of `fab` is a leaf of `base`.
 /// Short-circuits on an `fvar`-free fabrication off the packed range, and
 /// otherwise walks `fab` ONCE against `base`'s leaf list — never building
@@ -1708,7 +1708,7 @@ pub fn leaf_guard(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:776-780 Expr.lamPair?
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1268-1279 lamPair?` — two λs:
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1266-1277 lamPair?` — two λs:
 /// their domains and bodies (the descent of the λ-telescope comparison,
 /// `core::defeq_lams`); `none` unless both are λs.  Off the two handles' tags,
 /// then the two binder projections.
@@ -1736,7 +1736,7 @@ pub fn lam_pair(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:793-796 getAppFn
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1283-1292 getAppFn` — the head of
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1281-1290 getAppFn` — the head of
 /// an application spine.
 pub fn get_app_fn(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
@@ -1752,7 +1752,7 @@ pub fn get_app_fn(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<E
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:798-801 getAppArgs
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1294-1305 getAppArgs` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1292-1303 getAppArgs` — the
 /// arguments of an application spine, outermost last.  Lean's `as ++ [a]` is a
 /// `push` here, which is the same list in one pass.
 pub fn get_app_args(
@@ -1765,7 +1765,7 @@ pub fn get_app_args(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:798-801 getAppArgs
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1294-1305 getAppArgs` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1292-1303 getAppArgs` — the
 /// cursor recursion behind `get_app_args`.  `k` counts the arguments seen on
 /// the way DOWN and is spent at the head as the vector's capacity (task
 /// #97-P6-9): a `Vec` grown from empty reallocates once per doubling, and this
@@ -1802,7 +1802,7 @@ pub fn get_app_args_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:803-806 mkAppN
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1307-1313 mkAppN` — apply to a
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1305-1311 mkAppN` — apply to a
 /// list of arguments.  Structural on the list, so no fuel; the `i = 0` wrapper
 /// of the cursor recursion below.
 pub fn mk_app_n(
@@ -1815,7 +1815,7 @@ pub fn mk_app_n(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:803-806 mkAppN
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1307-1313 mkAppN` — the cursor
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1305-1311 mkAppN` — the cursor
 /// recursion behind `mk_app_n`.
 pub fn mk_app_n_from(
     pers: &PersTier,
@@ -1839,7 +1839,7 @@ pub fn mk_app_n_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1148-1154 stripLams
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1329-1342 stripLams` — strip `k`
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1327-1340 stripLams` — strip `k`
 /// leading λs.  The recursion is structural on `k`, so no fuel; Lean's
 /// `ty :: p.1` is `cons_binder`.
 pub fn strip_lams(
@@ -1867,7 +1867,7 @@ pub fn strip_lams(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 stripPis
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1344-1357 stripPis` — strip `k`
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1342-1355 stripPis` — strip `k`
 /// leading `∀`s.
 pub fn strip_pis(
     pers: &PersTier,
@@ -1894,7 +1894,7 @@ pub fn strip_pis(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1164-1168 piResult
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1359-1369 piResult` — the body of
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1357-1367 piResult` — the body of
 /// a syntactic `∀`-telescope.
 pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
@@ -1912,7 +1912,7 @@ pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EI
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1298-1303 fvarTypeD
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1371-1379 fvarTypeD` — the type
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1369-1377 fvarTypeD` — the type
 /// annotation of a free-variable leaf (the expression itself otherwise).
 pub fn fvar_type_d(pers: &PersTier, st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
     if h.tag() == ETAG_FVAR {
@@ -1926,7 +1926,7 @@ pub fn fvar_type_d(pers: &PersTier, st: &AState, h: &EIdx) -> Result<EIdx, Check
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1305-1313 instSpine
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1381-1387 instSpine` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1379-1385 instSpine` —
 /// instantiate a telescope-context expression at an argument spine.
 pub fn inst_spine(
     pers: &PersTier,
@@ -1940,7 +1940,7 @@ pub fn inst_spine(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1305-1313 instSpine
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1381-1387 instSpine` — the cursor
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1379-1385 instSpine` — the cursor
 /// recursion behind `inst_spine`.  `t - 1` is Lean's truncating subtraction,
 /// hence `sub_nat` (the cited arm carries no guard).
 pub fn inst_spine_from(
@@ -1974,7 +1974,7 @@ pub fn inst_spine_from(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1324-1334 Expr.bvarBound
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1398-1423 bvarBoundGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1396-1421 bvarBoundGo` — the
 /// memoized exact loose-bvar bound.  The memo is probed for every node, leaves
 /// included, as con-leche probes it.  `y - 1` is Lean's truncating
 /// subtraction, hence `sub_nat`.
@@ -2049,7 +2049,7 @@ pub fn bvar_bound_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1425-1426 bvarBoundMemo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1475-1481 bvarBoundMemo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1473-1479 bvarBoundMemo` — the
 /// top-level entry of the memoized walk.
 pub fn bvar_bound_memo(
     pers: &PersTier,
@@ -2069,7 +2069,7 @@ pub fn bvar_bound_memo(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1343-1354 Expr.fvarRange
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1485-1507 fvarRangeGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1483-1505 fvarRangeGo` — the
 /// memoized exact fvar range (`fvar` annotations are not descended into,
 /// matching the abstraction traversals).
 pub fn fvar_range_go(
@@ -2141,7 +2141,7 @@ pub fn fvar_range_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1455-1456 fvarRangeMemo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1559-1565 fvarRangeMemo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1557-1563 fvarRangeMemo` — the
 /// top-level entry of the memoized walk.
 pub fn fvar_range_memo(
     pers: &PersTier,
@@ -2160,7 +2160,7 @@ pub fn fvar_range_memo(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1458-1463 bvarB
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1567-1574 bvarB` — **the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1565-1572 bvarB` — **the
 /// loose-bvar bound the checker reads**: the packed field, or — on the
 /// saturated branch alone — the exact memoized recomputation.
 pub fn bvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
@@ -2174,7 +2174,7 @@ pub fn bvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1465-1470 fvarB
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1576-1582 fvarB` — **the fvar
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1574-1580 fvarB` — **the fvar
 /// range the checker reads**: the packed field, or the exact memoized
 /// recomputation on the saturated branch.
 pub fn fvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
@@ -2188,7 +2188,7 @@ pub fn fvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1738-1739 hasFvarFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1584-1588 hasFvarFast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1582-1586 hasFvarFast` — the
 /// executed `hasFvar`: the fvar-range field read.
 pub fn has_fvar_fast(
     pers: &PersTier,
@@ -2203,7 +2203,7 @@ pub fn has_fvar_fast(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1747-1748 looseBVarsBoundedFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1590-1594 looseBVarsBoundedFast`
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1588-1592 looseBVarsBoundedFast`
 /// — the executed `looseBVarsBounded`: the loose-bvar field read.
 pub fn loose_bvars_bounded_fast(
     pers: &PersTier,
@@ -2227,7 +2227,7 @@ pub fn loose_bvars_bounded_fast(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:655-671 abstract1
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1610-1630 abstract1Go` — close
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1608-1628 abstract1Go` — close
 /// a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 /// binders.  `fvar` annotations are not descended into.
 pub fn abstract1_go(
@@ -2401,7 +2401,7 @@ pub fn abstract1_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1958-1960 abstract1Fast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1721-1727 abstract1Fast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1719-1725 abstract1Fast` — the
 /// top-level entry.
 pub fn abstract1_fast(
     pers: &PersTier,
@@ -2441,7 +2441,7 @@ pub fn abstract1_fast(
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:676-692 abstractRangeP
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1760-1781 abstractRangeGo` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1758-1779 abstractRangeGo` — the
 /// memoized `abstractRange` walk: close the `k` free variables `d .. d + k - 1`
 /// into `bvar`s at cursor `c`, innermost binder to the lowest index. The
 /// `fvar_b <= d` cutoff is `abstractRangeP`'s own first line and
@@ -2637,7 +2637,7 @@ pub fn abstract_range_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:740-747 abstractRangeC
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1876-1887 abstractRangeFast` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1874-1885 abstractRangeFast` —
 /// the top-level entry of the executed `abstractRange`: `k = 0` is the identity
 /// and skips the traversal (con-leche's own clause, and what makes the
 /// annotation telescope's OUTERMOST binder domain cost nothing), then the
@@ -2682,7 +2682,7 @@ pub fn abstract_range_fast(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:613-634 instantiate1Lift
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1899-1928 instantiate1LiftGo` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1897-1926 instantiate1LiftGo` —
 /// replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders
 /// crossed on the way, with con-leche's own `bvarB <= d` cutoff.
 pub fn instantiate1_lift_go(
@@ -2845,7 +2845,7 @@ pub fn instantiate1_lift_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2032-2038 instantiate1LiftFast`
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2030-2036 instantiate1LiftFast`
 /// — the top-level entry.
 pub fn instantiate1_lift_fast(
     pers: &PersTier,
@@ -2866,7 +2866,7 @@ pub fn instantiate1_lift_fast(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2178-2191 instPisAtLift
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2040-2052 instPisAtLift` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2038-2050 instPisAtLift` —
 /// instantiate the leading `∀`-binders at *open* arguments.
 pub fn inst_pis_at_lift(
     pers: &PersTier,
@@ -2879,7 +2879,7 @@ pub fn inst_pis_at_lift(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2178-2191 instPisAtLift
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2040-2052 instPisAtLift` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2038-2050 instPisAtLift` — the
 /// cursor recursion behind `inst_pis_at_lift`.
 pub fn inst_pis_at_lift_from(
     pers: &PersTier,
@@ -2920,7 +2920,7 @@ pub fn inst_pis_at_lift_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Level.lean:31-42 subst
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2064-2071 substLevelList` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2062-2069 substLevelList` —
 /// `vs.map (Level.subst ks us)` as explicit recursion.  con-leche writes the
 /// `.map`; a closure is what DESIGN.md §3.4 forbids, and §3.4's own rule for a
 /// `List` recursion is a helper, so the twin has one and so does this.
@@ -2929,7 +2929,7 @@ pub fn subst_level_list(ks: &Vec<Name>, us: &Vec<Level>, vs: &Vec<Level>) -> Vec
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:31-42 subst
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2064-2071 substLevelList` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2062-2069 substLevelList` — the
 /// cursor recursion behind `subst_level_list`.
 pub fn subst_level_list_from(
     ks: &Vec<Name>,
@@ -2948,7 +2948,7 @@ pub fn subst_level_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2073-2088 substLMemoAt` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2071-2086 substLMemoAt` —
 /// `substLMemoAt`, `instLPGo`'s `.sort` arm's level work behind a memo on the
 /// level handle.
 ///
@@ -2985,7 +2985,7 @@ pub fn subst_l_memo_at(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2090-2100 substLsMemoAt` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2088-2098 substLsMemoAt` —
 /// `substLsMemoAt`, the `.const` arm's twin of `substLMemoAt` at an interned
 /// universe-argument LIST. The list is one interned object, so the memo saves
 /// the readback, the per-element substitution, the re-interning AND the two
@@ -3016,7 +3016,7 @@ pub fn subst_ls_memo_at(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2104-2136 instLPGo` —
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2102-2134 instLPGo` —
 /// substitute level parameters throughout an expression, with con-leche's own
 /// `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
 /// substitution is the identity on it).  `.sort` and `.const` read their
@@ -3191,7 +3191,7 @@ pub fn inst_lp_go(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2492-2494 Expr.instLPFast
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2253-2270 instLPFast` — the
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2251-2268 instLPFast` — the
 /// top-level entry: read the substitution back out of the store once, walk,
 /// drop the memo.
 pub fn inst_lp_fast(
