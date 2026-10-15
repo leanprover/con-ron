@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Knot` — Theorem 1's statement for the checker core
 
-DESIGN §8.2's **Theorem 1** at the knot: the six slots of the arena twin's
+DESIGN §8.2's **Theorem 1** at the knot: the slots of the arena twin's
 `coreKnot` at fuel `f` refine con-leche's own fueled entry points on
 well-scoped inputs.  This module holds the STATEMENT (`KnotSpec`), the answer
 relations it is phrased with, and the fuel-zero base case; the per-body arm
@@ -64,8 +64,8 @@ open scoped Lean.Order
 
 /-! ## The answer relations
 
-Two shapes, because the six slots have two result types: five answer a handle
-and `defeq` answers a `Bool`.  Both are `Bridge/Rel.lean`'s `RelE`/`RelV`
+Two shapes, because the slots have two result types: four answer a handle
+and `defeq`/`defeqE` answer a `Bool`.  Both are `Bridge/Rel.lean`'s `RelE`/`RelV`
 pattern with the pure side's fuel existential and the well-scopedness of the
 answer folded in — the two extra facts every CALLER of a slot needs and that
 con-leche's `RelEC` carries for the same reason. -/
@@ -91,11 +91,12 @@ def SimV (op : Nat → Nat → Expr → Expr → CheckM Bool) (d : Nat)
 
 /-! ## The knot statement
 
-The six slots of `ConRon.Arena.coreKnot mode fe id f` — which is
+The slots of `ConRon.Arena.coreKnot mode fe id f` — which is
 `Arena/Core.lean`'s `pureFnsA mode fe f`, the MEMOIZED knot (deviation 5 of
 task #97c: the arena has one knot and the memo probes are inline in its
-slots) — against con-leche's six fueled entry points of
-`ConLeche/Kernel/TypeChecker.lean`. -/
+slots) — against con-leche's fueled entry points of
+`ConLeche/Kernel/TypeChecker.lean`; the eager slot against the eager tower's
+`isDefEqCore` (`mode.toEager`, con-leche's `defeqE_def`). -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:34 SSimC
 con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI

@@ -1,12 +1,14 @@
 /-
-# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's five slots
+# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's slots
 
 DESIGN §8.2, and `_tmp/t97/conleche-arena-history.md` §2.3's middle piece:
 between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 (`Bridge/Core/Induction.lean`) sit **the memo wrapper steps** — con-leche's
 `Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
 theorems are the same as this module's six wrapper steps (five slots, the
-`whnfCore` slot in its two cheap modes).
+`whnfCore` slot in its two cheap modes).  The eager slot has no memo of its
+own: it runs the eager tower's body under EMPTY mode-dependent memos and puts
+the caller's back (`memoDefeqE_step`, at the end of the module).
 
 A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
@@ -64,7 +66,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## 1. The knot's five slots, unfolded once
+/-! ## 1. The knot's slots, unfolded once
 
 A definition the verification condition generator would rewrite forever
 needs its clauses as lemmas (DESIGN, task #97-P3-0, rule 9).  `coreKnot`

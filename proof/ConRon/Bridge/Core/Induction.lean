@@ -46,12 +46,15 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC
 con-leche: ConLeche/Verify/SimIKnot.lean ssimI
-**THEOREM 1 AT EVERY FUEL.**  The arena's memoized knot refines con-leche's
-five fueled entry points on inputs that denote and are well scoped.
+**THEOREM 1 AT EVERY FUEL AND EVERY MODE.**  The arena's memoized knot refines
+con-leche's fueled entry points on inputs that denote and are well scoped.
 
 The proof is con-leche's architecture term for term: fuel zero throws
 everywhere, and at `f + 1` each slot is `memo_<slot>_step` applied to
-`<body>_spec` applied to the induction hypothesis. -/
+`<body>_spec` applied to the induction hypothesis.  The induction runs over
+every mode at once (con-leche's `pureFns_mono_all`, `shiftClaims`): the eager
+slot at `mode` is the body at `mode.toEager` over the knot at `mode.toEager`
+one level down. -/
 theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
     ∀ f {mode : CheckMode}, mode.verifiedChecks = true → KnotSpec mode env fe f
   | 0, mode, _ => knotSpec_zero mode env fe
@@ -108,12 +111,13 @@ section Census
 
 #print axioms knotSpec_zero
 
-/-! ### The knot's five slots, unfolded -/
+/-! ### The knot's slots, unfolded -/
 
 #print axioms coreKnot_whnfCore_succ
 #print axioms coreKnot_whnf_succ
 #print axioms coreKnot_infer_succ
 #print axioms coreKnot_defeq_succ
+#print axioms coreKnot_defeqE_succ
 #print axioms coreKnot_inferIO_succ
 
 /-! ### The cache setters and the cache-insert lemmas -/
@@ -149,6 +153,9 @@ memo layer of Theorem 1's Core tier, at the three standard axioms. -/
 #print axioms memoInfer_step
 #print axioms memoInferIO_step
 #print axioms memoDefeq_step
+#print axioms memoDefeqE_step
+#print axioms takeModeMemos_ok_spec
+#print axioms putModeMemos_ok_spec
 
 /-! ### The per-arm step lemmas -/
 
@@ -200,6 +207,7 @@ The six body walks, the batched-clause carries and the port-side peel (DESIGN
 #print axioms inferBodyIO_spec
 #print axioms defeqBinders_spec
 #print axioms defeqBody_spec
+#print axioms knot_spec_all
 #print axioms knot_spec
 #print axioms knot_spec_checkFuel
 
