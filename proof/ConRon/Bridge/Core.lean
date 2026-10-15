@@ -1,8 +1,9 @@
 /-
 # `ConRon.Bridge.Core` — Theorem 1 for the checker core
 
-DESIGN §8.2's **Theorem 1** at `Arena/Core.lean`'s knot: the six slots of the
-arena twin's `coreKnot` refine con-leche's six fueled entry points.  Nine
+DESIGN §8.2's **Theorem 1** at `Arena/Core.lean`'s knot: the slots of the
+arena twin's `coreKnot` refine con-leche's fueled entry points (the eager
+slot `defeqE` refines the eager tower's `isDefEqCore`).  Nine
 modules, in the architecture `_tmp/t97/conleche-arena-history.md` §2.3 names
 and con-leche built twice — **one walk per twin body, five memo wrapper
 steps, one knot induction**:
@@ -10,10 +11,11 @@ steps, one knot induction**:
 * `Core/Knot.lean` — the statement (`KnotSpec`), the two answer relations
   (`SimE`, `SimV`), the body-theorem shape (`BodySpec`, `BodySpecV`) and the
   fuel-zero base case;
-* `Core/Memo.lean` — the six slots unfolded once, the six cache setters'
+* `Core/Memo.lean` — the slots unfolded once, the six cache setters'
   `@[spec]` theorems, the `CacheOK` insert lemmas, the **stuck-tag branch**
   (DESIGN `### Task #97-P6-7`'s lever 2, which con-leche's `memoEI` has no
-  counterpart for) and **the five memo-wrapper steps**;
+  counterpart for), **the five memo-wrapper steps** and the eager slot's step
+  (`memoDefeqE_step`: fresh mode-dependent memos, the caller's restored);
 * `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq*}.lean` — rule 8's
   step-lemma inventory, one per exit of each PURE clause, plus that body's
   `BodySpec` theorem;

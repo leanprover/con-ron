@@ -1,12 +1,14 @@
 /-
-# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's five slots
+# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's slots
 
 DESIGN §8.2, and `_tmp/t97/conleche-arena-history.md` §2.3's middle piece:
 between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 (`Bridge/Core/Induction.lean`) sit **the memo wrapper steps** — con-leche's
 `Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
 theorems are the same as this module's six wrapper steps (five slots, the
-`whnfCore` slot in its two cheap modes).
+`whnfCore` slot in its two cheap modes).  The eager slot has no memo of its
+own: it runs the eager tower's body under EMPTY mode-dependent memos and puts
+the caller's back (`memoDefeqE_step`, at the end of the module).
 
 A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
@@ -64,7 +66,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## 1. The knot's five slots, unfolded once
+/-! ## 1. The knot's slots, unfolded once
 
 A definition the verification condition generator would rewrite forever
 needs its clauses as lemmas (DESIGN, task #97-P3-0, rule 9).  `coreKnot`
@@ -144,6 +146,19 @@ theorem coreKnot_defeq_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
           defeqSet a b x
           pure x) := rfl
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI — the eager
+slot at `fuel + 1`: the body at `mode.toEager` over the knot at `mode.toEager`
+one level down, between detaching the caller's mode-dependent memos and
+putting them back (con-leche's `withFreshMemos`). -/
+theorem coreKnot_defeqE_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+    (a b : EIdx) :
+    (coreKnot mode fe id (fuel + 1)).defeqE d a b =
+      (do
+        let saved ← takeModeMemos
+        let x ← defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe d a b
+        putModeMemos saved
+        pure x) := rfl
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1966-1979 coreKnotI — the `inferIO`
 slot at `fuel + 1`: the io body under the io-grade view of the knot one
 level down, at every mode (con-leche task #346). -/
@@ -216,6 +231,29 @@ the ORDERED pair and with the verdict. -/
         defeqC := s₀.caches.defeqC.insert (a, b) r } }; ⊤⦄ := by
   dsimp only
   vcgen [defeqSet] with finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos —
+`takeModeMemos` empties the six mode-dependent tables and returns them. -/
+theorem takeModeMemos_spec (s₀ : AState) :
+    ⦃fun s => s = s₀⦄ takeModeMemos
+    ⦃fun mm s' => mm = ⟨s₀.caches.whnfCoreC, s₀.caches.whnfCoreCheapC, s₀.caches.whnfC,
+          s₀.caches.inferC, s₀.caches.inferIOC, s₀.caches.defeqC⟩ ∧
+        s' = { s₀ with caches :=
+          { s₀.caches with
+            whnfCoreC := ∅, whnfCoreCheapC := ∅, whnfC := ∅,
+            inferC := ∅, inferIOC := ∅, defeqC := ∅ } }; ⊤⦄ := by
+  vcgen [takeModeMemos] with finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos —
+`putModeMemos` replaces the six mode-dependent tables. -/
+theorem putModeMemos_spec (s₀ : AState) (mm : ModeMemos) :
+    ⦃fun s => s = s₀⦄ putModeMemos mm
+    ⦃fun _u s' => s' = { s₀ with caches :=
+        { s₀.caches with
+          whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
+          whnfC := mm.whnfC, inferC := mm.inferC,
+          inferIOC := mm.inferIOC, defeqC := mm.defeqC } }; ⊤⦄ := by
+  vcgen [putModeMemos] with finish
 
 /-! ## 3. The cache invariant under an insert
 
@@ -337,9 +375,9 @@ The store, the pins and the environment index do not move, so the whole
 invariant follows from the cache clause alone. -/
 
 /-- con-leche: none — `CheckOK` from `CacheOK` at a state whose store, pins
-and index are the old ones. -/
-theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK mode env fe s) (hc : CacheOK mode env s')
+and index are the old ones (at any mode: only the cache clause names one). -/
+theorem CheckOK.ofCache {mode mode' : CheckMode} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK mode' env fe s) (hc : CacheOK mode env s')
     (hst : s'.store = s.store) (hp : s'.pins = s.pins) :
     CheckOK mode env fe s' where
   state := ⟨hst ▸ h.state.wf⟩
@@ -953,5 +991,104 @@ theorem triple_failDanglingE {α : Type} {s₀ : AState}
     ⦃fun s => s = s₀⦄ (failDanglingE : AM α) ⦃fun r s => Q r s; ⊤⦄ :=
   triple_fail (Q := Q)
 
+
+/-! ### The eager slot (con-leche's `withFreshMemos`)
+
+The eager slot runs the eager tower's body under EMPTY mode-dependent memos
+and puts the caller's back afterwards.  Its invariant is the state invariant
+split along that line: the six entry-point tables are the mode's
+(`ModeMemosOK`), everything else in `CheckOK` names no mode.  So the emptied
+state is `CheckOK` at ANY mode, in particular the eager tower's, and putting
+the caller's tables back — valid at the old store, hence at the grown one —
+restores `CheckOK` at the caller's mode. -/
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — the six
+mode-dependent tables, valid at `mode` over the store `st`. -/
+structure ModeMemosOK (mode : CheckMode) (env : Env) (mm : ModeMemos) (st : EStore) :
+    Prop where
+  whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) mm.whnfCoreC st
+  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
+    mm.whnfCoreCheapC st
+  whnf : EntryCacheOK (ConLeche.whnf mode env) mm.whnfC st
+  infer : EntryCacheOK (ConLeche.inferTypeCore mode env) mm.inferC st
+  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) mm.inferIOC st
+  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) mm.defeqC st
+
+/-- con-leche: none — `ModeMemosOK` transports along the store order. -/
+theorem ModeMemosOK.mono {mode : CheckMode} {env : Env} {mm : ModeMemos}
+    {st st' : EStore} (h : ModeMemosOK mode env mm st) (hx : Ext st st') :
+    ModeMemosOK mode env mm st' :=
+  ⟨h.whnfCore.mono hx, h.whnfCoreCheap.mono hx, h.whnf.mono hx, h.infer.mono hx,
+    h.inferIO.mono hx, h.defeq.mono hx⟩
+
+/-- con-leche: none — an empty table is valid at any operation. -/
+theorem EntryCacheOK.empty {op : Nat → Nat → Expr → CheckM Expr} {st : EStore} :
+    EntryCacheOK op ∅ st := fun _ _ h => by simp at h
+
+/-- con-leche: none — an empty verdict table is valid at any operation. -/
+theorem DefeqCacheOK.empty {op : Nat → Nat → Expr → Expr → CheckM Bool} {st : EStore} :
+    DefeqCacheOK op ∅ st := fun _ _ h => by simp at h
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — **the
+detach**: `takeModeMemos` leaves a state that is `CheckOK` at any mode `μ'`
+(its six mode-dependent tables are empty, the rest names no mode) and returns
+the caller's six tables, valid at the caller's mode. -/
+theorem takeModeMemos_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+    (μ' : CheckMode) (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ takeModeMemos
+    ⦃fun mm s' => CheckOK μ' env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        ModeMemosOK mode env mm s₀.store; ⊤⦄ := by
+  refine triple_mono (takeModeMemos_spec s₀) ?_
+  rintro mm s' ⟨rfl, rfl⟩
+  have hc := hok.caches
+  refine ⟨CheckOK.ofCache hok ⟨EntryCacheOK.empty, EntryCacheOK.empty,
+      EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty, DefeqCacheOK.empty,
+      hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs, hc.readL, hc.readN,
+      hc.readLs⟩ rfl rfl, rfl, rfl,
+    ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — **the
+restore**: putting back six tables valid at `mode` over a store the current
+one extends gives `CheckOK` at `mode`, whatever mode the current state's own
+tables were valid at. -/
+theorem putModeMemos_ok_spec {mode μ' : CheckMode} {env : Env} {fe : IFEnv}
+    (s₀ : AState) (mm : ModeMemos) {st : EStore} (hok : CheckOK μ' env fe s₀)
+    (hm : ModeMemosOK mode env mm st) (hx : Ext st s₀.store) :
+    ⦃fun s => s = s₀⦄ putModeMemos mm
+    ⦃fun _u s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins; ⊤⦄ := by
+  refine triple_mono (putModeMemos_spec s₀ mm) ?_
+  rintro _ s' rfl
+  have hc := hok.caches
+  have hm' := hm.mono hx
+  exact ⟨CheckOK.ofCache hok ⟨hm'.whnfCore, hm'.whnfCoreCheap, hm'.whnf, hm'.infer,
+      hm'.inferIO, hm'.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs,
+      hc.readL, hc.readN, hc.readLs⟩ rfl rfl, rfl, rfl⟩
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean ssimC (the `defeqE` slot) —
+**the eager slot**: the eager tower's body under fresh mode-dependent memos,
+the caller's restored.  Its answer is the eager tower's `isDefEqCore`
+(con-leche's `defeqE_def`), and the caller keeps its invariant at its own
+mode. -/
+theorem memoDefeqE_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {fuel : Nat}
+    (hbody : BodySpecV mode.toEager env fe
+      (defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe)
+      (ConLeche.isDefEqCore mode.toEager env))
+    (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store i = some a)
+    (hdb : denoteE s₀.store j = some b)
+    (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).defeqE d i j
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimV (ConLeche.isDefEqCore mode.toEager env) d a b x; ⊤⦄ := by
+  rw [coreKnot_defeqE_succ]
+  sym only [bridge_grind] =>
+    vcgen [takeModeMemos_ok_spec mode.toEager s₀ hok,
+      fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb,
+      fun s₂ mm h1 h2 h3 => putModeMemos_ok_spec (mode := mode) (μ' := mode.toEager)
+        (env := env) (fe := fe) s₂ mm (st := s₀.store) h1 h2 h3]
+      <;> finish
 
 end ConRon.Bridge.Core

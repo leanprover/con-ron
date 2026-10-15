@@ -577,6 +577,23 @@ theorem defEqList_goA {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat)
   rintro r s' ⟨h1, h2, h3, h4⟩
   exact ⟨h1, h2, h3, h4 xs ys hxa hyb⟩
 
+/-- con-leche: none — a handle list's denotation, reversed (`defeqSpine`
+compares the reversed spines). -/
+@[bridge_grind =] theorem denoteEList_reverse_eq (st : EStore) (l : List EIdx) :
+    Frontend.denoteEList st l.reverse = (Frontend.denoteEList st l).map List.reverse := by
+  induction l with
+  | nil => rfl
+  | cons a as ih =>
+    rw [List.reverse_cons, denoteEList_append_eq, ih, denoteEList_cons_eq]
+    cases ha : denoteE st a <;> cases hs : Frontend.denoteEList st as <;>
+      simp [opt2, Frontend.denoteEList, ha, hs]
+
+/-- con-leche: none — every element of a reversed list is well-scoped iff every
+element of the list is. -/
+@[bridge_grind =] theorem allWS_reverse_eq (d : Nat) (xs : List Expr) :
+    AllWS d xs.reverse = AllWS d xs := by
+  simp only [AllWS, List.mem_reverse]
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1291-1303 defeqSpine — `defeqSpine`'s
 answer, named (the statement's `SimBOp (fun F => …)`, which `grind` must not
 see as a `fun`). -/
@@ -584,9 +601,10 @@ def SpineDefEq (mode : CheckMode) (env : Env) (d : Nat) (x y : Expr) (r : Bool) 
   SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1291-1303 defeqSpine — the answer as
-ONE equation over tags and projections: the spines' comparison when the heads
-are the same constant with level-equivalent universes and the spines have one
-length, `false` otherwise (the fuel is the same on both sides). -/
+ONE equation over tags and projections: the comparison of the REVERSED spines
+(last to first, official `is_def_eq_args`) when the heads are the same constant
+with level-equivalent universes and the spines have one length, `false`
+otherwise (the fuel is the same on both sides). -/
 @[bridge_grind =] theorem spineDefEq_eq (d : Nat) (x y : Expr) (r : Bool) :
     SpineDefEq mode env d x y r =
       (if (exprTag x.getAppFn == ETag.const && exprTag y.getAppFn == ETag.const &&
@@ -594,7 +612,8 @@ length, `false` otherwise (the fuel is the same on both sides). -/
           x.getAppArgs.length == y.getAppArgs.length &&
           Level.isEquivList (exprConstLevels x.getAppFn) (exprConstLevels y.getAppFn)
             == some true) = true
-        then ListDefEq mode env d (some x.getAppArgs) (some y.getAppArgs) r else r = false) := by
+        then ListDefEq mode env d (some x.getAppArgs.reverse) (some y.getAppArgs.reverse) r
+        else r = false) := by
   have hfalse : (∃ F : Nat, (pure false : CheckM Bool) = .ok r) = (r = false) :=
     propext ⟨fun ⟨_, h⟩ => (Except.ok.inj h).symm, fun h => ⟨0, h ▸ rfl⟩⟩
   have hnc : ∀ g : Expr, (∀ n us, g = .const n us → False) →

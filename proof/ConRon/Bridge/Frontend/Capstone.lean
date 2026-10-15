@@ -213,9 +213,10 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
 — **the same letter at the PURE fold**: a stream that declares a theorem of
 type `False` is never accepted.  con-leche's own two steps, at the pure tier:
 the record's constant survives the run, and in the model of the main theorem
-its type denotes the empty set. -/
+its type denotes the empty set.  Stated at the `--verified` mode itself
+(`isVerified`, not its eager tower), as con-leche's model tier is. -/
 theorem no_False_theorem_accepted_pure (V : Type w) [ConLeche.SetTheory V]
-    {μ : CheckMode} (hμ : μ.verifiedChecks = true) {F : Nat}
+    {μ : CheckMode} (hμ : μ.isVerified = true) {F : Nat}
     {pins : List NatOpPinSet} {ds : List Declaration} {env' : Env}
     {cv : ConstantVal} {value : Expr}
     (hmem : Declaration.thmDecl cv value ∈ ds)

@@ -162,6 +162,56 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
   sym only [bridge_grind, hok.pins] =>
     vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels, boolTrueName_spec] <;> finish
 
+/-! ## `isEagerReduce`
+
+The argument check's test (con-leche's `Expr.isEagerReduce`, official
+`is_eager_reduce`): the head constant `eagerReduce` under exactly two
+applications.  The twin reads two `viewApp`s and one `viewConst` and compares
+the name handle against the `eagerReduce` pin; con-leche's function is met as
+ONE equation over tags and projections (`isEagerReduce_eq`), and the handle
+test is the name test by `nidx_eq_of_denote` (registered here, guarded). -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName — the
+`PIN_EAGER_REDUCE` slot of `pinNames` is `eagerReduce`'s name. -/
+theorem pinNames_eagerReduce :
+    pinNames[PIN_EAGER_REDUCE]? = some ConLeche.eagerReduceName := by rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName — the
+`eagerReduce` pin, as the name it denotes. -/
+theorem eagerReduceName_spec (s₀ : AState) (hp : PinsOK s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.eagerReduceName
+    ⦃fun n s' => s' = s₀ ∧
+        denoteN s₀.store.ns n = some ConLeche.eagerReduceName; ⊤⦄ := by
+  have hbt := pinNames_eagerReduce
+  vcgen [ConRon.Arena.eagerReduceName, pinEagerReduce] with finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:424-429 Expr.isEagerReduce — as
+one equation over tags and projections. -/
+theorem isEagerReduce_eq (e : Expr) :
+    e.isEagerReduce = (exprTag e == ETag.app && exprTag (exprFn e) == ETag.app &&
+      exprTag (exprFn (exprFn e)) == ETag.const &&
+      exprConstName (exprFn (exprFn e)) == ConLeche.eagerReduceName) := by
+  rcases e with _ | _ | _ | _ | ⟨f, _⟩ | _ | _ | _ | _ | _ <;> try rfl
+  rcases f with _ | _ | _ | _ | ⟨g, _⟩ | _ | _ | _ | _ | _ <;> try rfl
+  rcases g with _ | _ | _ | ⟨c, _⟩ | _ | _ | _ | _ | _ | _ <;> try rfl
+
+local grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.ns a, denoteN st.ns b where
+  guard denoteN st.ns a = denoteN st.ns b
+  a =/= b
+local grind_pattern [bridge_grind] view_of_viewConst => st.viewConst i, some (n, us) where
+  guard st.viewConst i = some (n, us)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:424-429 Expr.isEagerReduce —
+**THEOREM 1 for `isEagerReduce`**: is `e` of the form `eagerReduce _ _`
+(official `is_eager_reduce`)? -/
+theorem isEagerReduce_spec (s₀ : AState) (h : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isEagerReduce h
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.Expr.isEagerReduce x; ⊤⦄ := by
+  sym only [bridge_grind, hok.pins, isEagerReduce_eq] =>
+    vcgen [ConRon.Arena.isEagerReduce, eagerReduceName_spec] <;> finish
+
 /-! ## The axiom census -/
 
 section Census
@@ -171,6 +221,9 @@ section Census
 #print axioms isBoolTrue_levels
 #print axioms isBoolTrue_name
 #print axioms isBoolTrue_spec
+#print axioms pinNames_eagerReduce
+#print axioms isEagerReduce_eq
+#print axioms isEagerReduce_spec
 
 end Census
 

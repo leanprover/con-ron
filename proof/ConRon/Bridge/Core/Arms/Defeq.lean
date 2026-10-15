@@ -68,7 +68,7 @@ theorem defeqBody_syntactic (h : (x == y) = true) :
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the eq-true
 shortcut** (the divergence audit's E2). -/
 theorem defeqBody_boolTrue (hab : (x == y) = false)
-    (hsc : (if (y.isBoolTrue && !x.hasFvar) = true then
+    (hsc : (if (y.isBoolTrue && (mode.eager || !x.hasFvar)) = true then
         ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
       else pure false) = (.ok true : CheckM Bool)) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok true := by
@@ -82,7 +82,7 @@ up to the UNREDUCED pair (con-leche task #333): no syntactic hit, no eq-true
 shortcut. -/
 structure DbPre0 (mode : CheckMode) (env : Env) (F d : Nat) (x y : Expr) : Prop where
   hab : (x == y) = false
-  hsc : (if (y.isBoolTrue && !x.hasFvar) = true then
+  hsc : (if (y.isBoolTrue && (mode.eager || !x.hasFvar)) = true then
       ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
     else pure false) = (.ok false : CheckM Bool)
 
@@ -145,7 +145,7 @@ cheap head normal forms. -/
 structure DbPre (mode : CheckMode) (env : Env) (F d : Nat)
     (x y x' y' : Expr) : Prop where
   hab : (x == y) = false
-  hsc : (if (y.isBoolTrue && !x.hasFvar) = true then
+  hsc : (if (y.isBoolTrue && (mode.eager || !x.hasFvar)) = true then
       ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
     else pure false) = (.ok false : CheckM Bool)
   hq0 : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y = .ok none
