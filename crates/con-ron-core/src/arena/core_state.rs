@@ -386,7 +386,7 @@ impl Caches {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:324-334 ModeMemos
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean ModeMemos` — **the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:110-123 ModeMemos` — **the
 /// mode-dependent memos**: the six entry-point tables, whose entries are
 /// results of the knot at ONE mode.  The level verdicts, the stored-constant
 /// caches and the readback memos are functions of their keys alone and are

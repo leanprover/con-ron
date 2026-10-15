@@ -276,7 +276,7 @@ impl Pins {
 /// Spelled as pushes rather than a `vec![…]` literal because the extraction
 /// takes the pushes as they are; the order is the `PIN_*` constants', which
 /// `pins_table_is_in_slot_order` in this module's tests checks name by name.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:173-199 pinNames` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:176-203 pinNames` — the same
 /// fifty-one names, in `PIN_*` order.
 pub fn pin_names() -> Vec<Name> {
     let mut out: Vec<Name> = Vec::new();
@@ -340,7 +340,7 @@ pub fn pin_names() -> Vec<Name> {
 /// the prelude, so the scratch tier is closed and every handle below is
 /// persistent (the module note says why that matters).
 ///
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:224-238 internReservedPins` —
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:228-242 internReservedPins` —
 /// `internAllPins : AM Unit`, the same sequence.
 pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match intern_name_list(pers, st, &pin_names()) {
@@ -381,7 +381,7 @@ pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), Chec
 /// Has `intern_reserved_pins` run?  The three value pins (`empty_levels`,
 /// `zero_level`, `sort_one`) have no bound of their own, so their readers
 /// test this.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:242-244 pinsReady` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:246-248 pinsReady` — the same
 /// table-filled test.
 pub fn pins_ready(st: &AState) -> bool {
     st.pins.names.len() == PIN_COUNT
@@ -392,7 +392,7 @@ pub fn pins_ready(st: &AState) -> bool {
 /// `reserved_basis_names` used to build and intern all sixteen on every
 /// call, which task #97-P6-4a's profile put at 1.1 % of `Init`'s cycles in
 /// the `Name` construction alone; its readers copy the vector.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:255-260 pinReserved` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:259-264 pinReserved` — the
 /// sixteen reserved basis handles, off the table.
 pub fn pin_reserved(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     if pins_ready(st) {
@@ -407,7 +407,7 @@ pub fn pin_reserved(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 /// into a stop: an unfilled table is empty, so a pin read before the driver's
 /// `intern_reserved_pins` raises `Internal` rather than answering with a word that
 /// happens to parse as a handle.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:246-253 pinAt` — one pinned name
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:250-257 pinAt` — one pinned name
 /// handle, with the same bounds stop.
 pub fn pin_at(st: &AState, i: usize) -> Result<NIdx, CheckError> {
     if i >= st.pins.names.len() {
@@ -419,7 +419,7 @@ pub fn pin_at(st: &AState, i: usize) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
 /// The empty universe-argument list, off the table.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:262-266 pinEmptyLevels` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:266-270 pinEmptyLevels` — the same
 /// value pin.
 pub fn pin_empty_levels(st: &AState) -> Result<LsIdx, CheckError> {
     if pins_ready(st) {
@@ -431,7 +431,7 @@ pub fn pin_empty_levels(st: &AState) -> Result<LsIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
 /// The level `0`, off the table.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:268-272 pinZeroLevel` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:272-276 pinZeroLevel` — the same
 /// value pin.
 pub fn pin_zero_level(st: &AState) -> Result<LIdx, CheckError> {
     if pins_ready(st) {
@@ -443,7 +443,7 @@ pub fn pin_zero_level(st: &AState) -> Result<LIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
 /// The expression `Sort 1`, off the table.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:274-278 pinSortOne` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:278-282 pinSortOne` — the same
 /// value pin.
 pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
     if pins_ready(st) {
@@ -459,7 +459,7 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::eq_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:282-283 pinEq` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:286-287 pinEq` — the same slot,
 /// read through `pinAt`.
 pub fn pin_eq(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_EQ)
@@ -467,7 +467,7 @@ pub fn pin_eq(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::nat_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:284-285 pinNat` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:288-289 pinNat` — the same slot,
 /// read through `pinAt`.
 pub fn pin_nat(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT)
@@ -475,7 +475,7 @@ pub fn pin_nat(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::nat_zero_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:286-287 pinNatZero` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:290-291 pinNatZero` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_zero(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_ZERO)
@@ -483,7 +483,7 @@ pub fn pin_nat_zero(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::nat_succ_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:288-289 pinNatSucc` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:292-293 pinNatSucc` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_succ(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_SUCC)
@@ -491,7 +491,7 @@ pub fn pin_nat_succ(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::quot_sound_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:290-291 pinQuotSound` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:294-295 pinQuotSound` — the same
 /// slot, read through `pinAt`.
 pub fn pin_quot_sound(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_QUOT_SOUND)
@@ -499,7 +499,7 @@ pub fn pin_quot_sound(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::string_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:292-293 pinString` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:296-297 pinString` — the same
 /// slot, read through `pinAt`.
 pub fn pin_string(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_STRING)
@@ -507,7 +507,7 @@ pub fn pin_string(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::string_of_list_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:294-295 pinStringOfList` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:298-299 pinStringOfList` — the
 /// same slot, read through `pinAt`.
 pub fn pin_string_of_list(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_STRING_OF_LIST)
@@ -515,7 +515,7 @@ pub fn pin_string_of_list(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::list_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:296-297 pinList` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:300-301 pinList` — the same slot,
 /// read through `pinAt`.
 pub fn pin_list(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_LIST)
@@ -523,7 +523,7 @@ pub fn pin_list(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::list_nil_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:298-299 pinListNil` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:302-303 pinListNil` — the same
 /// slot, read through `pinAt`.
 pub fn pin_list_nil(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_LIST_NIL)
@@ -531,7 +531,7 @@ pub fn pin_list_nil(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::list_cons_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:300-301 pinListCons` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:304-305 pinListCons` — the same
 /// slot, read through `pinAt`.
 pub fn pin_list_cons(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_LIST_CONS)
@@ -539,7 +539,7 @@ pub fn pin_list_cons(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::char_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:302-303 pinChar` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:306-307 pinChar` — the same slot,
 /// read through `pinAt`.
 pub fn pin_char(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_CHAR)
@@ -547,7 +547,7 @@ pub fn pin_char(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::and_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:304-305 pinAnd` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:308-309 pinAnd` — the same slot,
 /// read through `pinAt`.
 pub fn pin_and(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_AND)
@@ -555,7 +555,7 @@ pub fn pin_and(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::char_of_nat_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:306-307 pinCharOfNat` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:310-311 pinCharOfNat` — the same
 /// slot, read through `pinAt`.
 pub fn pin_char_of_nat(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_CHAR_OF_NAT)
@@ -563,7 +563,7 @@ pub fn pin_char_of_nat(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::sorry_ax_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:308-309 pinSorryAx` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:312-313 pinSorryAx` — the same
 /// slot, read through `pinAt`.
 pub fn pin_sorry_ax(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_SORRY_AX)
@@ -571,7 +571,7 @@ pub fn pin_sorry_ax(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_pred_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:310-311 pinNatPred` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:314-315 pinNatPred` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_pred(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_PRED)
@@ -579,7 +579,7 @@ pub fn pin_nat_pred(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_add_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:312-313 pinNatAdd` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:316-317 pinNatAdd` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_add(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_ADD)
@@ -587,7 +587,7 @@ pub fn pin_nat_add(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_sub_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:314-315 pinNatSub` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:318-319 pinNatSub` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_sub(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_SUB)
@@ -595,7 +595,7 @@ pub fn pin_nat_sub(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_mul_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:316-317 pinNatMul` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:320-321 pinNatMul` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_mul(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_MUL)
@@ -603,7 +603,7 @@ pub fn pin_nat_mul(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_pow_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:318-319 pinNatPow` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:322-323 pinNatPow` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_pow(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_POW)
@@ -611,7 +611,7 @@ pub fn pin_nat_pow(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_beq_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:320-321 pinNatBeq` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:324-325 pinNatBeq` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_beq(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_BEQ)
@@ -619,7 +619,7 @@ pub fn pin_nat_beq(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_ble_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:322-323 pinNatBle` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:326-327 pinNatBle` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_ble(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_BLE)
@@ -627,7 +627,7 @@ pub fn pin_nat_ble(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_div_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:324-325 pinNatDiv` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:328-329 pinNatDiv` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_div(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_DIV)
@@ -635,7 +635,7 @@ pub fn pin_nat_div(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_mod_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:326-327 pinNatMod` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:330-331 pinNatMod` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_mod(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_MOD)
@@ -643,7 +643,7 @@ pub fn pin_nat_mod(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_gcd_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:328-329 pinNatGcd` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:332-333 pinNatGcd` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_gcd(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_GCD)
@@ -651,7 +651,7 @@ pub fn pin_nat_gcd(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_land_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:330-331 pinNatLand` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:334-335 pinNatLand` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_land(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_LAND)
@@ -659,7 +659,7 @@ pub fn pin_nat_land(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_lor_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:332-333 pinNatLor` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:336-337 pinNatLor` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_lor(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_LOR)
@@ -667,7 +667,7 @@ pub fn pin_nat_lor(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_xor_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:334-335 pinNatXor` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:338-339 pinNatXor` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nat_xor(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_XOR)
@@ -675,7 +675,7 @@ pub fn pin_nat_xor(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_shift_left_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:336-337 pinNatShiftLeft` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:340-341 pinNatShiftLeft` — the
 /// same slot, read through `pinAt`.
 pub fn pin_nat_shift_left(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_SHIFT_LEFT)
@@ -683,7 +683,7 @@ pub fn pin_nat_shift_left(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::nat_shift_right_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:338-339 pinNatShiftRight` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:342-343 pinNatShiftRight` — the
 /// same slot, read through `pinAt`.
 pub fn pin_nat_shift_right(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NAT_SHIFT_RIGHT)
@@ -691,7 +691,7 @@ pub fn pin_nat_shift_right(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::bool_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:340-341 pinBool` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:344-345 pinBool` — the same slot,
 /// read through `pinAt`.
 pub fn pin_bool(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_BOOL)
@@ -699,7 +699,7 @@ pub fn pin_bool(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::bool_true_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:342-343 pinBoolTrue` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:346-347 pinBoolTrue` — the same
 /// slot, read through `pinAt`.
 pub fn pin_bool_true(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_BOOL_TRUE)
@@ -707,7 +707,7 @@ pub fn pin_bool_true(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::bool_false_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:344-345 pinBoolFalse` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:348-349 pinBoolFalse` — the same
 /// slot, read through `pinAt`.
 pub fn pin_bool_false(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_BOOL_FALSE)
@@ -715,7 +715,7 @@ pub fn pin_bool_false(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::propext_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:346-347 pinPropext` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:350-351 pinPropext` — the same
 /// slot, read through `pinAt`.
 pub fn pin_propext(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_PROPEXT)
@@ -723,7 +723,7 @@ pub fn pin_propext(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::choice_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:348-349 pinChoice` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:352-353 pinChoice` — the same
 /// slot, read through `pinAt`.
 pub fn pin_choice(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_CHOICE)
@@ -731,7 +731,7 @@ pub fn pin_choice(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::iff_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:350-351 pinIff` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:354-355 pinIff` — the same slot,
 /// read through `pinAt`.
 pub fn pin_iff(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_IFF)
@@ -739,7 +739,7 @@ pub fn pin_iff(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::iff_intro_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:352-353 pinIffIntro` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:356-357 pinIffIntro` — the same
 /// slot, read through `pinAt`.
 pub fn pin_iff_intro(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_IFF_INTRO)
@@ -747,7 +747,7 @@ pub fn pin_iff_intro(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::iff_rec_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:354-355 pinIffRec` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:358-359 pinIffRec` — the same
 /// slot, read through `pinAt`.
 pub fn pin_iff_rec(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_IFF_REC)
@@ -755,7 +755,7 @@ pub fn pin_iff_rec(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::nonempty_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:356-357 pinNonempty` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:360-361 pinNonempty` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nonempty(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NONEMPTY)
@@ -763,7 +763,7 @@ pub fn pin_nonempty(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::nonempty_intro_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:358-359 pinNonemptyIntro` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:362-363 pinNonemptyIntro` — the
 /// same slot, read through `pinAt`.
 pub fn pin_nonempty_intro(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NONEMPTY_INTRO)
@@ -771,7 +771,7 @@ pub fn pin_nonempty_intro(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `cstd::nonempty_rec_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:360-361 pinNonemptyRec` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:364-365 pinNonemptyRec` — the same
 /// slot, read through `pinAt`.
 pub fn pin_nonempty_rec(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_NONEMPTY_REC)
@@ -779,7 +779,7 @@ pub fn pin_nonempty_rec(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::true_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:362-363 pinTrue` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:366-367 pinTrue` — the same slot,
 /// read through `pinAt`.
 pub fn pin_true(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_TRUE)
@@ -787,7 +787,7 @@ pub fn pin_true(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::true_intro_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:364-365 pinTrueIntro` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:368-369 pinTrueIntro` — the same
 /// slot, read through `pinAt`.
 pub fn pin_true_intro(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_TRUE_INTRO)
@@ -795,7 +795,7 @@ pub fn pin_true_intro(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::trust_compiler_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:366-367 pinTrustCompiler` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:370-371 pinTrustCompiler` — the
 /// same slot, read through `pinAt`.
 pub fn pin_trust_compiler(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_TRUST_COMPILER)
@@ -803,7 +803,7 @@ pub fn pin_trust_compiler(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::reduce_nat_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:368-369 pinReduceNat` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:372-373 pinReduceNat` — the same
 /// slot, read through `pinAt`.
 pub fn pin_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_REDUCE_NAT)
@@ -811,7 +811,7 @@ pub fn pin_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::reduce_bool_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:370-371 pinReduceBool` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:374-375 pinReduceBool` — the same
 /// slot, read through `pinAt`.
 pub fn pin_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_REDUCE_BOOL)
@@ -819,7 +819,7 @@ pub fn pin_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::of_reduce_nat_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:372-373 pinOfReduceNat` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:376-377 pinOfReduceNat` — the same
 /// slot, read through `pinAt`.
 pub fn pin_of_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_OF_REDUCE_NAT)
@@ -827,7 +827,7 @@ pub fn pin_of_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `ctrust::of_reduce_bool_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:374-375 pinOfReduceBool` — the
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:378-379 pinOfReduceBool` — the
 /// same slot, read through `pinAt`.
 pub fn pin_of_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_OF_REDUCE_BOOL)
@@ -836,7 +836,7 @@ pub fn pin_of_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_names::quot_name()`'s handle, off the record `intern_reserved_pins`
 /// filled (task #105: the positivity check's `n == quotName`).
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:376-378 pinQuot` — the same slot, read
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:380-382 pinQuot` — the same slot, read
 /// through `pinAt`.
 pub fn pin_quot(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_QUOT)
@@ -845,7 +845,7 @@ pub fn pin_quot(st: &AState) -> Result<NIdx, CheckError> {
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_raw::and_intro_name()`'s handle, off the record `intern_reserved_pins`
 /// filled (task #106: the fold's `And` pin).
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:379-381 pinAndIntro` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:383-385 pinAndIntro` — the same slot,
 /// read through `pinAt`.
 pub fn pin_and_intro(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_AND_INTRO)
@@ -854,7 +854,7 @@ pub fn pin_and_intro(st: &AState) -> Result<NIdx, CheckError> {
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `basis_raw::and_rec_name()`'s handle, off the record `intern_reserved_pins`
 /// filled (task #106: the fold's `And` pin).
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:382-384 pinAndRec` — the same slot,
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:386-388 pinAndRec` — the same slot,
 /// read through `pinAt`.
 pub fn pin_and_rec(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_AND_REC)
@@ -863,7 +863,7 @@ pub fn pin_and_rec(st: &AState) -> Result<NIdx, CheckError> {
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
 /// `core_k::eager_reduce_name()`'s handle, off the record `intern_reserved_pins`
 /// filled (the argument check's `eagerReduce` test).
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:385-387 pinEagerReduce` — the same
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:389-391 pinEagerReduce` — the same
 /// slot, read through `pinAt`.
 pub fn pin_eager_reduce(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_EAGER_REDUCE)
