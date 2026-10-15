@@ -107,13 +107,28 @@ def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
 
+/-- con-leche: ConLeche/Cached/StateC.lean:324-334 ModeMemos — **the
+mode-dependent memos**: the six entry-point tables, whose entries are results
+of the knot at ONE mode.  The level verdicts, the stored-constant caches and
+the readback memos are functions of their keys alone and are not among them.
+The knot's eager slot moves these out of the state for the length of an eager
+comparison and puts them back afterwards (`Arena/Core.lean`'s
+`takeModeMemos`/`putModeMemos`). -/
+structure ModeMemos where
+  whnfCoreC : Std.HashMap EIdx EIdx
+  whnfCoreCheapC : Std.HashMap EIdx EIdx
+  whnfC : Std.HashMap EIdx EIdx
+  inferC : Std.HashMap EIdx EIdx
+  inferIOC : Std.HashMap EIdx EIdx
+  defeqC : Std.HashMap (EIdx × EIdx) Bool
+
 /-! ## The pin table (task #97-P6-4a) -/
 
 /-- con-leche: none — the arena's own PIN TABLE (DESIGN §8.3, task #97c): the
 reserved constant names and the three interned values the checker compares
 against, interned ONCE at the driver instead of once per comparison.
 
-The name table is an `Array` rather than fifty fields for the reason task
+The name table is an `Array` rather than fifty-one fields for the reason task
 #97c declined the record in the first place: every 32-bit word is a
 syntactically valid handle, so a record of fields read before it is filled
 silently answers "not `Nat`", while an EMPTY array makes `pinAt` take its

@@ -244,7 +244,6 @@ def unknownConstError (n : NIdx) : AM CheckError := do
 /-! ## The record of mutually recursive entry points -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:141-165 CoreFns — the record of
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.CoreFnsA_bridge, then delete this line
 mutually recursive core entry points, over handles.  con-leche is
 polymorphic in the monad; the arena is at `AM` and nothing else (DESIGN
 §8.4), so the `m` parameter is gone and the name carries an `A`. -/
@@ -255,6 +254,11 @@ structure CoreFnsA where
   whnf : Nat → EIdx → AM EIdx
   infer : Nat → EIdx → AM EIdx
   defeq : Nat → EIdx → EIdx → AM Bool
+  /-- Definitional equality in the **eager tower**: the official kernel's
+  `is_def_eq` with `m_eager_reduce` set, which `infer_app` sets for the
+  comparison of an `eagerReduce _ _` argument's type with its domain
+  (`defeqArg`). -/
+  defeqE : Nat → EIdx → EIdx → AM Bool
   /-- Type inference at the **infer-only grade** (con-leche's task #170):
   the entry every *internal* inference call site uses. -/
   inferIO : Nat → EIdx → AM EIdx
@@ -830,6 +834,8 @@ def boolName : AM NIdx := pinBool
 def boolTrueName : AM NIdx := pinBoolTrue
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:431 boolFalseName -/
 def boolFalseName : AM NIdx := pinBoolFalse
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName -/
+def eagerReduceName : AM NIdx := pinEagerReduce
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:433-438 Expr.isBoolTrue — is `e` the
 constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
@@ -843,6 +849,28 @@ def isBoolTrue (h : EIdx) : AM Bool := do
         let bt ← boolTrueName
         pure (c == bt)
     | _ => pure false
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:424-429 Expr.isEagerReduce — is
+`e` of the form `eagerReduce _ _` (official `is_eager_reduce`): the head
+constant `eagerReduce`, exactly two arguments, any universe levels. -/
+def isEagerReduce (h : EIdx) : AM Bool := do
+  if h.tag == ETag.app then
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, _) =>
+      if f.tag == ETag.app then
+        match ← viewApp f with
+        | none => failDanglingE
+        | some (g, _) =>
+          if g.tag == ETag.const then
+            match ← viewConst g with
+            | none => failDanglingE
+            | some (c, _) => do
+              let er ← eagerReduceName
+              pure (c == er)
+          else pure false
+      else pure false
   else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:440-448 natOpNames — the certified
@@ -2418,7 +2446,6 @@ def ensureSort (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) :
   else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody — the λ clause's
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.inferLamResult_bridge, then delete this line
 result, `.forallE ty (bt.abstract1 depth)`.  con-leche writes it once at
 the end of a clause with three exits; the arena names it, so the three exits
 share one spelling and no arm is duplicated (DESIGN §8.4's Rust shape). -/
@@ -2585,8 +2612,15 @@ The `whnf` re-entry at a non-∀ head is where the chained clause's own `whnf`
 sits, and it RESETS the accumulator, because the reduct is already the opened
 type. -/
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1065-1071 defeqArg
+con-leche: ConLeche/Cached/CoreC.lean:834-837 defeqArgI — **the argument check
+of a full-grade application** (official `infer_app`): the type of an
+`eagerReduce _ _` argument is compared with the domain in the eager tower
+(`CoreFnsA.defeqE`), every other argument's in the knot's own. -/
+def defeqArg (r : CoreFnsA) (depth : Nat) (a ta ty : EIdx) : AM Bool := do
+  if ← isEagerReduce a then r.defeqE depth ta ty else r.defeq depth ta ty
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:839-868 inferSpineI — walk the
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.inferSpine_bridge, then delete this line
 head's type down the argument vector at the FULL grade. -/
 def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
@@ -2598,7 +2632,7 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       | some (dom, body) => do
         let dom2 ← instantiateListFast coreWalkFuel dom acc 0
         let ta ← r.infer depth a
-        if !(← r.defeq depth ta dom2) then
+        if !(← defeqArg r depth a ta dom2) then
           fail (.invalid "application type mismatch")
         else inferSpine r fe depth body (acc.push a) args (i + 1)
     else do
@@ -2609,7 +2643,7 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         | none => failDanglingE
         | some (dom, body) => do
           let ta ← r.infer depth a
-          if !(← r.defeq depth ta dom) then
+          if !(← defeqArg r depth a ta dom) then
             fail (.invalid "application type mismatch")
           else inferSpine r fe depth body #[a] args (i + 1)
       else fail (.invalid "function expected")
@@ -2701,7 +2735,6 @@ def inferProj (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (sn : NIdx) (i : Nat)
   else fail (.invalid "invalid projection: not a structure-like type, or no such field")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody — the inference
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.inferBody_bridge, then delete this line
 body.  The `.const` clause reads the stored type through `constTyAt`, so a
 constant inferred twice at the same levels pays the level substitution
 once. -/
@@ -2852,10 +2885,11 @@ def boolTrueShortcut (r : CoreFnsA) (depth : Nat) (a : EIdx) : AM Bool := do
   isBoolTrue w
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1301-1330 defeqSpine —
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.defeqSpine_bridge, then delete this line
 levels-and-spine congruence for two applications of the *same* stored
 constant (the lazy delta same-head short-circuit, official's
-`try_eq_const_app`). -/
+`try_eq_const_app`).  The arguments are compared **last to first**, as
+official `is_def_eq_args` walks `app_arg`/`app_fn` from the outermost
+application inwards. -/
 def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
     AM Bool := do
   let hh ← getAppFn coreWalkFuel a
@@ -2870,7 +2904,7 @@ def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
           let bb ← getAppArgs coreWalkFuel b
           if n = n' ∧ aa.length = bb.length then
             match ← lvlsEq? us us' with
-            | some true => defEqList r fe depth aa bb
+            | some true => defEqList r fe depth aa.reverse bb.reverse
             | _ => pure false
           else pure false
         | _ => pure false
@@ -2879,7 +2913,6 @@ def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction — the
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.defeqNoFvars_bridge, then delete this line
 literal-acceleration guard: *both* sides free of free variables, mirroring
 the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
 eager per-node fvar range where the specification walks. -/
@@ -2888,6 +2921,14 @@ def defeqNoFvars (a b : EIdx) : AM Bool := do
   else do
     let y ← hasFvarFast coreWalkFuel b
     pure !y
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction — **the
+literal fold's guard**: the eager flag (`CheckMode.eager`, official
+`m_eager_reduce`) or both sides free of free variables — official's
+`(!has_fvar(t_n) && !has_fvar(s_n)) || m_eager_reduce`.  Under the flag the
+sides are not walked. -/
+def lazyFoldOk (mode : CheckMode) (a b : EIdx) : AM Bool := do
+  if mode.eager then pure true else defeqNoFvars a b
 
 /-! ### The batched defeq binder descent
 
@@ -3222,9 +3263,7 @@ verdict.  Effectively unbounded since con-leche task #330: `2^62`. -/
 @[noinline] def defeqLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.lazyDeltaReduction_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1325-1349 lazyDeltaReductionI — **the
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.lazyDeltaReduction_bridge, then delete this line
 lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 iteration the offset check, the fvar-guarded literal acceleration — whose
 reduct restarts the comparison (`defeq`) — then one `lazyDeltaStep`, each
@@ -3236,7 +3275,7 @@ def lazyDeltaReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     match ← defeqOffset r depth a b with
     | some v => pure (.verdict v)
     | none =>
-    let nf ← defeqNoFvars a b
+    let nf ← lazyFoldOk mode a b
     match ← (if nf then reduceNat r fe depth a else pure none) with
     | some a₂ => do
       let v ← r.defeq depth a₂ b
@@ -3362,7 +3401,6 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   | _, _ => stuckIrrel r fe depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1674-1732 defeqBody — **the
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.defeqBody_bridge, then delete this line
 definitional-equality body** (the official kernel's `is_def_eq_core`, clause
 for clause except con-leche task #333's reordering): the syntactic fast path;
 the `Bool.true` shortcut; `quickDefEq` and proof irrelevance on the UNREDUCED
@@ -3375,8 +3413,9 @@ def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
   fun depth a b => do
   if a == b then pure true else do
   -- the eq-true shortcut (E2): right side `Bool.true`, left side fvar-free
+  -- or the eager flag set (official `m_eager_reduce`)
   let sc ←
-    if (← isBoolTrue b) && !(← hasFvarFast coreWalkFuel a) then
+    if (← isBoolTrue b) && (mode.eager || !(← hasFvarFast coreWalkFuel a)) then
       boolTrueShortcut r depth a
     else pure false
   if sc then pure true else do
@@ -3461,10 +3500,29 @@ verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
   let s := { s with caches := { s.caches with defeqC := ∅ } }
   set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
 
+/-- con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos —
+detach the six mode-dependent memos, leaving empty ones. -/
+@[noinline] def takeModeMemos : AM ModeMemos := do
+  let s ← get
+  let c := s.caches
+  let c' : Caches :=
+    { c with whnfCoreC := ∅, whnfCoreCheapC := ∅, whnfC := ∅, inferC := ∅,
+             inferIOC := ∅, defeqC := ∅ }
+  set { s with caches := c' }
+  pure ⟨c.whnfCoreC, c.whnfCoreCheapC, c.whnfC, c.inferC, c.inferIOC, c.defeqC⟩
+
+/-- con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos — put
+detached mode-dependent memos back, dropping the state's own. -/
+@[noinline] def putModeMemos (mm : ModeMemos) : AM Unit := do
+  let s ← get
+  let c' : Caches :=
+    { s.caches with whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
+                    whnfC := mm.whnfC, inferC := mm.inferC, inferIOC := mm.inferIOC,
+                    defeqC := mm.defeqC }
+  set { s with caches := c' }
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level
@@ -3482,6 +3540,7 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
       whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
       infer := fun _ _ => fail (.internal "fuel exhausted: infer")
       defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
+      defeqE := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
     wrap
@@ -3529,6 +3588,17 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
             let x ← defeqBody mode (coreKnot mode fe wrap fuel) fe d a b
             defeqSet a b x
             pure x
+        -- **The eager slot**: the eager tower — the knot at `mode.toEager`
+        -- one level down — under fresh mode-dependent memos (con-leche's
+        -- `withFreshMemos`: an eager entry never serves a plain query), the
+        -- caller's put back afterwards.  con-leche's `coreKnotI` runs the body
+        -- under `memoBI`, whose probe of the emptied table always misses and
+        -- whose insert the restore drops; this slot runs the body directly.
+        defeqE := fun d a b => do
+          let saved ← takeModeMemos
+          let x ← defeqBody mode.toEager (coreKnot mode.toEager fe wrap fuel) fe d a b
+          putModeMemos saved
+          pure x
         inferIO := fun d e => do
           match (← get).caches.inferIOC[e]? with
           | some x => pure x
@@ -3538,10 +3608,12 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
             pure x }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1773-1793 checkFuel — the shared
--- con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove Core.checkFuel_bridge, then delete this line
-fuel for the checker core: bounds the recursion depth of reduction,
-inference and definitional equality. -/
-def checkFuel : Nat := 100000
+fuel for the checker core, counted in knot levels.  **Effectively
+unbounded** (`2^62`, as `whnfCoreLoopFuel`): the fuel exists so that the knot
+is a structural recursion the proofs can induct over, and running out of it
+is an internal error, never an accept.  What bounds the depth of the executed
+checker is its native stack (`arena::core::CHECK_FUEL`'s note). -/
+@[noinline] def checkFuel : Nat := 4611686018427387904  -- 2^62
 
 /-! ## The fueled entry points
 

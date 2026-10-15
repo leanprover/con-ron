@@ -271,6 +271,7 @@ ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check
 ConLeche/Cached/CheckerC.lean instPisAtLiftC Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/Env.lean find? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findProj? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Env.lean CheckMode.isVerified Proof-only (con-leche task #353): the predicate its model tier and capstones are stated under (`hμ : μ.isVerified = true`); no executed function reads it, and the port's theorems are stated at `.verified` or under `verifiedChecks`.
 ConLeche/Kernel/Expr.lean hasLP Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean bvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean fvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
