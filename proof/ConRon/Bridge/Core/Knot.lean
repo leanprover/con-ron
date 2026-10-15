@@ -143,6 +143,18 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄
+  /-- The eager slot: definitional equality in the eager tower, i.e. the knot
+  at `mode.toEager` (con-leche's `defeqE_def`: the slot IS the eager tower's
+  `isDefEqCore`), run under fresh mode-dependent memos and leaving the
+  caller's invariant at `mode`. -/
+  defeqE : ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
+    CheckOK mode env fe s₀ → denoteE s₀.store i = some a →
+    denoteE s₀.store j = some b →
+    Expr.WScoped d a → Expr.WScoped d b →
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeqE d i j
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimV (ConLeche.isDefEqCore mode.toEager env) d a b x; ⊤⦄
   /-- The io grade (con-leche's task #170): its own body, its own table. -/
   inferIO : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
@@ -166,6 +178,7 @@ theorem knotSpec_zero (mode : CheckMode) (env : Env) (fe : IFEnv) :
   whnf := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   infer := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   defeq := fun _ _ _ _ _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
+  defeqE := fun _ _ _ _ _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   inferIO := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
 
 /-! ## The slots in answer shape

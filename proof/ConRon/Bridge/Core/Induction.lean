@@ -52,28 +52,40 @@ five fueled entry points on inputs that denote and are well scoped.
 The proof is con-leche's architecture term for term: fuel zero throws
 everywhere, and at `f + 1` each slot is `memo_<slot>_step` applied to
 `<body>_spec` applied to the induction hypothesis. -/
-theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
-    ∀ f, KnotSpec mode env fe f
-  | 0 => knotSpec_zero mode env fe
-  | f + 1 =>
+theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
+    ∀ f {mode : CheckMode}, mode.verifiedChecks = true → KnotSpec mode env fe f
+  | 0, mode, _ => knotSpec_zero mode env fe
+  | f + 1, mode, hμ =>
+    have hμE : mode.toEager.verifiedChecks = true := by
+      rw [CheckMode.verifiedChecks_toEager]; exact hμ
     { whnfCore := fun {c} s₀ d i e hok hden hw =>
         memoWhnfCore_step henv
-          (fun c => whnfCoreBody_spec henv hμ (knot_spec henv hμ f) c) (c := c)
+          (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv f hμ) c) (c := c)
           s₀ d i e hok hden hw
       whnf := fun s₀ d i e hok hden hw =>
         memoWhnf_step henv
-          (whnfBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
+          (whnfBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
       infer := fun s₀ d i e hok hden hw =>
         memoInfer_step henv
-          (inferBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
+          (inferBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
       defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
         memoDefeq_step henv
-          (defeqBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i j a b hok hda
+          (defeqBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i j a b hok hda
+          hdb hwa hwb
+      defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
+        memoDefeqE_step
+          (defeqBody_spec henv hμE (knot_spec_all henv f hμE)) s₀ d i j a b hok hda
           hdb hwa hwb
       inferIO := fun s₀ d i e hok hden hw =>
         memoInferIO_step henv
-          (inferBodyIO_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw }
+          (inferBodyIO_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw }
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — `knot_spec_all` at
+one mode. -/
+theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
+    ∀ f, KnotSpec mode env fe f :=
+  fun f => knot_spec_all henv f hμ
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1960-1963 checkFuel — **what the
 Checker tier takes as its hypothesis**: the knot at the fuel the seven entry

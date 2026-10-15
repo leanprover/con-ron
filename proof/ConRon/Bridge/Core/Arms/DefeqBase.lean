@@ -184,6 +184,18 @@ theorem defeqNoFvars_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
   · simp only [ite_true]
     exact triple_pure_post ⟨hok1, hst1, hp1, by simp⟩
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction — **the
+literal fold's guard**: the eager flag, or both sides free of free variables
+(official `(!has_fvar(t_n) && !has_fvar(s_n)) || m_eager_reduce`). -/
+theorem lazyFoldOk_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
+    (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store a = some x)
+    (hy : denoteE s₀.store b = some y) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.lazyFoldOk mode a b
+    ⦃fun nf s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ nf = (mode.eager || (!x.hasFvar && !y.hasFvar)); ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.lazyFoldOk, defeqNoFvars_spec s₀ a b x y hok hx hy] <;> finish
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — **the
 guarded literal acceleration**, both guard outcomes, in the `SimOOp` shape
 with the fuel carried eventually. -/

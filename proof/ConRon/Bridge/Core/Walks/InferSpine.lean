@@ -19,6 +19,7 @@ well-scoped.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Guards
 import ConLeche.Verify.BetaSpine
 
 namespace ConRon.Bridge.Core
@@ -67,21 +68,41 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
   subst_vars
   exact ⟨rfl, hrelF x hden, by simpa using hrelA x hden⟩
 
-/-! ## 2. The pure mirror's steps -/
+/-! ## 2. The argument check -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1065-1071 defeqArg — **THEOREM 1 for
+`defeqArg`**: the argument's type against the domain, in the eager tower for
+an `eagerReduce _ _` argument and in the knot's own otherwise — one comparison
+at the argument's mode (con-leche's `defeqArg_def`, `CheckMode.argMode`). -/
+theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a i j : EIdx) (x ta ty : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hdi : denoteE s₀.store i = some ta) (hdj : denoteE s₀.store j = some ty)
+    (hwi : Expr.WScoped d ta) (hwj : Expr.WScoped d ty) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqArg (coreKnot mode fe id fuel) d a i j
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimV (ConLeche.isDefEqCore (mode.argMode x) env) d ta ty r; ⊤⦄ := by
+  sym only [bridge_grind, CheckMode.argMode] =>
+    vcgen [ConRon.Arena.defeqArg, isEagerReduce_spec s₀ a x hok hda,
+      fun s₁ h1 h2 h3 => hsim.defeqE s₁ d i j ta ty h1 h2 h3 hwi hwj,
+      fun s₁ h1 h2 h3 => hsim.defeq s₁ d i j ta ty h1 h2 h3 hwi hwj] <;> finish
+
+/-! ## 3. The pure mirror's steps -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1293 inferSpine_pi — the
 syntactic-`∀` step, certificate passed. -/
 theorem inferSpine_pi_step {F d : Nat} {dom body x ta : Expr}
     {ws xs : List Expr}
     (hi : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (hd : ConLeche.isDefEqCore mode env F d ta (dom.instantiateList ws)
+    (hd : ConLeche.isDefEqCore (mode.argMode x) env F d ta (dom.instantiateList ws)
       = .ok true) :
     ConLeche.inferSpine (pureFns mode env F) d (.forallE dom body) ws
         (x :: xs) =
       ConLeche.inferSpine (pureFns mode env F) d body (x :: ws) xs := by
   have e1 : (pureFns mode env F).infer d x = .ok ta := hi
-  have e2 : (pureFns mode env F).defeq d ta (dom.instantiateList ws)
-      = .ok true := hd
+  have e2 : ConLeche.defeqArg (pureFns mode env F) d x ta (dom.instantiateList ws)
+      = .ok true := by rw [ConLeche.defeqArg_def]; exact hd
   rw [ConLeche.inferSpine_pi]
   unfold ConLeche.inferSpinePi
   simp [e1, e2, bind, Except.bind]
@@ -94,13 +115,14 @@ theorem inferSpine_whnf_step {F d : Nat} {ty dom body x ta : Expr}
     (hw : ConLeche.whnf mode env F d (ty.instantiateList ws)
       = .ok (.forallE dom body))
     (hi : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (hd : ConLeche.isDefEqCore mode env F d ta dom = .ok true) :
+    (hd : ConLeche.isDefEqCore (mode.argMode x) env F d ta dom = .ok true) :
     ConLeche.inferSpine (pureFns mode env F) d ty ws (x :: xs) =
       ConLeche.inferSpine (pureFns mode env F) d body [x] xs := by
   have e0 : (pureFns mode env F).whnf d (ty.instantiateList ws)
       = .ok (.forallE dom body) := hw
   have e1 : (pureFns mode env F).infer d x = .ok ta := hi
-  have e2 : (pureFns mode env F).defeq d ta dom = .ok true := hd
+  have e2 : ConLeche.defeqArg (pureFns mode env F) d x ta dom = .ok true := by
+    rw [ConLeche.defeqArg_def]; exact hd
   rw [ConLeche.inferSpine_ne_pi _ _ hne]
   unfold ConLeche.inferSpineWhnf
   simp [e0, e1, e2, bind, Except.bind]
@@ -110,7 +132,7 @@ theorem InstLVec.single {st : EStore} {a : EIdx} {x : Expr}
     (hx : denoteE st a = some x) : ExprOps.InstLVec st #[a] [x] :=
   InstLVec.push (InstLVec.empty st) hx
 
-/-! ## 3. The full-grade spine walk -/
+/-! ## 4. The full-grade spine walk -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean:808 inferSpineC_sim —
 **the carry of `inferSpine`**: the twin's walk at the push-order
@@ -182,8 +204,8 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         refine triple_seq (hsim.infer s2 d args[i] x hok2 (denote_ext hx hx2)
           hwx) ?_
         rintro ta s3 ⟨hok3, hx3, hp3, vta, hvta, hwvta, F1, hF1⟩
-        refine triple_seq (hsim.defeq s3 d ta dom2 vta _ hok3 hvta
-          (denote_ext hd2 hx3) hwvta hwty.1) ?_
+        refine triple_seq (defeqArg_spec hsim s3 d args[i] ta dom2 x vta _ hok3
+          (denote_ext hx (hx2.trans hx3)) hvta (denote_ext hd2 hx3) hwvta hwty.1) ?_
         rintro b s4 ⟨hok4, hx4, hp4, F2, hF2⟩
         split
         · exact triple_fail
@@ -229,8 +251,9 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           refine triple_seq (hsim.infer s3 d args[i] x hok3
             (denote_ext hx (hx2.trans hx3)) hwx) ?_
           rintro ta s4 ⟨hok4, hx4, hp4, vta, hvta, hwvta, F2, hF2⟩
-          refine triple_seq (hsim.defeq s4 d ta dom vta edom hok4 hvta
-            (denote_ext hdd hx4) hwvta hwdb.1) ?_
+          refine triple_seq (defeqArg_spec hsim s4 d args[i] ta dom x vta edom hok4
+            (denote_ext hx ((hx2.trans hx3).trans hx4)) hvta (denote_ext hdd hx4)
+            hwvta hwdb.1) ?_
           rintro b s5 ⟨hok5, hx5, hp5, F3, hF3⟩
           split
           · exact triple_fail
@@ -255,7 +278,7 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
               exact ConLeche.inferSpine_mono (by omega) hF4
       · exact triple_fail
 
-/-! ## 4. The io-grade spine walk -/
+/-! ## 5. The io-grade spine walk -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean inferSpineIOC_sim — **the
 carry of `inferSpineIO`**, `inferSpine_go` at the io grade (official

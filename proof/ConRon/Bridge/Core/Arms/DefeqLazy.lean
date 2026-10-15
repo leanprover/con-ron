@@ -1351,7 +1351,7 @@ theorem lazyDeltaReduction_spec {fe : IFEnv} {fuel : Nat}
         simp only [h, bind, Except.bind, pure, Except.pure]⟩
     | none =>
     dsimp only
-    refine triple_seq (defeqNoFvars_spec s1 a b x y hok1 (denote_ext hx hx1)
+    refine triple_seq (lazyFoldOk_spec s1 a b x y hok1 (denote_ext hx hx1)
       (denote_ext hy hx1)) ?_
     rintro nf s2 ⟨hok2, hst2, hp2, rfl⟩
     have hx12 : Ext s1.store s2.store := by rw [hst2]; exact Ext.refl _
@@ -1418,10 +1418,10 @@ theorem lazyDeltaReduction_spec {fe : IFEnv} {fuel : Nat}
     have hp05 : s5.pins = s₀.pins := hp5.trans hp04
     have hpre : ∀ F, ConLeche.defeqOffset (ConLeche.pureFns mode env F) d x y
           = .ok none →
-        (if (!x.hasFvar && !y.hasFvar) = true then
+        (if (mode.eager || !x.hasFvar && !y.hasFvar) = true then
           ConLeche.reduceNat (ConLeche.pureFns mode env F) env d x
           else pure none) = (.ok none : CheckM (Option Expr)) →
-        (if (!x.hasFvar && !y.hasFvar) = true then
+        (if (mode.eager || !x.hasFvar && !y.hasFvar) = true then
           ConLeche.reduceNat (ConLeche.pureFns mode env F) env d y
           else pure none) = (.ok none : CheckM (Option Expr)) →
         ConLeche.lazyDeltaReduction mode (ConLeche.pureFns mode env F) env d (n + 1)
