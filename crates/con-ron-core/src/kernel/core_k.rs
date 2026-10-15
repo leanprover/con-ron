@@ -268,6 +268,14 @@ pub fn bool_false_name() -> Name {
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName
+/// `eagerReduce` (`Init/Core.lean`: `def eagerReduce (a : α) : α := a`), the
+/// gadget that sets the official kernel's eager flag.
+pub fn eager_reduce_name() -> Name {
+    const S: [u32; 11] = [101, 97, 103, 101, 114, 82, 101, 100, 117, 99, 101];
+    name::mk_str(name::anonymous(), core_types::code_points(&S))
+}
+
 // ---------------------------------------------------------------------------
 // What is not ported
 // ---------------------------------------------------------------------------

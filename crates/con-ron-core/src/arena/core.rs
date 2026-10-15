@@ -27,8 +27,8 @@
 //!    function fields is what `con_ron_core::cached::core_c` already refuses
 //!    to port ("§3.1 ties the knot with a mutually recursive block of plain
 //!    functions, so there is no record whose `infer` field can be rebound").
-//!    So the knot is five plain mutually recursive functions — `knot_whnf_core`
-//!    and its four siblings — and the *identity of the record* is the one
+//!    So the knot is six plain mutually recursive functions — `knot_whnf_core`
+//!    and its five siblings — and the *identity of the record* is the one
 //!    thing a body still has to be told, because the arena has two knots:
 //!    `coreKnot` (LANE_FULL, memoized) and `coreKnotIO` (LANE_IO,
 //!    `arena::core_io`, no memo; con-leche's gated knot `coreKnotGated` went
@@ -79,7 +79,7 @@
 
 use crate::arena::core_state::{
     eidx_pair, lidx_pair,
-    lsidx_pair, nls_key, nnls_key, EIdxPair, LIdxPair, LsIdxPair, NLsKey, NNLsKey,
+    lsidx_pair, nls_key, nnls_key, EIdxPair, LIdxPair, LsIdxPair, ModeMemos, NLsKey, NNLsKey,
 };
 use crate::arena::env;
 use crate::arena::env::{
@@ -102,9 +102,9 @@ use crate::arena::monad::{
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
-use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
+use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
 use crate::kernel::core_types::{code_points, CheckError};
-use crate::kernel::env::{CheckMode, ReducibilityHint};
+use crate::kernel::env::{eager, to_eager, CheckMode, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::expr::Literal;
 use crate::kernel::expr_ops::sub_nat;
@@ -113,6 +113,7 @@ use crate::kernel::level::Level;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
+use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::ron::nat;
 use crate::ron::nat::Nat;
 use std::vec::Vec;
@@ -372,13 +373,11 @@ pub const M_FUEL_DEFEQ: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::LANE_FULL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot` — **the
 /// executed knot**: the memoized one, `pureFnsA`'s.
 pub const LANE_FULL: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::LANE_IO_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — the io knot
 /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
 /// unmemoized; every other slot is the full knot's.
@@ -2255,6 +2254,44 @@ pub fn is_bool_true(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, 
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName
+/// Lean twin: `proof/ConRon/Arena/Core.lean eagerReduceName`.
+pub fn eager_reduce_name(st: &mut AState) -> Result<NIdx, CheckError> {
+    pin_eager_reduce(st)
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:424-429 Expr.isEagerReduce
+/// Lean twin: `proof/ConRon/Arena/Core.lean isEagerReduce` — is `e` of the
+/// form `eagerReduce _ _` (official `is_eager_reduce`): the head constant
+/// `eagerReduce`, exactly two arguments, any universe levels.
+pub fn is_eager_reduce(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
+    if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((f, _y)) => if f.tag() == ETAG_APP {
+                match view_app(pers, st, &f) {
+                    None => fail_dangling_e(),
+                    Some((g, _x)) => if g.tag() == ETAG_CONST {
+                        match view_const(pers, st, &g) {
+                            None => fail_dangling_e(),
+                            Some((c, _us)) => match eager_reduce_name(st) {
+                                Err(e) => Err(e),
+                                Ok(er) => Ok(c.eq2(&er)),
+                            },
+                        }
+                    } else {
+                        Ok(false)
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 /// con-leche: none — the `List NIdx` accumulator Lean's list literal hides
 /// Lean twin: `proof/ConRon/Arena/Core.lean:847-853 natOpNames` — push one
 /// interned name onto a `Vec`, so the name lists below read as the twin's
@@ -3570,6 +3607,21 @@ pub fn append_eidx_of(xs: &Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
     let out: Vec<EIdx> = Vec::with_capacity(xs.len() + ys.len());
     let out2 = crate::arena::expr_ops::eidx_copy_upto(xs, xs.len(), 0, out);
     append_eidx_from(out2, ys, 0)
+}
+
+/// con-leche: none — `List.reverse` on a `Vec`
+/// Lean twin: `proof/ConRon/Arena/Core.lean defeqSpine` — `aa.reverse`: pushes
+/// `xs[i-1], …, xs[0]` onto `out` (`rec_check::nfs_reverse`'s pattern).
+pub fn eidx_rev(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
+    if i == 0 {
+        out
+    } else if i > xs.len() {
+        out
+    } else {
+        let mut o: Vec<EIdx> = out;
+        o.push(xs[i - 1].dup2());
+        eidx_rev(xs, i - 1, o)
+    }
 }
 
 /// con-leche: none — `List.getD` on a `Vec`
@@ -7036,7 +7088,6 @@ pub fn ensure_sort(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_lam_result_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2419-2425 inferLamResult` — the λ
 /// clause's result, `.forallE ty (bt.abstract1 depth)`.
@@ -7054,7 +7105,6 @@ pub fn infer_lam_result(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_sort_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2765-2837 inferBodyIO`
@@ -7067,7 +7117,6 @@ pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, Ch
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_fvar_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2765-2837 inferBodyIO`
@@ -7082,7 +7131,6 @@ pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_const_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2765-2837 inferBodyIO`
@@ -7126,7 +7174,6 @@ pub fn infer_const(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2765-2837 inferBodyIO`
@@ -7148,7 +7195,6 @@ pub fn infer_lit_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_lit_str_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1188-1284 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2765-2837 inferBodyIO`
@@ -7170,7 +7216,6 @@ pub fn infer_lit_str(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
@@ -7220,7 +7265,6 @@ pub fn infer_forall(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2656-2698 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
@@ -7270,7 +7314,6 @@ pub fn infer_proj(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2656-2698 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
@@ -7298,7 +7341,6 @@ pub fn infer_proj_miss(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
@@ -7349,7 +7391,6 @@ pub fn infer_proj_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_proj_prop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the
 /// propositional structure's extra premise: the field's guard level must be
 /// `Prop` at this instantiation.
@@ -7383,7 +7424,6 @@ pub fn infer_proj_prop(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
@@ -7462,7 +7502,6 @@ pub fn infer_lam_open(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_let_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
@@ -7524,8 +7563,33 @@ pub fn infer_let_io(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:1065-1071 defeqArg
+/// con-leche: ConLeche/Cached/CoreC.lean:834-837 defeqArgI
+/// Lean twin: `proof/ConRon/Arena/Core.lean defeqArg` — **the argument check
+/// of a full-grade application** (official `infer_app`): the type of an
+/// `eagerReduce _ _` argument is compared with the domain in the eager tower
+/// (`knot_defeq_e`), every other argument's in the knot's own.
+pub fn defeq_arg(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    ta: &EIdx,
+    ty: &EIdx,
+) -> Result<bool, CheckError> {
+    match is_eager_reduce(pers, st, a) {
+        Err(e) => Err(e),
+        Ok(true) => knot_defeq_e(pers, vis, st, mode, lane, fuel, fe, depth, ta, ty),
+        Ok(false) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ta, ty),
+    }
+}
+
 /// con-leche: ConLeche/Cached/CoreC.lean:839-868 inferSpineI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_spine_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2586-2614 inferSpine` — the cached
 /// tier's application-inference spine loop, the EXECUTED checker's own `.app`
 /// clause.
@@ -7567,8 +7631,8 @@ pub fn infer_spine(
                         Ok(dom2) => {
                             match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                                 Err(e) => Err(e),
-                                Ok(ta) => match knot_defeq(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
+                                Ok(ta) => match defeq_arg(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &a, &ta, &dom2,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(false) => {
@@ -7599,8 +7663,8 @@ pub fn infer_spine(
                             Some((dom, body)) => {
                                 match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                                     Err(e) => Err(e),
-                                    Ok(ta) => match knot_defeq(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                    Ok(ta) => match defeq_arg(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &a, &ta, &dom,
                                     ) {
                                         Err(e) => Err(e),
                                         Ok(false) => {
@@ -7923,7 +7987,6 @@ pub fn infer_pis(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1186 inferBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::infer_body_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2763 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
@@ -8208,11 +8271,13 @@ pub fn bool_true_shortcut(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1301-1330 defeqSpine
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_spine_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2850-2874 defeqSpine` —
 /// levels-and-spine congruence for two applications of the *same* stored
 /// constant (the lazy delta same-head short-circuit, official's
-/// `try_eq_const_app`).
+/// `try_eq_const_app`).  The arguments are compared **last to first**, as
+/// official `is_def_eq_args` walks `app_arg`/`app_fn` from the outermost
+/// application inwards (`tests/e2e/src/spine_arg_order.lean`): the spines are
+/// reversed with `eidx_rev` and handed to `def_eq_list`.
 pub fn defeq_spine(
     pers: &PersTier,
     vis: u64,
@@ -8243,11 +8308,15 @@ pub fn defeq_spine(
                                         if n.eq2(&n2) && aa.len() == bb.len() {
                                             match lvls_eq(pers, st, &us, &us2) {
                                                 Err(e) => Err(e),
-                                                Ok(Some(true)) => def_eq_list(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
-                                                ),
+                                                Ok(Some(true)) => {
+                                                    // last to first, as
+                                                    // official `is_def_eq_args`
+                                                    let ra: Vec<EIdx> = eidx_rev(&aa, aa.len(), Vec::with_capacity(aa.len()));
+                                                    let rb: Vec<EIdx> = eidx_rev(&bb, bb.len(), Vec::with_capacity(bb.len()));
+                                                    def_eq_list(
+                                                        pers, vis, st, mode, lane, fuel, fe, depth, &ra, &rb, 0,
+                                                    )
+                                                }
                                                 Ok(_) => Ok(false),
                                             }
                                         } else {
@@ -8269,7 +8338,6 @@ pub fn defeq_spine(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_no_fvars_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2876-2884 defeqNoFvars` — the
 /// literal-acceleration guard: *both* sides free of free variables, mirroring
 /// the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
@@ -8287,6 +8355,26 @@ pub fn defeq_no_fvars(
             Err(e) => Err(e),
             Ok(y) => Ok(!y),
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
+/// Lean twin: `proof/ConRon/Arena/Core.lean lazyFoldOk` — **the literal
+/// fold's guard**: the eager flag (`env::eager`, official `m_eager_reduce`)
+/// or both sides free of free variables — official's
+/// `(!has_fvar(t_n) && !has_fvar(s_n)) || m_eager_reduce`.  Under the flag the
+/// sides are not walked.
+pub fn lazy_fold_ok(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    if eager(mode) {
+        Ok(true)
+    } else {
+        defeq_no_fvars(pers, st, a, b)
     }
 }
 
@@ -9055,7 +9143,6 @@ pub enum LazyResA {
 pub const DEFEQ_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::lazy_delta_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3218-3246 lazyDeltaReduction` — the
 /// loop's literal acceleration, guarded on both sides being fvar-free; its
 /// reduct restarts the comparison (`defeq`).  `None`: neither side folds.
@@ -9071,7 +9158,7 @@ pub fn lazy_delta_nat(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<Option<bool>, CheckError> {
-    match defeq_no_fvars(pers, st, a, b) {
+    match lazy_fold_ok(pers, st, mode, a, b) {
         Err(e) => Err(e),
         Ok(nf) => {
             let ra = if nf {
@@ -9108,9 +9195,7 @@ pub fn lazy_delta_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::lazy_delta_reduction_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1325-1349 lazyDeltaReductionI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::lazy_delta_reduction_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3218-3246 lazyDeltaReduction` — **the
 /// lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 /// iteration the offset check, the literal acceleration, then one
@@ -9466,7 +9551,6 @@ pub fn defeq_stuck(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1674-1732 defeqBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_after_lazy_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3356-3393 defeqBody` — the tail of the
 /// body after the lazy-delta loop came back undecided: the proj/proj check,
 /// then the FULL `whnfCore` of both sides (only when one is projection-headed)
@@ -9518,7 +9602,6 @@ pub fn defeq_after_lazy(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1674-1732 defeqBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_after_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3356-3393 defeqBody` — the body after the
 /// CHEAP head normalization of both sides: `quick_defeq` on the reducts, the
 /// lazy-delta loop, and `defeq_after_lazy`.  (Proof irrelevance is no longer
@@ -9554,7 +9637,6 @@ pub fn defeq_after_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1674-1732 defeqBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_unreduced_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3356-3393 defeqBody` — the body
 /// past the `Bool.true` shortcut (con-leche task #333): `quick_defeq` and proof
 /// irrelevance on the UNREDUCED pair, so that a proof is never head-normalized
@@ -9596,7 +9678,6 @@ pub fn defeq_unreduced(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1674-1732 defeqBody
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::defeq_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3356-3393 defeqBody` — **the
 /// definitional-equality body** (the official kernel's `is_def_eq_core`,
 /// clause for clause except con-leche task #333's reordering): the syntactic
@@ -9623,7 +9704,9 @@ pub fn defeq_body(
             Ok(ibt) => match has_fvar_fast(pers, st, CORE_WALK_FUEL, a) {
                 Err(e) => Err(e),
                 Ok(hf) => {
-                    let sc = if ibt && !hf {
+                    // the eager flag fires the shortcut with free
+                    // variables present (official `m_eager_reduce`)
+                    let sc = if ibt && (eager(mode) || !hf) {
                         bool_true_shortcut(pers, vis, st, mode, lane, fuel, fe, depth, a)
                     } else {
                         Ok(false)
@@ -9653,9 +9736,11 @@ pub const PEEL_FUEL: u64 = 16777216;
 //
 // con-leche's `Core.lean`:2897-2936 with the memo probes of
 // `ConLeche/Cached/CoreC.lean`:1877-1906 inlined in the slots (the twin's
-// deviation 6).  The five slots are five plain mutually recursive functions
+// deviation 6).  The six slots are six plain mutually recursive functions
 // here (the module note's deviation 1), each taking the `lane` that says which
-// of the arena's two knots it belongs to.
+// of the arena's two knots it belongs to.  The eager slot (`knot_defeq_e`)
+// runs the knot one level down at `to_eager(mode)`, so the `mode` argument is
+// the record's other component.
 //
 // The twin's detach-before-update (lesson 14) and `@[noinline]` (lesson 15)
 // have no Rust counterpart: `&mut` IS the unique reference the detaching
@@ -9836,9 +9921,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -9885,9 +9968,7 @@ pub fn knot_whnf_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -9920,11 +10001,8 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
@@ -9959,11 +10037,8 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — **the `inferIO`
 /// slot.**  At `LANE_FULL` it is the io body at every mode (con-leche task
@@ -10029,9 +10104,7 @@ pub fn knot_infer_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-45 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -10064,12 +10137,87 @@ pub fn knot_defeq(
     }
 }
 
+/// con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos
+/// Lean twin: `proof/ConRon/Arena/Core.lean takeModeMemos` — detach the six
+/// mode-dependent memos, leaving empty ones (`HashMap::new` allocates
+/// nothing).
+pub fn take_mode_memos(st: &mut AState) -> ModeMemos {
+    ModeMemos {
+        whnf_core_c: core::mem::replace(&mut st.caches.whnf_core_c, HashMap::new()),
+        whnf_core_cheap_c: core::mem::replace(&mut st.caches.whnf_core_cheap_c, HashMap::new()),
+        whnf_c: core::mem::replace(&mut st.caches.whnf_c, HashMap::new()),
+        infer_c: core::mem::replace(&mut st.caches.infer_c, HashMap::new()),
+        infer_io_c: core::mem::replace(&mut st.caches.infer_io_c, HashMap::new()),
+        defeq_c: core::mem::replace(&mut st.caches.defeq_c, HashMap::new()),
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos
+/// Lean twin: `proof/ConRon/Arena/Core.lean putModeMemos` — put detached
+/// mode-dependent memos back, dropping the state's own.
+pub fn put_mode_memos(st: &mut AState, mm: ModeMemos) {
+    st.caches.whnf_core_c = mm.whnf_core_c;
+    st.caches.whnf_core_cheap_c = mm.whnf_core_cheap_c;
+    st.caches.whnf_c = mm.whnf_c;
+    st.caches.infer_c = mm.infer_c;
+    st.caches.infer_io_c = mm.infer_io_c;
+    st.caches.defeq_c = mm.defeq_c;
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
+/// con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
+/// con-leche: ConLeche/Cached/StateC.lean:350-361 withFreshMemos
+/// Lean twin: `proof/ConRon/Arena/Core.lean coreKnot` — **the eager slot**:
+/// definitional equality in the eager tower, `defeq_body` at `to_eager(mode)`
+/// one level down (the flag holds for the comparison and everything it calls,
+/// as official's `flet` scope does), under fresh mode-dependent memos — an
+/// eager entry never serves a plain query, nor the other way round — and the
+/// caller's memos restored afterwards.  The mode-independent caches are
+/// shared.  con-leche's `coreKnotI` runs the body under `memoBI`, whose probe
+/// of the emptied table always misses and whose insert the restore drops; the
+/// port runs the body directly.  On an error the caller's memos are not put
+/// back, as con-leche's (the state is not read after an error).
+pub fn knot_defeq_e(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    _lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ)))
+    } else {
+        let saved: ModeMemos = take_mode_memos(st);
+        let me: CheckMode = to_eager(mode);
+        match defeq_body(pers, vis, st, &me, LANE_FULL, fuel - 1, fe, depth, a, b) {
+            Err(er) => Err(er),
+            Ok(r) => {
+                put_mode_memos(st, saved);
+                Ok(r)
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:1773-1793 checkFuel
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove core::CHECK_FUEL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3529-3532 checkFuel` — the shared fuel
-/// for the checker core: bounds the recursion depth of reduction, inference
-/// and definitional equality.
-pub const CHECK_FUEL: u64 = 100000;
+/// for the checker core, counted in knot levels.  **Effectively unbounded**
+/// (`2^62`, as `WHNF_CORE_LOOP_FUEL`): the fuel exists so that the knot is a
+/// structural recursion the proofs can induct over, and running out of it is
+/// an internal error (exit 3), never an accept.  Each knot level is native
+/// recursion, so what bounds the depth is the native stack: every checker
+/// thread is spawned with `STACK_BYTES` (1 GiB, `crates/con-ron`'s
+/// `driver.rs`, the Lean runtime's default con-leche relies on), and a
+/// recursion deeper than it holds hits the thread's guard page, which the
+/// Rust runtime turns into `thread … has overflowed its stack` and an abort
+/// (exit 134; `tests/e2e/src/stack_fuel_offset.lean`) — an error, never an
+/// accept.
+pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 
 // ---------------------------------------------------------------------------
 // The fueled entry points (`Core.lean:2866-2923`)

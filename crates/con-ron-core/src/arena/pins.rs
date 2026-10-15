@@ -37,7 +37,7 @@
 //!
 //! ## What is pinned
 //!
-//! The fifty names below and `basis_names::reserved_basis_names()`'s
+//! The fifty-one names below and `basis_names::reserved_basis_names()`'s
 //! sixteen, plus the three interned values every `pin` site around them
 //! needs: the empty universe-argument list, the level `0` and the expression
 //! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
@@ -99,7 +99,7 @@ const M_PINS_UNSET: [u32; 38] = [
 
 /// con-leche: none — the arena's own pin table; the number of pinned names
 /// The length `intern_reserved_pins` fills and `pin_at` bounds-checks against.
-pub const PIN_COUNT: usize = 50;
+pub const PIN_COUNT: usize = 51;
 
 // `basis_names`
 /// con-leche: none — the arena's own pin table; `basis_names::eq_name()`'s slot
@@ -211,6 +211,9 @@ pub const PIN_AND_INTRO: usize = 48;
 /// con-leche: none — the arena's own pin table; `basis_raw::and_rec_name()`'s slot
 /// (task #106: the fold's `And` pin, `andPinOk`'s `andPinNames`)
 pub const PIN_AND_REC: usize = 49;
+/// con-leche: none — the arena's own pin table; `core_k::eager_reduce_name()`'s slot
+/// (the argument check's `eagerReduce` test, `arena::core::is_eager_reduce`)
+pub const PIN_EAGER_REDUCE: usize = 50;
 
 // ---------------------------------------------------------------------------
 // The record
@@ -267,14 +270,14 @@ impl Pins {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
-/// The fifty reserved names as VALUES, in `PIN_*` order.  This is the
+/// The fifty-one reserved names as VALUES, in `PIN_*` order.  This is the
 /// one place they are built, and it runs once per process.
 ///
 /// Spelled as pushes rather than a `vec![…]` literal because the extraction
 /// takes the pushes as they are; the order is the `PIN_*` constants', which
 /// `pins_table_is_in_slot_order` in this module's tests checks name by name.
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:173-199 pinNames` — the same
-/// fifty names, in `PIN_*` order.
+/// fifty-one names, in `PIN_*` order.
 pub fn pin_names() -> Vec<Name> {
     let mut out: Vec<Name> = Vec::new();
     out.push(basis_names::eq_name());
@@ -327,6 +330,7 @@ pub fn pin_names() -> Vec<Name> {
     out.push(basis_names::quot_name());
     out.push(basis_raw::and_intro_name());
     out.push(basis_raw::and_rec_name());
+    out.push(core_k::eager_reduce_name());
     out
 }
 
@@ -450,7 +454,7 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// The fifty named readers: one per `PIN_*` slot
+// The fifty-one named readers: one per `PIN_*` slot
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
@@ -854,6 +858,15 @@ pub fn pin_and_intro(st: &AState) -> Result<NIdx, CheckError> {
 /// read through `pinAt`.
 pub fn pin_and_rec(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_AND_REC)
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
+/// `core_k::eager_reduce_name()`'s handle, off the record `intern_reserved_pins`
+/// filled (the argument check's `eagerReduce` test).
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:385-387 pinEagerReduce` — the same
+/// slot, read through `pinAt`.
+pub fn pin_eager_reduce(st: &AState) -> Result<NIdx, CheckError> {
+    pin_at(st, PIN_EAGER_REDUCE)
 }
 
 

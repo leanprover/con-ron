@@ -340,7 +340,6 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
-/// con-leche: CHANGED since e74d32ad — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:47-65 parseInput
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.

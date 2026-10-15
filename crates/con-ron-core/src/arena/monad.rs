@@ -317,7 +317,7 @@ pub struct AState {
     /// per-declaration drop are different operations on different lifetimes.
     pub caches: Caches,
     /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
-    /// fifty constant names, the empty level list, the level `0` and
+    /// fifty-one constant names, the empty level list, the level `0` and
     /// `Sort 1`, interned ONCE into the persistent tier by the driver's
     /// `intern_all_pins` and read by handle ever after.  Empty until then,
     /// which is what makes a premature read a stop rather than a wrong

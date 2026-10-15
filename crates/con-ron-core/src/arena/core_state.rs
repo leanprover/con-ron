@@ -385,6 +385,29 @@ impl Caches {
     }
 }
 
+/// con-leche: ConLeche/Cached/StateC.lean:324-334 ModeMemos
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean ModeMemos` — **the
+/// mode-dependent memos**: the six entry-point tables, whose entries are
+/// results of the knot at ONE mode.  The level verdicts, the stored-constant
+/// caches and the readback memos are functions of their keys alone and are
+/// not among them.  The knot's eager slot (`arena::core::knot_defeq_e`) moves
+/// these out of the state for the length of an eager comparison and puts
+/// them back afterwards.
+pub struct ModeMemos {
+    /// `Caches::whnf_core_c`.
+    pub whnf_core_c: HashMap<EIdx, EIdx>,
+    /// `Caches::whnf_core_cheap_c`.
+    pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
+    /// `Caches::whnf_c`.
+    pub whnf_c: HashMap<EIdx, EIdx>,
+    /// `Caches::infer_c`.
+    pub infer_c: HashMap<EIdx, EIdx>,
+    /// `Caches::infer_io_c`.
+    pub infer_io_c: HashMap<EIdx, EIdx>,
+    /// `Caches::defeq_c`.
+    pub defeq_c: HashMap<EIdxPair, bool>,
+}
+
 // ---------------------------------------------------------------------------
 // The scratch-tier drop (`CoreState.lean:101-153`)
 // ---------------------------------------------------------------------------
