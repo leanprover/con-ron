@@ -997,7 +997,6 @@ theorem parse_bytes_refines {pers rst lst b o}
     have ho := Result.ok_injective h; subst ho
     exact StreamErrSim.of_throw (n := 0#u64) hS
   | Ok v =>
-    try simp only at h
     obtain ⟨lsd, lst1, hx1, ⟨hd1, hi1'⟩, hrel1, hinv1⟩ := hS
     rw [hx1]
     simp only [except_ok_bind]
@@ -1443,7 +1442,6 @@ theorem prepare_d_refines {pers rst lst pre ds o}
       obtain ⟨v3, v4⟩ := hv
       obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hH
       rw [hx2]
-      try simp only at h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨syn, hsyn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

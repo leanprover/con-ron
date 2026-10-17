@@ -211,10 +211,9 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   repeat' (first
     | (split at h)
     | (rust_bind_guard h; obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
-  all_goals (first
+  all_goals try (first
     | (rw [← Result.ok_injective h] at hv; simp at hv; done)
-    | (rw [← Result.ok_injective h] at hv; cases Option.some.inj hv; trivial)
-    | skip)
+    | (rw [← Result.ok_injective h] at hv; cases Option.some.inj hv; trivial))
   -- the literal arm: the node column's record is well formed
   rename_i r hn _ w hd
   rw [← Result.ok_injective h] at hv

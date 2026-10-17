@@ -1096,7 +1096,7 @@ attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
   refine LS.pure ?_ ‹_› ‹_›
   simp only [absTargetMajor, absMemberShape]
   casesm* _ ∨ _
-  all_goals first | (exfalso; scalar_tac) | skip
+  all_goals try (exfalso; scalar_tac)
   rename_i h5
   simp only [h5, hP, absEIdxL, absU, Option.map_some]
   rfl

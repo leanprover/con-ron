@@ -3278,7 +3278,7 @@ theorem scan_line_fwd_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : Un
             rw [ite_eq_left (blit_eq 10 rfl h10')]
             obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
             rw [← Result.ok_injective h]
-            exact ScanSim.ok (by rw [absPos_add_one hi5]; try rfl)
+            exact ScanSim.ok (by rw [absPos_add_one hi5])
           · rw [ite_eq_right h10'] at h
             rw [ite_eq_right (blit_ne 10 rfl h10')]
             by_cases hend' : Slice.len b ≤ p1

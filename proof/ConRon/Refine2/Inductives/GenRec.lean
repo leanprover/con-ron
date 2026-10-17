@@ -636,7 +636,6 @@ attribute [local lockstep high] binder_copy_from_new_spec
       simp only [TwinEq] at hP
       simp only [absEIdxL, Option.map_some] at hP ⊢
       rw [← hP, e]
-      try rfl
     · exfalso
       have := g.cls.property
       simp only [absU] at hb

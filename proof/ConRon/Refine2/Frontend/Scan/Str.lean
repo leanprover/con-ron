@@ -1425,7 +1425,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
     rw [frontend.scan_fast.err] at h
     simp only [Result.ok.injEq] at h
     rw [← h]
-    exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
+    exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
   · rename_i heq
     rw [ite_eq_right (show ¬ ((absByte c != 34) = true) by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
@@ -1445,7 +1445,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
       rw [frontend.scan_fast.err] at h
       simp only [Result.ok.injEq] at h
       rw [← h]
-      exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
+      exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
     · rename_i hnz
       rw [ite_eq_right (show ¬ ((absPos e == 0) = true) by
         simp only [beq_iff_eq]

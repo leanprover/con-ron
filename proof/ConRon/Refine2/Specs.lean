@@ -3837,7 +3837,6 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -4643,7 +4642,6 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -5026,7 +5024,6 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -5266,7 +5263,6 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -5506,7 +5502,6 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -5746,7 +5741,6 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -5991,7 +5985,6 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -6201,7 +6194,6 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -6515,7 +6507,6 @@ theorem estore_intern_lam_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull
@@ -6776,7 +6767,6 @@ theorem estore_intern_forall_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      try rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h <;> rename_i hfull

@@ -226,10 +226,9 @@ theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
       simp [i_constant_info_name_abs hn]
   rw [arena.env.i_declaration_names.eq_def] at h
   cases d <;> simp only at h
-  all_goals first
+  all_goals try first
     | (rw [one h]; rfl)
     | (cases Result.ok_injective h; rfl)
-    | skip
   rename_i block np
   rw [from_ block _ 0#usize _ v rfl h]
   simp [absIDeclaration, IDeclaration.names]

@@ -493,7 +493,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       refine LSMI.bindS (intern_name_ls' hrel hinv n hn) (by lsm_err) ?_
       intro a b st1 lst1 hR hrel1 hinv1
       subst hR
-      try simp only [ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_ok]
       refine LSMI.bindS (intern_levels_ls' hrel1 hinv1 us hus) (by lsm_err) ?_
       intro a' b' st2 lst2 hR' hrel2 hinv2
       subst hR'

@@ -309,7 +309,7 @@ theorem intern_persistent_n_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h)
 
 theorem intern_persistent_l_frozen {t st v r t'}
@@ -318,7 +318,7 @@ theorem intern_persistent_l_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h)
 
 theorem intern_persistent_ls_frozen {t st v r t'}
@@ -327,7 +327,7 @@ theorem intern_persistent_ls_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h)
 
 theorem intern_persistent_e_frozen {t st v r t'}

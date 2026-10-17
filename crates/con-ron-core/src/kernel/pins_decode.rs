@@ -1280,7 +1280,7 @@ mod tests {
         });
         assert_eq!(names.len(), 3);
         // con-leche's order (task #328): the dump that matches its own
-        // toolchain (v4.35.0-rc3's Init) first, the nightly one
+        // toolchain (v4.35.0's Init) first, the nightly one
         assert!(names[0].contains("nightly"));
         assert_eq!(names[1], "leanprover/lean4:v4.33.0");
         assert_eq!(names[2], "leanprover/lean4:v4.34.0-rc2");

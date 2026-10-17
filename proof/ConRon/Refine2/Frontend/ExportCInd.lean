@@ -1899,7 +1899,6 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     exact ⟨_, _, rfl, rfl, rfl⟩
   rw [ite_eq_left hall] at h
   rw [ite_eq_left hall]
-  try simp only [pure_bind]
   -- the four name/type readers
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hN := ty_names_of_refines (lst := lst) hd hr

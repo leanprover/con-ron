@@ -1381,13 +1381,11 @@ private theorem index_promoted_aux (d : Nat) :
       obtain ⟨hinvm, -, hupd, -⟩ :=
         ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
           hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
-      try dsimp only
       refine LS.packT_bind (LS.bind_eq fun q2 hq2 => ?_)
       obtain ⟨x, back⟩ := q2
       have : Inhabited arena.env.IConstantInfo := ⟨ci⟩
       obtain ⟨-, -, hback⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq2
       subst hback
-      try dsimp only
       obtain ⟨hrel', hinv', hlen', hfree'⟩ := index_promoted_step (i := i) (ci := ci) (nn := nn)
         (c := c) (i1 := i1) (i2 := i2) hfe hfinv hfree hsj hj hiv hi1v (by
           rw [u64_one_val] at hc1; exact hc1) hi2v hnn' hciwf hinvm hupd

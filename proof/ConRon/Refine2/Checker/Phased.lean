@@ -66,7 +66,6 @@ private theorem install_fold_hooked_aux {H : Type} (inst : arena.checker.Install
     · rename_i hge
       rw [ite_eq_right hge]
       obtain ⟨p0, p1, p2⟩ := p
-      try dsimp only at hrun
       obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨u, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       rw [hd]
@@ -75,11 +74,9 @@ private theorem install_fold_hooked_aux {H : Type} (inst : arena.checker.Install
       rw [hq]
       simp only [bind_ok]
       obtain ⟨r, st1⟩ := q
-      try dsimp only at hrun ⊢
       cases r with
       | Err e => exact hrun
       | Ok q' =>
-        try dsimp only at hrun ⊢
         obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         rw [hi2]
         simp only [bind_ok]

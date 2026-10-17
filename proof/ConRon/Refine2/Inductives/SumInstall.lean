@@ -109,12 +109,10 @@ opened at the free variables `i ..< i + bs.length` back into a syntactic
     (fun st k i => arena.inductives.sum_install.close_telescope pers st bs k i body)
     ?_ ?_ k st lst i hrel hinv
   · intro st lst k i hn hrel hinv
-    try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
     rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst k i hb hrel hinv ih
-    try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
     rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep

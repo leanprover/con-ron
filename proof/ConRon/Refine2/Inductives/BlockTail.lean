@@ -216,7 +216,6 @@ lists walked side by side. -/
   all_goals
     simp only [TwinEq, absBlockParts_shape, absNIdxL] at *
     try simp only [← ‹(absBlockShape p0.shape).allCtors = _›] at *
-    try simp only [‹List.map _ (absCtorsL _) = _›] at *
     try simp only [← ‹(absBlockShape p0.shape).memberNames = _›] at *
     lockstep
 

@@ -125,7 +125,6 @@ theorem parse_source_loop_eq {S : Type}
     rw [hq]
     simp only [bind_ok]
     obtain ⟨r, ar1, st1⟩ := q
-    try dsimp only at hrun ⊢
     cases r with
     | Err e =>
       have ho := (Result.ok_injective hrun).symm
@@ -133,7 +132,6 @@ theorem parse_source_loop_eq {S : Type}
       rfl
     | Ok t =>
       obtain ⟨c2, l, t1⟩ := t
-      try dsimp only at hrun ⊢
       have hi1 : ∃ i1 : Std.Usize, i + 1#usize = ok i1 ∧ i1.val = i.val + 1 := by
         have hmax : i.val + 1 ≤ Std.Usize.max := by
           have := alloc.vec.Vec.len_val chunks
@@ -165,14 +163,12 @@ theorem parse_source_eq {S : Type}
   rw [hq]
   simp only [bind_ok]
   obtain ⟨r, e⟩ := q
-  try dsimp only at hrun ⊢
   cases r with
   | Err e1 =>
     have ho := (Result.ok_injective hrun).symm
     subst ho
     rfl
   | Ok v =>
-    try dsimp only at hrun ⊢
     exact parse_source_loop_eq chunks.val (i := 0#usize) (by simp) hreads hrun
 
 end ConRon.Refine2.Frontend
