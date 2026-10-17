@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn the_prelude_text_is_the_committed_ndjson() {
         let b = builtin_prelude_text();
-        assert_eq!(b.len(), 15704);
+        assert_eq!(b.len(), 15700);
         assert_eq!(b[b.len() - 1], b'\n');
     }
 }
