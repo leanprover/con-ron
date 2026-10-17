@@ -69476,9 +69476,10 @@ and the installer's message, plus the plain-axiom case).  No theorem states
 the message: Theorem 2 relates errors by kind (§3.1), and the twin's message
 is con-leche's by construction.
 
-**Findings.**  `update --auto`: 148 findings, all `changed` (85 the
-regenerated prelude, 19 `checkDecl`/`checkDeclC` citations whose body moved
-by the one line, the rest the prelude's twin); **148 markers after the
+**Findings.**  `update --auto`: 148 findings, all `changed`: 128 the
+prelude (65 Rust, 63 twin; the generated files cite `builtinPreludeText`,
+whose `include_str` path changed) and 20 `checkDecl`/`checkDeclC` (18 Rust
+arms, one `ParsedC` citation, the twin), whose body changed by the one line; **148 markers after the
 mechanical pass, 0 at the end**.  Coverage 847/929 at the old pin, 847/931 at
 the new before the port → **849/931** (the two new declarations).
 diff-e2e: master's binary at the new pin 627/627 (exit codes did not move);
