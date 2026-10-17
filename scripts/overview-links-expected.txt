@@ -2477,18 +2477,18 @@
    131    `no_False_declaration_embedded` fix the text to the embedded `PINS_TEXT`;
    132  -/
 
-== proof/ConRon/Refine2/Checker/Phased.lean#L492-L502
-   492  theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
-   493      {h : H} {pers st lst}
-   494      {mode : kernel.env.CheckMode}
-   495      {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   496      {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
-   497      (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-   498      (hpers : pers.frozen = false)
-   499      (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
-   500      ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-   501          (absIDeclL ds).toArray lst lfe lst' ∧
-   502        IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
+== proof/ConRon/Refine2/Checker/Phased.lean#L489-L499
+   489  theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
+   490      {h : H} {pers st lst}
+   491      {mode : kernel.env.CheckMode}
+   492      {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   493      {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
+   494      (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+   495      (hpers : pers.frozen = false)
+   496      (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
+   497      ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+   498          (absIDeclL ds).toArray lst lfe lst' ∧
+   499        IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
 
 == proof/ConRon/Generated/TypesExternal.lean#L41-L42
     41  @[reducible, rust_type "alloc::sync::Arc"]
@@ -2788,12 +2788,12 @@
     96  //! claim itself on a state that records its claims.
     97  //!
 
-== proof/ConRon/Refine2/Checker/Phased.lean#L312-L316
-   312  def ParallelAll {S E : Type} (n : Nat) (init : Result S)
-   313      (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
-   314    ∃ parts : List (List Nat),
-   315      (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
-   316      ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
+== proof/ConRon/Refine2/Checker/Phased.lean#L309-L313
+   309  def ParallelAll {S E : Type} (n : Nat) (init : Result S)
+   310      (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
+   311    ∃ parts : List (List Nat),
+   312      (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
+   313      ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
 
 == crates/con-ron-core/src/arena/handle.rs#L444-L447
    444  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
