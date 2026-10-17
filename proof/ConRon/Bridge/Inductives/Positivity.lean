@@ -1813,7 +1813,7 @@ theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (fun _ => ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) (fun _ => by simp)
     (fun _ => by simpa using ih) _ _ (hi + grpP.length) us usP ds dsP _ _ holes _
     (fun d hd => Expr.WScoped.mono (Nat.le_add_right _ _) (hds d hd))
-    (Cached.frameHoles_wscoped hg) (by simp) ctors vc ns nsP [] [] hvcl s₆ s₇ q c6.ok
+    (Cached.frameHoles_wscoped hg) (by simp [Cached.frameHoles]) ctors vc ns nsP [] [] hvcl s₆ s₇ q c6.ok
     ⟨dCtx_ext _ hx06 _ _ hctx, hprog2, denoteLs_ext hus hx06, denoteEList_ext hx06 _ _ hds',
       dGrp_names (dGrp_ext (p5.ext.trans p6.ext) _ _ hgrp4), hholes,
       dCtors_ext p6.ext _ _ hvc, dState_ext hx06 _ _ hns, rfl⟩ h13

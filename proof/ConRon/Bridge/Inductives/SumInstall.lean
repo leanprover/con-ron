@@ -36,6 +36,21 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Bridge
 
+/-! ## Opened telescopes' variable types -/
+
+/-- con-leche: none — **an opened telescope's variables carry types scoped at
+their own frame**: `openPisAtFvars_index` places binder `i`'s variable at
+`off + i`, and `openPisAtFvars_WScoped` scopes it. -/
+theorem openers_typeD_WScoped {n off : Nat} {e : ConLeche.Expr} {fvs : List ConLeche.Expr}
+    {body : ConLeche.Expr}
+    (h : ConLeche.openPisAtFvars n e off = some (fvs, body)) (he : ConLeche.Expr.WScoped off e) :
+    ∀ (i : Nat) (x : ConLeche.Expr), fvs[i]? = some x → ConLeche.Expr.WScoped (off + i) x.fvarTypeD := by
+  intro i x hx
+  obtain ⟨ty, rfl⟩ := ConLeche.openPisAtFvars_index n e off h i x hx
+  have hw := (ConLeche.openPisAtFvars_WScoped n e off h he).1 _ (List.mem_of_getElem? hx)
+  simp only [ConLeche.Expr.WScoped] at hw
+  exact hw.2
+
 /-! ## The former's telescope -/
 
 /-- con-leche: none — **`Arena.whnfTelescope`'s equation at `0`**.  The twin
@@ -847,14 +862,14 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   obtain ⟨c11, F₃, hF₃⟩ := checkStructDomsAt_spec fe hk henv 0 cq.1 doms cfvsP
     (tfvsP.map Expr.fvarTypeD) nP (by
       intro i _ a b ha hb
-      refine ⟨ConLeche.Cached.openers_typeD_WScoped hcq hwsA i a ha, ?_⟩
+      refine ⟨ConRon.Bridge.Inductives.openers_typeD_WScoped hcq hwsA i a ha, ?_⟩
       rw [List.getElem?_map] at hb
       cases hti : tfvsP[i]? with
       | none => rw [hti] at hb; exact nomatch hb
       | some t =>
         rw [hti] at hb
         obtain rfl := (Option.some.inj hb).symm
-        exact ConLeche.Cached.openers_typeD_WScoped htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
+        exact ConRon.Bridge.Inductives.openers_typeD_WScoped htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
     ⟨denoteEList_ext x6_10 _ _ hcfvs, hdoms, denoteFEnv_mono c10.ext hfe⟩ k11
   have c11' := c10.trans c11
   -- the fields, opened past the parameters
@@ -921,7 +936,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     have hwsc : Expr.WScoped nP crestP := by
       have := (ConLeche.openPisAtFvars_WScoped _ _ _ hcq hwsA).2
       simpa using this
-    exact ConLeche.Cached.openers_typeD_WScoped hxq hwsc i a ha
+    exact ConRon.Bridge.Inductives.openers_typeD_WScoped hxq hwsc i a ha
   obtain ⟨c23, F₄, sortsP, hF₄, hsorts⟩ := checkStructFieldSortsI_spec fe hk henv isProp large
     resSort resSortP nP xq.1 (xargs.drop nP) xfvsP (xrestP.getAppArgs.drop nP) nF hxpos
     s₂₂ s₂₃ sorts c22.ok

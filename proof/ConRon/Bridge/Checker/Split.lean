@@ -217,6 +217,28 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
 
 /-! ## The check half -/
 
+/-- con-leche: none — **`checkValueGroup` from its facts**: the converse of
+con-leche's `checkValueGroup_inv`, its six successful runs reassembled into
+the check half's run. -/
+theorem checkValueGroup_of_facts {μ : CheckMode} {F : Nat} {env : Env}
+    {vg : ConLeche.ValueGroup} {stype vtype : ConLeche.Expr} {u : ConLeche.Level}
+    (hst : ConLeche.inferTypeCore μ env F 0 vg.cv.type = .ok stype)
+    (hsort : ConLeche.ensureSortCore μ env F 0 stype = .ok u)
+    (hthm : vg.kind = .thm → ConLeche.Level.isEquiv u .zero = some true)
+    (hjv : vg.kind = .thm →
+      ConLeche.installValueGuards (m := ConLeche.CheckM) env vg.cv vg.jv = .ok ())
+    (hvt : ConLeche.inferTypeCore μ env F 0 vg.jv = .ok vtype)
+    (hde : ConLeche.isDefEqCore μ env F 0 vtype vg.cv.type = .ok true) :
+    ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok () := by
+  simp only [ConLeche.checkValueGroup, ConLeche.fueledOps_inferType,
+    ConLeche.fueledOps_ensureSort, ConLeche.fueledOps_isDefEq, Bind.bind, Except.bind,
+    Pure.pure, Except.pure, hst, hsort]
+  by_cases hk : vg.kind = .thm
+  · simp only [ite_eq_left hk, ConLeche.liftFueled, hthm hk, Pure.pure, Except.pure,
+      ↓reduceIte, hjv hk, hvt, hde]
+  · simp only [ite_eq_right hk, hvt, hde, ↓reduceIte]
+
+
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup —
 **the check half of a value declaration**, at the environment the constant was
 installed at.
@@ -327,7 +349,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     refine ⟨⟨hck8, hext2.trans (hxA.trans (hx7.trans hx8)),
       by rw [hp8, hp7, hpA, hpin2]⟩,
       max (max Fa Fb) (max F2 F3), ?_⟩
-    exact ConLeche.checkValueGroup_of_facts
+    exact checkValueGroup_of_facts
       (ConLeche.inferTypeCore_mono (by omega) hFa)
       (ConLeche.ensureSortCore_mono (by omega) hFb)
       hLV3 hIV3
@@ -774,17 +796,17 @@ theorem SplitInstall.mono {μ : CheckMode} {F F' : Nat} (_hle : F ≤ F')
     {env env' : Env} {d : Declaration} {vg : ConLeche.ValueGroup}
     (h : SplitInstall μ F env d vg env') : SplitInstall μ F' env d vg env' := h
 
-/-- con-leche: ConLeche/Verify/CheckerSplit.lean:127-213 checkValueGroup_inv /
-checkValueGroup_of_facts — the check half at a larger fuel (con-leche states no
-`checkValueGroup_mono`; this proves it off the inversion and the core walks'
-monotonicity). -/
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:104-178 checkValueGroup_inv —
+the check half at a larger fuel (con-leche states no `checkValueGroup_mono`;
+this proves it off the inversion, `checkValueGroup_of_facts` and the core
+walks' monotonicity). -/
 theorem checkValueGroup_mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
     {env : Env} {vg : ConLeche.ValueGroup}
     (h : ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok ()) :
     ConLeche.checkValueGroup (ConLeche.fueledOps μ F') env vg = .ok () := by
   obtain ⟨stype, u, hst, hsort, hthm, hiv, vtype, hvt, hde⟩ :=
     ConLeche.checkValueGroup_inv h
-  exact ConLeche.checkValueGroup_of_facts (ConLeche.inferTypeCore_mono hle hst)
+  exact checkValueGroup_of_facts (ConLeche.inferTypeCore_mono hle hst)
     (ConLeche.ensureSortCore_mono hle hsort) hthm hiv
     (ConLeche.inferTypeCore_mono hle hvt) (ConLeche.isDefEqCore_mono hle hde)
 
