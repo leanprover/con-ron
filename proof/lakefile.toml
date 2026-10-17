@@ -14,7 +14,7 @@ defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
 [[require]]
 name = "con-leche"
 git = "https://github.com/leanprover/con-leche"
-rev = "c26f79316c01ae19ab0fbe85acab371d2d8d390a"
+rev = "103562ba1c46cee26f134d0435765adcb5d22486"
 
 # The Aeneas Lean library, patched onto this project's toolchain by
 # `scripts/setup-aeneas-lean.sh` (DESIGN.md, tasks #2 and #110).  The path is
@@ -24,7 +24,7 @@ rev = "c26f79316c01ae19ab0fbe85acab371d2d8d390a"
 # old one.
 [[require]]
 name = "aeneas"
-path = "../_tmp/aeneas-lean-v4.35.0-rc3"
+path = "../_tmp/aeneas-lean-v4.35.0"
 
 # Task #22's finding: Aeneas's `step` tactic and its `@[step]` lemmas unify
 # with `⦃ ⦄` goals only under the two `backward.*` options task #2's patch
