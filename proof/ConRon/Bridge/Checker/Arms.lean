@@ -1023,7 +1023,8 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                   coh := hok.coh
                   pushed := Pushed.refl _
                   run := ⟨env, F2, hden, hpureA⟩ }
-            · exact absurd hbad11 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+            · -- the decline reads the name back for its message, then fails
+              exact absurd hbad11 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:562 checkDecl (the `.basisDecl`
 arm) — the fold's own pinned-block record.

@@ -423,7 +423,7 @@ theorem check_axiom_decl_rest_refines {pers st lst} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.check_decl.check_axiom_decl_rest st rf cv_a = ok o) :
+    (hrun : arena.check_decl.check_axiom_decl_rest pers st rf cv_a = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) := by
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
@@ -438,7 +438,7 @@ open Lockstep in
     {cv_a : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers IFEnvRelI (arena.check_decl.check_axiom_decl_rest st rf cv_a) lst
+    LS pers IFEnvRelI (arena.check_decl.check_axiom_decl_rest pers st rf cv_a) lst
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_rest_refines hrel hinv hfe.rel hfe.inv h
 
@@ -1172,7 +1172,6 @@ theorem install_step_promote_refines {pers tier st lst} {rf lf}
     obtain ⟨⟨vm, vvg⟩, lst1, hx1, ⟨⟨hvm, hvvg⟩, htf1⟩, hrel1, hinv1⟩ := hV
     simp only [hx1, except_ok_bind]
     try simp only [Aeneas.Std.uncurry] at hrun
-    try dsimp only at hrun
     obtain ⟨⟨r1, tier2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hk' : absU k ≤ rf.env.consts.val.length := le_trans hk hfinv.visBound
     have hP := promote_new_drop htf1 hrel1 hinv1 hvm hfe hfinv hk' h2
@@ -1185,7 +1184,6 @@ theorem install_step_promote_refines {pers tier st lst} {rf lf}
     | Ok p2 =>
       obtain ⟨m2, fe2⟩ := p2
       try simp only [Aeneas.Std.uncurry] at hrun
-      try dsimp only at hrun
       obtain ⟨st4, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨pend1, hpush, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       cases Result.ok_injective hrun
@@ -1239,7 +1237,6 @@ theorem install_step_refines {pers st lst} {rf lf}
     dsimp only at hv hvg
     simp only [hx3, except_ok_bind]
     try simp only [Aeneas.Std.uncurry] at hrun
-    try dsimp only at hrun
     obtain ⟨kk, hkk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hkv : kk.val = fe2.visible_below.val - rf.visible_below.val :=
       ConRon.Refine.HashMap.uscalar_sub_eq hkk
@@ -1263,7 +1260,6 @@ theorem install_step_refines {pers st lst} {rf lf}
       | Ok p1 =>
         obtain ⟨m1, fe3⟩ := p1
         try simp only [Aeneas.Std.uncurry] at hrun
-        try dsimp only at hrun
         obtain ⟨st4, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         cases Result.ok_injective hrun
         obtain ⟨w, lst4, hx4, ⟨⟨-, hw⟩, htf1⟩, hrel4, hinv4⟩ := hP
@@ -1337,7 +1333,7 @@ theorem install_decl_step_refines {pers st lst} {lf}
         subst ho
         intro k hk
         obtain ⟨le, hle, hlk⟩ := hA k hk
-        exact ⟨le, AState.abandoned, by rw [hle]; try rfl, hlk⟩
+        exact ⟨le, AState.abandoned, by rw [hle], hlk⟩
       | Ok q' =>
         rw [hqr] at hA hrun
         obtain ⟨v, lst1, hx, hv, hrel1, hinv1⟩ := hA

@@ -42,6 +42,7 @@ use crate::kernel::level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::std_axioms;
+use crate::frontend::text;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -272,3 +273,155 @@ pub fn of_reduce_bool_a() -> ConstantVal {
 
 
 
+
+// ---------------------------------------------------------------------------
+// The non-standard-axiom decline (`TrustAxioms.lean:203-224`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"_native"`, as code points: the name component `Lean.Meta.nativeEqTrue`
+/// puts between the declaration and the tactic.
+pub const S_NATIVE: [u32; 7] = [95, 110, 97, 116, 105, 118, 101];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"ax"`, as code points: the prefix of the axiom's own component.
+pub const S_AX: [u32; 2] = [97, 120];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"decide"`, as code points: the tactic name `decide +native` passes.
+pub const S_DECIDE: [u32; 6] = [100, 101, 99, 105, 100, 101];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"decide +native"`, as code points.
+pub const S_DECIDE_NATIVE: [u32; 14] =
+    [100, 101, 99, 105, 100, 101, 32, 43, 110, 97, 116, 105, 118, 101];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"non-standard axiom ("`, as code points: the decline message up to the
+/// axiom's name.
+pub const M_NONSTD_PRE: [u32; 20] = [
+    110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 40,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// ``"), apparently added by the `"``, as code points: between the name and
+/// the tactic.
+pub const M_NONSTD_BY: [u32; 28] = [
+    41, 44, 32, 97, 112, 112, 97, 114, 101, 110, 116, 108, 121, 32, 97, 100, 100, 101, 100, 32,
+    98, 121, 32, 116, 104, 101, 32, 96,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// ``"` tactic; con-leche does not support such axioms at the moment"``, as
+/// code points: after the tactic.
+pub const M_NONSTD_TAC_END: [u32; 62] = [
+    96, 32, 116, 97, 99, 116, 105, 99, 59, 32, 99, 111, 110, 45, 108, 101, 99, 104, 101, 32, 100,
+    111, 101, 115, 32, 110, 111, 116, 32, 115, 117, 112, 112, 111, 114, 116, 32, 115, 117, 99,
+    104, 32, 97, 120, 105, 111, 109, 115, 32, 97, 116, 32, 116, 104, 101, 32, 109, 111, 109, 101,
+    110, 116,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"); con-leche does not support such axioms at the moment"`, as code
+/// points: after the name, when no tactic is recognised.
+pub const M_NONSTD_END: [u32; 55] = [
+    41, 59, 32, 99, 111, 110, 45, 108, 101, 99, 104, 101, 32, 100, 111, 101, 115, 32, 110, 111,
+    116, 32, 115, 117, 112, 112, 111, 114, 116, 32, 115, 117, 99, 104, 32, 97, 120, 105, 111, 109,
+    115, 32, 97, 116, 32, 116, 104, 101, 32, 109, 111, 109, 101, 110, 116,
+];
+
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:203-214 nativeAxiomTactic?
+/// **The tactic that apparently added an axiom, read off its name.**
+/// `Lean.Meta.nativeEqTrue` (the basis of `native_decide`, `decide +native`
+/// and `bv_decide`) asserts the result of a compiled computation as an axiom
+/// named `<declaration>._native.<tactic>.ax_<i>_<j>`; `decide +native` passes
+/// the tactic name `decide`.  The cited pattern `.str (.str (.str _
+/// "_native") tac) ax` is three nested matches here, and its literal
+/// comparisons are `text::cps_beq` / `text::cps_starts_with`.
+pub fn native_axiom_tactic(n: &Name) -> Option<Vec<u32>> {
+    match &n.0.kind {
+        name::NameKind::Str(p, ax) => match &p.0.kind {
+            name::NameKind::Str(q, tac) => match &q.0.kind {
+                name::NameKind::Str(_, nat) => {
+                    if text::cps_beq(nat, &S_NATIVE) && text::cps_starts_with(ax, &S_AX) {
+                        if text::cps_beq(tac, &S_DECIDE) {
+                            Some(core_types::code_points(&S_DECIDE_NATIVE))
+                        } else {
+                            Some(expr::str_copy(tac))
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:216-224 nonStdAxiomMsg
+/// **The decline message for an axiom that is none of the standard axioms,
+/// the compiler-trust family and `sorryAx`**: the axiom's name, and the
+/// tactic that apparently added it when `native_axiom_tactic` recognises one.
+/// The cited `s!` interpolations are `text::cat3` over the code-point
+/// constants above, the name rendered by `text::name_str` (`Name.toString`).
+pub fn non_std_axiom_msg(n: &Name) -> Vec<u32> {
+    let head = text::cat(core_types::code_points(&M_NONSTD_PRE), &text::name_str(n));
+    match native_axiom_tactic(n) {
+        Some(tac) => text::cat3(
+            text::cat(head, &core_types::code_points(&M_NONSTD_BY)),
+            &tac,
+            &core_types::code_points(&M_NONSTD_TAC_END),
+        ),
+        None => text::cat(head, &core_types::code_points(&M_NONSTD_END)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cp(t: &str) -> Vec<u32> {
+        t.chars().map(|c| c as u32).collect()
+    }
+
+    fn s(v: &[u32]) -> String {
+        v.iter().filter_map(|c| char::from_u32(*c)).collect()
+    }
+
+    /// `<decl>._native.<tac>.<ax>`, con-leche's `nativeAx` test helper.
+    fn native_ax(decl: &str, tac: &str, ax: &str) -> Name {
+        let d = name::mk_str(name::anonymous(), cp(decl));
+        let n = name::mk_str(d, cp("_native"));
+        let t = name::mk_str(n, cp(tac));
+        name::mk_str(t, cp(ax))
+    }
+
+    /// con-leche's `#guard`s on the recogniser (`tests/ConLecheTests.lean`,
+    /// task #360): the three tactics, a plain axiom, a `_native…decl` name.
+    #[test]
+    fn native_axiom_tactic_reads_the_tactic() {
+        let t = |n: &Name| native_axiom_tactic(n).map(|v| s(&v));
+        assert_eq!(t(&native_ax("nd", "native_decide", "ax_1_1")).as_deref(), Some("native_decide"));
+        assert_eq!(t(&native_ax("dn", "decide", "ax_1_1")).as_deref(), Some("decide +native"));
+        assert_eq!(t(&native_ax("bv", "bv_decide", "ax_1_5")).as_deref(), Some("bv_decide"));
+        assert_eq!(t(&name::mk_str(name::anonymous(), cp("customAx"))), None);
+        assert_eq!(t(&native_ax("nd", "native_decide", "decl_1")), None);
+    }
+
+    /// The message, exactly con-leche's.
+    #[test]
+    fn non_std_axiom_msg_is_con_leches() {
+        assert_eq!(
+            s(&non_std_axiom_msg(&native_ax("nd", "native_decide", "ax_1_1"))),
+            "non-standard axiom (nd._native.native_decide.ax_1_1), apparently added by the \
+             `native_decide` tactic; con-leche does not support such axioms at the moment"
+        );
+        assert_eq!(
+            s(&non_std_axiom_msg(&name::mk_str(name::anonymous(), cp("myAxiom")))),
+            "non-standard axiom (myAxiom); con-leche does not support such axioms at the moment"
+        );
+    }
+}

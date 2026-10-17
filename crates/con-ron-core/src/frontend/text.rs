@@ -76,6 +76,24 @@ pub fn cps_beq(s: &Vec<u32>, lit: &[u32]) -> bool {
     true
 }
 
+/// con-leche: none — `String.startsWith` on the port's code-point representation
+/// Whether the code-point string `s` begins with the literal `lit` (a
+/// `const …: [u32; N]`), without materialising the literal as a `Vec`.
+pub fn cps_starts_with(s: &Vec<u32>, lit: &[u32]) -> bool {
+    if s.len() < lit.len() {
+        return false;
+    }
+    let n = lit.len();
+    let mut i = 0usize;
+    while i < n {
+        if s[i] != lit[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 
 /// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
 /// out of the ported checker as driver-only rendering ("the theorem never
@@ -140,6 +158,15 @@ mod tests {
         assert_eq!(s(&cat(cp("ab"), &cp("cd"))), "abcd");
         assert_eq!(s(&cat3(cp("a"), &cp("b"), &cp("c"))), "abc");
         assert_eq!(s(&cat(Vec::new(), &cp(""))), "");
+    }
+
+    #[test]
+    fn cps_starts_with_is_a_prefix_test() {
+        assert!(cps_starts_with(&cp("ax_1_1"), &[97, 120]));
+        assert!(cps_starts_with(&cp("ax"), &[97, 120]));
+        assert!(!cps_starts_with(&cp("a"), &[97, 120]));
+        assert!(!cps_starts_with(&cp("decl_1"), &[97, 120]));
+        assert!(cps_starts_with(&cp(""), &[]));
     }
 
     #[test]

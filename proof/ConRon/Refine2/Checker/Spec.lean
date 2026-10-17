@@ -672,7 +672,7 @@ def checkAxiomDeclRestSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
     fail (.notImplemented
       "standard axiom shape mismatch")
   else if cv.name == (← pinSorryAx) then pure fe
-  else fail (.notImplemented "non-standard axiom")
+  else fail (.notImplemented (ConLeche.nonStdAxiomMsg (← readNameM cv.name)))
 
 /-- `checkDecl`'s axiom arm at the `ofReduce*` names. -/
 def checkAxiomDeclOfReduceSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do

@@ -12160,7 +12160,7 @@ def arena.canon.i_constant_info_beq
     | arena.env.IConstantInfo.ProjInfo u => arena.canon.i_proj_table_beq t u
 
 /-- [con_ron_core::arena::check_decl::M_NUM_PARAMS]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 59:0-62:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 60:0-63:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_NUM_PARAMS : Array Std.U32 29#usize :=
@@ -12172,7 +12172,7 @@ def arena.check_decl.M_NUM_PARAMS : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_SHAPELESS]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 68:0-71:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 69:0-72:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_SHAPELESS : Array Std.U32 38#usize :=
@@ -33407,7 +33407,7 @@ def arena.checker_base.check_constant_val
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::check_decl::check_shapeless_formers]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 104:0-125:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 105:0-126:1
     Visibility: public -/
 def arena.check_decl.check_shapeless_formers
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -33454,7 +33454,7 @@ def arena.check_decl.check_shapeless_formers
 partial_fixpoint
 
 /-- [con_ron_core::arena::check_decl::check_shapeless]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 86:0-97:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 87:0-98:1
     Visibility: public -/
 def arena.check_decl.check_shapeless
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -33476,7 +33476,7 @@ def arena.check_decl.check_shapeless
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::M_QUOT_SOUND_MISMATCH]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 129:0-132:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 130:0-133:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_QUOT_SOUND_MISMATCH : Array Std.U32 33#usize :=
@@ -33489,7 +33489,7 @@ def arena.check_decl.M_QUOT_SOUND_MISMATCH : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_QUOT_DECL_MISMATCH]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 136:0-139:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 137:0-140:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_QUOT_DECL_MISMATCH : Array Std.U32 29#usize :=
@@ -33501,7 +33501,7 @@ def arena.check_decl.M_QUOT_DECL_MISMATCH : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_NONSTD_NAT_ENV]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 143:0-147:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 144:0-148:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_NONSTD_NAT_ENV : Array Std.U32 48#usize :=
@@ -33515,7 +33515,7 @@ def arena.check_decl.M_NONSTD_NAT_ENV : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_NAT_NOT_STORED]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 151:0-154:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 152:0-155:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_NAT_NOT_STORED : Array Std.U32 35#usize :=
@@ -33528,7 +33528,7 @@ def arena.check_decl.M_NAT_NOT_STORED : Array Std.U32 35#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_NONSTD_NAT]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 158:0-161:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 159:0-162:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_NONSTD_NAT : Array Std.U32 36#usize :=
@@ -33541,7 +33541,7 @@ def arena.check_decl.M_NONSTD_NAT : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_TRUSTCOMPILER_SHAPE]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 165:0-168:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 166:0-169:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_TRUSTCOMPILER_SHAPE : Array Std.U32 36#usize :=
@@ -33554,7 +33554,7 @@ def arena.check_decl.M_TRUSTCOMPILER_SHAPE : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_TRUST_AXIOM_ENV]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 172:0-176:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 173:0-177:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_TRUST_AXIOM_ENV : Array Std.U32 44#usize :=
@@ -33568,7 +33568,7 @@ def arena.check_decl.M_TRUST_AXIOM_ENV : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::arena::check_decl::M_STD_AXIOM_SHAPE]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 180:0-183:2
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 181:0-184:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.check_decl.M_STD_AXIOM_SHAPE : Array Std.U32 29#usize :=
@@ -33577,17 +33577,6 @@ def arena.check_decl.M_STD_AXIOM_SHAPE : Array Std.U32 29#usize :=
     32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32, 32#u32, 115#u32,
     104#u32, 97#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
     109#u32, 97#u32, 116#u32, 99#u32, 104#u32
-    ]
-
-/-- [con_ron_core::arena::check_decl::M_NONSTD_AXIOM]
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 187:0-189:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def arena.check_decl.M_NONSTD_AXIOM : Array Std.U32 18#usize :=
-  Array.make 18#usize [
-    110#u32, 111#u32, 110#u32, 45#u32, 115#u32, 116#u32, 97#u32, 110#u32,
-    100#u32, 97#u32, 114#u32, 100#u32, 32#u32, 97#u32, 120#u32, 105#u32,
-    111#u32, 109#u32
     ]
 
 /-- [con_ron_core::kernel::env::exprs_copy_from]:
@@ -34057,7 +34046,7 @@ def arena.checker.check_basis_decl
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_quot_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 699:0-726:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 700:0-727:1
     Visibility: public -/
 def arena.check_decl.check_quot_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -53136,7 +53125,7 @@ def arena.checker_base.ind_params_ok
 partial_fixpoint
 
 /-- [con_ron_core::arena::check_decl::check_ind_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 671:0-692:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 672:0-693:1
     Visibility: public -/
 def arena.check_decl.check_ind_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -54292,7 +54281,7 @@ def arena.trust_axioms.trust_compiler_name
   ok (r, st)
 
 /-- [con_ron_core::kernel::trust_axioms::trust_compiler_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 79:10-79:96 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 80:10-80:96 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.trust_compiler_name.S : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -54301,13 +54290,13 @@ def kernel.trust_axioms.trust_compiler_name.S : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::kernel::trust_axioms::lean_ns::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 71:38-71:77 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 72:38-72:77 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.lean_ns.S : Array Std.U32 4#usize :=
   Array.make 4#usize [ 76#u32, 101#u32, 97#u32, 110#u32 ]
 
 /-- [con_ron_core::kernel::trust_axioms::lean_ns]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 70:0-72:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 71:0-73:1
     Visibility: public -/
 def kernel.trust_axioms.lean_ns : Result kernel.name.Name := do
   let n ← kernel.name.anonymous
@@ -54316,7 +54305,7 @@ def kernel.trust_axioms.lean_ns : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::trust_compiler_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 76:0-81:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 77:0-82:1
     Visibility: public -/
 def kernel.trust_axioms.trust_compiler_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.lean_ns
@@ -54325,13 +54314,13 @@ def kernel.trust_axioms.trust_compiler_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::true_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 54:38-54:78 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 55:38-55:78 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.true_name.S : Array Std.U32 4#usize :=
   Array.make 4#usize [ 84#u32, 114#u32, 117#u32, 101#u32 ]
 
 /-- [con_ron_core::kernel::trust_axioms::true_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 53:0-55:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 54:0-56:1
     Visibility: public -/
 def kernel.trust_axioms.true_name : Result kernel.name.Name := do
   let n ← kernel.name.anonymous
@@ -54340,7 +54329,7 @@ def kernel.trust_axioms.true_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::trust_compiler_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 155:0-161:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 156:0-162:1
     Visibility: public -/
 def kernel.trust_axioms.trust_compiler_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.trust_compiler_name
@@ -54365,13 +54354,13 @@ def arena.trust_axioms.trust_compiler_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::kernel::trust_axioms::true_intro_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 60:32-60:78 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 61:32-61:78 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.true_intro_name.S : Array Std.U32 5#usize :=
   Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
 
 /-- [con_ron_core::kernel::trust_axioms::true_intro_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 59:0-61:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 60:0-62:1
     Visibility: public -/
 def kernel.trust_axioms.true_intro_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.true_name
@@ -54380,7 +54369,7 @@ def kernel.trust_axioms.true_intro_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::true_intro_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 145:0-151:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 146:0-152:1
     Visibility: public -/
 def kernel.trust_axioms.true_intro_cv_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.true_intro_name
@@ -54476,7 +54465,7 @@ def arena.decl_check.true_intro_pinned
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::kernel::trust_axioms::true_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 135:0-141:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 136:0-142:1
     Visibility: public -/
 def kernel.trust_axioms.true_cv_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.true_name
@@ -54716,7 +54705,7 @@ def arena.trust_axioms.of_reduce_op
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_nat_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 88:10-88:73 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 89:10-89:73 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.reduce_nat_name.S : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -54725,7 +54714,7 @@ def kernel.trust_axioms.reduce_nat_name.S : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_nat_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 85:0-90:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 86:0-91:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_nat_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.lean_ns
@@ -54749,7 +54738,7 @@ def kernel.core_k.bool_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_elem_ty]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 176:0-182:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 177:0-183:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_elem_ty
   (c : kernel.name.Name) : Result kernel.expr.Expr := do
@@ -54764,7 +54753,7 @@ def kernel.trust_axioms.reduce_elem_ty
     kernel.expr.mk_const n1 (alloc.vec.Vec.new kernel.level.Level)
 
 /-- [con_ron_core::kernel::trust_axioms::eq_app]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 226:0-233:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 227:0-234:1
     Visibility: public -/
 def kernel.trust_axioms.eq_app
   (c : kernel.name.Name) (x : kernel.expr.Expr) (y : kernel.expr.Expr) :
@@ -54777,7 +54766,7 @@ def kernel.trust_axioms.eq_app
   kernel.basis_builder.ap3 e e1 x y
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 106:10-106:83 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 107:10-107:83 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.of_reduce_nat_name.S : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -54786,7 +54775,7 @@ def kernel.trust_axioms.of_reduce_nat_name.S : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 103:0-108:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 104:0-109:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_nat_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.lean_ns
@@ -54795,7 +54784,7 @@ def kernel.trust_axioms.of_reduce_nat_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_bool_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 97:10-97:80 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 98:10-98:80 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.reduce_bool_name.S : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -54804,7 +54793,7 @@ def kernel.trust_axioms.reduce_bool_name.S : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_bool_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 94:0-99:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 95:0-100:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_bool_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.lean_ns
@@ -54813,7 +54802,7 @@ def kernel.trust_axioms.reduce_bool_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_op]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 121:0-127:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 122:0-128:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_op
   (n : kernel.name.Name) : Result kernel.name.Name := do
@@ -54824,7 +54813,7 @@ def kernel.trust_axioms.of_reduce_op
   else kernel.trust_axioms.reduce_bool_name
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_raw]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 197:0-220:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 198:0-221:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_raw
   (n : kernel.name.Name) : Result kernel.env.ConstantVal := do
@@ -54851,7 +54840,7 @@ def kernel.trust_axioms.of_reduce_raw
     }
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name::S]
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 115:10-115:89 -/
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 116:10-116:89 -/
 @[global_simps, irreducible]
 def kernel.trust_axioms.of_reduce_bool_name.S : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -54860,7 +54849,7 @@ def kernel.trust_axioms.of_reduce_bool_name.S : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_name]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 112:0-117:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 113:0-118:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_bool_name : Result kernel.name.Name := do
   let n ← kernel.trust_axioms.lean_ns
@@ -54869,7 +54858,7 @@ def kernel.trust_axioms.of_reduce_bool_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_bool_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 255:0-257:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 256:0-258:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_bool_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.of_reduce_bool_name
@@ -54887,7 +54876,7 @@ def arena.trust_axioms.of_reduce_bool_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::kernel::trust_axioms::of_reduce_nat_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 249:0-251:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 250:0-252:1
     Visibility: public -/
 def kernel.trust_axioms.of_reduce_nat_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.of_reduce_nat_name
@@ -54944,7 +54933,7 @@ def arena.std_axioms.nat_a
   arena.intern.intern_ci pers st ci
 
 /-- [con_ron_core::kernel::trust_axioms::bool_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 165:0-171:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 166:0-172:1
     Visibility: public -/
 def kernel.trust_axioms.bool_cv_a : Result kernel.env.ConstantVal := do
   let n ← kernel.core_k.bool_name
@@ -55066,7 +55055,7 @@ def arena.decl_check.reduce_elem_ok
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_op_raw]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 186:0-192:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 187:0-193:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_op_raw
   (c : kernel.name.Name) : Result kernel.env.ConstantVal := do
@@ -55081,7 +55070,7 @@ def kernel.trust_axioms.reduce_op_raw
     }
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_bool_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 243:0-245:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 244:0-246:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_bool_cv_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.reduce_bool_name
@@ -55099,7 +55088,7 @@ def arena.trust_axioms.reduce_bool_cv_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::kernel::trust_axioms::reduce_nat_cv_a]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 237:0-239:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 238:0-240:1
     Visibility: public -/
 def kernel.trust_axioms.reduce_nat_cv_a : Result kernel.env.ConstantVal := do
   let n ← kernel.trust_axioms.reduce_nat_name
@@ -55220,12 +55209,385 @@ def arena.decl_check.of_reduce_ax_ok
     | core.result.Result.Err _ => ok (r1, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
+/-- [con_ron_core::kernel::trust_axioms::S_DECIDE_NATIVE]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 296:0-297:71
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.S_DECIDE_NATIVE : Array Std.U32 14#usize :=
+  Array.make 14#usize [
+    100#u32, 101#u32, 99#u32, 105#u32, 100#u32, 101#u32, 32#u32, 43#u32,
+    110#u32, 97#u32, 116#u32, 105#u32, 118#u32, 101#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::S_DECIDE]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 292:0-292:61
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.S_DECIDE : Array Std.U32 6#usize :=
+  Array.make 6#usize [ 100#u32, 101#u32, 99#u32, 105#u32, 100#u32, 101#u32 ]
+
+/-- [con_ron_core::kernel::trust_axioms::S_AX]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 288:0-288:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.S_AX : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 97#u32, 120#u32 ]
+
+/-- [con_ron_core::kernel::trust_axioms::S_NATIVE]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 284:0-284:65
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.S_NATIVE : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    95#u32, 110#u32, 97#u32, 116#u32, 105#u32, 118#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::text::cps_starts_with]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 88:4-95:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cps_starts_with_loop
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i2 ← Slice.index_usize lit i
+    if i1 != i2
+    then ok false
+    else let i3 ← i + 1#usize
+         frontend.text.cps_starts_with_loop s lit n i3
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cps_starts_with]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 82:0-95:1
+    Visibility: public -/
+def frontend.text.cps_starts_with
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  let i1 := Slice.len lit
+  if i < i1
+  then ok false
+  else
+    let n := Slice.len lit
+    frontend.text.cps_starts_with_loop s lit n 0#usize
+
+/-- [con_ron_core::frontend::text::cps_beq]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 70:4-77:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cps_beq_loop
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i2 ← Slice.index_usize lit i
+    if i1 != i2
+    then ok false
+    else let i3 ← i + 1#usize
+         frontend.text.cps_beq_loop s lit n i3
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cps_beq]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 64:0-77:1
+    Visibility: public -/
+def frontend.text.cps_beq
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  let i1 := Slice.len lit
+  if i != i1
+  then ok false
+  else let n := alloc.vec.Vec.len s
+       frontend.text.cps_beq_loop s lit n 0#usize
+
+/-- [con_ron_core::kernel::trust_axioms::native_axiom_tactic]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 341:0-362:1
+    Visibility: public -/
+def kernel.trust_axioms.native_axiom_tactic
+  (n : kernel.name.Name) : Result (Option (alloc.vec.Vec Std.U32)) := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => ok none
+  | kernel.name.NameKind.Str p ax =>
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => ok none
+    | kernel.name.NameKind.Str q tac =>
+      let nn2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global q._0
+      match nn2.kind with
+      | kernel.name.NameKind.Anonymous => ok none
+      | kernel.name.NameKind.Str _ nat =>
+        let s ← lift (Array.to_slice kernel.trust_axioms.S_NATIVE)
+        let b ← frontend.text.cps_beq nat s
+        if b
+        then
+          let s1 ← lift (Array.to_slice kernel.trust_axioms.S_AX)
+          let b1 ← frontend.text.cps_starts_with ax s1
+          if b1
+          then
+            let s2 ← lift (Array.to_slice kernel.trust_axioms.S_DECIDE)
+            let b2 ← frontend.text.cps_beq tac s2
+            if b2
+            then
+              let s3 ←
+                lift (Array.to_slice kernel.trust_axioms.S_DECIDE_NATIVE)
+              let v ← kernel.core_types.code_points s3
+              ok (some v)
+            else let v ← kernel.expr.str_copy tac
+                 ok (some v)
+          else ok none
+        else ok none
+      | kernel.name.NameKind.Num _ _ => ok none
+    | kernel.name.NameKind.Num _ _ => ok none
+  | kernel.name.NameKind.Num _ _ => ok none
+
+/-- [con_ron_core::kernel::trust_axioms::M_NONSTD_END]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 327:0-331:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.M_NONSTD_END : Array Std.U32 55#usize :=
+  Array.make 55#usize [
+    41#u32, 59#u32, 32#u32, 99#u32, 111#u32, 110#u32, 45#u32, 108#u32, 101#u32,
+    99#u32, 104#u32, 101#u32, 32#u32, 100#u32, 111#u32, 101#u32, 115#u32,
+    32#u32, 110#u32, 111#u32, 116#u32, 32#u32, 115#u32, 117#u32, 112#u32,
+    112#u32, 111#u32, 114#u32, 116#u32, 32#u32, 115#u32, 117#u32, 99#u32,
+    104#u32, 32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32, 115#u32,
+    32#u32, 97#u32, 116#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32,
+    109#u32, 111#u32, 109#u32, 101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::M_NONSTD_TAC_END]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 317:0-322:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.M_NONSTD_TAC_END : Array Std.U32 62#usize :=
+  Array.make 62#usize [
+    96#u32, 32#u32, 116#u32, 97#u32, 99#u32, 116#u32, 105#u32, 99#u32, 59#u32,
+    32#u32, 99#u32, 111#u32, 110#u32, 45#u32, 108#u32, 101#u32, 99#u32,
+    104#u32, 101#u32, 32#u32, 100#u32, 111#u32, 101#u32, 115#u32, 32#u32,
+    110#u32, 111#u32, 116#u32, 32#u32, 115#u32, 117#u32, 112#u32, 112#u32,
+    111#u32, 114#u32, 116#u32, 32#u32, 115#u32, 117#u32, 99#u32, 104#u32,
+    32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32, 115#u32, 32#u32,
+    97#u32, 116#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 109#u32,
+    111#u32, 109#u32, 101#u32, 110#u32, 116#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::M_NONSTD_BY]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 309:0-312:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.M_NONSTD_BY : Array Std.U32 28#usize :=
+  Array.make 28#usize [
+    41#u32, 44#u32, 32#u32, 97#u32, 112#u32, 112#u32, 97#u32, 114#u32, 101#u32,
+    110#u32, 116#u32, 108#u32, 121#u32, 32#u32, 97#u32, 100#u32, 100#u32,
+    101#u32, 100#u32, 32#u32, 98#u32, 121#u32, 32#u32, 116#u32, 104#u32,
+    101#u32, 32#u32, 96#u32
+    ]
+
+/-- [con_ron_core::kernel::trust_axioms::M_NONSTD_PRE]
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 302:0-304:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def kernel.trust_axioms.M_NONSTD_PRE : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    110#u32, 111#u32, 110#u32, 45#u32, 115#u32, 116#u32, 97#u32, 110#u32,
+    100#u32, 97#u32, 114#u32, 100#u32, 32#u32, 97#u32, 120#u32, 105#u32,
+    111#u32, 109#u32, 32#u32, 40#u32
+    ]
+
+/-- [con_ron_core::frontend::text::name_str::DOT#1]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 123:16-123:43 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.DOT_1 : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::frontend::text::name_str::DOT]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 112:16-112:43 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.DOT : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::frontend::text::name_str::A]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 106:12-106:86 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.A : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 47:4-50:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop0
+  (rev : alloc.vec.Vec Std.U32) (k : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if k > 0#u64
+  then
+    let i ← k % 10#u64
+    let i1 ← lift (UScalar.cast .U32 i)
+    let i2 ← 48#u32 + i1
+    let rev1 ← alloc.vec.Vec.push rev i2
+    let k1 ← k / 10#u64
+    frontend.text.u64_str_loop0 rev1 k1
+  else ok rev
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 53:4-56:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop1
+  (rev : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) rev
+        i1
+    let out1 ← alloc.vec.Vec.push out i2
+    frontend.text.u64_str_loop1 rev out1 i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 39:0-58:1
+    Visibility: public -/
+def frontend.text.u64_str (n : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  if n = 0#u64
+  then alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 48#u32
+  else
+    let rev ← frontend.text.u64_str_loop0 (alloc.vec.Vec.new Std.U32) n
+    let i := alloc.vec.Vec.len rev
+    let out := alloc.vec.Vec.with_capacity Std.U32 i
+    let i1 := alloc.vec.Vec.len rev
+    frontend.text.u64_str_loop1 rev out i1
+
+/-- [con_ron_core::frontend::text::cat]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 24:4-27:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cat_loop
+  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    let out1 ← alloc.vec.Vec.push out i1
+    let i2 ← i + 1#usize
+    frontend.text.cat_loop b out1 n i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cat]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 20:0-29:1
+    Visibility: public -/
+def frontend.text.cat
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let n := alloc.vec.Vec.len b
+  frontend.text.cat_loop b a n 0#usize
+
+/-- [con_ron_core::frontend::text::cat3]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 32:0-34:1
+    Visibility: public -/
+def frontend.text.cat3
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
+  (c : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let v ← frontend.text.cat a b
+  frontend.text.cat v c
+
+/-- [con_ron_core::frontend::text::name_str]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 103:0-132:1
+    Visibility: public -/
+def frontend.text.name_str
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous =>
+    let s ← lift (Array.to_slice frontend.text.name_str.A)
+    kernel.core_types.code_points s
+  | kernel.name.NameKind.Str p s =>
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous =>
+      frontend.text.cat (alloc.vec.Vec.new Std.U32) s
+    | kernel.name.NameKind.Str _ _ =>
+      let v ← frontend.text.name_str p
+      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
+      let v1 ← kernel.core_types.code_points s1
+      frontend.text.cat3 v v1 s
+    | kernel.name.NameKind.Num _ _ =>
+      let v ← frontend.text.name_str p
+      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
+      let v1 ← kernel.core_types.code_points s1
+      frontend.text.cat3 v v1 s
+  | kernel.name.NameKind.Num p k =>
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => frontend.text.u64_str k
+    | kernel.name.NameKind.Str _ _ =>
+      let v ← frontend.text.name_str p
+      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
+      let v1 ← kernel.core_types.code_points s
+      let v2 ← frontend.text.u64_str k
+      frontend.text.cat3 v v1 v2
+    | kernel.name.NameKind.Num _ _ =>
+      let v ← frontend.text.name_str p
+      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
+      let v1 ← kernel.core_types.code_points s
+      let v2 ← frontend.text.u64_str k
+      frontend.text.cat3 v v1 v2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::trust_axioms::non_std_axiom_msg]:
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 370:0-380:1
+    Visibility: public -/
+def kernel.trust_axioms.non_std_axiom_msg
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let s ← lift (Array.to_slice kernel.trust_axioms.M_NONSTD_PRE)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str n
+  let head ← frontend.text.cat v v1
+  let o ← kernel.trust_axioms.native_axiom_tactic n
+  match o with
+  | none =>
+    let s1 ← lift (Array.to_slice kernel.trust_axioms.M_NONSTD_END)
+    let v2 ← kernel.core_types.code_points s1
+    frontend.text.cat head v2
+  | some tac =>
+    let s1 ← lift (Array.to_slice kernel.trust_axioms.M_NONSTD_BY)
+    let v2 ← kernel.core_types.code_points s1
+    let v3 ← frontend.text.cat head v2
+    let s2 ← lift (Array.to_slice kernel.trust_axioms.M_NONSTD_TAC_END)
+    let v4 ← kernel.core_types.code_points s2
+    frontend.text.cat3 v3 tac v4
+
 /-- [con_ron_core::arena::check_decl::check_axiom_decl_rest]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 628:0-657:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 625:0-658:1
     Visibility: public -/
 def arena.check_decl.check_axiom_decl_rest
-  (st : arena.monad.AState) (fe : arena.env.IFEnv)
-  (cv : arena.env.IConstantVal) :
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (fe : arena.env.IFEnv) (cv : arena.env.IConstantVal) :
   Result ((core.result.Result arena.env.IFEnv kernel.core_types.CheckError) ×
     arena.monad.AState)
   := do
@@ -55265,18 +55627,21 @@ def arena.check_decl.check_axiom_decl_rest
             if b2
             then ok (core.result.Result.Ok fe, st2)
             else
-              let s ← lift (Array.to_slice arena.check_decl.M_NONSTD_AXIOM)
-              let v ← kernel.core_types.code_points s
-              let r3 ←
-                arena.monad.fail arena.env.IFEnv
-                  (kernel.core_types.CheckError.NotImplemented v)
-              ok (r3, st2)
+              let (r3, st3) ← arena.monad.read_name_m pers st2 cv.name
+              match r3 with
+              | core.result.Result.Ok n =>
+                let v ← kernel.trust_axioms.non_std_axiom_msg n
+                let r4 ←
+                  arena.monad.fail arena.env.IFEnv
+                    (kernel.core_types.CheckError.NotImplemented v)
+                ok (r4, st3)
+              | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
           | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
     | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_axiom_decl_of_reduce]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 587:0-620:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 582:0-615:1
     Visibility: public -/
 def arena.check_decl.check_axiom_decl_of_reduce
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -55334,12 +55699,12 @@ def arena.check_decl.check_axiom_decl_of_reduce
                   (kernel.core_types.CheckError.NotImplemented v)
               ok (r3, st3)
           | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
-        else arena.check_decl.check_axiom_decl_rest st2 fe cv
+        else arena.check_decl.check_axiom_decl_rest pers st2 fe cv
     | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_axiom_decl_trust]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 550:0-580:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 545:0-575:1
     Visibility: public -/
 def arena.check_decl.check_axiom_decl_trust
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -55375,7 +55740,7 @@ def arena.check_decl.check_axiom_decl_trust
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_axiom_decl_std]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 520:0-543:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 515:0-538:1
     Visibility: public -/
 def arena.check_decl.check_axiom_decl_std
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -55405,7 +55770,7 @@ def arena.check_decl.check_axiom_decl_std
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_quot_sound_record]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 480:0-512:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 475:0-507:1
     Visibility: public -/
 def arena.check_decl.check_quot_sound_record
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -55451,7 +55816,7 @@ def arena.check_decl.check_quot_sound_record
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_axiom_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 456:0-473:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 451:0-468:1
     Visibility: public -/
 def arena.check_decl.check_axiom_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -56048,7 +56413,7 @@ def arena.decl_check.check_reduce_pin
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_opaque_reduce_pin]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 427:0-446:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 422:0-441:1
     Visibility: public -/
 def arena.check_decl.check_opaque_reduce_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -56067,7 +56432,7 @@ def arena.check_decl.check_opaque_reduce_pin
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_opaque_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 406:0-422:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 401:0-417:1
     Visibility: public -/
 def arena.check_decl.check_opaque_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -56203,7 +56568,7 @@ def arena.decl_check.check_thm_val
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_thm_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 388:0-400:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 383:0-395:1
     Visibility: public -/
 def arena.check_decl.check_thm_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -57400,7 +57765,7 @@ def arena.decl_check.certify_nat_eqs
 partial_fixpoint
 
 /-- [con_ron_core::arena::check_decl::check_structural_nat_pin_certify]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 361:0-383:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 356:0-378:1
     Visibility: public -/
 def arena.check_decl.check_structural_nat_pin_certify
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -57428,7 +57793,7 @@ def arena.check_decl.check_structural_nat_pin_certify
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_structural_nat_pin_eqs]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 337:0-355:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 332:0-350:1
     Visibility: public -/
 def arena.check_decl.check_structural_nat_pin_eqs
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -57461,7 +57826,7 @@ def arena.check_decl.check_structural_nat_pin_eqs
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_structural_nat_pin]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 308:0-332:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 303:0-327:1
     Visibility: public -/
 def arena.check_decl.check_structural_nat_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -60244,7 +60609,7 @@ def arena.decl_check.check_div_mod_pin
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_defn_div_mod_pin]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 280:0-299:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 275:0-294:1
     Visibility: public -/
 def arena.check_decl.check_defn_div_mod_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -60264,7 +60629,7 @@ def arena.check_decl.check_defn_div_mod_pin
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_defn_pins]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 253:0-275:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 248:0-270:1
     Visibility: public -/
 def arena.check_decl.check_defn_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -60290,7 +60655,7 @@ def arena.check_decl.check_defn_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_defn_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 230:0-248:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 225:0-243:1
     Visibility: public -/
 def arena.check_decl.check_defn_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -60315,7 +60680,7 @@ def arena.check_decl.check_defn_decl
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::check_decl::check_decl]:
-    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 200:0-219:1
+    Source: 'crates/con-ron-core/src/arena/check_decl.rs', lines 195:0-214:1
     Visibility: public -/
 def arena.check_decl.check_decl
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65282,86 +65647,6 @@ def kernel.core_types.native
   (m : alloc.vec.Vec Std.U32) : Result kernel.core_types.CheckError := do
   ok (kernel.core_types.CheckError.Native m)
 
-/-- [con_ron_core::frontend::text::u64_str]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 47:4-50:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.u64_str_loop0
-  (rev : alloc.vec.Vec Std.U32) (k : Std.U64) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if k > 0#u64
-  then
-    let i ← k % 10#u64
-    let i1 ← lift (UScalar.cast .U32 i)
-    let i2 ← 48#u32 + i1
-    let rev1 ← alloc.vec.Vec.push rev i2
-    let k1 ← k / 10#u64
-    frontend.text.u64_str_loop0 rev1 k1
-  else ok rev
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::u64_str]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 53:4-56:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.u64_str_loop1
-  (rev : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i > 0#usize
-  then
-    let i1 ← i - 1#usize
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) rev
-        i1
-    let out1 ← alloc.vec.Vec.push out i2
-    frontend.text.u64_str_loop1 rev out1 i1
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::u64_str]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 39:0-58:1
-    Visibility: public -/
-def frontend.text.u64_str (n : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
-  if n = 0#u64
-  then alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 48#u32
-  else
-    let rev ← frontend.text.u64_str_loop0 (alloc.vec.Vec.new Std.U32) n
-    let i := alloc.vec.Vec.len rev
-    let out := alloc.vec.Vec.with_capacity Std.U32 i
-    let i1 := alloc.vec.Vec.len rev
-    frontend.text.u64_str_loop1 rev out i1
-
-/-- [con_ron_core::frontend::text::cat]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 24:4-27:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.cat_loop
-  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
-    let out1 ← alloc.vec.Vec.push out i1
-    let i2 ← i + 1#usize
-    frontend.text.cat_loop b out1 n i2
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::cat]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 20:0-29:1
-    Visibility: public -/
-def frontend.text.cat
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let n := alloc.vec.Vec.len b
-  frontend.text.cat_loop b a n 0#usize
-
 /-- [con_ron_core::frontend::scan_types::scan_err_render::CLOSE]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 244:4-244:33 -/
 @[global_simps, irreducible]
@@ -65990,17 +66275,6 @@ def frontend.export_c.get_decl_d
   Result (core.result.Result arena.handle.EIdx frontend.export_c.LineErr)
   := do
   frontend.export_c.st_expr st i
-
-/-- [con_ron_core::frontend::text::cat3]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 32:0-34:1
-    Visibility: public -/
-def frontend.text.cat3
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
-  (c : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let v ← frontend.text.cat a b
-  frontend.text.cat v c
 
 /-- [con_ron_core::frontend::export_c::rebound_error::B_BOUND]
     Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 374:4-376:6 -/
@@ -67486,70 +67760,6 @@ def frontend.export_c.fields_error
   let v7 ← kernel.core_types.code_points s7
   frontend.text.cat3 s6 v6 v7
 
-/-- [con_ron_core::frontend::text::name_str::DOT#1]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 105:16-105:43 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.DOT_1 : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 46#u32 ]
-
-/-- [con_ron_core::frontend::text::name_str::DOT]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 94:16-94:43 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.DOT : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 46#u32 ]
-
-/-- [con_ron_core::frontend::text::name_str::A]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 88:12-88:86 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.A : Array Std.U32 11#usize :=
-  Array.make 11#usize [
-    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
-    117#u32, 115#u32, 93#u32
-    ]
-
-/-- [con_ron_core::frontend::text::name_str]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 85:0-114:1
-    Visibility: public -/
-def frontend.text.name_str
-  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
-  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous =>
-    let s ← lift (Array.to_slice frontend.text.name_str.A)
-    kernel.core_types.code_points s
-  | kernel.name.NameKind.Str p s =>
-    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous =>
-      frontend.text.cat (alloc.vec.Vec.new Std.U32) s
-    | kernel.name.NameKind.Str _ _ =>
-      let v ← frontend.text.name_str p
-      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
-      let v1 ← kernel.core_types.code_points s1
-      frontend.text.cat3 v v1 s
-    | kernel.name.NameKind.Num _ _ =>
-      let v ← frontend.text.name_str p
-      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
-      let v1 ← kernel.core_types.code_points s1
-      frontend.text.cat3 v v1 s
-  | kernel.name.NameKind.Num p k =>
-    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => frontend.text.u64_str k
-    | kernel.name.NameKind.Str _ _ =>
-      let v ← frontend.text.name_str p
-      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
-      let v1 ← kernel.core_types.code_points s
-      let v2 ← frontend.text.u64_str k
-      frontend.text.cat3 v v1 v2
-    | kernel.name.NameKind.Num _ _ =>
-      let v ← frontend.text.name_str p
-      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
-      let v1 ← kernel.core_types.code_points s
-      let v2 ← frontend.text.u64_str k
-      frontend.text.cat3 v v1 v2
-partial_fixpoint
-
 /-- [con_ron_core::frontend::export_c::show_name]:
     Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1101:0-1106:1
     Visibility: public -/
@@ -68320,39 +68530,6 @@ def frontend.export_c.check_rec_indices
   let n := alloc.vec.Vec.len ty_names
   frontend.export_c.check_rec_indices_loop pers ar fuel rn t_pre num_indices
     ty_names ty_types n_pd n 0#usize
-
-/-- [con_ron_core::frontend::text::cps_beq]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 70:4-77:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.cps_beq_loop
-  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result Bool
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let i2 ← Slice.index_usize lit i
-    if i1 != i2
-    then ok false
-    else let i3 ← i + 1#usize
-         frontend.text.cps_beq_loop s lit n i3
-  else ok true
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::cps_beq]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 64:0-77:1
-    Visibility: public -/
-def frontend.text.cps_beq
-  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
-  let i := alloc.vec.Vec.len s
-  let i1 := Slice.len lit
-  if i != i1
-  then ok false
-  else let n := alloc.vec.Vec.len s
-       frontend.text.cps_beq_loop s lit n 0#usize
 
 /-- [con_ron_core::frontend::export_c::check_one_rec::R_REC]
     Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1553:12-1555:14 -/
@@ -80310,7 +80487,7 @@ def frontend.nat_op_ground.hoist_nat_op_ground
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::frontend::prelude_text::push_chunk]:
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1358:0-1362:1 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1359:0-1363:1 -/
 def frontend.prelude_text.push_chunk
   (out : alloc.vec.Vec Std.U8) (c : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -80318,118 +80495,119 @@ def frontend.prelude_text.push_chunk
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out c
 
 /-- [con_ron_core::frontend::prelude_text::P61]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1346:0-1353:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1347:0-1354:2 -/
 @[global_simps, irreducible]
-def frontend.prelude_text.P61 : Array Std.U8 88#usize :=
-  Array.make 88#usize [
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8,
-    108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    53#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8,
-    99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8
+def frontend.prelude_text.P61 : Array Std.U8 84#usize :=
+  Array.make 84#usize [
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8,
+    101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 125#u8,
+    93#u8, 125#u8, 125#u8, 10#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P60]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1325:0-1342:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1326:0-1343:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P60 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8,
-    50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    53#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8,
-    105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8,
-    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8,
-    105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
-    48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 52#u8,
-    54#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 57#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 116#u8,
-    111#u8, 114#u8, 34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 110#u8, 102#u8,
-    105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
-    114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 49#u8, 56#u8, 50#u8, 125#u8, 93#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8,
-    54#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8,
-    91#u8, 52#u8, 53#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
-    115#u8, 34#u8, 58#u8, 91#u8, 52#u8, 54#u8, 44#u8, 52#u8, 55#u8, 93#u8,
-    44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8,
-    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8,
-    102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8,
-    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
-    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
+    105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8,
+    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8,
+    110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    57#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8,
+    58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8,
+    100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 50#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 54#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 52#u8, 53#u8,
+    93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 52#u8, 54#u8, 44#u8, 52#u8, 55#u8, 93#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8,
+    101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P59]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1303:0-1321:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1304:0-1322:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P59 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 52#u8,
-    53#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8,
-    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
-    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
-    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8,
-    105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8, 110#u8,
-    100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8,
-    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
-    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
-    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8,
-    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
-    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    55#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8,
-    91#u8, 52#u8, 53#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 54#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8,
+    108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    49#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8,
+    58#u8, 49#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8,
+    34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
     115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
-    101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
-    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
+    34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 52#u8, 53#u8, 93#u8,
+    44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8,
+    101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P58]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1282:0-1299:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1282:0-1300:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P58 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
-    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 55#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 56#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 56#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 56#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
-    100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 51#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 54#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 52#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 52#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 53#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 53#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 54#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8,
+    118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P57]
@@ -80437,527 +80615,528 @@ def frontend.prelude_text.P58 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P57 : Array Std.U8 256#usize :=
   Array.make 256#usize [
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 52#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 50#u8, 44#u8,
+    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
     110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
     58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
     44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8,
-    48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    55#u8, 52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 50#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 56#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
-    34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 50#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
+    58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 56#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 51#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P56]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1239:0-1257:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P56 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 54#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    56#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 55#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 57#u8, 44#u8, 34#u8, 108#u8, 97#u8,
+    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
+    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
+    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 48#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    54#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 56#u8, 49#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P55]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1218:0-1235:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P55 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
+    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 55#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 57#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 116#u8, 114#u8, 117#u8, 101#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 53#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 55#u8, 53#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P54]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1197:0-1214:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P54 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 66#u8, 111#u8,
+    111#u8, 108#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    116#u8, 114#u8, 117#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8,
+    117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
     102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
     34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
     102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
     108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 54#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
     58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
     58#u8, 49#u8, 55#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P56]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1240:0-1257:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P56 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    52#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 55#u8, 54#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 55#u8, 56#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 52#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 57#u8, 44#u8,
-    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8,
-    56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    55#u8, 50#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 56#u8, 48#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 54#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 49#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P55]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1219:0-1236:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P55 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    58#u8, 34#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 54#u8,
-    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 51#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 55#u8, 51#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
-    34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
     58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 116#u8, 114#u8, 117#u8,
-    101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8,
-    115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    55#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 55#u8,
-    53#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 54#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 55#u8, 44#u8,
-    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 44#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P54]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1198:0-1215:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P54 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 34#u8, 66#u8, 111#u8, 111#u8, 108#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8,
-    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 34#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 55#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
-    114#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 116#u8, 114#u8, 117#u8, 101#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    53#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 102#u8, 97#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P53]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1177:0-1194:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1175:0-1193:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P53 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8,
+    114#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 114#u8,
+    104#u8, 115#u8, 34#u8, 58#u8, 49#u8, 54#u8, 53#u8, 125#u8, 93#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 48#u8,
+    125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
+    51#u8, 57#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 52#u8, 48#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8,
+    82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
+    44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8,
+    120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8,
+    101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
     80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
-    34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
-    34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8,
-    34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
-    58#u8, 50#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 53#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 55#u8, 48#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8,
-    108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 51#u8, 57#u8, 93#u8, 44#u8, 34#u8,
-    99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 52#u8, 48#u8,
-    93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8,
-    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8,
-    101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8,
-    85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8,
-    108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
-    57#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8,
-    99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 49#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 49#u8,
+    125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
+    58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P52]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1155:0-1173:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1154:0-1171:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P52 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 48#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8,
-    116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8,
-    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8,
-    100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8,
-    117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 105#u8,
-    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
-    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
-    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8,
-    108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8,
-    56#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
-    51#u8, 57#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8,
+    58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
     97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
-    44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
     44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
-    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8, 44#u8,
-    34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
-    101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
-    77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
-    34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 56#u8, 125#u8, 93#u8, 44#u8,
+    34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 51#u8, 57#u8, 93#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 52#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8,
+    114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P51]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1134:0-1151:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1132:0-1150:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P51 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    49#u8, 54#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 53#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 54#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 54#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 53#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 54#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 54#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8,
-    57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P50]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1113:0-1130:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P50 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 58#u8, 49#u8, 54#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
-    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
-    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 52#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    51#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
-    114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    52#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 52#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 54#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
-    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P49]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1091:0-1109:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P49 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8,
-    48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 54#u8, 50#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 54#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 51#u8, 44#u8, 34#u8,
-    108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 50#u8, 44#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 49#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
-    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P48]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1070:0-1087:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P48 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 55#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 53#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 53#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 54#u8, 48#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 50#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 49#u8, 44#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P47]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1049:0-1066:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P47 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
-    49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8,
-    51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 116#u8, 114#u8, 111#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8,
-    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
-    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8,
-    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 50#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 51#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8,
-    52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
-    53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
-    102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 53#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 54#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
-    103#u8, 34#u8, 58#u8, 49#u8, 53#u8, 54#u8, 44#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P46]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1028:0-1045:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P46 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 52#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    52#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8,
-    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 56#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8,
-    57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
-    48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P45]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1006:0-1024:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P45 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    52#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    52#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 51#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 52#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    52#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P44]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 984:0-1002:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P44 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 48#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 52#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
-    58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 116#u8,
-    114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    110#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 108#u8, 101#u8,
-    102#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    110#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 105#u8,
-    103#u8, 104#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
-    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 117#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 52#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P43]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 962:0-980:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P43 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 51#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8,
-    105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 51#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 51#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 120#u8, 105#u8,
-    111#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
-    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
-    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
-    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 56#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
-    57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
-    51#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 65#u8, 110#u8, 100#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P42]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 941:0-958:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P42 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 52#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 54#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 53#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 57#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 55#u8,
     125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
     108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
     101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
     109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 53#u8, 44#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 55#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 56#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 56#u8, 44#u8,
     34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 54#u8, 125#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 57#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P50]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1111:0-1128:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P50 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 49#u8, 54#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
+    58#u8, 52#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 54#u8, 125#u8,
     10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
     34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 54#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P49]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1090:0-1107:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P49 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 50#u8, 44#u8, 34#u8,
+    108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 49#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 57#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 51#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 49#u8, 54#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 53#u8, 49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 52#u8, 44#u8, 34#u8, 108#u8,
+    97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P48]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1069:0-1086:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P48 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 53#u8, 56#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 48#u8, 44#u8,
+    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8,
+    54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 54#u8, 49#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P47]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1048:0-1065:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P47 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 49#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 110#u8, 116#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8,
+    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 50#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 52#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 53#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 54#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P46]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1027:0-1044:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P46 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 54#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 55#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
     108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 54#u8, 44#u8, 34#u8, 110#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 55#u8, 44#u8, 34#u8, 110#u8,
     97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 51#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 57#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 48#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 53#u8, 48#u8, 125#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P45]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1006:0-1023:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P45 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 50#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 51#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
     111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
     98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8,
-    105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 51#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 52#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    52#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 53#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 54#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P44]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 985:0-1002:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P44 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 52#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 49#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 116#u8, 114#u8, 111#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 49#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 108#u8, 101#u8, 102#u8, 116#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 114#u8, 105#u8, 103#u8, 104#u8, 116#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    57#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P43]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 963:0-981:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P43 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 56#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 120#u8, 105#u8, 111#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    65#u8, 110#u8, 100#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P42]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 941:0-959:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P42 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 51#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P41]
@@ -80965,32 +81144,32 @@ def frontend.prelude_text.P42 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P41 : Array Std.U8 256#usize :=
   Array.make 256#usize [
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 50#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 57#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
     97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 50#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
-    57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 57#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 48#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8,
+    56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
     102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 48#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 49#u8, 125#u8, 10#u8, 123#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 51#u8, 125#u8, 10#u8, 123#u8,
     34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
-    103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 50#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 51#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8,
-    48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
-    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 51#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 50#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 52#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8
+    103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P40]
@@ -80998,32 +81177,32 @@ def frontend.prelude_text.P41 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P40 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    10#u8, 123#u8, 34#u8, 113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 107#u8, 105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8,
-    100#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8,
-    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
-    53#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
-    58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 115#u8, 111#u8, 117#u8,
-    110#u8, 100#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 53#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 50#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 50#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
-    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 50#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    49#u8, 48#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8
+    117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8, 105#u8,
+    110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 100#u8, 34#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 53#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 52#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 56#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 115#u8, 111#u8, 117#u8, 110#u8, 100#u8, 34#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    50#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    50#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8,
+    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8,
+    93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8,
+    55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 48#u8, 50#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 55#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P39]
@@ -81031,32 +81210,32 @@ def frontend.prelude_text.P40 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P39 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    54#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8,
-    49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
-    50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8,
-    50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
-    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8, 44#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
-    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 52#u8, 125#u8
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 55#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 50#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 50#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 50#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P38]
@@ -81064,32 +81243,32 @@ def frontend.prelude_text.P39 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P38 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
-    34#u8, 58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 113#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8,
-    102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 55#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 55#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 113#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
     97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
-    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 56#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 55#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
-    57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8,
-    48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 48#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8
+    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 56#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 57#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 49#u8, 50#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 51#u8, 54#u8, 44#u8, 34#u8, 116#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P37]
@@ -81097,32 +81276,32 @@ def frontend.prelude_text.P38 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P37 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    114#u8, 34#u8, 58#u8, 34#u8, 109#u8, 107#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8,
-    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 50#u8, 125#u8, 10#u8,
+    109#u8, 107#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8,
+    110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 52#u8, 125#u8, 10#u8,
     123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 49#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 49#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8,
-    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 52#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 53#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 49#u8, 53#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
-    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 49#u8, 53#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 54#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 49#u8, 54#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P36]
@@ -81130,1123 +81309,1122 @@ def frontend.prelude_text.P37 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P36 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
-    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 44#u8, 51#u8, 49#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
-    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    48#u8, 56#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
-    58#u8, 51#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 100#u8,
-    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8,
-    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 57#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
-    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    49#u8, 48#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
-    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 44#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8,
-    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 48#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 49#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 54#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8
+    108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    49#u8, 50#u8, 44#u8, 51#u8, 49#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 56#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 53#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 100#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8, 57#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 48#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P35]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 793:0-811:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 794:0-811:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P35 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
-    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 53#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 57#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 54#u8, 125#u8, 10#u8, 123#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 56#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    48#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 56#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 107#u8, 105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 108#u8,
+    105#u8, 102#u8, 116#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P34]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 773:0-790:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P34 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 50#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 50#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 51#u8, 125#u8, 10#u8, 123#u8,
     34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
     123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
-    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 54#u8, 44#u8, 34#u8, 110#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 57#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P33]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 752:0-769:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P33 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 57#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 57#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 56#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 48#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 57#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 57#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 51#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 49#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P32]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 731:0-748:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P32 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 57#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 50#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 117#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 52#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 57#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 57#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 57#u8, 53#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8,
+    52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 54#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 57#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P31]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 710:0-727:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P31 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 118#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    108#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 112#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 34#u8, 58#u8, 51#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 206#u8, 178#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 57#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8, 116#u8, 34#u8, 58#u8,
+    52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8,
+    51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 102#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8,
+    48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8,
+    52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 98#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P30]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 689:0-706:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P30 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 56#u8, 54#u8, 44#u8, 34#u8, 110#u8,
     97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 116#u8,
     121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8,
+    105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 56#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8,
+    56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8, 117#u8, 111#u8, 116#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 107#u8, 105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 56#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 108#u8,
+    105#u8, 102#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P29]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 668:0-685:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P29 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 50#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 109#u8, 107#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8,
+    117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8,
+    52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    56#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 54#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P28]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 646:0-664:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P28 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 81#u8,
+    117#u8, 111#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
     102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
     34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
     102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
     105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8,
-    117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8, 105#u8,
-    110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 108#u8, 105#u8, 102#u8, 116#u8, 34#u8,
-    44#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P34]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 772:0-789:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P34 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
-    58#u8, 49#u8, 48#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 48#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
-    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8,
-    57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8,
-    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8,
-    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 51#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 48#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 52#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 57#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 53#u8, 125#u8, 10#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P33]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 751:0-768:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P33 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 55#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 57#u8, 50#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 56#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 57#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 51#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 57#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
-    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 57#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 48#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P32]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 730:0-747:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P32 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 48#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 49#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
-    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    57#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8,
-    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 52#u8, 93#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 51#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 57#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 57#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 53#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 57#u8, 53#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 57#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 57#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    51#u8, 52#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 54#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 55#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P31]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 708:0-726:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P31 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    51#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 118#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 112#u8,
-    97#u8, 114#u8, 97#u8, 109#u8, 34#u8, 58#u8, 51#u8, 49#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8,
-    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 34#u8, 206#u8, 178#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 57#u8, 44#u8, 34#u8, 115#u8, 111#u8,
-    114#u8, 116#u8, 34#u8, 58#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    110#u8, 34#u8, 58#u8, 51#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 102#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 57#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    110#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 98#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P30]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 686:0-704:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P30 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    56#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    50#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 55#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
-    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 56#u8, 55#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8,
-    105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
-    34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
-    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 56#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8,
-    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 108#u8, 105#u8, 102#u8, 116#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P29]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 665:0-682:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P29 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    55#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8,
-    50#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
-    50#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8,
-    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 109#u8, 107#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    55#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 56#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 52#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 53#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 56#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8,
-    54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P28]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 643:0-661:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P28 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 55#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
-    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 34#u8, 81#u8, 117#u8, 111#u8, 116#u8, 34#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 34#u8, 114#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    50#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 49#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
-    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 56#u8, 49#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8,
-    105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8
+    121#u8, 34#u8, 58#u8, 56#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 56#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8, 117#u8, 111#u8,
+    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8, 105#u8, 110#u8, 100#u8, 34#u8,
+    58#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 44#u8, 34#u8, 108#u8,
+    101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P27]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 621:0-639:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 624:0-642:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P27 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 54#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8,
+    114#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 48#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8,
+    108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 53#u8, 93#u8, 44#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8,
+    102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
+    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8,
     44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
     101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
-    77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
-    34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8,
-    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
-    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
-    34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 48#u8,
-    125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
-    50#u8, 53#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8,
-    99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
-    105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8,
-    118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
-    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
-    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8,
-    100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
-    110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8,
-    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
-    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 93#u8, 125#u8
+    78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P26]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 599:0-617:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 603:0-620:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P26 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    101#u8, 34#u8, 58#u8, 55#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 55#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
-    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
-    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
-    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
-    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8,
-    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8,
-    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 57#u8,
+    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 56#u8,
     125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
     108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
     101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
     101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 57#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 56#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
-    50#u8, 53#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
-    97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
-    44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
-    44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
-    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 55#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 55#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 55#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8,
+    99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8,
+    116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8,
+    108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 53#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P25]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 578:0-595:2 -/
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 581:0-599:2 -/
 @[global_simps, irreducible]
 def frontend.prelude_text.P25 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    50#u8, 51#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8,
-    105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8,
-    58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
-    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 34#u8, 70#u8, 97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8,
-    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
-    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P24]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 556:0-574:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P24 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 51#u8,
-    93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8,
-    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
-    107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
-    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
-    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8,
     110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
-    105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
-    110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8,
-    115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8,
-    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
-    114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 54#u8, 125#u8,
-    93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8,
-    51#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8,
-    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8,
-    115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8,
-    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
-    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
-    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P23]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 534:0-552:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P23 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
-    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 55#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    55#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 55#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
-    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 53#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 55#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 55#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 55#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8,
-    117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P22]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 512:0-530:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P22 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 58#u8, 91#u8, 49#u8, 53#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8,
-    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 54#u8, 44#u8, 49#u8,
-    55#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8,
-    58#u8, 116#u8, 114#u8, 117#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8,
-    101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8,
-    85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8,
-    108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    53#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8,
-    99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
-    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
-    69#u8, 109#u8, 112#u8, 116#u8, 121#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8,
-    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P21]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 490:0-508:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P21 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8, 125#u8, 93#u8, 44#u8,
-    34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
-    97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 49#u8, 53#u8, 93#u8, 44#u8,
-    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
-    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 50#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
-    73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8,
-    114#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
-    77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8,
-    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
-    34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8,
-    108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8,
-    115#u8, 34#u8, 58#u8, 53#u8, 54#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8,
-    116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8,
-    102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
-    34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 54#u8, 55#u8, 125#u8, 93#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8,
-    125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P20]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 469:0-486:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P20 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8,
-    49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8,
-    116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8,
-    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8,
-    100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8,
-    117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 105#u8,
-    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
-    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
-    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 54#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8,
-    108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8,
-    125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8,
-    49#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8,
-    58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
-    97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
-    44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
-    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
-    58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P19]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 447:0-465:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P19 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    54#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8,
-    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 57#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
-    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 55#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    55#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
-    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
-    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P18]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 425:0-443:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P18 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    58#u8, 52#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 54#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 54#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 54#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 54#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
-    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
-    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
-    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8,
-    56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P17]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 404:0-421:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P17 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    53#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
-    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8,
-    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 57#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 54#u8,
-    48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 49#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 54#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 54#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    54#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 55#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 51#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 52#u8, 44#u8,
-    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 51#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P16]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 383:0-400:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P16 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 48#u8, 44#u8, 34#u8,
-    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 53#u8, 44#u8,
-    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 52#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
-    54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    53#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 50#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8,
+    101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 70#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8,
     114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    50#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
     114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
     111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 50#u8, 44#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P15]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 362:0-379:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P15 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 52#u8,
-    57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 48#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8,
-    102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 53#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
-    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
-    53#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    50#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
-    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
-    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
-    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
-    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P14]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 341:0-358:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P14 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 122#u8, 101#u8, 114#u8, 111#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
-    50#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8,
-    49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 110#u8, 95#u8, 105#u8, 104#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8,
-    110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8,
-    58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
-    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P13]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 320:0-337:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P13 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 115#u8, 117#u8, 99#u8,
-    99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8,
-    115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8,
-    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    56#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 110#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 52#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 55#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
     97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
     110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
     58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
     44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8,
     44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8
     ]
 
-/-- [con_ron_core::frontend::prelude_text::P12]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 298:0-316:2 -/
+/-- [con_ron_core::frontend::prelude_text::P24]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 559:0-577:2 -/
 @[global_simps, irreducible]
-def frontend.prelude_text.P12 : Array Std.U8 256#usize :=
+def frontend.prelude_text.P24 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8,
-    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8,
-    85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8,
-    108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8,
-    50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8,
-    99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8,
-    109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 54#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 78#u8,
-    97#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 108#u8,
-    34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8,
-    58#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 50#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8, 116#u8, 34#u8, 58#u8,
-    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 122#u8, 101#u8, 114#u8, 111#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P11]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 277:0-294:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P11 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8,
+    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 114#u8,
     101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8,
-    108#u8, 34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8,
-    85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 116#u8, 114#u8,
-    117#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
-    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8,
-    50#u8, 44#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 52#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8,
-    110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 51#u8, 93#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8,
+    110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
     34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8, 114#u8,
-    115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
     111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
     34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8,
-    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8,
-    58#u8, 57#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8,
-    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8,
-    58#u8, 50#u8, 56#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
-    101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8,
-    108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 44#u8, 34#u8, 99#u8,
-    116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 57#u8, 93#u8, 44#u8,
-    34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8,
-    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 55#u8, 54#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8,
+    108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 51#u8, 93#u8, 44#u8, 34#u8, 99#u8,
+    116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8,
+    108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8
     ]
 
-/-- [con_ron_core::frontend::prelude_text::P10]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 255:0-273:2 -/
+/-- [con_ron_core::frontend::prelude_text::P23]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 537:0-555:2 -/
 @[global_simps, irreducible]
-def frontend.prelude_text.P10 : Array Std.U8 256#usize :=
+def frontend.prelude_text.P23 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    52#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    55#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
     108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
     100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
-    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 48#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8,
-    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8,
-    101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8,
-    34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8,
-    58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8,
-    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
-    97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
-    44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
-    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 110#u8,
-    117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
-    58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
-    97#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P09]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 234:0-251:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P09 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
-    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
-    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 51#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
-    34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
-    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
-    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
-    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
-    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 55#u8,
-    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
-    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 56#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
-    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P08]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 213:0-230:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P08 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8, 51#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8,
-    102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 51#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
-    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 50#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 52#u8, 125#u8, 44#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 52#u8, 125#u8, 10#u8, 123#u8,
     34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
     123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
     110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
     117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 51#u8, 53#u8, 44#u8, 34#u8, 110#u8
+    34#u8, 58#u8, 53#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 55#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 53#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 52#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 54#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8,
+    105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8
     ]
 
-/-- [con_ron_core::frontend::prelude_text::P07]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 192:0-209:2 -/
+/-- [con_ron_core::frontend::prelude_text::P22]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 516:0-533:2 -/
 @[global_simps, irreducible]
-def frontend.prelude_text.P07 : Array Std.U8 256#usize :=
+def frontend.prelude_text.P22 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
-    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
-    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
-    100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8,
-    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 108#u8,
-    97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    53#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 54#u8, 44#u8, 49#u8, 55#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 116#u8, 114#u8, 117#u8,
+    101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8,
+    101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8,
+    101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 69#u8, 109#u8,
+    112#u8, 116#u8, 121#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
+    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P21]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 495:0-512:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P21 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 52#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 53#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
+    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8,
+    50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8,
+    105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8,
+    105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8,
+    58#u8, 53#u8, 54#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8,
+    114#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 114#u8,
+    104#u8, 115#u8, 34#u8, 58#u8, 54#u8, 55#u8, 125#u8, 93#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 49#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P20]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 473:0-491:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P20 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
+    97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
+    44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 123#u8, 34#u8,
+    99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8,
+    110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P19]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 451:0-469:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P19 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
     101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
     101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 108#u8, 97#u8,
-    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
-    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8,
-    112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
-    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8,
-    101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P06]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 171:0-188:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P06 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
-    34#u8, 114#u8, 101#u8, 102#u8, 108#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
-    58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
-    57#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 93#u8,
-    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 49#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 50#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 50#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 50#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
-    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8,
-    34#u8, 58#u8, 50#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 50#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P05]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 149:0-167:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P05 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    49#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 117#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 112#u8, 97#u8,
-    114#u8, 97#u8, 109#u8, 34#u8, 58#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 115#u8,
-    111#u8, 114#u8, 116#u8, 34#u8, 58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8,
     102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
     34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
     102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
     108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    49#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    58#u8, 54#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 53#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    55#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
     108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
     100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
     100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8,
-    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8,
-    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
-    110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 49#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8
     ]
 
-/-- [con_ron_core::frontend::prelude_text::P04]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 128:0-145:2 -/
+/-- [con_ron_core::frontend::prelude_text::P18]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 430:0-447:2 -/
 @[global_simps, irreducible]
-def frontend.prelude_text.P04 : Array Std.U8 256#usize :=
+def frontend.prelude_text.P18 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
-    111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8,
-    105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
-    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
-    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 34#u8, 109#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
-    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
-    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8,
-    110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 49#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
-    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
-    49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8
-    ]
-
-/-- [con_ron_core::frontend::prelude_text::P03]
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 107:0-124:2 -/
-@[global_simps, irreducible]
-def frontend.prelude_text.P03 : Array Std.U8 256#usize :=
-  Array.make 256#usize [
-    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8,
-    102#u8, 108#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8,
-    110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8,
-    101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
-    91#u8, 49#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
-    55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
-    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
-    102#u8, 110#u8, 34#u8, 58#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
-    34#u8, 58#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
-    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 56#u8, 125#u8, 44#u8, 34#u8,
-    105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 53#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8,
+    52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    54#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 54#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 55#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 54#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 54#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
     112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
-    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 125#u8,
-    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 125#u8, 10#u8,
+    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P17]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 409:0-426:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P17 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 56#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 57#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 53#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    54#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 54#u8, 48#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 54#u8,
+    49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 50#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 54#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 54#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P16]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 388:0-405:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P16 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 53#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 53#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8,
+    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
+    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
+    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 55#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 50#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 50#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P15]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 366:0-384:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P15 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 52#u8, 57#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P14]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 345:0-362:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P14 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    122#u8, 101#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8,
+    117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 49#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 110#u8, 95#u8, 105#u8, 104#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8,
+    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P13]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 323:0-341:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P13 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    110#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8,
+    51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P12]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 301:0-319:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P12 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8,
+    101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 54#u8, 125#u8, 93#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 78#u8, 97#u8, 116#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
+    115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 58#u8, 48#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 115#u8,
+    111#u8, 114#u8, 116#u8, 34#u8, 58#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    122#u8, 101#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P11]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 280:0-297:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P11 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    50#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
+    49#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 107#u8, 34#u8, 58#u8, 116#u8, 114#u8, 117#u8, 101#u8, 44#u8, 34#u8,
+    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 44#u8, 50#u8, 93#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8,
+    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
+    34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8,
+    110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 50#u8, 56#u8,
+    125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 57#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8,
+    82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
+    44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P10]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 258:0-276:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P10 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 57#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 48#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8,
+    117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8,
+    110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P09]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 236:0-254:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P09 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    51#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 54#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 55#u8, 125#u8, 10#u8,
     123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
     58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
     110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
     117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
-    49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8
+    34#u8, 58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    51#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P08]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 215:0-232:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P08 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    97#u8, 114#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8,
+    114#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    51#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    51#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 53#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P07]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 193:0-211:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P07 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8,
+    99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P06]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 172:0-189:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P06 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 102#u8,
+    108#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 50#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 48#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8,
+    108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P05]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 150:0-168:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P05 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    117#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8, 116#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P04]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 129:0-146:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P04 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 109#u8, 111#u8,
+    116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8,
+    114#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 125#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P03]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 107:0-125:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P03 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 102#u8, 108#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P02]
@@ -82254,32 +82432,32 @@ def frontend.prelude_text.P03 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P02 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    97#u8, 114#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8,
-    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8,
-    34#u8, 115#u8, 111#u8, 114#u8, 116#u8, 34#u8, 58#u8, 48#u8, 125#u8, 10#u8,
+    48#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8,
+    116#u8, 34#u8, 58#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 10#u8,
     123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
     58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
-    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
-    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
-    34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
-    58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
-    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
-    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
-    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
-    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
-    121#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
-    34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
-    58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
-    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
-    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
-    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
-    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 44#u8, 34#u8, 110#u8,
-    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8,
-    112#u8, 101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P01]
@@ -82287,32 +82465,32 @@ def frontend.prelude_text.P02 : Array Std.U8 256#usize :=
 @[global_simps, irreducible]
 def frontend.prelude_text.P01 : Array Std.U8 256#usize :=
   Array.make 256#usize [
-    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8,
-    34#u8, 58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8,
-    58#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
-    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 206#u8, 177#u8, 34#u8, 125#u8, 125#u8,
-    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
-    115#u8, 111#u8, 114#u8, 116#u8, 34#u8, 58#u8, 49#u8, 125#u8, 10#u8, 123#u8,
-    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
-    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 97#u8,
-    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
-    53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 95#u8, 64#u8, 34#u8, 125#u8, 125#u8, 10#u8,
-    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8,
-    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
-    58#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
-    95#u8, 105#u8, 110#u8, 116#u8, 101#u8, 114#u8, 110#u8, 97#u8, 108#u8,
-    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
-    55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
-    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8,
-    114#u8, 34#u8, 58#u8, 34#u8, 95#u8, 104#u8, 121#u8, 103#u8, 34#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 56#u8, 44#u8,
-    34#u8, 110#u8, 117#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 105#u8, 34#u8,
-    58#u8, 48#u8, 44#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 55#u8,
-    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8
+    34#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8, 34#u8, 58#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 206#u8, 177#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8,
+    116#u8, 34#u8, 58#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 97#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 53#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 95#u8, 64#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 95#u8, 105#u8,
+    110#u8, 116#u8, 101#u8, 114#u8, 110#u8, 97#u8, 108#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 55#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 95#u8, 104#u8, 121#u8, 103#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 105#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 55#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::P00]
@@ -82331,28 +82509,28 @@ def frontend.prelude_text.P00 : Array Std.U8 256#usize :=
     115#u8, 105#u8, 111#u8, 110#u8, 34#u8, 58#u8, 34#u8, 51#u8, 46#u8, 49#u8,
     46#u8, 48#u8, 34#u8, 125#u8, 44#u8, 34#u8, 108#u8, 101#u8, 97#u8, 110#u8,
     34#u8, 58#u8, 123#u8, 34#u8, 103#u8, 105#u8, 116#u8, 104#u8, 97#u8, 115#u8,
-    104#u8, 34#u8, 58#u8, 34#u8, 52#u8, 55#u8, 48#u8, 100#u8, 53#u8, 99#u8,
-    101#u8, 49#u8, 52#u8, 48#u8, 48#u8, 55#u8, 54#u8, 52#u8, 57#u8, 57#u8,
-    57#u8, 53#u8, 56#u8, 49#u8, 102#u8, 100#u8, 50#u8, 54#u8, 100#u8, 53#u8,
-    100#u8, 55#u8, 50#u8, 98#u8, 48#u8, 48#u8, 100#u8, 57#u8, 57#u8, 48#u8,
-    98#u8, 48#u8, 102#u8, 52#u8, 34#u8, 44#u8, 34#u8, 118#u8, 101#u8, 114#u8,
+    104#u8, 34#u8, 58#u8, 34#u8, 101#u8, 98#u8, 54#u8, 99#u8, 97#u8, 102#u8,
+    98#u8, 55#u8, 50#u8, 57#u8, 48#u8, 101#u8, 56#u8, 98#u8, 100#u8, 53#u8,
+    102#u8, 50#u8, 57#u8, 51#u8, 55#u8, 53#u8, 50#u8, 50#u8, 100#u8, 56#u8,
+    100#u8, 56#u8, 48#u8, 52#u8, 102#u8, 53#u8, 56#u8, 102#u8, 48#u8, 50#u8,
+    98#u8, 97#u8, 102#u8, 99#u8, 34#u8, 44#u8, 34#u8, 118#u8, 101#u8, 114#u8,
     115#u8, 105#u8, 111#u8, 110#u8, 34#u8, 58#u8, 34#u8, 52#u8, 46#u8, 51#u8,
-    53#u8, 46#u8, 48#u8, 45#u8, 114#u8, 99#u8, 51#u8, 34#u8, 125#u8, 125#u8,
-    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 44#u8,
-    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
-    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
-    58#u8, 34#u8, 69#u8, 113#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
-    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    53#u8, 46#u8, 48#u8, 34#u8, 125#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
     34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
-    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 117#u8, 95#u8,
-    49#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 108#u8
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 69#u8, 113#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 117#u8, 95#u8, 49#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 49#u8, 44#u8
     ]
 
 /-- [con_ron_core::frontend::prelude_text::prelude_text]:
-    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1374:0-1439:1
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1375:0-1440:1
     Visibility: public -/
 def frontend.prelude_text.prelude_text : Result (alloc.vec.Vec Std.U8) := do
-  let out := alloc.vec.Vec.with_capacity Std.U8 15704#usize
+  let out := alloc.vec.Vec.with_capacity Std.U8 15700#usize
   let s ← lift (Array.to_slice frontend.prelude_text.P00)
   let out1 ← frontend.prelude_text.push_chunk out s
   let s1 ← lift (Array.to_slice frontend.prelude_text.P01)
