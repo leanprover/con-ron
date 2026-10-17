@@ -117,6 +117,13 @@ attribute [lockstep_simp] decide_eq_true_eq etag_forallE_abs etag_lam_abs beq_se
     LSP (arena.monad.fail T e) (fun r => r = .Err e) :=
   fun _r hr => fail_run hr
 
+/-- `kernel::trust_axioms::non_std_axiom_msg` — a decline MESSAGE, which no
+relation compares (errors are related by kind): all that is claimed is that a
+successful run produced one. -/
+@[lockstep] theorem non_std_axiom_msg_spec (n : kernel.name.Name) :
+    LSP (kernel.trust_axioms.non_std_axiom_msg n) (fun _ => True) :=
+  fun _ _ => trivial
+
 @[lockstep] theorem eidx_nat_key_spec (h : arena.handle.EIdx) (d : Std.U64) :
     LSP (arena.monad.eidx_nat_key h d) (fun k => absEIdxNat k = (absEIdx h, absU d)) :=
   fun _ hk => eidx_nat_key_abs hk
