@@ -69418,3 +69418,107 @@ style, since nobody classified it then; the honest summary is:
   `defeqBody_at`/`lazyDeltaReduction_spec` to the idiom (their guards would
   then live only in `lazyFoldOk_spec` and the shortcut's callee) is the lever
   for the next sync.
+
+### Task #126 — con-leche sync c26f7931 → 103562ba: toolchain v4.35.0, the non-standard-axiom decline names its tactic (2026-10-17, Opus)
+
+con-leche goes from `c26f7931` to **`103562ba`** (74 commits) and the
+toolchain from v4.35.0-rc3 to **v4.35.0** (the start script's toolchain-move
+path: `_tmp/aeneas-lean-v4.35.0`).
+
+| upstream | what it did | here |
+|---|---|---|
+| #355 | toolchain v4.35.0; the built-in prelude renamed `pins/leanprover-lean4-v4.35.0.prelude.ndjson` (only its meta line changed) | **ported**: `gen-prelude`/`gen-prelude-lean` re-run (the text re-chunks: ±2 000 generated lines each, byte-identical body); `patches/aeneas.patch` applies and the Aeneas library builds on v4.35.0 **unchanged**; version mentions (OVERVIEW §10, `pins_decode`'s test comment, `Bridge/Specs.lean`) |
+| #355 (fallout) | — | v4.35.0's unused-tactic linter flags 41 do-nothing steps in `proof/` (`try rw … at h`, `try dsimp only`, `first … \| skip`): removed, or `first … \| skip` → `try first …` (19 files of `Refine2/`, +21 −47).  No proof changed otherwise |
+| #356, #358 | con-leche's cached simulation (its own Theorem 1) by `vcgen`/`grind` | proof-internal, **not ported** — except that it deleted two lemmas Theorem 1 called: `checkValueGroup_of_facts` and `Cached.openers_typeD_WScoped`, now restated in `Bridge/Checker/Split.lean` / `Bridge/Inductives/SumInstall.lean` with the same proofs, and made `Cached.frameHoles` a `def` (one `simp` in `Positivity.lean` unfolds it) |
+| #357 | CI: the bridge's `allowNonModules`, `stack_fuel_offset`'s 300 s timeout | nothing to port (our `diff-e2e --timeout` default already covers it) |
+| #360 | `nativeAxiomTactic?`, `nonStdAxiomMsg` (`Kernel/TrustAxioms.lean`), used by `checkDecl` and `checkDeclC` | **ported**, below |
+
+**#360, the decline message.**  `kernel::trust_axioms::native_axiom_tactic`
+and `non_std_axiom_msg` port the two functions over the transient `Name`
+(three nested matches for the `.str (.str (.str _ "_native") tac) ax`
+pattern; `text::cps_beq` and a new `text::cps_starts_with` for the literal
+tests; `text::name_str`, which is con-leche's `Name.toString` exactly, for
+`{n}`).  `arena::check_decl::check_axiom_decl_rest` reads the name back
+(`read_name_m`, the memoised readback) and declines with that message; it
+takes `pers` for the readback.  The twin calls con-leche's own
+`ConLeche.nonStdAxiomMsg` on `readNameM cv.name`, so the twin's message IS
+con-leche's.  `M_NONSTD_AXIOM` is gone.
+
+*Where the name goes.*  The message carries the name in parentheses, as
+con-leche's does, and the driver's location suffix `[at axiom <name>, fold
+position N]` stays as it is for every failure.  So the name is printed twice
+on this one line — and con-leche prints it twice too (`Driver/Run.lean`'s
+`{e}{loc}`), so the line is con-leche's verbatim apart from the verdict word
+(con-ron's `declined:` where con-leche says `not implemented yet:`, an older
+driver convention).  Dropping it from the message (the arena's other
+messages drop interpolations) would have made this the one line where the two
+checkers' messages differ in content; dropping it from the suffix would make
+the suffix's format depend on the error.  Neither is worth it.
+
+On the real exports (`_tmp/axdemo`: a `native_decide` theorem, a `bv_decide`
+theorem, a user axiom), `--verified`, before (master `58d447e7`) and after:
+
+```
+before: con-ron: declined: non-standard axiom [at axiom nd._native.native_decide.ax_1_1, fold position 77] (--verified)
+after:  con-ron: declined: non-standard axiom (nd._native.native_decide.ax_1_1), apparently added by the `native_decide` tactic; con-leche does not support such axioms at the moment [at axiom nd._native.native_decide.ax_1_1, fold position 77] (--verified)
+before: con-ron: declined: non-standard axiom [at axiom bv._native.bv_decide.ax_1_5, fold position 8717] (--verified)
+after:  con-ron: declined: non-standard axiom (bv._native.bv_decide.ax_1_5), apparently added by the `bv_decide` tactic; con-leche does not support such axioms at the moment [at axiom bv._native.bv_decide.ax_1_5, fold position 8717] (--verified)
+before: con-ron: declined: non-standard axiom [at axiom myAxiom, fold position 14] (--verified)
+after:  con-ron: declined: non-standard axiom (myAxiom); con-leche does not support such axioms at the moment [at axiom myAxiom, fold position 14] (--verified)
+```
+
+(exit 2 throughout).  Upstream's new fixtures `native_decide_axiom` and
+`decide_native_axiom` are in con-leche's `tests/e2e`, which `diff-e2e.sh`
+reads, so they need no copy here; the second prints `` apparently added by
+the `decide +native` tactic ``.  The exact text is pinned by Rust unit tests
+(`kernel::trust_axioms::tests`, con-leche's five `#guard`s on the recogniser
+and the installer's message, plus the plain-axiom case).  No theorem states
+the message: Theorem 2 relates errors by kind (§3.1), and the twin's message
+is con-leche's by construction.
+
+**Findings.**  `update --auto`: 148 findings, all `changed` (85 the
+regenerated prelude, 19 `checkDecl`/`checkDeclC` citations whose body moved
+by the one line, the rest the prelude's twin); **148 markers after the
+mechanical pass, 0 at the end**.  Coverage 847/929 at the old pin, 847/931 at
+the new before the port → **849/931** (the two new declarations).
+diff-e2e: master's binary at the new pin 627/627 (exit codes did not move);
+the branch's **627/627** at `--verified --jobs=1` and at `--trusted --jobs=4`.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker; both
+accept 57 919):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `58d447e7` | 186 496 401 895 | 76 651 006 618 |
+| this branch `f8fe348a` | **186 496 332 349** (−0.000 %) | 77 499 802 148 |
+
+**Size** (from the start commit): Rust core +212 −51 outside the generated
+prelude (most of it the message constants and tests; 18 markers deleted);
+twin +4 −2; generated model +1 982 −1 804 (mostly `Source:` line shifts);
+Theorem 2 +21 −47 in 19 files (+7 for `non_std_axiom_msg_spec`, one argument
+in two statements, the rest the linter); Theorem 1 +54 −16 in 6 files.
+
+#### How stable is Theorem 1 this time
+
+Classified as in #125 — **(a)** the code changed, **(b)** a proof broke with
+its mathematics unchanged, **(c)** mechanical:
+
+| file | +/− | cat. | what |
+|---|---:|---|---|
+| `Checker/Arms.lean` | 2/1 | a | the axiom arm's decline is now "read the name, then fail": its `Never` proof is `AM.Never.bind (fun _ => AM.Never.fail _)` |
+| `Checker/Split.lean` | 29/5 | c | `checkValueGroup_of_facts`, deleted upstream, restated (same statement, same proof) |
+| `Inductives/SumInstall.lean` | 18/3 | c | `openers_typeD_WScoped`, the same |
+| `Inductives/BlockInstall.lean` | 4/4 | c | its four call sites renamed |
+| `Inductives/Positivity.lean` | 1/1 | b | `(by simp)` → `(by simp [Cached.frameHoles])`: upstream turned the `mapIdx` into an `@[expose] def`, so the length goal no longer simplifies by itself |
+| `Specs.lean` | 1/1 | c | comment |
+
+**(b): one line**, and it is a dependency's refactor rather than our code:
+the `Positivity.lean` call passes a length side condition to con-leche's
+lemma, whose statement now names `frameHoles`.  The two deleted lemmas are
+the same kind of exposure — Theorem 1 reaching into con-leche's
+*proof-internal* vocabulary (`Verify/Cached/*`), which upstream's own
+`vcgen`/`grind` rewrite (#356) is free to move.  No walk proof in the #123
+idiom was touched; no `sym`/`vcgen`/`finish` call changed; the one
+statement-level change (the decline arm) was in the old-style `Arms.lean`,
+and a two-token one.  The v4.35.0 toolchain itself broke **no** Theorem 1
+proof (the linter's 41 findings are all in `Refine2/`).
