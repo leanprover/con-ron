@@ -69490,8 +69490,12 @@ accept 57 919):
 
 | binary | instructions:u | cycles:u |
 |---|---:|---:|
-| master `58d447e7` | 186 496 401 895 | 76 651 006 618 |
-| this branch `f8fe348a` | **186 496 332 349** (−0.000 %) | 77 499 802 148 |
+| master `58d447e7` | 186 496 338 989 | 76 764 162 583 |
+| this branch `c00c4311` | **186 496 408 788** (+0.000 %) | 77 411 862 149 |
+
+(re-measured after the last Rust commit, a test constant; the run at
+`f8fe348a` read 186 496 401 895 against 186 496 332 349 — the spread between
+two runs of the same binary is larger than the difference.)
 
 **Size** (from the start commit): Rust core +212 −51 outside the generated
 prelude (most of it the message constants and tests; 18 markers deleted);
