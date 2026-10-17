@@ -1442,7 +1442,7 @@ def projNodesGo (T : NIdx) (b : EIdx) : Nat → Nat → AM (List EIdx)
     pure (p :: rest)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:730-735 etaProjs
-con-leche: ConLeche/Cached/CoreC.lean:315-322 projNodesI — the fabricated
+con-leche: ConLeche/Cached/CoreC.lean:310-317 projNodesI — the fabricated
 projections of a structure-eta spine: the `.proj T j b` nodes (every slot of
 an η family the checker uses has a table entry, `towerSlotsAll`). -/
 def etaProjs (T : NIdx) (b : EIdx) (nF : Nat) : AM (List EIdx) :=
@@ -1490,7 +1490,7 @@ def reservedRecName (n : NIdx) : AM Bool := do
         pure (ds.contains n)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:366-410 structEtaCertWith
-con-leche: ConLeche/Cached/CoreC.lean:324-361 structEtaCertWithI — the
+con-leche: ConLeche/Cached/CoreC.lean:319-356 structEtaCertWithI — the
 structure-eta certificate against a *given* weak-head-normal type of the stuck
 side: the η law's keys, the level comparison, then the parameters and the
 fields against the fabricated projections (no type-application certificate,
@@ -1684,7 +1684,7 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
 con-leche's `Core.lean`:1311-1832. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:502-663 majorToCtor
-con-leche: ConLeche/Cached/CoreC.lean:433-458 majorToCtorI — the scope guard
+con-leche: ConLeche/Cached/CoreC.lean:428-453 majorToCtorI — the scope guard
 the three rescue branches share (cf. `annotateProjElim`): the fabricated major
 is well-scoped, closed under loose bvars, and mentions no free variable the
 stuck major does not.
@@ -1703,7 +1703,7 @@ def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
   else leafGuard coreWalkFuel fab major
 
 /-- con-leche: ConLeche/Kernel/Core.lean:502-663 majorToCtor
-con-leche: ConLeche/Cached/CoreC.lean:432-534 majorToCtorI — **the
+con-leche: ConLeche/Cached/CoreC.lean:427-529 majorToCtorI — **the
 stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 recursor's major premise that is not a constructor application may still be
 *replaced* by one — K-flagged, η-capable, or the pinned `And`.  No certificate
@@ -1911,7 +1911,7 @@ def isStrLit (h : EIdx) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:701-775 prepareMajor
-con-leche: ConLeche/Cached/CoreC.lean:558-580 prepareMajorI — the major
+con-leche: ConLeche/Cached/CoreC.lean:553-575 prepareMajorI — the major
 premise's preparation before a rule fires: at a K-flagged recursor the K
 rescue runs on the **raw** major and, if it did not produce a constructor
 application, the major is left as it is (con-leche task #334); elsewhere the
@@ -2198,7 +2198,7 @@ The accumulator is an `Array` in PUSH order (task #97-P6-15's clause change),
 which `instantiateList` reads from the end — the same list con-leche's `::`
 chain builds, the other way round. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:730-747 betaPeelI — peel a
+/-- con-leche: ConLeche/Cached/CoreC.lean:725-742 betaPeelI — peel a
 consecutive run of λ binders, collecting their arguments, and substitute the
 whole run in ONE `instantiateList`; the reduct, applied to the arguments left
 over, is the term the loop continues with.  β is uniform (con-leche's task
@@ -2219,7 +2219,7 @@ def betaPeel (t : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) :
     pure (.cont e2)
 termination_by args.size - i
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:749-776 whnfAppI — walk the spine's
+/-- con-leche: ConLeche/Cached/CoreC.lean:744-771 whnfAppI — walk the spine's
 arguments, applying each to the head's reduct: a λ head opens a peel group
 (`betaPeel`), a stuck head applies the argument and tries one ι step at the
 spine the walk already holds; a fired ι hands the loop its reduct applied to
@@ -2277,7 +2277,7 @@ def teleArityOk (ty : EIdx) (args : List EIdx) : AM Bool := do
   pure p.isSome
 
 /-- con-leche: ConLeche/Kernel/Core.lean:878-890 projCert
-con-leche: ConLeche/Cached/CoreC.lean:694-698 projCertF — **the structural
+con-leche: ConLeche/Cached/CoreC.lean:689-693 projCertF — **the structural
 projection's certificate**: the redex `proj_i (C p⃗ x⃗)`'s spine has the arity
 of `C`'s stored (uninstantiated) type (`teleArityOk`). -/
 def projCert (fe : IFEnv) (c : NIdx) (args : List EIdx) : AM Bool := do
@@ -2286,7 +2286,7 @@ def projCert (fe : IFEnv) (c : NIdx) (args : List EIdx) : AM Bool := do
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:892-900 projCertAt
-con-leche: ConLeche/Cached/CoreC.lean:700-703 projCertAtF — **the fire
+con-leche: ConLeche/Cached/CoreC.lean:695-698 projCertAtF — **the fire
 certificate as the mode runs it**: the verified core checks the arity; the
 trusted core is the official kernel's, which checks nothing. -/
 def projCertAt (fe : IFEnv) (verified : Bool) (c : NIdx) (args : List EIdx) :
@@ -2294,7 +2294,7 @@ def projCertAt (fe : IFEnv) (verified : Bool) (c : NIdx) (args : List EIdx) :
   if verified then projCert fe c args else pure true
 
 /-- con-leche: ConLeche/Kernel/Core.lean:902-932 reduceProjCore
-con-leche: ConLeche/Cached/CoreC.lean:705-728 reduceProjCoreI — **the
+con-leche: ConLeche/Cached/CoreC.lean:700-723 reduceProjCoreI — **the
 projection rule on a reduced scrutinee** (the official kernel's
 `reduce_proj_core`): `proj_i (ctor p⃗ x⃗) ↦ x_i`, driven by the projection
 table.  A string-literal scrutinee first expands to its reduced constructor
@@ -2329,7 +2329,7 @@ def reduceProjCore (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/Core.lean:934-983 whnfCoreBody
-con-leche: ConLeche/Cached/CoreC.lean:778-814 whnfCoreStepI — the `.proj`
+con-leche: ConLeche/Cached/CoreC.lean:773-809 whnfCoreStepI — the `.proj`
 clause of the step: the scrutinee by `whnf`, or — in the CHEAP mode (official
 `cheap_proj`) — by the cheap `whnfCore`, then the projection rule: a fired
 field is the term the loop continues with, a stuck projection is its own
@@ -2342,7 +2342,7 @@ def whnfCoreStepProj (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Boo
   | none => pure (.done e)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:934-983 whnfCoreBody
-con-leche: ConLeche/Cached/CoreC.lean:778-814 whnfCoreStepI — **one
+con-leche: ConLeche/Cached/CoreC.lean:773-809 whnfCoreStepI — **one
 head-normalization step** (β, ι, projection, ζ — **no δ**), returning the head
 normal form or the term to continue with.  Only the spine head's
 normalization stays a knot call (genuine nesting, bounded by the term's
@@ -2370,7 +2370,7 @@ def whnfCoreStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
   | .bvar _ =>
     fail (.notImplemented "whnf beyond the supported fragment")
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:816-827 whnfCoreLoopI — iterate
+/-- con-leche: ConLeche/Cached/CoreC.lean:811-822 whnfCoreLoopI — iterate
 `whnfCoreStep` on its own step budget: the continuation is the loop's own tail
 call (con-leche's task #342 R2), so a reduction chain of any length runs in
 constant native stack, and a non-terminating one runs until the external
@@ -2384,7 +2384,7 @@ def whnfCoreLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
     | .cont e' => whnfCoreLoop mode r fe cheap depth n e'
 
 /-- con-leche: ConLeche/Kernel/Core.lean:934-983 whnfCoreBody
-con-leche: ConLeche/Cached/CoreC.lean:829-832 whnfCoreBodyI — the
+con-leche: ConLeche/Cached/CoreC.lean:824-827 whnfCoreBodyI — the
 head-normalization body: the loop at its own step budget.  `cheap` is the
 official kernel's `cheap_proj`: a projection's scrutinee is reduced by
 `whnfCore` itself instead of `whnf`, and the flag propagates to every
@@ -2402,7 +2402,7 @@ from its decimal string at every use otherwise. -/
 @[noinline] def whnfLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1029-1044 whnfStep
-con-leche: ConLeche/Cached/CoreC.lean:891-905 whnfStepI — one iteration of
+con-leche: ConLeche/Cached/CoreC.lean:886-900 whnfStepI — one iteration of
 the reduction loop: head-normalize, try literal acceleration, unfold one
 definition.  **The continuation is returned, not called**: con-leche's `k e'`
 is `.cont e'` (con-leche inlines the step so that its continuation call is
@@ -2419,7 +2419,7 @@ def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
     | none => pure (.done e₁)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1046-1051 whnfLoop
-con-leche: ConLeche/Cached/CoreC.lean:907-911 whnfLoopI — the reduction loop:
+con-leche: ConLeche/Cached/CoreC.lean:902-906 whnfLoopI — the reduction loop:
 iterate `whnfStep` on its own step budget, so the whole chain costs one knot
 level however many steps it takes, in constant native stack. -/
 def whnfLoop (r : CoreFnsA) (fe : IFEnv) (depth : Nat) : Nat → EIdx → AM EIdx
@@ -2477,7 +2477,7 @@ transparent: on exhaustion the leaf phase hands the residual chain back to the
 knot, which is the chained spec's next step. -/
 def peelFuel : Nat := 16777216
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:941-952 inferLamsOutI — the λ
+/-- con-leche: ConLeche/Cached/CoreC.lean:936-947 inferLamsOutI — the λ
 loop's OUTWARD rebuild: `abstractRange` closes each stored domain over the `j`
 free variables below it and the ∀ node is rebuilt, innermost binder first. -/
 def inferLamsOut (d : Nat) (stk : Array EIdx) (n : Nat) (cur : EIdx) :
@@ -2490,7 +2490,7 @@ def inferLamsOut (d : Nat) (stk : Array EIdx) (n : Nat) (cur : EIdx) :
     inferLamsOut d stk j nd
 termination_by n
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:954-967 inferLamsLeafI — the λ
+/-- con-leche: ConLeche/Cached/CoreC.lean:949-962 inferLamsLeafI — the λ
 loop's LEAF: open the residual body against every free variable at once,
 infer it, and hand the outward rebuild its starting point. -/
 def inferLamsLeaf (r : CoreFnsA) (d : Nat) (t : EIdx) (k : Nat)
@@ -2500,7 +2500,7 @@ def inferLamsLeaf (r : CoreFnsA) (d : Nat) (t : EIdx) (k : Nat)
   let cur ← abstractRangeFast coreWalkFuel bt d k 0
   inferLamsOut d stk stk.size cur
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:969-989 inferLamsI — the
+/-- con-leche: ConLeche/Cached/CoreC.lean:964-984 inferLamsI — the
 λ-telescope inference loop: peel a consecutive run of λ binders, opening each
 domain against the free variables introduced so far and checking that it is a
 type, then hand the residual to the leaf. -/
@@ -2526,7 +2526,7 @@ def inferLams (r : CoreFnsA) (d : Nat) :
           inferLams r d peel body (k + 1) (fvs.push fv) (stk.push tyo)
         else fail (.invalid "expected a sort")
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:991-1002 inferPisOutI — the ∀
+/-- con-leche: ConLeche/Cached/CoreC.lean:986-997 inferPisOutI — the ∀
 loop's outward `imax` fold, innermost binder first (con-leche's task #272:
 the fold reads no per-node datum). -/
 def inferPisOut (stk : Array LIdx) (n : Nat) (v : LIdx) : AM LIdx := do
@@ -2537,7 +2537,7 @@ def inferPisOut (stk : Array LIdx) (n : Nat) (v : LIdx) : AM LIdx := do
     inferPisOut stk j v2
 termination_by n
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1004-1015 inferPisLeafI — the ∀
+/-- con-leche: ConLeche/Cached/CoreC.lean:999-1010 inferPisLeafI — the ∀
 loop's LEAF: open the residual codomain against every free variable at once,
 infer its sort and fold `imax` outward. -/
 def inferPisLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat)
@@ -2549,7 +2549,7 @@ def inferPisLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat)
   let iv ← inferPisOut stk stk.size v
   internSortE iv
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1017-1038 inferPisI — the
+/-- con-leche: ConLeche/Cached/CoreC.lean:1012-1033 inferPisI — the
 ∀-telescope inference loop, `inferLams`' twin: peel the chain, open each
 domain in bulk, and stack the binder's SORT (for the `imax` fold). -/
 def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
@@ -2572,7 +2572,7 @@ def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
             inferPis r fe d peel body (k + 1) (fvs.push fv) (stk.push u)
         else fail (.invalid "expected a sort")
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI — the `.lam`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1035-1144 inferBodyI — the `.lam`
 clause: the binder's own domain is checked to be a type here (which is why the
 loop starts at `k = 1` with one free variable and a one-entry stack), and the
 rest of the λ-chain is peeled by `inferLams`. -/
@@ -2584,7 +2584,7 @@ def inferLam (r : CoreFnsA) (depth : Nat) (ty body : EIdx) : AM EIdx := do
     inferLams r depth peelFuel body 1 #[fv] #[ty]
   else fail (.invalid "expected a sort")
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI — the
+/-- con-leche: ConLeche/Cached/CoreC.lean:1035-1144 inferBodyI — the
 `.forallE` clause, `inferLam`'s twin. -/
 def inferForall (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty body : EIdx) : AM EIdx := do
@@ -2613,14 +2613,14 @@ sits, and it RESETS the accumulator, because the reduct is already the opened
 type. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1065-1071 defeqArg
-con-leche: ConLeche/Cached/CoreC.lean:834-837 defeqArgI — **the argument check
+con-leche: ConLeche/Cached/CoreC.lean:829-832 defeqArgI — **the argument check
 of a full-grade application** (official `infer_app`): the type of an
 `eagerReduce _ _` argument is compared with the domain in the eager tower
 (`CoreFnsA.defeqE`), every other argument's in the knot's own. -/
 def defeqArg (r : CoreFnsA) (depth : Nat) (a ta ty : EIdx) : AM Bool := do
   if ← isEagerReduce a then r.defeqE depth ta ty else r.defeq depth ta ty
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:839-868 inferSpineI — walk the
+/-- con-leche: ConLeche/Cached/CoreC.lean:834-863 inferSpineI — walk the
 head's type down the argument vector at the FULL grade. -/
 def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
@@ -2650,7 +2650,7 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else instantiateListFast coreWalkFuel ty acc 0
 termination_by args.size - i
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI — the `.app`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1035-1144 inferBodyI — the `.app`
 clause: the head is inferred ONCE and the whole argument vector is run through
 `inferSpine`. -/
 def inferApp (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -2659,7 +2659,7 @@ def inferApp (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   let tf ← r.infer depth hv.1
   inferSpine r fe depth tf #[] hv.2 0
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:870-889 inferSpineIOI — the io
+/-- con-leche: ConLeche/Cached/CoreC.lean:865-884 inferSpineIOI — the io
 lane's spine walk, official's `infer_only`: the head's type is walked through
 the arguments with no argument inference and no domain comparison
 (con-leche's tasks #342, #346). -/
@@ -2682,7 +2682,7 @@ def inferSpineIO (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else instantiateListFast coreWalkFuel ty acc 0
 termination_by args.size - i
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1151-1199 inferBodyIOI — the io
+/-- con-leche: ConLeche/Cached/CoreC.lean:1146-1194 inferBodyIOI — the io
 lane's `.app` clause. -/
 def inferAppIOAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (e : EIdx) : AM EIdx := do
@@ -2690,7 +2690,7 @@ def inferAppIOAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   let tf ← r.infer depth hv.1
   inferSpineIO r fe depth tf #[] hv.2 0
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1040-1149 inferBodyI — the `.proj`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1035-1144 inferBodyI — the `.proj`
 clause, shared by `inferBody` and `inferBodyIO` (con-leche's `inferBodyIOI`
 dispatches its `.proj` to `inferBodyI`'s): the subject type's head must be the
 node's structure at the table's arity (official `infer_proj`; these guards are
@@ -3034,7 +3034,7 @@ otherwise). -/
 @[noinline] def lamsFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1337-1344 defeqLamsInner
-con-leche: ConLeche/Cached/CoreC.lean:1206-1213 defeqLamsInnerI — the innermost
+con-leche: ConLeche/Cached/CoreC.lean:1201-1208 defeqLamsInnerI — the innermost
 level of `defeqLams`: the opened bodies, and at the verified mode their
 FULL-grade types (con-leche's task #342, T1). -/
 def defeqLamsInner (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (b₁ b₂ : EIdx) :
@@ -3047,7 +3047,7 @@ def defeqLamsInner (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (b₁ b₂ : 
   else pure true
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1346-1365 defeqLams
-con-leche: ConLeche/Cached/CoreC.lean:1215-1227 defeqLamsI — **λ-telescope
+con-leche: ConLeche/Cached/CoreC.lean:1210-1222 defeqLamsI — **λ-telescope
 congruence**: two λs compare their domains; while both opened bodies are λs
 (`lamPair?`) the descent continues structurally (an equal pair of bodies is
 `true` outright), and at the innermost level `defeqLamsInner` compares the
@@ -3070,7 +3070,7 @@ def defeqLams (mode : CheckMode) (r : CoreFnsA) :
       | none => defeqLamsInner mode r depth b₁ b₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1367-1393 quickDefEq
-con-leche: ConLeche/Cached/CoreC.lean:1229-1248 quickDefEqI — **the easy
+con-leche: ConLeche/Cached/CoreC.lean:1224-1243 quickDefEqI — **the easy
 cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
 and the pairs decided on the spot — two sorts, two literals, two `∀`s (binder
 congruence, batched: `defeqBinders`) and two `λ`s (`defeqLams`).  `none` is
@@ -3138,7 +3138,7 @@ def natPred? (e : EIdx) : AM (Option EIdx) := do
   else pure none
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1413-1425 defeqOffset
-con-leche: ConLeche/Cached/CoreC.lean:1250-1259 defeqOffsetI — **offsets**
+con-leche: ConLeche/Cached/CoreC.lean:1245-1254 defeqOffsetI — **offsets**
 (the official kernel's `is_def_eq_offset`): two zeros are equal, two
 successor forms compare their predecessors; two literals are left to
 `quickDefEq`.  (`Expr.isLit` is the tag test.)  The second side's
@@ -3164,7 +3164,7 @@ def headIsProj (e : EIdx) : AM Bool := do
   pure (h.tag == ETag.proj)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1433-1441 tryUnfoldProjApp
-con-leche: ConLeche/Cached/CoreC.lean:1261-1267 tryUnfoldProjAppI — official
+con-leche: ConLeche/Cached/CoreC.lean:1256-1262 tryUnfoldProjAppI — official
 `try_unfold_proj_app`: a projection-headed term through the FULL `whnfCore`;
 `some` whenever that changed it. -/
 def tryUnfoldProjApp (r : CoreFnsA) (depth : Nat) (e : EIdx) :
@@ -3183,7 +3183,7 @@ inductive DeltaStepA where
   | unknown
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1452-1457 deltaQuick
-con-leche: ConLeche/Cached/CoreC.lean:1269-1274 deltaQuickI — the end of a
+con-leche: ConLeche/Cached/CoreC.lean:1264-1269 deltaQuickI — the end of a
 lazy-delta step: `quickDefEq` on the new pair. -/
 def deltaQuick (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
     AM DeltaStepA := do
@@ -3193,7 +3193,7 @@ def deltaQuick (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
   | none => pure (.cont a b)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1459-1520 lazyDeltaStep
-con-leche: ConLeche/Cached/CoreC.lean:1276-1323 lazyDeltaStepI — **one
+con-leche: ConLeche/Cached/CoreC.lean:1271-1318 lazyDeltaStepI — **one
 lazy-delta step** (the official kernel's `lazy_delta_reduction_step`): unfold
 the side with the greater height (both at equal hints, after the same-head
 spine shortcut at equal *regular* hints), put the unfolded side through the
@@ -3263,7 +3263,7 @@ verdict.  Effectively unbounded since con-leche task #330: `2^62`. -/
 @[noinline] def defeqLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1537-1572 lazyDeltaReduction
-con-leche: ConLeche/Cached/CoreC.lean:1325-1349 lazyDeltaReductionI — **the
+con-leche: ConLeche/Cached/CoreC.lean:1320-1344 lazyDeltaReductionI — **the
 lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 iteration the offset check, the fvar-guarded literal acceleration — whose
 reduct restarts the comparison (`defeq`) — then one `lazyDeltaStep`, each
@@ -3293,7 +3293,7 @@ def lazyDeltaReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     | .unknown => pure (.unknown a b)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1574-1592 lazyDeltaProjReduction
-con-leche: ConLeche/Cached/CoreC.lean:1351-1365 lazyDeltaProjReductionI —
+con-leche: ConLeche/Cached/CoreC.lean:1346-1360 lazyDeltaProjReductionI —
 **`a.i =?= b.i` by its scrutinees** (the official kernel's
 `lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees; when
 neither unfolds any more (or the step found them different), the projection
@@ -3315,7 +3315,7 @@ def lazyDeltaProjReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
       | none => r.defeq depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1594-1603 defeqProjPair
-con-leche: ConLeche/Cached/CoreC.lean:1367-1375 defeqProjPairI — the
+con-leche: ConLeche/Cached/CoreC.lean:1362-1370 defeqProjPairI — the
 proj/proj check of `is_def_eq_core`: two projections at the same slot go
 through `lazyDeltaProjReduction` on their scrutinees. -/
 def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -3330,7 +3330,7 @@ def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1605-1672 defeqStuck
-con-leche: ConLeche/Cached/CoreC.lean:1377-1424 defeqStuckI — **the stuck
+con-leche: ConLeche/Cached/CoreC.lean:1372-1419 defeqStuckI — **the stuck
 comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 literal against `String.ofList`, the same free variable, the same constant at
 equivalent levels, the application spine, η on a one-sided λ; every failing
@@ -3448,7 +3448,7 @@ con-leche's `Core.lean`:2897-2936 with the memo probes of
 slot is what DESIGN §3.4 rules out.  The bodies above are pure of memo
 logic, which is the property that matters. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1459-1472 memoEI — record a
 `whnfCore` answer (detach before update, DESIGN §8.4 lesson 14).  A plain
 insert, as con-leche's: the table's cap was removed by task #115. -/
 @[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
@@ -3457,7 +3457,7 @@ insert, as con-leche's: the table's cap was removed by task #115. -/
   let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
   set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1458-1476 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI — record a
 CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
 `whnfCoreCheapC`: the two modes differ on a stuck projection). -/
 @[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
@@ -3466,7 +3466,7 @@ CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
   let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
   set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoEI — record a `whnf`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1459-1472 memoEI — record a `whnf`
 answer. -/
 @[noinline] def whnfSet (e r : EIdx) : AM Unit := do
   let s ← get
@@ -3474,7 +3474,7 @@ answer. -/
   let s := { s with caches := { s.caches with whnfC := ∅ } }
   set { s with caches := { s.caches with whnfC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1459-1472 memoEI — record a
 full-grade `infer` answer. -/
 @[noinline] def inferSet (e r : EIdx) : AM Unit := do
   let s ← get
@@ -3482,7 +3482,7 @@ full-grade `infer` answer. -/
   let s := { s with caches := { s.caches with inferC := ∅ } }
   set { s with caches := { s.caches with inferC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoEI — record an
+/-- con-leche: ConLeche/Cached/CoreC.lean:1459-1472 memoEI — record an
 io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 memo ruling). -/
 @[noinline] def inferIOSet (e r : EIdx) : AM Unit := do
@@ -3491,7 +3491,7 @@ memo ruling). -/
   let s := { s with caches := { s.caches with inferIOC := ∅ } }
   set { s with caches := { s.caches with inferIOC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1480-1493 memoBI — record a `defeq`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1475-1488 memoBI — record a `defeq`
 verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
 `Bool` result `r`, which is what makes a negative memo sound). -/
 @[noinline] def defeqSet (a b : EIdx) (r : Bool) : AM Unit := do
@@ -3522,7 +3522,7 @@ detached mode-dependent memos back, dropping the state's own. -/
   set { s with caches := c' }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI
+con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level

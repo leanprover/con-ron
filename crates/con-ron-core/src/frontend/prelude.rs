@@ -39,6 +39,7 @@ use crate::kernel::core_types::CheckError;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
+/// con-leche: CHANGED since c26f7931 — re-port, re-test, re-prove prelude::builtin_prelude_text_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:1284-1356 preludeText`
 /// — the committed prelude for the pinned toolchain, as bytes.  A toolchain
 /// bump regenerates `crates/con-ron-core/src/frontend/prelude_text.rs` (and
