@@ -69527,3 +69527,100 @@ idiom was touched; no `sym`/`vcgen`/`finish` call changed; the one
 statement-level change (the decline arm) was in the old-style `Arms.lean`,
 and a two-token one.  The v4.35.0 toolchain itself broke **no** Theorem 1
 proof (the linter's 41 findings are all in `Refine2/`).
+
+### Task #127 — con-leche sync 103562ba → ae1f3198: the eager tower keeps its memos for the declaration (2026-10-21, Opus)
+
+con-leche goes from `103562ba` to **`ae1f3198`** (2 commits, no toolchain
+move): its task #361 (the executed checker's eager memos) and #359 (its own
+proofs).
+
+| upstream | what it did | here |
+|---|---|---|
+| #361 | `ModeMemos` moves before `CState` (fields default to `{}`); `CState.eagerMemos : ModeMemos`, emptied by `flushed`; `CState.modeMemos`, `CState.enterEager`/`leaveEager` and `withEagerMemos mode` replace `takeModeMemos`/`putModeMemos`/`withFreshMemos`; the knot's `defeqE` slot is `withEagerMemos mode (memoBI …)` — the eager comparison memoized on the eager tower's own set, kept between eager comparisons, and a nested eager comparison (already at an eager mode) reuses it without a swap | **ported**, below |
+| #361 (proofs) | `ModeMemosOK`, `CSOK.eager`, `CSOK.enterEager`/`leaveEager`, `SimC.eagerMemos` | mirrored in Theorem 1 (below) |
+| #359 | con-leche's cached simulation: the loops unfold by `f.eq_def`, 22 hand-stated unfolding lemmas deleted | proof-internal, **nothing to port**: no citation or call of Theorem 1 named one of the deleted lemmas (`Bridge/` never reached into `Verify/Cached/{DiscC*,BinderLoopC,SimCEff,NestPosC,GenRecC}`) |
+
+**The port.**  *Rust* (`arena::core_state`): `ModeMemos` before `Caches`, with
+`ModeMemos::empty` and `ModeMemos::reset` (the flush, in place, as
+`Caches::reset`); `Caches::eager_memos`, reset with the rest;
+`checker_base::mode_memos_dup` for the `orElse` snapshot.  `arena::core`:
+`enter_eager(st, eager)` / `leave_eager(st, saved)` — six `mem::replace`s
+each, every table moves, none is copied, exactly upstream's `enterEager`/
+`leaveEager` (`Option<ModeMemos>`, the eager slot left empty while entered);
+`knot_defeq_e` is enter → probe `defeq_c` at the ordered pair → on a miss
+`defeq_body` at `to_eager(mode)` and the insert → leave, with the leave pushed
+into both branches of the probe (`withEagerMemos mode (memoBI …)` with the
+bind distributed — Aeneas then emits the same shape as `knot_defeq` plus one
+call per exit, rather than a `match` producing a `Result` that is matched
+again).  On an error the plain memos are not put back, as upstream's
+(nothing reads the state after an error).  `CState.modeMemos` has no Rust
+item of its own: reading the six out is the `mem::replace` chain, cited on
+both functions.  *Twin*: `ModeMemos`/`ModeMemos.empty` before `Caches`,
+`Caches.eagerMemos`, `Caches.modeMemos`, `enterEager`/`leaveEager` (record
+updates, the Rust's shape), `coreKnot`'s `defeqE` slot as above.
+`takeModeMemos`/`putModeMemos`/`take_mode_memos`/`put_mode_memos` are gone
+everywhere (Rust, twin, both theorems).  #125's deviation ("the port runs the
+body directly", no memo in the eager slot) is gone with them: the eager slot
+now has a memo, as upstream's.
+
+**Findings.**  `update --auto`: 27 findings (22 changed, 5 deleted), 3
+citations merely moved; **27 markers after the mechanical pass, 0 at the
+end**.  Coverage 849/931 at the old pin, 849/932 at the new before the port
+(`CState.leaveEager`, `withEagerMemos` new and uncovered) → **850/932**.
+diff-e2e (628 fixtures, upstream's new `eager_memo_shared` included): master's
+binary at the new pin 628/628; the branch's **628/628** at `--verified
+--jobs=1` and at `--trusted --jobs=4`.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker; both
+accept 57 919):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `4c9eaf78` | 186 496 482 021 | 80 038 911 056 |
+| this branch `2f1985bc` | **186 301 909 118** (−0.104 %) | 81 154 771 399 |
+
+Upstream measured −0.07 % on its `init-full`.  Its headline case,
+`perf/grind-ring-5` from con-leche's arena tarball (333 `eagerReduce` ring
+certificates), one run each, `--verified --jobs=1`: **13.02 G → 8.39 G
+instructions:u (−35.6 %)** (upstream −30.1 %), both accepting 2 185; peak RSS
+269 → 352 MB, the eager tables now living for the declaration.  `Init`'s peak
+RSS is unchanged (517 MB both), so no Mathlib landing run: the eager set is
+flushed per declaration with the other caches, and only a stream with eager
+comparisons grows it.
+
+**Size** (from the start commit): Rust core +198 −120; twin +78 −51;
+generated model +598 −486; Theorem 1 (`Bridge/`) +171 −105 in 8 files;
+Theorem 2 (`Refine2/`, `Capstone.lean`) +299 −139 in 9 files.
+`Refine2/Core/Eqns.lean` re-derives the knot (750 s).  No twin fix was needed
+for lockstep; every T2 lemma built on its first build except two syntax-level
+fixes (`rw` of `leave_eager`'s match equations after the case split; the
+capstone's literal start state gained the eager set).
+
+#### How stable is Theorem 1 this time
+
+Classified as in #125/#126 — **(a)** the code changed, **(b)** a proof broke
+with its mathematics unchanged, **(c)** mechanical:
+
+| file | +/− | cat. | what |
+|---|---:|---|---|
+| `StateOK.lean` | 28/1 | a | `ModeMemosOK` moves here from `Memo.lean` (it is now a clause of `CacheOK`), `CacheOK.eager`, `ModeMemosOK.mono`; `CacheOK.mono`/`monoF` one line each |
+| `Core/Memo.lean` | 130/98 | a | `coreKnot_defeqE_succ` restated; `enterEager_spec`/`leaveEager_spec` (`vcgen … with finish`), `SavedOK` (what the entry hands the exit, as a named predicate), `enterEager_ok_spec`/`leaveEager_ok_spec` (upstream's `CSOK.enterEager`/`leaveEager`), `ModeMemosOK.empty`, `toEager_of_eager` (restated: upstream's lives in its proof-internal `Verify/Cached/SimC`); the take/put lemmas deleted |
+| `Specs.lean` | 4/0 | c | `CacheOK.of_empty`'s `eager` field |
+| `Core/Walks/Cached.lean`, `Core/Walks/Frame.lean` | 3/1 | c | one `eager` field each in two `CacheOK` constructions (`CheckOK.ofInstLP`, `CacheOK.ofReadbackFrame`) |
+| `Core/Induction.lean` | 3/3 | a | `memoDefeqE_step` takes `henv` (the slot now inserts, as `memoDefeq_step` does); the axiom census names the new lemmas |
+| `Core.lean`, `Core/Knot.lean` | 3/2 | c | prose |
+
+**(b): none.**  The one #123-style proof the change touches,
+`memoDefeqE_step`, kept its shape — `sym only [bridge_grind] => vcgen
+[entry spec, body, exit spec] <;> finish` — while its program grew a memo
+probe with two exits and an insert: the hit and miss arms were closed by the
+existing `@[bridge_grind]` lemmas of the plain `defeq` wrapper
+(`CheckOK.defeqHit`, `CheckOK.insertDefeqAt`) at `mode.toEager`, and it
+closed on the first build.  This is the case #125 said was not yet tested — a
+walk whose verification conditions moved — and the idiom absorbed it: the
+statement did not change, the vcgen list swapped two callee specs, and no
+condition is addressed.  The new state clause cost nine one-line `eager :=`
+fields in the hand-built `CacheOK` records (`mono`, `monoF`, `of_empty`,
+`ofInstLP`, `ofReadbackFrame`, the two swap lemmas) — the per-record cost of a
+flat invariant structure, mechanical, and the same that upstream paid in
+`CSOK`.  No walk proof in the idiom and no staged proof was edited.
