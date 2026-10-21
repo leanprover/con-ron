@@ -9724,7 +9724,7 @@ pub fn defeq_body(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:138-142 peelFuel
+/// con-leche: ConLeche/Cached/StateC.lean:161-165 peelFuel
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2474-2478 peelFuel` — the fuel of
 /// the two telescope peels, con-leche's number verbatim. Exhaustion is not an
 /// error: the loop falls through to its leaf phase with the binders peeled so
@@ -9921,7 +9921,8 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -9968,7 +9969,8 @@ pub fn knot_whnf_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -10001,7 +10003,8 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `infer`
@@ -10037,7 +10040,8 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `inferIO`
@@ -10104,7 +10108,8 @@ pub fn knot_infer_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -10138,6 +10143,7 @@ pub fn knot_defeq(
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::take_mode_memos_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3503-3512 takeModeMemos` — detach the six
 /// mode-dependent memos, leaving empty ones (`HashMap::new` allocates
 /// nothing).
@@ -10153,6 +10159,7 @@ pub fn take_mode_memos(st: &mut AState) -> ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::put_mode_memos_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3514-3522 putModeMemos` — put detached
 /// mode-dependent memos back, dropping the state's own.
 pub fn put_mode_memos(st: &mut AState, mm: ModeMemos) {
@@ -10165,8 +10172,10 @@ pub fn put_mode_memos(st: &mut AState, mm: ModeMemos) {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/StateC.lean:350-361 withFreshMemos
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `to_eager(mode)`
 /// one level down (the flag holds for the comparison and everything it calls,
@@ -10302,7 +10311,8 @@ pub fn ensure_sort_core(
 // The per-declaration bracket (`Core.lean:2925-2958`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
+/// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::flush_caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3664-3670 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly

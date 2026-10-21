@@ -2471,7 +2471,7 @@ its head: the same entries in the same order, and `stk[j]`'s index IS
 con-leche's `j`.  `fvs` is a push-order `Array` read by `instantiateList` from
 the end, which is the same convention the batched β already uses. -/
 
-/-- con-leche: ConLeche/Cached/StateC.lean:138-142 peelFuel — the telescope
+/-- con-leche: ConLeche/Cached/StateC.lean:161-165 peelFuel — the telescope
 loops' own step budget.  con-leche's note says the peel fuel is semantically
 transparent: on exhaustion the leaf phase hands the residual chain back to the
 knot, which is the chained spec's next step. -/
@@ -3501,6 +3501,7 @@ verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
   set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
 
 /-- con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos —
+-- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.takeModeMemos_bridge, then delete this line
 detach the six mode-dependent memos, leaving empty ones. -/
 @[noinline] def takeModeMemos : AM ModeMemos := do
   let s ← get
@@ -3512,6 +3513,7 @@ detach the six mode-dependent memos, leaving empty ones. -/
   pure ⟨c.whnfCoreC, c.whnfCoreCheapC, c.whnfC, c.inferC, c.inferIOC, c.defeqC⟩
 
 /-- con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos — put
+-- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.putModeMemos_bridge, then delete this line
 detached mode-dependent memos back, dropping the state's own. -/
 @[noinline] def putModeMemos (mm : ModeMemos) : AM Unit := do
   let s ← get
@@ -3522,7 +3524,8 @@ detached mode-dependent memos back, dropping the state's own. -/
   set { s with caches := c' }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-con-leche: ConLeche/Cached/CoreC.lean:1488-1560 coreKnotI
+con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
+-- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level

@@ -1000,103 +1000,103 @@
     48  //! cutoff the original does not have needs its own licence proved.
     49  //!
 
-== crates/con-ron-core/src/arena/core_state.rs#L467-L514
-   467  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   468  /// The slot count past which `take_walk_memo` hands back a FRESH table
-   469  /// instead of a cleared one; see its note for how the value was chosen.
-   470  pub const WALK_MEMO_KEEP: usize = 1 << 16;
-   471  
-   472  /// con-leche: ConLeche/Kernel/Level.lean:395-397 Expr.allLevelParamsDefinedFast
-   473  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
-   474  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
-   475  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
-   476  /// **the parked walk memo, moved out of the state and emptied** (task
-   477  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
-   478  /// allocates nothing) for the length of the walk, and the entry puts the
-   479  /// grown table back afterwards; either way the table this returns is empty,
-   480  /// so the walk starts where the twin's does.
-   481  ///
-   482  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
-   483  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
-   484  /// does not leave a huge table behind for every later call.  `reset_map`'s
-   485  /// `clear_fit` already decays such a table, one eighth of its high-water mark
-   486  /// a call, so the guard only decides which of the two is cheaper for an
-   487  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
-   488  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
-   489  /// `perf stat -e instructions:u` run each, all accepting 57 977):
-   490  ///
-   491  /// | `WALK_MEMO_KEEP` | instructions:u |
-   492  /// |---|---:|
-   493  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
-   494  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
-   495  /// | 2^12 | 206 572 063 910 |
-   496  /// | 2^14 | 205 851 105 938 |
-   497  /// | **2^16** | **205 785 515 243** |
-   498  /// | no guard (2^60) | 205 783 023 575 |
-   499  ///
-   500  /// A guard low enough to trip on ordinary calls gives the saving back — at
-   501  /// nanoda's 1024 more than half of it — because those calls re-grow by
-   502  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
-   503  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
-   504  /// instructions over no guard), so it only ever fires on an outlier.
-   505  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
-   506      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
-   507      if m.capacity() > WALK_MEMO_KEEP {
-   508          HashMap::new()
-   509      } else {
-   510          let mut m2: HashMap<K, V> = m;
-   511          reset_map(&mut m2);
-   512          m2
-   513      }
-   514  }
+== crates/con-ron-core/src/arena/core_state.rs#L474-L521
+   474  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   475  /// The slot count past which `take_walk_memo` hands back a FRESH table
+   476  /// instead of a cleared one; see its note for how the value was chosen.
+   477  pub const WALK_MEMO_KEEP: usize = 1 << 16;
+   478  
+   479  /// con-leche: ConLeche/Kernel/Level.lean:395-397 Expr.allLevelParamsDefinedFast
+   480  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
+   481  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+   482  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+   483  /// **the parked walk memo, moved out of the state and emptied** (task
+   484  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+   485  /// allocates nothing) for the length of the walk, and the entry puts the
+   486  /// grown table back afterwards; either way the table this returns is empty,
+   487  /// so the walk starts where the twin's does.
+   488  ///
+   489  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+   490  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+   491  /// does not leave a huge table behind for every later call.  `reset_map`'s
+   492  /// `clear_fit` already decays such a table, one eighth of its high-water mark
+   493  /// a call, so the guard only decides which of the two is cheaper for an
+   494  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+   495  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+   496  /// `perf stat -e instructions:u` run each, all accepting 57 977):
+   497  ///
+   498  /// | `WALK_MEMO_KEEP` | instructions:u |
+   499  /// |---|---:|
+   500  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+   501  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+   502  /// | 2^12 | 206 572 063 910 |
+   503  /// | 2^14 | 205 851 105 938 |
+   504  /// | **2^16** | **205 785 515 243** |
+   505  /// | no guard (2^60) | 205 783 023 575 |
+   506  ///
+   507  /// A guard low enough to trip on ordinary calls gives the saving back — at
+   508  /// nanoda's 1024 more than half of it — because those calls re-grow by
+   509  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+   510  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+   511  /// instructions over no guard), so it only ever fires on an outlier.
+   512  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+   513      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+   514      if m.capacity() > WALK_MEMO_KEEP {
+   515          HashMap::new()
+   516      } else {
+   517          let mut m2: HashMap<K, V> = m;
+   518          reset_map(&mut m2);
+   519          m2
+   520      }
+   521  }
 
-== crates/con-ron-core/src/arena/core_state.rs#L311-L356
-   311      pub whnf_core_c: HashMap<EIdx, EIdx>,
-   312      /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
-   313      /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
-   314      /// since the two modes' answers differ on a stuck projection.
-   315      pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
-   316      /// The full reduction loop at the node (`CState.whnfC`).
-   317      pub whnf_c: HashMap<EIdx, EIdx>,
-   318      /// Full-grade inference (`CState.inferC`).
-   319      pub infer_c: HashMap<EIdx, EIdx>,
-   320      /// **The io grade's own table** (`CState.inferIOC`): a hit here never
-   321      /// serves a full-`infer` query, and a full-`infer` hit never serves this
-   322      /// one.
-   323      pub infer_io_c: HashMap<EIdx, EIdx>,
-   324      /// Definitional equality at the ORDERED pair, with the verdict — both
-   325      /// signs, as con-leche's `defeqC` stores them.
-   326      pub defeq_c: HashMap<EIdxPair, bool>,
-   327      /// `Level.isEquiv`'s verdict at a pair of level handles.
-   328      pub lvl_eq_c: HashMap<LIdxPair, bool>,
-   329      /// `Level.isEquivList`'s verdict at a pair of universe-argument lists.
-   330      pub lvls_eq_c: HashMap<LsIdxPair, bool>,
-   331      /// A stored constant's TYPE at a universe instantiation.
-   332      pub const_ty_c: HashMap<NLsKey, EIdx>,
-   333      /// A stored definition's VALUE at a universe instantiation.
-   334      pub const_val_c: HashMap<NLsKey, EIdx>,
-   335      /// An iota rule's right-hand side at the recursor's universe
-   336      /// instantiation, keyed by the recursor, the rule's constructor and the
-   337      /// levels — the three data that determine it.
-   338      pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
-   339      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   340      /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
-   341      /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
-   342      /// (*memoised readback per declaration*; levels are small)".  A level
-   343      /// handle's denotation is a function of the handle and of the tier it
-   344      /// names, so it is stable for exactly as long as the other tables
-   345      /// are, and `Caches::reset` is what makes that true.  The value is an
-   346      /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
-   347      /// whole tree node by node.
-   348      pub read_l_c: HashMap<LIdx, Level>,
-   349      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   350      /// The same for a NAME handle (`readName`).
-   351      pub read_n_c: HashMap<NIdx, Name>,
-   352      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   353      /// The same for an interned universe-argument LIST (`readLevels`).  A hit
-   354      /// is one `Vec` allocation and `n` reference bumps.
-   355      pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
-   356  }
+== crates/con-ron-core/src/arena/core_state.rs#L315-L360
+   315      pub whnf_core_c: HashMap<EIdx, EIdx>,
+   316      /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
+   317      /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
+   318      /// since the two modes' answers differ on a stuck projection.
+   319      pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
+   320      /// The full reduction loop at the node (`CState.whnfC`).
+   321      pub whnf_c: HashMap<EIdx, EIdx>,
+   322      /// Full-grade inference (`CState.inferC`).
+   323      pub infer_c: HashMap<EIdx, EIdx>,
+   324      /// **The io grade's own table** (`CState.inferIOC`): a hit here never
+   325      /// serves a full-`infer` query, and a full-`infer` hit never serves this
+   326      /// one.
+   327      pub infer_io_c: HashMap<EIdx, EIdx>,
+   328      /// Definitional equality at the ORDERED pair, with the verdict — both
+   329      /// signs, as con-leche's `defeqC` stores them.
+   330      pub defeq_c: HashMap<EIdxPair, bool>,
+   331      /// `Level.isEquiv`'s verdict at a pair of level handles.
+   332      pub lvl_eq_c: HashMap<LIdxPair, bool>,
+   333      /// `Level.isEquivList`'s verdict at a pair of universe-argument lists.
+   334      pub lvls_eq_c: HashMap<LsIdxPair, bool>,
+   335      /// A stored constant's TYPE at a universe instantiation.
+   336      pub const_ty_c: HashMap<NLsKey, EIdx>,
+   337      /// A stored definition's VALUE at a universe instantiation.
+   338      pub const_val_c: HashMap<NLsKey, EIdx>,
+   339      /// An iota rule's right-hand side at the recursor's universe
+   340      /// instantiation, keyed by the recursor, the rule's constructor and the
+   341      /// levels — the three data that determine it.
+   342      pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
+   343      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   344      /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
+   345      /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
+   346      /// (*memoised readback per declaration*; levels are small)".  A level
+   347      /// handle's denotation is a function of the handle and of the tier it
+   348      /// names, so it is stable for exactly as long as the other tables
+   349      /// are, and `Caches::reset` is what makes that true.  The value is an
+   350      /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
+   351      /// whole tree node by node.
+   352      pub read_l_c: HashMap<LIdx, Level>,
+   353      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   354      /// The same for a NAME handle (`readName`).
+   355      pub read_n_c: HashMap<NIdx, Name>,
+   356      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   357      /// The same for an interned universe-argument LIST (`readLevels`).  A hit
+   358      /// is one `Vec` allocation and `n` reference bumps.
+   359      pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
+   360  }
 
 == crates/con-ron-core/src/arena/core.rs#L371-L384
    371  // ---------------------------------------------------------------------------

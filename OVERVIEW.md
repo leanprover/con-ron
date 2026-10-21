@@ -373,11 +373,11 @@ Two more tables sit in the same record for their allocation only: the
 declaration guards `allLevelParamsDefined` and `constsResolve` thread their
 memo as an argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L467-L514)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L474-L521)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
-([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L311-L356)).
+([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L315-L360)).
 These are con-leche's memo tables:
 
 * `whnfCore`, `whnf`, `infer` and `inferIO`, each `EIdx ↦ EIdx`.
