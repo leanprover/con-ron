@@ -492,7 +492,11 @@ def startState : arena.monad.AState :=
         infer_io_c := emptyMap _ _, defeq_c := emptyMap _ _,
         lvl_eq_c := emptyMap _ _, lvls_eq_c := emptyMap _ _, const_ty_c := emptyMap _ _,
         const_val_c := emptyMap _ _, rule_rhs_c := emptyMap _ _, read_l_c := emptyMap _ _,
-        read_n_c := emptyMap _ _, read_ls_c := emptyMap _ _ },
+        read_n_c := emptyMap _ _, read_ls_c := emptyMap _ _,
+        eager_memos :=
+          { whnf_core_c := emptyMap _ _, whnf_core_cheap_c := emptyMap _ _,
+            whnf_c := emptyMap _ _, infer_c := emptyMap _ _,
+            infer_io_c := emptyMap _ _, defeq_c := emptyMap _ _ } },
     pins :=
       { names := alloc.vec.Vec.new _, reserved := alloc.vec.Vec.new _,
         empty_levels := { word := 0#u32 }, zero_level := { word := 0#u32 },
@@ -504,7 +508,7 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
     arena.store.NStore.empty, arena.store.LStore.empty, arena.store.LsStore.empty,
     arena.store.EStore.empty, ron.hashmap2.HashMap2.new,
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
-    arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
+    arena.core_state.ModeMemos.empty, arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
     arena.handle.EIdx.of_word, bind_ok]
   rfl
 

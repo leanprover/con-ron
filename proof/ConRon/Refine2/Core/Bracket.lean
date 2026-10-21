@@ -510,6 +510,27 @@ theorem reset_map_nil {K V : Type} [DecidableEq K]
   rw [arena.core_state.reset_map] at h
   exact (ConRon.Refine.HashMap2.clear_fit_refines hinv h).2.1
 
+theorem mode_memos_reset {rm rm' : arena.core_state.ModeMemos} (hinv : ModeMemosInv rm)
+    (h : arena.core_state.ModeMemos.reset rm = ok rm') :
+    ModeMemosRel rm' ModeMemos.empty ∧ ModeMemosInv rm' := by
+  rw [arena.core_state.ModeMemos.reset] at h
+  obtain ⟨t0, e0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t1, e1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t2, e2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t3, e3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t4, e4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t5, e5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hst : rm' = {
+    whnf_core_c := t0, whnf_core_cheap_c := t1, whnf_c := t2,
+    infer_c := t3, infer_io_c := t4, defeq_c := t5 } := (Result.ok_injective h).symm
+  subst hst
+  exact ⟨⟨reset_map_rel hinv.whnfCoreC e0, reset_map_rel hinv.whnfCoreCheapC e1,
+      reset_map_rel hinv.whnfC e2, reset_map_rel hinv.inferC e3,
+      reset_map_rel hinv.inferIOC e4, reset_map_rel hinv.defeqC e5⟩,
+    ⟨reset_map_inv hinv.whnfCoreC e0, reset_map_inv hinv.whnfCoreCheapC e1,
+      reset_map_inv hinv.whnfC e2, reset_map_inv hinv.inferC e3,
+      reset_map_inv hinv.inferIOC e4, reset_map_inv hinv.defeqC e5⟩⟩
+
 theorem caches_reset {rm rm' : arena.core_state.Caches} (hinv : CachesInv rm)
     (h : arena.core_state.Caches.reset rm = ok rm') :
     CachesRel rm' Caches.empty ∧ CachesInv rm' := by
@@ -528,6 +549,7 @@ theorem caches_reset {rm rm' : arena.core_state.Caches} (hinv : CachesInv rm)
   obtain ⟨t11, e11, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t12, e12, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t13, e13, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t14, e14, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rm' = {
     whnf_core_c := t0,
     whnf_core_cheap_c := t1,
@@ -542,11 +564,13 @@ theorem caches_reset {rm rm' : arena.core_state.Caches} (hinv : CachesInv rm)
     rule_rhs_c := t10,
     read_l_c := t11,
     read_n_c := t12,
-    read_ls_c := t13
+    read_ls_c := t13,
+    eager_memos := t14
   } := (Result.ok_injective h).symm
   subst hst
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  obtain ⟨r14, i14⟩ := mode_memos_reset hinv.eagerMemos e14
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, r14⟩,
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, i14⟩⟩
   exacts [reset_map_rel hinv.whnfCoreC e0,
     reset_map_rel hinv.whnfCoreCheapC e1,
     reset_map_rel hinv.whnfC e2,

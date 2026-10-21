@@ -235,8 +235,8 @@ structure KnotRel (f : Nat) : Prop where
         (absU depth) (absEIdx a) (absEIdx b))
   /-- **The eager slot** (task #125, con-leche #353): `knot_defeq_e` against
   the record's `defeqE` — the defeq body at `toEager mode` one level down,
-  under detached mode-dependent memos, at every lane (`coreKnotIO`'s slot is
-  the full knot's). -/
+  memoized on the eager tower's own memos, at every lane (`coreKnotIO`'s slot
+  is the full knot's). -/
   defeqE : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →

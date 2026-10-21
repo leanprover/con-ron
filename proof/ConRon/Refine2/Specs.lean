@@ -11869,4 +11869,23 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.intern_persistent_e_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_persistent_e_run₀
 
+/-- `arena::core_state::ModeMemos::empty` against `ModeMemos.empty`: six
+fresh tables, related to six `∅` and well-formed. -/
+theorem mode_memos_empty {rm : arena.core_state.ModeMemos}
+    (h : arena.core_state.ModeMemos.empty = ok rm) :
+    ModeMemosRel rm ModeMemos.empty ∧ ModeMemosInv rm := by
+  rw [arena.core_state.ModeMemos.empty] at h
+  obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨m1, hm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  subst h'
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hm
+  obtain ⟨i1, -, n1⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable) hm1
+  exact ⟨⟨ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
+      ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
+      ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n1⟩,
+    ⟨i0, i0, i0, i0, i0, i1⟩⟩
+
 end ConRon.Refine2

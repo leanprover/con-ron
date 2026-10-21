@@ -267,11 +267,18 @@ local macro "dup_step" : tactic => `(tactic|
   (rust_bind_guard h; obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
    first
    | obtain rfl := ConRon.Refine.HashMap2.dup_spec (by dup_id) (by dup_id) hx
-   | obtain rfl := tbl_dup_eq (by dup_id) (by dup_id) (by dup_id) hx))
+   | obtain rfl := tbl_dup_eq (by dup_id) (by dup_id) (by dup_id) hx
+   | obtain rfl := mode_memos_dup_eq hx))
 
 theorem memos_dup_eq {rm o : arena.monad.Memos}
     (h : arena.checker_base.memos_dup rm = ok o) : o = rm := by
   unfold arena.checker_base.memos_dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem mode_memos_dup_eq {rm o : arena.core_state.ModeMemos}
+    (h : arena.checker_base.mode_memos_dup rm = ok o) : o = rm := by
+  unfold arena.checker_base.mode_memos_dup at h
   repeat dup_step
   rw [← Result.ok_injective h]
 

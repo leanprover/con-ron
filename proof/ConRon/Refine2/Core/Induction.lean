@@ -337,28 +337,72 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
       rw [am_run_bind, hset]
       rfl
 
-/-! ## The eager slot (task #125)
+/-! ## The eager slot
 
-`knot_defeq_e` has no memo of its own and no lane test: at `fuel ≠ 0` it
-detaches the six mode-dependent memos, runs `defeq_body` at `to_eager(mode)`
-and `LANE_FULL` one level down, and puts them back.  The twin's slot is the
-same three steps, and `coreKnotIO`'s is the full knot's at the same fuel, so
-the step is `BodyRel.defeq` at the eager mode between `Probes.lean`'s
-`take_mode_memos_run` and `put_mode_memos_run`. -/
+`knot_defeq_e` has no lane test: at `fuel ≠ 0` it enters the eager tower's
+memos, probes `defeq_c` at the ordered pair, on a miss runs `defeq_body` at
+`to_eager(mode)` and `LANE_FULL` one level down and records the verdict, and
+leaves the eager memos on both exits.  The twin's slot is the same steps, and
+`coreKnotIO`'s is the full knot's at the same fuel, so the step is the
+`defeq` field's between `Probes.lean`'s `enter_eager_run` and
+`leave_eager_run`, with `BodyRel.defeq` at the eager mode. -/
 
 theorem coreKnotIO_succ_defeqE (mode lfe f d a b) :
     (coreKnotIO mode lfe (f + 1)).defeqE d a b
       = (coreKnot mode lfe id (f + 1)).defeqE d a b := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_defeqE (mode lfe f d a b) :
-    (coreKnot mode lfe id (f + 1)).defeqE d a b
-      = (do
-          let saved ← takeModeMemos
-          let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
-          putModeMemos saved
-          pure x : AM Bool) := by
+theorem coreKnot_succ_defeqE_split (mode lfe f d a b lst) :
+    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
+      = ((enterEager mode.eager).run lst >>= fun p =>
+          (((match p.2.caches.defeqC[(a, b)]? with
+            | some x => do
+                leaveEager p.1
+                pure x
+            | none => do
+                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                defeqSet a b x
+                leaveEager p.1
+                pure x) : AM Bool)).run p.2) := by
   rw [coreKnot]; rfl
+
+theorem coreKnot_succ_defeqE_hit (mode lfe f d a b lst lsv lst1 x)
+    (he : (enterEager mode.eager).run lst = .ok (lsv, lst1))
+    (h : lst1.caches.defeqC[(a, b)]? = some x) :
+    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
+      = ((do leaveEager lsv; pure x : AM Bool)).run lst1 := by
+  rw [coreKnot_succ_defeqE_split, he]
+  show (((match lst1.caches.defeqC[(a, b)]? with
+            | some x => do
+                leaveEager lsv
+                pure x
+            | none => do
+                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                defeqSet a b x
+                leaveEager lsv
+                pure x) : AM Bool)).run lst1 = _
+  rw [h]
+
+theorem coreKnot_succ_defeqE_miss (mode lfe f d a b lst lsv lst1)
+    (he : (enterEager mode.eager).run lst = .ok (lsv, lst1))
+    (h : lst1.caches.defeqC[(a, b)]? = none) :
+    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
+      = ((do
+            let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+            defeqSet a b x
+            leaveEager lsv
+            pure x : AM Bool)).run lst1 := by
+  rw [coreKnot_succ_defeqE_split, he]
+  show (((match lst1.caches.defeqC[(a, b)]? with
+            | some x => do
+                leaveEager lsv
+                pure x
+            | none => do
+                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                defeqSet a b x
+                leaveEager lsv
+                pure x) : AM Bool)).run lst1 = _
+  rw [h]
 
 theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth a b lst o}
@@ -376,46 +420,71 @@ theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
     by_cases hio : lane = arena.core.LANE_IO
     · rw [hio, laneKnot_io, coreKnotIO_succ_defeqE]
     · rw [laneKnot_of_ne _ _ _ hio]
-  rw [htwin, coreKnot_succ_defeqE]
+  rw [show Sim₀ id pers lst o
+        ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+          (absU depth) (absEIdx a) (absEIdx b))
+      = Sim₀ id pers lst o
+        ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeqE
+          (absU depth) (absEIdx a) (absEIdx b)) from by rw [htwin]]
+  obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hb1' : b1 = (ConRon.Refine.absMode mode).eager := by
+    cases mode <;> (simp only [kernel.env.eager, Result.ok.injEq] at hb1; rw [← hb1]; rfl)
+  subst hb1'
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨saved, st1⟩ := p
-  obtain ⟨lmm, lst1, htk, hmm, hmi, hrel1, hinv1⟩ := take_mode_memos_run hrel hinv hp
-  obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hme' : ConRon.Refine.absMode me = (ConRon.Refine.absMode mode).toEager := by
-    cases mode <;> (simp only [kernel.env.to_eager, Result.ok.injEq] at hme; rw [← hme]; rfl)
-  obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r, st2⟩ := p
-  have hbody := hb.defeq hrel1 hinv1 hctx (absU_pred hf hi) hbd
-  rw [hme', laneKnot_full] at hbody
+  obtain ⟨lsv, lst1, hen, hsv, hrel1, hinv1⟩ := enter_eager_run hrel hinv hp
+  obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hprobe := defeq_probe_abs hrel1 hinv1 hop
+  rw [eidx_pair_abs hk] at hprobe
   unfold Sim₀
-  rw [am_run_bind, htk]
-  show AOut₀ id pers o.1 o.2
-    ((do
-        let x ← defeqBody (ConRon.Refine.absMode mode).toEager
-          (coreKnot (ConRon.Refine.absMode mode).toEager lfe id f) lfe
-          (absU depth) (absEIdx a) (absEIdx b)
-        putModeMemos lmm
-        pure x : AM Bool).run lst1)
-  rw [am_run_bind]
-  cases r with
-  | Err er =>
-    have ho : (core.result.Result.Err er, st2) = o := Result.ok_injective hrun
+  cases hoc : op with
+  | some x =>
+    rw [hoc] at hrun hprobe
+    rw [coreKnot_succ_defeqE_hit _ _ _ _ _ _ _ _ _ _ hen hprobe.symm]
+    obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho : (core.result.Result.Ok x, st2) = o := Result.ok_injective hrun
     rw [← ho]
-    exact AOut₀.err (AErrSim.bind (Sim₀.apply_err hbody) _)
-  | Ok r1 =>
-    obtain ⟨lst2, hb2, hrel2, hinv2⟩ := Sim₀.apply hbody
-    obtain ⟨st3, hs3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have ho : (core.result.Result.Ok r1, st3) = o := Result.ok_injective hrun
-    rw [← ho]
-    obtain ⟨lst3, hput, hrel3, hinv3⟩ :=
-      SimS₀.apply (put_mode_memos_run hrel2 hinv2 hmm hmi hs3)
-    refine AOut₀.ok ?_ hrel3 hinv3
-    rw [hb2]
-    show ((do putModeMemos lmm
-              pure r1 : AM Bool)).run lst2 = _
-    rw [am_run_bind, hput]
+    obtain ⟨lst2, hlv, hrel2, hinv2⟩ := SimS₀.apply (leave_eager_run hrel1 hinv1 hsv hs2)
+    refine AOut₀.ok ?_ hrel2 hinv2
+    rw [am_run_bind, hlv]
     rfl
+  | none =>
+    rw [hoc] at hrun hprobe
+    rw [coreKnot_succ_defeqE_miss _ _ _ _ _ _ _ _ _ hen hprobe.symm, am_run_bind]
+    obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hme' : ConRon.Refine.absMode me = (ConRon.Refine.absMode mode).toEager := by
+      cases mode <;> (simp only [kernel.env.to_eager, Result.ok.injEq] at hme; rw [← hme]; rfl)
+    obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, st2⟩ := p
+    have hbody := hb.defeq hrel1 hinv1 hctx (absU_pred hf hi) hbd
+    rw [hme', laneKnot_full] at hbody
+    cases r with
+    | Err er =>
+      have ho : (core.result.Result.Err er, st2) = o := Result.ok_injective hrun
+      rw [← ho]
+      exact AOut₀.err (AErrSim.bind (Sim₀.apply_err hbody) _)
+    | Ok r1 =>
+      obtain ⟨lst2, hb2, hrel2, hinv2⟩ := Sim₀.apply hbody
+      obtain ⟨st3, hs3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨st4, hs4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho : (core.result.Result.Ok r1, st4) = o := Result.ok_injective hrun
+      rw [← ho]
+      obtain ⟨lst3, hset, hrel3, hinv3⟩ :=
+        SimS₀.apply (defeq_set_run hrel2 hinv2 hs3)
+      obtain ⟨lst4, hlv, hrel4, hinv4⟩ :=
+        SimS₀.apply (leave_eager_run hrel3 hinv3 hsv hs4)
+      refine AOut₀.ok ?_ hrel4 hinv4
+      rw [hb2]
+      show ((do defeqSet (absEIdx a) (absEIdx b) r1
+                leaveEager lsv
+                pure r1 : AM Bool)).run lst2 = _
+      rw [am_run_bind, hset]
+      show ((do leaveEager lsv
+                pure r1 : AM Bool)).run lst3 = _
+      rw [am_run_bind, hlv]
+      rfl
 
 /-! ## The `infer` field -/
 

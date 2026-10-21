@@ -222,6 +222,28 @@ so those three carry a value-well-formedness clause in `CachesInv`, which is
 what makes a memo HIT hand its caller a `LevelWF` answer (the same clause
 `RefineOld/State.lean`'s `StateWF` carried for the same reason). -/
 
+/-- A `ModeMemos` set, table for table — `CachesRel`'s first six clauses
+(the eager tower's stored set, `CachesRel.eagerMemos`, and the plain set the
+eager slot saves). -/
+structure ModeMemosRel (rm : arena.core_state.ModeMemos) (lm : ModeMemos) : Prop where
+  whnfCoreC : RelOn (fun _ => True) rm.whnf_core_c lm.whnfCoreC absEIdx absEIdx
+  whnfCoreCheapC : RelOn (fun _ => True) rm.whnf_core_cheap_c lm.whnfCoreCheapC
+    absEIdx absEIdx
+  whnfC : RelOn (fun _ => True) rm.whnf_c lm.whnfC absEIdx absEIdx
+  inferC : RelOn (fun _ => True) rm.infer_c lm.inferC absEIdx absEIdx
+  inferIOC : RelOn (fun _ => True) rm.infer_io_c lm.inferIOC absEIdx absEIdx
+  defeqC : RelOn (fun _ => True) rm.defeq_c lm.defeqC absEIdxPair id
+
+/-- A `ModeMemos` set's tables are well-formed — `CachesInv`'s first six. -/
+structure ModeMemosInv (rm : arena.core_state.ModeMemos) : Prop where
+  whnfCoreC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.whnf_core_c
+  whnfCoreCheapC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+    rm.whnf_core_cheap_c
+  whnfC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.whnf_c
+  inferC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.infer_c
+  inferIOC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.infer_io_c
+  defeqC : Inv arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable rm.defeq_c
+
 structure CachesRel (rc : arena.core_state.Caches) (lc : Caches) : Prop where
   whnfCoreC : RelOn (fun _ => True) rc.whnf_core_c lc.whnfCoreC absEIdx absEIdx
   whnfCoreCheapC : RelOn (fun _ => True) rc.whnf_core_cheap_c lc.whnfCoreCheapC
@@ -241,6 +263,8 @@ structure CachesRel (rc : arena.core_state.Caches) (lc : Caches) : Prop where
     ConRon.Refine.absName
   readLsC : RelOn (fun _ => True) rc.read_ls_c lc.readLsC absLsIdx
     ConRon.Refine.absLevels
+  /-- The eager tower's stored mode memos, table for table. -/
+  eagerMemos : ModeMemosRel rc.eager_memos lc.eagerMemos
 
 structure CachesInv (rc : arena.core_state.Caches) : Prop where
   whnfCoreC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
@@ -270,6 +294,8 @@ structure CachesInv (rc : arena.core_state.Caches) : Prop where
   readLVals : ∀ p ∈ sl_v rc.read_l_c, ConRon.Refine.LevelWF p.2
   readNVals : ∀ p ∈ sl_v rc.read_n_c, ConRon.Refine.NameWF p.2
   readLsVals : ∀ p ∈ sl_v rc.read_ls_c, ConRon.Refine.LevelsWF p.2
+  /-- The eager tower's stored mode memos are well-formed. -/
+  eagerMemos : ModeMemosInv rc.eager_memos
 
 /-! ## The pin table -/
 
