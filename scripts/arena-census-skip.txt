@@ -166,7 +166,6 @@ proof/ConRon/Arena/Pins.lean PIN_REDUCE_NAT BOTH (P) As `pinCount`.
 proof/ConRon/Arena/Pins.lean PIN_REDUCE_BOOL BOTH (P) As `pinCount`.
 proof/ConRon/Arena/Pins.lean PIN_OF_REDUCE_NAT BOTH (P) As `pinCount`.
 proof/ConRon/Arena/Pins.lean PIN_OF_REDUCE_BOOL BOTH (P) As `pinCount`.
-proof/ConRon/Arena/CoreState.lean cacheCap BOTH (P) A `Nat` literal (the per-cache entry cap).  The Rust side is a `const`.
 
 # -------------------------------------------------------------------------
 # Generated source, round 2: the prelude's CHUNKS
