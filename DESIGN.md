@@ -69592,9 +69592,10 @@ comparisons grows it.
 generated model +598 −486; Theorem 1 (`Bridge/`) +171 −105 in 8 files;
 Theorem 2 (`Refine2/`, `Capstone.lean`) +299 −139 in 9 files.
 `Refine2/Core/Eqns.lean` re-derives the knot (750 s).  No twin fix was needed
-for lockstep; every T2 lemma built on its first build except two syntax-level
-fixes (`rw` of `leave_eager`'s match equations after the case split; the
-capstone's literal start state gained the eager set).
+for lockstep; the T2 lemmas built on the first build except for three
+syntax-level fixes (`rw` of `leave_eager`'s match equations only after the case
+split; the capstone's literal start state gained the eager set; two
+deprecated `simp` lemma names).
 
 #### How stable is Theorem 1 this time
 
@@ -69619,8 +69620,8 @@ existing `@[bridge_grind]` lemmas of the plain `defeq` wrapper
 closed on the first build.  This is the case #125 said was not yet tested — a
 walk whose verification conditions moved — and the idiom absorbed it: the
 statement did not change, the vcgen list swapped two callee specs, and no
-condition is addressed.  The new state clause cost nine one-line `eager :=`
-fields in the hand-built `CacheOK` records (`mono`, `monoF`, `of_empty`,
+condition is addressed.  The new state clause cost an `eager` field in each of
+the seven hand-built `CacheOK` records (`mono`, `monoF`, `of_empty`,
 `ofInstLP`, `ofReadbackFrame`, the two swap lemmas) — the per-record cost of a
 flat invariant structure, mechanical, and the same that upstream paid in
 `CSOK`.  No walk proof in the idiom and no staged proof was edited.
