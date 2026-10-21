@@ -549,7 +549,8 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode env fe s₀)
       ruleRhs := by rw [hc]; exact hok.caches.ruleRhs.mono hx
       readL := hL
       readN := hN
-      readLs := hLs }
+      readLs := hLs
+      eager := by rw [hc]; exact hok.caches.eager.mono hx }
   pins := hok.pins.mono hx hp
   ienv := hok.ienv.mono hx
 grind_pattern [bridge_grind] CheckOK.ofInstLP =>

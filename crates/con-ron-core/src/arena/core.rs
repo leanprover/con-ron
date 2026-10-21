@@ -372,7 +372,7 @@ pub const M_FUEL_DEFEQ: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — **the
 /// executed knot**: the memoized one, `pureFnsA`'s.
 pub const LANE_FULL: u32 = 0;
 
@@ -9860,7 +9860,7 @@ pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the `whnfCoreC`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the `whnfCoreC`
 /// probe, over a *shared* state borrow so the map's borrow ends before the
 /// miss branch writes (`con_ron_core::cached::core_c::whnf_core_probe`'s
 /// reason, task #14's rule).
@@ -9872,7 +9872,7 @@ pub fn whnf_core_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the
 /// `whnfCoreCheapC` probe (the cheap mode's own table).
 pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.whnf_core_cheap_c.get(e) {
@@ -9882,7 +9882,7 @@ pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the `whnfC` probe.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the `whnfC` probe.
 pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.whnf_c.get(e) {
         Some(r) => Some(r.dup2()),
@@ -9891,7 +9891,7 @@ pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the `inferC` probe.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the `inferC` probe.
 pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.infer_c.get(e) {
         Some(r) => Some(r.dup2()),
@@ -9900,7 +9900,7 @@ pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1453-1471 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the `inferIOC`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the `inferIOC`
 /// probe.
 pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.infer_io_c.get(e) {
@@ -9910,7 +9910,7 @@ pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1475-1488 memoBI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — the `defeqC` probe
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — the `defeqC` probe
 /// at the ORDERED pair.
 pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
     match st.caches.defeq_c.get(k) {
@@ -9921,7 +9921,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
 /// (`coreKnotIO`'s slot *is* the full knot's, at the same fuel).
@@ -9968,7 +9968,7 @@ pub fn knot_whnf_core(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
     pers: &PersTier,
@@ -10002,7 +10002,7 @@ pub fn knot_whnf(
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
 /// `inferBodyIO` tied to the io knot, unmemoized (the leaf lane).
@@ -10038,7 +10038,7 @@ pub fn knot_infer(
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `inferIO`
 /// slot.**  At `LANE_FULL` it is the io body at every mode (con-leche task
 /// #346: official's `infer_only`) under its own table (`inferIOC`): a hit in
@@ -10104,7 +10104,7 @@ pub fn knot_infer_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
 pub fn knot_defeq(
@@ -10138,7 +10138,7 @@ pub fn knot_defeq(
 
 /// con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager
 /// con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 enterEager` — **enter the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3503-3518 enterEager` — **enter the
 /// eager tower.**  From a plain mode (`eager` false) the plain memos move out
 /// (returned), the stored eager ones move into the six fields, and the eager
 /// slot is left empty (`ModeMemos::empty` allocates nothing).  Every table
@@ -10166,7 +10166,7 @@ pub fn enter_eager(st: &mut AState, eager: bool) -> Option<ModeMemos> {
 
 /// con-leche: ConLeche/Cached/StateC.lean:365-375 CState.leaveEager
 /// con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 leaveEager` — **leave the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3520-3534 leaveEager` — **leave the
 /// eager tower**: the six fields (now the eager tower's, with what the
 /// comparison added) are stored back as the eager set, and the plain memos
 /// `saved` return to the six fields; nothing moves when `enter_eager` moved
@@ -10194,7 +10194,7 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
 /// con-leche: ConLeche/Cached/StateC.lean:377-395 withEagerMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — **the eager slot**:
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `to_eager(mode)`
 /// one level down (the flag holds for the comparison and everything it calls,
 /// as official's `flet` scope does), memoized at the ordered pair in the
@@ -10245,7 +10245,7 @@ pub fn knot_defeq_e(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1773-1793 checkFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3610-3616 checkFuel` — the shared fuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3628-3634 checkFuel` — the shared fuel
 /// for the checker core, counted in knot levels.  **Effectively unbounded**
 /// (`2^62`, as `WHNF_CORE_LOOP_FUEL`): the fuel exists so that the knot is a
 /// structural recursion the proofs can induct over, and running out of it is
@@ -10274,7 +10274,7 @@ pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3634-3638 whnf` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3652-3656 whnf` — the full
 /// reduction loop (fueled).
 pub fn whnf(
     pers: &PersTier,
@@ -10290,7 +10290,7 @@ pub fn whnf(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3640-3644 inferTypeCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3658-3662 inferTypeCore` —
 /// full-grade type inference (fueled): the declaration front door's entry.
 pub fn infer_type_core(
     pers: &PersTier,
@@ -10306,7 +10306,7 @@ pub fn infer_type_core(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3646-3650 isDefEqCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3664-3668 isDefEqCore` —
 /// definitional equality (fueled).
 pub fn is_def_eq_core(
     pers: &PersTier,
@@ -10323,7 +10323,7 @@ pub fn is_def_eq_core(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 ensureSortCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3652-3656 ensureSortCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3670-3674 ensureSortCore` —
 /// `ensureSort` over the knot (fueled).
 pub fn ensure_sort_core(
     pers: &PersTier,
@@ -10343,7 +10343,7 @@ pub fn ensure_sort_core(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3664-3670 flushCaches` — **what
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3688 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly
 /// this point.
@@ -10361,7 +10361,7 @@ pub fn flush_caches(st: &mut AState) {
 }
 
 /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3672-3680 dropScratch` — drop the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3690-3698 dropScratch` — drop the
 /// scratch tier of the store and the cache entries that name it, in one
 /// operation, so the two halves cannot drift apart; and **thaw** the store:
 /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -10372,7 +10372,7 @@ pub fn drop_scratch(st: &mut AState, tier: PersTier) {
 }
 
 /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3689 enterScratch` — turn the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3700-3707 enterScratch` — turn the
 /// scratch tier on, and clear the per-call memo tables of `Memos`, which
 /// belong to no tier and whose keys the new tier may reuse.  **Opening a
 /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -10385,7 +10385,7 @@ pub fn enter_scratch(st: &mut AState) -> PersTier {
 }
 
 /// con-leche: none — **a phase-B record's bracket, closed** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3672-3680 dropScratch` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3690-3698 dropScratch` —
 /// `drop_scratch` on a store that STAYS frozen (task #98-FREEZE): the caches
 /// flushed and the scratch tiers emptied, the flag untouched.  A phase-B
 /// worker's store is frozen for its whole life, so between two records it is
@@ -10397,7 +10397,7 @@ pub fn leave_record(st: &mut AState) {
 }
 
 /// con-leche: none — **a phase-B record's bracket, opened** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3689 enterScratch` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3700-3707 enterScratch` —
 /// `enter_scratch` on an already frozen store (task #98-FREEZE): the memos
 /// cleared and the scratch tiers emptied, the flag untouched.
 pub fn enter_record(st: &mut AState) {

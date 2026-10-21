@@ -76,7 +76,7 @@ theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
           (defeqBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i j a b hok hda
           hdb hwa hwb
       defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
-        memoDefeqE_step
+        memoDefeqE_step henv
           (defeqBody_spec henv hμE (knot_spec_all henv f hμE)) s₀ d i j a b hok hda
           hdb hwa hwb
       inferIO := fun s₀ d i e hok hden hw =>
@@ -154,8 +154,8 @@ memo layer of Theorem 1's Core tier, at the three standard axioms. -/
 #print axioms memoInferIO_step
 #print axioms memoDefeq_step
 #print axioms memoDefeqE_step
-#print axioms takeModeMemos_ok_spec
-#print axioms putModeMemos_ok_spec
+#print axioms enterEager_ok_spec
+#print axioms leaveEager_ok_spec
 
 /-! ### The per-arm step lemmas -/
 

@@ -6,9 +6,9 @@ between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 (`Bridge/Core/Induction.lean`) sit **the memo wrapper steps** — con-leche's
 `Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
 theorems are the same as this module's six wrapper steps (five slots, the
-`whnfCore` slot in its two cheap modes).  The eager slot has no memo of its
-own: it runs the eager tower's body under EMPTY mode-dependent memos and puts
-the caller's back (`memoDefeqE_step`, at the end of the module).
+`whnfCore` slot in its two cheap modes).  The eager slot is the `defeq`
+wrapper at `mode.toEager` on the eager tower's own memos, swapped in and back
+out around it (`memoDefeqE_step`, at the end of the module).
 
 A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
@@ -146,18 +146,24 @@ theorem coreKnot_defeq_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
           defeqSet a b x
           pure x) := rfl
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1493-1565 coreKnotI — the eager
-slot at `fuel + 1`: the body at `mode.toEager` over the knot at `mode.toEager`
-one level down, between detaching the caller's mode-dependent memos and
-putting them back (con-leche's `withFreshMemos`). -/
+/-- con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI — the eager
+slot at `fuel + 1`: the `defeq` memo at `mode.toEager` over the knot at
+`mode.toEager` one level down, between entering the eager tower's memos and
+leaving them (con-leche's `withEagerMemos`). -/
 theorem coreKnot_defeqE_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
     (a b : EIdx) :
     (coreKnot mode fe id (fuel + 1)).defeqE d a b =
       (do
-        let saved ← takeModeMemos
-        let x ← defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe d a b
-        putModeMemos saved
-        pure x) := rfl
+        let saved ← enterEager mode.eager
+        match (← get).caches.defeqC[(a, b)]? with
+        | some x => do
+          leaveEager saved
+          pure x
+        | none => do
+          let x ← defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe d a b
+          defeqSet a b x
+          leaveEager saved
+          pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1966-1979 coreKnotI — the `inferIO`
 slot at `fuel + 1`: the io body under the io-grade view of the knot one
@@ -232,28 +238,37 @@ the ORDERED pair and with the verdict. -/
   dsimp only
   vcgen [defeqSet] with finish
 
-/-- con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos —
-`takeModeMemos` empties the six mode-dependent tables and returns them. -/
-theorem takeModeMemos_spec (s₀ : AState) :
-    ⦃fun s => s = s₀⦄ takeModeMemos
-    ⦃fun mm s' => mm = ⟨s₀.caches.whnfCoreC, s₀.caches.whnfCoreCheapC, s₀.caches.whnfC,
-          s₀.caches.inferC, s₀.caches.inferIOC, s₀.caches.defeqC⟩ ∧
-        s' = { s₀ with caches :=
-          { s₀.caches with
-            whnfCoreC := ∅, whnfCoreCheapC := ∅, whnfC := ∅,
-            inferC := ∅, inferIOC := ∅, defeqC := ∅ } }; ⊤⦄ := by
-  vcgen [takeModeMemos] with finish
+/-- con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager —
+`enterEager` at a plain mode moves the plain six out and the stored eager six
+in; at an eager mode it moves nothing. -/
+theorem enterEager_spec (eager : Bool) (s₀ : AState) :
+    ⦃fun s => s = s₀⦄ enterEager eager
+    ⦃fun sv s' => (eager = true → sv = none ∧ s' = s₀) ∧
+        (eager = false → sv = some s₀.caches.modeMemos ∧
+          s' = { s₀ with caches :=
+            { s₀.caches with
+              whnfCoreC := s₀.caches.eagerMemos.whnfCoreC,
+              whnfCoreCheapC := s₀.caches.eagerMemos.whnfCoreCheapC,
+              whnfC := s₀.caches.eagerMemos.whnfC, inferC := s₀.caches.eagerMemos.inferC,
+              inferIOC := s₀.caches.eagerMemos.inferIOC,
+              defeqC := s₀.caches.eagerMemos.defeqC,
+              eagerMemos := ModeMemos.empty } }); ⊤⦄ := by
+  vcgen [enterEager] with finish
 
-/-- con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos —
-`putModeMemos` replaces the six mode-dependent tables. -/
-theorem putModeMemos_spec (s₀ : AState) (mm : ModeMemos) :
-    ⦃fun s => s = s₀⦄ putModeMemos mm
-    ⦃fun _u s' => s' = { s₀ with caches :=
-        { s₀.caches with
-          whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
-          whnfC := mm.whnfC, inferC := mm.inferC,
-          inferIOC := mm.inferIOC, defeqC := mm.defeqC } }; ⊤⦄ := by
-  vcgen [putModeMemos] with finish
+/-- con-leche: ConLeche/Cached/StateC.lean:365-375 CState.leaveEager —
+`leaveEager (some mm)` stores the six fields as the eager set and puts `mm`
+back; `leaveEager none` moves nothing. -/
+theorem leaveEager_spec (sv : Option ModeMemos) (s₀ : AState) :
+    ⦃fun s => s = s₀⦄ leaveEager sv
+    ⦃fun _u s' => (sv = none → s' = s₀) ∧
+        (∀ mm, sv = some mm →
+          s' = { s₀ with caches :=
+            { s₀.caches with
+              eagerMemos := s₀.caches.modeMemos,
+              whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
+              whnfC := mm.whnfC, inferC := mm.inferC,
+              inferIOC := mm.inferIOC, defeqC := mm.defeqC } }); ⊤⦄ := by
+  vcgen [leaveEager] with finish
 
 /-! ## 3. The cache invariant under an insert
 
@@ -992,34 +1007,25 @@ theorem triple_failDanglingE {α : Type} {s₀ : AState}
   triple_fail (Q := Q)
 
 
-/-! ### The eager slot (con-leche's `withFreshMemos`)
+/-! ### The eager slot (con-leche's `withEagerMemos`)
 
-The eager slot runs the eager tower's body under EMPTY mode-dependent memos
-and puts the caller's back afterwards.  Its invariant is the state invariant
-split along that line: the six entry-point tables are the mode's
-(`ModeMemosOK`), everything else in `CheckOK` names no mode.  So the emptied
-state is `CheckOK` at ANY mode, in particular the eager tower's, and putting
-the caller's tables back — valid at the old store, hence at the grown one —
-restores `CheckOK` at the caller's mode. -/
+The eager slot swaps the eager tower's stored memos in for the comparison and
+back out after it.  The invariant follows the swap, as con-leche's
+`CSOK.enterEager`/`CSOK.leaveEager`: the entered state is `CheckOK` at
+`mode.toEager` (its six fields are the stored set, backed there by
+`CacheOK.eager`; its eager slot is empty), and the left state takes its six
+fields from the caller's saved set and its eager set — the run's six fields —
+from the run's state at `mode.toEager`.  At an eager mode nothing moves, and
+`mode.toEager = mode`.  What `enterEager` hands to `leaveEager` is stated by
+`SavedOK`. -/
 
-/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — the six
-mode-dependent tables, valid at `mode` over the store `st`. -/
-structure ModeMemosOK (mode : CheckMode) (env : Env) (mm : ModeMemos) (st : EStore) :
-    Prop where
-  whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) mm.whnfCoreC st
-  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
-    mm.whnfCoreCheapC st
-  whnf : EntryCacheOK (ConLeche.whnf mode env) mm.whnfC st
-  infer : EntryCacheOK (ConLeche.inferTypeCore mode env) mm.inferC st
-  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) mm.inferIOC st
-  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) mm.defeqC st
-
-/-- con-leche: none — `ModeMemosOK` transports along the store order. -/
-theorem ModeMemosOK.mono {mode : CheckMode} {env : Env} {mm : ModeMemos}
-    {st st' : EStore} (h : ModeMemosOK mode env mm st) (hx : Ext st st') :
-    ModeMemosOK mode env mm st' :=
-  ⟨h.whnfCore.mono hx, h.whnfCoreCheap.mono hx, h.whnf.mono hx, h.infer.mono hx,
-    h.inferIO.mono hx, h.defeq.mono hx⟩
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.leaveEager — **what the
+saved value carries**: at an eager mode nothing was saved, and the mode is its
+own eager tower's; at a plain mode the saved six are valid at the caller's
+mode over the store `st`. -/
+def SavedOK (mode : CheckMode) (env : Env) : Option ModeMemos → EStore → Prop
+  | none, _ => mode.toEager = mode
+  | some mm, st => ModeMemosOK mode env mm st
 
 /-- con-leche: none — an empty table is valid at any operation. -/
 theorem EntryCacheOK.empty {op : Nat → Nat → Expr → CheckM Expr} {st : EStore} :
@@ -1029,49 +1035,75 @@ theorem EntryCacheOK.empty {op : Nat → Nat → Expr → CheckM Expr} {st : ESt
 theorem DefeqCacheOK.empty {op : Nat → Nat → Expr → Expr → CheckM Bool} {st : EStore} :
     DefeqCacheOK op ∅ st := fun _ _ h => by simp at h
 
-/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — **the
-detach**: `takeModeMemos` leaves a state that is `CheckOK` at any mode `μ'`
-(its six mode-dependent tables are empty, the rest names no mode) and returns
-the caller's six tables, valid at the caller's mode. -/
-theorem takeModeMemos_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
-    (μ' : CheckMode) (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => s = s₀⦄ takeModeMemos
-    ⦃fun mm s' => CheckOK μ' env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
-        ModeMemosOK mode env mm s₀.store; ⊤⦄ := by
-  refine triple_mono (takeModeMemos_spec s₀) ?_
-  rintro mm s' ⟨rfl, rfl⟩
-  have hc := hok.caches
-  refine ⟨CheckOK.ofCache hok ⟨EntryCacheOK.empty, EntryCacheOK.empty,
-      EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty, DefeqCacheOK.empty,
-      hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs, hc.readL, hc.readN,
-      hc.readLs⟩ rfl rfl, rfl, rfl,
-    ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean ModeMemosOK.empty — the empty
+set is valid at every mode. -/
+theorem ModeMemosOK.empty {mode : CheckMode} {env : Env} {st : EStore} :
+    ModeMemosOK mode env ModeMemos.empty st :=
+  ⟨EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty,
+    EntryCacheOK.empty, DefeqCacheOK.empty⟩
 
-/-- con-leche: ConLeche/Verify/Cached/SimC.lean SimC.freshMemos — **the
-restore**: putting back six tables valid at `mode` over a store the current
-one extends gives `CheckOK` at `mode`, whatever mode the current state's own
-tables were valid at. -/
-theorem putModeMemos_ok_spec {mode μ' : CheckMode} {env : Env} {fe : IFEnv}
-    (s₀ : AState) (mm : ModeMemos) {st : EStore} (hok : CheckOK μ' env fe s₀)
-    (hm : ModeMemosOK mode env mm st) (hx : Ext st s₀.store) :
-    ⦃fun s => s = s₀⦄ putModeMemos mm
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean CheckMode.toEager_of_eager —
+an eager mode is its own eager tower's mode. -/
+theorem toEager_of_eager {mode : CheckMode} (h : mode.eager = true) :
+    mode.toEager = mode := by
+  cases mode <;> simp_all [CheckMode.eager, CheckMode.toEager]
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.enterEager — **the
+entry**: `enterEager mode.eager` leaves a state that is `CheckOK` at the eager
+tower's mode, and returns what `leaveEager` needs. -/
+theorem enterEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+    (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ enterEager mode.eager
+    ⦃fun sv s' => CheckOK mode.toEager env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ SavedOK mode env sv s₀.store; ⊤⦄ := by
+  refine triple_mono (enterEager_spec mode.eager s₀) ?_
+  rintro sv s' ⟨ht, hf⟩
+  have hc := hok.caches
+  cases he : mode.eager
+  · obtain ⟨rfl, rfl⟩ := hf he
+    exact ⟨CheckOK.ofCache hok ⟨hc.eager.whnfCore, hc.eager.whnfCoreCheap, hc.eager.whnf,
+        hc.eager.infer, hc.eager.inferIO, hc.eager.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy,
+        hc.constVal, hc.ruleRhs, hc.readL, hc.readN, hc.readLs, ModeMemosOK.empty⟩ rfl rfl,
+      rfl, rfl, ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩
+  · obtain ⟨rfl, rfl⟩ := ht he
+    have hE := toEager_of_eager he
+    exact ⟨by rw [hE]; exact hok, rfl, rfl, hE⟩
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.leaveEager — **the
+exit**: from a state `CheckOK` at the eager tower's mode, leaving with what
+`enterEager` saved over a store the current one extends gives `CheckOK` at the
+caller's mode. -/
+theorem leaveEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+    (s₀ : AState) (sv : Option ModeMemos) {st : EStore}
+    (hok : CheckOK mode.toEager env fe s₀) (hsv : SavedOK mode env sv st)
+    (hx : Ext st s₀.store) :
+    ⦃fun s => s = s₀⦄ leaveEager sv
     ⦃fun _u s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins; ⊤⦄ := by
-  refine triple_mono (putModeMemos_spec s₀ mm) ?_
-  rintro _ s' rfl
+  refine triple_mono (leaveEager_spec sv s₀) ?_
+  rintro _ s' ⟨hn, hs⟩
   have hc := hok.caches
-  have hm' := hm.mono hx
-  exact ⟨CheckOK.ofCache hok ⟨hm'.whnfCore, hm'.whnfCoreCheap, hm'.whnf, hm'.infer,
-      hm'.inferIO, hm'.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs,
-      hc.readL, hc.readN, hc.readLs⟩ rfl rfl, rfl, rfl⟩
+  cases sv with
+  | none =>
+    obtain rfl := hn rfl
+    have hE : mode.toEager = mode := hsv
+    exact ⟨by rw [← hE]; exact hok, rfl, rfl⟩
+  | some mm =>
+    obtain rfl := hs mm rfl
+    have hm : ModeMemosOK mode env mm s₀.store := ModeMemosOK.mono hsv hx
+    exact ⟨CheckOK.ofCache hok ⟨hm.whnfCore, hm.whnfCoreCheap, hm.whnf, hm.infer,
+        hm.inferIO, hm.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs,
+        hc.readL, hc.readN, hc.readLs,
+        ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩ rfl rfl,
+      rfl, rfl⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean ssimC (the `defeqE` slot) —
-**the eager slot**: the eager tower's body under fresh mode-dependent memos,
-the caller's restored.  Its answer is the eager tower's `isDefEqCore`
+**the eager slot**: the `defeq` wrapper at the eager tower's mode, on the
+eager tower's memos.  Its answer is the eager tower's `isDefEqCore`
 (con-leche's `defeqE_def`), and the caller keeps its invariant at its own
 mode. -/
 theorem memoDefeqE_step {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {fuel : Nat}
+    {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hbody : BodySpecV mode.toEager env fe
       (defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe)
       (ConLeche.isDefEqCore mode.toEager env))
@@ -1085,10 +1117,10 @@ theorem memoDefeqE_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         SimV (ConLeche.isDefEqCore mode.toEager env) d a b x; ⊤⦄ := by
   rw [coreKnot_defeqE_succ]
   sym only [bridge_grind] =>
-    vcgen [takeModeMemos_ok_spec mode.toEager s₀ hok,
+    vcgen [enterEager_ok_spec s₀ hok,
       fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb,
-      fun s₂ mm h1 h2 h3 => putModeMemos_ok_spec (mode := mode) (μ' := mode.toEager)
-        (env := env) (fe := fe) s₂ mm (st := s₀.store) h1 h2 h3]
+      fun s₂ sv h1 h2 h3 => leaveEager_ok_spec (mode := mode) (env := env) (fe := fe)
+        s₂ sv (st := s₀.store) h1 h2 h3]
       <;> finish
 
 end ConRon.Bridge.Core

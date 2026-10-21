@@ -1107,6 +1107,10 @@ theorem CacheOK.of_empty {mode : CheckMode} {env : Env} {s : AState}
   readL := by intro k u hk; rw [h] at hk; simp [Caches.empty] at hk
   readN := by intro k x hk; rw [h] at hk; simp [Caches.empty] at hk
   readLs := by intro k us hk; rw [h] at hk; simp [Caches.empty] at hk
+  eager := by
+    rw [h]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      (intro k r hk; simp [Caches.empty, ModeMemos.empty] at hk)
 
 /-! ## The pin table (task #97-P6-4a)
 

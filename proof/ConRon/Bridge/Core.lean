@@ -15,7 +15,8 @@ steps, one knot induction**:
   `@[spec]` theorems, the `CacheOK` insert lemmas, the **stuck-tag branch**
   (DESIGN `### Task #97-P6-7`'s lever 2, which con-leche's `memoEI` has no
   counterpart for), **the five memo-wrapper steps** and the eager slot's step
-  (`memoDefeqE_step`: fresh mode-dependent memos, the caller's restored);
+  (`memoDefeqE_step`: the `defeq` wrapper at `mode.toEager` on the eager
+  tower's own memos, swapped in and back out);
 * `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq*}.lean` — rule 8's
   step-lemma inventory, one per exit of each PURE clause, plus that body's
   `BodySpec` theorem;

@@ -405,10 +405,25 @@ def ReadLsCacheOK (tbl : Std.HashMap LsIdx (List Level)) (st : EStore) :
   ∀ (k : LsIdx) (us : List Level), tbl[k]? = some us →
     denoteLs st.lss k = some us
 
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean ModeMemosOK — the six
+mode-dependent tables of a `ModeMemos` set, valid at `mode` over the store
+`st`: `CacheOK`'s first six clauses, for the eager tower's stored set
+(`CacheOK.eager`, at `mode.toEager`). -/
+structure ModeMemosOK (mode : CheckMode) (env : Env) (mm : ModeMemos) (st : EStore) :
+    Prop where
+  whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) mm.whnfCoreC st
+  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
+    mm.whnfCoreCheapC st
+  whnf : EntryCacheOK (ConLeche.whnf mode env) mm.whnfC st
+  infer : EntryCacheOK (ConLeche.inferTypeCore mode env) mm.inferC st
+  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) mm.inferIOC st
+  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) mm.defeqC st
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fourteen
 per-declaration tables of `Caches`, in one record, at the pure knot the
 bridge's Theorem 1 is stated against (`pureFns mode env F`, con-leche's
-`ConLeche/Kernel/TypeChecker.lean`). -/
+`ConLeche/Kernel/TypeChecker.lean`), and the eager tower's stored set at
+`mode.toEager` (con-leche's `CSOK.eager`). -/
 structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
   whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) s.caches.whnfCoreC s.store
   /-- The cheap-projection mode's own table (con-leche `whnfCoreCheapC`). -/
@@ -426,6 +441,9 @@ structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
   readL : ReadLCacheOK s.caches.readLC s.store
   readN : ReadNCacheOK s.caches.readNC s.store
   readLs : ReadLsCacheOK s.caches.readLsC s.store
+  /-- The eager tower's stored memos are backed by runs at `mode.toEager`,
+  the mode the `defeqE` slot runs them at. -/
+  eager : ModeMemosOK mode.toEager env s.caches.eagerMemos s.store
 
 /-! ## The pin table -/
 
@@ -662,6 +680,13 @@ theorem ReadLsCacheOK.mono {tbl : Std.HashMap LsIdx (List Level)}
     ReadLsCacheOK tbl st' :=
   fun k us hk => denoteLs_ext (h k us hk) hx
 
+/-- con-leche: none — `ModeMemosOK` transports along the store order. -/
+theorem ModeMemosOK.mono {mode : CheckMode} {env : Env} {mm : ModeMemos}
+    {st st' : EStore} (h : ModeMemosOK mode env mm st) (hx : Ext st st') :
+    ModeMemosOK mode env mm st' :=
+  ⟨h.whnfCore.mono hx, h.whnfCoreCheap.mono hx, h.whnf.mono hx, h.infer.mono hx,
+    h.inferIO.mono hx, h.defeq.mono hx⟩
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the cache record
 transports in one equation**, which is what putting the fourteen tables in a
 record buys (DESIGN `### Task #97b`: "a frame condition … is one equation
@@ -683,6 +708,7 @@ theorem CacheOK.mono {mode : CheckMode} {env : Env} {s s' : AState}
   readL := by rw [hc]; exact h.readL.mono hx
   readN := by rw [hc]; exact h.readN.mono hx
   readLs := by rw [hc]; exact h.readLs.mono hx
+  eager := by rw [hc]; exact h.eager.mono hx
 
 /-- con-leche: none — a name-handle list's denotation transports. -/
 theorem denoteNL_ext {st st' : EStore} (hx : Ext st st') :
@@ -840,6 +866,7 @@ theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
   readL := hf.readL h.readL
   readN := hf.readN h.readN
   readLs := hf.readLs h.readLs
+  eager := by rw [hf.caches]; exact h.eager.mono hx
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CheckOK` past a call
 that grows the arena and may compare levels**: `CheckOK.mono` with the cache

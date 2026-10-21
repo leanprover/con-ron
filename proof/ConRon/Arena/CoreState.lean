@@ -51,8 +51,26 @@ open ConLeche
 
 /-! ## The record -/
 
+/-- con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos — **the
+mode-dependent memos**: the six entry-point tables, whose entries are results
+of the knot at ONE mode.  The level verdicts, the stored-constant caches and
+the readback memos are functions of their keys alone and are not among them.
+`Caches` holds the plain tower's set in its own six fields and the eager
+tower's set in `eagerMemos`; the knot's eager slot swaps the two for the
+length of an eager comparison (`Arena/Core.lean`'s `enterEager`/`leaveEager`). -/
+structure ModeMemos where
+  whnfCoreC : Std.HashMap EIdx EIdx
+  whnfCoreCheapC : Std.HashMap EIdx EIdx
+  whnfC : Std.HashMap EIdx EIdx
+  inferC : Std.HashMap EIdx EIdx
+  inferIOC : Std.HashMap EIdx EIdx
+  defeqC : Std.HashMap (EIdx × EIdx) Bool
+
+/-- con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos — the empty set
+(each of con-leche's six fields defaults to `{}`). -/
+def ModeMemos.empty : ModeMemos := ⟨∅, ∅, ∅, ∅, ∅, ∅⟩
+
 /-- con-leche: ConLeche/Cached/StateC.lean:113-150 CState — the
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove CoreState.Caches_bridge, then delete this line
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -101,29 +119,24 @@ structure Caches where
   readNC : Std.HashMap NIdx ConLeche.Name
   /-- The same for an interned universe-argument LIST (`readLevels`). -/
   readLsC : Std.HashMap LsIdx (List Level)
+  /-- **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
+  six entry-point tables of the eager tower (the knot at `mode.toEager`, the
+  `defeqE` slot), stored here between eager comparisons and swapped in for
+  each one (`enterEager`).  Kept for the declaration like the plain ones, and
+  apart from them: an eager entry never serves a plain query, nor the other
+  way round. -/
+  eagerMemos : ModeMemos
 
 /-- con-leche: ConLeche/Cached/StateC.lean:113-150 CState — the empty
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove CoreState.Caches.empty_bridge, then delete this line
 cache set: what a fresh run and every declaration start from. -/
-def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
+def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ModeMemos.empty⟩
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
 
-/-- con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos — **the
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove CoreState.ModeMemos_bridge, then delete this line
-mode-dependent memos**: the six entry-point tables, whose entries are results
-of the knot at ONE mode.  The level verdicts, the stored-constant caches and
-the readback memos are functions of their keys alone and are not among them.
-The knot's eager slot moves these out of the state for the length of an eager
-comparison and puts them back afterwards (`Arena/Core.lean`'s
-`takeModeMemos`/`putModeMemos`). -/
-structure ModeMemos where
-  whnfCoreC : Std.HashMap EIdx EIdx
-  whnfCoreCheapC : Std.HashMap EIdx EIdx
-  whnfC : Std.HashMap EIdx EIdx
-  inferC : Std.HashMap EIdx EIdx
-  inferIOC : Std.HashMap EIdx EIdx
-  defeqC : Std.HashMap (EIdx × EIdx) Bool
+/-- con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos — the
+plain tower's mode memos, read out of the record. -/
+def Caches.modeMemos (c : Caches) : ModeMemos :=
+  ⟨c.whnfCoreC, c.whnfCoreCheapC, c.whnfC, c.inferC, c.inferIOC, c.defeqC⟩
 
 /-! ## The pin table (task #97-P6-4a) -/
 

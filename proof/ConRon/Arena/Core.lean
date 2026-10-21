@@ -3500,32 +3500,41 @@ verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
   let s := { s with caches := { s.caches with defeqC := ∅ } }
   set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
 
-/-- con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos —
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.takeModeMemos_bridge, then delete this line
-detach the six mode-dependent memos, leaving empty ones. -/
-@[noinline] def takeModeMemos : AM ModeMemos := do
-  let s ← get
-  let c := s.caches
-  let c' : Caches :=
-    { c with whnfCoreC := ∅, whnfCoreCheapC := ∅, whnfC := ∅, inferC := ∅,
-             inferIOC := ∅, defeqC := ∅ }
-  set { s with caches := c' }
-  pure ⟨c.whnfCoreC, c.whnfCoreCheapC, c.whnfC, c.inferC, c.inferIOC, c.defeqC⟩
+/-- con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager — enter
+the eager tower.  From a plain mode (`eager = false`): the plain memos move out
+(returned), the stored eager ones move into the six fields, and the eager slot
+is left empty.  From an eager mode the six fields already hold the eager set:
+nothing moves. -/
+@[noinline] def enterEager (eager : Bool) : AM (Option ModeMemos) := do
+  if eager then pure none
+  else
+    let s ← get
+    let c := s.caches
+    let em := c.eagerMemos
+    set { s with caches :=
+      { c with whnfCoreC := em.whnfCoreC, whnfCoreCheapC := em.whnfCoreCheapC,
+               whnfC := em.whnfC, inferC := em.inferC, inferIOC := em.inferIOC,
+               defeqC := em.defeqC, eagerMemos := ModeMemos.empty } }
+    pure (some c.modeMemos)
 
-/-- con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos — put
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.putModeMemos_bridge, then delete this line
-detached mode-dependent memos back, dropping the state's own. -/
-@[noinline] def putModeMemos (mm : ModeMemos) : AM Unit := do
-  let s ← get
-  let c' : Caches :=
-    { s.caches with whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
-                    whnfC := mm.whnfC, inferC := mm.inferC, inferIOC := mm.inferIOC,
-                    defeqC := mm.defeqC }
-  set { s with caches := c' }
+/-- con-leche: ConLeche/Cached/StateC.lean:365-375 CState.leaveEager — leave
+the eager tower: the six fields (now the eager tower's, with what the run
+added) are stored back as the eager set, and the plain memos `saved` return to
+the six fields; nothing moves when `enterEager` moved nothing. -/
+@[noinline] def leaveEager (saved : Option ModeMemos) : AM Unit := do
+  match saved with
+  | none => pure ()
+  | some mm =>
+    let s ← get
+    let c := s.caches
+    set { s with caches :=
+      { c with eagerMemos := c.modeMemos,
+               whnfCoreC := mm.whnfCoreC, whnfCoreCheapC := mm.whnfCoreCheapC,
+               whnfC := mm.whnfC, inferC := mm.inferC, inferIOC := mm.inferIOC,
+               defeqC := mm.defeqC } }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
--- con-leche: CHANGED since 103562ba — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level
@@ -3592,16 +3601,22 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
             defeqSet a b x
             pure x
         -- **The eager slot**: the eager tower — the knot at `mode.toEager`
-        -- one level down — under fresh mode-dependent memos (con-leche's
-        -- `withFreshMemos`: an eager entry never serves a plain query), the
-        -- caller's put back afterwards.  con-leche's `coreKnotI` runs the body
-        -- under `memoBI`, whose probe of the emptied table always misses and
-        -- whose insert the restore drops; this slot runs the body directly.
+        -- one level down — memoized at the ordered pair on the eager tower's
+        -- own memos, kept in the state between eager comparisons
+        -- (con-leche's `withEagerMemos mode (memoBI …)`, the bind pushed into
+        -- the probe's two branches): an eager entry never serves a plain
+        -- query.
         defeqE := fun d a b => do
-          let saved ← takeModeMemos
-          let x ← defeqBody mode.toEager (coreKnot mode.toEager fe wrap fuel) fe d a b
-          putModeMemos saved
-          pure x
+          let saved ← enterEager mode.eager
+          match (← get).caches.defeqC[(a, b)]? with
+          | some x => do
+            leaveEager saved
+            pure x
+          | none => do
+            let x ← defeqBody mode.toEager (coreKnot mode.toEager fe wrap fuel) fe d a b
+            defeqSet a b x
+            leaveEager saved
+            pure x
         inferIO := fun d e => do
           match (← get).caches.inferIOC[e]? with
           | some x => pure x

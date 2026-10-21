@@ -146,7 +146,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
         SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄
   /-- The eager slot: definitional equality in the eager tower, i.e. the knot
   at `mode.toEager` (con-leche's `defeqE_def`: the slot IS the eager tower's
-  `isDefEqCore`), run under fresh mode-dependent memos and leaving the
+  `isDefEqCore`), run on the eager tower's own memos and leaving the
   caller's invariant at `mode`. -/
   defeqE : ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some a →

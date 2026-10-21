@@ -67,7 +67,7 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-79 Caches.defeqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:96-98 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
     pub a: EIdx,
@@ -102,14 +102,14 @@ impl Dup for EIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:77-79 Caches.defeqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:96-98 Caches.defeqC
 /// Build a `defeq` key, copying the two handle words.
 pub fn eidx_pair(a: &EIdx, b: &EIdx) -> EIdxPair {
     EIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:164-169 isEquiv
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:80-81 Caches.lvlEqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:99-100 Caches.lvlEqC` — the
 /// pair of level handles a `Level.isEquiv` verdict is cached at.
 pub struct LIdxPair {
     pub a: LIdx,
@@ -144,14 +144,14 @@ impl Dup for LIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:80-81 Caches.lvlEqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:99-100 Caches.lvlEqC
 /// Build a level-verdict key.
 pub fn lidx_pair(a: &LIdx, b: &LIdx) -> LIdxPair {
     LIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:169-175 isEquivList
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlsEqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-102 Caches.lvlsEqC` — the
 /// pair of universe-argument lists a pairwise verdict is cached at.
 pub struct LsIdxPair {
     pub a: LsIdx,
@@ -186,14 +186,14 @@ impl Dup for LsIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlsEqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:101-102 Caches.lvlsEqC
 /// Build a level-list-verdict key.
 pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
     LsIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:84-85 Caches.constTyC` — a
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:103-104 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
 pub struct NLsKey {
@@ -229,14 +229,14 @@ impl Dup for NLsKey {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:84-85 Caches.constTyC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:103-104 Caches.constTyC
 /// Build an instantiated-constant key.
 pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
     NLsKey { n: n.dup2(), us: us.dup2() }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:88-91 Caches.ruleRhsC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:107-110 Caches.ruleRhsC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
 pub struct NNLsKey {
@@ -284,7 +284,7 @@ impl Dup for NNLsKey {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:88-91 Caches.ruleRhsC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:107-110 Caches.ruleRhsC
 /// Build an iota-rule right-hand-side key.
 pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
     NNLsKey {
@@ -299,7 +299,7 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos` — **the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:54-67 ModeMemos` — **the
 /// mode-dependent memos**: the six entry-point tables, whose entries are
 /// results of the knot at ONE mode.  The level verdicts, the stored-constant
 /// caches and the readback memos are functions of their keys alone and are
@@ -323,11 +323,11 @@ pub struct ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty` — the empty
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:69-71 ModeMemos.empty` — the empty
 /// set (each of con-leche's six fields defaults to `{}`).
 impl ModeMemos {
     /// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:69-71 ModeMemos.empty`.
     pub fn empty() -> ModeMemos {
         ModeMemos {
             whnf_core_c: HashMap::new(),
@@ -341,11 +341,11 @@ impl ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:69-71 ModeMemos.empty` — the
 /// per-declaration flush of a set, in place.
 impl ModeMemos {
     /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:69-71 ModeMemos.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
         reset_map(&mut self.whnf_core_cheap_c);
@@ -357,7 +357,7 @@ impl ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:54-102 Caches` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-128 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
 /// the per-call clear and the per-declaration drop are different operations
@@ -421,7 +421,7 @@ pub struct Caches {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:130-132 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
 /// `ron::HashMap::new` allocates nothing (task #35), so the empty tables
 /// cost one header each.  This is what a fresh run and every capped table
@@ -429,7 +429,7 @@ pub struct Caches {
 /// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:130-132 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
             whnf_core_c: HashMap::new(),
@@ -557,12 +557,12 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:130-132 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the tables rather
 /// than fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:130-132 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
         reset_map(&mut self.whnf_core_cheap_c);

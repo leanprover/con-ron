@@ -106,6 +106,7 @@ theorem CacheOK.ofReadbackFrame {mode : CheckMode} {env : Env} {s s' : AState}
   readL := hf.readL h.readL
   readN := hf.readN h.readN
   readLs := hf.readLs h.readLs
+  eager := by rw [hf.caches, hf.store]; exact h.eager
 
 /-- con-leche: none — **`CheckOK` across a readback frame**: the store, the
 pins and the environment index did not move, so only the cache clause has
