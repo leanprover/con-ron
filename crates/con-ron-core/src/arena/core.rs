@@ -113,7 +113,6 @@ use crate::kernel::level::Level;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
-use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::ron::nat;
 use crate::ron::nat::Nat;
 use std::vec::Vec;
@@ -9922,7 +9921,6 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -9970,7 +9968,6 @@ pub fn knot_whnf_core(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -10004,7 +10001,6 @@ pub fn knot_whnf(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `infer`
@@ -10041,7 +10037,6 @@ pub fn knot_infer(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `inferIO`
@@ -10109,7 +10104,6 @@ pub fn knot_infer_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -10142,50 +10136,77 @@ pub fn knot_defeq(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:336-342 CState.takeModeMemos
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::take_mode_memos_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3503-3512 takeModeMemos` — detach the six
-/// mode-dependent memos, leaving empty ones (`HashMap::new` allocates
-/// nothing).
-pub fn take_mode_memos(st: &mut AState) -> ModeMemos {
-    ModeMemos {
-        whnf_core_c: core::mem::replace(&mut st.caches.whnf_core_c, HashMap::new()),
-        whnf_core_cheap_c: core::mem::replace(&mut st.caches.whnf_core_cheap_c, HashMap::new()),
-        whnf_c: core::mem::replace(&mut st.caches.whnf_c, HashMap::new()),
-        infer_c: core::mem::replace(&mut st.caches.infer_c, HashMap::new()),
-        infer_io_c: core::mem::replace(&mut st.caches.infer_io_c, HashMap::new()),
-        defeq_c: core::mem::replace(&mut st.caches.defeq_c, HashMap::new()),
+/// con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager
+/// con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 enterEager` — **enter the
+/// eager tower.**  From a plain mode (`eager` false) the plain memos move out
+/// (returned), the stored eager ones move into the six fields, and the eager
+/// slot is left empty (`ModeMemos::empty` allocates nothing).  Every table
+/// moves, none is copied, so the comparison that follows mutates the eager
+/// tables in place.  From an eager mode the six fields already hold the eager
+/// set: nothing moves.
+pub fn enter_eager(st: &mut AState, eager: bool) -> Option<ModeMemos> {
+    if eager {
+        None
+    } else {
+        let em: ModeMemos = core::mem::replace(&mut st.caches.eager_memos, ModeMemos::empty());
+        Some(ModeMemos {
+            whnf_core_c: core::mem::replace(&mut st.caches.whnf_core_c, em.whnf_core_c),
+            whnf_core_cheap_c: core::mem::replace(
+                &mut st.caches.whnf_core_cheap_c,
+                em.whnf_core_cheap_c,
+            ),
+            whnf_c: core::mem::replace(&mut st.caches.whnf_c, em.whnf_c),
+            infer_c: core::mem::replace(&mut st.caches.infer_c, em.infer_c),
+            infer_io_c: core::mem::replace(&mut st.caches.infer_io_c, em.infer_io_c),
+            defeq_c: core::mem::replace(&mut st.caches.defeq_c, em.defeq_c),
+        })
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:344-348 CState.putModeMemos
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::put_mode_memos_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3514-3522 putModeMemos` — put detached
-/// mode-dependent memos back, dropping the state's own.
-pub fn put_mode_memos(st: &mut AState, mm: ModeMemos) {
-    st.caches.whnf_core_c = mm.whnf_core_c;
-    st.caches.whnf_core_cheap_c = mm.whnf_core_cheap_c;
-    st.caches.whnf_c = mm.whnf_c;
-    st.caches.infer_c = mm.infer_c;
-    st.caches.infer_io_c = mm.infer_io_c;
-    st.caches.defeq_c = mm.defeq_c;
+/// con-leche: ConLeche/Cached/StateC.lean:365-375 CState.leaveEager
+/// con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 leaveEager` — **leave the
+/// eager tower**: the six fields (now the eager tower's, with what the
+/// comparison added) are stored back as the eager set, and the plain memos
+/// `saved` return to the six fields; nothing moves when `enter_eager` moved
+/// nothing.
+pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
+    match saved {
+        None => {}
+        Some(mm) => {
+            let em: ModeMemos = ModeMemos {
+                whnf_core_c: core::mem::replace(&mut st.caches.whnf_core_c, mm.whnf_core_c),
+                whnf_core_cheap_c: core::mem::replace(
+                    &mut st.caches.whnf_core_cheap_c,
+                    mm.whnf_core_cheap_c,
+                ),
+                whnf_c: core::mem::replace(&mut st.caches.whnf_c, mm.whnf_c),
+                infer_c: core::mem::replace(&mut st.caches.infer_c, mm.infer_c),
+                infer_io_c: core::mem::replace(&mut st.caches.infer_io_c, mm.infer_io_c),
+                defeq_c: core::mem::replace(&mut st.caches.defeq_c, mm.defeq_c),
+            };
+            st.caches.eager_memos = em;
+        }
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
-/// con-leche: ConLeche/Cached/StateC.lean:350-361 withFreshMemos
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
+/// con-leche: ConLeche/Cached/StateC.lean:377-395 withEagerMemos
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3524-3608 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `to_eager(mode)`
 /// one level down (the flag holds for the comparison and everything it calls,
-/// as official's `flet` scope does), under fresh mode-dependent memos — an
-/// eager entry never serves a plain query, nor the other way round — and the
-/// caller's memos restored afterwards.  The mode-independent caches are
-/// shared.  con-leche's `coreKnotI` runs the body under `memoBI`, whose probe
-/// of the emptied table always misses and whose insert the restore drops; the
-/// port runs the body directly.  On an error the caller's memos are not put
-/// back, as con-leche's (the state is not read after an error).
+/// as official's `flet` scope does), memoized at the ordered pair in the
+/// eager tower's own tables: `enter_eager` swaps the stored eager set in,
+/// `leave_eager` stores it back with what the comparison added and restores
+/// the plain memos (on both exits of the memo: con-leche's
+/// `withEagerMemos mode (memoBI …)` with the bind pushed into the probe's
+/// two branches).  An eager entry never serves a plain query, nor the other
+/// way round; the mode-independent caches are shared.  A nested eager
+/// comparison (already at an eager mode) runs on the eager set as it is.  On
+/// an error the plain memos are not put back, as con-leche's (the state is
+/// not read after an error).
 pub fn knot_defeq_e(
     pers: &PersTier,
     vis: u64,
@@ -10201,13 +10222,23 @@ pub fn knot_defeq_e(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ)))
     } else {
-        let saved: ModeMemos = take_mode_memos(st);
-        let me: CheckMode = to_eager(mode);
-        match defeq_body(pers, vis, st, &me, LANE_FULL, fuel - 1, fe, depth, a, b) {
-            Err(er) => Err(er),
-            Ok(r) => {
-                put_mode_memos(st, saved);
+        let saved: Option<ModeMemos> = enter_eager(st, eager(mode));
+        let k: EIdxPair = eidx_pair(a, b);
+        match defeq_probe(st, &k) {
+            Some(r) => {
+                leave_eager(st, saved);
                 Ok(r)
+            }
+            None => {
+                let me: CheckMode = to_eager(mode);
+                match defeq_body(pers, vis, st, &me, LANE_FULL, fuel - 1, fe, depth, a, b) {
+                    Err(er) => Err(er),
+                    Ok(r) => {
+                        defeq_set(st, a, b, r);
+                        leave_eager(st, saved);
+                        Ok(r)
+                    }
+                }
             }
         }
     }
@@ -10312,7 +10343,6 @@ pub fn ensure_sort_core(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core::flush_caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3664-3670 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly

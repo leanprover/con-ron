@@ -626,6 +626,24 @@ structure arena.monad.Memos where
   lp_def_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
   crf_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
 
+/-- [con_ron_core::arena::core_state::EIdxPair]
+    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 72:0-75:1
+    Visibility: public -/
+structure arena.core_state.EIdxPair where
+  a : arena.handle.EIdx
+  b : arena.handle.EIdx
+
+/-- [con_ron_core::arena::core_state::ModeMemos]
+    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 310:0-323:1
+    Visibility: public -/
+structure arena.core_state.ModeMemos where
+  whnf_core_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
+  whnf_core_cheap_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
+  whnf_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
+  infer_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
+  infer_io_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
+  defeq_c : ron.hashmap2.HashMap2 arena.core_state.EIdxPair Bool
+
 /-- [con_ron_core::arena::core_state::NNLsKey]
     Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 242:0-246:1
     Visibility: public -/
@@ -655,15 +673,8 @@ structure arena.core_state.LIdxPair where
   a : arena.handle.LIdx
   b : arena.handle.LIdx
 
-/-- [con_ron_core::arena::core_state::EIdxPair]
-    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 72:0-75:1
-    Visibility: public -/
-structure arena.core_state.EIdxPair where
-  a : arena.handle.EIdx
-  b : arena.handle.EIdx
-
 /-- [con_ron_core::arena::core_state::Caches]
-    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 307:0-356:1
+    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 365:0-421:1
     Visibility: public -/
 structure arena.core_state.Caches where
   whnf_core_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
@@ -681,6 +692,7 @@ structure arena.core_state.Caches where
   read_n_c : ron.hashmap2.HashMap2 arena.handle.NIdx kernel.name.Name
   read_ls_c : ron.hashmap2.HashMap2 arena.handle.LsIdx (alloc.vec.Vec
     kernel.level.Level)
+  eager_memos : arena.core_state.ModeMemos
 
 /-- [con_ron_core::arena::monad::AState]
     Source: 'crates/con-ron-core/src/arena/monad.rs', lines 309:0-326:1
@@ -995,19 +1007,8 @@ structure arena.env.IProjEntry where
   struct_sort : arena.handle.LIdx
   off : Std.U64
 
-/-- [con_ron_core::arena::core_state::ModeMemos]
-    Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 396:0-409:1
-    Visibility: public -/
-structure arena.core_state.ModeMemos where
-  whnf_core_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
-  whnf_core_cheap_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
-  whnf_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
-  infer_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
-  infer_io_c : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
-  defeq_c : ron.hashmap2.HashMap2 arena.core_state.EIdxPair Bool
-
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9130:0-9137:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9129:0-9136:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1015,7 +1016,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8897:0-8910:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8896:0-8909:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1025,7 +1026,7 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6518:0-6521:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6517:0-6520:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where
@@ -1033,7 +1034,7 @@ inductive arena.core.WhnfStep where
 | Cont : arena.handle.EIdx → arena.core.WhnfStep
 
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2490:0-2506:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2489:0-2505:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1281,7 +1282,7 @@ structure arena.inductives.positivity.NestState where
   ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2711:0-2720:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2710:0-2719:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx
@@ -1320,7 +1321,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 305:0-310:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 319:0-324:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where

@@ -67,7 +67,6 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::EIdxPair_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-79 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
@@ -194,7 +193,6 @@ pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::NLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:84-85 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
@@ -238,7 +236,6 @@ pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::NNLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:88-91 Caches.ruleRhsC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
@@ -301,8 +298,65 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 // The record (`CoreState.lean:50-85`)
 // ---------------------------------------------------------------------------
 
+/// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos` — **the
+/// mode-dependent memos**: the six entry-point tables, whose entries are
+/// results of the knot at ONE mode.  The level verdicts, the stored-constant
+/// caches and the readback memos are functions of their keys alone and are
+/// not among them.  `Caches` holds the plain tower's set in its own six
+/// fields and the eager tower's set in `Caches::eager_memos`; the knot's
+/// eager slot (`arena::core::knot_defeq_e`) swaps the two for the length of an
+/// eager comparison (`arena::core::enter_eager`/`leave_eager`).
+pub struct ModeMemos {
+    /// `Caches::whnf_core_c`.
+    pub whnf_core_c: HashMap<EIdx, EIdx>,
+    /// `Caches::whnf_core_cheap_c`.
+    pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
+    /// `Caches::whnf_c`.
+    pub whnf_c: HashMap<EIdx, EIdx>,
+    /// `Caches::infer_c`.
+    pub infer_c: HashMap<EIdx, EIdx>,
+    /// `Caches::infer_io_c`.
+    pub infer_io_c: HashMap<EIdx, EIdx>,
+    /// `Caches::defeq_c`.
+    pub defeq_c: HashMap<EIdxPair, bool>,
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty` — the empty
+/// set (each of con-leche's six fields defaults to `{}`).
+impl ModeMemos {
+    /// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty`.
+    pub fn empty() -> ModeMemos {
+        ModeMemos {
+            whnf_core_c: HashMap::new(),
+            whnf_core_cheap_c: HashMap::new(),
+            whnf_c: HashMap::new(),
+            infer_c: HashMap::new(),
+            infer_io_c: HashMap::new(),
+            defeq_c: HashMap::new(),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty` — the
+/// per-declaration flush of a set, in place.
+impl ModeMemos {
+    /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:1-1 ModeMemos.empty`.
+    pub fn reset(&mut self) {
+        reset_map(&mut self.whnf_core_c);
+        reset_map(&mut self.whnf_core_cheap_c);
+        reset_map(&mut self.whnf_c);
+        reset_map(&mut self.infer_c);
+        reset_map(&mut self.infer_io_c);
+        reset_map(&mut self.defeq_c)
+    }
+}
+
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:54-102 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
@@ -357,10 +411,16 @@ pub struct Caches {
     /// The same for an interned universe-argument LIST (`readLevels`).  A hit
     /// is one `Vec` allocation and `n` reference bumps.
     pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
+    /// **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
+    /// six entry-point tables of the eager tower (the knot at `to_eager(mode)`,
+    /// the `defeqE` slot), stored here between eager comparisons and swapped
+    /// in for each one (`arena::core::enter_eager`).  Kept for the declaration
+    /// like the plain ones, and apart from them: an eager entry never serves a
+    /// plain query, nor the other way round.
+    pub eager_memos: ModeMemos,
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
 /// `ron::HashMap::new` allocates nothing (task #35), so the empty tables
@@ -369,8 +429,7 @@ pub struct Caches {
 /// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-    /// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::empty_refines, then delete this line
-            /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
             whnf_core_c: HashMap::new(),
@@ -387,32 +446,9 @@ impl Caches {
             read_l_c: HashMap::new(),
             read_n_c: HashMap::new(),
             read_ls_c: HashMap::new(),
+            eager_memos: ModeMemos::empty(),
         }
     }
-}
-
-/// con-leche: ConLeche/Cached/StateC.lean:99-111 ModeMemos
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::ModeMemos_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:110-123 ModeMemos` — **the
-/// mode-dependent memos**: the six entry-point tables, whose entries are
-/// results of the knot at ONE mode.  The level verdicts, the stored-constant
-/// caches and the readback memos are functions of their keys alone and are
-/// not among them.  The knot's eager slot (`arena::core::knot_defeq_e`) moves
-/// these out of the state for the length of an eager comparison and puts
-/// them back afterwards.
-pub struct ModeMemos {
-    /// `Caches::whnf_core_c`.
-    pub whnf_core_c: HashMap<EIdx, EIdx>,
-    /// `Caches::whnf_core_cheap_c`.
-    pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
-    /// `Caches::whnf_c`.
-    pub whnf_c: HashMap<EIdx, EIdx>,
-    /// `Caches::infer_c`.
-    pub infer_c: HashMap<EIdx, EIdx>,
-    /// `Caches::infer_io_c`.
-    pub infer_io_c: HashMap<EIdx, EIdx>,
-    /// `Caches::defeq_c`.
-    pub defeq_c: HashMap<EIdxPair, bool>,
 }
 
 // ---------------------------------------------------------------------------
@@ -521,14 +557,12 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the tables rather
 /// than fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
-    /// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove core_state::reset_refines, then delete this line
-            /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
         reset_map(&mut self.whnf_core_cheap_c);
@@ -543,6 +577,7 @@ impl Caches {
         reset_map(&mut self.rule_rhs_c);
         reset_map(&mut self.read_l_c);
         reset_map(&mut self.read_n_c);
-        reset_map(&mut self.read_ls_c)
+        reset_map(&mut self.read_ls_c);
+        self.eager_memos.reset()
     }
 }

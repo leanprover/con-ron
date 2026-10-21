@@ -302,7 +302,6 @@ impl Memos {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-/// con-leche: CHANGED since 103562ba — re-port, re-test, re-prove monad::AState_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` — the checker
 /// state of (C): the arena, the per-call memo tables and — since task
 /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer

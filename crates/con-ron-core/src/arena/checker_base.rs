@@ -56,7 +56,7 @@ use crate::arena::core::{
     consts_resolve, ensure_sort_core, infer_type_core, reserved_basis_names, str_lit_supported,
     CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR, M_UNKNOWN_CONST,
 };
-use crate::arena::core_state::{take_walk_memo, Caches};
+use crate::arena::core_state::{take_walk_memo, Caches, ModeMemos};
 use crate::arena::env::{
     ifenv_find, IConstantInfo,
     IConstantVal, IFEnv,
@@ -238,6 +238,20 @@ pub fn caches_dup(c: &Caches) -> Caches {
         read_l_c: c.read_l_c.dup(),
         read_n_c: c.read_n_c.dup(),
         read_ls_c: c.read_ls_c.dup(),
+        eager_memos: mode_memos_dup(&c.eager_memos),
+    }
+}
+
+/// con-leche: none — the eager tower's mode memos, copied
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt`.
+pub fn mode_memos_dup(m: &ModeMemos) -> ModeMemos {
+    ModeMemos {
+        whnf_core_c: m.whnf_core_c.dup(),
+        whnf_core_cheap_c: m.whnf_core_cheap_c.dup(),
+        whnf_c: m.whnf_c.dup(),
+        infer_c: m.infer_c.dup(),
+        infer_io_c: m.infer_io_c.dup(),
+        defeq_c: m.defeq_c.dup(),
     }
 }
 
