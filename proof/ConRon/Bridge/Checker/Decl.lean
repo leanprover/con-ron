@@ -156,18 +156,20 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   (`Bridge/Checker/Split.lean`'s `BodyOut.envWF`) and only the arm can
   supply.  Stated at every denotation, which `run` makes the one. -/
   envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
+  /-- the step only pushed tables onto the table list (what makes the
+  promotion's `kt` mean the step's tables) -/
+  tpushed : TPushed fe fe'
   /-- **the pushed index's projection tables**: every table the index now
-  holds is one it held before, or
-  is well shaped and rightly named at the new store — `IFEnvOK.proj`'s
-  conclusion, over membership (the shape `IFEnvOK_of_denote` takes) and
-  relative to the step (the shape `Bridge/Inductives/Rel.lean`'s `ProjOut`
-  has), so that no arm needs the incoming tables' shape. -/
-  proj : ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
-    IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
+  holds is one it held before, or is well shaped — `IFEnvOK.tblHit`'s shape
+  clause, over membership (the shape `IFEnvOK_of_denote` takes) and relative to
+  the step (the shape `Bridge/Inductives/Rel.lean`'s `ProjOut` has), so that no
+  arm needs the incoming tables' shape. -/
+  proj : ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
 
-/-- con-leche: none — `DeclOut`'s first six clauses, which every arm
-assembles by the same transcription; the last two clauses are derived
-from them once, in `Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
+/-- con-leche: none — `DeclOut`'s first six clauses and "no table installed",
+which every arm off the inductive route assembles by the same transcription;
+the last three clauses are derived from them once, in
+`Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
 structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
   state : StateOK s'
@@ -177,5 +179,8 @@ structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   pushed : Pushed fe fe'
   run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
+  /-- no table installed: the arms off the inductive route push constants
+  only -/
+  tables : fe'.env.tables = fe.env.tables
 
 end ConRon.Bridge

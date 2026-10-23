@@ -155,84 +155,11 @@ theorem NStore.tagOf_of_view {st : NStore} {i : NIdx} {v : NNodeView}
     · exact NTables.tagOf_of_get h
     · exact absurd h (by simp)
 
-/-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — the
-handle test is the name test: two `viewN` reads, two `denoteN` inversions, and
-the four shapes con-leche's `match` distinguishes. -/
-theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
-    {r : Bool} {s s' : AState} (hok : StateOK s) (hs : s.store = st)
-    (hd : denoteN st.ns n = some x)
-    (hrun : NIdx.isProjFnShape n s = .ok (r, s')) :
-    s' = s ∧ r = x.isProjFnShape := by
-  subst hs
-  obtain ⟨rk, hrk⟩ := hok.wf
-  have hns : NStoreWF s.store.ns := hrk.nsWF
-  obtain ⟨rkn, hn⟩ := hns
-  -- the tag-first twin (DESIGN `### Task #97-T2-LOCKSTEP` D1): the handle's
-  -- tag is its view's constructor, and a denoting handle has a view
-  obtain ⟨v, hv⟩ := denoteN_view hd
-  have htv := NStore.tagOf_of_view hv
-  rw [denoteN_unfold hn hv] at hd
-  simp only [NIdx.isProjFnShape] at hrun
-  cases v with
-  | anonymous =>
-    simp only [denoteNView, Option.some.injEq] at hd
-    subst hd
-    rw [ite_eq_right (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨rfl, rfl⟩
-  | str p t =>
-    simp only [denoteNView, Option.map_eq_some_iff] at hd
-    obtain ⟨q, _, rfl⟩ := hd
-    rw [ite_eq_right (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨rfl, rfl⟩
-  | num p k =>
-    simp only [denoteNView, Option.map_eq_some_iff] at hd
-    obtain ⟨q, hq, rfl⟩ := hd
-    rw [ite_eq_left (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
-    obtain ⟨v', s₁, h1, h2⟩ := AM.bind_ok hrun
-    obtain ⟨rfl, hv'⟩ := viewN_run h1
-    rw [hv] at hv'
-    obtain rfl := Option.some.inj hv'
-    dsimp only at h2
-    obtain ⟨w, hw⟩ := denoteN_view hq
-    have htw := NStore.tagOf_of_view hw
-    rw [denoteN_unfold hn hw] at hq
-    cases w with
-    | anonymous =>
-      simp only [denoteNView, Option.some.injEq] at hq
-      subst hq
-      rw [ite_eq_right (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      exact ⟨rfl, rfl⟩
-    | str p' t' =>
-      simp only [denoteNView, Option.map_eq_some_iff] at hq
-      obtain ⟨q', _, rfl⟩ := hq
-      rw [ite_eq_left (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
-      obtain ⟨w', s₂, h3, h4⟩ := AM.bind_ok h2
-      obtain ⟨rfl, hw'⟩ := viewN_run h3
-      rw [hw] at hw'
-      obtain rfl := Option.some.inj hw'
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-      refine ⟨rfl, ?_⟩
-      simp only [ConLeche.Name.isProjFnShape]
-      by_cases h1' : t' = "proj"
-      · subst h1'; simp
-      · by_cases h2' : t' = "projTable"
-        · subst h2'; simp
-        · simp [h1', h2']
-    | num p' k' =>
-      simp only [denoteNView, Option.map_eq_some_iff] at hq
-      obtain ⟨q', _, rfl⟩ := hq
-      rw [ite_eq_right (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      exact ⟨rfl, rfl⟩
-
 /-! ## The per-declaration constant check -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal —
 **THE declaration front door**, and what every arm of
-`Bridge/Checker/Decl.lean` bottoms out in: the eight guards, the inference of
+`Bridge/Checker/Decl.lean` bottoms out in: the seven guards, the inference of
 the type as stored, and the sort test.  It returns nothing (con-leche e74d32ad:
 no annotation pass, `checkConstantVal` returns `Unit`).
 
@@ -241,8 +168,8 @@ run gives an accepting pure run whose answer the arena's answer denotes.  The
 guards are what make it non-trivial — each must be *exact*, not merely sound,
 because the arena's acceptance has to imply con-leche's.
 
-Proved: the six guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
-and `isProjFnShape` through the two lemmas above, `nameNodup`,
+Proved: the five guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
+through the lemma above, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
 then `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
@@ -256,7 +183,6 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     {c : ConstantVal} {sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)
     (h2 : ConLeche.reservedBasisNames.contains c.name = false)
-    (h3 : c.name.isProjFnShape = false)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
     (h5 : c.type.looseBVarsBounded 0 = true)
     (h6 : c.type.hasFvar = false)
@@ -265,7 +191,7 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h10 : ConLeche.inferTypeCore μ env F 0 c.type = .ok sty)
     (h11 : ConLeche.ensureSortCore μ env F 0 sty = .ok u) :
     ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok () := by
-  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h3, h4, h5,
+  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h4, h5,
     h6, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
@@ -310,29 +236,18 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     cases hb : rs.contains cv.name with
     | false => rfl
     | true => rw [hb] at hres; exact absurd rfl hres
-  -- 3. the reserved-projection-name guard
-  obtain ⟨b3, s3, g3r, r4⟩ := AM.bind_ok r3
-  obtain ⟨hs3, hb3⟩ := isProjFnShape_run hck2.state rfl hnm2 g3r
-  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
-  replace r5 := AM.pure_bind_ok r5
-  have hprojP : c.name.isProjFnShape = false := by
-    rw [← hb3]
-    cases hb : b3 with
-    | false => rfl
-    | true => rw [hb] at hproj; exact absurd rfl hproj
-  -- 4. the duplicate-universe-parameter guard
-  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
+  -- 3. the duplicate-universe-parameter guard
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r3
   replace r6 := AM.pure_bind_ok r6
   have hnodP : ConLeche.Name.nodup c.levelParams = true := by
     rw [← nameNodup_spec hck2.state.wf cv.levelParams c.levelParams hlps2]
     exact hnod
-  subst hs3
-  -- 5. the loose-bound-variable guard
+  -- 4. the loose-bound-variable guard
   obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok r6
-  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s3)
-    (Q := fun r t => t.store = s3.store ∧ t.caches = s3.caches ∧
-      t.pins = s3.pins ∧ RelV (Expr.looseBVarsBounded 0) s3.store cv.type r)
-    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s3 cv.type
+  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s2)
+    (Q := fun r t => t.store = s2.store ∧ t.caches = s2.caches ∧
+      t.pins = s2.pins ∧ RelV (Expr.looseBVarsBounded 0) s2.store cv.type r)
+    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s2 cv.type
       hck2.state (by rw [hty2]; rfl))
   obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
@@ -345,7 +260,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hty5 : denoteE s5.store cv.type = some c.type := by rw [h5st]; exact hty2
   have hlps5 : Frontend.denoteNList s5.store.ns cv.levelParams
       = some c.levelParams := by rw [h5st]; exact hlps2
-  -- 6. the free-variable guard
+  -- 5. the free-variable guard
   obtain ⟨b6, s6, g6r, r9⟩ := AM.bind_ok r8
   obtain ⟨h6st, h6c, h6p, h6r⟩ := AM.of_run (P := fun t => t = s5)
     (Q := fun r t => t.store = s5.store ∧ t.caches = s5.caches ∧
@@ -367,7 +282,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
   have hws : Expr.WScoped 0 c.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  -- 7. the undeclared-universe-parameter guard
+  -- 6. the undeclared-universe-parameter guard
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r10
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
     allLevelParamsDefined_run hck6.state hlps6 hty6 g8r
@@ -379,7 +294,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
-  -- 8. the unresolved-constant guard
+  -- 7. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hty8 g9r
@@ -391,7 +306,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
   have hty9 : denoteE s9.store cv.type = some c.type := by rw [h9st]; exact hty8
-  -- 9. the inference, of the type AS STORED
+  -- 8. the inference, of the type AS STORED
   obtain ⟨stype, s10, g10r, r16⟩ := AM.bind_ok r15
   obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s9.store t.store ∧
@@ -399,7 +314,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       Core.SimE (ConLeche.inferTypeCore μ env) 0 c.type t.store r)
     rfl g10r (hknot.infer s9 0 cv.type c.type hck9 hty9 hws)
   obtain ⟨w, hw10, hwsw, F10, hF10⟩ := hsim10
-  -- 10. the sort test
+  -- 9. the sort test
   obtain ⟨u, s11, g11r, r17⟩ := AM.bind_ok r16
   obtain ⟨hck11, hx11, hp11, hsim11⟩ := AM.of_run (P := fun t => t = s10)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s10.store t.store ∧
@@ -407,7 +322,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       SimL (ConLeche.ensureSortCore μ env) 0 w t.store r)
     rfl g11r (hsortS s10 0 stype w hck10 hw10 hwsw)
   obtain ⟨uu, huu, F11, hF11⟩ := hsim11
-  -- 11. the answer: the run ENDS at the sort test
+  -- 10. the answer: the run ENDS at the sort test
   obtain ⟨-, rfl⟩ := AM.pure_ok r17
   -- the frame
   have hext : Ext s.store s'.store := by
@@ -419,7 +334,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hle10 : F10 ≤ max F10 F11 := Nat.le_max_left F10 F11
   have hle11 : F11 ≤ max F10 F11 := Nat.le_max_right F10 F11
   refine ⟨⟨hck11, hext, hpins⟩, max F10 F11, ?_⟩
-  exact checkConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP
+  exact checkConstantVal_pure hfindP hresP hnodP hlbbP hfvP
     hlpdP hcrP
     (ConLeche.inferTypeCore_mono hle10 hF10)
     (ConLeche.ensureSortCore_mono hle11 hF11)

@@ -53,57 +53,28 @@ theorem FoldOK.ofCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
 
 /-! ## `DeclOut`'s environment and projection-table clauses, off the pure run
 
-Off the inductive route, both clauses are
-read off the PURE step the arm already proves (`DeclCore.run`): con-leche's
-run relation says the step pushed only non-table constants, each well formed
-(`checkDecl_wf_pure`, `Bridge/Checker/DeclWF.lean`), and the pushed front of
-the index denotes the pushed front of the environment, so it holds no new
-table (`projMem_of_noTower`). -/
-
-/-- con-leche: none — **a pushed front that denotes non-tables holds no
-table**: the index's new entries denote the environment's new entries, and
-`Frontend.denoteCI` keeps the constructor. -/
-theorem projMem_of_noTower {st : EStore} {fe fe' : IFEnv} {env env' : Env}
-    (hden : denoteFEnv st fe = some env) (hden' : denoteFEnv st fe' = some env')
-    (hpush : Pushed fe fe') (hnt : NoTowerPush env env') :
-    ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
-      IConstantInfo.projInfo t ∈ fe.env.consts := by
-  intro t ht
-  obtain ⟨newI, hn⟩ := hpush
-  obtain ⟨newP, hP, hnoT⟩ := hnt
-  rw [hn] at ht
-  rcases List.mem_append.mp ht with hnew | hold
-  · exfalso
-    simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hden hden'
-    obtain ⟨zs, hzs, rfl⟩ := hden
-    obtain ⟨zs', hzs', rfl⟩ := hden'
-    rw [hn] at hzs'
-    obtain ⟨za, zb, hza, hzb, heq⟩ := denoteCIList_append _ _ zs' hzs'
-    rw [hzs] at hzb
-    obtain rfl := Option.some.inj hzb
-    have hza' : za = newP := List.append_cancel_right (heq.symm.trans hP)
-    subst hza'
-    obtain ⟨z, hz, hdz⟩ := denoteCIList_mem _ _ hza _ hnew
-    exact ci_ne_proj_of_denote hdz (hnoT z hz) t rfl
-  · exact hold
+Off the inductive route, the environment clause is read off the PURE step the
+arm already proves (`DeclCore.run`): con-leche's run relation says the step
+pushed constants each well formed (`checkDecl_wf_pure`,
+`Bridge/Checker/DeclWF.lean`); the table clauses are `DeclCore.tables`, the arm
+installs no table. -/
 
 /-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **an arm off the inductive route owes nothing more than its six clauses**:
-the `envWF` and `proj` clauses follow from the pure run (`checkDecl_wf_pure`) and
-the incoming `FoldOK`'s `EnvWF`. -/
+the `envWF` clause follows from the pure run (`checkDecl_wf_pure`) and the
+incoming `FoldOK`'s `EnvWF`, the table clauses from `DeclCore.tables`. -/
 theorem DeclCore.out {μ : CheckMode} {pinsP : List NatOpPinSet} {env : Env}
     {d : Declaration} {s : AState} {fe fe' : IFEnv} {s' : AState}
     (hok : FoldOK μ env fe s)
     (hd : ∀ b nP, d = .indDecl b nP → (ConLeche.basisPinHit b).isSome = true)
     (h : DeclCore μ pinsP env d s fe fe' s') : DeclOut μ pinsP env d s fe fe' s' := by
   obtain ⟨env', F, hden, hF⟩ := h.run
-  obtain ⟨hwf, hnt⟩ := checkDecl_wf_pure hF hok.envWF hd
+  obtain ⟨hwf, -⟩ := checkDecl_wf_pure hF hok.envWF hd
   refine ⟨h.state, h.ext, h.pins, h.coh, h.pushed, h.run, fun e he => ?_,
-    fun t ht => Or.inl ?_⟩
-  · rw [hden] at he
-    obtain rfl := Option.some.inj he
-    exact hwf
-  · exact projMem_of_noTower (denoteFEnv_mono h.ext hok.denote) hden h.pushed hnt t ht
+    ⟨[], by rw [h.tables]; rfl⟩, fun t ht => Or.inl (h.tables ▸ ht)⟩
+  rw [hden] at he
+  obtain rfl := Option.some.inj he
+  exact hwf
 
 /-! ## The pure side's step lemmas
 
@@ -423,6 +394,11 @@ theorem restrict_pushed_find {fe fe2 : IFEnv} {ci : IConstantInfo}
     ∀ n, (fe2.restrictTo fe.visibleBelow).find? n = fe.find? n := by
   subst hp; exact IFEnv.find?_push_restrict fe ci hfresh
 
+/-- con-leche: none — the restricted push keeps the table map. -/
+theorem restrict_pushed_tbls {fe fe2 : IFEnv} {ci : IConstantInfo}
+    (hp : fe2 = fe.push ci) : (fe2.restrictTo fe.visibleBelow).tbls = fe.tbls := by
+  subst hp; rfl
+
 /-! ## The seven arms -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl (the `.defnDecl`
@@ -475,6 +451,9 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     obtain ⟨v, hv⟩ := checkDefnVal_pushed g2
     exact restrict_pushed_find hv
       (hok2.check.ienv.find?_none hnm2 (checkConstantVal_fresh hpure1))
+  have hpreT : (fe2.restrictTo fe.visibleBelow).tbls = fe.tbls := by
+    obtain ⟨v, hv⟩ := checkDefnVal_pushed g2
+    exact restrict_pushed_tbls hv
   -- the record every exit builds
   have mkOut : ∀ (sX : AState) (FX : Nat), StateOK sX → Ext s.store sX.store →
       sX.pins = s.pins → denoteFEnv sX.store fe2 = some env2 →
@@ -517,7 +496,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     rcases AM.ite_ok rB with ⟨hyD, hgD⟩ | ⟨hnD, hgD⟩
     · obtain ⟨u, sC, gC, rC⟩ := AM.bind_ok hgD
       obtain ⟨hstC, hxC, hpC, FD, hpureD⟩ :=
-        checkDivModPin_bridge hμ hk (hokA.check.congr_find hpre) hokA.envWF hstA
+        checkDivModPin_bridge hμ hk (hokA.check.congr_find hpre hpreT) hokA.envWF hstA
           (PinsDenote.mono hextA _ _ hpins) hnmA gC
       obtain ⟨rfl, rfl⟩ := AM.pure_ok rC
       exact mkOut _ (max FA FD) hstC (hextA.trans hxC) (by rw [hpC, hpinA])
@@ -609,9 +588,9 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
               hok7.step (hok7.check.mono hst8 hx8 hc8 hp8) hx8 hp8
             obtain ⟨okb, s9, g9, r10⟩ := AM.bind_ok r9
             obtain ⟨hstepC, hcertOf⟩ :=
-              certifyNatEqs_bridge hμ hk (hok8.check.congr_find hpre) hok8.envWF
+              certifyNatEqs_bridge hμ hk (hok8.check.congr_find hpre hpreT) hok8.envWF
                 hdps (natOpEqs_wscoped hst2.envWF hfindP) g9
-            replace hstepC := hstepC.congr_find (fun n => (hpre n).symm)
+            replace hstepC := hstepC.congr_find (fun n => (hpre n).symm) hpreT.symm
             obtain ⟨hy10, r11⟩ :=
               AM.dunless_ok AM.Never.fail_any r10
             replace r11 := AM.pure_bind_ok r11
@@ -755,8 +734,10 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
     have hpre : ∀ n, (fe2.restrictTo fe.visibleBelow).find? n = fe.find? n :=
       restrict_pushed_find (checkOpaqueVal_pushed g2)
         (hok2.check.ienv.find?_none hnm2 (checkConstantVal_fresh hpure1))
+    have hpreT : (fe2.restrictTo fe.visibleBelow).tbls = fe.tbls :=
+      restrict_pushed_tbls (checkOpaqueVal_pushed g2)
     obtain ⟨hst4, hx4, hp4, F4, hpure4⟩ :=
-      checkReducePin_bridge hμ hk (hok2.check.congr_find hpre) hok2.envWF
+      checkReducePin_bridge hμ hk (hok2.check.congr_find hpre hpreT) hok2.envWF
         hstepOK2 hnm2 hv2
         (ConLeche.Expr.WScoped.of_not_hasFvar (checkOpaqueVal_noFvar hpure2)) g4
     obtain ⟨rfl, rfl⟩ := AM.pure_ok r4

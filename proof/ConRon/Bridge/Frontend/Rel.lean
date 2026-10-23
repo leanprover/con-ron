@@ -11,10 +11,8 @@ parse state denotes con-leche's, field for field**.
 
 `Arena/Frontend/ExportC.lean`'s `StateD` is a field-for-field mirror of
 `ConLeche/Frontend/ExportC.lean`'s — **four fields**, in the same order,
-with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` — plus the
-projection-table naming invariant (`projNamed`: `IProjTable.tableName`, the
-kernel's own struct projection bookkeeping, DESIGN §8.3) — so the relation is
-a field-for-field conjunction, and the three shapes it needs are:
+with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` — so the
+relation is a field-for-field conjunction, and the three shapes it needs are:
 
 * **`OptRel`** — a relation lifted to `Option`, `none` matching `none`.  The
   three stream-index tables are `IdTable`s of handles against `IdTable`s of
@@ -399,90 +397,6 @@ theorem denoteDecls_length {st : EStore} :
         subst h
         simp [ih ys has]
 
-/-! `IProjNamed`, `IProjTableOK.toNamed` and `IProjNamed.mono` are in
-`Bridge/StateOK.lean` beside `IProjTableOK`, so that `denoteCI_name_proj` can
-take the name clause alone.  They are in this namespace's parent, so every use
-below reads them unqualified. -/
-
-/-- con-leche: none — a stored constant that is rightly named: the clause has
-content at a `.projInfo` and nowhere else. -/
-def CIProjNamed (st : EStore) (ci : IConstantInfo) : Prop :=
-  ∀ t, ci = .projInfo t → IProjNamed st t
-
-theorem CIProjNamed.mono {st st' : EStore} {ci : IConstantInfo}
-    (h : CIProjNamed st ci) (hx : Ext st st') : CIProjNamed st' ci :=
-  fun t ht => (h t ht).mono hx
-
-/-- con-leche: none — the six constructors the clause is vacuous at. -/
-theorem CIProjNamed.of_ne {st : EStore} {ci : IConstantInfo}
-    (h : ∀ t, ci ≠ .projInfo t) : CIProjNamed st ci :=
-  fun t ht => absurd ht (h t)
-
-theorem CIProjNamed.of_proj {st : EStore} {t : IProjTable}
-    (h : IProjNamed st t) : CIProjNamed st (.projInfo t) := by
-  intro t' ht
-  simp only [IConstantInfo.projInfo.injEq] at ht
-  subst ht; exact h
-
-/-- con-leche: none — a declaration record whose projection tables are rightly
-named.  Only an `.indDecl` block can hold one, so the other six constructors
-satisfy this vacuously. -/
-def DeclProjNamed (st : EStore) (d : IDeclaration) : Prop :=
-  ∀ block nP, d = .indDecl block nP → ∀ ci ∈ block, CIProjNamed st ci
-
-theorem DeclProjNamed.mono {st st' : EStore} {d : IDeclaration}
-    (h : DeclProjNamed st d) (hx : Ext st st') : DeclProjNamed st' d :=
-  fun block nP hd ci hci => (h block nP hd ci hci).mono hx
-
-/-- con-leche: none — the six constructors that carry no block. -/
-theorem DeclProjNamed.of_axiomDecl {st : EStore} {v : IConstantVal} :
-    DeclProjNamed st (.axiomDecl v) := by intro _ _ h; exact nomatch h
-
-theorem DeclProjNamed.of_defnDecl {st : EStore} {v : IConstantVal} {e : EIdx}
-    {h : ReducibilityHint} : DeclProjNamed st (.defnDecl v e h) := by
-  intro _ _ h; exact nomatch h
-
-theorem DeclProjNamed.of_thmDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
-    DeclProjNamed st (.thmDecl v e) := by intro _ _ h; exact nomatch h
-
-theorem DeclProjNamed.of_opaqueDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
-    DeclProjNamed st (.opaqueDecl v e) := by intro _ _ h; exact nomatch h
-
-theorem DeclProjNamed.of_quotDecl {st : EStore} {k : QuotKind} {v : IConstantVal} :
-    DeclProjNamed st (.quotDecl k v) := by intro _ _ h; exact nomatch h
-
-/-- con-leche: none — a parsed `.indDecl` block: the frontend's own
-`installIndD` builds one out of `.indInfo`, `.ctorInfo` and `.recInfo`, never a
-`.projInfo`, so the clause is vacuous there and this is the shape that says
-so. -/
-theorem DeclProjNamed.of_indDecl {st : EStore} {block : List IConstantInfo}
-    {nP : Nat} (h : ∀ ci ∈ block, CIProjNamed st ci) :
-    DeclProjNamed st (.indDecl block nP) := by
-  intro block' nP' he
-  simp only [IDeclaration.indDecl.injEq] at he
-  obtain ⟨rfl, rfl⟩ := he
-  exact h
-
-/-- con-leche: none — the clause at a whole stream. -/
-def DeclsProjNamed (st : EStore) (ds : Array IDeclaration) : Prop :=
-  ∀ d ∈ ds, DeclProjNamed st d
-
-theorem DeclsProjNamed.mono {st st' : EStore} {ds : Array IDeclaration}
-    (h : DeclsProjNamed st ds) (hx : Ext st st') : DeclsProjNamed st' ds :=
-  fun d hd => (h d hd).mono hx
-
-theorem DeclsProjNamed.empty (st : EStore) : DeclsProjNamed st #[] := by
-  intro d hd; simp at hd
-
-theorem DeclsProjNamed.push {st : EStore} {ds : Array IDeclaration}
-    (h : DeclsProjNamed st ds) {d : IDeclaration} (hd : DeclProjNamed st d) :
-    DeclsProjNamed st (ds.push d) := by
-  intro x hx
-  rcases Array.mem_push.mp hx with hx | hx
-  · exact h x hx
-  · subst hx; exact hd
-
-
 /-! ### Persistence, from the denotation
 
 **The persistence half of an intern is not extra content: it is a CONSEQUENCE
@@ -493,13 +407,7 @@ handle with a view on a store whose scratch tier is closed is persistent
 follows from `denote… st h = some x` together with `StoreWF st` and
 `st.scratchOn = false`, at the leaf — and every record denotation
 (`Arena/Frontend/Readback.lean:93-199`) reads EVERY handle field of its
-record, so the twelve record layers follow field for field.
-
-**The one field a denotation does not read is a projection table's
-`tableName`** — con-leche recomputes it, so `denoteProjTable` drops it
-(`Readback.lean:156-168`'s own note).  That gap is exactly what `IProjNamed`
-closes, and `internProjTable` carries the clause already, so the two
-projection layers take it as a hypothesis and nothing is weakened.
+record, so the record layers follow field for field.
 
 This is what makes `Bridge/Frontend/Shared.lean`'s intern family
 scratch-agnostic without a second copy of it: the family is stated over
@@ -686,14 +594,12 @@ theorem PersCaps_of_denote {st : EStore} (hwf : StoreWF st)
     exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
       PersNList_of_denote hwf hoff h3⟩
 
-/-- con-leche: none — a projection table.  Six of its seven handle fields are
-read by `denoteProjTable`; the seventh, `tableName`, is the one con-leche
-recomputes, so `IProjNamed` supplies it. -/
+/-- con-leche: none — a projection table: every handle field is read by
+`denoteProjTable`. -/
 theorem PersProjTable_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {ti : IProjTable} {t : ProjTable}
-    (hn : IProjNamed st ti) (hd : denoteProjTable st ti = some t) :
+    (hd : denoteProjTable st ti = some t) :
     PersProjTable ti := by
-  obtain ⟨sn, -, htn⟩ := hn
   rw [denoteProjTable] at hd
   cases h1 : denoteN st.ns ti.structName with
   | none => rw [h1] at hd; simp at hd
@@ -713,7 +619,7 @@ theorem PersProjTable_of_denote {st : EStore} (hwf : StoreWF st)
   cases h6 : denoteLList st.ls ti.guards with
   | none => rw [h1, h2, h3, h4, h5, h6] at hd; simp at hd
   | some x6 =>
-  refine ⟨PersN_of_denote hwf hoff h1, PersN_of_denote hwf hoff htn,
+  refine ⟨PersN_of_denote hwf hoff h1,
     PersNList_of_denote hwf hoff h2, PersN_of_denote hwf hoff h3,
     PersL_of_denote hwf hoff h4, ?_, PersLList_of_denote hwf hoff h6⟩
   rw [denoteEArray] at h5
@@ -721,11 +627,11 @@ theorem PersProjTable_of_denote {st : EStore} (hwf : StoreWF st)
   | none => rw [h7] at h5; simp at h5
   | some x7 => exact PersEList_of_denote hwf hoff h7
 
-/-- con-leche: none — **a stored constant**: seven arms, each of them the
+/-- con-leche: none — **a stored constant**: six arms, each of them the
 layers above assembled. -/
 theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
-    (hn : CIProjNamed st ci) (hd : denoteCI st ci = some c) : PersCI ci := by
+    (hd : denoteCI st ci = some c) : PersCI ci := by
   cases ci with
   | axiomInfo v =>
     rw [denoteCI] at hd
@@ -768,23 +674,17 @@ theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
     | none => rw [h1, h2] at hd; simp at hd
     | some rules =>
       exact ⟨PersCV_of_denote hwf hoff h1, PersRules_of_denote hwf hoff h2⟩
-  | projInfo t =>
-    rw [denoteCI] at hd
-    cases h1 : denoteProjTable st t with
-    | none => rw [h1] at hd; simp at hd
-    | some pt => exact PersProjTable_of_denote hwf hoff (hn t rfl) h1
 
 /-- con-leche: none — a block. -/
 theorem PersCIList_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) :
     ∀ {cis : List IConstantInfo} {cs : List ConstantInfo},
-      (∀ ci ∈ cis, CIProjNamed st ci) → denoteCIList st cis = some cs →
-      PersCIList cis := by
+      denoteCIList st cis = some cs → PersCIList cis := by
   intro cis
   induction cis with
-  | nil => intro cs _ _ c hc; simp at hc
+  | nil => intro cs _ c hc; simp at hc
   | cons a as ih =>
-    intro cs hn hd
+    intro cs hd
     rw [denoteCIList] at hd
     cases h1 : denoteCI st a with
     | none => rw [h1] at hd; simp at hd
@@ -795,15 +695,15 @@ theorem PersCIList_of_denote {st : EStore} (hwf : StoreWF st)
         intro c hc
         simp only [List.mem_cons] at hc
         rcases hc with rfl | hc
-        · exact PersCI_of_denote hwf hoff (hn c (by simp)) h1
-        · exact ih (fun ci hci => hn ci (by simp [hci])) h2 c hc
+        · exact PersCI_of_denote hwf hoff h1
+        · exact ih h2 c hc
 
 /-- con-leche: none — **a declaration record**: the frontend tier's
 postcondition, and the fold theorems' second frontend obligation
 (`hpd`). -/
 theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {di : IDeclaration} {d : Declaration}
-    (hn : DeclProjNamed st di) (hd : denoteDecl st di = some d) :
+    (hd : denoteDecl st di = some d) :
     PersDecl di := by
   cases di with
   | basisDecl k => trivial
@@ -846,70 +746,18 @@ theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
     cases h1 : denoteCIList st block with
     | none => rw [h1] at hd; simp at hd
     | some b =>
-      exact PersCIList_of_denote hwf hoff (hn block nP rfl) h1
-
-/-! The non-projection half is `Bridge/StateOK.lean`'s own `denoteCI_name`,
-which landed there while this round ran; only the `.projInfo` half is restated
-here, because that one asks `IProjTableOK` where this tier has only its `named`
-clause.  When `denoteCI_name_proj`'s hypothesis is weakened to `IProjNamed` —
-its proof uses `hok.named` and nothing else — the two below go away. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
-`.projInfo` arm) — and a projection table is named by its stored handle exactly
-when `IProjNamed` says so.  That clause is not decoration: it is the only thing
-that ties `tableName` to `ConLeche.projTableName`. -/
-theorem ciName_denote_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
-    (hn : IProjNamed st t)
-    (h : ConRon.Arena.Frontend.denoteCI st (.projInfo t) = some c) :
-    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
-  obtain ⟨sn, hsn, htn⟩ := hn
-  simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
-  obtain ⟨pt, hpt, rfl⟩ := h
-  simp only [ConRon.Arena.Frontend.denoteProjTable, hsn] at hpt
-  cases hlps : ConRon.Arena.Frontend.denoteNList st.ns t.levelParams with
-  | none => rw [hlps] at hpt; simp at hpt
-  | some lps =>
-    cases hc : denoteN st.ns t.ctor with
-    | none => rw [hlps, hc] at hpt; simp at hpt
-    | some cn =>
-      cases hss : denoteL st.ls t.structSort with
-      | none => rw [hlps, hc, hss] at hpt; simp at hpt
-      | some ss =>
-        cases hbs : ConRon.Arena.Frontend.denoteEArray st t.bodies with
-        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
-        | some bs =>
-          cases hgs : denoteLList st.ls t.guards with
-          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
-          | some gs =>
-            rw [hlps, hc, hss, hbs, hgs] at hpt
-            obtain rfl := Option.some.inj hpt
-            exact htn
-
-/-- con-leche: none — the two halves as one. -/
-theorem ciName_denote_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hproj : CIProjNamed st ci)
-    (h : ConRon.Arena.Frontend.denoteCI st ci = some c) :
-    denoteN st.ns ci.name = some c.name := by
-  cases ci with
-  | projInfo t => exact ciName_denote_proj (hproj t rfl) h
-  | axiomInfo v => exact denoteCI_name (by simp) h
-  | defnInfo v e hh => exact denoteCI_name (by simp) h
-  | thmInfo v => exact denoteCI_name (by simp) h
-  | indInfo v caps => exact denoteCI_name (by simp) h
-  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
-  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
+      exact PersCIList_of_denote hwf hoff h1
 
 /-- con-leche: none — a block's names, at the list. -/
 theorem ciNames_denote {st : EStore} :
     ∀ {block : List IConstantInfo} {bP : List ConstantInfo},
-      (∀ ci ∈ block, CIProjNamed st ci) →
       ConRon.Arena.Frontend.denoteCIList st block = some bP →
       ConRon.Arena.Frontend.denoteNList st.ns (block.map (·.name))
         = some (bP.map (·.name))
-  | [], bP, _, h => by
+  | [], bP, h => by
     simp only [ConRon.Arena.Frontend.denoteCIList, Option.some.injEq] at h
     subst h; rfl
-  | ci :: cs, bP, hproj, h => by
+  | ci :: cs, bP, h => by
     simp only [ConRon.Arena.Frontend.denoteCIList] at h
     cases hci : ConRon.Arena.Frontend.denoteCI st ci with
     | none => rw [hci] at h; simp at h
@@ -920,16 +768,13 @@ theorem ciNames_denote {st : EStore} :
         rw [hci, hcs] at h
         simp only [Option.some.injEq] at h
         subst h
-        have h1 := ciName_denote_of (hproj ci (by simp)) hci
-        have h2 := ciNames_denote (fun c hc => hproj c (by simp [hc])) hcs
+        have h1 := denoteCI_name hci
+        have h2 := ciNames_denote hcs
         simp only [List.map_cons, ConRon.Arena.Frontend.denoteNList, h1, h2]
 
 /-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — **the
-record's declared names denote**, which a bare `denoteDecl` does not give
-(`denoteProjTable` drops `tableName`).  `DeclProjNamed` is exactly the missing
-hypothesis and nothing more. -/
+record's declared names denote**. -/
 theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
-    (hpn : DeclProjNamed st d)
     (hd : ConRon.Arena.Frontend.denoteDecl st d = some dP) :
     ConRon.Arena.Frontend.denoteNList st.ns d.names = some dP.names := by
   have hcv : ∀ (v : IConstantVal) (cv : ConstantVal),
@@ -1003,7 +848,7 @@ theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
   | indDecl block nP =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨b, hb, rfl⟩ := hd
-    exact ciNames_denote (hpn block nP rfl) hb
+    exact ciNames_denote hb
 
 /-! ## The parse state -/
 
@@ -1012,25 +857,13 @@ RELATION**: the twin's parse state denotes con-leche's, field for field, in
 the store `st`.
 
 Four clauses for four fields.  The three stream-index tables go through
-`IdTableRel`, the declaration array through `denoteDeclArray`, and `projNamed`
-is the one invariant that is not a raw field: the stream's projection tables
-(the kernel's struct projection bookkeeping) are rightly named. -/
+`IdTableRel` and the declaration array through `denoteDeclArray`. -/
 structure StateDRel (st : EStore) (sd : StateD) (sc : ConLeche.Frontend.StateD) :
     Prop where
   names : IdTableRel (fun h n => denoteN st.ns h = some n) sd.names sc.names
   levels : IdTableRel (fun h u => denoteL st.ls h = some u) sd.levels sc.levels
   exprs : IdTableRel (fun h e => denoteE st h = some e) sd.exprs sc.exprs
   decls : denoteDeclArray st sd.decls = some sc.decls
-  /-- **the stream's projection tables are rightly named** — the same clause
-  `Bridge/StateOK.lean`'s `IFEnvOK` carries one module over
-  (`IFEnvOK.proj`).  `denoteProjTable` drops
-  `tableName`, so `decls` alone does NOT give `IDeclaration.names`'s
-  exactness; this clause does, through `declNames_denote`, and it travels
-  through the whole streaming fold because the fold only ever transports the
-  relation.  Its one debtor is `pushDecl` — the only place a record ENTERS the
-  stream, where a block is built out of `.indInfo`/`.ctorInfo`/`.recInfo` and
-  the clause is vacuous. -/
-  projNamed : DeclsProjNamed st sd.decls
 
 /-! ## The parse result -/
 
@@ -1041,10 +874,6 @@ state.  This is what DESIGN §8.2's exactness statement is about, and its
 structure ParseResultRel (st : EStore) (r : ParseResultD)
     (rc : ConLeche.Frontend.ParseResultD) : Prop where
   decls : denoteDeclArray st r.decls = some rc.decls
-  /-- the same clause at the parse RESULT, which is what carries the
-  projection-table naming out of the parse and into
-  `Bridge/Frontend/Prepare.lean`. -/
-  projNamed : DeclsProjNamed st r.decls
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:761-763 ParseResultD.ofState —
 the result relation is the state relation's two clauses, read off.  The one
@@ -1053,7 +882,7 @@ theorem ParseResultRel.ofState {st : EStore} {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
     ParseResultRel st (ParseResultD.ofState sd)
       (ConLeche.Frontend.ParseResultD.ofState sc) :=
-  { decls := h.decls, projNamed := h.projNamed }
+  { decls := h.decls }
 
 /-! ## Transport across an append
 
@@ -1165,7 +994,6 @@ theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
   levels := h.levels.mono (fun _ _ hd => denoteL_ext hd hx)
   exprs := h.exprs.mono (fun _ _ hd => denote_ext hd hx)
   decls := denoteDeclArray_ext hx h.decls
-  projNamed := h.projNamed.mono hx
 
 /-! ## Persistence
 

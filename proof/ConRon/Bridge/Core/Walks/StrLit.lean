@@ -33,39 +33,6 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. A stored constant's common data -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:502-504 ConstantInfo.toConstantVal — a
-stored constant's record denotes the denoted constant's. -/
-theorem denoteCI_toConstantVal {st : EStore} {ci : IConstantInfo}
-    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c) :
-    Frontend.denoteCV st ci.toConstantVal = some c.toConstantVal := by
-  cases ci with
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact hcv
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact hcv
-  | defnInfo v e hh =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-  | thmInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact hcv
-  | indInfo v caps =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-  | recInfo v mI rP rs =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-
 /-! ## The string walks' vocabulary
 
 The interning of a level at the tier's invariant (its readbacks and `ViewOK`
@@ -1032,7 +999,6 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
 
 section Census
 
-#print axioms denoteCI_toConstantVal
 #print axioms cvFieldsAt
 #print axioms stringTyOk_spec
 #print axioms charTyOk_spec

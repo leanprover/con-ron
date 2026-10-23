@@ -67,19 +67,18 @@ set_option autoImplicit false
 /-! ## The install half -/
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader — the
-PURE half: eight guards accepted means con-leche's install accepts.  There is
+PURE half: seven guards accepted means con-leche's install accepts.  There is
 no annotation: the header is stored as declared. -/
 theorem installHeader_pure {env : Env} {c : ConstantVal}
     (h1 : env.find? c.name = none)
     (h2 : ConLeche.reservedBasisNames.contains c.name = false)
-    (h3 : c.name.isProjFnShape = false)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
     (h5 : c.type.looseBVarsBounded 0 = true)
     (h6 : c.type.hasFvar = false)
     (h8 : c.type.allLevelParamsDefined c.levelParams = true)
     (h9 : c.type.constsResolve env = true) :
     ConLeche.installHeader (m := CheckM) env c = .ok () := by
-  simp only [ConLeche.installHeader, h1, h2, h3, h4,
+  simp only [ConLeche.installHeader, h1, h2, h4,
     h5, h6, h8, h9, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
@@ -126,29 +125,18 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
     cases hb : rs.contains cv.name with
     | false => rfl
     | true => rw [hb] at hres; exact absurd rfl hres
-  -- 3. the reserved-projection-name guard
-  obtain ⟨b3, s3, g3r, r4⟩ := AM.bind_ok r3
-  obtain ⟨hs3, hb3⟩ := isProjFnShape_run hck2.state rfl hnm2 g3r
-  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
-  replace r5 := AM.pure_bind_ok r5
-  have hprojP : c.name.isProjFnShape = false := by
-    rw [← hb3]
-    cases hb : b3 with
-    | false => rfl
-    | true => rw [hb] at hproj; exact absurd rfl hproj
-  -- 4. the duplicate-universe-parameter guard
-  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
+  -- 3. the duplicate-universe-parameter guard
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r3
   replace r6 := AM.pure_bind_ok r6
   have hnodP : ConLeche.Name.nodup c.levelParams = true := by
     rw [← nameNodup_spec hck2.state.wf cv.levelParams c.levelParams hlps2]
     exact hnod
-  subst hs3
-  -- 5. the loose-bound-variable guard
+  -- 4. the loose-bound-variable guard
   obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok r6
-  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s3)
-    (Q := fun r t => t.store = s3.store ∧ t.caches = s3.caches ∧
-      t.pins = s3.pins ∧ RelV (Expr.looseBVarsBounded 0) s3.store cv.type r)
-    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s3
+  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s2)
+    (Q := fun r t => t.store = s2.store ∧ t.caches = s2.caches ∧
+      t.pins = s2.pins ∧ RelV (Expr.looseBVarsBounded 0) s2.store cv.type r)
+    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s2
       cv.type hck2.state (by rw [hty2]; rfl))
   obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
@@ -161,7 +149,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   have hty5 : denoteE s5.store cv.type = some c.type := by rw [h5st]; exact hty2
   have hlps5 : Frontend.denoteNList s5.store.ns cv.levelParams
       = some c.levelParams := by rw [h5st]; exact hlps2
-  -- 6. the free-variable guard
+  -- 5. the free-variable guard
   obtain ⟨b6, s6, g6r, r9⟩ := AM.bind_ok r8
   obtain ⟨h6st, h6c, h6p, h6r⟩ := AM.of_run (P := fun t => t = s5)
     (Q := fun r t => t.store = s5.store ∧ t.caches = s5.caches ∧
@@ -182,7 +170,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   have hty6 : denoteE s6.store cv.type = some c.type := by rw [h6st]; exact hty5
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
-  -- 7. the undeclared-universe-parameter guard
+  -- 6. the undeclared-universe-parameter guard
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r10
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
     allLevelParamsDefined_run hck6.state hlps6 hty6 g8r
@@ -194,7 +182,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
     hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
-  -- 8. the unresolved-constant guard
+  -- 7. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hty8 g9r
@@ -204,7 +192,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   have hck9 : CheckOK μ env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
-  -- 9. the answer
+  -- 8. the answer
   obtain ⟨-, rfl⟩ := AM.pure_ok r15
   have hext : Ext s.store s'.store := by
     refine hp2.ext.trans ?_
@@ -213,7 +201,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   have hpins : s'.pins = s.pins := by
     rw [h9p, h8p, h6p, h5p, hp2.pins]
   exact ⟨⟨hck9, hext, hpins⟩,
-    installHeader_pure hfindP hresP hprojP hnodP hlbbP hfvP hlpdP hcrP⟩
+    installHeader_pure hfindP hresP hnodP hlbbP hfvP hlpdP hcrP⟩
 
 /-! ## The check half -/
 

@@ -139,7 +139,6 @@ namespace ConRon.Bridge
 #print axioms beq_handle_iff
 #print axioms nameNodup_spec
 #print axioms viewN_run
-#print axioms isProjFnShape_run
 
 -- the pin readers and the nineteen reserved names
 #print axioms pinAt_run
@@ -277,7 +276,6 @@ namespace ConRon.Bridge
 -- the `.projInfo` comparison, and the two injectivity facts it needed
 #print axioms denoteNList_inj
 #print axioms denoteEArray_inj
-#print axioms denoteProjTable_inj
 #print axioms IConstantInfo.canonEq_run
 #print axioms canonEqList_run
 
