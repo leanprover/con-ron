@@ -75,8 +75,8 @@ open ConLeche
 
 /-! ## The two-phase fold the binary runs -/
 
-/-- con-leche: ConLeche/Cached/Installed.lean:175-196 installDeclStep
-con-leche: ConLeche/Cached/Installed.lean:422-429 checkPendingList
+/-- con-leche: ConLeche/Cached/Installed.lean:173-194 installDeclStep
+con-leche: ConLeche/Cached/Installed.lean:420-427 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
@@ -110,7 +110,7 @@ structure PendingCheck where
   vis : Nat
   deriving Inhabited
 
-/-- con-leche: ConLeche/Cached/Installed.lean:135-173 installStepC — phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC — phase A's
 step body: guard-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
@@ -150,7 +150,7 @@ def installStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
   | pd => do
     pure (← checkDecl mode pins fe pd, none)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:135-173 installStepC — **phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC — **phase A's
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
@@ -206,7 +206,7 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:175-196 installDeclStep — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:173-194 installDeclStep — phase
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
@@ -235,7 +235,7 @@ def installDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     .ok (.error (.invalid "`And` must be the standard `And`", p.1), AState.abandoned)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — phase A as
+/-- con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls — phase A as
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def installFold (mode : CheckMode) (pins : List INatOpPinSet)
@@ -248,7 +248,7 @@ def installFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok p' => installFold mode pins p' ds
 
-/-- con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending — **phase
+/-- con-leche: ConLeche/Cached/Installed.lean:252-270 checkPending — **phase
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -266,7 +266,7 @@ def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
   checkValueGroup mode (fe.restrictTo pc.vis) pc.vg
   dropScratch
 
-/-- con-leche: ConLeche/Cached/Installed.lean:422-429 checkPendingList — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:420-427 checkPendingList — phase
 B as a pure walk: every record checked from a fresh memo state, a failure
 tagged with the record's fold position. -/
 def checkPendingList (mode : CheckMode) (fe : IFEnv) :
@@ -277,7 +277,7 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .ok ((), s') => checkPendingList mode fe rest s'
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — **the
+/-- con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls — **the
 declaration fold the binary runs**: install every record (phase A), check
 every recorded declaration (phase B), return the environment.  The `× Nat` of
 the error is the failure's POSITION in the fold. -/
@@ -290,7 +290,7 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok () => pure (.ok fe)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — the fold's
+/-- con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls — the fold's
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`ConLeche/Driver/Run.lean`'s `checkMain`); the seam of (B) has no position channel

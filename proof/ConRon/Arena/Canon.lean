@@ -75,7 +75,7 @@ def canonNameMap (ps cs : List NIdx) (n : NIdx) : NIdx :=
 /-! ## Levels -/
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:28-35 canonLevel
-con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 `canonLevel ps u == canonLevel ps' v`, decided in lockstep on the two level
 handles.  `canonLevel` preserves every node's constructor (it rewrites only
 the `.param` leaf), so the two canonical forms are equal iff the originals
@@ -98,7 +98,7 @@ def canonLevelEq (ps ps' cs : List NIdx) : Nat → LIdx → LIdx → AM Bool
       pure (canonNameMap ps cs n == canonNameMap ps' cs n')
     | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast — the
+/-- con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast — the
 `.const` clause's `us.map (canonLevel m) == us'.map (canonLevel m')`, at two
 universe-argument lists read out of the level-list store. -/
 def canonLevelListEq (ps ps' cs : List NIdx) (fuel : Nat) :
@@ -110,7 +110,7 @@ def canonLevelListEq (ps ps' cs : List NIdx) (fuel : Nat) :
     else pure false
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast — the same
+/-- con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast — the same
 at two interned universe-argument LIST handles. -/
 def canonLevelsEq (ps ps' cs : List NIdx) (fuel : Nat) (us vs : LsIdx) :
     AM Bool := do
@@ -119,7 +119,7 @@ def canonLevelsEq (ps ps' cs : List NIdx) (fuel : Nat) (us vs : LsIdx) :
 /-! ## Terms -/
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:37-55 canonExpr
-con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 **The agreement for expressions**, in lockstep on two handles.  `canonExpr`
 preserves every node's constructor (it renames only level parameters), so the
 two canonical forms are equal iff the originals agree constructor by
@@ -161,8 +161,8 @@ def canonExprEq (ps ps' cs : List NIdx) : Nat → EIdx → EIdx → AM Bool
 /-! ## Constants -/
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:65-70 ConstantVal.canon
-con-leche: ConLeche/Kernel/Canon.lean:173-177 ConstantVal.canonEq
-con-leche: ConLeche/Kernel/Canon.lean:179-184 ConstantVal.canonEqFast
+con-leche: ConLeche/Kernel/Canon.lean:170-174 ConstantVal.canonEq
+con-leche: ConLeche/Kernel/Canon.lean:176-181 ConstantVal.canonEqFast
 Two constants have the same canonical common data.  The numbered
 level-parameter lists are equal exactly when they are equally long, which is
 why the length test stands in for comparing them — and why ONE `canonNames`
@@ -173,7 +173,7 @@ def IConstantVal.canonEq (cv cv' : IConstantVal) : AM Bool := do
     canonExprEq cv.levelParams cv'.levelParams cs coreWalkFuel cv.type cv'.type
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:202-209 canonRulesEqFast — rule
+/-- con-leche: ConLeche/Kernel/Canon.lean:199-206 canonRulesEqFast — rule
 lists compared through the canonical form of each rule's right-hand side.
 con-leche compares the other fields by rebuilding both rules at the common
 `rhs := .bvar 0`; over handles the same predicate is the record comparison at
@@ -189,9 +189,11 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
     else pure false
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:72-87 ConstantInfo.canon
-con-leche: ConLeche/Kernel/Canon.lean:228-230 ConstantInfo.canonEq
-con-leche: ConLeche/Kernel/Canon.lean:232-248 ConstantInfo.canonEqFast
+/-- con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
+con-leche: ConLeche/Kernel/Canon.lean:225-227 ConstantInfo.canonEq
+con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
 are not compared (`canon` resets both to `{}`), and a projection table is
 compared as it stands (`canon` is the identity there — a table never occurs in
@@ -219,8 +221,8 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .projInfo t, .projInfo t' => pure (t == t')
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:264-267 canonEqList
-con-leche: ConLeche/Kernel/Canon.lean:269-273 canonEqListFast
+/-- con-leche: ConLeche/Kernel/Canon.lean:260-263 canonEqList
+con-leche: ConLeche/Kernel/Canon.lean:265-269 canonEqListFast
 Two blocks are the same, member for member, up to the canonical form. -/
 def canonEqList : List IConstantInfo → List IConstantInfo → AM Bool
   | [], [] => pure true

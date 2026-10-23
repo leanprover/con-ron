@@ -353,7 +353,8 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
 // Projection tables (`Env.lean:135-176` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::IProjTable_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:120-137 IProjTable` — one
 /// structure's projection table, every term field a handle.
 pub struct IProjTable {
@@ -373,7 +374,8 @@ pub struct IProjTable {
     pub off: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_proj_table_dup_refines, then delete this line
 /// The record copy.
 pub fn i_proj_table_dup(t: &IProjTable) -> IProjTable {
     IProjTable {
@@ -390,7 +392,8 @@ pub fn i_proj_table_dup(t: &IProjTable) -> IProjTable {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:335-354 ProjEntry
+/// con-leche: ConLeche/Kernel/Env.lean:328-345 ProjEntry
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::IProjEntry_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:139-152 IProjEntry` — the per-field
 /// view of a projection table.
 pub struct IProjEntry {
@@ -406,7 +409,8 @@ pub struct IProjEntry {
     pub off: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:356-360 ProjTable.entry
+/// con-leche: ConLeche/Kernel/Env.lean:347-351 ProjTable.entry
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_proj_table_entry_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:154-160 IProjTable.entry` — the
 /// view at field `i`.  con-leche's `default` expression and its `.zero` guard
 /// level become the zero handle of each kind (the twin's `Inhabited (Idx k)`):
@@ -441,7 +445,8 @@ pub fn i_proj_table_entry(tbl: &IProjTable, i: u64) -> IProjEntry {
 // Stored constants (`Env.lean:181-191` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::IConstantInfo_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:164-175 IConstantInfo` — the
 /// information stored about an accepted constant, over handles.
 pub enum IConstantInfo {
@@ -454,7 +459,8 @@ pub enum IConstantInfo {
     ProjInfo(IProjTable),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_constant_info_dup_refines, then delete this line
 /// The record copy, constructor for constructor.
 pub fn i_constant_info_dup(c: &IConstantInfo) -> IConstantInfo {
     match c {
@@ -504,7 +510,7 @@ pub fn i_constant_infos_dup_from(
 // Declaration records (`Env.lean:196-206` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:408-461 Declaration
+/// con-leche: ConLeche/Kernel/Env.lean:390-443 Declaration
 /// Lean twin: `proof/ConRon/Arena/Env.lean:179-191 IDeclaration` — a
 /// declaration presented to the checker, over handles.  Seven constructors,
 /// con-leche's own order; the frontend produces every one but `BasisDecl`,
@@ -519,7 +525,7 @@ pub enum IDeclaration {
     QuotDecl(QuotKind, IConstantVal),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:408-461 Declaration
+/// con-leche: ConLeche/Kernel/Env.lean:390-443 Declaration
 /// The record copy.  `prepare` needs it: the Aeneas subset has no way to move
 /// an element out of an owned `Vec` (no `remove`, no `pop`, no `into_iter`),
 /// so a record picked out of the parsed stream is copied rather than taken,
@@ -552,6 +558,7 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:518-522 projTableName
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::proj_table_name_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:195-199 projTableName` — the
 /// reserved name of structure `T`'s projection table.
 pub fn proj_table_name(pers: &PersTier, ar: &mut EStore, t: &NIdx) -> Result<NIdx, CheckError> {
@@ -566,7 +573,8 @@ pub fn proj_table_name(pers: &PersTier, ar: &mut EStore, t: &NIdx) -> Result<NId
 // Reading a stored constant (`Env.lean:226-264` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:526-529 ConstantInfo.toConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:502-504 ConstantInfo.toConstantVal
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_constant_info_to_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:203-214 IConstantInfo.toConstantVal`
 /// — the constant's common data.  The `.projInfo` arm BUILDS the closed dummy
 /// type `Sort 1`, which over handles means interning it: that is the one
@@ -601,7 +609,7 @@ pub fn i_constant_info_to_constant_val(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:531 name
+/// con-leche: ConLeche/Kernel/Env.lean:506 name
 /// Lean twin: `proof/ConRon/Arena/Env.lean:216-223 IConstantInfo.name` — the
 /// constant's name.  **PURE**, unlike `to_constant_val`: it is the environment
 /// index's key, and `IProjTable.table_name` is the stored handle that makes it
@@ -619,6 +627,7 @@ pub fn i_constant_info_name(c: &IConstantInfo) -> NIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:533-538 ConstantInfo.isTowerEntry
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_constant_info_is_tower_entry_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:225-229 IConstantInfo.isTowerEntry`
 /// — a projection table is a table, not a term.
 pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
@@ -628,7 +637,7 @@ pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:544-555 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:512-523 Declaration.names
 /// Lean twin: `proof/ConRon/Arena/Env.lean:231-238 IDeclaration.names` — the
 /// names a declaration record declares; `prepare::prelude_key`'s lookup and
 /// the ground hoist's name index read it.  **PURE**, because
@@ -645,7 +654,7 @@ pub fn i_declaration_names(d: &IDeclaration) -> Vec<NIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:544-555 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:512-523 Declaration.names
 /// The cited `[cv.name]`, as a function: §3.4 has no `vec!`.
 pub fn i_declaration_one_name(cv: &IConstantVal) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::with_capacity(1);
@@ -653,7 +662,7 @@ pub fn i_declaration_one_name(cv: &IConstantVal) -> Vec<NIdx> {
     out
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:544-555 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:512-523 Declaration.names
 /// The cited `block.map (·.name)`, as the index recursion of task #3.
 pub fn i_constant_info_names_from(
     block: &Vec<IConstantInfo>,
@@ -673,7 +682,8 @@ pub fn i_constant_info_names_from(
 // The environment (`Env.lean:278-337` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:559-564 Env
+/// con-leche: ConLeche/Kernel/Env.lean:527-539 Env
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::IEnv_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:242-247 IEnv` — the global
 /// environment: the constants accepted so far.  Names are unique (the checker
 /// rejects duplicates), so the order is irrelevant for lookup.
@@ -685,14 +695,15 @@ pub struct IEnv {
     pub consts: Vec<IConstantInfo>,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:568-569 Env.empty
+/// con-leche: ConLeche/Kernel/Env.lean:543-544 Env.empty
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_env_empty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:249-251 IEnv.empty` — the empty
 /// environment; the starting point of every checker run.
 pub fn i_env_empty() -> IEnv {
     IEnv { consts: Vec::new() }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:76-108 FEnv
+/// con-leche: ConLeche/Kernel/FEnv.lean:98-130 FEnv
 /// Lean twin: `proof/ConRon/Arena/Env.lean:260-266 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
@@ -730,7 +741,7 @@ pub struct IFEnv {
     pub visible_below: u64,
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:110-119 mkFEnvGo
+/// con-leche: ConLeche/Kernel/FEnv.lean:138-147 mkFEnvGo
 /// Lean twin: `proof/ConRon/Arena/Env.lean:268-275 mkIFEnvGo` — the index
 /// build.  The cited recursion runs from the back of the newest-first list, so
 /// that the newest constant is inserted last and wins, exactly as
@@ -751,7 +762,8 @@ pub fn mk_ifenv_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:121-125 mkFEnv
+/// con-leche: ConLeche/Kernel/FEnv.lean:155-159 mkFEnv
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::mk_ifenv_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:277-281 mkIFEnv` — build the index
 /// of `env`, with nothing hidden.  Takes the environment by value: the `IFEnv`
 /// owns it.
@@ -764,7 +776,7 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:129-148 FEnv.find?
+/// con-leche: ConLeche/Kernel/FEnv.lean:163-182 FEnv.find?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:283-288 IFEnv.find?` — indexed
 /// lookup, bounded by the visibility counter.  con-leche's `FEnv` also
 /// carries a frozen base layer and an overlay (task #329: the parallel
@@ -795,7 +807,7 @@ pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstant
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.restrictTo
+/// con-leche: ConLeche/Kernel/FEnv.lean:184-187 FEnv.restrictTo
 /// Lean twin: `proof/ConRon/Arena/Env.lean:290-293 IFEnv.restrictTo` —
 /// restrict the view to the first `k` installed constants; `O(1)`, a field
 /// update.  Takes the record by value and returns it, which is what makes the
@@ -806,7 +818,8 @@ pub fn ifenv_restrict_to(fe: IFEnv, k: u64) -> IFEnv {
     fe
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:155-162 FEnv.push
+/// con-leche: ConLeche/Kernel/FEnv.lean:189-197 FEnv.push
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ifenv_push_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:295-300 IFEnv.push` — the index of
 /// the cons-extended environment: the new entry gets the next installation
 /// counter and the visibility bound advances with it.
@@ -832,7 +845,8 @@ pub fn i_constant_info_dummy_val() -> IConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::i_constant_info_dummy_refines, then delete this line
 /// Lean twin: none — the `Inhabited IConstantInfo` the twin gets for free
 /// (task #97-P6-5, lever 5).  `Vec::resize` takes a filler it never reads when
 /// it shrinks; this is that filler, and nothing else may use it.
@@ -844,18 +858,21 @@ pub fn i_constant_info_dummy() -> IConstantInfo {
     })
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::impl core::clone::Clone for IConstantInfo_refines, then delete this line
 /// Lean twin: none — `core::clone::Clone` for `IConstantInfo`, which
 /// `Vec::resize`'s signature demands (task #97-P6-5, lever 5).  It is
 /// `i_constant_info_dup` and nothing else; no `#[derive]` (DESIGN.md §3.4).
 impl core::clone::Clone for IConstantInfo {
-    /// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+    /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+    /// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::clone_refines, then delete this line
     fn clone(&self) -> IConstantInfo {
         i_constant_info_dup(self)
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:155-162 FEnv.push
+/// con-leche: ConLeche/Kernel/FEnv.lean:189-197 FEnv.push
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ifenv_push_temp_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:295-300 IFEnv.push` — **the push of
 /// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
 ///
@@ -881,7 +898,8 @@ pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> 
     prev
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:155-162 FEnv.push
+/// con-leche: ConLeche/Kernel/FEnv.lean:189-197 FEnv.push
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ifenv_pop_temp_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:302-311 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back, the visibility bound restored.  See that function's note.
@@ -908,7 +926,8 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
     fe.visible_below = fe.visible_below - 1;
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:189-193 FEnv.findProj?
+/// con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj?
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ifenv_find_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:313-318 IFEnv.findProj?` — indexed
 /// projection-table lookup.
 pub fn ifenv_find_proj(
@@ -945,11 +964,13 @@ pub fn ifenv_find_proj(
 // tree-shaped side.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::impl Dup for IConstantInfo_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:164-175 IConstantInfo` — the
 /// dictionary `ron::HashMap::dup` needs to copy an `IFEnv`'s index.
 impl Dup for IConstantInfo {
-    /// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+    /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+    /// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::dup2_refines, then delete this line
     fn dup2(&self) -> IConstantInfo {
         i_constant_info_dup(self)
     }
@@ -1097,7 +1118,7 @@ pub fn dangling_level() -> CheckError {
 // The syntactic Π-telescope (`Env.lean:357-360` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:467-481 Expr.piSortTeleLen?
+/// con-leche: ConLeche/Kernel/Env.lean:449-463 Expr.piSortTeleLen?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:322-332 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the

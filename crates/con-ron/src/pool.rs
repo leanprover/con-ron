@@ -207,7 +207,7 @@ pub fn merge_results<E>(
     tab
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:385-409 collectChecks
+/// con-leche: ConLeche/Cached/Installed.lean:383-407 collectChecks
 /// **The results, walked in index order.**  Slot `k` holds index `k`'s
 /// result; the walk stops at the first failure, so its answer is the
 /// sequential fold's whatever order the results were produced in.  An empty

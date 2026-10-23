@@ -36,8 +36,10 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
       fail (.notImplemented "direct structure: binder domain mismatch")
     checkStructDomsAt mode fe off fvs doms j
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-87 checkStructProjTableF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 Stage 5: **the projection table** (task #175 S1).  One constant per structure:
 the fields' result-type bodies read off the stored constructor type by
 substitution alone, the per-field guard levels, the constructor and the

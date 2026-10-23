@@ -156,8 +156,10 @@ pub struct ValueGroup {
 // The install half (`CheckerSplit.lean:60-101` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader
-/// con-leche: ConLeche/Cached/Installed.lean:94-113 installHeaderC
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
+/// con-leche: ConLeche/Cached/Installed.lean:94-111 installHeaderC
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:59-79 installHeader` —
 /// `checkConstantVal` minus its inference: the syntactic guards, header and
 /// type.  con-leche writes the clauses out twice and so does the twin; the
@@ -178,8 +180,8 @@ pub fn install_header(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:83-94 installValueGuards
-/// con-leche: ConLeche/Cached/Installed.lean:115-125 installValueGuardsC
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:81-92 installValueGuards
+/// con-leche: ConLeche/Cached/Installed.lean:113-123 installValueGuardsC
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:81-93 installValueGuards`
 /// — the value half of `check{Defn,Thm,Opaque}Val` minus its inference: the
 /// value's syntactic guards (no loose bound variable, no free variable,
@@ -214,8 +216,8 @@ pub fn install_value_guards(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:83-94 installValueGuards
-/// con-leche: ConLeche/Cached/Installed.lean:115-125 installValueGuardsC
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:81-92 installValueGuards
+/// con-leche: ConLeche/Cached/Installed.lean:113-123 installValueGuardsC
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:81-93 installValueGuards`
 /// — the two guards past the scope tests: the level-parameter and the
 /// resolution guard (else `unresolvedConstsErrorL`'s verdict).
@@ -252,8 +254,8 @@ pub fn install_value_guards_tail(
 // The check half (`CheckerSplit.lean:103-124` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: ConLeche/Cached/Installed.lean:252-270 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:95-112 checkValueGroup` —
 /// **the check half of a value declaration**, at the environment the constant
 /// was installed at: the type's sort, the theorem's is-a-proposition test, for
@@ -277,8 +279,8 @@ pub fn check_value_group(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: ConLeche/Cached/Installed.lean:252-270 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:95-112 checkValueGroup` —
 /// the cited `if g.kind = .thm then …`: a theorem's statement must be a
 /// proposition, and its raw value's guards run here.  A definition's or an
@@ -317,8 +319,8 @@ pub fn check_value_group_value(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: ConLeche/Cached/Installed.lean:252-270 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:95-112 checkValueGroup` —
 /// the cited tail past the theorem's test: the value's inferred type against
 /// the declared one.  Split off so the two branches of the `if` are tail

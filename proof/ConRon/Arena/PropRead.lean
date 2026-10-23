@@ -183,7 +183,8 @@ def substPWAt (lps : List NIdx) (us : LsIdx) (pw : PropWhen) :
     pure (some (Level.substPW ks vs pw))
   | _ => pure (some pw)
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW — the datum of
+/-- con-leche: ConLeche/Kernel/PropRead.lean:107-130 headTypePW — the datum of
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove PropRead.headTypePW_bridge, then delete this line
 a type-former application's *head* at `n` arguments: a constant head reads its
 stored type (level-instantiated), an fvar head its declared type, a `bvar`
 head (inside the ∀ telescope `root`, `d` binders deep) its binder's domain;
@@ -219,7 +220,7 @@ def headTypePW (fe : IFEnv) (fuel : Nat) (root : EIdx) (d : Nat) (h : EIdx)
     else pure none
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:133-140 typeSortPWGo — the walk
+/-- con-leche: ConLeche/Kernel/PropRead.lean:132-139 typeSortPWGo — the walk
 of `typeSortPW`: peel the ∀ telescope (a ∀'s prop-ness is its codomain's),
 counting the binders, then read the residual's head.  A walk down the
 telescope, hence fuel. -/
@@ -237,12 +238,13 @@ def typeSortPWGo (fe : IFEnv) (root : EIdx) : Nat → EIdx → Nat →
       let n ← numArgs fuel R
       headTypePW fe fuel root d fn n
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:141-149 typeSortPW — the
 zero-ness datum of the sort of the *type* `T` ("is `T` a proposition?"). -/
 def typeSortPW (fe : IFEnv) (fuel : Nat) (T : EIdx) : AM (Option PropWhen) :=
   typeSortPWGo fe T fuel T 0
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW — the datum
+/-- con-leche: ConLeche/Kernel/PropRead.lean:151-181 headProofPW — the datum
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove PropRead.headProofPW_bridge, then delete this line
 of a term's *head* (any arity): a constant head answers from its stored type,
 an fvar head from its declared type; sorts, ∀s and literals are never proofs;
 a projection answers "not a proof" off its field's stored type when that is
@@ -276,7 +278,8 @@ def headProofPW (fe : IFEnv) (fuel : Nat) (h : EIdx) : AM (Option PropWhen) := d
     | none => pure none
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW — the zero-ness
+/-- con-leche: ConLeche/Kernel/PropRead.lean:183-195 proofPW — the zero-ness
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove PropRead.proofPW_bridge, then delete this line
 datum of the sort of the *type* of `a` ("is `a` a proof?"): a λ answers from
 its body, a `let` from its body, an application from its function, anything
 else from its head.  A walk, hence fuel. -/
@@ -301,7 +304,8 @@ def proofPW (fe : IFEnv) : Nat → EIdx → AM (Option PropWhen)
 
 /-! ## The two arms -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:203-209 notProofFast —
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove PropRead.notProofFast_bridge, then delete this line
 **definitely not a proof**: the datum is known and is not always-zero.
 Refusing the proof-irrelevance shortcut is always sound. -/
 def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
@@ -309,7 +313,8 @@ def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
   | some pw => pure !pw.isProp
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:211-217 isProofFast —
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove PropRead.isProofFast_bridge, then delete this line
 **definitely a proof**: the datum is known and always-zero (con-leche's
 `prf_of_isProofFast`). -/
 def isProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do

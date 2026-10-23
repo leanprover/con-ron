@@ -84,7 +84,9 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (nested : Boo
   genRecCheck mode fe p.shape nested params tbl rd ms cvTas block
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-121 checkBlockTables
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:150-163 checkBlockTablesF
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
 **The projection table at every STRUCTURE-LIKE member** (one constructor, no
 index): the member's table at the tagged tower's projection offset `1`;
 nothing at any other member.  The three lists are walked side by side, as the

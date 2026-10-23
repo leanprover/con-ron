@@ -306,7 +306,8 @@ pub fn subst_pw_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
+/// con-leche: ConLeche/Kernel/PropRead.lean:107-130 headTypePW
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::head_type_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:186-220 headTypePW` — the datum
 /// of a type-former application's *head* at `n` arguments: a constant head
 /// reads its stored type (level-instantiated), an fvar head its declared type,
@@ -377,7 +378,7 @@ pub fn head_type_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:133-140 typeSortPWGo
+/// con-leche: ConLeche/Kernel/PropRead.lean:132-139 typeSortPWGo
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:222-238 typeSortPWGo` — the
 /// walk of `typeSortPW`: peel the ∀ telescope (a ∀'s prop-ness is its
 /// codomain's: `zeronessOf (imax u v) = zeronessOf v`), counting the binders,
@@ -416,7 +417,7 @@ pub fn type_sort_pw_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:141-149 typeSortPW
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:240-243 typeSortPW` — the
 /// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?"),
 /// read off `t`'s shape.  `none` = unknown.
@@ -431,7 +432,8 @@ pub fn type_sort_pw(
     type_sort_pw_go(pers, vis, st, fe, fuel, t, t, 0)
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:151-181 headProofPW
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::head_proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:245-277 headProofPW` — the
 /// datum of a term's *head* (any arity): a constant head answers from its
 /// stored type (prop-ness is invariant under application), an fvar head from
@@ -496,7 +498,8 @@ pub fn head_proof_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:183-195 proofPW
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:279-300 proofPW` — the
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
 /// off `a`'s head symbol at any arity: a λ and a `let` answer from their body,
@@ -535,7 +538,8 @@ pub fn proof_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast
+/// con-leche: ConLeche/Kernel/PropRead.lean:203-209 notProofFast
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::not_proof_fast_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:304-310 notProofFast` —
 /// **definitely not a proof**: the datum is known and is not always-zero.
 /// Refusing the proof-irrelevance shortcut is always sound.
@@ -560,7 +564,8 @@ pub fn not_proof_fast(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast
+/// con-leche: ConLeche/Kernel/PropRead.lean:211-217 isProofFast
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::is_proof_fast_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:312-318 isProofFast` —
 /// **definitely a proof**: the datum is known and always-zero (justified by
 /// the squash regime, con-leche's `prf_of_isProofFast`).

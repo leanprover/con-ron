@@ -120,6 +120,7 @@ def nameNodup : List NIdx → Bool
   | n :: ns => !ns.contains n && nameNodup ns
 
 /-- con-leche: ConLeche/Kernel/Level.lean:216-223 Name.isProjFnShape — is
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.NIdx.isProjFnShape_bridge, then delete this line
 this shaped like an installed projection function's name (`(T.proj).i`) or a
 projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
 checker's own installs. -/
@@ -149,8 +150,8 @@ The parameter list is read BACK once at the entry, as `instLPFast` reads its
 own functions on transient values, and DESIGN §8.3's lesson 4 says a level
 algorithm runs on trees. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:242-258 Expr.allLevelParamsDefined
-con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
+/-- con-leche: ConLeche/Kernel/Level.lean:233-249 Expr.allLevelParamsDefined
+con-leche: ConLeche/Kernel/Level.lean:280-313 Expr.allLevelParamsDefinedGo
 The memoized walk.  `params` are transient names (see the section note); the
 memo is keyed on the node, which is what makes a shared subterm cost one
 probe. -/
@@ -186,7 +187,7 @@ def allLevelParamsDefinedGo (params : List ConLeche.Name)
         | .proj _ _ e => allLevelParamsDefinedGo params memo fuel e
       pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Kernel/Level.lean:395-397 Expr.allLevelParamsDefinedFast
+/-- con-leche: ConLeche/Kernel/Level.lean:386-388 Expr.allLevelParamsDefinedFast
 The executed `allLevelParamsDefined`: one memoized DAG walk, at the parameter
 list read back once. -/
 def allLevelParamsDefined (lps : List NIdx) (e : EIdx) : AM Bool := do
@@ -332,8 +333,10 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, well-formed universe
 parameters, and a type that is a type and mentions only declared parameters.
 Returns nothing: the constant is stored as declared (con-leche's task #342).
@@ -364,7 +367,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:146-156 openPisAtFvars — open
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:144-154 openPisAtFvars — open
 the first `n` `∀`-binders at fresh free variables `0..n-1` (each fvar's type
 is the binder domain, instantiated with the earlier fvars).  Structural on
 `n`, so no fuel of its own. -/
@@ -382,7 +385,7 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:158-172 openPisAtFvarsFGo —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:156-170 openPisAtFvarsFGo —
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
 binder first.  One `instantiateList` pass per domain instead of one
 whole-telescope `instantiate1` pass per binder. -/
@@ -401,7 +404,7 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:174-181 openPisAtFvarsF —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:172-179 openPisAtFvarsF —
 one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 appear after substitution). -/
 def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
@@ -410,7 +413,7 @@ def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
   | some r => pure (some r)
   | none => openPisAtFvars n e i
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:226-232 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:224-230 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with
@@ -422,7 +425,7 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
 A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
 `.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:483-517 indParamsOk — **the stream's
+/-- con-leche: ConLeche/Kernel/Env.lean:465-499 indParamsOk — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official rejects. -/
 def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool

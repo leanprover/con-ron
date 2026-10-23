@@ -796,48 +796,48 @@
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L10345-L10385
- 10345  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10346  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3688 flushCaches` — **what
- 10347  /// the per-declaration bracket does to the caches**: it drops them whole,
- 10348  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
- 10349  /// this point.
- 10350  ///
- 10351  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
- 10352  /// rows whose key AND value are persistent — which is sound and strictly more
- 10353  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
- 10354  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
- 10355  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
- 10356  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
- 10357  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
- 10358  /// its eleven journals — P3 needs it to state that flushing is sound.
- 10359  pub fn flush_caches(st: &mut AState) {
- 10360      st.caches.reset();
- 10361  }
- 10362  
- 10363  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10364  /// Lean twin: `proof/ConRon/Arena/Core.lean:3690-3698 dropScratch` — drop the
- 10365  /// scratch tier of the store and the cache entries that name it, in one
- 10366  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 10367  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 10368  /// store is owned and scratch-off again.
- 10369  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 10370      flush_caches(st);
- 10371      st.store.thaw(tier);
- 10372  }
- 10373  
- 10374  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10375  /// Lean twin: `proof/ConRon/Arena/Core.lean:3700-3707 enterScratch` — turn the
- 10376  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 10377  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 10378  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 10379  /// are handed back as the `PersTier` every read inside the bracket goes
- 10380  /// through and promotion writes, and every append inside it is a scratch
- 10381  /// append.
- 10382  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 10383      st.memos.reset();
- 10384      st.store.freeze()
- 10385  }
+== crates/con-ron-core/src/arena/core.rs#L10381-L10421
+ 10381  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+ 10382  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3688 flushCaches` — **what
+ 10383  /// the per-declaration bracket does to the caches**: it drops them whole,
+ 10384  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
+ 10385  /// this point.
+ 10386  ///
+ 10387  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
+ 10388  /// rows whose key AND value are persistent — which is sound and strictly more
+ 10389  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
+ 10390  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
+ 10391  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
+ 10392  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
+ 10393  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
+ 10394  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 10395  pub fn flush_caches(st: &mut AState) {
+ 10396      st.caches.reset();
+ 10397  }
+ 10398  
+ 10399  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 10400  /// Lean twin: `proof/ConRon/Arena/Core.lean:3690-3698 dropScratch` — drop the
+ 10401  /// scratch tier of the store and the cache entries that name it, in one
+ 10402  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 10403  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 10404  /// store is owned and scratch-off again.
+ 10405  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 10406      flush_caches(st);
+ 10407      st.store.thaw(tier);
+ 10408  }
+ 10409  
+ 10410  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 10411  /// Lean twin: `proof/ConRon/Arena/Core.lean:3700-3707 enterScratch` — turn the
+ 10412  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 10413  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 10414  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 10415  /// are handed back as the `PersTier` every read inside the bracket goes
+ 10416  /// through and promotion writes, and every append inside it is a scratch
+ 10417  /// append.
+ 10418  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 10419      st.memos.reset();
+ 10420      st.store.freeze()
+ 10421  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -1006,7 +1006,7 @@
    512  /// instead of a cleared one; see its note for how the value was chosen.
    513  pub const WALK_MEMO_KEEP: usize = 1 << 16;
    514  
-   515  /// con-leche: ConLeche/Kernel/Level.lean:395-397 Expr.allLevelParamsDefinedFast
+   515  /// con-leche: ConLeche/Kernel/Level.lean:386-388 Expr.allLevelParamsDefinedFast
    516  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
    517  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
    518  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
@@ -1119,7 +1119,7 @@
    371  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
    372  // ---------------------------------------------------------------------------
    373  
-   374  /// con-leche: ConLeche/Kernel/Core.lean:1736-1771 coreKnot
+   374  /// con-leche: ConLeche/Kernel/Core.lean:1728-1763 coreKnot
    375  /// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — **the
    376  /// executed knot**: the memoized one, `pureFnsA`'s.
    377  pub const LANE_FULL: u32 = 0;
@@ -1643,7 +1643,7 @@
     41  
 
 == crates/con-ron-core/src/arena/checker.rs#L184-L240
-   184  /// con-leche: ConLeche/Cached/Installed.lean:135-173 installStepC
+   184  /// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
    185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:153-207 installStep` — **phase
    186  /// A's step, bracketed**; `i` is the fold position the record is tagged with.
    187  ///
@@ -1717,7 +1717,7 @@
 
 == crates/con-ron/src/driver.rs#L529-L622
    529  
-   530  /// con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls
+   530  /// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
    531  /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
    532  /// **The driver**: the two-phase fold with the boundary visible — a straight
    533  /// line of calls, with the observer's lines between them and the pool for
@@ -2656,7 +2656,7 @@
 
 == crates/con-ron/src/driver.rs#L529-L622
    529  
-   530  /// con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls
+   530  /// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
    531  /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
    532  /// **The driver**: the two-phase fold with the boundary visible — a straight
    533  /// line of calls, with the observer's lines between them and the pool for

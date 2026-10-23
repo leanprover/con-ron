@@ -127,7 +127,7 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:252-254 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:250-252 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -325,7 +325,7 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:256-266 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:254-264 declCLabel
 /// con-leche: ConLeche/Driver/Run.lean:41-45 declCName
 /// A record's display label, `crate::driver::decl_label`'s seven arms with
 /// the names READ BACK out of the store: a handle is not a name until the
@@ -506,7 +506,7 @@ fn check_line<O: PhaseObserver>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:385-409 collectChecks
+/// con-leche: ConLeche/Cached/Installed.lean:383-407 collectChecks
 /// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
 /// by its record's fold position, and the pool's own failures (a missing
 /// result, a panicked worker) as internal errors — exit 3, never a verdict on
@@ -527,7 +527,7 @@ pub fn phase_b_verdict(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
 /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
 /// **The driver**: the two-phase fold with the boundary visible — a straight
 /// line of calls, with the observer's lines between them and the pool for

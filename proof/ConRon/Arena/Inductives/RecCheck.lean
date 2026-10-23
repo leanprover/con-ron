@@ -517,6 +517,7 @@ def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) :
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
 con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 **The checked family consed through the index, at its majors**: each recursor
 with its rules at ITS major, the rules' lookups at the constructors'
 environment, i.e. at its visibility bound `vis₂` while the recursors are pushed

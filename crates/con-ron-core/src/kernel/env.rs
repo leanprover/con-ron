@@ -382,7 +382,8 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ProjTable_refines, then delete this line
 /// One structure's projection table: everything the checker's `.proj` rules
 /// consume about a structure `T`, stored once at the structure's install as
 /// one constant under `proj_table_name T`.
@@ -398,7 +399,8 @@ pub struct ProjTable {
     pub off: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::proj_table_dup_refines, then delete this line
 /// The record copy.
 pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     ProjTable {
@@ -414,7 +416,8 @@ pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
 /// Information stored about an accepted constant.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
@@ -444,7 +447,8 @@ pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Ve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::constant_info_dup_refines, then delete this line
 /// The record copy; what `fenv::push` needs, because a pushed constant lands
 /// both in `env.consts` and in the index (where Lean shares one value).
 pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
@@ -496,7 +500,7 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:390-401 QuotKind
+/// con-leche: ConLeche/Kernel/Env.lean:372-383 QuotKind
 /// Which of the four quotient constants a `#QUOT` record declares — the
 /// record's `kind` field, decoded — plus `Sound`, which is not a kind the
 /// decoder reads but the slot `Quot.sound`'s own axiom record is compared at
@@ -509,7 +513,7 @@ pub enum QuotKind {
     Sound,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:403-406 QuotKind.slot
+/// con-leche: ConLeche/Kernel/Env.lean:385-388 QuotKind.slot
 /// The quotient constant's position in the pinned block.
 ///
 /// Deviation: the cited `Nat` is a `u64` (§3.3).

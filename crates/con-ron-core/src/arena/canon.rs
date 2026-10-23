@@ -129,7 +129,7 @@ pub fn canon_name_map_from(ps: &Vec<NIdx>, cs: &Vec<NIdx>, n: &NIdx, i: usize) -
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Canon.lean:28-35 canonLevel
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:77-99 canonLevelEq` —
 /// `canonLevel ps u == canonLevel ps' v`, decided in lockstep on the two level
 /// handles.  `canonLevel` preserves every node's constructor (it rewrites only
@@ -158,7 +158,7 @@ pub fn canon_level_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:77-99 canonLevelEq` — the arms,
 /// past the two views.  Split at the twin's own `match` boundary so the views'
 /// borrows end before the recursion (task #97-P4c's rule).
@@ -208,7 +208,7 @@ pub fn canon_level_eq_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:101-111 canonLevelListEq` — the
 /// `.const` clause's `us.map (canonLevel m) == us'.map (canonLevel m')`, at
 /// two universe-argument lists read out of the level-list store.  The cited
@@ -242,7 +242,7 @@ pub fn canon_level_list_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:113-117 canonLevelsEq` — the same
 /// at two interned universe-argument LIST handles.
 pub fn canon_levels_eq(
@@ -269,7 +269,7 @@ pub fn canon_levels_eq(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Canon.lean:37-55 canonExpr
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-159 canonExprEq` — **the
 /// agreement for expressions**, in lockstep on two handles.  `canonExpr`
 /// preserves every node's constructor (it rewrites only levels, and resets the
@@ -300,7 +300,7 @@ pub fn canon_expr_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-159 canonExprEq` — the ten
 /// arms, past the two views.
 pub fn canon_expr_eq_at(
@@ -365,7 +365,7 @@ pub fn canon_expr_eq_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:113-133 canonExprEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-159 canonExprEq` — the twin's
 /// `if ← canonExprEq … then canonExprEq … else pure false`, which four of its
 /// arms spell identically.  One function rather than four copies.
@@ -398,8 +398,8 @@ pub fn canon_expr_eq_two(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Canon.lean:65-70 ConstantVal.canon
-/// con-leche: ConLeche/Kernel/Canon.lean:173-177 ConstantVal.canonEq
-/// con-leche: ConLeche/Kernel/Canon.lean:179-184 ConstantVal.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:170-174 ConstantVal.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:176-181 ConstantVal.canonEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:163-174 IConstantVal.canonEq` —
 /// two constants have the same canonical common data.  The numbered
 /// level-parameter lists are equal exactly when they are equally long, which
@@ -487,7 +487,7 @@ pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:202-209 canonRulesEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:199-206 canonRulesEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:176-190 canonRulesEq` — the
 /// twin's `{ r with rhs := default } == { r' with rhs := default }`: every
 /// field of the rule but its right-hand side.
@@ -500,7 +500,7 @@ pub fn i_rec_rule_eq_but_rhs(r: &IRecRule, r2: &IRecRule) -> bool {
         && r.eta == r2.eta
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:202-209 canonRulesEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:199-206 canonRulesEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:176-190 canonRulesEq` — rule
 /// lists compared through the canonical form of each rule's right-hand side.
 /// The two `_, _ => false` arms of the twin are the length mismatch.
@@ -535,7 +535,8 @@ pub fn canon_rules_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-333 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_proj_table_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// the `t == t'` of the `.projInfo` arm, field by field.  `canon` is the
 /// identity on a projection table (one never occurs in parsed input).
@@ -552,9 +553,11 @@ pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
         && t.off == t2.off
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:72-87 ConstantInfo.canon
-/// con-leche: ConLeche/Kernel/Canon.lean:228-230 ConstantInfo.canonEq
-/// con-leche: ConLeche/Kernel/Canon.lean:232-248 ConstantInfo.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Canon.lean:225-227 ConstantInfo.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
@@ -606,7 +609,8 @@ pub fn i_constant_info_canon_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:232-248 ConstantInfo.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::canon_eq_cv_and_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
@@ -643,7 +647,8 @@ pub fn canon_eq_cv_and_value(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:232-248 ConstantInfo.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::canon_eq_cv_and_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
@@ -679,8 +684,8 @@ pub fn canon_eq_cv_and_rules(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:264-267 canonEqList
-/// con-leche: ConLeche/Kernel/Canon.lean:269-273 canonEqListFast
+/// con-leche: ConLeche/Kernel/Canon.lean:260-263 canonEqList
+/// con-leche: ConLeche/Kernel/Canon.lean:265-269 canonEqListFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:222-229 canonEqList` — two blocks
 /// are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(
@@ -762,7 +767,8 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:362-388 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:164-175 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned

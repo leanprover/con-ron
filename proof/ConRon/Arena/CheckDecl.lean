@@ -50,7 +50,7 @@ def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
 /-! ## A block the recogniser does not read -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
-con-leche: ConLeche/Cached/ParsedC.lean:76-84 checkShapelessS
+con-leche: ConLeche/Cached/ParsedC.lean:74-82 checkShapelessS
 The cited `block.foldlM`: every type former checked as a constant and
 discarded, every other member skipped (the Rust's
 `check_shapeless_formers`). -/
@@ -65,7 +65,7 @@ def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
     | _ => checkShapelessFormers mode fe rest
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
-con-leche: ConLeche/Cached/ParsedC.lean:76-84 checkShapelessS
+con-leche: ConLeche/Cached/ParsedC.lean:74-82 checkShapelessS
 **An inductive block the recogniser does not read**: its type formers are
 checked as constants (a reserved name, a duplicate, a malformed type are
 official's rejects and stay rejects), and what survives that is a POSITIVE
@@ -80,6 +80,7 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)

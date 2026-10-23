@@ -5,7 +5,7 @@
 
 use crate::kernel::prop_when::PropWhen;
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:198-202 PropWhen.isProp
+/// con-leche: ConLeche/Kernel/PropRead.lean:197-201 PropWhen.isProp
 /// Is the datum "always zero" — the sort is `Prop` at every valuation?  A
 /// match on `ifAllZero []`, as the cited function is (task #119: it was a
 /// `==` against the canonical datum).

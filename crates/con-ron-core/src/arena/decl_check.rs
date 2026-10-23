@@ -2243,7 +2243,7 @@ pub fn div_mod_certs_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:380-394 checkDivModCertsF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:378-392 checkDivModCertsF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:552-573 checkDivModCerts` —
 /// check the pinned certificates of op `c`: per certificate, the vendored
 /// proof (with the op's self-references replaced by the stored value
@@ -2350,7 +2350,7 @@ pub fn check_div_mod_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:396-404 checkDivModPinAtF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:394-402 checkDivModPinAtF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:575-589 checkDivModPinAt` —
 /// **one pin variant's attempt**: the stored value against the variant's pin by
 /// definitional equality, and on a match the variant's certificates.  `true` =
@@ -2418,7 +2418,7 @@ pub fn div_mod_attempt_reason(e: CheckError) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:334-356 checkDivModPinLoop
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:406-420 checkDivModPinLoopF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:404-418 checkDivModPinLoopF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:600-632 checkDivModPinLoop` —
 /// **the variant loop**: the first variant whose guards pass and whose attempt
 /// succeeds enables the fast path; every other outcome moves on to the next
@@ -2554,7 +2554,7 @@ pub fn check_div_mod_pin_try(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:358-384 checkDivModPin
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:422-432 checkDivModPinF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:420-430 checkDivModPinF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:634-648 checkDivModPin` — the
 /// pin-certified operations' install gate, run after the ordinary definition
 /// check (`fe2` is the already-extended environment, `fe` the pre-insertion one
@@ -2637,7 +2637,7 @@ pub fn defn_value(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:434-453 checkReducePinF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:432-451 checkReducePinF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:650-684 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 /// opaque check: the stored constant carries the pinned type, the witness value
@@ -2835,6 +2835,7 @@ pub fn subst_const0_pairs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:711-721 checkDefnVal` — check
 /// a `def` declaration's value against its checked constant, returning the
 /// pushed index.  The reducibility hint is stored untouched: it steers only the
@@ -2876,6 +2877,7 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:723-739 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition).  **A theorem is stored by its statement
@@ -2914,6 +2916,7 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:723-739 checkThmVal` — the
 /// witness half: the value's guards, its inferred type against
 /// the statement, and the push of `.thmInfo cv` — the statement only.
@@ -2949,6 +2952,7 @@ pub fn check_thm_val_witness(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:741-752 checkOpaqueVal` —
 /// check an `opaque` declaration's value against its checked constant: exactly
 /// the theorem check without the is-a-proposition requirement.  The result is
@@ -2990,7 +2994,8 @@ pub fn check_opaque_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:374-378 installBasisDeclF
+/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::install_basis_decl_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:372-376 installBasisDeclF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:754-761 installBasisDecl` —
 /// install one pinned basis declaration (duplicate-checked), returning the
 /// pushed index.

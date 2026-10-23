@@ -550,7 +550,7 @@ def divModCertsGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx)
   divModCertsGuardGo fe c annVal (← divModCertStmts c) (← divModCertProofs ps c)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-con-leche: ConLeche/Kernel/DeclCheck.lean:380-394 checkDivModCertsF
+con-leche: ConLeche/Kernel/DeclCheck.lean:378-392 checkDivModCertsF
 Check the pinned certificates of op `c`: per certificate, the vendored proof
 (with the op's self-references replaced by the stored value — the
 checks run in the *pre-insertion* environment) is applied to free variables
@@ -573,7 +573,7 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
-con-leche: ConLeche/Kernel/DeclCheck.lean:396-404 checkDivModPinAtF
+con-leche: ConLeche/Kernel/DeclCheck.lean:394-402 checkDivModPinAtF
 **One pin variant's attempt**: the stored value against the variant's pin by
 definitional equality, and on a match the variant's certificates.  `true` =
 matched; `false` = the pin is not definitionally equal, or a certificate did
@@ -598,7 +598,7 @@ def divModAttemptReason (ps : INatOpPinSet) : Option CheckError → String
   | some e => s!"{ps.toolchain}: {reprStr e}"
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:334-356 checkDivModPinLoop
-con-leche: ConLeche/Kernel/DeclCheck.lean:406-420 checkDivModPinLoopF
+con-leche: ConLeche/Kernel/DeclCheck.lean:404-418 checkDivModPinLoopF
 **The variant loop**: the first variant whose guards pass and whose attempt
 succeeds enables the fast path; every other outcome moves on to the next
 variant, and when none is left the stream DECLINES with the per-variant
@@ -632,7 +632,7 @@ def checkDivModPinLoop (mode : CheckMode) (fe : IFEnv) (c : NIdx)
           absent"])
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:358-384 checkDivModPin
-con-leche: ConLeche/Kernel/DeclCheck.lean:422-432 checkDivModPinF
+con-leche: ConLeche/Kernel/DeclCheck.lean:420-430 checkDivModPinF
 The pin-certified operations' install gate, run after the ordinary definition
 check (`fe2` is the already-extended environment, `fe` the pre-insertion one
 all checks run in).  The variant list is its parameter (con-leche's task
@@ -648,7 +648,7 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
     "unsupported Nat.div/mod environment")
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-con-leche: ConLeche/Kernel/DeclCheck.lean:434-453 checkReducePinF
+con-leche: ConLeche/Kernel/DeclCheck.lean:432-451 checkReducePinF
 The `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 opaque check: the stored constant carries the pinned type, the witness value
 is definitionally equal to the build-time pin, and the *identity certificate*
@@ -709,6 +709,7 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 /-! ## The three value kinds' full checks -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 pushed index.  The reducibility hint is stored untouched: it steers only the
 lazy delta unfolding order, never a verdict. -/
@@ -721,6 +722,7 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal — check a
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 `theorem` declaration's value against its checked constant (whose type must
 additionally be a proposition).  **A theorem is stored by its statement
 only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the checked
@@ -739,6 +741,7 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.thmInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal — check an
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkOpaqueVal_bridge, then delete this line
 `opaque` declaration's value against its checked constant: exactly the theorem
 check without the is-a-proposition requirement.  The result is stored as an
 `axiomInfo` — the checked value is a realizability witness, consumed by the
@@ -752,7 +755,8 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.axiomInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-con-leche: ConLeche/Kernel/DeclCheck.lean:374-378 installBasisDeclF
+-- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.installBasisDecl_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:372-376 installBasisDeclF
 Install one pinned basis declaration (duplicate-checked), returning the
 pushed index. -/
 def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
