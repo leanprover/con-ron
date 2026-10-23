@@ -1653,7 +1653,7 @@ theorem iDefnHint_cases (o : Option IConstantInfo) :
   match o with
   | some (.defnInfo _ _ _) => rfl
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.ctorInfo _ _ _)
-  | some (.recInfo _ _ _ _) | some (.projInfo _) | none => rfl
+  | some (.recInfo _ _ _ _) | none => rfl
 grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 
 /-! The same projections at the inductives and constructors. -/
@@ -1706,24 +1706,14 @@ theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
   | some (.ctorInfo _ _ _), _ => rfl
 grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 
-/-! The projections at any stored constant: tower-ness and the record off
-the tower (`Core/Walks/PropRead.lean`'s readers). -/
+/-! The projections at any stored constant: its record
+(`Core/Walks/PropRead.lean`'s readers). -/
 
-/-- con-leche: none — a stored constant's record off the tower (`default` on
-the tower arm, which interns). -/
-def iPureVal : IConstantInfo → IConstantVal
-  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v
-  | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => v
-  | .projInfo _ => default
-/-- con-leche: none — is a stored lookup a tower entry. -/
-def iTower? : Option IConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
 /-- con-leche: none — a stored lookup's record. -/
-def iValP : Option IConstantInfo → IConstantVal | some ci => iPureVal ci | none => default
-/-- con-leche: none — is an environment lookup a tower entry. -/
-def cTower? : Option ConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
+def iValP : Option IConstantInfo → IConstantVal | some ci => ci.toConstantVal | none => default
 /-- con-leche: none — an environment lookup's record. -/
 def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
-attribute [bridge_grind =] iTower? iValP
+attribute [bridge_grind =] iValP
 
 /-! The projections at the inductives' capabilities, the constructors' counts
 and the recursors. -/
@@ -1767,11 +1757,10 @@ theorem denoteCV_levelParams {st : EStore} {cv : IConstantVal} {c : ConstantVal}
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a stored lookup against
 the environment's, through every projection the walks read: the two
 lookups agree on being present, a definition, a constructor, an inductive, a
-recursor and a tower entry, on a definition's hint, a constructor's counts
-and a recursor's indices, and the stored records denote the environment's (a
-definition's record and value, a constructor's record, an inductive's record,
-level parameters and capabilities, a recursor's record and rules, any record
-off the tower). -/
+recursor, on a definition's hint, a constructor's counts and a recursor's
+indices, and the stored records denote the environment's (a definition's
+record and value, a constructor's record, an inductive's record, level
+parameters and capabilities, a recursor's record and rules, any record). -/
 def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
   cDefn? oc = iDefn? oi ∧ cDefnHint oc = iDefnHint oi ∧
   (iDefn? oi = true →
@@ -1779,9 +1768,8 @@ def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo)
     denoteE st (iDefnValue oi) = some (cDefnValue oc)) ∧
   cCtor? oc = iCtor? oi ∧
   (iCtor? oi = true → Frontend.denoteCV st (iCtorVal oi) = some (cCtorVal oc)) ∧
-  oi.isSome = oc.isSome ∧ iTower? oi = cTower? oc ∧
-  (oi.isSome = true → iTower? oi = false →
-    Frontend.denoteCV st (iValP oi) = some (cValP oc)) ∧
+  oi.isSome = oc.isSome ∧
+  (oi.isSome = true → Frontend.denoteCV st (iValP oi) = some (cValP oc)) ∧
   cInd? oc = iInd? oi ∧
   (iInd? oi = true →
     Frontend.denoteCV st (iIndVal oi) = some (cIndVal oc) ∧
@@ -1809,41 +1797,36 @@ theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv hx; cases h
-      exact ⟨rfl, rfl, fun _ => ⟨hcv, hx⟩, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun,
+      exact ⟨rfl, rfl, fun _ => ⟨hcv, hx⟩, rfl, nofun, rfl, fun _ => hcv, rfl, nofun,
         nofun, rfl, nofun⟩
     · cases h
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv hcaps; cases h
-      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl,
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl,
         fun _ => ⟨hcv, denoteCV_levelParams hcv, hcaps⟩, nofun, rfl, nofun⟩
     · cases h
   | recInfo v mI rP rs =>
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv hrs; cases h
-      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl,
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl, nofun, nofun, rfl,
         fun _ => ⟨hcv, hrs, rfl, rfl⟩⟩
     · cases h
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
   | thmInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
   | ctorInfo v nP nF =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, rfl, fun _ _ => hcv, rfl, nofun,
+    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, fun _ => hcv, rfl, nofun,
       fun _ => ⟨rfl, rfl⟩, rfl, nofun⟩
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨t', _, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, (fun _ h => nomatch h), rfl, nofun, nofun, rfl,
-      nofun⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
 every lookup the program makes, keyed by the invariant and the lookup: ONE
@@ -1858,7 +1841,7 @@ theorem indexAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
   | none =>
     show IndexCI s.store (fe.find? c) (env.find? nm)
     simp only [hf, IFEnvOK.miss hok.state hok.ienv hn hf]
-    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, nofun, rfl, nofun, nofun, rfl, nofun⟩
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, nofun, rfl, nofun, nofun, rfl, nofun⟩
   | some ci =>
     obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
@@ -1881,8 +1864,7 @@ theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : Con
       (iCtor? (fe.find? c) = true →
         Frontend.denoteCV st (iCtorVal (fe.find? c)) = some (cCtorVal (env.find? nm))) ∧
       (fe.find? c).isSome = (env.find? nm).isSome ∧
-      iTower? (fe.find? c) = cTower? (env.find? nm) ∧
-      ((fe.find? c).isSome = true → iTower? (fe.find? c) = false →
+      ((fe.find? c).isSome = true →
         Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm))) ∧
       cInd? (env.find? nm) = iInd? (fe.find? c) ∧
       (iInd? (fe.find? c) = true →

@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.Proj` — the projection table
 
-The projection table's walks: the reserved table name, the indexed lookup at
+The projection table's walks: the indexed lookup at
 `Bridge/Rel.lean`'s `denoteProjEntry`, the tower-fire guard, the `.proj`
 node's type and the projection certificates.  Without `denoteProjEntry` an
 `IProjEntry` (`Arena/Env.lean:150`, ten fields, four of them handles) has no
@@ -12,8 +12,7 @@ denotation, and `IProjEntry.typeAt`, `projCert`, `IProjEntry.fireOk` and the
 
 | theorem | what it is |
 |---|---|
-| `projTableName_spec` | the reserved name of `T`'s table, interned |
-| `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` |
+| `findProjAt`, `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` |
 | `IProjEntry.fireOk_spec` | the tower-fire guard |
 | `IProjEntry.typeAt_spec` | the `.proj` node's type |
 | `iotaCerts_spec` | the batched spine certificate |
@@ -34,8 +33,8 @@ two columns have `numFields` entries.
 wrong place to take it from anyway: **a simulation B ⇒ A takes invariants on
 the REFINED side only**, `denoteProjTable` transports both columns pointwise
 and copies `numFields` verbatim, so the pure table's sizes ARE ours.  The
-clause is `Bridge/StateOK.lean`'s `IProjTableOK`, a field of `IFEnvOK`, and
-`findProj?_spec` reads it off `hok.ienv.proj` with no hypothesis of its own.
+clause is `Bridge/StateOK.lean`'s `IProjTableOK`, carried by `IFEnvOK.tblHit`,
+and `findProjAt` reads it off `hok.ienv` with no hypothesis of its own.
 Its one debtor is the install (`Bridge/Checker/Inv.lean`'s
 `projTableOK_of_install`, owned by the Inductives tier).
 
@@ -99,180 +98,121 @@ def denoteProjEntryO (st : EStore) : Option IProjEntry → Option (Option ProjEn
   | none => some none
   | some e => (denoteProjEntry st e).map some
 
-/-! ## 1. The reserved table name -/
+/-! ## 1. The table lookup -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName — **THEOREM 1
-for `projTableName`**: the handle the twin interns denotes con-leche's
-reserved name `(T.str "projTable").num 0`.  Two `internNNode`s, in
-`Bridge/Specs.lean`'s `internName_spec` shape. -/
-theorem projTableName_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
-    (hwf : StoreWF s₀.store) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.projTableName T
-    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteN s'.store.ns h = some (ConLeche.projTableName Tn); ⊤⦄ := by
-  sym only [bridge_grind, denoteNView, Arena.NStore.ViewOK, NNodeView.children,
-      List.mem_singleton, nview_isSome_of_denote, ConLeche.projTableName] =>
-    vcgen [ConRon.Arena.projTableName, internNNode_spec] <;> finish
-
-/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName —
-`projTableName_spec` at the tier's invariant (`CheckOK.mono`), for the lookup
-below. -/
-theorem projTableName_specC (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.projTableName T
-    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteN s'.store.ns h = some (ConLeche.projTableName Tn); ⊤⦄ :=
-  triple_mono (projTableName_spec s₀ T Tn hok.state.wf hT)
-    (fun _ _ ⟨hwf, hx, hm, hc, hp, hd⟩ => ⟨hok.mono ⟨hwf⟩ hx hc hp, hx, hm, hc, hp, hd⟩)
-
-/-! ## 2. The shape clause con-leche's `ConstWF` half-records -/
-
-/-! ## 3. The lookup -/
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
-stores a TABLE at the reserved name: the entry the arena answers with denotes
-con-leche's (`IFEnvOK.hit` at the reserved name, `denoteCI`'s `.projInfo` arm
-and `denoteProjTable_entry`); `findProjAt` reads this and the two misses
-as one equation. -/
-theorem findProj?_hit_some {s : AState} {rn : NIdx} {tbl : IProjTable}
-    {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
-    (hfind : fe.find? rn = some (.projInfo tbl))
-    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
-    ∀ e, (if i < tbl.numFields then some (tbl.entry i) else none) = some e →
-      ∃ p, denoteProjEntry s.store e = some p ∧ env.findProj? Tn i = some p := by
-  obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
-  obtain rfl : nm = ConLeche.projTableName Tn := by
-    rw [hnm] at hdn; exact Option.some.inj hdn
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-  obtain ⟨pt, hpt, rfl⟩ := hci
-  obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
-  obtain ⟨hbsz, hgsz, -⟩ := hck.ienv.proj rn tbl hfind
-  intro e he
-  split at he
-  next hlt =>
-    obtain rfl := Option.some.inj he
-    exact ⟨pt.entry i,
-      denoteProjTable_entry hpt (by rw [hbsz]; exact hlt) (by rw [hgsz]; exact hlt),
-      ConLeche.Env.findProj?_of_table hfindE (by rw [hnf]; exact hlt)⟩
-  next => exact absurd he (by simp)
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the table's
-slot is out of range in both tiers (the two `numFields` are one number). -/
-theorem findProj?_hit_none {s : AState} {rn : NIdx} {tbl : IProjTable}
-    {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
-    (hfind : fe.find? rn = some (.projInfo tbl))
-    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
-    (if i < tbl.numFields then some (tbl.entry i) else none) = none →
-      env.findProj? Tn i = none := by
-  obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
-  obtain rfl : nm = ConLeche.projTableName Tn := by
-    rw [hnm] at hdn; exact Option.some.inj hdn
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-  obtain ⟨pt, hpt, rfl⟩ := hci
-  obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
-  intro he
-  split at he
-  next => exact absurd he (by simp)
-  next hlt =>
-    simp only [ConLeche.Env.findProj?, hfindE]
-    exact ite_eq_right (by rw [hnf]; exact hlt)
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
-stores no table at the reserved name, so neither does the environment
-(`IFEnvOK.miss` through `denoteN_inj`, or a non-table entry). -/
-theorem findProj?_miss_none {s : AState} {rn : NIdx} {Tn : ConLeche.Name}
-    {i : Nat} (hck : CheckOK mode env fe s)
-    (hno : ∀ tbl, fe.find? rn ≠ some (.projInfo tbl))
-    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
-    (none : Option IProjEntry) = none → env.findProj? Tn i = none := by
-  intro _
-  cases hf : fe.find? rn with
-  | none =>
-    exact ConLeche.Env.findProj?_none_of_fresh
-      (IFEnvOK.miss hck.state hck.ienv hdn hf) i
+/-- con-leche: ConLeche/Kernel/FEnv.lean:248-254 findTable? — **the gate**: the
+index finds the structure exactly where the environment does
+(`IFEnvOK.hit`, and `IFEnvOK.miss` through `denoteN_inj`). -/
+theorem find?_isSome_eq {s : AState} {T : NIdx} {Tn : ConLeche.Name}
+    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (fe.find? T).isSome = (env.find? Tn).isSome := by
+  cases hf : fe.find? T with
+  | none => rw [IFEnvOK.miss hck.state hck.ienv hT hf]; rfl
   | some ci =>
-    obtain ⟨nm, c, hnm, hci, hfindE⟩ := hck.ienv.hit rn ci hf
-    obtain rfl : nm = ConLeche.projTableName Tn := by
-      rw [hnm] at hdn; exact Option.some.inj hdn
-    simp only [ConLeche.Env.findProj?, hfindE]
-    cases c
-    case projInfo pt =>
-      obtain ⟨tbl, rfl, _⟩ := denoteCI_projInfo hci
-      exact (hno tbl hf).elim
-    all_goals rfl
+    obtain ⟨nm, c, hnm, -, he⟩ := hck.ienv.hit T ci hf
+    obtain rfl : nm = Tn := Option.some.inj (hnm.symm.trans hT)
+    rw [he]; rfl
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the arena's
-lookup at the reserved name's handle, as a pure function (the program's
-`match`, so that `grind` reads both arms off one term). -/
-def iFindProj (fe : IFEnv) (rn : NIdx) (i : Nat) : Option IProjEntry :=
-  match fe.find? rn with
-  | some (.projInfo tbl) => if i < tbl.numFields then some (tbl.entry i) else none
-  | _ => none
+/-- con-leche: ConLeche/Kernel/FEnv.lean:241-246 rawTable? — the raw table
+lookups, side by side: a hit denotes the environment's table and is well
+shaped (`IFEnvOK.tblHit`); a miss is a miss (`IFEnvOK.tblCover` through
+`denoteN_inj`). -/
+theorem rawTable?_at {s : AState} {T : NIdx} {Tn : ConLeche.Name}
+    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (∀ t, fe.rawTable? T = some t → ∃ pt, Frontend.denoteProjTable s.store t = some pt ∧
+      envRawTable env Tn = some pt ∧ IProjTableOK t) ∧
+    (fe.rawTable? T = none → envRawTable env Tn = none) := by
+  obtain ⟨rk, hrk⟩ := hck.state.wf
+  refine ⟨fun t ht => ?_, fun hn => ?_⟩
+  · obtain ⟨nm, pt, hnm, hpt, he, hok⟩ := hck.ienv.tblHit T t ht
+    obtain rfl : nm = Tn := Option.some.inj (hnm.symm.trans hT)
+    exact ⟨pt, hpt, he, hok⟩
+  · cases he : envRawTable env Tn with
+    | none => rfl
+    | some pt =>
+      obtain ⟨n, t, hn', hf, -⟩ := hck.ienv.tblCover Tn pt he
+      obtain rfl := denoteN_inj hrk.nsWF hT hn'
+      rw [hn] at hf; cases hf
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — **the lookup
-as ONE equation**: at a handle denoting `T`'s reserved name, the
-arena's answer denotes con-leche's — the three lemmas above, keyed by the
-invariant, the name's denotation and the comparand. -/
-theorem findProjAt {s : AState} {rn : NIdx} {Tn : ConLeche.Name} {i : Nat}
-    (hck : CheckOK mode env fe s)
-    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
-    denoteProjEntryO s.store (iFindProj fe rn i) = some (env.findProj? Tn i) := by
-  unfold iFindProj
-  split
-  · rename_i tbl hfind
-    cases hif : (if i < tbl.numFields then some (tbl.entry i) else none) with
+/-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? — **the lookup
+as ONE equation**: at a handle denoting `Tn`, the arena's answer denotes
+con-leche's.  The gate (`find?_isSome_eq`), the raw lookups
+(`rawTable?_at`), and `Bridge/Rel.lean`'s `denoteProjTable_entry` in range —
+which `IProjTableOK`'s sizes make the two `numFields` tests one. -/
+theorem findProjAt {s : AState} {T : NIdx} {Tn : ConLeche.Name} {i : Nat}
+    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    denoteProjEntryO s.store (fe.findProj? T i) = some (env.findProj? Tn i) := by
+  have hg := find?_isSome_eq hck hT
+  obtain ⟨hhit, hmiss⟩ := rawTable?_at hck hT
+  simp only [ConRon.Arena.IFEnv.findProj?, ConRon.Arena.IFEnv.findTable?,
+    ConLeche.Env.findProj?, ConLeche.Env.findTable?, hg]
+  cases hs : (env.find? Tn).isSome with
+  | false => rfl
+  | true =>
+    simp only [ite_true]
+    cases hr : fe.rawTable? T with
     | none =>
-      rw [findProj?_hit_none hck hfind hdn hif]; rfl
-    | some e =>
-      obtain ⟨p, hp, hfp⟩ := findProj?_hit_some hck hfind hdn e hif
-      rw [hfp]; simp [denoteProjEntryO, hp]
-  · rename_i hno
-    rw [findProj?_miss_none hck (fun tbl h => hno tbl h) hdn rfl]; rfl
+      have := hmiss hr
+      simp only [envRawTable] at this
+      rw [this]; rfl
+    | some t =>
+      obtain ⟨pt, hpt, he, hok⟩ := hhit t hr
+      simp only [envRawTable] at he
+      rw [he]
+      obtain ⟨hnf, -⟩ := denoteProjTable_fields hpt
+      simp only [hnf]
+      split
+      · rename_i hlt
+        simp [denoteProjEntryO,
+          denoteProjTable_entry hpt (by rw [hok.bodies]; exact hlt) (by rw [hok.guards]; exact hlt)]
+      · rfl
 grind_pattern [bridge_grind] findProjAt =>
-  CheckOK mode env fe s, denoteN s.store.ns rn, env.findProj? Tn i where
-  guard denoteN s.store.ns rn = some (ConLeche.projTableName Tn)
+  CheckOK mode env fe s, fe.findProj? T i, env.findProj? Tn i where
+  guard denoteN s.store.ns T = some Tn
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — Theorem 1 for
-the lookup with its answer as one equation (no `∃` for `grind` to
-prove). -/
-theorem IFEnv.findProj?_specA (s₀ : AState) (T : NIdx) (i : Nat)
-    (Tn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
-    (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ fe.findProj? T i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteProjEntryO s'.store r = some (env.findProj? Tn i); ⊤⦄ := by
-  sym only [bridge_grind, iFindProj, denoteProjEntryO] =>
-    vcgen [ConRon.Arena.IFEnv.findProj?,
-      projTableName_specC (Tn := Tn) (mode := mode) (env := env) (fe := fe)] <;> finish
+/-- con-leche: ConLeche/Kernel/FEnv.lean:248-254 findTable? — the table
+lookups' presence agree at a handle denoting `Tn` (`findProjAt`'s gate and
+raw halves), for `projMissError`'s `hasTable`. -/
+theorem findTable?_isSome_at {s : AState} {T : NIdx} {Tn : ConLeche.Name}
+    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (fe.findTable? T).isSome = (env.findTable? Tn).isSome := by
+  have hg := find?_isSome_eq hck hT
+  obtain ⟨hhit, hmiss⟩ := rawTable?_at hck hT
+  simp only [ConRon.Arena.IFEnv.findTable?, ConLeche.Env.findTable?, hg]
+  cases (env.find? Tn).isSome with
+  | false => rfl
+  | true =>
+    simp only [ite_true]
+    cases hr : fe.rawTable? T with
+    | none =>
+      have := hmiss hr
+      simp only [envRawTable] at this
+      rw [this]; rfl
+    | some t =>
+      obtain ⟨pt, -, he, -⟩ := hhit t hr
+      simp only [envRawTable] at he
+      rw [he]; rfl
+grind_pattern [bridge_grind] findTable?_isSome_at =>
+  CheckOK mode env fe s, fe.findTable? T, env.findTable? Tn where
+  guard denoteN s.store.ns T = some Tn
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — **THEOREM 1
-for the indexed projection-table lookup**: the entry the arena answers with
-denotes the entry con-leche's environment answers with, and a miss is a miss.
-
-The `some` half is `IFEnvOK.hit` at the reserved name, `denoteCI`'s
-`.projInfo` arm, and `Bridge/Rel.lean`'s `denoteProjTable_entry`; the `none`
-half is `IFEnvOK.miss` (through `denoteN_inj`) and the fact that the two
-`numFields` are literally the same number. -/
-theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
-    (Tn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
-    (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ fe.findProj? T i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
-          env.findProj? Tn i = some p) ∧
-        (r = none → env.findProj? Tn i = none); ⊤⦄ := by
-  refine triple_mono (IFEnv.findProj?_specA s₀ T i Tn hok hT) ?_
-  rintro r s' ⟨h1, h2, h3, h4, h5, h6⟩
-  refine ⟨h1, h2, h3, h4, h5, fun e he => ?_, fun he => ?_⟩
-  · subst he
+/-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? — **THEOREM 1
+for the indexed projection-table lookup**, `findProjAt` read off: the entry the
+arena answers with denotes the entry con-leche's environment answers with, and
+a miss is a miss. -/
+theorem IFEnv.findProj?_spec {s : AState} (T : NIdx) (i : Nat)
+    (Tn : ConLeche.Name) (hok : CheckOK mode env fe s)
+    (hT : denoteN s.store.ns T = some Tn) :
+    (∀ e, fe.findProj? T i = some e → ∃ p, denoteProjEntry s.store e = some p ∧
+      env.findProj? Tn i = some p) ∧
+    (fe.findProj? T i = none → env.findProj? Tn i = none) := by
+  have h6 := findProjAt (i := i) hok hT
+  refine ⟨fun e he => ?_, fun he => ?_⟩
+  · rw [he] at h6
     simp only [denoteProjEntryO, Option.map_eq_some_iff] at h6
     obtain ⟨p, hp, hpe⟩ := h6
     exact ⟨p, hp, hpe.symm⟩
-  · subst he
+  · rw [he] at h6
     exact (Option.some.inj h6).symm
 
 /-! ## 4. `IProjEntry.fireOk`
@@ -314,7 +254,7 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     ⦃fun s => s = s₀⦄ entry.fireOk us
     ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = p.fireOk ls; ⊤⦄ := by
-  obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf, _ho⟩ :=
+  obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf⟩ :=
     denoteProjEntry_inv hden
   simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
   sym only [bridge_grind, ConLeche.ProjEntry.fireOk, → CheckOK.readL', → CheckOK.readLs',
@@ -358,7 +298,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (p.typeAt ls xs x); ⊤⦄ := by
-  obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf, _ho⟩ :=
+  obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf⟩ :=
     denoteProjEntry_inv hden
   have hvec : ExprOps.InstLVec s₀.store (targs.toArray.push pe)
       (x :: xs.reverse) := by
@@ -690,9 +630,6 @@ theorem denoteCI_ctor_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨_, _, hc⟩ := h; simp at hc
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; simp at hc
   | defnInfo v e hi =>
     obtain ⟨_, _, _, _, hc⟩ := denoteCI_defnInfo_inv h; simp at hc
   | thmInfo v =>
@@ -831,7 +768,7 @@ ONE equation over the environment's constructor projections. -/
   match o with
   | some (.ctorInfo _ _ _) => rfl
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.defnInfo _ _ _)
-  | some (.recInfo _ _ _ _) | some (.projInfo _) | none => rfl
+  | some (.recInfo _ _ _ _) | none => rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
 the structural projection's certificate**: the constructor's stored type has
@@ -869,10 +806,8 @@ theorem projCertAt_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
 
 section Census
 
-#print axioms projTableName_spec
-#print axioms projTableName_specC
 #print axioms findProjAt
-#print axioms IFEnv.findProj?_specA
+#print axioms findTable?_isSome_at
 #print axioms IFEnv.findProj?_spec
 #print axioms IProjEntry.fireOk_spec
 #print axioms instantiateListFast_specC

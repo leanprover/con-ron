@@ -1961,7 +1961,7 @@ theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
       (fun eq => (Expr.substConst0 nm v' eq.1, Expr.substConst0 nm v' eq.2)),
       Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2 := by
   intro q hq
-  have hc := henv _ (List.mem_of_find?_eq_some hf)
+  have hc := henv.consts _ (List.mem_of_find?_eq_some hf)
   obtain ⟨hf1, -, -, -⟩ := hc.2.2.2.2.1 cv' v' hint' rfl
   have hv2 : Expr.WScoped 2 v' := ConLeche.Expr.WScoped.of_not_hasFvar hf1
   simp only [List.mem_map] at hq

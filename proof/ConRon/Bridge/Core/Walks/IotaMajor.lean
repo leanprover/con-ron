@@ -437,7 +437,7 @@ def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (ca
         let reserved ← reservedBasisNames
         if reserved.contains T = false ∧
             reserved.contains caps.etaCtor = false then do
-          if ← towerSlotsAll fe T caps.etaFields then do
+          if towerSlotsAll fe T caps.etaFields then do
             let fabArgs ← etaFabArgsE T targs major caps.etaFields
             let hd ← internE (.const caps.etaCtor ust)
             let fab ← mkAppN hd fabArgs
@@ -948,7 +948,6 @@ theorem majorEta_spec {fuel : Nat}
     vcgen [majorEtaA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
       capsNeverZero_specS (mode := mode) (env := env) (fe := fe),
       reservedBasisNames_spec (mode := mode) (env := env) (fe := fe),
-      towerSlotsAll_spec (mode := mode) (env := env) (fe := fe) (Tn := Tn),
       etaFabArgsE_specS (mode := mode) (env := env) (fe := fe) (Tn := Tn) (x := x),
       internE_specC (mode := mode) (env := env) (fe := fe),
       mkAppN_specC (mode := mode) (env := env) (fe := fe),

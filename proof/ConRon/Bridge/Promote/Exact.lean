@@ -89,9 +89,27 @@ constants were pushed with — otherwise `IFEnv.find?` answers a constant under
 a word `dropScratch` is about to hand back to the next declaration. -/
 
 /-- con-leche: none — arena infrastructure; the denotation of an environment
-INDEX: its constant list, read back.  §8.2's `denoteEnv`. -/
+INDEX: its constant list and its table list, read back.  §8.2's `denoteEnv`. -/
 def denoteIEnv (st : EStore) (e : IEnv) : Option Env :=
-  (Frontend.denoteCIList st e.consts).map Env.mk
+  match Frontend.denoteCIList st e.consts, Frontend.denoteProjTableList st e.tables with
+  | some cs, some ts => some ⟨cs, ts⟩
+  | _, _ => none
+
+/-- con-leche: none — arena infrastructure; `denoteIEnv` read off: both lists
+denote. -/
+theorem denoteIEnv_some {st : EStore} {e : IEnv} {env : Env} :
+    denoteIEnv st e = some env ↔
+      Frontend.denoteCIList st e.consts = some env.consts ∧
+        Frontend.denoteProjTableList st e.tables = some env.tables := by
+  unfold denoteIEnv
+  constructor
+  · intro h
+    split at h
+    · rename_i cs ts hcs hts
+      cases h; exact ⟨hcs, hts⟩
+    · cases h
+  · rintro ⟨h1, h2⟩
+    rw [h1, h2]
 
 /-- con-leche: none — arena infrastructure; the denotation of the indexed
 environment is the denotation of its list (the index is a cache of the list,
@@ -122,12 +140,23 @@ the promotion could not meet it.  Every consumer reads only the counter and
 the lookups, which is what this says. -/
 def IFEnvCoh (fe : IFEnv) : Prop :=
   fe.visibleBelow = fe.env.consts.length ∧
-    ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
+    (∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?) ∧
+    ∀ n : NIdx, fe.tbls[n]? = (mkIFEnvTblsGo fe.env.tables)[n]?
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the constant index's
+half of `IFEnvCoh`. -/
+theorem IFEnvCoh.idx {fe : IFEnv} (h : IFEnvCoh fe) (n : NIdx) :
+    fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]? := h.2.1 n
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:149-153 mkTblsGo — the table map's
+half of `IFEnvCoh`. -/
+theorem IFEnvCoh.tbls {fe : IFEnv} (h : IFEnvCoh fe) (n : NIdx) :
+    fe.tbls[n]? = (mkIFEnvTblsGo fe.env.tables)[n]? := h.2.2 n
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — an index built by
 `mkIFEnv` is coherent. -/
 theorem IFEnvCoh.mk (e : IEnv) : IFEnvCoh (mkIFEnv e) :=
-  ⟨mkIFEnvGo_fst' e.consts, fun _ => rfl⟩
+  ⟨mkIFEnvGo_fst' e.consts, fun _ => rfl, fun _ => rfl⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
 to the denotation**: one more constant at the front, which is exactly what
@@ -135,11 +164,21 @@ con-leche's `⟨ci :: env.consts⟩` writes. -/
 theorem denoteFEnv_push {st : EStore} {fe : IFEnv} {env : Env}
     {ci : IConstantInfo} {c : ConstantInfo} (h : denoteFEnv st fe = some env)
     (hci : Frontend.denoteCI st ci = some c) :
-    denoteFEnv st (fe.push ci) = some ⟨c :: env.consts⟩ := by
-  simp only [denoteFEnv, denoteIEnv, IFEnv.push, Option.map_eq_some_iff] at h ⊢
-  obtain ⟨cs, hcs, he⟩ := h
-  subst he
-  exact ⟨c :: cs, by simp only [Frontend.denoteCIList, hci, hcs], rfl⟩
+    denoteFEnv st (fe.push ci) = some ⟨c :: env.consts, env.tables⟩ := by
+  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
+  refine denoteIEnv_some.mpr ⟨?_, hts⟩
+  simp only [IFEnv.push, Frontend.denoteCIList, hci, hcs]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **what a table
+install does to the denotation**: one more table at the front, which is exactly
+what con-leche's `⟨env.consts, t :: env.tables⟩` writes. -/
+theorem denoteFEnv_pushTable {st : EStore} {fe : IFEnv} {env : Env}
+    {t : IProjTable} {pt : ProjTable} (h : denoteFEnv st fe = some env)
+    (ht : Frontend.denoteProjTable st t = some pt) :
+    denoteFEnv st (fe.pushTable t) = some ⟨env.consts, pt :: env.tables⟩ := by
+  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
+  refine denoteIEnv_some.mpr ⟨hcs, ?_⟩
+  simp only [IFEnv.pushTable, Frontend.denoteProjTableList, ht, hts]
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **`IFEnv.push`
 preserves the coherence clause**: the index of the cons-extended environment
@@ -155,9 +194,17 @@ One of the two `IFEnv.push` lemmas (the other is `Pushed.push` just below);
 fourteen install statements of `Bridge/Inductives/**` want the pair. -/
 theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
-  refine ⟨by simp [IFEnv.push, h.1], fun n => ?_⟩
-  simp only [IFEnv.push, mkIFEnvGo, mkIFEnvGo_fst', Std.HashMap.getElem?_insert, h.2 n,
+  refine ⟨by simp [IFEnv.push, h.1], fun n => ?_, fun n => h.tbls n⟩
+  simp only [IFEnv.push, mkIFEnvGo, mkIFEnvGo_fst', Std.HashMap.getElem?_insert, h.idx n,
     h.1]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **`IFEnv.pushTable`
+preserves the coherence clause**: the table map of the extended environment is
+the one `mkIFEnvTblsGo` builds for it, the constant index untouched. -/
+theorem IFEnvCoh.pushTable {fe : IFEnv} (h : IFEnvCoh fe) (t : IProjTable) :
+    IFEnvCoh (fe.pushTable t) := by
+  refine ⟨h.1, fun n => h.idx n, fun n => ?_⟩
+  simp only [IFEnv.pushTable, mkIFEnvTblsGo, Std.HashMap.getElem?_insert, h.tbls n]
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — **every counter the
 index build hands out is BELOW the counter it stops at**, which is what makes
@@ -201,13 +248,40 @@ theorem Pushed.trans {a b c : IFEnv} (h₁ : Pushed a b) (h₂ : Pushed b c) :
 theorem Pushed.push (fe : IFEnv) (ci : IConstantInfo) : Pushed fe (fe.push ci) :=
   ⟨[ci], rfl⟩
 
+/-- con-leche: none — a table install pushes no constant. -/
+theorem Pushed.pushTable (fe : IFEnv) (t : IProjTable) : Pushed fe (fe.pushTable t) :=
+  ⟨[], rfl⟩
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the step only
+pushed TABLES onto the table list**: the table half of `Pushed`, what makes
+the promotion's `kt` mean the step's tables. -/
+def TPushed (fe0 fe : IFEnv) : Prop :=
+  ∃ new, fe.env.tables = new ++ fe0.env.tables
+
+theorem TPushed.refl (fe : IFEnv) : TPushed fe fe := ⟨[], rfl⟩
+
+theorem TPushed.trans {a b c : IFEnv} (h₁ : TPushed a b) (h₂ : TPushed b c) :
+    TPushed a c := by
+  obtain ⟨n₁, e₁⟩ := h₁
+  obtain ⟨n₂, e₂⟩ := h₂
+  exact ⟨n₂ ++ n₁, by rw [e₂, e₁, List.append_assoc]⟩
+
+/-- con-leche: none — a constant push installs no table. -/
+theorem TPushed.push (fe : IFEnv) (ci : IConstantInfo) : TPushed fe (fe.push ci) :=
+  ⟨[], rfl⟩
+
+theorem TPushed.pushTable (fe : IFEnv) (t : IProjTable) : TPushed fe (fe.pushTable t) :=
+  ⟨[t], rfl⟩
+
 /-! ### The fold's entry, run
 
-`promoteNew` is `promoteCIList` on the step's `k` newest constants plus two
-index passes.  The lemmas below read the run (`promoteNew_run_zero`,
-`promoteNew_run_pos`), locate the step's constants in the list
-(`Pushed.split`), and say what the two index passes can answer
-(`eraseInstalled_getElem?`, `indexPromoted_getElem?`). -/
+`promoteNew` is `promoteNewConsts` then `promoteNewTables`: `promoteCIList` on
+the step's `k` newest constants plus two index passes, then
+`promoteProjTables` on its `kt` newest tables plus two table-map passes.  The
+lemmas below read the runs (`promoteNew_run`, `promoteNewConsts_run_zero`,
+`promoteNewConsts_run_pos`, and the tables' pair), locate the step's entries in
+the lists (`Pushed.split`, `TPushed.split`), and say what the index passes can
+answer (`eraseInstalled_getElem?`, `indexPromoted_getElem?`). -/
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — a row of the index
 build is an entry of its list, filed under that entry's own name. -/
@@ -229,6 +303,18 @@ theorem mkIFEnvGo_key : ∀ (cs : List IConstantInfo) (n : NIdx) (p : Nat × ICo
 
 theorem IFEnvCoh.vb_eq {fe : IFEnv} (h : IFEnvCoh fe) :
     fe.visibleBelow = fe.env.consts.length := h.1
+
+/-- con-leche: none — arena infrastructure; **the step's tables are the `kt`
+newest**, as `Pushed.split` for the constants. -/
+theorem TPushed.split {fe0 fe : IFEnv} {kt : Nat} (hpush : TPushed fe0 fe)
+    (hk : kt = fe.env.tables.length - fe0.env.tables.length) :
+    fe.env.tables.take kt ++ fe0.env.tables = fe.env.tables ∧
+      fe.env.tables.drop kt = fe0.env.tables ∧ (fe.env.tables.take kt).length = kt := by
+  obtain ⟨new, hnew⟩ := hpush
+  have hl : kt = new.length := by rw [hk, hnew, List.length_append]; omega
+  subst hl
+  rw [hnew]
+  simp
 
 /-- con-leche: none — arena infrastructure; **the step's constants are the
 `k` newest**: with both ends coherent and the step only pushing, `k` is the
@@ -253,7 +339,6 @@ theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
   | indInfo v c => exact h.1.name
   | ctorInfo v nP nF => exact (show PersCV v from h).name
   | recInfo v mI rP rs => exact h.1.name
-  | projInfo t => exact (show PersProjTable t from h).tableName
 
 theorem eraseInstalled_getElem? : ∀ (cs : List IConstantInfo)
     (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (n : NIdx) (p : Nat × IConstantInfo),
@@ -342,27 +427,172 @@ theorem denoteCIList_append_of {st : EStore} : ∀ (a b : List IConstantInfo)
         simp only [List.cons_append, Frontend.denoteCIList, hc, ih b xs zb hcs hb,
           List.cons_append]
 
-/-- con-leche: none — arena infrastructure; `promoteNew` at `k = 0` does
-nothing. -/
-theorem promoteNew_run_zero {m m' : PMemo} {fuel : Nat} {fe fe' : IFEnv}
-    {s s' : AState} (hrun : promoteNew m fuel 0 fe s = .ok ((m', fe'), s')) :
-    m' = m ∧ fe' = fe ∧ s' = s := by
+theorem denoteProjTableList_append {st : EStore} : ∀ (a b : List IProjTable)
+    (zs : List ProjTable), Frontend.denoteProjTableList st (a ++ b) = some zs →
+    ∃ za zb, Frontend.denoteProjTableList st a = some za ∧
+      Frontend.denoteProjTableList st b = some zb ∧ zs = za ++ zb := by
+  intro a
+  induction a with
+  | nil => intro b zs h; exact ⟨[], zs, rfl, h, rfl⟩
+  | cons c cs ih =>
+    intro b zs h
+    simp only [List.cons_append, Frontend.denoteProjTableList] at h ⊢
+    cases hc : Frontend.denoteProjTable st c with
+    | none => rw [hc] at h; simp at h
+    | some x =>
+      cases hcs : Frontend.denoteProjTableList st (cs ++ b) with
+      | none => rw [hc, hcs] at h; simp at h
+      | some xs =>
+        rw [hc, hcs] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        obtain ⟨za, zb, h1, h2, rfl⟩ := ih b xs hcs
+        exact ⟨x :: za, zb, by rw [h1], h2, rfl⟩
+
+theorem denoteProjTableList_append_of {st : EStore} : ∀ (a b : List IProjTable)
+    (za zb : List ProjTable), Frontend.denoteProjTableList st a = some za →
+    Frontend.denoteProjTableList st b = some zb →
+    Frontend.denoteProjTableList st (a ++ b) = some (za ++ zb) := by
+  intro a
+  induction a with
+  | nil =>
+    intro b za zb ha hb
+    simp only [Frontend.denoteProjTableList, Option.some.injEq] at ha
+    subst ha; exact hb
+  | cons c cs ih =>
+    intro b za zb ha hb
+    simp only [Frontend.denoteProjTableList] at ha
+    cases hc : Frontend.denoteProjTable st c with
+    | none => rw [hc] at ha; simp at ha
+    | some x =>
+      cases hcs : Frontend.denoteProjTableList st cs with
+      | none => rw [hc, hcs] at ha; simp at ha
+      | some xs =>
+        rw [hc, hcs] at ha
+        simp only [Option.some.injEq] at ha
+        subst ha
+        simp only [List.cons_append, Frontend.denoteProjTableList, hc, ih b xs zb hcs hb]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:149-153 mkTblsGo — a row of the table
+map's build is a table of its list, filed under that table's structure. -/
+theorem mkIFEnvTblsGo_key : ∀ (ts : List IProjTable) (n : NIdx) (t : IProjTable),
+    (mkIFEnvTblsGo ts)[n]? = some t → t ∈ ts ∧ t.structName = n := by
+  intro ts
+  induction ts with
+  | nil => intro n t h; simp [mkIFEnvTblsGo] at h
+  | cons a as ih =>
+    intro n t h
+    simp only [mkIFEnvTblsGo] at h
+    rw [Std.HashMap.getElem?_insert] at h
+    split at h
+    · rename_i hEq
+      obtain rfl := Option.some.inj h
+      exact ⟨by simp, eq_of_beq hEq⟩
+    · obtain ⟨h1, h2⟩ := ih n t h
+      exact ⟨List.mem_cons_of_mem _ h1, h2⟩
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:149-153 mkTblsGo — the table map of a
+list with no table of structure `n` has no row at `n`. -/
+theorem mkIFEnvTblsGo_none : ∀ (ts : List IProjTable) (n : NIdx),
+    (∀ t ∈ ts, t.structName ≠ n) → (mkIFEnvTblsGo ts)[n]? = none := by
+  intro ts
+  induction ts with
+  | nil => intro n _; simp [mkIFEnvTblsGo]
+  | cons a as ih =>
+    intro n h
+    simp only [mkIFEnvTblsGo, Std.HashMap.getElem?_insert]
+    split
+    · rename_i hEq
+      exact absurd (eq_of_beq hEq) (h a (by simp))
+    · exact ih n (fun t ht => h t (List.mem_cons_of_mem _ ht))
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:149-153 mkTblsGo — the table map of an
+append: the front's row, else the back's. -/
+theorem mkIFEnvTblsGo_append (n : NIdx) : ∀ (a b : List IProjTable),
+    (mkIFEnvTblsGo (a ++ b))[n]? = ((mkIFEnvTblsGo a)[n]?).or (mkIFEnvTblsGo b)[n]? := by
+  intro a b
+  induction a with
+  | nil => simp [mkIFEnvTblsGo]
+  | cons c cs ih =>
+    simp only [List.cons_append, mkIFEnvTblsGo, Std.HashMap.getElem?_insert]
+    split
+    · simp
+    · exact ih
+
+/-- con-leche: none — arena infrastructure; the re-index inserts the promoted
+tables over what is there, the newest of a name winning: `mkIFEnvTblsGo`'s
+row, else the old map's. -/
+theorem indexPromotedTables_getElem? (n : NIdx) (tbls : Std.HashMap NIdx IProjTable) :
+    ∀ (ts : List IProjTable),
+      (indexPromotedTables tbls ts)[n]? = ((mkIFEnvTblsGo ts)[n]?).or tbls[n]? := by
+  intro ts
+  induction ts with
+  | nil => simp [indexPromotedTables, mkIFEnvTblsGo]
+  | cons c cs ih =>
+    simp only [indexPromotedTables, mkIFEnvTblsGo, Std.HashMap.getElem?_insert]
+    split
+    · simp
+    · exact ih
+
+/-- con-leche: none — arena infrastructure; the erase forgets exactly the rows
+of the step's tables' structure names. -/
+theorem eraseInstalledTables_getElem? (n : NIdx) : ∀ (ts : List IProjTable)
+    (tbls : Std.HashMap NIdx IProjTable),
+    (eraseInstalledTables tbls ts)[n]? =
+      if ∃ t ∈ ts, t.structName = n then none else tbls[n]? := by
+  intro ts
+  induction ts with
+  | nil => intro tbls; simp [eraseInstalledTables]
+  | cons c cs ih =>
+    intro tbls
+    simp only [eraseInstalledTables, ih, Std.HashMap.getElem?_erase]
+    by_cases hc : c.structName = n
+    · simp [hc]
+    · have : (c.structName == n) = false := by simpa using hc
+      by_cases hin : ∃ t ∈ cs, t.structName = n
+      · have h2 : ∃ t ∈ c :: cs, t.structName = n := by
+          obtain ⟨t, ht, htn⟩ := hin
+          exact ⟨t, List.mem_cons_of_mem _ ht, htn⟩
+        simp only [hin, h2, ↓reduceIte]
+      · have h2 : ¬ ∃ t ∈ c :: cs, t.structName = n := by
+          rintro ⟨t, ht, htn⟩
+          rcases List.mem_cons.mp ht with rfl | ht
+          · exact hc htn
+          · exact hin ⟨t, ht, htn⟩
+        simp only [hin, h2, ↓reduceIte, this]
+        simp
+
+/-- con-leche: none — arena infrastructure; `promoteNew` is the constants'
+promotion, then the tables'. -/
+theorem promoteNew_run {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) :
+    ∃ m1 fe1 s1, promoteNewConsts m fuel k fe s = .ok ((m1, fe1), s1) ∧
+      promoteNewTables m1 fuel kt fe1 s1 = .ok ((m', fe'), s') := by
   simp only [promoteNew] at hrun
+  obtain ⟨⟨m1, fe1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
+  exact ⟨m1, fe1, s1, h1, h2⟩
+
+/-- con-leche: none — arena infrastructure; `promoteNewConsts` at `k = 0` does
+nothing. -/
+theorem promoteNewConsts_run_zero {m m' : PMemo} {fuel : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNewConsts m fuel 0 fe s = .ok ((m', fe'), s')) :
+    m' = m ∧ fe' = fe ∧ s' = s := by
+  simp only [promoteNewConsts] at hrun
   obtain ⟨hr, rfl⟩ := AM.pure_ok hrun
   simp only [Prod.mk.injEq] at hr
   exact ⟨hr.1, hr.2, rfl⟩
 
-/-- con-leche: none — arena infrastructure; `promoteNew` at `k ≠ 0` is the
-block promotion and the two index passes. -/
-theorem promoteNew_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+/-- con-leche: none — arena infrastructure; `promoteNewConsts` at `k ≠ 0` is
+the block promotion and the two index passes; the tables are untouched. -/
+theorem promoteNewConsts_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
     {s s' : AState} (hk : k ≠ 0)
-    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
+    (hrun : promoteNewConsts m fuel k fe s = .ok ((m', fe'), s')) :
     ∃ cs', promoteCIList m fuel (fe.env.consts.take k) s = .ok ((m', cs'), s') ∧
-      fe' = ⟨⟨cs' ++ fe.env.consts.drop k⟩,
+      fe' = ⟨⟨cs' ++ fe.env.consts.drop k, fe.env.tables⟩,
         indexPromoted (eraseInstalled fe.idx (fe.env.consts.take k)) fe.visibleBelow cs',
-        fe.visibleBelow⟩ := by
-  obtain ⟨⟨consts⟩, idx, vb⟩ := fe
-  unfold promoteNew at hrun
+        fe.visibleBelow, fe.tbls⟩ := by
+  obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := fe
+  unfold promoteNewConsts at hrun
   rcases AM.ite_ok hrun with ⟨hk0, _⟩ | ⟨_, hrun⟩
   · exact absurd (by simpa using hk0) hk
   obtain ⟨⟨m1, cs1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
@@ -370,6 +600,59 @@ theorem promoteNew_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
   simp only [Prod.mk.injEq] at hr
   obtain ⟨rfl, rfl⟩ := hr
   exact ⟨cs1, h1, rfl⟩
+
+/-- con-leche: none — arena infrastructure; the constants' promotion leaves the
+table component and the table map alone. -/
+theorem promoteNewConsts_tables {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNewConsts m fuel k fe s = .ok ((m', fe'), s')) :
+    fe'.env.tables = fe.env.tables ∧ fe'.tbls = fe.tbls := by
+  by_cases hk0 : k = 0
+  · subst hk0
+    obtain ⟨-, rfl, -⟩ := promoteNewConsts_run_zero hrun
+    exact ⟨rfl, rfl⟩
+  · obtain ⟨cs', -, rfl⟩ := promoteNewConsts_run_pos hk0 hrun
+    exact ⟨rfl, rfl⟩
+
+/-- con-leche: none — arena infrastructure; `promoteNewTables` at `kt = 0` does
+nothing. -/
+theorem promoteNewTables_run_zero {m m' : PMemo} {fuel : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNewTables m fuel 0 fe s = .ok ((m', fe'), s')) :
+    m' = m ∧ fe' = fe ∧ s' = s := by
+  simp only [promoteNewTables] at hrun
+  obtain ⟨hr, rfl⟩ := AM.pure_ok hrun
+  simp only [Prod.mk.injEq] at hr
+  exact ⟨hr.1, hr.2, rfl⟩
+
+/-- con-leche: none — arena infrastructure; `promoteNewTables` at `kt ≠ 0` is
+the tables' promotion and the two table-map passes; the constants, their index
+and the counter are untouched. -/
+theorem promoteNewTables_run_pos {m m' : PMemo} {fuel kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hk : kt ≠ 0)
+    (hrun : promoteNewTables m fuel kt fe s = .ok ((m', fe'), s')) :
+    ∃ ts', promoteProjTables m fuel (fe.env.tables.take kt) s = .ok ((m', ts'), s') ∧
+      fe' = ⟨⟨fe.env.consts, ts' ++ fe.env.tables.drop kt⟩, fe.idx, fe.visibleBelow,
+        indexPromotedTables (eraseInstalledTables fe.tbls (fe.env.tables.take kt)) ts'⟩ := by
+  obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := fe
+  unfold promoteNewTables at hrun
+  rcases AM.ite_ok hrun with ⟨hk0, _⟩ | ⟨_, hrun⟩
+  · exact absurd (by simpa using hk0) hk
+  obtain ⟨⟨m1, ts1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
+  obtain ⟨hr, rfl⟩ := AM.pure_ok h2
+  simp only [Prod.mk.injEq] at hr
+  obtain ⟨rfl, rfl⟩ := hr
+  exact ⟨ts1, h1, rfl⟩
+
+/-- con-leche: none — arena infrastructure; the tables' promotion leaves the
+constants, their index and the counter alone. -/
+theorem promoteNewTables_consts {m m' : PMemo} {fuel kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNewTables m fuel kt fe s = .ok ((m', fe'), s')) :
+    fe'.env.consts = fe.env.consts ∧ fe'.idx = fe.idx ∧ fe'.visibleBelow = fe.visibleBelow := by
+  by_cases hk0 : kt = 0
+  · subst hk0
+    obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero hrun
+    exact ⟨rfl, rfl, rfl⟩
+  · obtain ⟨ts', -, rfl⟩ := promoteNewTables_run_pos hk0 hrun
+    exact ⟨rfl, rfl, rfl⟩
 
 /-! ## What the fold's step needs beside the spec
 
@@ -381,41 +664,96 @@ before the step (the install step's `Pushed fe fe'`), `IFEnvOK`'s
 and the bracket's closing `dropScratch` turns the promote window's invariant
 back into the strong one with every persistent denotation kept. -/
 
+/-- con-leche: none — arena infrastructure; the constants' promotion keeps the
+promote window's invariant and the memo's. -/
+theorem promoteNewConsts_wf {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+    (hrun : promoteNewConsts m fuel k fe s = .ok ((m', fe'), s')) :
+    StoreWF' s'.store ∧ PMemoOK m' s'.store := by
+  by_cases hk0 : k = 0
+  · subst hk0
+    obtain ⟨rfl, -, rfl⟩ := promoteNewConsts_run_zero hrun
+    exact ⟨hwf, hm⟩
+  · obtain ⟨cs', h1, -⟩ := promoteNewConsts_run_pos hk0 hrun
+    obtain ⟨hwf1, hm1, -⟩ := promoteCIList_step _ hwf hm h1
+    exact ⟨hwf1, hm1⟩
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the promotion
 keeps the step's environment a push onto the one before it**: the step's
-constants are replaced by their promoted copies, the tail is untouched. -/
-theorem promoteNew_pushed {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
+constants are replaced by their promoted copies, the tail is untouched, and
+the tables' promotion does not touch the constants. -/
+theorem promoteNew_pushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
     {s s' : AState} (hcoh0 : IFEnvCoh fe0) (hcoh : IFEnvCoh fe)
     (hpush : Pushed fe0 fe) (hk : k = fe.visibleBelow - fe0.visibleBelow)
-    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) : Pushed fe0 fe' := by
+    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) : Pushed fe0 fe' := by
+  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
+  obtain ⟨hc2, -, -⟩ := promoteNewTables_consts h2
   obtain ⟨-, hdrop, -⟩ := Pushed.split hcoh0 hcoh hpush hk
+  suffices H : Pushed fe0 fe1 by
+    obtain ⟨new, hn⟩ := H; exact ⟨new, by rw [hc2, hn]⟩
   by_cases hk0 : k = 0
   · subst hk0
-    obtain ⟨-, h2, -⟩ := promoteNew_run_zero hrun
-    subst fe'; exact hpush
-  · obtain ⟨cs', -, rfl⟩ := promoteNew_run_pos hk0 hrun
+    obtain ⟨-, rfl, -⟩ := promoteNewConsts_run_zero h1
+    exact hpush
+  · obtain ⟨cs', -, rfl⟩ := promoteNewConsts_run_pos hk0 h1
     exact ⟨cs', by simp only [hdrop]⟩
 
-/-- con-leche: none — arena infrastructure; **the projection tables survive
-the promotion**: every table of the promoted environment is well shaped and
-rightly named in the promoted store, given that every table of the
-environment was before it.  (`IFEnvOK_of_denote`'s `hproj`, carried.) -/
-theorem promoteNew_projOK {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
-    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t)
-    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
-    ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts → IProjTableOK s'.store t := by
-  by_cases hk0 : k = 0
+/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the promotion
+keeps the step's tables a push onto the ones before it**. -/
+theorem promoteNew_tpushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
+    {s s' : AState} (hpush : TPushed fe0 fe)
+    (hk : kt = fe.env.tables.length - fe0.env.tables.length)
+    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) : TPushed fe0 fe' := by
+  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
+  obtain ⟨ht1, -⟩ := promoteNewConsts_tables h1
+  have hpush1 : TPushed fe0 fe1 := by obtain ⟨n, hn⟩ := hpush; exact ⟨n, by rw [ht1, hn]⟩
+  have hk1 : kt = fe1.env.tables.length - fe0.env.tables.length := by rw [ht1]; exact hk
+  obtain ⟨-, hdrop, -⟩ := TPushed.split hpush1 hk1
+  by_cases hk0 : kt = 0
   · subst hk0
-    obtain ⟨-, h2, h3⟩ := promoteNew_run_zero hrun
-    subst fe'; subst s'; exact hproj
-  · obtain ⟨cs', h1, rfl⟩ := promoteNew_run_pos hk0 hrun
-    obtain ⟨-, -, hx1, -, -, ht1, -⟩ := promoteCIList_step _ hwf hm h1
+    obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero h2
+    exact hpush1
+  · obtain ⟨ts', -, rfl⟩ := promoteNewTables_run_pos hk0 h2
+    exact ⟨ts', by simp only [hdrop]⟩
+
+/-- con-leche: none — arena infrastructure; **the projection tables survive
+the promotion**: every table of the promoted environment is well shaped, given
+that every table of the environment was before it.  (`IFEnvOK_of_denote`'s
+`hproj`, carried.) -/
+theorem promoteNew_projOK {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+    (hproj : ∀ t ∈ fe.env.tables, IProjTableOK t)
+    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) :
+    ∀ t ∈ fe'.env.tables, IProjTableOK t := by
+  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
+  obtain ⟨ht1, -⟩ := promoteNewConsts_tables h1
+  have hx1 := (promoteNewConsts_aext m fuel k fe s (m1, fe1) s1 h1).ext
+  have hwf1 : StoreWF' s1.store := (promoteNewConsts_wf hwf hm h1).1
+  have hm1 : PMemoOK m1 s1.store := (promoteNewConsts_wf hwf hm h1).2
+  rw [← ht1] at hproj
+  by_cases hk0 : kt = 0
+  · subst hk0
+    obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero h2
+    exact hproj
+  · obtain ⟨ts', h3, rfl⟩ := promoteNewTables_run_pos hk0 h2
+    obtain ⟨-, -, -, -, hkept, -⟩ := promoteProjTables_step _ hwf1 hm1 h3
     intro t' ht'
     rcases List.mem_append.mp ht' with h | h
-    · obtain ⟨t, hmem, hpt⟩ := ht1 t' h
-      exact (hproj t (List.mem_of_mem_take hmem)).promoted hpt
-    · exact (hproj t' (List.mem_of_mem_drop h)).mono hx1
+    · -- a promoted table: the promotion of one of the step's own
+      have key : ∀ (xs xs' : List IProjTable), TblListKept s1.store s'.store xs xs' →
+          ∀ b' ∈ xs', ∃ b ∈ xs, PromotedTable s1.store s'.store b b' := by
+        intro xs xs' hk
+        induction hk with
+        | nil => intro _ h; exact absurd h (by simp)
+        | @cons d d' ds ds' hd _ ih2 =>
+          intro b' hb'
+          rcases List.mem_cons.mp hb' with rfl | hb'
+          · exact ⟨d, by simp, hd⟩
+          · obtain ⟨b, hb, hk'⟩ := ih2 b' hb'
+            exact ⟨b, List.mem_cons_of_mem _ hb, hk'⟩
+      obtain ⟨t, ht, hpt⟩ := key _ _ hkept t' h
+      exact (hproj t (List.mem_of_mem_take ht)).promoted hpt
+    · exact hproj t' (List.mem_of_mem_drop h)
 
 /-- con-leche: none — arena infrastructure; **the promotion bracket closes**
 — Theorem 1's `bracket_close_w` (`Refine2/Checker/Shape.lean`, the Theorem 2
@@ -442,6 +780,9 @@ theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
 
 /-- info: 'ConRon.Bridge.promoteNew_pushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_pushed
+
+/-- info: 'ConRon.Bridge.promoteNew_tpushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_tpushed
 
 /-- info: 'ConRon.Bridge.promoteNew_projOK' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_projOK

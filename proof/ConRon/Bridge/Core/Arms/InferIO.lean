@@ -138,13 +138,12 @@ theorem inferIO_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
 constant's type at its universe instantiation, at the io grade. -/
 theorem inferIO_const {F d : Nat} {n : Name} {us : List Level}
     {ci : ConstantInfo} (hf : env.find? n = some ci)
-    (ht : ci.isTowerEntry = false)
     (hl : us.length = ci.toConstantVal.levelParams.length) :
     ConLeche.inferTypeIO mode env (F + 1) d (.const n us) =
       .ok (ci.toConstantVal.type.instantiateLevelParams
         ci.toConstantVal.levelParams us) := by
   rw [ConLeche.inferTypeIO_succ]
-  simp only [ConLeche.inferBodyIO, hf, ht, hl,
+  simp only [ConLeche.inferBodyIO, hf, hl,
     bind, Except.bind, pure, Except.pure]
   simp
 
@@ -191,13 +190,13 @@ clause as an answer, at the io grade, at the denoted level list's length
 constant, as `Infer.lean`'s `SimE.of_constTy`). -/
 theorem SimE.of_constTyIO {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     {ls : List Level} {c : ConstantInfo} (henv : ConLeche.EnvWF env)
-    (hfind : env.find? n = some c) (hct : c.isTowerEntry = false)
+    (hfind : env.find? n = some c)
     (hl : ls.length = c.toConstantVal.levelParams.length)
     (hd : denoteE st r = some (c.toConstantVal.type.instantiateLevelParams
       c.toConstantVal.levelParams ls)) :
     SimE (ConLeche.inferTypeIO mode env) d (.const n ls) st r :=
   ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
-    inferIO_const hfind hct hl⟩
+    inferIO_const hfind hl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1296-1298 inferBodyIO — the free
 variable clause as an answer, at the io grade. -/
@@ -535,20 +534,14 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
       obtain rfl := Option.some.inj (hn.symm.trans hn')
-      cases ht : ci.isTowerEntry
-      · obtain ⟨hct, cv, hcv_eq, hcv⟩ := denoteCI_nonTower hci ht
-        have hname : denoteN s₀.store.ns cv.name = some nm := by
-          rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
-        have hlp := denoteNList_len (denoteCV_inv hcv).2.1
-        simp only [hcv_eq]
-        -- the arity guard passed: con-leche's instantiated type
-        sym only [bridge_grind, SimE.of_constTyIO (mode := mode) (d := d) henv hfind hct] =>
-          vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ cv us nm ls c
-            hok hname hus hfind hcv] <;> finish
-      · -- `vcgen` does not read the case hypothesis: the guard is rewritten
-        -- first, and the failing branch then leaves no condition at all
-        simp only [ht, ite_true]
-        vcgen
+      have hcv := denoteCI_toConstantVal hci
+      have hname : denoteN s₀.store.ns ci.toConstantVal.name = some nm := by
+        rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
+      have hlp := denoteNList_len (denoteCV_inv hcv).2.1
+      -- the arity guard passed: con-leche's instantiated type
+      sym only [bridge_grind, SimE.of_constTyIO (mode := mode) (d := d) henv hfind] =>
+        vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ ci.toConstantVal us nm
+          ls c hok hname hus hfind hcv] <;> finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two

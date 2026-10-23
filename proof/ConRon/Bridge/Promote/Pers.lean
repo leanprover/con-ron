@@ -440,7 +440,6 @@ structure PersCaps (c : IIndCaps) : Prop where
 /-- con-leche: none — a projection table is persistent, field by field. -/
 structure PersProjTable (t : IProjTable) : Prop where
   structName : PersN t.structName
-  tableName : PersN t.tableName
   levelParams : PersNList t.levelParams
   ctor : PersN t.ctor
   structSort : PersL t.structSort
@@ -457,7 +456,6 @@ def PersCI : IConstantInfo → Prop
   | .indInfo v c => PersCV v ∧ PersCaps c
   | .ctorInfo v _ _ => PersCV v
   | .recInfo v _ _ rs => PersCV v ∧ PersRules rs
-  | .projInfo t => PersProjTable t
 
 /-- con-leche: none — every member of a block is persistent. -/
 def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
@@ -465,13 +463,16 @@ def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
 /-- con-leche: none — every constant of the environment is persistent. -/
 def PersIEnv (e : IEnv) : Prop := PersCIList e.consts
 
-/-- con-leche: none — **the environment index is persistent**: both its list
-and its rows.  The rows matter as much as the list — `Arena/Promote.lean`'s
-`eraseInstalled`/`indexPromoted` exist because a stale row under a SCRATCH key
-would answer a different constant once `dropScratch` hands that word back. -/
+/-- con-leche: none — **the environment index is persistent**: both its lists
+and the rows of both its maps.  The rows matter as much as the lists —
+`Arena/Promote.lean`'s `eraseInstalled`/`indexPromoted` (and their table twins)
+exist because a stale row under a SCRATCH key would answer a different constant
+(or table) once `dropScratch` hands that word back. -/
 structure PersIFEnv (fe : IFEnv) : Prop where
   env : PersIEnv fe.env
   idx : ∀ n p, fe.idx[n]? = some p → PersN n ∧ PersCI p.2
+  tables : ∀ t ∈ fe.env.tables, PersProjTable t
+  tbls : ∀ n t, fe.tbls[n]? = some t → PersN n ∧ PersProjTable t
 
 /-- con-leche: none — arena infrastructure; **what a lookup in a persistent
 index answers is persistent**: `IFEnv.find?` reads the index and nothing else,
@@ -492,6 +493,13 @@ theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
       obtain rfl := Option.some.inj hf
       exact hp.idx n (c, cj) hidx
     · rw [ite_eq_right hlt] at hf; exact absurd hf (by simp)
+
+/-- con-leche: none — arena infrastructure; **what a table lookup in a
+persistent index answers is persistent**: `IFEnv.rawTable?` reads the table map
+and nothing else. -/
+theorem PersIFEnv.rawTable {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
+    {t : IProjTable} (hf : fe.rawTable? n = some t) : PersN n ∧ PersProjTable t :=
+  hp.tbls n t hf
 
 /-- con-leche: none — a declaration record is persistent (the parse builds
 them in the persistent tier, so this is the frontend tier's postcondition). -/

@@ -149,6 +149,14 @@ def denoteCIList (st : EStore) : List IConstantInfo → Option (List ConstantInf
     | some x, some xs => some (x :: xs)
     | _, _ => none
 
+/-- con-leche: none — the denotation of an environment's projection tables. -/
+def denoteProjTableList (st : EStore) : List IProjTable → Option (List ProjTable)
+  | [] => some []
+  | t :: ts =>
+    match denoteProjTable st t, denoteProjTableList st ts with
+    | some x, some xs => some (x :: xs)
+    | _, _ => none
+
 /-- con-leche: none — the denotation of a declaration record.  **This is the
 left-hand side of DESIGN §8.2's parser-tier statement** `denoteDecls
 (Arena.parse chunks) = parseChunks chunks`. -/

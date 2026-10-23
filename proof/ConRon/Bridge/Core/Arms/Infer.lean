@@ -74,13 +74,12 @@ theorem infer_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
 constant's type at its universe instantiation. -/
 theorem infer_const {F d : Nat} {n : Name} {us : List Level}
     {ci : ConstantInfo} (hf : env.find? n = some ci)
-    (ht : ci.isTowerEntry = false)
     (hl : us.length = ci.toConstantVal.levelParams.length) :
     ConLeche.inferTypeCore mode env (F + 1) d (.const n us) =
       .ok (ci.toConstantVal.type.instantiateLevelParams
         ci.toConstantVal.levelParams us) := by
   rw [ConLeche.inferTypeCore_succ]
-  simp only [ConLeche.inferBody, hf, ht, hl, bind, Except.bind, pure,
+  simp only [ConLeche.inferBody, hf, hl, bind, Except.bind, pure,
     Except.pure]
   simp
 
@@ -125,13 +124,13 @@ twin's arity guard on the level list's VIEW reaches it through
 conclusion, so the arm passes this lemma instantiated at it). -/
 theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     {ls : List Level} {c : ConstantInfo} (henv : ConLeche.EnvWF env)
-    (hfind : env.find? n = some c) (hct : c.isTowerEntry = false)
+    (hfind : env.find? n = some c)
     (hl : ls.length = c.toConstantVal.levelParams.length)
     (hd : denoteE st r = some (c.toConstantVal.type.instantiateLevelParams
       c.toConstantVal.levelParams ls)) :
     SimE (ConLeche.inferTypeCore mode env) d (.const n ls) st r :=
   ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
-    infer_const hfind hct hl⟩
+    infer_const hfind hl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1116-1125 inferBody — the free
 variable clause as an answer. -/
@@ -343,20 +342,14 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
       obtain rfl := Option.some.inj (hn.symm.trans hn')
-      cases ht : ci.isTowerEntry
-      · obtain ⟨hct, cv, hcv_eq, hcv⟩ := denoteCI_nonTower hci ht
-        have hname : denoteN s₀.store.ns cv.name = some nm := by
-          rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
-        have hlp := denoteNList_len (denoteCV_inv hcv).2.1
-        simp only [hcv_eq]
-        -- the arity guard passed: con-leche's instantiated type
-        sym only [bridge_grind, SimE.of_constTy (mode := mode) (d := d) henv hfind hct] =>
-          vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ cv us nm ls c
-            hok hname hus hfind hcv] <;> finish
-      · -- `vcgen` does not read the case hypothesis: the guard is rewritten
-        -- first, and the failing branch then leaves no condition at all
-        simp only [ht, ite_true]
-        vcgen
+      have hcv := denoteCI_toConstantVal hci
+      have hname : denoteN s₀.store.ns ci.toConstantVal.name = some nm := by
+        rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
+      have hlp := denoteNList_len (denoteCV_inv hcv).2.1
+      -- the arity guard passed: con-leche's instantiated type
+      sym only [bridge_grind, SimE.of_constTy (mode := mode) (d := d) henv hfind] =>
+        vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ ci.toConstantVal us nm
+          ls c hok hname hus hfind hcv] <;> finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
@@ -488,28 +481,26 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
     obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd
     dsimp only
     -- stage 4: the table
-    refine triple_seq (IFEnv.findProj?_spec s2 T k Tn hok2 hTn) ?_
-    rintro oe s4 ⟨hok4, hx4, _hm4, _hc4, hp4, hsome, _hnone⟩
-    cases oe with
+    obtain ⟨hsome, _hnone⟩ := IFEnv.findProj?_spec T k Tn hok2 hTn
+    cases hoe : fe.findProj? T k with
     | none =>
       dsimp only
-      exact triple_of_noOk (bind_noOk (fun _ s r s' => bind_noOk
-        (fun _ s r s' => fail_noOk _ s r s') s r s') _)
+      exact triple_of_noOk (bind_noOk (fun _ s r s' => fail_noOk _ s r s') _)
     | some entry =>
-      obtain ⟨p, hpd, hfp⟩ := hsome entry rfl
+      obtain ⟨p, hpd, hfp⟩ := hsome entry hoe
       dsimp only
-      have hvte4 := denote_ext hvte hx4
-      have hx04 : Ext s₀.store s4.store := hx02.trans hx4
-      have hp04 : s4.pins = s₀.pins := hp4.trans hp02
+      have hvte4 := denote_ext hvte (Ext.refl _)
+      have hx04 : Ext s₀.store s2.store := hx02.trans (Ext.refl _)
+      have hp04 : s2.pins = s₀.pins := rfl.trans hp02
       -- stage 5: the type's arguments
-      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s4 te
-        hok4.state (by rw [hvte4]; rfl)) ?_
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s2 te
+        hok2.state (by rw [hvte4]; rfl)) ?_
       rintro targs s5 ⟨hs5, hrelA⟩
       subst s5
-      have hargs : Frontend.denoteEList s4.store targs = some vte.getAppArgs :=
+      have hargs : Frontend.denoteEList s2.store targs = some vte.getAppArgs :=
         hrelA vte hvte4
-      have hus4 := denoteLs_ext hus hx4
-      obtain ⟨_hsnp, hlps, _hctor, _hbody, hfs, hss, _hidx, hnp, _hnf, _hoff⟩ :=
+      have hus4 := denoteLs_ext hus (Ext.refl _)
+      obtain ⟨_hsnp, hlps, _hctor, _hbody, hfs, hss, _hidx, hnp, _hnf⟩ :=
         denoteProjEntry_inv hpd
       split
       next => exact triple_fail
@@ -520,7 +511,7 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
       have hT : T = sn := by simpa using hT0
       have hlenA : targs.length = entry.numParams := by simpa using hlenA0
       -- stage 6: the level list's length
-      refine triple_seq (viewLsLen_spec s4 us) ?_
+      refine triple_seq (viewLsLen_spec s2 us) ?_
       rintro ol s6 ⟨hs6, hol⟩
       subst s6
       rw [viewLen_of_denoteLs hus4] at hol
@@ -529,8 +520,8 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
       split
       next hlenL =>
         have hTnm : Tn = nm := by
-          have h1 := denoteN_ext hsn (hx02.trans hx4)
-          have h2 := denoteN_ext hTn hx4
+          have h1 := denoteN_ext hsn (hx02.trans (Ext.refl _))
+          have h2 := denoteN_ext hTn (Ext.refl _)
           rw [hT] at h2
           exact Option.some.inj (h2.symm.trans h1)
         have hlen' : vte.getAppArgs.length = p.numParams := by
@@ -544,7 +535,7 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
             (Expr.WScoped.getAppArgs hwvte) hwes
         -- the answer, at any state the fence leaves behind
         have hfin : ∀ (s : AState), CheckOK mode env fe s →
-            s.store = s4.store → s.pins = s₀.pins →
+            s.store = s2.store → s.pins = s₀.pins →
             ((Level.isEquiv p.structSort .zero == some true) = false ∨
               ((Level.isEquiv p.structSort .zero == some true) = true ∧
                (Level.isEquiv (Level.subst p.levelParams ls p.fieldSort) .zero
@@ -573,10 +564,10 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
             hp'.trans hps, _, hd', hwty, F1, F2, vt, vte, Tn, ls, p, hF1, hF2,
             hgf, hfp, hgP, hpr, rfl⟩
         -- stage 7: the possibly-`Prop` fence
-        refine triple_seq (pinZeroLevel_spec s4 hok4.pins) ?_
+        refine triple_seq (pinZeroLevel_spec s2 hok2.pins) ?_
         rintro z s7 ⟨hs7, hz⟩
         subst s7
-        refine triple_seq (lvlEq?_spec s4 entry.structSort z hok4) ?_
+        refine triple_seq (lvlEq?_spec s2 entry.structSort z hok2) ?_
         rintro rq s8 ⟨hok8, hst8, hp8, lu, lv, hlu, hlv, hrq⟩
         rw [hss] at hlu
         rw [hz] at hlv
@@ -600,7 +591,7 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
           rintro fs s11 ⟨hst11, hm11, hp11, hc11, hfs11, hL11⟩
           have hok11 := CheckOK.ofReadbackFrame hok10
             (ReadbackFrame.ofReadL hst11 hm11 hp11 hc11 hL11)
-          have hst411 : s11.store = s4.store :=
+          have hst411 : s11.store = s2.store :=
             hst11.trans (hst10.trans (hst9.trans hst8))
           rw [hst8, hlps] at hks
           rw [hst9, hst8, hus4] at hvs

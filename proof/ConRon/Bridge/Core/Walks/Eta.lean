@@ -77,35 +77,60 @@ function is the slot walk from slot 0. -/
   | succ n ih => rw [List.range'_succ, List.all_cons, ih]; rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — **THEOREM
-1 for the counted recursion `towerSlotsAllGo`**, at its running index. -/
-theorem towerSlotsAllGo_specA (T : NIdx) (Tn : ConLeche.Name) :
-    ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
-      denoteN s₀.store.ns T = some Tn →
-      ⦃fun s => s = s₀⦄ ConRon.Arena.towerSlotsAllGo fe T n j
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧ r = towerSlotsFrom env Tn n j; ⊤⦄ := by
+1 for the counted recursion `towerSlotsAllGo`**, at its running index: a slot
+is a table entry in the arena exactly where it is in the environment
+(`findProjAt`). -/
+theorem towerSlotsAllGo_eq {s : AState} (T : NIdx) (Tn : ConLeche.Name)
+    (hok : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    ∀ (n j : Nat), ConRon.Arena.towerSlotsAllGo fe T n j = towerSlotsFrom env Tn n j := by
   intro n
   induction n with
-  | zero =>
-    intro j s₀ hok _
-    sym only [bridge_grind] => vcgen [ConRon.Arena.towerSlotsAllGo] <;> finish
+  | zero => intro j; rfl
   | succ n ih =>
-    intro j s₀ hok hT
-    sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.towerSlotsAllGo,
-        IFEnv.findProj?_specA (mode := mode) (env := env) (fe := fe) (Tn := Tn), ih] <;> finish
+    intro j
+    have h := findProjAt (i := j) hok hT
+    simp only [ConRon.Arena.towerSlotsAllGo, towerSlotsFrom, ← ih (j + 1)]
+    cases hp : fe.findProj? T j with
+    | none =>
+      rw [hp] at h
+      simp only [denoteProjEntryO, Option.some.injEq] at h
+      rw [← h]; rfl
+    | some e =>
+      rw [hp] at h
+      simp only [denoteProjEntryO, Option.map_eq_some_iff] at h
+      obtain ⟨p, -, hpe⟩ := h
+      rw [← hpe]; rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the slot
+walk at a handle's denotation, keyed by the arena's call alone (`IndexAt`'s
+shape). -/
+def TowerAt (env : Env) (fe : IFEnv) (T : NIdx) (nF : Nat) : Option ConLeche.Name → Prop
+  | some Tn => ConRon.Arena.towerSlotsAll fe T nF = towerSlotsFrom env Tn nF 0
+  | none => True
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — **THEOREM
 1 for `towerSlotsAll`**: an equation with con-leche's slot walk. -/
-theorem towerSlotsAll_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
-    (nF : Nat) (hok : CheckOK mode env fe s₀)
-    (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.towerSlotsAll fe T nF
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.towerSlotsAll env Tn nF; ⊤⦄ := by
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.towerSlotsAll,
-      towerSlotsAllGo_specA (mode := mode) (env := env) (fe := fe) (Tn := Tn)] <;> finish
+theorem towerSlotsAllAt {s : AState} (hok : CheckOK mode env fe s) (T : NIdx) (nF : Nat) :
+    TowerAt env fe T nF (denoteN s.store.ns T) := by
+  cases hT : denoteN s.store.ns T with
+  | none => trivial
+  | some Tn => exact towerSlotsAllGo_eq T Tn hok hT nF 0
+grind_pattern [bridge_grind] towerSlotsAllAt =>
+  CheckOK mode env fe s, ConRon.Arena.towerSlotsAll fe T nF
+
+/-- con-leche: none — `TowerAt` at a denoting handle. -/
+theorem TowerAt.some {T : NIdx} {nF : Nat} {Tn : ConLeche.Name}
+    (H : TowerAt env fe T nF (some Tn)) :
+    ConRon.Arena.towerSlotsAll fe T nF = towerSlotsFrom env Tn nF 0 := H
+grind_pattern [bridge_grind] TowerAt.some => TowerAt env fe T nF (some Tn)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the same,
+with con-leche's function on the right. -/
+theorem towerSlotsAll_spec {s : AState} (T : NIdx) (Tn : ConLeche.Name)
+    (nF : Nat) (hok : CheckOK mode env fe s)
+    (hT : denoteN s.store.ns T = some Tn) :
+    ConRon.Arena.towerSlotsAll fe T nF = ConLeche.towerSlotsAll env Tn nF := by
+  rw [towerSlotsAll_eq]; exact towerSlotsAllGo_eq T Tn hok hT nF 0
 
 /-! ## 3. The fabricated projections -/
 
@@ -178,7 +203,8 @@ section Census
 
 #print axioms denoteNList_inj
 #print axioms towerSlotsAll_spec
-#print axioms towerSlotsAllGo_specA
+#print axioms towerSlotsAllGo_eq
+#print axioms towerSlotsAllAt
 #print axioms projNodesGo_specA
 #print axioms etaProjs_spec
 #print axioms etaProjs_WScoped

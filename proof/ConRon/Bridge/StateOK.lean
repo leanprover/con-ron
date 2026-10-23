@@ -495,60 +495,23 @@ IConstantInfo` with an **unconditional** spec `find? = denoteEnv.find?`".
 Stated at the denoted `ConstantInfo`, so that the Core tier's every
 `fe.find?` is one rewrite. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName — **the
-projection table's NAME clause, standing alone**: the stored `tableName`
-decodes to the name con-leche recomputes from the structure's.
-
-It is separated from the other two clauses because the two halves have
-different debtors.  `IProjTableOK`'s size clauses are established by the
-INSTALL (`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable`,
-through `Bridge/Checker/Inv.lean`'s `projTableOK_of_install`); this one is
-also true by CONSTRUCTION of the readback, because
-`Arena/Frontend/Readback.lean`'s `internProjTable` interns `projTableName sn`
-itself, while `bodies.size = numFields` would have to come from a con-leche
-fact about `ProjTable` that nothing states.  So the NAME clause is the one
-that travels, and every consumer that only reads the name takes this. -/
-def IProjNamed (st : EStore) (t : IProjTable) : Prop :=
-  ∃ sn, denoteN st.ns t.structName = some sn ∧
-    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
-
-/-- con-leche: none — both halves are `denoteN`s, so an append keeps them. -/
-theorem IProjNamed.mono {st st' : EStore} {t : IProjTable}
-    (h : IProjNamed st t) (hx : Ext st st') : IProjNamed st' t := by
-  obtain ⟨sn, h1, h2⟩ := h
-  exact ⟨sn, denoteN_ext h1 hx, denoteN_ext h2 hx⟩
-
-/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
-clause) — **what a STORED projection table satisfies**, over the ARENA's
-`IProjTable` and not over con-leche's `ProjTable`.
-
-Three clauses, and not one of them is visible in the denotation:
-
-* the two indexed columns have `numFields` entries.  `denoteProjTable`
-  transports both pointwise and copies `numFields` verbatim, so the pure
-  table's sizes ARE ours — which is exactly why con-leche's own invariant is
-  the wrong place to take this from (a simulation B ⇒ A takes invariants on
-  the REFINED side only);
-* **the table's own name**: `IConstantInfo.name (.projInfo t)` is the STORED
-  `t.tableName` (`Arena/Env.lean`'s one added field, kept so that the index's
-  key is pure) while `ConstantInfo.name (.projInfo tbl)` is the RECOMPUTED
-  `projTableName tbl.structName` — and `Frontend.denoteProjTable` drops
-  `tableName` entirely.  Without this clause nothing ties the two, and
-  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` is false.
-
-Both are the SAME problem — the projection-table denotation does not carry
-what its consumers need — and both are stated here, on our side, rather than
-by strengthening `Arena/Frontend/Readback.lean`. -/
-structure IProjTableOK (st : EStore) (t : IProjTable) : Prop where
+/-- con-leche: ConLeche/Verify/EnvWF.lean:161 TableWF (the size clause) —
+**what a STORED projection table satisfies**, over the ARENA's `IProjTable`
+and not over con-leche's `ProjTable`: the two indexed columns have
+`numFields` entries.  `denoteProjTable` transports both pointwise and copies
+`numFields` verbatim, so the pure table's sizes ARE ours — which is why
+con-leche's own invariant is the wrong place to take this from (a simulation
+B ⇒ A takes invariants on the REFINED side only).  Its debtor is the table
+install (`Bridge/Inductives/StructInstall.lean`). -/
+structure IProjTableOK (t : IProjTable) : Prop where
   bodies : t.bodies.size = t.numFields
   guards : t.guards.length = t.numFields
-  named : ∃ sn, denoteN st.ns t.structName = some sn ∧
-    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
 
-/-- con-leche: none — the environment invariant implies the name clause, so a
-site that holds the stronger fact never re-proves this one. -/
-theorem IProjTableOK.toNamed {st : EStore} {t : IProjTable}
-    (h : IProjTableOK st t) : IProjNamed st t := h.named
+/-- con-leche: ConLeche/Kernel/Env.lean:549-554 Env.findTable? (its ungated
+half) — the environment's table of structure `nm`, whatever the constants
+say: the newest table of that name, which `FEnv.rawTable?` indexes. -/
+def envRawTable (env : Env) (nm : ConLeche.Name) : Option ProjTable :=
+  env.tables.find? (·.structName == nm)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
 index answers exactly what the denoted environment answers.
@@ -569,10 +532,17 @@ structure IFEnvOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
   cover : ∀ nm c, env.find? nm = some c →
     ∃ n ci, denoteN s.store.ns n = some nm ∧ fe.find? n = some ci ∧
       Frontend.denoteCI s.store ci = some c
-  /-- **the stored projection tables are well shaped and rightly named** —
-  what `IFEnv.findProj?_spec` and `IFEnvOK_of_denote` read.  Its one debtor
-  is the projection-table install; see `IProjTableOK`. -/
-  proj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t
+  /-- **the table map answers what the environment's tables answer**, at
+  the raw (ungated) lookup — the gate is `find?`'s on both sides, so the
+  gated lookups follow from this and `hit`/`cover` — and the stored tables are
+  well shaped (`IProjTableOK`). -/
+  tblHit : ∀ n t, fe.rawTable? n = some t →
+    ∃ nm pt, denoteN s.store.ns n = some nm ∧
+      Frontend.denoteProjTable s.store t = some pt ∧ envRawTable env nm = some pt ∧
+      IProjTableOK t
+  tblCover : ∀ nm pt, envRawTable env nm = some pt →
+    ∃ n t, denoteN s.store.ns n = some nm ∧ fe.rawTable? n = some t ∧
+      Frontend.denoteProjTable s.store t = some pt
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half,
 derived: a handle the index does not know cannot denote a name the
@@ -736,13 +706,6 @@ theorem PinsOK.mono {s s' : AState} (h : PinsOK s) (hx : Ext s.store s'.store)
   sortOne := by rw [hp]; exact denote_ext h.sortOne hx
   anon := denoteN_ext h.anon hx
 
-theorem IProjTableOK.mono {st st' : EStore} {t : IProjTable}
-    (h : IProjTableOK st t) (hx : Ext st st') : IProjTableOK st' t where
-  bodies := h.bodies
-  guards := h.guards
-  named := by
-    obtain ⟨sn, h1, h2⟩ := h.named
-    exact ⟨sn, denoteN_ext h1 hx, denoteN_ext h2 hx⟩
 
 theorem IFEnvOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
     (h : IFEnvOK env fe s) (hx : Ext s.store s'.store) : IFEnvOK env fe s' where
@@ -754,7 +717,14 @@ theorem IFEnvOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
     intro nm c he
     obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c he
     exact ⟨n, ci, denoteN_ext h1 hx, h2, denoteCI_ext h3 hx⟩
-  proj := fun n t hf => (h.proj n t hf).mono hx
+  tblHit := by
+    intro n t hf
+    obtain ⟨nm, pt, h1, h2, h3, h4⟩ := h.tblHit n t hf
+    exact ⟨nm, pt, denoteN_ext h1 hx, denoteProjTable_ext h2 hx, h3, h4⟩
+  tblCover := by
+    intro nm pt he
+    obtain ⟨n, t, h1, h2, h3⟩ := h.tblCover nm pt he
+    exact ⟨n, t, denoteN_ext h1 hx, h2, denoteProjTable_ext h3 hx⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the whole invariant
 transports past a call that only grows the arena.**  This is the theorem the
@@ -881,26 +851,12 @@ theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
   pins := h.pins.mono hx hp
   ienv := h.ienv.mono hx
 
-/-! ## The stored constant's NAME, and the `.projInfo` name gap
+/-! ## The stored constant's NAME
 
-These five live in this module because it is the lowest one that has both
-`Frontend.denoteCI` and `IProjTableOK`, and it is below the Checker tier —
-whose `IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and `installBasisDecl_bridge`
-need them and cannot see `Bridge/Inductives/**`.
-
-`Frontend.denoteProjTable` drops `tableName`, so
-`Frontend.denoteCI st ci = some c` does NOT give
-`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
-STORED `t.tableName` and the pure side the RECOMPUTED
-`projTableName t.structName`.  The fix is neither a hypothesis at each site
-(that weakens the statement) nor a `denoteProjTable` that reads `tableName`
-(the denotation is deliberately forgetful — `tableName` is the arena's own
-redundancy, kept so the index's key is pure).  It is `IProjTableOK.named`,
-the invariant that ties the two names, and it is available at every site that
-needs it: inside the index through `IFEnvOK.proj`, and at the ONE install that
-creates a `.projInfo` row (`checkStructProjTable`) because the table was just
-built there.  Everywhere else `ci` is provably not a `.projInfo` and
-`denoteCI_name` applies with no invariant at all. -/
+These live in this module because it is the lowest one that has
+`Frontend.denoteCI`, and it is below the Checker tier — whose
+`IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and `installBasisDecl_bridge` need
+them and cannot see `Bridge/Inductives/**`. -/
 
 /-- con-leche: none — a denoting `IConstantVal`'s TYPE denotes: the one
 projection of `Frontend.denoteCV` this tier reads directly. -/
@@ -959,36 +915,10 @@ theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
         rfl
 
 
-/-! ### The `.projInfo` NAME GAP
-
-`Frontend.denoteProjTable` drops `tableName`, so
-`Frontend.denoteCI st ci = some c` does NOT give
-`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
-STORED `t.tableName` and the pure side is the RECOMPUTED
-`projTableName t.structName`.  Three sites above this tier need the name —
-`IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and `installBasisDecl_bridge` — and
-the fix is NOT to add a hypothesis to any of them, nor to make `denoteProjTable`
-read `tableName` (the denotation is deliberately forgetful; `tableName` is the
-arena's own redundancy, kept so the index's key is pure).
-
-The fix is these three lemmas.  `IProjTableOK.named` is the invariant that
-ties the two names, and it is available at every site that needs it: inside
-the index through `IFEnvOK.proj`, and at the ONE install that creates a
-`.projInfo` row (`checkStructProjTable`, this tier's) because the table was
-just built there.  Everywhere else `ci` is provably not a `.projInfo` and the
-first lemma applies with no invariant at all.
-
-**They belong in `Bridge/StateOK.lean`, beside `IProjTableOK`** — that is the
-lowest module that has both `Frontend.denoteCI` and the invariant, and it is
-below the Checker tier, which cannot see this file.  They are proved here
-because this tier owns `IProjTableOK`'s `named` clause and its debtor. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — **a stored
-constant that is not a projection table is named by its own handle.**  Six of
-the seven constructors carry an `IConstantVal` and `denoteCV_name` is the
-whole proof. -/
+/-- con-leche: ConLeche/Kernel/Env.lean:506 ConstantInfo.name — **a stored
+constant is named by its own handle.**  Every constructor carries an
+`IConstantVal` and `denoteCV_name` is the whole proof. -/
 theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hnp : ∀ t, ci ≠ .projInfo t)
     (h : Frontend.denoteCI st ci = some c) :
     denoteN st.ns ci.name = some c.name := by
   cases ci with
@@ -1037,55 +967,5 @@ theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
         rw [hcv, hr] at h
         obtain rfl := Option.some.inj h
         exact denoteCV_name hcv
-  | projInfo t => exact absurd rfl (hnp t)
-
-/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
-`.projInfo` arm) — **and a projection table is named by its handle exactly
-when `IProjTableOK.named` says so.**  That clause is not decoration: it is the
-only thing that ties the stored `tableName` to the recomputed
-`projTableName`. -/
-theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
-    (hok : IProjNamed st t)
-    (h : Frontend.denoteCI st (.projInfo t) = some c) :
-    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
-  obtain ⟨sn, hsn, htn⟩ := hok
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  obtain ⟨pt, hpt, rfl⟩ := h
-  simp only [Frontend.denoteProjTable, hsn] at hpt
-  cases hlps : Frontend.denoteNList st.ns t.levelParams with
-  | none => rw [hlps] at hpt; simp at hpt
-  | some lps =>
-    cases hc : denoteN st.ns t.ctor with
-    | none => rw [hlps, hc] at hpt; simp at hpt
-    | some cn =>
-      cases hss : denoteL st.ls t.structSort with
-      | none => rw [hlps, hc, hss] at hpt; simp at hpt
-      | some ss =>
-        cases hbs : Frontend.denoteEArray st t.bodies with
-        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
-        | some bs =>
-          cases hgs : denoteLList st.ls t.guards with
-          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
-          | some gs =>
-            rw [hlps, hc, hss, hbs, hgs] at hpt
-            obtain rfl := Option.some.inj hpt
-            exact htn
-
-/-- con-leche: none — **the two halves as one**: the name fact at any stored
-constant, asking for `IProjTableOK` only where it is a projection table.  This
-is the shape the three stuck sites want. -/
-theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hproj : ∀ t, ci = .projInfo t → IProjNamed st t)
-    (h : Frontend.denoteCI st ci = some c) :
-    denoteN st.ns ci.name = some c.name := by
-  cases ci with
-  | projInfo t => exact denoteCI_name_proj (hproj t rfl) h
-  | axiomInfo v => exact denoteCI_name (by simp) h
-  | defnInfo v e hh => exact denoteCI_name (by simp) h
-  | thmInfo v => exact denoteCI_name (by simp) h
-  | indInfo v caps => exact denoteCI_name (by simp) h
-  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
-  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
-
 
 end ConRon.Bridge

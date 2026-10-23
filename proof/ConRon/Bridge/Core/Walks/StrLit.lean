@@ -33,41 +33,37 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. A stored constant's common data -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:639-651 ConstantInfo.toConstantVal /
-isTowerEntry — a stored non-tower constant projects its value purely, and
-denotes a non-tower constant with that value. -/
-theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
-    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c)
-    (ht : ci.isTowerEntry = false) :
-    c.isTowerEntry = false ∧ ∃ v, ci.toConstantVal = (pure v : AM _) ∧
-      Frontend.denoteCV st v = some c.toConstantVal := by
+/-- con-leche: ConLeche/Kernel/Env.lean:502-504 ConstantInfo.toConstantVal — a
+stored constant's record denotes the denoted constant's. -/
+theorem denoteCI_toConstantVal {st : EStore} {ci : IConstantInfo}
+    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c) :
+    Frontend.denoteCV st ci.toConstantVal = some c.toConstantVal := by
   cases ci with
-  | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, v, rfl, hcv⟩
+    exact hcv
   | ctorInfo v nP nF =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, v, rfl, hcv⟩
+    exact hcv
   | defnInfo v e hh =>
     simp only [Frontend.denoteCI] at h
     split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · rename_i cv x hcv _; cases h; exact hcv
     · simp at h
   | thmInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨rfl, v, rfl, hcv⟩
+    obtain ⟨cv, hcv, rfl⟩ := h; exact hcv
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · rename_i cv x hcv _; cases h; exact hcv
     · simp at h
   | recInfo v mI rP rs =>
     simp only [Frontend.denoteCI] at h
     split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · rename_i cv x hcv _; cases h; exact hcv
     · simp at h
 
 /-! ## The string walks' vocabulary
@@ -133,59 +129,18 @@ grind_pattern [bridge_grind] optCI_find => OptCI s.store (fe.find? n) (env.find?
   CheckOK mode env fe s
 
 
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-**THEOREM 1 for `toConstantVal`**, at the two fields the shape guards read:
-the level parameters and the type.  (The `.projInfo` arm's NAME is
-`projTableName`'s, which `denoteCI` drops; nothing here reads it.) -/
-theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
-    (c : ConstantInfo) (hok : CheckOK mode env fe s₀)
-    (hci : Frontend.denoteCI s₀.store ci = some c) :
-    ⦃fun s => s = s₀⦄ ci.toConstantVal
-    ⦃fun cv s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Frontend.denoteNList s₀.store.ns cv.levelParams =
-          some c.toConstantVal.levelParams ∧
-        denoteE s'.store cv.type = some c.toConstantVal.type; ⊤⦄ := by
-  have hwf := hok.state.wf
-  cases hti : ci.isTowerEntry
-  · obtain ⟨_, v, hv, hcv⟩ := denoteCI_nonTower hci hti
-    obtain ⟨_, hlp, hty⟩ := denoteCV_inv hcv
-    rw [hv]
-    sym only [bridge_grind] => vcgen <;> finish
-  · cases ci with
-    | projInfo t =>
-      simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-      obtain ⟨t', ht', rfl⟩ := hci
-      have hlp : Frontend.denoteNList s₀.store.ns t.levelParams =
-          some t'.levelParams := by
-        simp only [Frontend.denoteProjTable] at ht'
-        split at ht'
-        · rename_i sn lps c hsn hlps hc
-          split at ht'
-          · cases ht'; exact hlps
-          · simp at ht'
-        · simp at ht'
-      sym only [bridge_grind, ConstantInfo.toConstantVal] =>
-        vcgen [IConstantInfo.toConstantVal,
-          internLNode_okS (mode := mode) (env := env) (fe := fe),
-          internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
-    | _ => simp [IConstantInfo.isTowerEntry] at hti
-
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-`toConstantVal_spec` in answer shape: the two fields at whatever the stored
-constant denotes (`CVFields`). -/
-theorem toConstantVal_specA (s₀ : AState) (ci : IConstantInfo)
-    (hok : CheckOK mode env fe s₀)
-    (hci : (Frontend.denoteCI s₀.store ci).isSome = true) :
-    ⦃fun s => s = s₀⦄ ci.toConstantVal
-    ⦃fun cv s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        CVFields s₀.store s'.store cv (Frontend.denoteCI s₀.store ci); ⊤⦄ := by
-  obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hci
-  refine triple_mono (toConstantVal_spec s₀ ci c hok hc) ?_
-  rintro cv s' ⟨h1, h2, h3, h4, h5⟩
-  rw [hc]
-  exact ⟨h1, h2, h3, h4, h5⟩
+/-- con-leche: ConLeche/Kernel/Env.lean:502-504 ConstantInfo.toConstantVal —
+**Theorem 1 for `toConstantVal`**, at the two fields the shape guards read
+(the level parameters and the type), keyed by the stored constant's
+denotation. -/
+theorem cvFieldsAt (st : EStore) (ci : IConstantInfo) :
+    CVFields st st ci.toConstantVal (Frontend.denoteCI st ci) := by
+  cases hc : Frontend.denoteCI st ci with
+  | none => trivial
+  | some c =>
+    obtain ⟨_, hlp, hty⟩ := denoteCV_inv (denoteCI_toConstantVal hc)
+    exact ⟨hlp, hty⟩
+grind_pattern [bridge_grind] cvFieldsAt => Frontend.denoteCI st ci, ci.toConstantVal
 
 /-! ## 3. The two `Type`-valued shapes: `String` and `Char` -/
 
@@ -198,8 +153,7 @@ theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.stringTyOk oc'; ⊤⦄ := by
   sym only [bridge_grind, ConLeche.stringTyOk] =>
-    vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne,
-      toConstantVal_specA (mode := mode) (env := env) (fe := fe)] <;> finish
+    vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:309-315 charTyOk — **THEOREM 1
 for `charTyOk`**. -/
@@ -210,8 +164,7 @@ theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.charTyOk oc'; ⊤⦄ := by
   sym only [bridge_grind, ConLeche.charTyOk] =>
-    vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne,
-      toConstantVal_specA (mode := mode) (env := env) (fe := fe)] <;> finish
+    vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne] <;> finish
 
 /-! ## 4. The `List` shapes -/
 
@@ -439,18 +392,19 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listTyOk]
-    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
-    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hlp := denoteCV_lps (denoteCI_toConstantVal hci)
+    have hty := denoteCV_type (denoteCI_toConstantVal hci)
+    generalize ci.toConstantVal = cv at hlp hty ⊢
     split
     -- the match on the level-parameter list, by its arms' names
     case h_2 hnotsingle =>
-      exact triple_pureS ⟨hok1, hx1, hp1,
+      exact triple_pureS ⟨hok, (Ext.refl _), rfl,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).1.symm⟩
     case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
-    refine triple_seq (internLNode_okS s1 (.param p) hok1
-      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    refine triple_seq (internLNode_okS s₀ (.param p) hok
+      (lviewOK_param (denoteN_ext hdp (Ext.refl _)))) ?_
     rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
     refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
     rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
@@ -458,12 +412,12 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       (viewOK_sort (by rw [hv3]; rfl))) ?_
     rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
     have hpl : denoteL s2.store.ls pl = some (.param P) :=
-      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+      denoteL_view_param hd2 (denoteN_ext hdp ((Ext.refl _).trans hx2))
     have hso : denoteE s4.store so = some (typeAt P) :=
-      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
-    have hx14 : Ext s1.store s4.store := hx2.trans (hx3.trans hx4)
-    have hx04 : Ext s₀.store s4.store := hx1.trans hx14
-    have hp04 : s4.pins = s₀.pins := hp4.trans (hp3.trans (hp2.trans hp1))
+      denote_typeAt (denoteN_ext hdp ((Ext.refl _).trans hx2)) hd2 hd3 hd4 hx3 hx4
+    have hx14 : Ext s₀.store s4.store := hx2.trans (hx3.trans hx4)
+    have hx04 : Ext s₀.store s4.store := (Ext.refl _).trans hx14
+    have hp04 : s4.pins = s₀.pins := hp4.trans (hp3.trans (hp2.trans rfl))
     have hty4 := denote_ext hty hx14
     have hwf4 := hok4.state.wf
     obtain ⟨v, hv⟩ := denoteE_view hty4
@@ -520,18 +474,19 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listNilTyOk]
-    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
-    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hlp := denoteCV_lps (denoteCI_toConstantVal hci)
+    have hty := denoteCV_type (denoteCI_toConstantVal hci)
+    generalize ci.toConstantVal = cv at hlp hty ⊢
     split
     -- the match on the level-parameter list, by its arms' names
     case h_2 hnotsingle =>
-      exact triple_pureS ⟨hok1, hx1, hp1,
+      exact triple_pureS ⟨hok, (Ext.refl _), rfl,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.1.symm⟩
     case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
-    refine triple_seq (internLNode_okS s1 (.param p) hok1
-      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    refine triple_seq (internLNode_okS s₀ (.param p) hok
+      (lviewOK_param (denoteN_ext hdp (Ext.refl _)))) ?_
     rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
     refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
     rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
@@ -539,10 +494,10 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       (viewOK_sort (by rw [hv3]; rfl))) ?_
     rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
     have hpl : denoteL s2.store.ls pl = some (.param P) :=
-      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+      denoteL_view_param hd2 (denoteN_ext hdp ((Ext.refl _).trans hx2))
     have hso : denoteE s4.store so = some (typeAt P) :=
-      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
-    have hx14 : Ext s1.store s4.store := hx2.trans (hx3.trans hx4)
+      denote_typeAt (denoteN_ext hdp ((Ext.refl _).trans hx2)) hd2 hd3 hd4 hx3 hx4
+    have hx14 : Ext s₀.store s4.store := hx2.trans (hx3.trans hx4)
     refine triple_seq (internLsNode_okS s4 [pl] hok4 (by
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
@@ -555,10 +510,10 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     rintro li s6 ⟨hs6, hli⟩
     subst s6
     have hli' : denoteN s5.store.ns li = some ConLeche.listName := hli _ rfl
-    have hx15 : Ext s1.store s5.store := hx14.trans hx5
-    have hx05 : Ext s₀.store s5.store := hx1.trans hx15
+    have hx15 : Ext s₀.store s5.store := hx14.trans hx5
+    have hx05 : Ext s₀.store s5.store := (Ext.refl _).trans hx15
     have hp05 : s5.pins = s₀.pins :=
-      hp5.trans (hp4.trans (hp3.trans (hp2.trans hp1)))
+      hp5.trans (hp4.trans (hp3.trans (hp2.trans rfl)))
     have hso5 := denote_ext hso hx5
     have hty5 := denote_ext hty hx15
     have hwf5 := hok5.state.wf
@@ -703,18 +658,19 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.listConsTyOk]
-    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
-    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hlp := denoteCV_lps (denoteCI_toConstantVal hci)
+    have hty := denoteCV_type (denoteCI_toConstantVal hci)
+    generalize ci.toConstantVal = cv at hlp hty ⊢
     split
     -- the match on the level-parameter list, by its arms' names
     case h_2 hnotsingle =>
-      exact triple_pureS ⟨hok1, hx1, hp1,
+      exact triple_pureS ⟨hok, (Ext.refl _), rfl,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.2.symm⟩
     case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
-    refine triple_seq (internLNode_okS s1 (.param p) hok1
-      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    refine triple_seq (internLNode_okS s₀ (.param p) hok
+      (lviewOK_param (denoteN_ext hdp (Ext.refl _)))) ?_
     rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
     refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
     rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
@@ -722,9 +678,9 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       (viewOK_sort (by rw [hv3]; rfl))) ?_
     rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
     have hpl : denoteL s2.store.ls pl = some (.param P) :=
-      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+      denoteL_view_param hd2 (denoteN_ext hdp ((Ext.refl _).trans hx2))
     have hso : denoteE s4.store so = some (typeAt P) :=
-      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
+      denote_typeAt (denoteN_ext hdp ((Ext.refl _).trans hx2)) hd2 hd3 hd4 hx3 hx4
     refine triple_seq (internLsNode_okS s4 [pl] hok4 (by
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
@@ -769,11 +725,11 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denote_ext hb2 (hx10.trans hx11))
     have hx511 : Ext s5.store s11.store :=
       hx58.trans (hx9.trans (hx10.trans hx11))
-    have hx111 : Ext s1.store s11.store :=
+    have hx111 : Ext s₀.store s11.store :=
       hx2.trans (hx3.trans (hx4.trans (hx5.trans hx511)))
-    have hx011 : Ext s₀.store s11.store := hx1.trans hx111
+    have hx011 : Ext s₀.store s11.store := (Ext.refl _).trans hx111
     have hp011 : s11.pins = s₀.pins := by
-      rw [hp11, hp10, hp9, hp8, hp7, hp6, hp5, hp4, hp3, hp2, hp1]
+      rw [hp11, hp10, hp9, hp8, hp7, hp6, hp5, hp4, hp3, hp2]
     have hwf := hok11.state.wf
     have hso' := denote_ext hso (hx5.trans hx511)
     have hb0 : denoteE s11.store b0 = some (.bvar 0) :=
@@ -900,22 +856,23 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.charOfNatTyOk]
-    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
-    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hlp := denoteCV_lps (denoteCI_toConstantVal hci)
+    have hty := denoteCV_type (denoteCI_toConstantVal hci)
+    generalize ci.toConstantVal = cv at hlp hty ⊢
     have hemp := isEmpty_of_denoteNList hlp
     by_cases hne : (!cv.levelParams.isEmpty) = true
     · rw [ite_eq_left hne]
       rw [hemp] at hne
-      exact triple_pureS ⟨hok1, hx1, hp1,
+      exact triple_pureS ⟨hok, (Ext.refl _), rfl,
         (fnTyOks_not_empty (by simpa using hne)).1.symm⟩
     rw [ite_eq_right hne]
     have hl : c.toConstantVal.levelParams.isEmpty = true := by
       rw [← hemp]; simpa using hne
     simp only [ConRon.Arena.pinNat, ConRon.Arena.pinChar]
-    refine triple_seq (pinAt_okS s1 _ hok1) ?_
+    refine triple_seq (pinAt_okS s₀ _ hok) ?_
     rintro nt s2 ⟨hs2, hnt⟩
     subst s2
-    refine triple_seq (constE_spec s1 nt _ hok1 (hnt _ rfl)) ?_
+    refine triple_seq (constE_spec s₀ nt _ hok (hnt _ rfl)) ?_
     rintro nc s2 ⟨hok2, hx2, hp2, hnc⟩
     refine triple_seq (pinAt_okS s2 _ hok2) ?_
     rintro ch s3 ⟨hs3, hch⟩
@@ -924,8 +881,8 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     rintro cc s3 ⟨hok3, hx3, hp3, hcc⟩
     have hwf := hok3.state.wf
     have hx13 := hx2.trans hx3
-    have hx03 : Ext s₀.store s3.store := hx1.trans hx13
-    have hp03 : s3.pins = s₀.pins := by rw [hp3, hp2, hp1]
+    have hx03 : Ext s₀.store s3.store := (Ext.refl _).trans hx13
+    have hp03 : s3.pins = s₀.pins := by rw [hp3, hp2]
     have hnc' := denote_ext hnc hx3
     have hcc' := hcc
     have hty' := denote_ext hty hx13
@@ -976,23 +933,24 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     simp only [ConRon.Arena.stringOfListTyOk]
-    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
-    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hlp := denoteCV_lps (denoteCI_toConstantVal hci)
+    have hty := denoteCV_type (denoteCI_toConstantVal hci)
+    generalize ci.toConstantVal = cv at hlp hty ⊢
     have hemp := isEmpty_of_denoteNList hlp
     by_cases hne : (!cv.levelParams.isEmpty) = true
     · rw [ite_eq_left hne]
       rw [hemp] at hne
-      exact triple_pureS ⟨hok1, hx1, hp1,
+      exact triple_pureS ⟨hok, (Ext.refl _), rfl,
         (fnTyOks_not_empty (by simpa using hne)).2.symm⟩
     rw [ite_eq_right hne]
     have hl : c.toConstantVal.levelParams.isEmpty = true := by
       rw [← hemp]; simpa using hne
     unfold ConRon.Arena.zeroLevel
     simp only [ConRon.Arena.pinList, ConRon.Arena.pinChar, ConRon.Arena.pinString]
-    refine triple_seq (pinZeroLevel_spec s1 hok1.pins) ?_
+    refine triple_seq (pinZeroLevel_spec s₀ hok.pins) ?_
     rintro z s2 ⟨hs2, hz⟩
     subst s2
-    refine triple_seq (internLsNode_okS s1 [z] hok1 (by
+    refine triple_seq (internLsNode_okS s₀ [z] hok (by
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
       exact lview_isSome_of_denote hz)) ?_
@@ -1027,10 +985,10 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     rintro sc s6 ⟨hok6, hx6, hp6, hsc⟩
     have hsc' := hsc
     have hwf := hok6.state.wf
-    have hx16 : Ext s1.store s6.store :=
+    have hx16 : Ext s₀.store s6.store :=
       hx2.trans (hx3.trans (hx4.trans (hx5.trans hx6)))
-    have hx06 : Ext s₀.store s6.store := hx1.trans hx16
-    have hp06 : s6.pins = s₀.pins := by rw [hp6, hp5, hp4, hp3, hp2, hp1]
+    have hx06 : Ext s₀.store s6.store := (Ext.refl _).trans hx16
+    have hp06 : s6.pins = s₀.pins := by rw [hp6, hp5, hp4, hp3, hp2]
     have hdom' := denote_ext hdom hx6
     have hty' := denote_ext hty hx16
     obtain ⟨v, hv⟩ := denoteE_view hty'
@@ -1074,8 +1032,8 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
 
 section Census
 
-#print axioms denoteCI_nonTower
-#print axioms toConstantVal_spec
+#print axioms denoteCI_toConstantVal
+#print axioms cvFieldsAt
 #print axioms stringTyOk_spec
 #print axioms charTyOk_spec
 #print axioms listTyOk_spec

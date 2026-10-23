@@ -785,10 +785,9 @@ hypothesis between the two sides.
 -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:433-452 ProjEntry — **the denotation
-of one projection-table entry**: the six handle fields denote, the four
-scalar fields (`idx`, `numParams`, `numFields`, `off`) are shared by the two
-tiers and are copied.  `Frontend.denoteProjTable`'s shape exactly, minus the
-`tableName` field an entry does not carry. -/
+of one projection-table entry**: the six handle fields denote, the three
+scalar fields (`idx`, `numParams`, `numFields`) are shared by the two tiers and
+are copied.  `Frontend.denoteProjTable`'s shape exactly. -/
 def denoteProjEntry (st : EStore) (e : IProjEntry) : Option ProjEntry :=
   match denoteN st.ns e.structName, Frontend.denoteNList st.ns e.levelParams,
         denoteN st.ns e.ctor with
@@ -796,7 +795,7 @@ def denoteProjEntry (st : EStore) (e : IProjEntry) : Option ProjEntry :=
     match denoteE st e.body, denoteL st.ls e.fieldSort,
           denoteL st.ls e.structSort with
     | some b, some fs, some ss =>
-      some ⟨sn, e.idx, lps, e.numParams, c, e.numFields, b, fs, ss, e.off⟩
+      some ⟨sn, e.idx, lps, e.numParams, c, e.numFields, b, fs, ss⟩
     | _, _, _ => none
   | _, _, _ => none
 
@@ -814,7 +813,7 @@ theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
       denoteL st.ls e.fieldSort = some p.fieldSort ∧
       denoteL st.ls e.structSort = some p.structSort ∧
       p.idx = e.idx ∧ p.numParams = e.numParams ∧
-      p.numFields = e.numFields ∧ p.off = e.off := by
+      p.numFields = e.numFields := by
   simp only [denoteProjEntry] at h
   cases hs : denoteN st.ns e.structName with
   | none => rw [hs] at h; simp at h
@@ -837,7 +836,7 @@ theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
             | some ss =>
               rw [hb, hf, hss] at h
               obtain rfl := Option.some.inj h
-              exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+              exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — a denoting expression-handle list keeps its length. -/
 theorem denoteEList_len {st : EStore} :
@@ -987,13 +986,13 @@ theorem denoteProjTable_entry {st : EStore} {t : IProjTable} {p : ProjTable}
                 simp only [IProjTable.entry, ProjTable.entry, denoteProjEntry,
                   harr, harr2, hs, hl, hc, hss, hbi, hgi]
 
-/-- con-leche: ConLeche/Kernel/Env.lean:376-431 ProjTable — the four SCALAR
+/-- con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable — the two SCALAR
 fields of a table are shared by the two tiers and survive the denotation
 literally.  `findProj?`'s guard is `i < numFields` on both sides, so this is
 what makes the two guards the same test. -/
 theorem denoteProjTable_fields {st : EStore} {t : IProjTable} {p : ProjTable}
     (h : Frontend.denoteProjTable st t = some p) :
-    p.numFields = t.numFields ∧ p.numParams = t.numParams ∧ p.off = t.off := by
+    p.numFields = t.numFields ∧ p.numParams = t.numParams := by
   simp only [Frontend.denoteProjTable] at h
   cases hs : denoteN st.ns t.structName with
   | none => rw [hs] at h; simp at h
@@ -1016,38 +1015,7 @@ theorem denoteProjTable_fields {st : EStore} {t : IProjTable} {p : ProjTable}
             | some gs =>
               rw [hss, hb, hg] at h
               obtain rfl := Option.some.inj h
-              exact ⟨rfl, rfl, rfl⟩
-
-/-- con-leche: none — **the denotation does not change a constant's
-CONSTRUCTOR**: only a `.projInfo` denotes a `.projInfo`.  What a `findProj?`
-rule needs to turn "the environment stores a table here" into "the index
-stores one too". -/
-theorem denoteCI_projInfo {st : EStore} {ci : IConstantInfo} {pt : ProjTable}
-    (h : Frontend.denoteCI st ci = some (.projInfo pt)) :
-    ∃ tbl, ci = .projInfo tbl ∧ Frontend.denoteProjTable st tbl = some pt := by
-  cases ci with
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨q, hq, hc⟩ := h
-    exact ⟨t, rfl, by rw [hq]; simpa using hc⟩
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; exact absurd hc (by simp)
-  | ctorInfo v a b =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; exact absurd hc (by simp)
-  | defnInfo v e hint =>
-    simp only [Frontend.denoteCI] at h
-    split at h <;> simp at h
-  | thmInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; exact absurd hc (by simp)
-  | indInfo v c =>
-    simp only [Frontend.denoteCI] at h
-    split at h <;> simp at h
-  | recInfo v a b rs =>
-    simp only [Frontend.denoteCI] at h
-    split at h <;> simp at h
+              exact ⟨rfl, rfl⟩
 
 theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c) (hx : Ext st st') :
@@ -1061,10 +1029,6 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
     obtain ⟨cv, hcv, hc⟩ := h
     exact ⟨cv, denoteCV_ext hcv hx, hc⟩
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨p, hp, hc⟩ := h
-    exact ⟨p, denoteProjTable_ext hp hx, hc⟩
   | defnInfo v e hint =>
     simp only [Frontend.denoteCI] at h ⊢
     cases hcv : Frontend.denoteCV st v with

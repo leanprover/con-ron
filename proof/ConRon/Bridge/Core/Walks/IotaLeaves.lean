@@ -11,7 +11,7 @@ equation over tags and projections (`isCtorApp_eq`, `litToCtorIfNat_eq`,
 `andRescueSlots_eq` over the named slot walk `andSlotsFrom`), a twin's nested
 `match` one constructor deep (`litToCtorIfNat_split`), and the callees with
 `∀`-shaped posts restated as named answers (`leafGuard_specA`,
-`findProj?_specP`, `IProjEntry.fireOk_specA`).
+`projAnsAt`, `IProjEntry.fireOk_specA`).
 -/
 import ConRon.Bridge.Core.Walks.Stuck
 import ConRon.Bridge.Core.Walks.ProjLit
@@ -271,11 +271,13 @@ theorem andRescueSlotsGo_specA (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     sym only [bridge_grind] => vcgen [ConRon.Arena.andRescueSlotsGo] <;> finish
   | succ n ih =>
     intro j s₀ hok han hc hus
+    -- `ematch := 6`: the lookup is pure since con-leche #362, so its answer
+    -- (`projAnsAt`) is one e-matching round in rather than a callee's
+    -- postcondition, and the slot's constructor comparison needs one round more
     sym only [bridge_grind, Option.getD_some] =>
       vcgen [ConRon.Arena.andRescueSlotsGo,
-        findProj?_specP (mode := mode) (env := env) (fe := fe) (Tn := ConLeche.andName),
         IProjEntry.fireOk_specA (mode := mode) (env := env) (fe := fe), ih] <;>
-        finish
+        finish (ematch := 6)
 
 end AndSlots
 

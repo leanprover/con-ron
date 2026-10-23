@@ -244,7 +244,7 @@ theorem etaCtorShape_eq (x : Expr) :
     match o with
     | some (.ctorInfo _ _ _) => rfl
     | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
-    | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _) | some (.projInfo _) | none => rfl
+    | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _) | none => rfl
   | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape — **THEOREM
@@ -543,11 +543,10 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
             subst hol
             dsimp only
             -- stage 5: the slot discipline
-            refine triple_seq (towerSlotsAll_spec s5 T Tn icaps.etaFields hok5
-              (denoteN_ext hTn hx5)) ?_
-            rintro slots s7 ⟨hok7, hx6, hp6, hslots⟩
-            have hx07 : Ext s₀.store s7.store := hx5.trans hx6
-            have hp07 : s7.pins = s₀.pins := hp6.trans hp5
+            have hslots := towerSlotsAll_spec T Tn icaps.etaFields hok5 (denoteN_ext hTn hx5)
+            generalize ConRon.Arena.towerSlotsAll fe T icaps.etaFields = slots at hslots ⊢
+            have hx07 : Ext s₀.store s5.store := hx5.trans (Ext.refl _)
+            have hp07 : s5.pins = s₀.pins := rfl.trans hp5
             obtain ⟨_, hlpsC, _⟩ := denoteCV_inv hdcvc
             obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
             have hctr : icaps.etaCtor = c ↔ ct = cn :=
@@ -577,7 +576,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
               have hEx := fun F => structEtaCertWith_exits (mode := mode) (F := F)
                 (d := d) (y := y) hgf hfindc hlenP hgw hfindT hgP
               -- stage 6: the two level lists
-              refine triple_seq (lvlsEq?_spec s7 us us' hok7) ?_
+              refine triple_seq (lvlsEq?_spec s5 us us' hok5) ?_
               rintro q s8 ⟨hok8, hst8, hp8, lus, lvs, hlus, hlvs, hq⟩
               rw [denoteLs_ext hus hx07] at hlus
               rw [denoteLs_ext hus' hx07] at hlvs
@@ -629,7 +628,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
               · have hokL' : okL = false := by simpa using hokF
                 subst hokL'
                 exact triple_pureC ⟨hok8, hx08, hp08, 0, (hEx 0).1 hlv⟩
-            · exact triple_pureC ⟨hok7, hx07, hp07, 0,
+            · exact triple_pureC ⟨hok5, hx07, hp07, 0,
                 structEtaCertWith_guard hgf hfindc hlenP hgw hfindT
                   (fun h => hgF (hguard.mpr h))⟩
           next hnd =>
@@ -813,7 +812,7 @@ theorem structUnitCert_run {F d : Nat} {x y t w : Expr}
         match o, hnot with
         | some (.indInfo cv caps), hnot => exact absurd rfl (hnot cv caps)
         | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
-        | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _ | some (.projInfo _), _
+        | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _
         | none, _ => rfl
       simp [hc, pure, Except.pure]
   | _ => simp [exprTag, ETag.const, ETag.bvar, ETag.fvar, ETag.sort, ETag.app, ETag.lam,

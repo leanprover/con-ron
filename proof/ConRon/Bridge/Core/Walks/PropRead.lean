@@ -31,7 +31,7 @@ stand on it (`propIrrel`, `annotPwPi`, `annotPwLam`).
 `fe.find? I` against `env.find? nm` is `Bridge/Grind.lean` §8's `IndexAt`:
 a hit's tower-ness is the denotation's, and off the tower the stored record
 denotes the environment's; the arena's monadic `toConstantVal` is then pure
-(`toConstantVal_specP`).
+(``).
 The has-parameters cutoff (DESIGN, task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 
@@ -242,17 +242,6 @@ theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK mode env fe
     (fun _ _ ⟨hst, hm, hp, hc, hd, hLs⟩ =>
       ⟨CheckOK.ofReadbackFrame hok (ReadbackFrame.ofReadLs hst hm hp hc hLs), hst, hp, hd⟩)
 
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-off the tower the arena's `toConstantVal` is pure: the stored record. -/
-theorem toConstantVal_specP (s₀ : AState) (ci : IConstantInfo)
-    (ht : ci.isTowerEntry = false) :
-    ⦃fun s => s = s₀⦄ ci.toConstantVal
-    ⦃fun v s' => s' = s₀ ∧ v = iPureVal ci; ⊤⦄ := by
-  cases ci with
-  | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
-  | _ => sym only [bridge_grind, iPureVal] =>
-      vcgen [IConstantInfo.toConstantVal] <;> finish
-
 /-! ### `Option` readings of con-leche's answers -/
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast — its verdict
@@ -384,11 +373,11 @@ theorem peelPisW_succ_eq (f : ConLeche.Name → Option ConstantInfo) (k : Nat) (
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:112-131 headTypePW — the head
 reader as ONE equation over tags and projections (the lookup through
-`cTower?`/`cValP`). -/
+`cValP`). -/
 theorem headTypePW_eq (f : ConLeche.Name → Option ConstantInfo) (r : Expr) (d : Nat)
     (x : Expr) (n : Nat) : ConLeche.headTypePW f r d x n =
       if exprTag x = ETag.const then
-        (if (f (exprConstName x)).isSome = true ∧ cTower? (f (exprConstName x)) = false ∧
+        (if (f (exprConstName x)).isSome = true ∧
             (exprConstLevels x).length = (cValP (f (exprConstName x))).levelParams.length then
           (ConLeche.residualPW (ConLeche.peelPisW f n (cValP (f (exprConstName x))).type)).map
             (Level.substPW (cValP (f (exprConstName x))).levelParams (exprConstLevels x))
@@ -404,11 +393,8 @@ theorem headTypePW_eq (f : ConLeche.Name → Option ConstantInfo) (r : Expr) (d 
   | const I us =>
     simp only [ConLeche.headTypePW, exprTag, exprConstName, exprConstLevels, ite_true]
     cases hf : f I with
-    | none => simp [cTower?, cValP]
-    | some ci =>
-      by_cases ht : ci.isTowerEntry = true
-      · simp [ht, cTower?, cValP]
-      · simp [ht, cTower?, cValP]
+    | none => simp [cValP]
+    | some ci => simp [cValP]
   | fvar k ty =>
     simp [ConLeche.headTypePW, exprTag, exprFVarType, ETag.fvar, ETag.const]
   | bvar i =>
@@ -432,10 +418,10 @@ theorem typeSortPWGo_eq (f : ConLeche.Name → Option ConstantInfo) (r x : Expr)
     ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:156-183 headProofPW — the
-projection arm through `Env.findProj?` (the table's name, the find, the
-field-count test, the entry), as a rewrite rule. -/
+projection arm through `Env.findProj?` (the table, the field-count test, the
+entry), as a rewrite rule. -/
 theorem headProofPW_proj {S : ConLeche.Name} {i : Nat} {e : Expr} :
-    ConLeche.headProofPW env.find? (.proj S i e) =
+    ConLeche.headProofPW env.find? env.findTable? (.proj S i e) =
       match env.findProj? S i with
       | some p =>
         (match ConLeche.typeSortPW env.find? p.body with
@@ -443,15 +429,12 @@ theorem headProofPW_proj {S : ConLeche.Name} {i : Nat} {e : Expr} :
           | none => none)
       | none => none := by
   simp only [ConLeche.headProofPW, ConLeche.Env.findProj?]
-  cases hf : env.find? (ConLeche.projTableName S) with
+  cases env.findTable? S with
   | none => rfl
-  | some ci =>
-    cases ci with
-    | projInfo tbl =>
-      by_cases hi : i < tbl.numFields
-      · simp only [hi, ite_true]; rfl
-      · simp only [hi, ite_false]
-    | _ => rfl
+  | some tbl =>
+    by_cases hi : i < tbl.numFields
+    · simp only [hi, ite_true]; rfl
+    · simp only [hi, ite_false]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:164-176 headProofPW — the
 projection arm at the projection entry. -/
@@ -463,10 +446,9 @@ attribute [bridge_grind =] projPW
 /-- con-leche: ConLeche/Kernel/PropRead.lean:156-183 headProofPW — the term
 head reader as ONE equation over tags and projections, at the environment's
 lookup (the projection arm through `Env.findProj?`, `headProofPW_proj`). -/
-theorem headProofPW_eq (x : Expr) : ConLeche.headProofPW env.find? x =
+theorem headProofPW_eq (x : Expr) : ConLeche.headProofPW env.find? env.findTable? x =
     if exprTag x = ETag.const then
       (if (env.find? (exprConstName x)).isSome = true ∧
-          cTower? (env.find? (exprConstName x)) = false ∧
           (exprConstLevels x).length =
             (cValP (env.find? (exprConstName x))).levelParams.length then
         (ConLeche.typeSortPW env.find? (cValP (env.find? (exprConstName x))).type).map
@@ -482,11 +464,8 @@ theorem headProofPW_eq (x : Expr) : ConLeche.headProofPW env.find? x =
   | const I us =>
     simp only [ConLeche.headProofPW, exprTag, exprConstName, exprConstLevels, ite_true]
     cases hf : env.find? I with
-    | none => simp [cTower?, cValP]
-    | some ci =>
-      by_cases ht : ci.isTowerEntry = true
-      · simp [ht, cTower?, cValP]
-      · simp [ht, cTower?, cValP]
+    | none => simp [cValP]
+    | some ci => simp [cValP]
   | proj S i e =>
     rw [headProofPW_proj]
     simp only [exprTag, exprProjName, exprProjIdx, ETag.proj, ETag.const, ETag.fvar,
@@ -502,26 +481,29 @@ theorem headProofPW_eq (x : Expr) : ConLeche.headProofPW env.find? x =
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW — one step:
 through a λ, a `let` or an application, else the head. -/
-theorem proofPW_eq (f : ConLeche.Name → Option ConstantInfo) (x : Expr) :
-    ConLeche.proofPW f x =
-      if exprTag x = ETag.lam then ConLeche.proofPW f (exprBody x)
-      else if exprTag x = ETag.letE then ConLeche.proofPW f (exprBody x)
-      else if exprTag x = ETag.app then ConLeche.proofPW f (exprFn x)
-      else ConLeche.headProofPW f x := by
+theorem proofPW_eq (f : ConLeche.Name → Option ConstantInfo)
+    (g : ConLeche.Name → Option ProjTable) (x : Expr) :
+    ConLeche.proofPW f g x =
+      if exprTag x = ETag.lam then ConLeche.proofPW f g (exprBody x)
+      else if exprTag x = ETag.letE then ConLeche.proofPW f g (exprBody x)
+      else if exprTag x = ETag.app then ConLeche.proofPW f g (exprFn x)
+      else ConLeche.headProofPW f g x := by
   cases x <;> simp [ConLeche.proofPW, exprTag, exprBody, exprFn, ETag.forallE, ETag.bvar,
     ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast — at the
 datum. -/
-theorem notProofFast_eq (f : ConLeche.Name → Option ConstantInfo) (x : Expr) :
-    ConLeche.notProofFast f x = notPW (ConLeche.proofPW f x) := by
-  unfold ConLeche.notProofFast; cases ConLeche.proofPW f x <;> rfl
+theorem notProofFast_eq (f : ConLeche.Name → Option ConstantInfo)
+    (g : ConLeche.Name → Option ProjTable) (x : Expr) :
+    ConLeche.notProofFast f g x = notPW (ConLeche.proofPW f g x) := by
+  unfold ConLeche.notProofFast; cases ConLeche.proofPW f g x <;> rfl
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast — at the
 datum. -/
-theorem isProofFast_eq (f : ConLeche.Name → Option ConstantInfo) (x : Expr) :
-    ConLeche.isProofFast f x = isPW (ConLeche.proofPW f x) := by
-  unfold ConLeche.isProofFast; cases ConLeche.proofPW f x <;> rfl
+theorem isProofFast_eq (f : ConLeche.Name → Option ConstantInfo)
+    (g : ConLeche.Name → Option ProjTable) (x : Expr) :
+    ConLeche.isProofFast f g x = isPW (ConLeche.proofPW f g x) := by
+  unfold ConLeche.isProofFast; cases ConLeche.proofPW f g x <;> rfl
 
 /-! ## 3. The view-only readers
 
@@ -681,7 +663,7 @@ theorem headTypePW_specX (fuel : Nat) (s₀ : AState) (root : EIdx) (rx : Expr) 
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.headTypePW env.find? rx d x n; ⊤⦄ := by
   sym only [bridge_grind, headTypePW_eq, residualPW_none_eq] =>
-    vcgen [ConRon.Arena.headTypePW, toConstantVal_specP,
+    vcgen [ConRon.Arena.headTypePW,
       peelPisW_specA (mode := mode) (env := env) (fe := fe) fuel,
       residualPW_specA (mode := mode) (env := env) (fe := fe),
       substPWAt_specX (mode := mode) (env := env) (fe := fe)
@@ -726,25 +708,43 @@ theorem typeSortPW_specA (fuel : Nat) (s₀ : AState) (T : EIdx)
     vcgen [ConRon.Arena.typeSortPW,
       typeSortPWGo_specX (mode := mode) (env := env) (fe := fe) T x fuel (x := x)] <;> finish
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? —
-`IFEnv.findProj?_spec` with its answer as `ProjFound` (found together, and a
-found entry's body denotes the environment's). -/
-theorem findProj?_specX (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ fe.findProj? T i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ProjFound s'.store r (env.findProj? Tn i); ⊤⦄ := by
-  refine triple_mono (IFEnv.findProj?_spec s₀ T i Tn hok hT) ?_
-  rintro r s' ⟨hck, hx, _, _, hp, hsome, hnone⟩
-  refine ⟨hck, hx, hp, ?_⟩
-  cases r with
+/-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? —
+`findProjAt` with its answer as `ProjFound` (found together, and a found
+entry's body denotes the environment's). -/
+theorem projFoundAt {s : AState} {T : NIdx} {i : Nat} {Tn : ConLeche.Name}
+    (hok : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    ProjFound s.store (fe.findProj? T i) (env.findProj? Tn i) := by
+  obtain ⟨hsome, hnone⟩ := IFEnv.findProj?_spec T i Tn hok hT
+  cases hr : fe.findProj? T i with
   | some en =>
-    obtain ⟨p, hp1, hp2⟩ := hsome en rfl
+    obtain ⟨p, hp1, hp2⟩ := hsome en hr
     rw [hp2]
-    have h := entryAt s'.store en
+    have h := entryAt s.store en
     rw [hp1] at h
     exact h
-  | none => rw [hnone rfl]; trivial
+  | none => rw [hnone hr]; trivial
+
+/-- con-leche: none — `ProjFound` at a handle's denotation, so that the lookup's
+fact is keyed by the arena's lookup alone (`IndexAt`'s shape). -/
+def ProjFoundAt (env : Env) (st : EStore) (r : Option IProjEntry) (i : Nat) :
+    Option ConLeche.Name → Prop
+  | some Tn => ProjFound st r (env.findProj? Tn i)
+  | none => True
+
+/-- con-leche: none — `projFoundAt` keyed by the invariant and the arena's
+lookup. -/
+theorem projFoundAt' {s : AState} (hok : CheckOK mode env fe s) (T : NIdx) (i : Nat) :
+    ProjFoundAt env s.store (fe.findProj? T i) i (denoteN s.store.ns T) := by
+  cases hT : denoteN s.store.ns T with
+  | none => trivial
+  | some Tn => exact projFoundAt hok hT
+grind_pattern [bridge_grind] projFoundAt' => CheckOK mode env fe s, fe.findProj? T i
+
+/-- con-leche: none — `ProjFoundAt` at a denoting handle. -/
+theorem ProjFoundAt.some {st : EStore} {r : Option IProjEntry} {i : Nat}
+    {Tn : ConLeche.Name} (H : ProjFoundAt env st r i (some Tn)) :
+    ProjFound st r (env.findProj? Tn i) := H
+grind_pattern [bridge_grind] ProjFoundAt.some => ProjFoundAt env st r i (some Tn)
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:156-183 headProofPW — **THEOREM 1
 for `headProofPW`** at the head's denotation. -/
@@ -752,13 +752,12 @@ theorem headProofPW_specX (fuel : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headProofPW fe fuel h
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.headProofPW env.find? x; ⊤⦄ := by
+        s'.pins = s₀.pins ∧ r = ConLeche.headProofPW env.find? env.findTable? x; ⊤⦄ := by
   sym only [bridge_grind, headProofPW_eq] =>
-    vcgen [ConRon.Arena.headProofPW, toConstantVal_specP,
+    vcgen [ConRon.Arena.headProofPW,
       typeSortPW_specA (mode := mode) (env := env) (fe := fe) fuel,
       substPWAt_specX (mode := mode) (env := env) (fe := fe)
-        (ks := (cValP (env.find? (exprConstName x))).levelParams) (vs := exprConstLevels x),
-      findProj?_specX (mode := mode) (env := env) (fe := fe) (Tn := exprProjName x)] <;>
+        (ks := (cValP (env.find? (exprConstName x))).levelParams) (vs := exprConstLevels x)] <;>
       finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — **THEOREM 1
@@ -770,7 +769,7 @@ theorem proofPW_specA (fuel : Nat) : ∀ (s₀ : AState) (a : EIdx),
     ⦃fun s => s = s₀⦄ ConRon.Arena.proofPW fe fuel a
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        (denoteE s₀.store a).map (ConLeche.proofPW env.find?) = some r; ⊤⦄ := by
+        (denoteE s₀.store a).map (ConLeche.proofPW env.find? env.findTable?) = some r; ⊤⦄ := by
   induction fuel with
   | zero =>
     intro s₀ a _ _
@@ -797,7 +796,7 @@ theorem notProofFast_specA (fuel : Nat) (s₀ : AState) (a : EIdx)
     ⦃fun s => s = s₀⦄ ConRon.Arena.notProofFast fe fuel a
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        (denoteE s₀.store a).map (ConLeche.notProofFast env.find?) = some b; ⊤⦄ := by
+        (denoteE s₀.store a).map (ConLeche.notProofFast env.find? env.findTable?) = some b; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
   sym only [bridge_grind, notProofFast_eq] =>
     vcgen [ConRon.Arena.notProofFast,
@@ -810,7 +809,7 @@ theorem isProofFast_specA (fuel : Nat) (s₀ : AState) (a : EIdx)
     ⦃fun s => s = s₀⦄ ConRon.Arena.isProofFast fe fuel a
     ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        (denoteE s₀.store a).map (ConLeche.isProofFast env.find?) = some b; ⊤⦄ := by
+        (denoteE s₀.store a).map (ConLeche.isProofFast env.find? env.findTable?) = some b; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
   sym only [bridge_grind, isProofFast_eq] =>
     vcgen [ConRon.Arena.isProofFast,
@@ -826,8 +825,8 @@ theorem map_eq_some_at {α β : Type} {o : Option α} {f : α → β} {r : β} {
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the "not a
 proof" arm refuses, at any fuel. -/
 theorem propIrrel_no {F d : Nat} {x y : Expr}
-    (h : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = true) :
+    (h : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = true) :
     ConLeche.propIrrelFueled mode env F d x y = .ok false := by
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, h, ite_true, pure,
     Except.pure]
@@ -835,10 +834,10 @@ theorem propIrrel_no {F d : Nat} {x y : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the "yes" arm
 (the squash-regime licence), at any fuel. -/
 theorem propIrrel_yes {F d : Nat} {x y : Expr}
-    (hn : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = false)
-    (h : (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) = true) :
+    (hn : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = false)
+    (h : (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) = true) :
     ConLeche.propIrrelFueled mode env F d x y = .ok true := by
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, h,
     Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
@@ -846,10 +845,10 @@ theorem propIrrel_yes {F d : Nat} {x y : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path:
 the first subject's type's type does not reduce to a sort. -/
 theorem propIrrel_slow_a {F d : Nat} {x y ta tta w : Expr}
-    (hn : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = false)
-    (hi : (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) = false)
+    (hn : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = false)
+    (hi : (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) = false)
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
     (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
     (h3 : ConLeche.whnf mode env F d tta = .ok w)
@@ -867,10 +866,10 @@ the first subject's side is a sort, the second's type's type does not reduce
 to one. -/
 theorem propIrrel_slow_b {F d : Nat} {x y ta tta tb ttb w : Expr} {uT : Level}
     {okA : Bool}
-    (hn : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = false)
-    (hi : (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) = false)
+    (hn : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = false)
+    (hi : (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) = false)
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
     (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
     (h3 : ConLeche.whnf mode env F d tta = .ok (.sort uT))
@@ -895,10 +894,10 @@ to its end: both sides are sorts, and the verdict is the two level
 comparisons' conjunction. -/
 theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
     {okA okB : Bool}
-    (hn : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = false)
-    (hi : (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) = false)
+    (hn : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = false)
+    (hi : (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) = false)
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
     (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
     (h3 : ConLeche.whnf mode env F d tta = .ok (.sort uT))
@@ -946,15 +945,15 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   rintro nb s2 ⟨hok2, hx2, hp2, hnb⟩
   have hx02 := hx1.trans hx2
   have hp02 : s2.pins = s₀.pins := hp2.trans hp1
-  have hN : (na || nb) = (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) := by
+  have hN : (na || nb) = (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) := by
     rw [map_eq_some_at hna hda, map_eq_some_at hnb (denote_ext hdb hx1)]
   by_cases hNT : (na || nb) = true
   · rw [ite_eq_left hNT]
     exact triple_pureR ⟨hok2, hx02, hp02, 0, propIrrel_no (hN ▸ hNT)⟩
   rw [ite_eq_right hNT]
-  have hNF : (ConLeche.notProofFast env.find? x ||
-      ConLeche.notProofFast env.find? y) = false := by
+  have hNF : (ConLeche.notProofFast env.find? env.findTable? x ||
+      ConLeche.notProofFast env.find? env.findTable? y) = false := by
     rw [← hN]; simpa using hNT
   refine triple_seq (isProofFast_specA coreWalkFuel s2 a hok2
     (by rw [denote_ext hda hx02]; rfl)) ?_
@@ -964,16 +963,16 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   rintro ib s4 ⟨hok4, hx4, hp4, hib⟩
   have hx04 := (hx02.trans hx3).trans hx4
   have hp04 : s4.pins = s₀.pins := hp4.trans (hp3.trans hp02)
-  have hI : (ia && ib) = (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) := by
+  have hI : (ia && ib) = (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) := by
     rw [map_eq_some_at hia (denote_ext hda hx02),
       map_eq_some_at hib (denote_ext hdb (hx02.trans hx3))]
   by_cases hIT : (ia && ib) = true
   · rw [ite_eq_left hIT]
     exact triple_pureR ⟨hok4, hx04, hp04, 0, propIrrel_yes hNF (hI ▸ hIT)⟩
   rw [ite_eq_right hIT]
-  have hIF : (ConLeche.isProofFast env.find? x &&
-      ConLeche.isProofFast env.find? y) = false := by
+  have hIF : (ConLeche.isProofFast env.find? env.findTable? x &&
+      ConLeche.isProofFast env.find? env.findTable? y) = false := by
     rw [← hI]; simpa using hIT
   -- the slow path: the first side's type's type
   refine triple_seq (hsim.inferIO s4 d a x hok4 (denote_ext hda hx04) hwa) ?_
@@ -1086,7 +1085,6 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 
 section Census
 
-#print axioms toConstantVal_specP
 #print axioms denote_not_sort
 #print axioms denote_not_lam
 #print axioms substPW_cutoff

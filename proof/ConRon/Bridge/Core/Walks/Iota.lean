@@ -1243,7 +1243,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                         ∀ pin ∈ pins, pin.hasFvar = false := by
                       intro lvls pins hf' pin hpin
                       obtain ⟨-, -, -, -, g5⟩ :=
-                        (henv _ (ConLeche.Env.find?_mem hfind)).2.2.2.2.2.1 dcv mI rP
+                        (henv.consts _ (ConLeche.Env.find?_mem hfind)).2.2.2.2.2.1 dcv mI rP
                           drules rfl rl' (List.mem_of_find?_eq_some hfind')
                       exact ((g5 lvls pins hf').2.2.1 pin hpin).1
                     have hcmpW := ConLeche.recFireComparands_snd_WScoped rl'

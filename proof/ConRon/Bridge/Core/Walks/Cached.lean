@@ -928,7 +928,7 @@ theorem const_ty_hasFvar {env : Env} (henv : ConLeche.EnvWF env)
     (us : List Level) :
     (ci.toConstantVal.type.instantiateLevelParams ci.toConstantVal.levelParams
       us).hasFvar = false := by
-  have hwf := henv _ (List.mem_of_find?_eq_some hf)
+  have hwf := henv.consts _ (List.mem_of_find?_eq_some hf)
   rw [Expr.hasFvar_instantiateLevelParams]
   exact hwf.1
 

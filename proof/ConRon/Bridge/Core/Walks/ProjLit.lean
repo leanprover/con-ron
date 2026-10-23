@@ -31,7 +31,7 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 The projection table's entries as `grind` reads them: a lookup's answer as
 ONE named predicate (`ProjAns`), a denoting entry's fields as equations
 (`EntryFields`), a found entry as `some` of its projection (`projOf_eta`),
-and the two callees in that shape (`findProj?_specP`,
+and the lookup and a callee in that shape (`projAnsAt`,
 `IProjEntry.fireOk_specA`). -/
 
 /-- con-leche: none — the index's projection-table answer against the
@@ -71,7 +71,7 @@ theorem entryFields (st : EStore) (en : IProjEntry) :
   cases h : denoteProjEntry st en with
   | none => trivial
   | some p =>
-    obtain ⟨_, hl, hc, _, _, _, _, hnp, hnf, _⟩ := denoteProjEntry_inv h
+    obtain ⟨_, hl, hc, _, _, _, _, hnp, hnf⟩ := denoteProjEntry_inv h
     exact ⟨hc, hl, hnp, hnf⟩
 grind_pattern [bridge_grind] entryFields => denoteProjEntry st en
 
@@ -83,21 +83,23 @@ theorem EntryFields.some {st : EStore} {en : IProjEntry} {p : ProjEntry}
       p.numParams = en.numParams ∧ p.numFields = en.numFields := H
 grind_pattern [bridge_grind] EntryFields.some => EntryFields st en (some p)
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? —
-`IFEnv.findProj?_specA` with its answer as `ProjAns`. -/
-theorem findProj?_specP (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
-    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => s = s₀⦄ fe.findProj? T i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ProjAns s'.store r (env.findProj? Tn i); ⊤⦄ :=
-  triple_mono (IFEnv.findProj?_specA s₀ T i Tn hok hT)
-    (fun r _ ⟨h1, h2, _, _, h5, h6⟩ => ⟨h1, h2, h5, by
-      cases r with
-      | none => exact (Option.some.inj h6).symm
-      | some en =>
-        simp only [denoteProjEntryO, Option.map_eq_some_iff] at h6
-        obtain ⟨p, hp, hq⟩ := h6
-        exact ⟨hp.trans hq, by rw [← hq]; rfl⟩⟩)
+/-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? — `findProjAt`
+with its answer as `ProjAns`, at the lookup, the environment's lookup and a
+handle denoting its name (`findProjAt`'s keys). -/
+theorem projAnsAt {s : AState} {T : NIdx} {i : Nat} {Tn : ConLeche.Name}
+    (hok : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    ProjAns s.store (fe.findProj? T i) (env.findProj? Tn i) := by
+  have h6 := findProjAt (i := i) hok hT
+  cases r : fe.findProj? T i with
+  | none => rw [r] at h6; exact (Option.some.inj h6).symm
+  | some en =>
+    rw [r] at h6
+    simp only [denoteProjEntryO, Option.map_eq_some_iff] at h6
+    obtain ⟨p, hp, hq⟩ := h6
+    exact ⟨hp.trans hq, by rw [← hq]; rfl⟩
+grind_pattern [bridge_grind] projAnsAt =>
+  CheckOK mode env fe s, fe.findProj? T i, env.findProj? Tn i where
+  guard denoteN s.store.ns T = some Tn
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
 `IProjEntry.fireOk_spec` at a denoting entry and level list, its answer over
