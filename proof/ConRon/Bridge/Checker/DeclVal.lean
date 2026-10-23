@@ -226,12 +226,12 @@ theorem installValueGuards_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 **What the value checks owe for `EnvWF`.**  Each of the three value checks
 ends in `IFEnv.push` and so concludes `StepOK env' fe' s'`, whose `envWF`
-clause is `EnvWF ⟨c :: env.consts⟩` — and *con-leche does not prove that
+clause is `EnvWF ⟨c :: env.consts, env.tables⟩` — and *con-leche does not prove that
 `checkDefnVal` preserves `EnvWF`*: `Verify/BridgeWfImp.lean`'s
 `checkDefnVal_wfimp` is about the fuel family, and the model tier takes
 `EnvWF` as a hypothesis (`EnvModelM.toEnvFacts.wf`) rather than
 re-establishing it.  What it DOES have, in `Verify/EnvWF.lean`, is
-`EnvWF.cons` — so the debt is exactly `ConstWF ⟨c :: env.consts⟩ c`, and it is
+`EnvWF.cons` — so the debt is exactly `ConstWF ⟨c :: env.consts, env.tables⟩ c`, and it is
 one lemma shared by all three arms (`Bridge/Checker/Inv.lean`'s
 `StepOK.push`).
 
@@ -271,7 +271,7 @@ structure CVTypeWF (env : Env) (cv : ConstantVal) : Prop where
 /-- con-leche: ConLeche/Verify/EnvWF.lean:304 Expr.constsResolve_mono — the
 only clause that mentions the environment is monotone under a cons. -/
 theorem CVTypeWF.cons {env : Env} {cv : ConstantVal} {c : ConstantInfo}
-    (h : CVTypeWF env cv) : CVTypeWF ⟨c :: env.consts⟩ cv where
+    (h : CVTypeWF env cv) : CVTypeWF ⟨c :: env.consts, env.tables⟩ cv where
   fvar := h.fvar
   lvls := h.lvls
   res := ConLeche.Expr.constsResolve_mono h.res
@@ -285,12 +285,12 @@ theorem checkConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
     {cv : ConstantVal}
     (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv = .ok ()) :
     CVTypeWF env cv := by
-  obtain ⟨-, -, -, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
+  obtain ⟨-, -, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
     ConLeche.checkConstantVal_inv h
   exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt }
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `defnInfo`
-introduction: the type clauses, the value clauses, and five vacuous ones. -/
+introduction: the type clauses, the value clauses, and the vacuous ones. -/
 theorem constWF_defnInfo {env : Env} {cv : ConstantVal} {v : Expr}
     {hint : ReducibilityHint} (ht : CVTypeWF env cv)
     (g1 : v.hasFvar = false)
@@ -303,7 +303,6 @@ theorem constWF_defnInfo {env : Env} {cv : ConstantVal} {v : Expr}
      obtain ⟨rfl, rfl, rfl⟩ := ConLeche.ConstantInfo.defnInfo.inj heq
      exact ⟨g1, g2, g3, g4⟩,
    fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `thmInfo`
@@ -314,7 +313,6 @@ theorem constWF_thmInfo {env : Env} {cv : ConstantVal}
   ⟨ht.fvar, ht.lvls, ht.res, ht.bnd,
    fun _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `axiomInfo`
@@ -324,7 +322,6 @@ theorem constWF_axiomInfo {env : Env} {cv : ConstantVal}
   ⟨ht.fvar, ht.lvls, ht.res, ht.bnd,
    fun _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-! ## The three value checks -/
@@ -336,7 +333,7 @@ The proof: `installValueGuards_bridge`, one `KnotSpec.infer`, one
 `KnotSpec.defeq`, then `StepOK.push`.
 
 **Why `htw : CVTypeWF env c`.**  `StepOK` carries
-`EnvWF ⟨.defnInfo c y hint :: env.consts⟩`, hence
+`EnvWF ⟨.defnInfo c y hint :: env.consts, env.tables⟩`, hence
 `ConstWF … (.defnInfo c y hint)`, hence the four clauses about `c.type` — and
 `checkDefnVal` never looks at the type: the value checks run at an ALREADY
 CHECKED header, whose guards are `checkConstantVal`'s.  Nothing else in the
@@ -399,9 +396,8 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
       = some (.defnInfo c x hint) := by
     simp only [Frontend.denoteCI, hcv3, hy3]
   refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _,
-    ⟨.defnInfo c x hint :: env.consts⟩, max F2 F3, ?_, ?_⟩
-  · exact (hok.toStepOK.mono hext).push hck3.state
-      (fun t hq => IConstantInfo.noConfusion hq) hci3
+    ⟨.defnInfo c x hint :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
+  · exact (hok.toStepOK.mono hext).push hck3.state hci3
       (constWF_defnInfo htw.cons gf gl
         (ConLeche.Expr.constsResolve_mono gr) gb)
   · exact ConLeche.checkDefnVal_of_facts gb gf gl gr
@@ -529,10 +525,10 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
       = some (.thmInfo c) := by
     simp only [Frontend.denoteCI, hcv8, Option.map_some]
   refine ⟨⟨hck8, hext, by rw [hp8, hp7, hstep6.pins, hpin4]⟩,
-    Pushed.push fe _, ⟨.thmInfo c :: env.consts⟩,
+    Pushed.push fe _, ⟨.thmInfo c :: env.consts, env.tables⟩,
     max (max Fa Fb) (max F2 F3), ?_, ?_⟩
   · exact (hok.toStepOK.mono hext).push hck8.state
-      (fun t hq => IConstantInfo.noConfusion hq) hci8
+      hci8
       (constWF_thmInfo htw.cons)
   · exact ConLeche.checkThmVal_of_facts
       (ConLeche.inferTypeCore_mono (by omega) hFa)
@@ -600,9 +596,8 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
       = some (.axiomInfo c) := by
     simp only [Frontend.denoteCI, hcv3, Option.map_some]
   refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _,
-    ⟨.axiomInfo c :: env.consts⟩, max F2 F3, ?_, ?_⟩
-  · exact (hok.toStepOK.mono hext).push hck3.state
-      (fun t hq => IConstantInfo.noConfusion hq) hci3
+    ⟨.axiomInfo c :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
+  · exact (hok.toStepOK.mono hext).push hck3.state hci3
       (constWF_axiomInfo htw.cons)
   · exact ConLeche.checkOpaqueVal_of_facts gb gf gl gr
       (ConLeche.inferTypeCore_mono (by omega) hF2)
@@ -917,33 +912,23 @@ theorem lpsEmpty_of_denote {st : EStore} {v : IConstantVal} {c : ConstantVal}
   have hl := denoteNList_length _ _ (denoteCV_inv h).2.1
   cases h1 : v.levelParams <;> cases h2 : c.levelParams <;> simp_all
 
-/-- con-leche: none — the frame at a caller that reads the index at a stored
-constant: `IFEnvOK.proj` makes every stored table rightly named. -/
-theorem CIProjNamed_of_find {env : Env} {fe : IFEnv} {s : AState}
-    (hie : IFEnvOK env fe s) {n : NIdx} {ci : IConstantInfo}
-    (hf : fe.find? n = some ci) : Frontend.CIProjNamed s.store ci := by
-  intro t ht
-  subst ht
-  exact (hie.proj n t hf).toNamed
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:589-603 natOpGuard — a stored
 `Bool` constructor is level-free and AT the type `Bool` itself (con-leche's
 task #342): the twin's `boolCtorOk`, whose type test is a handle comparison
 against the interned `Bool` (exactness). -/
 theorem boolCtorOk_run {ci : IConstantInfo} {c : ConstantInfo} {s : AState}
-    (hok : StateOK s) (hp : PinsOK s) (hpn : Frontend.CIProjNamed s.store ci)
+    (hok : StateOK s) (hp : PinsOK s)
     (hd : Frontend.denoteCI s.store ci = some c) :
     RunsB (Arena.boolCtorOk ci) s
       (c.toConstantVal.levelParams.isEmpty &&
         c.toConstantVal.type == .const ConLeche.boolName []) := by
   unfold Arena.boolCtorOk
-  refine RunsB.bind fun {v s₁} g1 => ?_
-  obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok hpn hd g1
-  refine ⟨hs1, ?_⟩
+  have hs1 := Frontend.IStepS.refl hok
+  have hv := denoteCI_toConstantVal hd
   have hty := (denoteCV_inv hv).2.2
   have hp1 := hp.mono hs1.ext hs1.pins
   rw [← lpsEmpty_of_denote hv]
-  by_cases he : v.levelParams.isEmpty = true
+  by_cases he : ci.toConstantVal.levelParams.isEmpty = true
   · rw [ite_eq_left he, he, Bool.true_and]
     refine RunsB.pin hs1.ok hp1 (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
     refine RunsB.bind fun {e s₂} g2 => ?_
@@ -958,9 +943,9 @@ theorem boolCtorOk_run {ci : IConstantInfo} {c : ConstantInfo} {s : AState}
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:589-603 natOpGuard — the stored
 `Bool` constructor's test at an index lookup, continued by a join point. -/
-theorem RunsB.matchBoolJP {env : Env} {fe : IFEnv} {n : NIdx}
+theorem RunsB.matchBoolJP {fe : IFEnv} {n : NIdx}
     {y : Option ConstantInfo} {s : AState} (hok : StateOK s) (hp : PinsOK s)
-    (hie : IFEnvOK env fe s) (hxy : FindRel s.store (fe.find? n) y)
+    (hxy : FindRel s.store (fe.find? n) y)
     {jp : Bool → AM Bool} {B : Bool}
     (hjp : ∀ {s₁ : AState}, Frontend.IStepS s s₁ →
       RunsB (jp (match (generalizing := false) y with
@@ -980,14 +965,14 @@ theorem RunsB.matchBoolJP {env : Env} {fe : IFEnv} {n : NIdx}
     obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
     exact ⟨Frontend.IStepS.refl hok, hjp (Frontend.IStepS.refl hok)⟩
   · rw [hx]
-    exact RunsB.bindB (boolCtorOk_run hok hp (CIProjNamed_of_find hie hx) hd)
+    exact RunsB.bindB (boolCtorOk_run hok hp hd)
       fun hs => hjp hs
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:589-603 natOpGuard — the same,
 last in its chain. -/
-theorem RunsB.matchBool {env : Env} {fe : IFEnv} {n : NIdx}
+theorem RunsB.matchBool {fe : IFEnv} {n : NIdx}
     {y : Option ConstantInfo} {s : AState} (hok : StateOK s) (hp : PinsOK s)
-    (hie : IFEnvOK env fe s) (hxy : FindRel s.store (fe.find? n) y) :
+    (hxy : FindRel s.store (fe.find? n) y) :
     RunsB (match (generalizing := false) fe.find? n with
         | some ci => Arena.boolCtorOk ci
         | none => pure false) s
@@ -998,7 +983,7 @@ theorem RunsB.matchBool {env : Env} {fe : IFEnv} {n : NIdx}
   rcases hxy with ⟨hx, rfl⟩ | ⟨ci, c, hx, rfl, hd⟩
   · rw [hx]; exact RunsB.ret hok
   · rw [hx]
-    exact boolCtorOk_run hok hp (CIProjNamed_of_find hie hx) hd
+    exact boolCtorOk_run hok hp hd
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk -/
 theorem natIndOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
@@ -1274,12 +1259,12 @@ theorem natOpGuard_runsB {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   refine RunsB.ite (by simp only [Bool.or_eq_true, e1, e2, e3, decide_eq_true_eq])
     (fun _ => ?_) (fun _ => RunsB.ret st3)
   refine RunsB.pin st3 hp3 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
-  refine RunsB.matchBoolJP st3 hp3 hie3 (hie3.findRel st3 dbt) fun {s5} hs5 => ?_
+  refine RunsB.matchBoolJP st3 hp3 (hie3.findRel st3 dbt) fun {s5} hs5 => ?_
   have hp5 := hp3.mono hs5.ext hs5.pins
   have hie5 := hie3.mono hs5.ext
   refine RunsB.guard hs5.ok (by first | rfl | simp) fun _ => ?_
   refine RunsB.pin hs5.ok hp5 (x := ConLeche.boolFalseName) (by rfl) fun bf dbf => ?_
-  exact RunsB.matchBool hs5.ok hp5 hie5 (hie5.findRel hs5.ok dbf)
+  exact RunsB.matchBool hs5.ok hp5 (hie5.findRel hs5.ok dbf)
 
 theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
@@ -1312,7 +1297,6 @@ theorem natOpCod_run {env : Env} {fe : IFEnv} {cH : NIdx} {cn : ConLeche.Name}
       simp only [bne, beqE_of_denote hs1.ok.wf (denote_ext he hs1.ext) hbc]) fun _ => ?_
     exact RunsB.matchCod hs1.ok (hp.mono hs1.ext hs1.pins)
       ((hie.mono hs1.ext).findRel hs1.ok (denoteN_ext dbn hs1.ext))
-      fun ci hf => CIProjNamed_of_find (hie.mono hs1.ext) hf
   · refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
     refine RunsB.bind fun {nc s1} g1 => ?_
     obtain ⟨hs1, hnc⟩ := constE_run hst hp dnn g1

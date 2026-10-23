@@ -69,7 +69,7 @@ theorem DeclCore.out {μ : CheckMode} {pinsP : List NatOpPinSet} {env : Env}
     (hd : ∀ b nP, d = .indDecl b nP → (ConLeche.basisPinHit b).isSome = true)
     (h : DeclCore μ pinsP env d s fe fe' s') : DeclOut μ pinsP env d s fe fe' s' := by
   obtain ⟨env', F, hden, hF⟩ := h.run
-  obtain ⟨hwf, -⟩ := checkDecl_wf_pure hF hok.envWF hd
+  have hwf := checkDecl_wf_pure hF hok.envWF hd
   refine ⟨h.state, h.ext, h.pins, h.coh, h.pushed, h.run, fun e he => ?_,
     ⟨[], by rw [h.tables]; rfl⟩, fun t ht => Or.inl (h.tables ▸ ht)⟩
   rw [hden] at he
@@ -286,7 +286,7 @@ theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
     (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
-      = .ok ⟨.axiomInfo c :: env.consts⟩ := by
+      = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
   simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, ite_true, bind, Except.bind,
     pure, Except.pure]
 
@@ -300,7 +300,7 @@ theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
     (h3 : c.name = ConLeche.trustCompilerName)
     (h4 : ConLeche.trustCompilerOk env c = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
-      = .ok ⟨.axiomInfo c :: env.consts⟩ := by
+      = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
   have hnm' : ¬ (ConLeche.trustCompilerName = ConLeche.quotSoundName) := h3 ▸ hnm
   simp only [ConLeche.checkDecl, h1, h2, h3, h4, ite_eq_right hnm', Bool.false_eq_true,
     ite_false, ite_true, bind, Except.bind, pure, Except.pure]
@@ -317,7 +317,7 @@ theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
       c.name = ConLeche.ofReduceBoolName)
     (h5 : ConLeche.ofReduceAxOk env c = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
-      = .ok ⟨.axiomInfo c :: env.consts⟩ := by
+      = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
   simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, h5, Bool.false_eq_true,
     ite_false, ite_true, ite_eq_right h3, ite_eq_left h4, bind, Except.bind, pure,
     Except.pure]
@@ -868,7 +868,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
     rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨hn3, hg3⟩
     · -- a standard axiom, installed
       have hden : denoteFEnv s3.store (fe.push (.axiomInfo cv))
-          = some ⟨.axiomInfo c :: env.consts⟩ :=
+          = some ⟨.axiomInfo c :: env.consts, env.tables⟩ :=
         denoteFEnv_push (denoteFEnv_mono hext02 hok.denote) hciA3
       have hpureS := checkDecl_axiom_std_pure (pinsP := pinsP) hnmP hpure2
         (he3 ▸ hy3)
@@ -879,7 +879,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
           pins := hpin02
           coh := hok.coh.push _
           pushed := Pushed.push _ _
-          run := ⟨⟨.axiomInfo c :: env.consts⟩, F2, hden, hpureS⟩ }
+          run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureS⟩ }
     · -- not a standard axiom: the three named families, then `sorryAx`
       have hstdP : ConLeche.stdAxiomOk env c = false := by
         rw [← he3]
@@ -900,7 +900,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
         · have hext : Ext s.store s5.store := hext02.trans hx5
           have hpins5 : s5.pins = s.pins := by rw [hp5, hpin02]
           have hden : denoteFEnv s5.store (fe.push (.axiomInfo cv))
-              = some ⟨.axiomInfo c :: env.consts⟩ :=
+              = some ⟨.axiomInfo c :: env.consts, env.tables⟩ :=
             denoteFEnv_push (denoteFEnv_mono hext hok.denote)
               (denoteCI_ext hciA3 hx5)
           have hpureT := checkDecl_axiom_trust_pure (pinsP := pinsP) hnmP
@@ -912,7 +912,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
               pins := hpins5
               coh := hok.coh.push _
               pushed := Pushed.push _ _
-              run := ⟨⟨.axiomInfo c :: env.consts⟩, F2, hden, hpureT⟩ }
+              run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureT⟩ }
         · exact absurd hbad5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
       · -- not `trustCompiler`
         have htcP : ¬ (c.name = ConLeche.trustCompilerName) :=
@@ -942,7 +942,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
           · have hext : Ext s.store s8.store := hext02.trans hx8
             have hpins8 : s8.pins = s.pins := by rw [hp8, hpin02]
             have hden : denoteFEnv s8.store (fe.push (.axiomInfo cv))
-                = some ⟨.axiomInfo c :: env.consts⟩ :=
+                = some ⟨.axiomInfo c :: env.consts, env.tables⟩ :=
               denoteFEnv_push (denoteFEnv_mono hext hok.denote)
                 (denoteCI_ext hciA3 hx8)
             have hpureR := checkDecl_axiom_ofReduce_pure (pinsP := pinsP) hnmP
@@ -954,7 +954,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                 pins := hpins8
                 coh := hok.coh.push _
                 pushed := Pushed.push _ _
-                run := ⟨⟨.axiomInfo c :: env.consts⟩, F2, hden, hpureR⟩ }
+                run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureR⟩ }
           · exact absurd hbad8 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
         · -- neither: `propext`/`choice` decline, `sorryAx` skip, else decline
           have horP : ¬ (c.name = ConLeche.ofReduceNatName ∨

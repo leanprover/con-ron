@@ -737,17 +737,17 @@ def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
     vg.kind = .defn ∧ vg.cv = cv ∧ vg.jv = value ∧
     ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
     ConLeche.installValueGuards (m := CheckM) env vg.cv value = .ok () ∧
-    env' = ⟨.defnInfo vg.cv vg.jv hint :: env.consts⟩) ∨
+    env' = ⟨.defnInfo vg.cv vg.jv hint :: env.consts, env.tables⟩) ∨
   (∃ cv value, d = .thmDecl cv value ∧ vg.kind = .thm ∧ vg.cv = cv ∧
     vg.jv = value ∧
     ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
-    env' = ⟨.thmInfo vg.cv :: env.consts⟩) ∨
+    env' = ⟨.thmInfo vg.cv :: env.consts, env.tables⟩) ∨
   (∃ cv value, d = .opaqueDecl cv value ∧
     ConLeche.reduceOpNames.contains cv.name = false ∧ vg.kind = .opaque ∧
     vg.cv = cv ∧ vg.jv = value ∧
     ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
     ConLeche.installValueGuards (m := CheckM) env vg.cv value = .ok () ∧
-    env' = ⟨.axiomInfo vg.cv :: env.consts⟩)
+    env' = ⟨.axiomInfo vg.cv :: env.consts, env.tables⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:202-210 InstallRun — **the pure
 record of an accepting phase A**: each declaration is a full `checkDecl` step
@@ -884,7 +884,7 @@ theorem SplitInstall.nodup {μ : CheckMode} {F : Nat} {env env' : Env}
     NodupNames env' := by
   have key : ∀ {cv : ConstantVal} {c : ConstantInfo},
       ConLeche.installHeader (m := CheckM) env cv = .ok () →
-      c.name = cv.name → NodupNames ⟨c :: env.consts⟩ := by
+      c.name = cv.name → NodupNames ⟨c :: env.consts, env.tables⟩ := by
     intro cv c hI hc
     have hfind := (ConLeche.installHeader_inv hI).1
     unfold NodupNames at hnd ⊢
@@ -1151,7 +1151,7 @@ argument at the install half, which skips the inference). -/
 theorem installHeader_typeWF {env : Env} {cv : ConstantVal}
     (h : ConLeche.installHeader (m := CheckM) env cv = .ok ()) :
     CVTypeWF env cv := by
-  obtain ⟨-, -, -, -, hlbt, hitf, htp, htr⟩ := ConLeche.installHeader_inv h
+  obtain ⟨-, -, -, hlbt, hitf, htp, htr⟩ := ConLeche.installHeader_inv h
   exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt }
 
 /-- con-leche: none — a denoting list whose denoted names are unique names
@@ -1293,8 +1293,8 @@ theorem Arena.installStepGo_bridge {μ : CheckMode}
   -- a split arm's shared tail: one pushed value-kind constant
   have split : ∀ {ci : IConstantInfo} {c : ConstantInfo}, (∀ t, ci ≠ .projInfo t) →
       StateOK s2 → Ext s1.store s2.store →
-      Frontend.denoteCI s2.store ci = some c → ConstWF ⟨c :: env.consts⟩ c →
-      BodyOut ⟨c :: env.consts⟩ fe (fe.push ci) s2 := by
+      Frontend.denoteCI s2.store ci = some c → ConstWF ⟨c :: env.consts, env.tables⟩ c →
+      BodyOut ⟨c :: env.consts, env.tables⟩ fe (fe.push ci) s2 := by
     intro ci c hnp hst hx hci hcw
     have hso := (hok.toStepOK.mono hx).push hst hnp hci hcw
     refine ⟨hst, hso.coh, Pushed.push fe ci, hso.denote, hso.envWF, ?_, ?_⟩

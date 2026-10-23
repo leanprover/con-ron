@@ -677,7 +677,7 @@ the old one with it consed. -/
 theorem denoteFEnv_push_inv {st : EStore} {fe : IFEnv} {env env' : Env}
     {ci : IConstantInfo} (h : denoteFEnv st fe = some env)
     (h' : denoteFEnv st (fe.push ci) = some env') :
-    ∃ c, Frontend.denoteCI st ci = some c ∧ env' = ⟨c :: env.consts⟩ := by
+    ∃ c, Frontend.denoteCI st ci = some c ∧ env' = ⟨c :: env.consts, env.tables⟩ := by
   simp only [denoteFEnv, denoteIEnv, IFEnv.push, Option.map_eq_some_iff] at h h'
   obtain ⟨cs, hcs, rfl⟩ := h
   obtain ⟨cs', hcs', rfl⟩ := h'

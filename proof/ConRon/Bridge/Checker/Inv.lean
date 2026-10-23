@@ -840,7 +840,7 @@ the cons.  The two lemmas below are that — the third and fourth members of the
 `EnvWF env`; con-leche does not prove that `checkDefnVal` preserves it
 (`Verify/BridgeWfImp.lean`'s `checkDefnVal_wfimp` is about the fuel family, and
 the model tier takes `EnvWF` as a hypothesis rather than re-establishing it),
-so the arena tier owes `ConstWF ⟨c :: env.consts⟩ c` at every value install.
+so the arena tier owes `ConstWF ⟨c :: env.consts, env.tables⟩ c` at every value install.
 It is owed once and paid once: `StepOK.push` takes it as a hypothesis and
 `Bridge/Checker/DeclVal.lean`'s three `constWF_*` discharge it from the guards
 the run has already passed. -/

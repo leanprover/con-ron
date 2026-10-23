@@ -1067,7 +1067,7 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
     have h1 : InstRel fe (fun _ => True) st (fe.push (.ctorInfo cv nP n)) :=
       ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
         ProjOut.push hcoh st (fun t h => by cases h)⟩
-    have h2 := ih restP (fe.push (.ctorInfo cv nP n)) ⟨.ctorInfo cP nP n :: env.consts⟩
+    have h2 := ih restP (fe.push (.ctorInfo cv nP n)) ⟨.ctorInfo cP nP n :: env.consts, env.tables⟩
       hrest hpush (hcoh.push _)
     exact InstRel.trans (Ext.refl _) h1 h2
 

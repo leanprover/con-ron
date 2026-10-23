@@ -62,7 +62,7 @@ theorem _root_.ConRon.Bridge.IFEnvOK.pushT {env : Env} {fe : IFEnv} {s : AState}
     (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ t, ci = .projInfo t → IProjTableOK s.store t)
     (hci : Frontend.denoteCI s.store ci = some c) :
-    IFEnvOK ⟨c :: env.consts⟩ (fe.push ci) s := by
+    IFEnvOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s := by
   obtain ⟨rk, hrk⟩ := hst.wf
   have hnm : denoteN s.store.ns ci.name = some c.name :=
     denoteCI_name_of (fun t ht => (hproj t ht).toNamed) hci
@@ -166,7 +166,7 @@ denotes had a denoting index under it, and the pushed row denotes. -/
 theorem denoteFEnv_push_pre {st : EStore} {fe : IFEnv} {ci : IConstantInfo} {e : Env}
     (h : denoteFEnv st (fe.push ci) = some e) :
     ∃ e₀ c, denoteFEnv st fe = some e₀ ∧ Frontend.denoteCI st ci = some c ∧
-      e = ⟨c :: e₀.consts⟩ := by
+      e = ⟨c :: e₀.consts, e₀.tables⟩ := by
   simp only [denoteFEnv, denoteIEnv, IFEnv.push, Option.map_eq_some_iff] at h ⊢
   obtain ⟨cs, hcs, rfl⟩ := h
   simp only [Frontend.denoteCIList] at hcs
@@ -431,10 +431,10 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
           rcases hrel3.proj.1 _ t hself with h' | h'
           · exact (hienv.proj _ t h').mono x13
           · exact h'
-        have hienv₂ : IFEnvOK ⟨c :: env.consts⟩ (fe.push (.projInfo t)) s₂ :=
+        have hienv₂ : IFEnvOK ⟨c :: env.consts, env.tables⟩ (fe.push (.projInfo t)) s₂ :=
           (hienv.mono x13).pushT p3.ok hcoh (fun t' ht' => by cases ht'; exact htab) hc
         obtain ⟨p4, hrel4⟩ := checkBlockTables_spec p pP ms msP' css cssP' sss sssP'
-          (fe.push (.projInfo t)) ⟨c :: env.consts⟩ s₂ s' fe' p3.ok
+          (fe.push (.projInfo t)) ⟨c :: env.consts, env.tables⟩ s₂ s' fe' p3.ok
           (hpins.mono x13 (by rw [p3.pins, p1.pins])) hrel3.coh hienv₂ hden₁
           (dShape_ext x13 _ _ hsh) (dMember_ext.list x13 _ _ hms')
           (dCtors_ext.list x13 _ _ hcss') (DExt.list (d := denoteLLists) (fun hx x y h => BI.denoteLLists_ext hx x y h) x13 _ _ hsss') h4

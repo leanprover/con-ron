@@ -160,7 +160,7 @@ theorem IFEnvCoh.mk (e : IEnv) : IFEnvCoh (mkIFEnv e) :=
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
 to the denotation**: one more constant at the front, which is exactly what
-con-leche's `⟨ci :: env.consts⟩` writes. -/
+con-leche's `⟨ci :: env.consts, env.tables⟩` writes. -/
 theorem denoteFEnv_push {st : EStore} {fe : IFEnv} {env : Env}
     {ci : IConstantInfo} {c : ConstantInfo} (h : denoteFEnv st fe = some env)
     (hci : Frontend.denoteCI st ci = some c) :

@@ -1677,7 +1677,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     refine ⟨c1.trans c2, ?_⟩
     have h1 : InstRel fe (fun e => e = ⟨.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
           (ConLeche.tgtStoredRules env₂.find? cvP
-            (pP.rulePrefixAt m) MP rhssP) :: env.consts⟩) s1.store
+            (pP.rulePrefixAt m) MP rhssP) :: env.consts, env.tables⟩) s1.store
         (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)) :=
       ⟨hcoh.push _, Pushed.push _ _, by simp only [IFEnv.push]; omega, ⟨_, hfe1, rfl⟩,
         ProjOut.push hcoh _ (by intro t h; cases h)⟩

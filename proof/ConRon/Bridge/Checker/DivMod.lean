@@ -45,10 +45,8 @@ theorem boolCtorTyped_runsB {env2 : Env} {fe2 : IFEnv} {n : NIdx}
   rcases hie.findRel hok hn with ⟨hx, hy⟩ | ⟨ci, c, hx, hy, hd⟩
   · rw [hx, hy]; exact RunsB.ret hok
   · rw [hx, hy]
-    refine RunsB.bind fun {v s₁} g1 => ?_
-    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (CIProjNamed_of_find hie hx) hd g1
-    refine ⟨hs1, ?_⟩
-    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
+    have hs1 := Frontend.IStepS.refl hok
+    obtain ⟨-, -, hvt⟩ := denoteCV_inv (denoteCI_toConstantVal hd)
     refine RunsB.pin hs1.ok (hp.mono hs1.ext hs1.pins) (x := ConLeche.boolName) (by rfl)
       fun bn dbn => ?_
     refine RunsB.bind fun {bty s₂} g2 => ?_
@@ -91,7 +89,7 @@ theorem divModEnvGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   refine RunsB.guard st3 (by simp) fun _ => ?_
   refine RunsB.pin st3 hp3 (x := ConLeche.eqName) (by rfl) fun en den => ?_
   refine RunsB.bind fun {ea s4} g4 => ?_
-  obtain ⟨hs4, hea, -⟩ := internCI_fresh st3 g4
+  obtain ⟨hs4, hea⟩ := internCI_fresh st3 g4
   refine ⟨hs4, ?_⟩
   obtain ⟨st4, hp4, hie4, -⟩ := tr ((hs1.trans hs3).trans hs4)
   obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
@@ -1903,7 +1901,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       rw [hcv, hvv] at hci
       simp only [Option.some.injEq] at hci
       subst hci
-      have hwc := hok2.envWF _ (List.mem_of_find?_eq_some hfindP)
+      have hwc := hok2.envWF.consts _ (List.mem_of_find?_eq_some hfindP)
       obtain ⟨hf1, -, -, -⟩ := hwc.2.2.2.2.1 cv' v' hint' rfl
       have hck1 : CheckOK μ env fe s1 := hck.mono hst1 hx1 hc1 hp1
       obtain ⟨hck', hx', hp', F, hF⟩ :=
@@ -1918,7 +1916,6 @@ theorem checkDivModPin_bridge {μ : CheckMode}
     | .indInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .ctorInfo _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .recInfo _ _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-    | .projInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
 end ConRon.Bridge

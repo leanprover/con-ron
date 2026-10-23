@@ -38,7 +38,7 @@ set_option autoImplicit false
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain.push — a push
 of a name the environment does not hold keeps names unique. -/
 theorem nodupNames_push {e : Env} {c : ConstantInfo} (hnd : NodupNames e)
-    (hf : e.find? c.name = none) : NodupNames ⟨c :: e.consts⟩ := by
+    (hf : e.find? c.name = none) : NodupNames ⟨c :: e.consts, e.tables⟩ := by
   unfold NodupNames at hnd ⊢
   simp only [List.map_cons, List.nodup_cons]
   refine ⟨fun hmem => ?_, hnd⟩
@@ -47,7 +47,7 @@ theorem nodupNames_push {e : Env} {c : ConstantInfo} (hnd : NodupNames e)
   simp [hxn] at hne
 
 theorem nodupNames_push' {e : Env} {c : ConstantInfo} (hnd : NodupNames e)
-    (hf : (e.find? c.name).isNone = true) : NodupNames ⟨c :: e.consts⟩ :=
+    (hf : (e.find? c.name).isNone = true) : NodupNames ⟨c :: e.consts, e.tables⟩ :=
   nodupNames_push hnd (Option.isNone_iff_eq_none.mp hf)
 
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean FreshNames — a list of
@@ -58,7 +58,7 @@ def FreshAt (e : Env) (ns : List Name) : Prop :=
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean FreshNames.step — after
 the head's push the tail is fresh at the extended environment. -/
 theorem FreshAt.step {e : Env} {c : ConstantInfo} {ns : List Name}
-    (h : FreshAt e (c.name :: ns)) : FreshAt ⟨c :: e.consts⟩ ns := by
+    (h : FreshAt e (c.name :: ns)) : FreshAt ⟨c :: e.consts, e.tables⟩ ns := by
   obtain ⟨hnd, hfr⟩ := h
   rw [List.nodup_cons] at hnd
   refine ⟨hnd.2, fun n hn => ?_⟩
