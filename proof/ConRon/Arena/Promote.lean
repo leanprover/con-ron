@@ -391,11 +391,13 @@ def eraseInstalledTables (tbls : Std.HashMap NIdx IProjTable) :
   | t :: ts => eraseInstalledTables (tbls.erase t.structName) ts
 
 /-- con-leche: none — arena infrastructure; re-index the promoted tables.  The
-list is NEWEST FIRST, as `IEnv.tables` is. -/
+list is NEWEST FIRST, as `IEnv.tables` is, and its tail is inserted first: the
+newest table of a name wins, as in `mkIFEnvTblsGo`, with no assumption on the
+step's structure names. -/
 def indexPromotedTables (tbls : Std.HashMap NIdx IProjTable) :
     List IProjTable → Std.HashMap NIdx IProjTable
   | [] => tbls
-  | t :: ts => indexPromotedTables (tbls.insert t.structName t) ts
+  | t :: ts => (indexPromotedTables tbls ts).insert t.structName t
 
 /-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion of
 the tables**: the `kt` projection tables the step just installed (`kt` is the

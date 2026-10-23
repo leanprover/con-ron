@@ -60392,6 +60392,29 @@ def arena.checker.install_step_go
   | arena.env.IDeclaration.QuotDecl _ _ =>
     arena.checker.install_step_other pers st mode pins fe pd
 
+/-- [con_ron_core::arena::promote::index_promoted_tables]:
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1092:0-1101:1
+    Visibility: public -/
+def arena.promote.index_promoted_tables
+  (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
+  let i1 := alloc.vec.Vec.len fe.env.tables
+  if i >= i1
+  then ok fe
+  else
+    let it ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IProjTable) fe.env.tables i
+    let n ←
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 it.struct_name
+    let i2 ← lift (UScalar.cast .U64 i)
+    let (_, hm) ←
+      ron.hashmap2.HashMap2.insert
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 fe.tbls n i2
+    let i3 ← i + 1#usize
+    arena.promote.index_promoted_tables { fe with tbls := hm } i3
+partial_fixpoint
+
 /-- [con_ron_core::arena::promote::pmemo_set_e]:
     Source: 'crates/con-ron-core/src/arena/promote.rs', lines 428:0-432:1
     Visibility: public -/
@@ -61813,10 +61836,10 @@ def arena.promote.promote_proj_table
     | core.result.Result.Err e => ok (core.result.Result.Err e, tier2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
-/-- [con_ron_core::arena::promote::index_promoted_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1065:0-1087:1
+/-- [con_ron_core::arena::promote::promote_installed_tables]:
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1065:0-1086:1
     Visibility: public -/
-def arena.promote.index_promoted_tables
+def arena.promote.promote_installed_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
   (m : arena.promote.PMemo) (fuel : Std.U64) (fe : arena.env.IFEnv)
   (start : Std.Usize) (j : Std.Usize) :
@@ -61834,19 +61857,12 @@ def arena.promote.index_promoted_tables
     match r with
     | core.result.Result.Ok p =>
       let (m2, t) := p
-      let n ←
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 t.struct_name
-      let i1 ← lift (UScalar.cast .U64 i)
-      let (_, hm) ←
-        ron.hashmap2.HashMap2.insert
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 fe.tbls n i1
       let (_, index_mut_back) ←
         alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
           arena.env.IProjTable) fe.env.tables i
       let v := index_mut_back t
-      arena.promote.index_promoted_tables tier1 st m2 fuel
-        { fe with env := { fe.env with tables := v }, tbls := hm } start i
+      arena.promote.promote_installed_tables tier1 st m2 fuel
+        { fe with env := { fe.env with tables := v } } start i
     | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 partial_fixpoint
 
@@ -61873,7 +61889,7 @@ def arena.promote.erase_installed_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_new_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1094:0-1115:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1108:0-1132:1
     Visibility: public -/
 def arena.promote.promote_new_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -61892,7 +61908,14 @@ def arena.promote.promote_new_tables
     else
       let start ← n - kk
       let fe2 ← arena.promote.erase_installed_tables fe start
-      arena.promote.index_promoted_tables tier st m fuel fe2 start n
+      let (r, tier1) ←
+        arena.promote.promote_installed_tables tier st m fuel fe2 start n
+      match r with
+      | core.result.Result.Ok p =>
+        let (m2, fe3) := p
+        let i ← arena.promote.index_promoted_tables fe3 start
+        ok (core.result.Result.Ok (m2, i), tier1)
+      | core.result.Result.Err _ => ok (r, tier1)
 
 /-- [con_ron_core::arena::promote::promote_caps]:
     Source: 'crates/con-ron-core/src/arena/promote.rs', lines 783:0-806:1
@@ -62200,7 +62223,7 @@ def arena.promote.promote_new_consts
       arena.promote.index_promoted tier st m fuel fe2 start n fe.visible_below
 
 /-- [con_ron_core::arena::promote::promote_new]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1122:0-1135:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1139:0-1152:1
     Visibility: public -/
 def arena.promote.promote_new
   (tier : arena.store.PersTier) (st : arena.monad.AState)

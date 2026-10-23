@@ -1058,11 +1058,11 @@ pub fn erase_installed_tables(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:393-398 indexPromotedTables
-/// Promote the tables of slots `start..j` and re-index them, walking DOWN as
-/// `index_promoted` does; the promoted table is written back into its own
-/// slot.
-pub fn index_promoted_tables(
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:402-415 promoteNewTables
+/// Promote the tables of slots `start..j`, walking DOWN as `index_promoted`
+/// does; the promoted table is written back into its own slot.  The rows are
+/// `index_promoted_tables`'s, afterwards.
+pub fn promote_installed_tables(
     tier: &mut PersTier,
     st: &AState,
     m: PMemo,
@@ -1078,15 +1078,29 @@ pub fn index_promoted_tables(
             Err(e) => Err(e),
             Ok((m2, t)) => {
                 let mut fe2: IFEnv = fe;
-                fe2.tbls.insert(t.struct_name.dup2(), (j - 1) as u64);
                 fe2.env.tables[j - 1] = t;
-                index_promoted_tables(tier, st, m2, fuel, fe2, start, j - 1)
+                promote_installed_tables(tier, st, m2, fuel, fe2, start, j - 1)
             }
         }
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:400-413 promoteNewTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:393-400 indexPromotedTables
+/// Re-index the tables of slots `i..`, walking UP: the oldest is inserted
+/// first, so the newest table of a name wins, as `mk_tbls_go` builds it — with
+/// no assumption on the step's structure names.
+pub fn index_promoted_tables(fe: IFEnv, i: usize) -> IFEnv {
+    if i >= fe.env.tables.len() {
+        fe
+    } else {
+        let mut fe2: IFEnv = fe;
+        let n: NIdx = fe2.env.tables[i].struct_name.dup2();
+        fe2.tbls.insert(n, i as u64);
+        index_promoted_tables(fe2, i + 1)
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:402-415 promoteNewTables
 /// **The phase-A bracket's promotion of the tables**: the `kt` projection
 /// tables the step just installed (`kt` is the growth of `env.tables`, which
 /// only `ifenv_push_table` extends), copied and re-indexed as
@@ -1109,12 +1123,15 @@ pub fn promote_new_tables(
         } else {
             let start: usize = n - kk;
             let fe2: IFEnv = erase_installed_tables(fe, start);
-            index_promoted_tables(tier, st, m, fuel, fe2, start, n)
+            match promote_installed_tables(tier, st, m, fuel, fe2, start, n) {
+                Err(e) => Err(e),
+                Ok((m2, fe3)) => Ok((m2, index_promoted_tables(fe3, start))),
+            }
         }
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:415-421 promoteNew
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:417-423 promoteNew
 /// **The phase-A bracket's promotion half**: what the step just installed —
 /// its `k` constants and its `kt` projection tables — copied into the
 /// persistent tier and re-indexed, everything below them untouched.
