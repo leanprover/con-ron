@@ -271,6 +271,7 @@ ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check
 ConLeche/Cached/CheckerC.lean instPisAtLiftC Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/Env.lean find? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findProj? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Env.lean findTable? The pure environment's table lookup (task #362), read by the pure checker and con-leche's model; the port runs the indexed `FEnv.findTable?` only (`env::ifenv_find_table`), as for `find?`/`findProj?`.
 ConLeche/Kernel/Env.lean CheckMode.isVerified Proof-only (con-leche task #353): the predicate its model tier and capstones are stated under (`hμ : μ.isVerified = true`); no executed function reads it, and the port's theorems are stated at `.verified` or under `verifiedChecks`.
 ConLeche/Kernel/Expr.lean hasLP Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean bvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
@@ -314,6 +315,10 @@ ConLeche/Kernel/FEnv.lean baseGet? The base layer's sharded lookup; as `FBase`.
 ConLeche/Kernel/FEnv.lean FBase.find? The base layer's lookup; as `FBase` (`find?` falls through to it on an index miss, which on the serial install's environments answers `none`).
 ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
 ConLeche/Kernel/FEnv.lean markLinear The identity that sets the Lean runtime's linearity bit on the index (task #331); the port's index is a Rust value with no reference count.
+ConLeche/Kernel/FEnv.lean FBase.findTable? The base layer's table lookup (task #362); as `FBase.find?` (`rawTable?` falls through to it on a miss, which on the serial install's environments answers `none`).
+ConLeche/Kernel/FEnv.lean ProjTable.lastOf? The base layer's read of a record slot's tables, for `FBase.findTable?`; as `FBase`.
+ConLeche/Kernel/FEnv.lean pushTables The parallel commit's install of a record's tables (`FEnv.pushDelta`, task #362); the port has no parallel install, and its block install installs one table at a time (`env::ifenv_push_table`), as con-leche's `checkBlockTablesF` does.
+ConLeche/Kernel/Inductives/BlockInstallF.lean FEnv.pushDelta A parallel-install record's whole effect for the commit (task #362); as `pushTables`.
 ConLeche/Kernel/Inductives/GenRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
 ConLeche/Kernel/Inductives/GenRec.lean classFeROvl The cached driver's `ShadowOps.ruleEnv`, `classFeR` as an overlay (task #332); the pure install's `classFeR` is what the port computes, with its own push and pop (`gen_rec_generate`).
 ConLeche/Cached/ParsedC.lean checkDefnValCI The unpushed half of `checkDefnValC` (task #331), so that the pinned arms certify against an overlay before the push; the port's pinned arms read the pushed index, the same `find?` (`check_decl`).

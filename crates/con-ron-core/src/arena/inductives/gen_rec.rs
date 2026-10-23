@@ -156,12 +156,6 @@ pub const M_RESERVED: [u32; 19] = [
     114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
 ];
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `reserved projection name`, as code points.
-pub const M_RESERVED_PROJ: [u32; 24] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110,
-    32, 110, 97, 109, 101,
-];
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `duplicate universe parameters in`, as code points.
 pub const M_DUP_UNIV: [u32; 32] = [
     100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112,
@@ -1611,7 +1605,6 @@ pub fn class_former_tys(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-378 classConstOk
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove gen_rec::class_const_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:502-525 classConstOk` — **a
 /// generated constant, checked**: `checkConstantValF` — the generated type is
 /// stored as the generator built it; inference validates it like any other
@@ -1634,11 +1627,7 @@ pub fn class_const_ok(
                 if positivity::names_contain(&rs, &cv.name, 0) {
                     fail(core_types::invalid(code_points(&M_RESERVED)))
                 } else {
-                    match checker_base::nidx_is_proj_fn_shape(pers, st, &cv.name) {
-                        Err(e) => Err(e),
-                        Ok(true) => fail(core_types::invalid(code_points(&M_RESERVED_PROJ))),
-                        Ok(false) => class_const_ok_type(pers, st, mode, fe, cv),
-                    }
+                    class_const_ok_type(pers, st, mode, fe, cv)
                 }
             }
         }
@@ -1646,7 +1635,6 @@ pub fn class_const_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-378 classConstOk
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove gen_rec::class_const_ok_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:502-525 classConstOk` — the
 /// type's guards and its inference.
 pub fn class_const_ok_type(
@@ -2202,7 +2190,6 @@ pub fn check_block_classes(
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:343-351 consBlockRecsBare
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove gen_rec::class_fe_r_push_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:141-146 consBlockRecsBareF
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:686-703 classFeR` — **the
 /// rule-less generated recursors consed onto the constructors' environment**,

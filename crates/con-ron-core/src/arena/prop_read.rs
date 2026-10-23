@@ -307,7 +307,6 @@ pub fn subst_pw_at(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:107-130 headTypePW
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::head_type_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:186-220 headTypePW` — the datum
 /// of a type-former application's *head* at `n` arguments: a constant head
 /// reads its stored type (level-instantiated), an fvar head its declared type,
@@ -329,28 +328,22 @@ pub fn head_type_pw(
         Err(e) => Err(e),
         Ok(ENodeView::Const(i, us)) => match env::ifenv_find(vis, fe, &i) {
             Some(ci) => {
-                if env::i_constant_info_is_tower_entry(ci) {
-                    Ok(None)
-                } else {
-                    match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
-                        Err(e) => Err(e),
-                        Ok(cv) => match view_ls_len(pers, st, &us) {
-                            None => fail_dangling_ls(),
-                            Some(usl) => {
-                                if usl == cv.level_params.len() {
-                                    match peel_pis_w(pers, vis, st, fe, fuel, n, &cv.ty) {
-                                        Err(e) => Err(e),
-                                        Ok(res) => match residual_pw(pers, st, res) {
-                                            Err(e) => Err(e),
-                                            Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
-                                            Ok(None) => Ok(None),
-                                        },
-                                    }
-                                } else {
-                                    Ok(None)
-                                }
+                let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
+                match view_ls_len(pers, st, &us) {
+                    None => fail_dangling_ls(),
+                    Some(usl) => {
+                        if usl == cv.level_params.len() {
+                            match peel_pis_w(pers, vis, st, fe, fuel, n, &cv.ty) {
+                                Err(e) => Err(e),
+                                Ok(res) => match residual_pw(pers, st, res) {
+                                    Err(e) => Err(e),
+                                    Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
+                                    Ok(None) => Ok(None),
+                                },
                             }
-                        },
+                        } else {
+                            Ok(None)
+                        }
                     }
                 }
             }
@@ -433,7 +426,6 @@ pub fn type_sort_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:151-181 headProofPW
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::head_proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:245-277 headProofPW` — the
 /// datum of a term's *head* (any arity): a constant head answers from its
 /// stored type (prop-ness is invariant under application), an fvar head from
@@ -451,25 +443,19 @@ pub fn head_proof_pw(
         Err(e) => Err(e),
         Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
             Some(ci) => {
-                if env::i_constant_info_is_tower_entry(ci) {
-                    Ok(None)
-                } else {
-                    match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
-                        Err(e) => Err(e),
-                        Ok(cv) => match view_ls_len(pers, st, &us) {
-                            None => fail_dangling_ls(),
-                            Some(usl) => {
-                                if usl == cv.level_params.len() {
-                                    match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
-                                        Err(e) => Err(e),
-                                        Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
-                                        Ok(None) => Ok(None),
-                                    }
-                                } else {
-                                    Ok(None)
-                                }
+                let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
+                match view_ls_len(pers, st, &us) {
+                    None => fail_dangling_ls(),
+                    Some(usl) => {
+                        if usl == cv.level_params.len() {
+                            match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
+                                Err(e) => Err(e),
+                                Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
+                                Ok(None) => Ok(None),
                             }
-                        },
+                        } else {
+                            Ok(None)
+                        }
                     }
                 }
             }
@@ -479,9 +465,8 @@ pub fn head_proof_pw(
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::ForallE(_, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
-        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &s, i) {
-            Err(e) => Err(e),
-            Ok(Some(entry)) => match type_sort_pw(pers, vis, st, fe, fuel, &entry.body) {
+        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(vis, fe, &s, i) {
+            Some(entry) => match type_sort_pw(pers, vis, st, fe, fuel, &entry.body) {
                 Err(e) => Err(e),
                 Ok(Some(pw)) => {
                     if prop_when::is_never(&pw) {
@@ -492,14 +477,13 @@ pub fn head_proof_pw(
                 }
                 Ok(None) => Ok(None),
             },
-            Ok(None) => Ok(None),
+            None => Ok(None),
         },
         Ok(_) => Ok(None),
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:183-195 proofPW
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:279-300 proofPW` — the
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
 /// off `a`'s head symbol at any arity: a λ and a `let` answer from their body,
@@ -539,7 +523,6 @@ pub fn proof_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:203-209 notProofFast
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::not_proof_fast_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:304-310 notProofFast` —
 /// **definitely not a proof**: the datum is known and is not always-zero.
 /// Refusing the proof-irrelevance shortcut is always sound.
@@ -565,7 +548,6 @@ pub fn not_proof_fast(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:211-217 isProofFast
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove prop_read::is_proof_fast_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:312-318 isProofFast` —
 /// **definitely a proof**: the datum is known and always-zero (justified by
 /// the squash regime, con-leche's `prf_of_isProofFast`).

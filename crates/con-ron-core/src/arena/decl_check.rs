@@ -189,7 +189,7 @@ pub fn iff_pinned(
                 let cv = crate::arena::env::i_constant_val_dup(cv_i);
                 match iff_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
             }
             _ => Ok(false),
@@ -201,16 +201,9 @@ pub fn iff_pinned(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-82 stdAxiomOk` — the
 /// twin's `cvI.matchesPin (← (← iffA).toConstantVal)`: the pin's common data,
 /// then the comparison.  One function, because six call sites spell it.
-pub fn matches_pin_of_ci(
-    pers: &PersTier,
-    st: &mut AState,
-    cv: &IConstantVal,
-    pin_ci: IConstantInfo,
-) -> Result<bool, CheckError> {
-    match i_constant_info_to_constant_val(pers, &mut st.store, &pin_ci) {
-        Err(e) => Err(e),
-        Ok(pcv) => Ok(i_constant_val_matches_pin(cv, &pcv)),
-    }
+pub fn matches_pin_of_ci(cv: &IConstantVal, pin_ci: &IConstantInfo) -> bool {
+    let pcv: IConstantVal = i_constant_info_to_constant_val(pin_ci);
+    i_constant_val_matches_pin(cv, &pcv)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
@@ -231,7 +224,7 @@ pub fn iff_intro_pinned(
                     let cv = crate::arena::env::i_constant_val_dup(cv_ii);
                     match iff_intro_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
                 } else {
                     Ok(false)
@@ -261,7 +254,7 @@ pub fn iff_rec_pinned(
                     let cv = crate::arena::env::i_constant_val_dup(cv_ir);
                     match iff_rec_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
                 } else {
                     Ok(false)
@@ -289,7 +282,7 @@ pub fn nonempty_pinned(
                 let cv = crate::arena::env::i_constant_val_dup(cv_n);
                 match nonempty_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
             }
             _ => Ok(false),
@@ -315,7 +308,7 @@ pub fn nonempty_intro_pinned(
                     let cv = crate::arena::env::i_constant_val_dup(cv_ni);
                     match nonempty_intro_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
                 } else {
                     Ok(false)
@@ -344,7 +337,7 @@ pub fn nonempty_rec_pinned(
                     let cv = crate::arena::env::i_constant_val_dup(cv_nr);
                     match nonempty_rec_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
+                    Ok(p) => Ok(matches_pin_of_ci(&cv, &p)),
                 }
                 } else {
                     Ok(false)
@@ -2143,15 +2136,15 @@ pub fn bool_ctor_typed(
     match ifenv_find(vis, fe2, n) {
         Some(ci) => {
             let c = i_constant_info_dup(ci);
-            match i_constant_info_to_constant_val(pers, &mut st.store, &c) {
-                Err(e) => Err(e),
-                Ok(cv) => match bool_name(st) {
+            {
+                let cv: IConstantVal = i_constant_info_to_constant_val(&c);
+                match bool_name(st) {
                     Err(e) => Err(e),
                     Ok(bn) => match const_e(pers, st, &bn) {
                         Err(e) => Err(e),
                         Ok(bool_ty) => Ok(cv.ty.eq2(&bool_ty)),
                     },
-                },
+                }
             }
         }
         None => Ok(false),
@@ -2835,7 +2828,6 @@ pub fn subst_const0_pairs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:711-721 checkDefnVal` — check
 /// a `def` declaration's value against its checked constant, returning the
 /// pushed index.  The reducibility hint is stored untouched: it steers only the
@@ -2877,7 +2869,6 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:723-739 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition).  **A theorem is stored by its statement
@@ -2916,7 +2907,6 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:723-739 checkThmVal` — the
 /// witness half: the value's guards, its inferred type against
 /// the statement, and the push of `.thmInfo cv` — the statement only.
@@ -2952,7 +2942,6 @@ pub fn check_thm_val_witness(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:741-752 checkOpaqueVal` —
 /// check an `opaque` declaration's value against its checked constant: exactly
 /// the theorem check without the is-a-proposition requirement.  The result is
@@ -2994,7 +2983,6 @@ pub fn check_opaque_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove decl_check::install_basis_decl_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:372-376 installBasisDeclF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:754-761 installBasisDecl` —
 /// install one pinned basis declaration (duplicate-checked), returning the

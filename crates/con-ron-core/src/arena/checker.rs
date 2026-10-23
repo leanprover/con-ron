@@ -193,8 +193,9 @@ pub fn install_step_go(
 /// ```
 ///
 /// `promote` (`arena::promote`) is the memoised structural copy scratch →
-/// persistent, run on **exactly what leaves the step**: the `k` constants the
-/// step installed (`promote_new`) and the pending record (`promote_vg`, at the
+/// persistent, run on **exactly what leaves the step**: the `k` constants and
+/// the `kt` projection tables the step installed (`promote_new`) and the
+/// pending record (`promote_vg`, at the
 /// SAME memo).  A persistent handle promotes to itself, so a record that
 /// installs what the parse already built — every value kind since task #119,
 /// whose install half interns nothing — pays one tier-bit test per handle;
@@ -213,6 +214,7 @@ pub fn install_step(
     pd: &IDeclaration,
 ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
     let vis: u64 = fe.visible_below;
+    let nt: u64 = fe.env.tables.len() as u64;
     flush_caches(st);
     let mut tier: PersTier = enter_scratch(st);
     match install_step_go(&tier, st, mode, pins, fe, pd) {
@@ -222,8 +224,9 @@ pub fn install_step(
         }
         Ok((fe2, vg_opt)) => {
             let k: u64 = fe2.visible_below - vis;
+            let kt: u64 = fe2.env.tables.len() as u64 - nt;
             match vg_opt {
-                None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, kt, fe2) {
                     Err(e) => {
                         drop_scratch(st, tier);
                         Err(e)
@@ -233,7 +236,7 @@ pub fn install_step(
                         Ok((fe3, pend))
                     }
                 },
-                Some(vg) => install_step_promote(tier, st, i, vis, k, fe2, pend, vg),
+                Some(vg) => install_step_promote(tier, st, i, vis, k, kt, fe2, pend, vg),
             }
         }
     }
@@ -250,6 +253,7 @@ pub fn install_step_promote(
     i: u64,
     vis: u64,
     k: u64,
+    kt: u64,
     fe: IFEnv,
     pend: Vec<PendingCheck>,
     vg: ValueGroup,
@@ -260,7 +264,7 @@ pub fn install_step_promote(
             drop_scratch(st, tier);
             Err(e)
         }
-        Ok((m, vg2)) => match promote_new(&mut tier, st, m, CORE_WALK_FUEL, k, fe) {
+        Ok((m, vg2)) => match promote_new(&mut tier, st, m, CORE_WALK_FUEL, k, kt, fe) {
             Err(e) => {
                 drop_scratch(st, tier);
                 Err(e)
@@ -955,7 +959,10 @@ mod tests {
         let mut st = pinned_state();
         let cs = ok(intern_ci_list(pers, &mut st, &basis_consts()));
         let icv = ok(intern_cv(pers, &mut st, c));
-        let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
+        let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv {
+            consts: cs,
+            tables: Vec::new(),
+        });
         ok(crate::arena::decl_check::std_axiom_ok(pers, fe.visible_below, &mut st, &fe, &icv))
     }
 
@@ -1083,11 +1090,7 @@ mod tests {
         let blk = ok(basis_kind_decls_a(&tier, &mut st, &BasisKind::EqK));
         let mut i: usize = 0;
         while i < blk.len() {
-            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(
-                &tier,
-                &mut st.store,
-                &blk[i],
-            ));
+            let cvv = crate::arena::env::i_constant_info_to_constant_val(&blk[i]);
             assert!(cvv.ty.is_persistent());
             i += 1;
         }

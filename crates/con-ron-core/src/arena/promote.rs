@@ -806,8 +806,7 @@ pub fn promote_caps(
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-285 promoteProjTable
-/// Promote a projection table, `table_name` included (it is a stored handle,
-/// not a recomputed name — `arena::env`'s one added field).
+/// Promote a projection table.
 pub fn promote_proj_table(
     tier: &mut PersTier,
     st: &AState,
@@ -817,12 +816,9 @@ pub fn promote_proj_table(
 ) -> Result<(PMemo, IProjTable), CheckError> {
     match promote_n(tier, st, m, fuel, &t.struct_name) {
         Err(e) => Err(e),
-        Ok((m2, sn)) => match promote_n(tier, st, m2, fuel, &t.table_name) {
+        Ok((m2, sn)) => match promote_n_list(tier, st, m2, fuel, &t.level_params) {
             Err(e) => Err(e),
-            Ok((m3, tn)) => match promote_n_list(tier, st, m3, fuel, &t.level_params) {
-                Err(e) => Err(e),
-                Ok((m4, lps)) => promote_proj_table_rest(tier, st, m4, fuel, t, sn, tn, lps),
-            },
+            Ok((m3, lps)) => promote_proj_table_rest(tier, st, m3, fuel, t, sn, lps),
         },
     }
 }
@@ -838,7 +834,6 @@ pub fn promote_proj_table_rest(
     fuel: u64,
     t: &IProjTable,
     sn: NIdx,
-    tn: NIdx,
     lps: Vec<NIdx>,
 ) -> Result<(PMemo, IProjTable), CheckError> {
     match promote_n(tier, st, m, fuel, &t.ctor) {
@@ -853,7 +848,6 @@ pub fn promote_proj_table_rest(
                         m5,
                         IProjTable {
                             struct_name: sn,
-                            table_name: tn,
                             level_params: lps,
                             num_params: t.num_params,
                             ctor: c,
@@ -861,7 +855,6 @@ pub fn promote_proj_table_rest(
                             struct_sort: ss,
                             bodies: bs,
                             guards: gs,
-                            off: t.off,
                         },
                     )),
                 },
@@ -871,7 +864,7 @@ pub fn promote_proj_table_rest(
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:287-315 promoteCI
-/// **Promote a stored constant** — the seven `IConstantInfo` constructors,
+/// **Promote a stored constant** — the six `IConstantInfo` constructors,
 /// which is what "the handles the environment keeps" means.
 pub fn promote_ci(
     tier: &mut PersTier,
@@ -916,10 +909,6 @@ pub fn promote_ci(
                 Err(e) => Err(e),
                 Ok((m3, rules)) => Ok((m3, IConstantInfo::RecInfo(cv, *m_i, *r_p, rules))),
             },
-        },
-        IConstantInfo::ProjInfo(t) => match promote_proj_table(tier, st, m, fuel, t) {
-            Err(e) => Err(e),
-            Ok((m2, tbl)) => Ok((m2, IConstantInfo::ProjInfo(tbl))),
         },
     }
 }
@@ -1017,19 +1006,19 @@ pub fn index_promoted(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:358-378 promoteNew
-/// **The phase-A bracket's promotion half**: the `k` constants the step just
-/// installed, copied into the persistent tier and re-indexed, everything below
-/// them untouched.
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:358-378 promoteNewConsts
+/// **The phase-A bracket's promotion of the constants**: the `k` constants the
+/// step just installed, copied into the persistent tier and re-indexed,
+/// everything below them untouched.
 ///
 /// `k` is `fe.visible_below - n0` for the counter `n0` read BEFORE the step:
-/// every install route grows the environment by `ifenv_push` alone
+/// every install route grows the environment's constants by `ifenv_push` alone
 /// (`arena::checker`, `arena::decl_check`, `arena::inductives::*`), so the `k`
 /// newest entries are exactly the step's, and the provisional
 /// self-environments the recursor installs build (`provision_recs`'s `fe_self`,
 /// `check_native_rec`'s `fe_r`) are discarded by their own callers and never
 /// reach here.
-pub fn promote_new(
+pub fn promote_new_consts(
     tier: &mut PersTier,
     st: &AState,
     m: PMemo,
@@ -1050,6 +1039,98 @@ pub fn promote_new(
             let fe2: IFEnv = erase_installed(fe, start);
             index_promoted(tier, st, m, fuel, fe2, start, n, vb)
         }
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 eraseInstalledTables
+/// Forget the table-map rows of the tables a step installed — `tables[i..]`,
+/// the twin's `tables.take kt` — for the reason `erase_installed` forgets the
+/// constants': a row is keyed by the structure's name HANDLE, which
+/// promotion may move.
+pub fn erase_installed_tables(fe: IFEnv, i: usize) -> IFEnv {
+    if i >= fe.env.tables.len() {
+        fe
+    } else {
+        let mut fe2: IFEnv = fe;
+        let n: NIdx = fe2.env.tables[i].struct_name.dup2();
+        fe2.tbls.remove(&n);
+        erase_installed_tables(fe2, i + 1)
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 indexPromotedTables
+/// Promote the tables of slots `start..j` and re-index them, walking DOWN as
+/// `index_promoted` does; the promoted table is written back into its own
+/// slot.
+pub fn index_promoted_tables(
+    tier: &mut PersTier,
+    st: &AState,
+    m: PMemo,
+    fuel: u64,
+    fe: IFEnv,
+    start: usize,
+    j: usize,
+) -> Result<(PMemo, IFEnv), CheckError> {
+    if j <= start {
+        Ok((m, fe))
+    } else {
+        match promote_proj_table(tier, st, m, fuel, &fe.env.tables[j - 1]) {
+            Err(e) => Err(e),
+            Ok((m2, t)) => {
+                let mut fe2: IFEnv = fe;
+                fe2.tbls.insert(t.struct_name.dup2(), (j - 1) as u64);
+                fe2.env.tables[j - 1] = t;
+                index_promoted_tables(tier, st, m2, fuel, fe2, start, j - 1)
+            }
+        }
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 promoteNewTables
+/// **The phase-A bracket's promotion of the tables**: the `kt` projection
+/// tables the step just installed (`kt` is the growth of `env.tables`, which
+/// only `ifenv_push_table` extends), copied and re-indexed as
+/// `promote_new_consts` does the constants.
+pub fn promote_new_tables(
+    tier: &mut PersTier,
+    st: &AState,
+    m: PMemo,
+    fuel: u64,
+    kt: u64,
+    fe: IFEnv,
+) -> Result<(PMemo, IFEnv), CheckError> {
+    if kt == 0 {
+        Ok((m, fe))
+    } else {
+        let n: usize = fe.env.tables.len();
+        let kk: usize = kt as usize;
+        if kk > n {
+            Ok((m, fe))
+        } else {
+            let start: usize = n - kk;
+            let fe2: IFEnv = erase_installed_tables(fe, start);
+            index_promoted_tables(tier, st, m, fuel, fe2, start, n)
+        }
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:358-378 promoteNew
+/// **The phase-A bracket's promotion half**: what the step just installed —
+/// its `k` constants and its `kt` projection tables — copied into the
+/// persistent tier and re-indexed, everything below them untouched.
+#[allow(clippy::too_many_arguments)]
+pub fn promote_new(
+    tier: &mut PersTier,
+    st: &AState,
+    m: PMemo,
+    fuel: u64,
+    k: u64,
+    kt: u64,
+    fe: IFEnv,
+) -> Result<(PMemo, IFEnv), CheckError> {
+    match promote_new_consts(tier, st, m, fuel, k, fe) {
+        Err(e) => Err(e),
+        Ok((m2, fe2)) => promote_new_tables(tier, st, m2, fuel, kt, fe2),
     }
 }
 
@@ -1185,6 +1266,60 @@ mod tests {
     /// constant is found under the promoted one, at the counter it was pushed
     /// with.  A stale row would be worse than useless — `drop_scratch` hands
     /// that word to the next declaration.
+    /// The same repair for the TABLE map: a structure and its projection
+    /// table installed in one step under a scratch name come out of
+    /// `promote_new` keyed by the persistent name, the table visible exactly
+    /// where its structure is (`ifenv_find_table`'s gate), the stale scratch
+    /// row gone.
+    #[test]
+    fn promote_new_repairs_the_table_map() {
+        use crate::arena::env::{ifenv_find_table, ifenv_push_table, IProjTable};
+        let mut st = AState::init(EStore::empty());
+        let fe0: IFEnv = mk_ifenv(i_env_empty());
+        let mut tier = enter_scratch(&mut st);
+        let n = nm(&tier, &mut st, "BrandNewStruct");
+        assert!(!n.is_persistent(), "the fixture's name must be scratch");
+        let ty = cst(&tier, &mut st, "T");
+        let c = nm(&tier, &mut st, "BrandNewStruct.mk");
+        let z = ok(intern_l_node(&tier, &mut st, LNodeView::Zero));
+        let fe1: IFEnv = ifenv_push(
+            fe0,
+            IConstantInfo::AxiomInfo(IConstantVal {
+                name: n.dup2(),
+                level_params: Vec::new(),
+                ty: ty.dup2(),
+            }),
+        );
+        let mut bodies: Vec<EIdx> = Vec::new();
+        bodies.push(ty);
+        let mut guards: Vec<LIdx> = Vec::new();
+        guards.push(z.dup2());
+        let fe2: IFEnv = ifenv_push_table(
+            fe1,
+            IProjTable {
+                struct_name: n.dup2(),
+                level_params: Vec::new(),
+                num_params: 0,
+                ctor: c,
+                num_fields: 1,
+                struct_sort: z,
+                bodies,
+                guards,
+            },
+        );
+        assert!(ifenv_find_table(fe2.visible_below, &fe2, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find_table(0, &fe2, &n).is_none(), "hidden where its structure is");
+        let (_, fe3) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 1, fe2));
+        assert_eq!(fe3.env.tables.len(), 1);
+        let n2: NIdx = fe3.env.tables[0].struct_name.dup2();
+        assert!(n2.is_persistent(), "the stored structure name is persistent now");
+        assert!(n2.eq2(&env::i_constant_info_name(&fe3.env.consts[0])), "the structure's own");
+        assert!(ifenv_find_table(fe3.visible_below, &fe3, &n2).is_some(), "found under the new key");
+        assert!(fe3.tbls.get(&n).is_none(), "and the stale scratch row is gone");
+        assert!(fe3.env.tables[0].bodies[0].is_persistent(), "the bodies are persistent too");
+        drop_scratch(&mut st, tier);
+    }
+
     #[test]
     fn promote_new_repairs_the_index() {
         let mut st = AState::init(EStore::empty());
@@ -1203,7 +1338,7 @@ mod tests {
             }),
         );
         assert!(ifenv_find(fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
-        let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, fe1));
+        let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 0, fe1));
         assert_eq!(fe2.env.consts.len(), 1);
         assert_eq!(fe2.visible_below, 1);
         let n2: NIdx = env::i_constant_info_name(&fe2.env.consts[0]);
@@ -1228,10 +1363,13 @@ mod tests {
     #[test]
     fn promote_new_at_zero_is_the_identity() {
         let mut st = AState::init(EStore::empty());
-        let fe: IFEnv = mk_ifenv(IEnv { consts: Vec::new() });
+        let fe: IFEnv = mk_ifenv(IEnv {
+            consts: Vec::new(),
+            tables: Vec::new(),
+        });
         let mut tier = enter_scratch(&mut st);
         let before = st.store.pers_count(&tier);
-        let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 0, fe));
+        let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 0, 0, fe));
         assert_eq!(fe2.env.consts.len(), 0);
         assert_eq!(st.store.pers_count(&tier), before);
         drop_scratch(&mut st, tier);

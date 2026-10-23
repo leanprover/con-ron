@@ -471,7 +471,6 @@ pub fn check_block_agree(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:171-177 consBlockInds
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove block_install::cons_block_inds_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:181-190 consBlockInds` —
 /// the members' formers consed, in block order (member 0 deepest), each with

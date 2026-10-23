@@ -760,7 +760,6 @@ pub fn check_sum_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:164-167 consSumCtors
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove sum_install::cons_sum_ctors_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:116-119 consSumCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:192-198 consSumCtors`
 /// — the constructors' conses, in order (the first constructor deepest).

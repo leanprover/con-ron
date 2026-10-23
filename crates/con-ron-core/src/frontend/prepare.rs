@@ -30,7 +30,7 @@
 //! **Where the store comes from.**  Only `prelude_key`, whose `.anonymous`
 //! fall-through has to be INTERNED, and the two functions that call it;
 //! [`pick_idx`] and [`declares`] are pure, exactly as con-leche's are, because
-//! `env::i_declaration_names` is (`arena/env.rs`'s `table_name` note).
+//! `env::i_declaration_names` is.
 //! Nothing in this module reads or writes a term.
 //!
 //! **The deviation of the port into the verified core** (task #84), kept

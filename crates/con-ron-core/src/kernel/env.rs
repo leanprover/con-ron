@@ -37,10 +37,6 @@
 //! * **An explicit `*_dup` per type** rather than `#[derive(Clone)]`, as
 //!   `nat.rs`/`name.rs`/`expr.rs` do.  A `dup` of a `Name`, `Level`, `Expr`
 //!   or `PropWhen` is a `P` bump; a `dup` of a record copies its `Vec`s.
-//!
-//! `ProjTable.bodies` is an `Array Expr` and `ProjTable.guards` a `List
-//! Level` in the Lean; the port does not inherit the asymmetry (task #10,
-//! surprise 8) — both are `Vec`s.
 
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
@@ -382,42 +378,7 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ProjTable_refines, then delete this line
-/// One structure's projection table: everything the checker's `.proj` rules
-/// consume about a structure `T`, stored once at the structure's install as
-/// one constant under `proj_table_name T`.
-pub struct ProjTable {
-    pub struct_name: Name,
-    pub level_params: Vec<Name>,
-    pub num_params: u64,
-    pub ctor: Name,
-    pub num_fields: u64,
-    pub struct_sort: Level,
-    pub bodies: Vec<Expr>,
-    pub guards: Vec<Level>,
-    pub off: u64,
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::proj_table_dup_refines, then delete this line
-/// The record copy.
-pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
-    ProjTable {
-        struct_name: name::dup(&t.struct_name),
-        level_params: prop_when::names_copy(&t.level_params),
-        num_params: t.num_params,
-        ctor: name::dup(&t.ctor),
-        num_fields: t.num_fields,
-        struct_sort: level::dup(&t.struct_sort),
-        bodies: exprs_copy(&t.bodies),
-        guards: levels_copy(&t.guards),
-        off: t.off,
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
 /// Information stored about an accepted constant.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
@@ -426,7 +387,6 @@ pub enum ConstantInfo {
     IndInfo(ConstantVal, IndCaps),
     CtorInfo(ConstantVal, u64, u64),
     RecInfo(ConstantVal, u64, u64, Vec<RecRule>),
-    ProjInfo(ProjTable),
 }
 
 /// con-leche: none — a `Vec<RecRule>` copy; Lean's `List RecRule` is shared by value
@@ -448,7 +408,6 @@ pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Ve
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove env::constant_info_dup_refines, then delete this line
 /// The record copy; what `fenv::push` needs, because a pushed constant lands
 /// both in `env.consts` and in the index (where Lean shares one value).
 pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
@@ -472,7 +431,6 @@ pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
             *rp,
             rec_rules_copy(rules),
         ),
-        ConstantInfo::ProjInfo(tbl) => ConstantInfo::ProjInfo(proj_table_dup(tbl)),
     }
 }
 

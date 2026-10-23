@@ -45,14 +45,14 @@
 //! tier is live (DESIGN.md §8.3).
 
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IIndCaps, IProjTable, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IIndCaps, IRecRule, IRecRuleFire,
 };
 use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::{intern_e, intern_level, intern_levels, intern_name, AState};
 use crate::arena::store::ENodeView;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env as cenv;
-use crate::kernel::env::{ConstantInfo, ConstantVal, IndCaps, ProjTable, RecRule, RecRuleFire};
+use crate::kernel::env::{ConstantInfo, ConstantVal, IndCaps, RecRule, RecRuleFire};
 use crate::kernel::expr;
 use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::level::Level;
@@ -417,66 +417,6 @@ pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IInd
     }
 }
 
-/// con-leche: none — intern a projection table
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:311-322 internProjTable`.
-/// `table_name` is the field `arena::env` adds: the reserved name, interned
-/// here so that `i_constant_info_name` stays pure.
-pub fn intern_proj_table(
-    pers: &PersTier,
-    st: &mut AState,
-    m: &mut EMemo,
-    t: &ProjTable,
-) -> Result<IProjTable, CheckError> {
-    match intern_name(pers, st, &t.struct_name) {
-        Err(err) => Err(err),
-        Ok(sn) => match crate::arena::env::proj_table_name(pers, &mut st.store, &sn) {
-            Err(err) => Err(err),
-            Ok(tn) => intern_proj_table_rest(pers, st, m, t, sn, tn),
-        },
-    }
-}
-
-/// con-leche: none — the tail of the projection-table interning
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:311-322 internProjTable`.
-/// Split at the twin's own `let`-boundary, so each state-threading call is a
-/// tail call (task #97-P4c's rule).
-pub fn intern_proj_table_rest(
-    pers: &PersTier,
-    st: &mut AState,
-    m: &mut EMemo,
-    t: &ProjTable,
-    sn: NIdx,
-    tn: NIdx,
-) -> Result<IProjTable, CheckError> {
-    match intern_name_list(pers, st, &t.level_params) {
-        Err(err) => Err(err),
-        Ok(lps) => match intern_name(pers, st, &t.ctor) {
-            Err(err) => Err(err),
-            Ok(c) => match intern_level(pers, st, &t.struct_sort) {
-                Err(err) => Err(err),
-                Ok(ss) => match intern_expr_list_go(pers, st, m, &t.bodies, 0, Vec::new()) {
-                    Err(err) => Err(err),
-                    Ok(bs) => match intern_level_list_go(pers, st, &t.guards, 0, Vec::new()) {
-                        Err(err) => Err(err),
-                        Ok(gs) => Ok(IProjTable {
-                            struct_name: sn,
-                            table_name: tn,
-                            level_params: lps,
-                            num_params: t.num_params,
-                            ctor: c,
-                            num_fields: t.num_fields,
-                            struct_sort: ss,
-                            bodies: bs,
-                            guards: gs,
-                            off: t.off,
-                        }),
-                    },
-                },
-            },
-        },
-    }
-}
-
 /// con-leche: none — intern a stored constant
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:324-349 internCI`.
 pub fn intern_ci_go(
@@ -518,10 +458,6 @@ pub fn intern_ci_go(
                 Err(err) => Err(err),
                 Ok(rules) => Ok(IConstantInfo::RecInfo(cv, *m_i, *r_p, rules)),
             },
-        },
-        ConstantInfo::ProjInfo(t) => match intern_proj_table(pers, st, m, t) {
-            Err(err) => Err(err),
-            Ok(tbl) => Ok(IConstantInfo::ProjInfo(tbl)),
         },
     }
 }

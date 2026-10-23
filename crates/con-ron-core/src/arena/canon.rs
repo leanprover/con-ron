@@ -27,7 +27,7 @@
 
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IIndCaps, IProjTable, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IIndCaps, IRecRule, IRecRuleFire,
 };
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{fail, intern_n_node, view, view_l, view_ls, AState};
@@ -535,29 +535,9 @@ pub fn canon_rules_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_proj_table_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
-/// the `t == t'` of the `.projInfo` arm, field by field.  `canon` is the
-/// identity on a projection table (one never occurs in parsed input).
-pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
-    t.struct_name.eq2(&t2.struct_name)
-        && t.table_name.eq2(&t2.table_name)
-        && nidx_vec_beq(&t.level_params, &t2.level_params, 0)
-        && t.num_params == t2.num_params
-        && t.ctor.eq2(&t2.ctor)
-        && t.num_fields == t2.num_fields
-        && t.struct_sort.eq2(&t2.struct_sort)
-        && eidx_vec_beq(&t.bodies, &t2.bodies, 0)
-        && lidx_vec_beq(&t.guards, &t2.guards, 0)
-        && t.off == t2.off
-}
-
 /// con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:225-227 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
@@ -602,15 +582,11 @@ pub fn i_constant_info_canon_eq(
                 Ok(false)
             }
         }
-        (IConstantInfo::ProjInfo(t), IConstantInfo::ProjInfo(t2)) => {
-            Ok(i_proj_table_beq(t, t2))
-        }
         _ => Ok(false),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::canon_eq_cv_and_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
@@ -648,7 +624,6 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::canon_eq_cv_and_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
@@ -719,7 +694,7 @@ pub fn canon_eq_list(
 // `Arena/DeclCheck.lean` and `Arena/Checker.lean` compare a stored constant
 // with a pin by `==` (`fe.find? eqName == some eqA`), which in the twin is the
 // `deriving DecidableEq` of `IConstantInfo`.  Rust has no derive (§3.4), so
-// the instance is spelled out here, beside `i_proj_table_beq` which it needs.
+// the instance is spelled out here.
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:121-126 ConstantVal
@@ -768,7 +743,6 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:164-175 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
@@ -791,7 +765,6 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
         (IConstantInfo::RecInfo(x, m, p, rs), IConstantInfo::RecInfo(y, n, q, ss)) => {
             i_constant_val_beq(x, y) && m == n && p == q && i_rec_rules_beq(rs, ss, 0)
         }
-        (IConstantInfo::ProjInfo(t), IConstantInfo::ProjInfo(u)) => i_proj_table_beq(t, u),
         _ => false,
     }
 }

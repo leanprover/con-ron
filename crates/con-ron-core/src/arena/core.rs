@@ -219,14 +219,6 @@ pub const M_FN: [u32; 17] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"projection table entry used as a constant"`, as code points.
-pub const M_TOWER: [u32; 41] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 101,
-    110, 116, 114, 121, 32, 117, 115, 101, 100, 32, 97, 115, 32, 97, 32, 99, 111, 110, 115,
-    116, 97, 110, 116
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"incorrect number of universe levels"`, as code points.
 pub const M_LEVELS: [u32; 35] = [
     105, 110, 99, 111, 114, 114, 101, 99, 116, 32, 110, 117, 109, 98, 101, 114, 32, 111,
@@ -737,7 +729,7 @@ pub fn proj_indexed_struct_like(
 /// arguments) with no table entry at field `i`**: an out-of-range index at a
 /// table; a positively detected indexed structure-like type DECLINES
 /// (`lean4#14977`); everything else is official's reject.  `has_table` is the
-/// cited `(find? (projTableName T)).isSome`, read by the caller.
+/// cited `(findTable? T).isSome`, read by the caller.
 pub fn proj_miss_error(
     vis: u64,
     fe: &IFEnv,
@@ -1564,14 +1556,13 @@ pub fn str_lit_to_constructor(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:621-628 stringTyOk` — the stored
 /// `String` declaration has the expected shape.
 pub fn string_ty_ok(
-    pers: &PersTier,
     st: &mut AState,
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => match sort_one(st) {
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            match sort_one(st) {
                 Err(e) => Err(e),
                 Ok(s1) => {
                     if cv.level_params.len() == 0 {
@@ -1580,7 +1571,7 @@ pub fn string_ty_ok(
                         Ok(false)
                     }
                 }
-            },
+            }
         },
         None => Ok(false),
     }
@@ -1590,14 +1581,13 @@ pub fn string_ty_ok(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:630-637 charTyOk` — the stored
 /// `Char` declaration has the expected shape.
 pub fn char_ty_ok(
-    pers: &PersTier,
     st: &mut AState,
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => match sort_one(st) {
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            match sort_one(st) {
                 Err(e) => Err(e),
                 Ok(s1) => {
                     if cv.level_params.len() == 0 {
@@ -1606,7 +1596,7 @@ pub fn char_ty_ok(
                         Ok(false)
                     }
                 }
-            },
+            }
         },
         None => Ok(false),
     }
@@ -1622,36 +1612,34 @@ pub fn list_ty_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() != 1 {
-                    Ok(false)
-                } else {
-                    let p: NIdx = cv.level_params[0].dup2();
-                    match intern_l_node(pers, st, LNodeView::Param(p)) {
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            if cv.level_params.len() != 1 {
+                Ok(false)
+            } else {
+                let p: NIdx = cv.level_params[0].dup2();
+                match intern_l_node(pers, st, LNodeView::Param(p)) {
+                    Err(e) => Err(e),
+                    Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl)) {
                         Err(e) => Err(e),
-                        Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl)) {
+                        Ok(sp) => match intern_e_sort(pers, st, sp) {
                             Err(e) => Err(e),
-                            Ok(sp) => match intern_e_sort(pers, st, sp) {
-                                Err(e) => Err(e),
-                                Ok(sort) => if cv.ty.tag() == ETAG_FORALL_E {
-                                    match view_bind(pers, st, &cv.ty) {
-                                        None => fail_dangling_e(),
-                                        Some((d, b)) => {
-                                            if d.eq2(&sort) {
-                                                Ok(b.eq2(&sort))
-                                            } else {
-                                                Ok(false)
-                                            }
-                                        },
-                                    }
-                                } else {
-                                    Ok(false)
-                                },
+                            Ok(sort) => if cv.ty.tag() == ETAG_FORALL_E {
+                                match view_bind(pers, st, &cv.ty) {
+                                    None => fail_dangling_e(),
+                                    Some((d, b)) => {
+                                        if d.eq2(&sort) {
+                                            Ok(b.eq2(&sort))
+                                        } else {
+                                            Ok(false)
+                                        }
+                                    },
+                                }
+                            } else {
+                                Ok(false)
                             },
                         },
-                    }
+                    },
                 }
             }
         },
@@ -1724,38 +1712,36 @@ pub fn list_nil_ty_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() != 1 {
-                    Ok(false)
-                } else {
-                    let p: NIdx = cv.level_params[0].dup2();
-                    match intern_l_node(pers, st, LNodeView::Param(p)) {
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            if cv.level_params.len() != 1 {
+                Ok(false)
+            } else {
+                let p: NIdx = cv.level_params[0].dup2();
+                match intern_l_node(pers, st, LNodeView::Param(p)) {
+                    Err(e) => Err(e),
+                    Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl.dup2())) {
                         Err(e) => Err(e),
-                        Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl.dup2())) {
+                        Ok(sp) => match intern_e_sort(pers, st, sp) {
                             Err(e) => Err(e),
-                            Ok(sp) => match intern_e_sort(pers, st, sp) {
-                                Err(e) => Err(e),
-                                Ok(sort) => {
-                                    let mut pv: Vec<LIdx> = Vec::new();
-                                    pv.push(pl);
-                                    match intern_ls_node(pers, st, pv) {
-                                        Err(e) => Err(e),
-                                        Ok(ps) => {
-                                            match pin_list(st) {
-                                                Err(e) => Err(e),
-                                                Ok(li) => list_nil_ty_body(
-                                                    pers,
-                                                    st, &cv.ty, &sort, &ps, &li,
-                                                ),
-                                            }
+                            Ok(sort) => {
+                                let mut pv: Vec<LIdx> = Vec::new();
+                                pv.push(pl);
+                                match intern_ls_node(pers, st, pv) {
+                                    Err(e) => Err(e),
+                                    Ok(ps) => {
+                                        match pin_list(st) {
+                                            Err(e) => Err(e),
+                                            Ok(li) => list_nil_ty_body(
+                                                pers,
+                                                st, &cv.ty, &sort, &ps, &li,
+                                            ),
                                         }
                                     }
                                 }
-                            },
+                            }
                         },
-                    }
+                    },
                 }
             }
         },
@@ -1881,15 +1867,13 @@ pub fn list_cons_ty_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() != 1 {
-                    Ok(false)
-                } else {
-                    let p: NIdx = cv.level_params[0].dup2();
-                    list_cons_ty_at(pers, st, &cv.ty, &p)
-                }
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            if cv.level_params.len() != 1 {
+                Ok(false)
+            } else {
+                let p: NIdx = cv.level_params[0].dup2();
+                list_cons_ty_at(pers, st, &cv.ty, &p)
             }
         },
         None => Ok(false),
@@ -1905,38 +1889,36 @@ pub fn char_of_nat_ty_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() != 0 {
-                    Ok(false)
-                } else {
-                    match pin_nat(st) {
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            if cv.level_params.len() != 0 {
+                Ok(false)
+            } else {
+                match pin_nat(st) {
+                    Err(e) => Err(e),
+                    Ok(nt) => match const_e(pers, st, &nt) {
                         Err(e) => Err(e),
-                        Ok(nt) => match const_e(pers, st, &nt) {
+                        Ok(nc) => match pin_char(st) {
                             Err(e) => Err(e),
-                            Ok(nc) => match pin_char(st) {
+                            Ok(ch) => match const_e(pers, st, &ch) {
                                 Err(e) => Err(e),
-                                Ok(ch) => match const_e(pers, st, &ch) {
-                                    Err(e) => Err(e),
-                                    Ok(cc) => if cv.ty.tag() == ETAG_FORALL_E {
-                                        match view_bind(pers, st, &cv.ty) {
-                                            None => fail_dangling_e(),
-                                            Some((d, b)) => {
-                                                if d.eq2(&nc) {
-                                                    Ok(b.eq2(&cc))
-                                                } else {
-                                                    Ok(false)
-                                                }
-                                            },
-                                        }
-                                    } else {
-                                        Ok(false)
-                                    },
+                                Ok(cc) => if cv.ty.tag() == ETAG_FORALL_E {
+                                    match view_bind(pers, st, &cv.ty) {
+                                        None => fail_dangling_e(),
+                                        Some((d, b)) => {
+                                            if d.eq2(&nc) {
+                                                Ok(b.eq2(&cc))
+                                            } else {
+                                                Ok(false)
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    Ok(false)
                                 },
                             },
                         },
-                    }
+                    },
                 }
             }
         },
@@ -2011,14 +1993,12 @@ pub fn string_of_list_ty_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(c) => match env::i_constant_info_to_constant_val(pers, &mut st.store, c) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() != 0 {
-                    Ok(false)
-                } else {
-                    string_of_list_ty_body(pers, st, &cv.ty)
-                }
+        Some(c) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(c);
+            if cv.level_params.len() != 0 {
+                Ok(false)
+            } else {
+                string_of_list_ty_body(pers, st, &cv.ty)
             }
         },
         None => Ok(false),
@@ -2052,7 +2032,7 @@ pub fn str_lit_supported_rest(
                             Ok(false) => Ok(false),
                             Ok(true) => match pin_char(st) {
                                 Err(e) => Err(e),
-                                Ok(ch) => match char_ty_ok(pers, st, env::ifenv_find(vis, fe, &ch)) {
+                                Ok(ch) => match char_ty_ok(st, env::ifenv_find(vis, fe, &ch)) {
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
                                     Ok(true) => {
@@ -2091,7 +2071,7 @@ pub fn str_lit_supported(
         Ok(false) => Ok(false),
         Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
-            Ok(stn) => match string_ty_ok(pers, st, env::ifenv_find(vis, fe, &stn)) {
+            Ok(stn) => match string_ty_ok(st, env::ifenv_find(vis, fe, &stn)) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => match pin_string_of_list(st) {
@@ -3140,20 +3120,18 @@ pub fn bool_ctor_ok(
     n: &NIdx,
 ) -> Result<bool, CheckError>  {
     match env::ifenv_find(vis, fe, n) {
-        Some(ci) => match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
-            Err(e) => Err(e),
-            Ok(cv) => {
-                if cv.level_params.len() == 0 {
-                    match bool_name(st) {
+        Some(ci) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
+            if cv.level_params.len() == 0 {
+                match bool_name(st) {
+                    Err(e) => Err(e),
+                    Ok(bn) => match const_e(pers, st, &bn) {
                         Err(e) => Err(e),
-                        Ok(bn) => match const_e(pers, st, &bn) {
-                            Err(e) => Err(e),
-                            Ok(b) => Ok(cv.ty.eq2(&b)),
-                        },
-                    }
-                } else {
-                    Ok(false)
+                        Ok(b) => Ok(cv.ty.eq2(&b)),
+                    },
                 }
+            } else {
+                Ok(false)
             }
         },
         None => Ok(false),
@@ -3338,7 +3316,7 @@ pub fn nat_op_cod(
                                 if !e.eq2(&bc) {
                                     Ok(false)
                                 } else {
-                                    bool_ty_ok(pers, vis, st, fe, &bn)
+                                    bool_ty_ok(vis, st, fe, &bn)
                                 }
                             }
                         },
@@ -3361,16 +3339,15 @@ pub fn nat_op_cod(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1142-1161 natOpCod` — the stored
 /// `Bool` declaration at no level parameters and type `Sort 1`.
 pub fn bool_ty_ok(
-    pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     bn: &NIdx,
 ) -> Result<bool, CheckError>  {
     match env::ifenv_find(vis, fe, bn) {
-        Some(ci) => match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
-            Err(e) => Err(e),
-            Ok(cv) => match sort_one(st) {
+        Some(ci) => {
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
+            match sort_one(st) {
                 Err(e) => Err(e),
                 Ok(s1) => {
                     if cv.level_params.len() == 0 {
@@ -3379,7 +3356,7 @@ pub fn bool_ty_ok(
                         Ok(false)
                     }
                 }
-            },
+            }
         },
         None => Ok(false),
     }
@@ -4078,7 +4055,6 @@ pub fn proof_irrel(
 
 /// con-leche: ConLeche/Kernel/Core.lean:298-320 proofIrrel
 /// con-leche: ConLeche/Kernel/Core.lean:322-364 propIrrel
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::prop_sorts_zero_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1360-1385 proofIrrel`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1387-1418 propIrrel`
 /// The `Prop` branch both certifications end in: the *sort* of the type of `a`
@@ -4173,7 +4149,6 @@ pub fn prop_sorts_zero_right(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:322-364 propIrrel
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::prop_irrel_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1387-1418 propIrrel` — **the
 /// hoisted proof-irrelevance test** (con-leche's task #168, Option U): the
 /// `Prop` branch of `proofIrrel` alone, with the head-symbol readers deciding
@@ -4262,22 +4237,13 @@ pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1420-1427 towerSlotsAllGo` — the
 /// slot walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN.md
 /// §3.4's rule turns the closure into a counted recursion.
-pub fn tower_slots_all_go(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    n: u64,
-    j: u64,
-) -> Result<bool, CheckError> {
+pub fn tower_slots_all_go(vis: u64, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> bool {
     if n == 0 {
-        Ok(true)
+        true
     } else {
-        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, t, j) {
-            Err(e) => Err(e),
-            Ok(Some(_)) => tower_slots_all_go(pers, vis, st, fe, t, n - 1, j + 1),
-            Ok(None) => Ok(false),
+        match env::ifenv_find_proj(vis, fe, t, j) {
+            Some(_) => tower_slots_all_go(vis, fe, t, n - 1, j + 1),
+            None => false,
         }
     }
 }
@@ -4286,15 +4252,8 @@ pub fn tower_slots_all_go(
 /// con-leche: ConLeche/Kernel/FEnv.lean:262-264 FEnv.towerSlotsAllF
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1429-1433 towerSlotsAll` — are all
 /// `nF` projection slots of `T` table entries?
-pub fn tower_slots_all(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    n_f: u64,
-) -> Result<bool, CheckError> {
-    tower_slots_all_go(pers, vis, st, fe, t, n_f, 0)
+pub fn tower_slots_all(vis: u64, fe: &IFEnv, t: &NIdx, n_f: u64) -> bool {
+    tower_slots_all_go(vis, fe, t, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:730-735 etaProjs
@@ -4446,43 +4405,39 @@ pub fn struct_eta_cert_at(
                                 Ok(reserved) => match view_ls(pers, st, &us2) {
                                     Err(e) => Err(e),
                                     Ok(uslen) => {
-                                        match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
-                                            Err(e) => Err(e),
-                                            Ok(sl) => {
-                                                if caps.eta
-                                                    && caps.eta_ctor.eq2(c)
-                                                    && !env::nidx_vec_contains(&reserved, &t)
-                                                    && !env::nidx_vec_contains(&reserved, c)
-                                                    && targs.len() as u64 == caps.eta_params
-                                                    && uslen.len() == cvt.level_params.len()
-                                                    && nidx_vec_beq(
-                                                        &cvc.level_params,
-                                                        &cvt.level_params,
-                                                    )
-                                                    && sl
-                                                {
-                                                    struct_eta_cert_tail(
-                                                        pers,
-                                                        vis,
-                                                        st,
-                                                        mode,
-                                                        lane,
-                                                        fuel,
-                                                        fe,
-                                                        depth,
-                                                        us,
-                                                        &t,
-                                                        &us2,
-                                                        &targs,
-                                                        b,
-                                                        aargs,
-                                                        caps.eta_params,
-                                                        caps.eta_fields,
-                                                    )
-                                                } else {
-                                                    Ok(false)
-                                                }
-                                            }
+                                        let sl: bool = tower_slots_all(vis, fe, &t, caps.eta_fields);
+                                        if caps.eta
+                                            && caps.eta_ctor.eq2(c)
+                                            && !env::nidx_vec_contains(&reserved, &t)
+                                            && !env::nidx_vec_contains(&reserved, c)
+                                            && targs.len() as u64 == caps.eta_params
+                                            && uslen.len() == cvt.level_params.len()
+                                            && nidx_vec_beq(
+                                                &cvc.level_params,
+                                                &cvt.level_params,
+                                            )
+                                            && sl
+                                        {
+                                            struct_eta_cert_tail(
+                                                pers,
+                                                vis,
+                                                st,
+                                                mode,
+                                                lane,
+                                                fuel,
+                                                fe,
+                                                depth,
+                                                us,
+                                                &t,
+                                                &us2,
+                                                &targs,
+                                                b,
+                                                aargs,
+                                                caps.eta_params,
+                                                caps.eta_fields,
+                                            )
+                                        } else {
+                                            Ok(false)
                                         }
                                     }
                                 },
@@ -4928,9 +4883,8 @@ pub fn and_rescue_slots_go(
     if n == 0 {
         Ok(true)
     } else {
-        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, an, j) {
-            Err(e) => Err(e),
-            Ok(Some(entry)) => match proj_entry_fire_ok(pers, st, &entry, ust) {
+        match env::ifenv_find_proj(vis, fe, an, j) {
+            Some(entry) => match proj_entry_fire_ok(pers, st, &entry, ust) {
                 Err(e) => Err(e),
                 Ok(fok) => {
                     if entry.ctor.eq2(ctor)
@@ -4944,7 +4898,7 @@ pub fn and_rescue_slots_go(
                     }
                 }
             },
-            Ok(None) => Ok(false),
+            None => Ok(false),
         }
     }
 }
@@ -5214,10 +5168,10 @@ pub fn major_to_ctor_eta_keys(
             if !env::nidx_vec_contains(&reserved, t)
                 && !env::nidx_vec_contains(&reserved, &caps.eta_ctor)
             {
-                match tower_slots_all(pers, vis, st, fe, t, caps.eta_fields) {
-                    Err(e) => Err(e),
-                    Ok(true) => major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major),
-                    Ok(false) => Ok(major.dup2()),
+                if tower_slots_all(vis, fe, t, caps.eta_fields) {
+                    major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major)
+                } else {
+                    Ok(major.dup2())
                 }
             } else {
                 Ok(major.dup2())
@@ -5595,9 +5549,7 @@ pub fn rec_rule_k_of(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1868-1886 recRuleEtaOf` — **the
 /// η-rescue bit at install** (`RecRule.eta`): the rule's constructor is the η
 /// constructor of a stored η-capable inductive and carries that inductive's
-/// own level parameters.  (Task #119: the recursor-name test
-/// `!Name.isProjFnShape recName` held at every stored recursor and is gone,
-/// with the parameter.)
+/// own level parameters.
 pub fn rec_rule_eta_of(
     pers: &PersTier,
     vis: u64,
@@ -6421,12 +6373,9 @@ pub fn reduce_proj_core(
 ) -> Result<Option<EIdx>, CheckError> {
     match proj_lit_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, c) {
         Err(e) => Err(e),
-        Ok(ep) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, sn, i) {
-            Err(e) => Err(e),
-            Ok(Some(entry)) => {
-                reduce_proj_core_at(pers, vis, st, mode, fe, i, &ep, &entry)
-            }
-            Ok(None) => Ok(None),
+        Ok(ep) => match env::ifenv_find_proj(vis, fe, sn, i) {
+            Some(entry) => reduce_proj_core_at(pers, vis, st, mode, fe, i, &ep, &entry),
+            None => Ok(None),
         },
     }
 }
@@ -7089,9 +7038,7 @@ pub fn ensure_sort(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lam_result_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lam_result_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2448-2454 inferLamResult` — the λ
 /// clause's result, `.forallE ty (bt.abstract1 depth)`.
 pub fn infer_lam_result(
@@ -7108,9 +7055,7 @@ pub fn infer_lam_result(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_sort_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO`
 /// The `.sort` clause, which both bodies write identically.
@@ -7122,9 +7067,7 @@ pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, Ch
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_fvar_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_fvar_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO`
 /// The `.fvar` clause — the scope check at the leaf of a traversal that
@@ -7138,15 +7081,12 @@ pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_const_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_const_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO`
 /// The `.const` clause, which both bodies write identically: the stored type
 /// read through `constTyAt`, so a constant inferred twice at the same levels
-/// pays the level substitution once.  A projection table is not a term
-/// (con-leche's task #175 W4c).
+/// pays the level substitution once.
 pub fn infer_const(
     pers: &PersTier,
     vis: u64,
@@ -7161,21 +7101,15 @@ pub fn infer_const(
             Ok(err) => fail(err),
         },
         Some(ci) => {
-            if env::i_constant_info_is_tower_entry(ci) {
-                fail(CheckError::Invalid(code_points(&M_TOWER)))
-            } else {
-                match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
-                    Err(e) => Err(e),
-                    Ok(cv) => match view_ls_len(pers, st, us) {
-                        None => fail_dangling_ls(),
-                        Some(usl) => {
-                            if usl != cv.level_params.len() {
-                                fail(CheckError::Invalid(code_points(&M_LEVELS)))
-                            } else {
-                                const_ty_at(pers, st, &cv, us)
-                            }
-                        }
-                    },
+            let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
+            match view_ls_len(pers, st, us) {
+                None => fail_dangling_ls(),
+                Some(usl) => {
+                    if usl != cv.level_params.len() {
+                        fail(CheckError::Invalid(code_points(&M_LEVELS)))
+                    } else {
+                        const_ty_at(pers, st, &cv, us)
+                    }
                 }
             }
         }
@@ -7183,9 +7117,7 @@ pub fn infer_const(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO`
 /// The `.lit (.natVal _)` clause, which both bodies write identically.
@@ -7206,9 +7138,7 @@ pub fn infer_lit_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lit_str_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lit_str_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO`
 /// The `.lit (.strVal _)` clause, which both bodies write identically.
@@ -7229,9 +7159,7 @@ pub fn infer_lit_str(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
 /// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
@@ -7280,9 +7208,7 @@ pub fn infer_forall(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2693-2735 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
 /// `inferBodyI` at the io view, which is the `io` flag here): the subject's
@@ -7313,12 +7239,11 @@ pub fn infer_proj(
                     match view_const(pers, st, &hd) {
                         None => fail_dangling_e(),
                         Some((t, us)) => {
-                            match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
-                                Err(e) => Err(e),
-                                Ok(Some(entry)) => {
+                            match env::ifenv_find_proj(vis, fe, &t, i) {
+                                Some(entry) => {
                                     infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
                                 }
-                                Ok(None) => infer_proj_miss(pers, vis, st, fe, &te, &t, sn, i),
+                                None => infer_proj_miss(pers, vis, st, fe, &te, &t, sn, i),
                             }
                         },
                     }
@@ -7331,9 +7256,7 @@ pub fn infer_proj(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2693-2735 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
 /// table's presence and the subject type's argument count.
@@ -7347,22 +7270,15 @@ pub fn infer_proj_miss(
     sn: &NIdx,
     i: u64,
 ) -> Result<EIdx, CheckError> {
-    match env::proj_table_name(pers, &mut st.store, t) {
+    let has_table: bool = env::ifenv_find_table(vis, fe, t).is_some();
+    match get_app_args(pers, st, CORE_WALK_FUEL, te) {
         Err(e) => Err(e),
-        Ok(tbl) => {
-            let has_table: bool = env::ifenv_find(vis, fe, &tbl).is_some();
-            match get_app_args(pers, st, CORE_WALK_FUEL, te) {
-                Err(e) => Err(e),
-                Ok(targs) => fail(proj_miss_error(vis, fe, has_table, t, sn, i, targs.len() as u64)),
-            }
-        }
+        Ok(targs) => fail(proj_miss_error(vis, fe, has_table, t, sn, i, targs.len() as u64)),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
 /// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
@@ -7412,7 +7328,6 @@ pub fn infer_proj_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_proj_prop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the
 /// propositional structure's extra premise: the field's guard level must be
 /// `Prop` at this instantiation.
@@ -7446,9 +7361,7 @@ pub fn infer_proj_prop(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
 /// binder-telescope loop (`infer_lams`).
@@ -7495,7 +7408,6 @@ pub fn infer_lam(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_lam_open_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — the io
 /// body's λ clause, chained: no domain-sort run (official's `infer_lambda` at
@@ -7527,9 +7439,7 @@ pub fn infer_lam_open(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_let_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
 /// `let`'s type is a type, the value's type matches it, then the body with the
@@ -7567,7 +7477,6 @@ pub fn infer_let(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_let_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — the io
 /// body's `let` clause, official's `infer_let` at `infer_only` (con-leche task
@@ -7720,7 +7629,6 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2653-2660 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.
@@ -8016,9 +7924,7 @@ pub fn infer_pis(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_body_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2737-2800 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
 /// `infer_only = false`).
@@ -8060,7 +7966,6 @@ pub fn infer_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_body_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — **the io
 /// inference body**, official's `infer_type_core` with `infer_only = true`
@@ -8114,7 +8019,6 @@ pub fn infer_body_io(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_forall_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — the io
 /// body's ∀ clause, chained: the domain's sort through this lane, then
@@ -8151,7 +8055,6 @@ pub fn infer_forall_io(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_forall_io_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — the io
 /// body's ∀ clause, once the domain's sort is known: the opened codomain's
@@ -8189,7 +8092,6 @@ pub fn infer_forall_io_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove core::infer_app_io_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1144-1192 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2802-2874 inferBodyIO` — the io
 /// body's `.app` clause, with `r.infer` resolved through this lane.

@@ -157,9 +157,7 @@ pub struct ValueGroup {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:94-111 installHeaderC
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:59-79 installHeader` —
 /// `checkConstantVal` minus its inference: the syntactic guards, header and
 /// type.  con-leche writes the clauses out twice and so does the twin; the

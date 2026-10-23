@@ -65,18 +65,17 @@ use crate::arena::expr_ops::{
     cons_eidx, fvar_type_d, has_fvar_fast,
     instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast,
 };
-use crate::arena::handle::{EIdx, NIdx, ETAG_FORALL_E, NTAG_STR, NTAG_NUM};
+use crate::arena::handle::{EIdx, NIdx, ETAG_FORALL_E};
 use crate::arena::monad::{
-    AState, Memos, fail, fail_dangling_e, intern_e_fvar, read_level, read_levels, read_names, view, view_bind, view_n,
+    AState, Memos, fail, fail_dangling_e, intern_e_fvar, read_level, read_levels, read_names, view, view_bind,
 };
-use crate::arena::store::{ENodeView, NNodeView};
+use crate::arena::store::ENodeView;
 use crate::arena::pins::{pin_sorry_ax, Pins};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
 use crate::kernel::expr::Literal;
 use crate::kernel::level;
 use crate::kernel::level::Level;
-use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
@@ -103,13 +102,6 @@ pub const M_DUP_DECL: [u32; 21] = [
 /// `"reserved basis name"`, as code points.
 pub const M_RESERVED_BASIS: [u32; 19] = [
     114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"reserved projection name"`, as code points.
-pub const M_RESERVED_PROJ: [u32; 24] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110,
-    32, 110, 97, 109, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -380,37 +372,6 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
         true
     } else {
         nidx_contains_from(ns, i + 1, n)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Level.lean:216-223 Name.isProjFnShape
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::nidx_is_proj_fn_shape_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:122-136 NIdx.isProjFnShape`
-/// — is this shaped like an installed projection function's name
-/// (`(T.proj).i`) or a projection table's (`(T.projTable).0`)?  Both shapes
-/// are reserved for the checker's own installs.
-pub fn nidx_is_proj_fn_shape(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
-    const P: [u32; 4] = [112, 114, 111, 106];
-    const T: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
-    if n.tag() == NTAG_NUM {
-        match view_n(pers, st, n) {
-            Err(e) => Err(e),
-            Ok(NNodeView::Num(p, _)) => {
-                if p.tag() == NTAG_STR {
-                    match view_n(pers, st, &p) {
-                        Err(e) => Err(e),
-                        Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&P))
-                            || name::str_eq(&s, &code_points(&T))),
-                        Ok(_) => Ok(false),
-                    }
-                } else {
-                    Ok(false)
-                }
-            }
-            Ok(_) => Ok(false),
-        }
-    } else {
-        Ok(false)
     }
 }
 
@@ -871,7 +832,6 @@ pub fn unresolved_consts_error_l(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::unresolved_consts_fail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:319-331 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
 /// (strLitSupportedF fe) where_ e)`, the support test read first, as Lean
@@ -897,12 +857,10 @@ pub fn unresolved_consts_fail<T>(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:335-363 checkConstantVal` —
-/// checks common to all declarations: fresh name, no reserved name, no
-/// reserved projection shape, well-formed universe parameters, and a type that
+/// checks common to all declarations: fresh name, no reserved name,
+/// well-formed universe parameters, and a type that
 /// is a type and mentions only declared parameters.  **Returns nothing**
 /// (con-leche task #342 S5C): the constant is stored as declared.
 ///
@@ -933,13 +891,10 @@ pub fn check_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:335-363 checkConstantVal` —
-/// the six SYNTACTIC guards on the header, in the twin's order.  Shared with
+/// the five SYNTACTIC guards on the header, in the twin's order.  Shared with
 /// `arena::checker_split::install_header`, which the twin writes out clause for
 /// clause a second time (as con-leche does).
 pub fn check_constant_val_guards(
@@ -966,37 +921,29 @@ pub fn check_constant_val_guards(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:335-363 checkConstantVal` —
-/// the four guards past the reserved-name test.
+/// the three guards past the reserved-name test.
 pub fn check_constant_val_guards_rest(
     pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
 ) -> Result<(), CheckError> {
-    match nidx_is_proj_fn_shape(pers, st, &cv.name) {
-        Err(e) => Err(e),
-        Ok(p) => {
-            if p {
-                fail(CheckError::Invalid(code_points(&M_RESERVED_PROJ)))
-            } else if !name_nodup(&cv.level_params) {
-                fail(CheckError::Invalid(code_points(&M_DUP_UNIV)))
-            } else {
-                match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &cv.ty) {
-                    Err(e) => Err(e),
-                    Ok(b) => {
-                        if !b {
-                            fail(CheckError::Invalid(code_points(&M_LOOSE_TYPE)))
-                        } else {
-                            match has_fvar_fast(pers, st, CORE_WALK_FUEL, &cv.ty) {
-                                Err(e) => Err(e),
-                                Ok(f) => {
-                                    if f {
-                                        fail(CheckError::Invalid(code_points(&M_FVAR_TYPE)))
-                                    } else {
-                                        Ok(())
-                                    }
-                                }
+    if !name_nodup(&cv.level_params) {
+        fail(CheckError::Invalid(code_points(&M_DUP_UNIV)))
+    } else {
+        match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &cv.ty) {
+            Err(e) => Err(e),
+            Ok(b) => {
+                if !b {
+                    fail(CheckError::Invalid(code_points(&M_LOOSE_TYPE)))
+                } else {
+                    match has_fvar_fast(pers, st, CORE_WALK_FUEL, &cv.ty) {
+                        Err(e) => Err(e),
+                        Ok(f) => {
+                            if f {
+                                fail(CheckError::Invalid(code_points(&M_FVAR_TYPE)))
+                            } else {
+                                Ok(())
                             }
                         }
                     }
@@ -1007,11 +954,8 @@ pub fn check_constant_val_guards_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:335-363 checkConstantVal`
 /// (and `CheckerSplit.lean installHeader`, which spells it a second time) —
 /// the two guards on the declared type: its universe parameters are declared,

@@ -22,7 +22,7 @@ use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
-use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IProjTable};
+use crate::arena::env::{IConstantVal, IFEnv, IProjTable};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::{fail, AState};
@@ -64,6 +64,12 @@ pub const M_TBL_SCOPE: [u32; 48] = [
     100, 105, 114, 101, 99, 116, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101, 58, 32, 112, 114,
     111, 106, 101, 99, 116, 105, 111, 110, 32, 98, 111, 100, 121, 32, 115, 99, 111, 112, 105, 110,
     103, 32, 32, 32, 32, 32, 32, 32,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `direct structure: projection table before its structure`, as code points.
+pub const M_TBL_ORPHAN: [u32; 55] = [
+    100, 105, 114, 101, 99, 116, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101, 58, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 98, 101, 102, 111, 114, 101, 32, 105, 116, 115, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -144,16 +150,12 @@ pub fn check_struct_doms_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
-/// constant per structure: the fields' result-type bodies read off the
-/// stored constructor type by substitution alone, the per-field guard
-/// levels, the constructor and the counts.  `IProjTable.table_name` is the
-/// reserved name the install interned, kept rather than recomputed
-/// (`arena::env`'s one added field).
+/// table per structure, in the environment's table component: the fields'
+/// result-type bodies read off the stored constructor type by substitution
+/// alone, the per-field guard levels, the constructor and the counts.
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table(
     pers: &PersTier,
@@ -165,7 +167,6 @@ pub fn check_struct_proj_table(
     n_f: u64,
     res_sort: &LIdx,
     guards: Vec<LIdx>,
-    off: u64,
     cv_ca: &IConstantVal,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
@@ -180,10 +181,7 @@ pub fn check_struct_proj_table(
                     if !(bodies.len() as u64 == n_f && scoped_ok) {
                         fail(core_types::internal(code_points(&M_TBL_SCOPE)))
                     } else {
-                        check_struct_proj_table_names(
-                            pers,
-                            st, t, c, lps, n_p, n_f, res_sort, guards, off, bodies, fe,
-                        )
+                        check_struct_proj_table_push(t, c, lps, n_p, n_f, res_sort, guards, bodies, fe)
                     }
                 }
             },
@@ -192,7 +190,6 @@ pub fn check_struct_proj_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
@@ -237,15 +234,13 @@ pub fn proj_bodies_scoped(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove struct_install::check_struct_proj_table_names_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
-/// — the table's own reserved name must be free, and then the table is
-/// stored.  (Task #119: the projection-function name family test is gone
-/// upstream.)
+/// — the table follows its structure, installed by the same block: the
+/// structure must be stored (an internal error otherwise), its table not yet
+/// taken, and then the table is installed.
 #[allow(clippy::too_many_arguments)]
-pub fn check_struct_proj_table_names(
-    pers: &PersTier,
-    st: &mut AState,
+pub fn check_struct_proj_table_push(
     t: &NIdx,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -253,31 +248,25 @@ pub fn check_struct_proj_table_names(
     n_f: u64,
     res_sort: &LIdx,
     guards: Vec<LIdx>,
-    off: u64,
     bodies: Vec<EIdx>,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    match env::proj_table_name(pers, &mut st.store, t) {
-        Err(e) => Err(e),
-        Ok(tn) => {
-            if env::ifenv_find(fe.visible_below, &fe, &tn).is_some() {
-                fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
-            } else {
-                let tbl = IProjTable {
-                    struct_name: t.dup2(),
-                    table_name: tn,
-                    level_params: env::nidx_vec_dup(lps),
-                    num_params: n_p,
-                    ctor: c.dup2(),
-                    num_fields: n_f,
-                    struct_sort: res_sort.dup2(),
-                    bodies,
-                    guards,
-                    off,
-                };
-                Ok(env::ifenv_push(fe, IConstantInfo::ProjInfo(tbl)))
-            }
-        }
+    if env::ifenv_find(fe.visible_below, &fe, t).is_none() {
+        fail(core_types::internal(code_points(&M_TBL_ORPHAN)))
+    } else if env::ifenv_find_table(fe.visible_below, &fe, t).is_some() {
+        fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
+    } else {
+        let tbl = IProjTable {
+            struct_name: t.dup2(),
+            level_params: env::nidx_vec_dup(lps),
+            num_params: n_p,
+            ctor: c.dup2(),
+            num_fields: n_f,
+            struct_sort: res_sort.dup2(),
+            bodies,
+            guards,
+        };
+        Ok(env::ifenv_push_table(fe, tbl))
     }
 }
 

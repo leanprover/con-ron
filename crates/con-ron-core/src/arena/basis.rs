@@ -155,9 +155,9 @@ pub fn quot_pin_hit(
             if slot >= blk.len() as u64 {
                 Ok(false)
             } else {
-                match i_constant_info_to_constant_val(pers, &mut st.store, &blk[slot as usize]) {
-                    Err(e) => Err(e),
-                    Ok(pcv) => crate::arena::canon::i_constant_val_canon_eq(pers, st, cv, &pcv),
+                {
+                    let pcv: IConstantVal = i_constant_info_to_constant_val(&blk[slot as usize]);
+                    crate::arena::canon::i_constant_val_canon_eq(pers, st, cv, &pcv)
                 }
             }
         }

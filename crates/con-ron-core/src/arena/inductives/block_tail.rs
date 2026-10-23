@@ -168,13 +168,11 @@ pub fn check_block_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-121 checkBlockTables
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove block_tail::check_block_tables_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove block_tail::check_block_tables_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:86-105 checkBlockTables` — **the
 /// projection table at every STRUCTURE-LIKE member** (one constructor, no
-/// index) from member `i` on: the member's table at the tagged tower's
-/// projection offset `1`; nothing at any other member.
+/// index) from member `i` on: the member's table; nothing at any other
+/// member.
 pub fn check_block_tables(
     pers: &PersTier,
     st: &mut AState,
@@ -203,7 +201,6 @@ pub fn check_block_tables(
                     n_f,
                     &p.res_sort,
                     guards,
-                    1,
                     &c_a,
                     fe,
                 ) {

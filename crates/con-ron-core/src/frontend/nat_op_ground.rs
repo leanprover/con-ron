@@ -197,10 +197,7 @@ pub fn used_consts_block(
     let mut i: usize = 0;
     while i < n {
         let ci = crate::arena::env::i_constant_info_dup(&block[i]);
-        let ty = match i_constant_info_to_constant_val(pers, &mut st.store, &ci) {
-            Err(e) => return Err(e),
-            Ok(cv) => cv.ty,
-        };
+        let ty = i_constant_info_to_constant_val(&ci).ty;
         match used_consts_go(pers, st, seen, out, CORE_WALK_FUEL, &ty) {
             Err(e) => return Err(e),
             Ok(a2) => {

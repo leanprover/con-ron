@@ -188,7 +188,6 @@ pub const M_STD_AXIOM_SHAPE: [u32; 29] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — **check a
 /// single declaration, extending the environment on success.**  The twin's one
 /// `match d with` is one dispatch and seven arm functions here, so every arm
@@ -215,7 +214,6 @@ pub fn check_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_defn_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.defnDecl` arm: the common constant check, the value check, then the two
 /// pinned-`Nat` gates.
@@ -245,7 +243,6 @@ pub fn check_defn_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_defn_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.defnDecl` arm's two pinned-`Nat` gates, in the twin's order.
 pub fn check_defn_pins(
@@ -273,7 +270,6 @@ pub fn check_defn_pins(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_defn_div_mod_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `natDivModNames.contains` gate of the `.defnDecl` arm.
 pub fn check_defn_div_mod_pin(
@@ -298,7 +294,6 @@ pub fn check_defn_div_mod_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// structural-`Nat` gate: the environment guards at the EXTENDED environment,
 /// then `certifyNatEqs` at the PRE-insertion one over the equations with the
@@ -332,7 +327,6 @@ pub fn check_structural_nat_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_eqs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the stored
 /// value, the equations, and their certification at the pre-insertion view.
 pub fn check_structural_nat_pin_eqs(
@@ -356,7 +350,6 @@ pub fn check_structural_nat_pin_eqs(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_certify_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// certification itself, with the index restricted to the pre-insertion bound
 /// and handed back at the bound it came in at (the arm's standing deviation).
@@ -385,7 +378,6 @@ pub fn check_structural_nat_pin_certify(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_thm_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.thmDecl` arm.
 pub fn check_thm_decl(
@@ -403,7 +395,6 @@ pub fn check_thm_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_opaque_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.opaqueDecl` arm: the opaque check, then the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`.
@@ -426,7 +417,6 @@ pub fn check_opaque_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_opaque_reduce_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `reduceOpNames.contains` gate of the `.opaqueDecl` arm.
 pub fn check_opaque_reduce_pin(
@@ -451,7 +441,6 @@ pub fn check_opaque_reduce_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_axiom_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.axiomDecl` arm.  **`Quot.sound` is the pinned quotient BLOCK's own
 /// record**: the export writes it as an ordinary axiom record beside the four
@@ -479,7 +468,6 @@ pub fn check_axiom_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_quot_sound_record_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `.axiomDecl` arm's `Quot.sound` test, against slot 4 of the pinned quotient
 /// block.  The twin's `blk[4]?` is the bound test; the block has exactly five
@@ -519,7 +507,6 @@ pub fn check_quot_sound_record(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_axiom_decl_std_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the rest of
 /// the `.axiomDecl` arm: the two standard axioms and the `Init` compiler-trust
 /// family are INSTALLED, `sorryAx` is tolerated and installs nothing, and
@@ -551,7 +538,6 @@ pub fn check_axiom_decl_std(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_axiom_decl_trust_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the
 /// `Lean.trustCompiler` branch: `True` is trivially realizable, so the axiom is
 /// installed exactly like a checked `opaque` with witness `True.intro` over the
@@ -589,7 +575,6 @@ pub fn check_axiom_decl_trust(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_axiom_decl_of_reduce_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the pinned
 /// `ofReduce*` axioms: over the pinned `Eq` basis, the element inductive and
 /// the identity-certified reduce opaque, `∀ a b, reduce a = b → a = b`
@@ -630,7 +615,6 @@ pub fn check_axiom_decl_of_reduce(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_axiom_decl_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the last
 /// three tests: a pinned standard-axiom NAME whose shape did not match
 /// declines under its own message, `sorryAx` is tolerated as a DECLARATION and
@@ -674,7 +658,6 @@ pub fn check_axiom_decl_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_ind_decl_refines, then delete this line
 /// con-leche: ConLeche/Cached/ParsedC.lean:129-246 checkDeclC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — the `.indDecl`
 /// arm.  **THE PINNED BASIS BLOCKS FIRST**: a stream's `Nat` block arrives as
@@ -710,7 +693,6 @@ pub fn check_ind_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove check_decl::check_quot_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-214 checkDecl` — **the
 /// quotient package**: the export writes it as four records; each is compared
 /// with the pinned block's constant at its own kind, and the FIRST that matches
