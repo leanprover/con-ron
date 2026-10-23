@@ -628,20 +628,6 @@ def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   nparams := c.nparams.val
   ctors := absNames c.ctors
 
-/-- `ConLeche/Kernel/Env.lean:411` — `ProjTable`.  The Lean's `bodies` is an
-`Array Expr` while its `guards` is a `List Level`; the port has a `Vec` for
-both (task #10, surprise 8), so only this abstraction sees the asymmetry. -/
-def absProjTable (t : env.ProjTable) : ConLeche.ProjTable where
-  structName := absName t.struct_name
-  levelParams := absNames t.level_params
-  numParams := t.num_params.val
-  ctor := absName t.ctor
-  numFields := t.num_fields.val
-  structSort := absLevel t.struct_sort
-  bodies := (absExprs t.bodies).toArray
-  guards := absLevels t.guards
-  off := t.off.val
-
 /-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
 def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .AxiomInfo cv => .axiomInfo (absConstantVal cv)
@@ -651,7 +637,6 @@ def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
   | .RecInfo cv mi rp rs =>
     .recInfo (absConstantVal cv) mi.val rp.val (rs.val.map absRecRule)
-  | .ProjInfo t => .projInfo (absProjTable t)
 
 /-- A `Vec<ConstantInfo>` as a `List ConLeche.ConstantInfo`.  Also the reading
 of `Env.consts`' `Vec<P<ConstantInfo>>`: `P` is the identity in the model. -/
@@ -724,12 +709,6 @@ the block's member and constructor names. -/
 def IndCapsWF (c : env.IndCaps) : Prop :=
   NameWF c.eta_ctor ∧ PropWhenWF c.sort_z ∧ NamesWF c.all ∧ NamesWF c.ctors
 
-/-- `ProjTable`: every stored name, the structure's sort, the field bodies and
-the per-field guard levels. -/
-def ProjTableWF (t : env.ProjTable) : Prop :=
-  NameWF t.struct_name ∧ NamesWF t.level_params ∧ NameWF t.ctor ∧
-  LevelWF t.struct_sort ∧ ExprsWF t.bodies ∧ LevelsWF t.guards
-
 /-- `ConstantInfo`: the hereditary invariant of a stored constant, one clause
 per constructor in the cited field order. -/
 def ConstantInfoWF : env.ConstantInfo → Prop
@@ -739,7 +718,6 @@ def ConstantInfoWF : env.ConstantInfo → Prop
   | .IndInfo cv c => ConstantValWF cv ∧ IndCapsWF c
   | .CtorInfo cv _ _ => ConstantValWF cv
   | .RecInfo cv _ _ rs => ConstantValWF cv ∧ RecRulesWF rs
-  | .ProjInfo t => ProjTableWF t
 
 /-- A `Vec<ConstantInfo>` — or a `Vec<P<ConstantInfo>>`, the same type in the
 model — all of whose entries are well formed. -/

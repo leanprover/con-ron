@@ -280,14 +280,13 @@ theorem i_proj_table_dup_abs {t o : arena.env.IProjTable}
     (h : arena.env.i_proj_table_dup t = ok o) : absIProjTable o = absIProjTable t := by
   rw [arena.env.i_proj_table_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
-  simp only [absIProjTable, dupId_nidx _ _ hn, dupId_nidx _ _ hn1,
+  simp only [absIProjTable, dupId_nidx _ _ hn,
     dupId_nidx _ _ hn2, dupId_lidx _ _ hl, nidx_vec_dup_val hv,
     eidx_vec_dup_val hv1,
     lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv2; exact hv2)]
@@ -329,10 +328,6 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
     simp only [absIConstantInfo, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
-  | ProjInfo t =>
-    obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [← Result.ok_injective h]
-    simp only [absIConstantInfo, i_proj_table_dup_abs hit]
 
 
 /-- `i_constant_infos_dup_from` copies `cs` from the cursor on onto `out`

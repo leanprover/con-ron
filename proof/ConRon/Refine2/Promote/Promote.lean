@@ -827,22 +827,21 @@ theorem promoteRules_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   simpa [arena.promote.promote_rules, absIRecRuleL, alloc.vec.Vec.new] using h
 
 
-/-- The tail of `promoteProjTable` past its three leading promotions: the twin
+/-- The tail of `promoteProjTable` past its two leading promotions: the twin
 of the port's `promote_proj_table_rest` split (extraction rule 5). -/
-def promoteProjTableRest (m : PMemo) (fuel : Nat) (t : IProjTable) (sn tn : NIdx)
+def promoteProjTableRest (m : PMemo) (fuel : Nat) (t : IProjTable) (sn : NIdx)
     (lps : List NIdx) : AM (PMemo × IProjTable) := do
   let (m, c) ← promoteN m fuel t.ctor
   let (m, ss) ← promoteL m fuel t.structSort
   let (m, bs) ← promoteEList m fuel t.bodies.toList
   let (m, gs) ← promoteLList m fuel t.guards
-  pure (m, ⟨sn, tn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs, t.off⟩)
+  pure (m, ⟨sn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs⟩)
 
 theorem promoteProjTable_rest (m : PMemo) (fuel : Nat) (t : IProjTable) :
     promoteProjTable m fuel t = (do
       let (m, sn) ← promoteN m fuel t.structName
-      let (m, tn) ← promoteN m fuel t.tableName
       let (m, lps) ← promoteNList m fuel t.levelParams
-      promoteProjTableRest m fuel t sn tn lps) := rfl
+      promoteProjTableRest m fuel t sn lps) := rfl
 
 section decl2
 attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absIIndCaps
@@ -852,11 +851,11 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
 @[lockstep] theorem promote_proj_table_rest_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
     (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
     (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (pt : arena.env.IProjTable) (sn tn : arena.handle.NIdx)
+    (pt : arena.env.IProjTable) (sn : arena.handle.NIdx)
     (lps : alloc.vec.Vec arena.handle.NIdx) :
     LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIProjTable p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_proj_table_rest t st rm fuel pt sn tn lps) lst
-      (promoteProjTableRest lm (absU fuel) (absIProjTable pt) (absNIdx sn) (absNIdx tn)
+      (arena.promote.promote_proj_table_rest t st rm fuel pt sn lps) lst
+      (promoteProjTableRest lm (absU fuel) (absIProjTable pt) (absNIdx sn)
         (absNIdxL lps)) := by
   rw [arena.promote.promote_proj_table_rest, promoteProjTableRest]
   lockstep
@@ -874,7 +873,7 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
   all_goals (try simp only [Aeneas.Std.uncurry])
   all_goals lockstep
 
-/-- `promote_ci` ⊑ `promoteCI` — the seven constructors. -/
+/-- `promote_ci` ⊑ `promoteCI` — the six constructors. -/
 @[lockstep] theorem promote_ci_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
     (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
     (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
@@ -964,7 +963,7 @@ private theorem erase_installed_aux (m : Nat) :
     ∀ {rf : arena.env.IFEnv} {i : Std.Usize} {o},
       rf.env.consts.val.length - i.val = m → IFEnvInv rf →
       arena.promote.erase_installed rf i = ok o →
-      o.env = rf.env ∧ o.visible_below = rf.visible_below ∧ IFEnvInv o ∧
+      o.env = rf.env ∧ o.visible_below = rf.visible_below ∧ o.tbls = rf.tbls ∧ IFEnvInv o ∧
       ∀ k, ConRon.Refine.HashMap2.toFun o.idx k =
         if (∃ c ∈ rf.env.consts.val.drop i.val, (absIConstantInfo c).name = absNIdx k)
         then none else ConRon.Refine.HashMap2.toFun rf.idx k := by
@@ -978,7 +977,7 @@ private theorem erase_installed_aux (m : Nat) :
     · have hle : rf.env.consts.val.length ≤ i.val := by scalar_tac
       rw [ite_eq_left hge] at hrun
       obtain rfl := (Result.ok_injective hrun).symm
-      refine ⟨rfl, rfl, hfinv, fun k => ?_⟩
+      refine ⟨rfl, rfl, rfl, hfinv, fun k => ?_⟩
       rw [List.drop_eq_nil_of_le hle]
       simp
     · have hlt : i.val < rf.env.consts.val.length := by scalar_tac
@@ -998,16 +997,16 @@ private theorem erase_installed_aux (m : Nat) :
         ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
           hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
       have hfinv1 : IFEnvInv { rf with idx := hm' } := by
-        refine ⟨hinv', hfinv.2.1, fun k p hp => ?_⟩
+        refine ⟨hinv', hfinv.visBound, fun k p hp => ?_, hfinv.tblInv, hfinv.tblRange⟩
         simp only at hp
         rw [hupd, Function.update_apply] at hp
         split at hp
         · cases hp
-        · exact hfinv.2.2 k p hp
-      obtain ⟨he, hv, hI, hidx⟩ :=
+        · exact hfinv.idxRange k p hp
+      obtain ⟨he, hv, htb, hI, hidx⟩ :=
         ih (rf.env.consts.val.length - i2.val) (by omega) (rf := { rf with idx := hm' })
           rfl hfinv1 hrun
-      refine ⟨he, hv, hI, fun k => ?_⟩
+      refine ⟨he, hv, htb, hI, fun k => ?_⟩
       rw [hidx k]
       simp only
       rw [hupd, Function.update_apply, hi2v, List.drop_eq_getElem_cons hlt]
@@ -1046,8 +1045,8 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
                    ((absIEnv rf.env).consts.take
                      (rf.env.consts.val.length - i.val)) })
       ∧ IFEnvInv o := by
-  obtain ⟨he, hv, hI, hidx⟩ := erase_installed_aux _ rfl hfinv hrun
-  refine ⟨⟨?_, ?_, ?_, by rw [he]; exact hfe.envWF, fun k p hp => ?_⟩, hI⟩
+  obtain ⟨he, hv, htb, hI, hidx⟩ := erase_installed_aux _ rfl hfinv hrun
+  refine ⟨⟨?_, ?_, ?_, by rw [he]; exact hfe.envWF, fun k p hp => ?_, ?_, ?_⟩, hI⟩
   · show lf.env = absIEnv o.env
     rw [he]; exact hfe.env
   · intro k
@@ -1072,19 +1071,24 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
     · cases hp
     · obtain ⟨c, hc, hcn⟩ := hfe.keys k p hp
       exact ⟨c, by rw [he]; exact hc, hcn⟩
+  · intro k; rw [he, htb]; exact hfe.tbls k
+  · intro k s hs; rw [htb] at hs; rw [he]; exact hfe.tblKeys k s hs
 
 /-- The twin of `index_promoted` on the slice `start..j` of a newest-first
 constant list `cs` of length `n`: `promoteCIList` on the slice, then
-`indexPromoted` (finding B), the rest of the list untouched. -/
+`indexPromoted` (finding B), the rest of the list and the tables untouched. -/
 def indexPromotedTwin (m : PMemo) (fuel : Nat) (cs : List IConstantInfo)
-    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb n start j c : Nat) :
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb : Nat) (ts : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable) (n start j c : Nat) :
     AM (PMemo × IFEnv) := do
   let (m, mid) ← promoteCIList m fuel ((cs.drop (n - j)).take (j - start))
-  pure (m, ⟨⟨cs.take (n - j) ++ mid ++ cs.drop (n - start)⟩, indexPromoted idx c mid, vb⟩)
+  pure (m, ⟨⟨cs.take (n - j) ++ mid ++ cs.drop (n - start), ts⟩, indexPromoted idx c mid, vb,
+    tb⟩)
 
 theorem indexPromotedTwin_zero (m : PMemo) (fuel : Nat) (cs : List IConstantInfo)
-    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb n j c : Nat) :
-    indexPromotedTwin m fuel cs idx vb n j j c = pure (m, ⟨⟨cs⟩, idx, vb⟩) := by
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb : Nat) (ts : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable) (n j c : Nat) :
+    indexPromotedTwin m fuel cs idx vb ts tb n j j c = pure (m, ⟨⟨cs, ts⟩, idx, vb, tb⟩) := by
   simp [indexPromotedTwin, promoteCIList, indexPromoted]
 
 private theorem take_set_succ {α : Type} : ∀ (l : List α) (i : Nat) (x : α),
@@ -1098,12 +1102,13 @@ private theorem take_set_succ {α : Type} : ∀ (l : List α) (i : Nat) (x : α)
 /-- One step of the slice: the newest constant of the slice promoted, written
 back into its own position and indexed, then the rest of the slice. -/
 theorem indexPromotedTwin_succ (m : PMemo) (fuel : Nat) (cs : List IConstantInfo)
-    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb n start j c : Nat)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (vb : Nat) (ts : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable) (n start j c : Nat)
     (hn : cs.length = n) (hsj : start < j) (hj : j ≤ n) :
-    indexPromotedTwin m fuel cs idx vb n start j c =
+    indexPromotedTwin m fuel cs idx vb ts tb n start j c =
       (do
         let (m, c') ← promoteCI m fuel (cs[n - j]'(by omega))
-        indexPromotedTwin m fuel (cs.set (n - j) c') (idx.insert c'.name (c - 1, c')) vb
+        indexPromotedTwin m fuel (cs.set (n - j) c') (idx.insert c'.name (c - 1, c')) vb ts tb
           n start (j - 1) (c - 1)) := by
   have hlt : n - j < cs.length := by omega
   have hd : (cs.drop (n - j)).take (j - start)
@@ -1221,11 +1226,12 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     (hupd : ConRon.Refine.HashMap2.toFun hm =
       Function.update (ConRon.Refine.HashMap2.toFun rf.idx) nn (some (i1, i2))) :
     let rf' : arena.env.IFEnv :=
-      { rf with env := { consts := alloc.vec.Vec.set rf.env.consts i ci }, idx := hm }
+      { rf with env := { rf.env with consts := alloc.vec.Vec.set rf.env.consts i ci }, idx := hm }
     let lf' : IFEnv :=
-      ⟨⟨lf.env.consts.set (rf.env.consts.val.length - j.val) (absIConstantInfo ci)⟩,
+      ⟨⟨lf.env.consts.set (rf.env.consts.val.length - j.val) (absIConstantInfo ci),
+          lf.env.tables⟩,
         lf.idx.insert (absIConstantInfo ci).name (absU c - 1, absIConstantInfo ci),
-        lf.visibleBelow⟩
+        lf.visibleBelow, lf.tbls⟩
     IFEnvRel rf' lf' ∧ IFEnvInv rf' ∧
       rf'.env.consts.val.length = rf.env.consts.val.length ∧
       ∀ k p, ConRon.Refine.HashMap2.toFun rf'.idx k = some p →
@@ -1244,7 +1250,8 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     by_cases hq : i.val = q
     · subst hq; simp [hil]
     · simp [hq, Ne.symm hq]
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, ⟨hinvm, ?_, ?_⟩, hlen, ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys⟩,
+    ⟨hinvm, ?_, ?_, hfinv.tblInv, hfinv.tblRange⟩, hlen, ?_⟩
   · -- the environment: the reversed list, set at the mirrored position
     show lf'.env = absIEnv rf'.env
     simp only [lf', absIEnv, hfe.env]
@@ -1322,11 +1329,12 @@ private theorem index_promoted_aux (d : Nat) :
       IFEnvRel rf lf → IFEnvInv rf →
       (∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
         p.2.val < start.val ∨ j.val ≤ p.2.val) →
-      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
         (fun t' => glue t' st)
         (arena.promote.index_promoted t st rm fuel rf start j c) lst
-        (indexPromotedTwin lm (absU fuel) lf.env.consts lf.idx lf.visibleBelow
-          rf.env.consts.val.length start.val j.val (absU c)) := by
+        (indexPromotedTwin lm (absU fuel) lf.env.consts lf.idx lf.visibleBelow lf.env.tables
+          lf.tbls rf.env.consts.val.length start.val j.val (absU c)) := by
   induction d with
   | zero =>
     intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
@@ -1334,7 +1342,7 @@ private theorem index_promoted_aux (d : Nat) :
     have hje : j.val = start.val := by omega
     show LS _ _ (packT _ _) _ _
     rw [arena.promote.index_promoted, ite_eq_left (by scalar_tac), hje, indexPromotedTwin_zero]
-    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl⟩, ht⟩ hrel hinv)
   | succ d ih =>
     intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
       hfree
@@ -1343,7 +1351,7 @@ private theorem index_promoted_aux (d : Nat) :
       rw [hfe.env]; simp [absIEnv]
     show LS _ _ (packT _ _) _ _
     rw [arena.promote.index_promoted, ite_eq_right (by scalar_tac),
-      indexPromotedTwin_succ _ _ _ _ _ _ _ _ _ hlen hsj hj]
+      indexPromotedTwin_succ _ _ _ _ _ _ _ _ _ _ _ hlen hsj hj]
     refine LS.packT_bind (LS.bind_eq fun i hi => ?_)
     obtain ⟨-, hi1⟩ := ConRon.Refine.Nat.usub_val hi
     have hiv : i.val = j.val - 1 := by rw [hi1]; rfl
@@ -1414,20 +1422,21 @@ theorem index_promoted_ls {P t st lst rm lm rf lf} {fuel : Std.U64}
     (hle : start.val ≤ j.val) (hj : j.val ≤ rf.env.consts.val.length)
     (hfree : ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
       p.2.val < start.val ∨ j.val ≤ p.2.val) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.index_promoted t st rm fuel rf start j c) lst
       (indexPromotedTwin lm (absU fuel) (absIEnv rf.env).consts lf.idx lf.visibleBelow
-        rf.env.consts.val.length start.val j.val (absU c)) := by
+        lf.env.tables lf.tbls rf.env.consts.val.length start.val j.val (absU c)) := by
   have h := index_promoted_aux _ fuel start j c rfl hle hj hP ht hsc hrel hinv hm hfe hfinv
     hfree
-  rw [hfe.env] at h
+  rw [hfe.env] at h ⊢
   exact h
 
 open Lockstep in
-/-- **`promote_new` ⊑ `promoteNew`** — the phase-A bracket's promotion half:
-the `k` constants the step just installed, copied into the persistent tier and
-re-indexed, everything below them untouched.  `hk` is finding C.  A TIER walk
+/-- **`promote_new_consts` ⊑ `promoteNewConsts`** — the phase-A bracket's
+promotion of the constants: the `k` constants the step just installed, copied
+into the persistent tier and re-indexed, everything below them untouched.  `hk` is finding C.  A TIER walk
 (task #98-FREEZE): the frozen state is read, the bracket's tier is written,
 and the relation after it is the glued state's at the grown tier, which is
 still `frozen`.
@@ -1436,23 +1445,24 @@ still `frozen`.
 round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
 `promote_new`'s environment to the NEXT step of their fold, which takes
 `IFEnvInv` beside `IFEnvRel` (task #97-P5-Checker-2 §3's `IFEnvRelI`). -/
-theorem promote_new_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
+theorem promote_new_consts_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hkeys : IFEnvKeys rf)
     (hk : absU k ≤ rf.env.consts.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
-      (arena.promote.promote_new t st rm fuel k rf) lst
-      (promoteNew lm (absU fuel) (absU k) lf) := by
+      (arena.promote.promote_new_consts t st rm fuel k rf) lst
+      (promoteNewConsts lm (absU fuel) (absU k) lf) := by
   show LS _ _ (packT _ _) _ _
-  rw [arena.promote.promote_new]
+  rw [arena.promote.promote_new_consts]
   by_cases hk0 : k = 0#u64
   · rw [ite_eq_left hk0]
     have h0 : absU k = 0 := by rw [hk0]; rfl
-    rw [promoteNew, h0]
-    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
+    rw [promoteNewConsts, h0]
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl⟩, ht⟩ hrel hinv)
   · rw [ite_eq_right hk0]
     have hn := alloc.vec.Vec.len_val rf.env.consts
     refine LS.packT_bind (LS.bind_eq fun kk hkk => ?_)
@@ -1481,7 +1491,7 @@ theorem promote_new_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
     have hfree : ∀ kk p, ConRon.Refine.HashMap2.toFun fe2.idx kk = some p →
         p.2.val < start.val ∨ (alloc.vec.Vec.len rf.env.consts).val ≤ p.2.val := by
       intro kk p hp
-      obtain ⟨-, -, -, hidx⟩ := erase_installed_aux _ rfl hfinv hfe2
+      obtain ⟨-, -, -, -, hidx⟩ := erase_installed_aux _ rfl hfinv hfe2
       rw [hidx kk] at hp
       split at hp
       · cases hp
@@ -1508,35 +1518,541 @@ theorem promote_new_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
     have htw : indexPromotedTwin lm (absU fuel) (absIEnv fe2.env).consts
           (eraseInstalled lf.idx
             ((absIEnv rf.env).consts.take (rf.env.consts.val.length - start.val)))
-          lf.visibleBelow fe2.env.consts.val.length start.val
+          lf.visibleBelow lf.env.tables lf.tbls fe2.env.consts.val.length start.val
           (alloc.vec.Vec.len rf.env.consts).val (absU rf.visible_below)
-        = promoteNew lm (absU fuel) (absU k) lf := by
+        = promoteNewConsts lm (absU fuel) (absU k) lf := by
       rw [indexPromotedTwin]
       have hlenA : ((absIEnv rf.env).consts).length = rf.env.consts.val.length := by
         simp [absIEnv]
-      rw [promoteNew, hk0']
-      obtain ⟨⟨consts⟩, idx, vb⟩ := lf
+      rw [promoteNewConsts, hk0']
+      obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := lf
       have hcs : (absIEnv rf.env).consts = consts := by
         have := hfe.env; simp only at this; rw [← this]
       simp only [henv, hlen, hn, hcs, hvb, Nat.sub_self, List.drop_zero, List.take_zero,
         List.nil_append, hsv, Bool.false_eq_true, ↓reduceIte]
       have hkn : k.val ≤ rf.env.consts.val.length := hk
       rw [Nat.sub_sub_self hkn, hkabs]
-    exact LS.tailT hI htw (fun _ _ h => h)
+    have he2 : fe2.env = rf.env := (erase_installed_aux _ rfl hfinv hfe2).1
+    exact LS.tailT hI htw (fun _ _ h => ⟨⟨h.1.1, h.1.2.1, h.1.2.2.trans (by rw [he2])⟩, h.2⟩)
+
+/-! ## The tables' promotion (`promote_new_tables`)
+
+The constants' findings, at the table map.  *A* holds as it is: the twin's
+`IEnv.tables` is newest-first and the Rust's oldest-first, so "the `kt`
+newest" is `tables.take kt` on one side and slots `n - kt .. n` on the other.
+*B* does not arise: the port promotes the slice walking DOWN
+(`promote_installed_tables`, the twin's `promoteProjTables`) and re-indexes it
+walking UP (`index_promoted_tables`), so the newest table of a name is
+inserted last — the twin's `indexPromotedTables`, which inserts its tail
+first — and no distinctness of the step's structure names is needed.  *C*
+holds as it is: the port declines at `kt > |tables|`, so the statement takes
+`kt ≤ |tables|`.
+
+The table map's row is a SLOT, as the index's is, so a row that survives the
+erase must not point into the promoted slice; `IFEnvRel.tblKeys` gives that,
+as `IFEnvKeys` does for the constants. -/
+
+/-- The port's table map read through its slots, against a twin table map:
+`IFEnvRel.tbls`' clause on its own, for the steps of `promote_new_tables`
+whose twin map is not yet the result's. -/
+def TblsRead (rf : arena.env.IFEnv) (tb : Std.HashMap NIdx IProjTable) : Prop :=
+  ∀ k, ((ConRon.Refine.HashMap2.toFun rf.tbls k).bind fun s =>
+      (rf.env.tables.val[s.val]?).map absIProjTable) = tb[absNIdx k]?
+
+/-- `eraseInstalledTables` reads back as a membership test. -/
+theorem eraseInstalledTables_getElem?_eq (n : NIdx) : ∀ (ts : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable),
+    (eraseInstalledTables tb ts)[n]? =
+      if (∃ t ∈ ts, t.structName = n) then none else tb[n]? := by
+  intro ts
+  induction ts with
+  | nil => intro tb; simp [eraseInstalledTables]
+  | cons c cs ih =>
+    intro tb
+    simp only [eraseInstalledTables, ih, Std.HashMap.getElem?_erase]
+    by_cases h1 : ∃ c' ∈ cs, c'.structName = n
+    · rw [ite_eq_left h1,
+        ite_eq_left ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
+    · rw [ite_eq_right h1]
+      by_cases h2 : c.structName = n
+      · rw [ite_eq_left (beq_iff_eq.mpr h2), ite_eq_left ⟨c, by simp, h2⟩]
+      · rw [ite_eq_right (by simpa using h2), ite_eq_right]
+        rintro ⟨c', hc', hn⟩
+        rcases List.mem_cons.mp hc' with rfl | hc'
+        · exact h2 hn
+        · exact h1 ⟨c', hc', hn⟩
+
+theorem indexPromotedTables_append (tb : Std.HashMap NIdx IProjTable) (x : IProjTable) :
+    ∀ ts : List IProjTable,
+      indexPromotedTables tb (ts ++ [x]) = indexPromotedTables (tb.insert x.structName x) ts
+  | [] => rfl
+  | t :: ts => by
+    simp only [List.cons_append, indexPromotedTables, indexPromotedTables_append tb x ts]
+
+/-- `indexPromotedTables` over a newest-first list is the oldest-first fold of
+inserts — the order `index_promoted_tables` walks the slots in. -/
+theorem indexPromotedTables_reverse : ∀ (l : List IProjTable) (tb : Std.HashMap NIdx IProjTable),
+    indexPromotedTables tb l.reverse = l.foldl (fun tb t => tb.insert t.structName t) tb
+  | [], _ => rfl
+  | a :: l, tb => by
+    rw [List.reverse_cons, indexPromotedTables_append, List.foldl_cons,
+      indexPromotedTables_reverse l]
+
+/-- `erase_installed_tables`' loop, read back at the port's own map: the rows
+keyed by a structure of slots `i..n` are gone, the rest untouched, and nothing
+but the map moves. -/
+private theorem erase_installed_tables_aux (m : Nat) :
+    ∀ {rf : arena.env.IFEnv} {i : Std.Usize} {o},
+      rf.env.tables.val.length - i.val = m →
+      Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls →
+      arena.promote.erase_installed_tables rf i = ok o →
+      (∃ tb, o = { rf with tbls := tb }) ∧
+      Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable o.tbls ∧
+      ∀ k, ConRon.Refine.HashMap2.toFun o.tbls k =
+        if (∃ t ∈ rf.env.tables.val.drop i.val, absNIdx t.struct_name = absNIdx k)
+        then none else ConRon.Refine.HashMap2.toFun rf.tbls k := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro rf i o hm hinv hrun
+    rw [arena.promote.erase_installed_tables.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val rf.env.tables
+    by_cases hge : i ≥ alloc.vec.Vec.len rf.env.tables
+    · have hle : rf.env.tables.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge] at hrun
+      have ho : o = rf := (Result.ok_injective hrun).symm
+      rw [ho]
+      refine ⟨⟨rf.tbls, rfl⟩, hinv, fun k => ?_⟩
+      rw [List.drop_eq_nil_of_le hle]
+      simp
+    · have hlt : i.val < rf.env.tables.val.length := by scalar_tac
+      rw [ite_eq_right hge] at hrun
+      obtain ⟨it, hit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hit' := vec_index_some hit
+      rw [List.getElem?_eq_getElem hlt] at hit'
+      obtain rfl := (Option.some_inj.mp hit').symm
+      obtain ⟨nn, hnn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := dupId_nidx _ _ hnn
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨old, hm'⟩ := q
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
+          hinv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      obtain ⟨⟨tb, hotb⟩, hI, hidx⟩ :=
+        ih (rf.env.tables.val.length - i2.val) (by omega) (rf := { rf with tbls := hm' })
+          rfl hinv' hrun
+      refine ⟨⟨tb, by rw [hotb]⟩, hI, fun k => ?_⟩
+      rw [hidx k]
+      simp only
+      rw [hupd, Function.update_apply, hi2v, List.drop_eq_getElem_cons hlt]
+      by_cases hr : ∃ t ∈ rf.env.tables.val.drop (i.val + 1),
+          absNIdx t.struct_name = absNIdx k
+      · rw [ite_eq_left hr, ite_eq_left (by
+          obtain ⟨t, ht, h⟩ := hr; exact ⟨t, List.mem_cons_of_mem _ ht, h⟩)]
+      · rw [ite_eq_right hr]
+        by_cases hk : k = rf.env.tables.val[i.val].struct_name
+        · rw [ite_eq_left hk, ite_eq_left ⟨_, List.mem_cons_self, by rw [hk]⟩]
+        · rw [ite_eq_right hk, ite_eq_right]
+          rintro ⟨t, ht, h⟩
+          rcases List.mem_cons.mp ht with rfl | ht
+          · exact hk (absNIdx_inj h).symm
+          · exact hr ⟨t, ht, h⟩
+
+/-- `index_promoted_tables`' loop: slots `i..n` re-indexed oldest first, the
+twin's map following by the same inserts; the keys and the map's `Inv` kept,
+and nothing but the map moves. -/
+private theorem index_promoted_tables_aux (m : Nat) :
+    ∀ {rf : arena.env.IFEnv} {i : Std.Usize} {o} {tb : Std.HashMap NIdx IProjTable},
+      rf.env.tables.val.length - i.val = m →
+      Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls →
+      (∀ k s, ConRon.Refine.HashMap2.toFun rf.tbls k = some s →
+        ∃ t, rf.env.tables.val[s.val]? = some t ∧ absNIdx t.struct_name = absNIdx k) →
+      TblsRead rf tb →
+      arena.promote.index_promoted_tables rf i = ok o →
+      (∃ tb', o = { rf with tbls := tb' }) ∧
+      Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable o.tbls ∧
+      (∀ k s, ConRon.Refine.HashMap2.toFun o.tbls k = some s →
+        ∃ t, o.env.tables.val[s.val]? = some t ∧ absNIdx t.struct_name = absNIdx k) ∧
+      TblsRead o (((rf.env.tables.val.drop i.val).map absIProjTable).foldl
+        (fun tb t => tb.insert t.structName t) tb) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro rf i o tb hm hinv hkeys hread hrun
+    rw [arena.promote.index_promoted_tables.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val rf.env.tables
+    by_cases hge : i ≥ alloc.vec.Vec.len rf.env.tables
+    · have hle : rf.env.tables.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge] at hrun
+      have ho : o = rf := (Result.ok_injective hrun).symm
+      rw [ho, List.drop_eq_nil_of_le hle]
+      exact ⟨⟨rf.tbls, rfl⟩, hinv, hkeys, hread⟩
+    · have hlt : i.val < rf.env.tables.val.length := by scalar_tac
+      rw [ite_eq_right hge] at hrun
+      obtain ⟨it, hit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hit' := vec_index_some hit
+      rw [List.getElem?_eq_getElem hlt] at hit'
+      obtain rfl := (Option.some_inj.mp hit').symm
+      obtain ⟨nn, hnn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := dupId_nidx _ _ hnn
+      obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi1v : i1.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hi1
+        rw [← hi1, usize_cast_u64_val]
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨old, hm'⟩ := q
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+          hinv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      have hkeys' : ∀ k s, ConRon.Refine.HashMap2.toFun hm' k = some s →
+          ∃ t, rf.env.tables.val[s.val]? = some t ∧ absNIdx t.struct_name = absNIdx k := by
+        intro k s hs
+        rw [hupd, Function.update_apply] at hs
+        split at hs
+        · rename_i hk
+          subst hk
+          cases hs
+          exact ⟨_, by rw [hi1v, List.getElem?_eq_getElem hlt], rfl⟩
+        · exact hkeys k s hs
+      have hread' : TblsRead { rf with tbls := hm' }
+          (tb.insert (absNIdx rf.env.tables.val[i.val].struct_name)
+            (absIProjTable rf.env.tables.val[i.val])) := by
+        intro k
+        show ((ConRon.Refine.HashMap2.toFun hm' k).bind fun s =>
+          (rf.env.tables.val[s.val]?).map absIProjTable) = _
+        rw [hupd, Function.update_apply]
+        by_cases hk : k = rf.env.tables.val[i.val].struct_name
+        · subst hk
+          rw [ite_eq_left rfl, Std.HashMap.getElem?_insert_self]
+          simp [hi1v, List.getElem?_eq_getElem hlt]
+        · rw [ite_eq_right hk, Std.HashMap.getElem?_insert, ite_eq_right (by
+            simp only [beq_iff_eq]; intro h; exact hk (absNIdx_inj h).symm)]
+          exact hread k
+      obtain ⟨⟨tb', hotb⟩, hI, hK, hR⟩ :=
+        ih (rf.env.tables.val.length - i2.val) (by omega) (rf := { rf with tbls := hm' })
+          rfl hinv' hkeys' hread' hrun
+      refine ⟨⟨tb', by rw [hotb]⟩, hI, hK, ?_⟩
+      have hd : rf.env.tables.val.drop i.val
+          = rf.env.tables.val[i.val] :: rf.env.tables.val.drop i2.val := by
+        rw [hi2v, List.drop_eq_getElem_cons hlt]
+      rw [hd, List.map_cons, List.foldl_cons]
+      exact hR
+
+/-- What `promote_installed_tables` leaves: the record with only its table
+list moved, of the same length, the slots below `start` untouched, and the
+list, read back newest first, the twin's promoted slice `mid` between the
+untouched ends. -/
+def PromotedTables (rf : arena.env.IFEnv) (start j : Nat) (fe : arena.env.IFEnv)
+    (mid : List IProjTable) : Prop :=
+  (∃ T, fe = { rf with env := { rf.env with tables := T } }) ∧
+  fe.env.tables.val.length = rf.env.tables.val.length ∧
+  (∀ q, q < start → fe.env.tables.val[q]? = rf.env.tables.val[q]?) ∧
+  (fe.env.tables.val.map absIProjTable).reverse =
+    (rf.env.tables.val.map absIProjTable).reverse.take (rf.env.tables.val.length - j) ++ mid ++
+      (rf.env.tables.val.map absIProjTable).reverse.drop (rf.env.tables.val.length - start)
 
 open Lockstep in
-/-- **`promote_new` ⊑ `promoteNew`, as the checker tier consumes it** — the
-key clause is `IFEnvRel.keys` since task #97-P5-Core round 5. -/
-theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k : Std.U64}
+/-- `promote_installed_tables` ⊑ `promoteProjTables` on the slice `start..j`,
+walking down: slot `j - 1` is the newest of the slice, the twin's head. -/
+private theorem promote_installed_tables_aux (d : Nat) :
+    ∀ {P t st lst rm lm} {rf : arena.env.IFEnv} (fuel : Std.U64) (start j : Std.Usize),
+      j.val - start.val = d → start.val ≤ j.val → j.val ≤ rf.env.tables.val.length →
+      P.frozen = false → t.frozen = true → ScratchOn st.store →
+      AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ PromotedTables rf start.val j.val p.1.2 v.2) ∧
+          p.2.frozen = true)
+        (fun t' => glue t' st)
+        (arena.promote.promote_installed_tables t st rm fuel rf start j) lst
+        (promoteProjTables lm (absU fuel)
+          (((rf.env.tables.val.map absIProjTable).reverse.drop
+            (rf.env.tables.val.length - j.val)).take (j.val - start.val))) := by
+  induction d with
+  | zero =>
+    intro P t st lst rm lm rf fuel start j hd hle hj hP ht hsc hrel hinv hm
+    have hje : j.val = start.val := by omega
+    show LS _ _ (packT _ _) _ _
+    rw [arena.promote.promote_installed_tables, ite_eq_left (by scalar_tac), hje, Nat.sub_self,
+      List.take_zero]
+    simp only [promoteProjTables]
+    refine LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨rf.env.tables, rfl⟩, rfl, fun _ _ => rfl, ?_⟩, ht⟩
+      hrel hinv)
+    simp
+  | succ d ih =>
+    intro P t st lst rm lm rf fuel start j hd hle hj hP ht hsc hrel hinv hm
+    have hsj : start.val < j.val := by omega
+    have hl := alloc.vec.Vec.len_val rf.env.tables
+    show LS _ _ (packT _ _) _ _
+    rw [arena.promote.promote_installed_tables, ite_eq_right (by scalar_tac)]
+    refine LS.packT_bind (LS.bind_eq fun i hi => ?_)
+    obtain ⟨-, hi1⟩ := ConRon.Refine.Nat.usub_val hi
+    have hiv : i.val = j.val - 1 := by rw [hi1]; rfl
+    refine LS.packT_bind (LS.bind_eq fun ii hii => ?_)
+    obtain ⟨hb, hii⟩ := ExprOps.vecIndexAt hii
+    have hRl : ((rf.env.tables.val.map absIProjTable).reverse).length
+        = rf.env.tables.val.length := by simp
+    have hlt : rf.env.tables.val.length - j.val
+        < ((rf.env.tables.val.map absIProjTable).reverse).length := by rw [hRl]; omega
+    have htw : absIProjTable ii =
+        ((rf.env.tables.val.map absIProjTable).reverse)[rf.env.tables.val.length - j.val] := by
+      simp only [List.getElem_reverse, List.getElem_map, List.length_map]
+      rw [← hii]
+      have e : rf.env.tables.val.length - 1 - (rf.env.tables.val.length - j.val) = i.val := by
+        omega
+      simp only [e]
+    have hd' : (((rf.env.tables.val.map absIProjTable).reverse.drop
+          (rf.env.tables.val.length - j.val)).take (j.val - start.val))
+        = ((rf.env.tables.val.map absIProjTable).reverse)[rf.env.tables.val.length - j.val]
+          :: (((rf.env.tables.val.map absIProjTable).reverse.drop
+            (rf.env.tables.val.length - j.val + 1)).take (j.val - 1 - start.val)) := by
+      rw [List.drop_eq_getElem_cons hlt, show j.val - start.val = (j.val - 1 - start.val) + 1 by
+        omega, List.take_succ_cons]
+    rw [hd']
+    simp only [promoteProjTables]
+    refine LS.packT_bind (LS.bindT (promote_proj_table_ls hP ht hsc hrel hinv hm fuel ii)
+      (by rw [htw]) ?_ ?_)
+    · intro e t1
+      exact ErrArm.packT_ok_err
+    · rintro ⟨m2, tt⟩ t1 ⟨m2', tt'⟩ lst1 ⟨⟨hM, htt⟩, hf1⟩ hrel1 hinv1
+      simp only at hM htt hf1
+      subst htt
+      try dsimp only
+      refine LS.packT_bind (LS.bind_eq fun q2 hq2 => ?_)
+      obtain ⟨x, back⟩ := q2
+      have : Inhabited arena.env.IProjTable := ⟨tt⟩
+      obtain ⟨-, -, hback⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq2
+      subst hback
+      have hlen' : (alloc.vec.Vec.set rf.env.tables i tt).val.length = rf.env.tables.val.length := by
+        simp [alloc.vec.Vec.set_val_eq]
+      have hil : i.val < rf.env.tables.val.length := by omega
+      have hR' : ((alloc.vec.Vec.set rf.env.tables i tt).val.map absIProjTable).reverse
+          = ((rf.env.tables.val.map absIProjTable).reverse).set
+              (rf.env.tables.val.length - j.val) (absIProjTable tt) := by
+        simp only [alloc.vec.Vec.set_val_eq, List.map_set]
+        rw [reverse_set' _ _ _ (by simpa using hil)]
+        simp only [List.length_map]
+        congr 1
+        omega
+      have hrec := ih (rf := { rf with env := { rf.env with
+          tables := alloc.vec.Vec.set rf.env.tables i tt } }) fuel start i (by omega) (by omega)
+        (by show i.val ≤ (alloc.vec.Vec.set rf.env.tables i tt).val.length; rw [hlen']; omega)
+        hP hf1 hsc hrel1 hinv1 hM
+      unfold packT
+      refine LS.bindT hrec ?_ (fun e t1 => errArm_ok) ?_
+      · show promoteProjTables m2' (absU fuel) _ = _
+        congr 1
+        show ((((alloc.vec.Vec.set rf.env.tables i tt).val.map absIProjTable).reverse.drop
+          ((alloc.vec.Vec.set rf.env.tables i tt).val.length - i.val)).take
+            (i.val - start.val)) = _
+        rw [hR', hlen', List.drop_set_of_lt (by omega)]
+        congr 2; omega
+      · rintro ⟨m3, fe3⟩ t3 ⟨m3', mid⟩ lst3 ⟨⟨hM3, hPT⟩, hf3⟩ hrel3 hinv3
+        refine LS.pure ⟨⟨hM3, ?_⟩, hf3⟩ hrel3 hinv3
+        obtain ⟨⟨T, hT⟩, hTl, hTpre, hTlist⟩ := hPT
+        subst hT
+        refine ⟨⟨T, rfl⟩, ?_, ?_, ?_⟩
+        · show T.val.length = _
+          rw [show T.val.length = _ from hTl]; exact hlen'
+        · intro q hq
+          show T.val[q]? = _
+          rw [show T.val[q]? = _ from hTpre q hq]
+          simp only [alloc.vec.Vec.set_val_eq]
+          rw [List.getElem?_set_ne (by omega)]
+        · show (T.val.map absIProjTable).reverse = _
+          rw [show (T.val.map absIProjTable).reverse = _ from hTlist, hR', hlen',
+            show rf.env.tables.val.length - i.val = (rf.env.tables.val.length - j.val) + 1 by
+              omega,
+            take_set_succ _ _ _ hlt, List.drop_set_of_lt (by omega)]
+          simp [List.append_assoc]
+
+open Lockstep in
+/-- **`promote_new_tables` ⊑ `promoteNewTables`** — the phase-A bracket's
+promotion of the tables: the `kt` projection tables the step just installed,
+copied into the persistent tier and re-keyed, everything below them
+untouched.  `hk` is finding C at the tables.  A TIER walk, as
+`promote_new_consts_ls_keyed`. -/
+theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hk : absU k ≤ rf.env.consts.val.length) :
+    (hk : absU kt ≤ rf.env.tables.val.length) :
     LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
-      (arena.promote.promote_new t st rm fuel k rf) lst
-      (promoteNew lm (absU fuel) (absU k) lf) :=
-  promote_new_ls_keyed hP ht hsc hrel hinv hm hfe hfinv hfe.keys hk
+      (arena.promote.promote_new_tables t st rm fuel kt rf) lst
+      (promoteNewTables lm (absU fuel) (absU kt) lf) := by
+  show LS _ _ (packT _ _) _ _
+  rw [arena.promote.promote_new_tables]
+  by_cases hk0 : kt = 0#u64
+  · rw [ite_eq_left hk0]
+    have h0 : absU kt = 0 := by rw [hk0]; rfl
+    rw [promoteNewTables, h0]
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
+  · rw [ite_eq_right hk0]
+    have hn := alloc.vec.Vec.len_val rf.env.tables
+    have hkabs : absU kt = kt.val := rfl
+    refine LS.packT_bind (LS.bind_eq fun kk hkk => ?_)
+    have hkkv : kk.val = kt.val := by
+      simp only [lift, Result.ok.injEq] at hkk
+      rw [← hkk]
+      have hkb : kt.val ≤ Std.Usize.max := le_trans hk rf.env.tables.property
+      apply UScalar.cast_val_mod_pow_of_inBounds_eq
+      scalar_tac
+    have hkle : ¬ kk > alloc.vec.Vec.len rf.env.tables := by scalar_tac
+    refine LS.packT_ite (LS.ite (fun h => absurd h hkle) (fun _ => ?_))
+    refine LS.packT_bind (LS.bind_eq fun start hstart => ?_)
+    have hsv : start.val = rf.env.tables.val.length - kt.val := by
+      have := ConRon.Refine.HashMap.uscalar_sub_eq hstart
+      scalar_tac
+    refine LS.packT_bind (LS.bind_eq fun fe2 hfe2 => ?_)
+    obtain ⟨⟨tb2, rfl⟩, hI2, herase⟩ := erase_installed_tables_aux _ rfl hfinv.tblInv hfe2
+    have hk0' : (absU kt == 0) = false := by
+      have : kt.val ≠ 0 := by
+        intro h; apply hk0; exact Aeneas.Std.UScalar.eq_imp _ _ (by simpa using h)
+      simpa [hkabs] using this
+    obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := lf
+    have hts : tables = (rf.env.tables.val.map absIProjTable).reverse := by
+      have h := congrArg IEnv.tables hfe.env
+      simpa [absIEnv] using h
+    rw [promoteNewTables, hk0']
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    -- a surviving row points below the slice (`IFEnvRel.tblKeys`)
+    have hbelow : ∀ k s, ConRon.Refine.HashMap2.toFun tb2 k = some s →
+        ConRon.Refine.HashMap2.toFun rf.tbls k = some s ∧ s.val < start.val := by
+      intro k s hs
+      rw [herase k] at hs
+      split at hs
+      · cases hs
+      · rename_i hnot
+        refine ⟨hs, ?_⟩
+        obtain ⟨tt, htt, hname⟩ := hfe.tblKeys k s hs
+        have hlt : s.val < rf.env.tables.val.length := hfinv.tblRange k s hs
+        by_contra hge
+        apply hnot
+        refine ⟨tt, ?_, hname⟩
+        rw [List.getElem?_eq_getElem hlt] at htt
+        cases (Option.some_inj.mp htt)
+        exact List.mem_iff_getElem.mpr ⟨s.val - start.val, by simp; omega,
+          by simp [List.getElem_drop]; congr 1; omega⟩
+    refine LS.packT_bind (LS.bindT (promote_installed_tables_aux (rf := { rf with tbls := tb2 })
+      _ fuel start (alloc.vec.Vec.len rf.env.tables) rfl (by scalar_tac) (by scalar_tac)
+      hP ht hsc hrel hinv hm) ?_ ?_ ?_)
+    · show promoteProjTables lm (absU fuel) _ = promoteProjTables lm (absU fuel) _
+      congr 1
+      show (((rf.env.tables.val.map absIProjTable).reverse.drop
+        (rf.env.tables.val.length - rf.env.tables.val.length)).take
+          (rf.env.tables.val.length - start.val)) = tables.take (absU kt)
+      rw [hts, Nat.sub_self, List.drop_zero, hsv, hkabs, Nat.sub_sub_self hk]
+    · intro e t1
+      exact ErrArm.packT_ok_err
+    · rintro ⟨m2, fe3⟩ t1 ⟨m2', mid⟩ lst1 ⟨⟨hM, hPT⟩, hf1⟩ hrel1 hinv1
+      try dsimp only
+      refine LS.packT_bind (LS.bind_eq fun o ho => ?_)
+      refine LS.packT_ok_ok (LS.pure ⟨⟨hM, ?_⟩, hf1⟩ hrel1 hinv1)
+      obtain ⟨⟨T, rfl⟩, hTl, hTpre, hTlist⟩ := hPT
+      simp only [hn] at hTl hTpre hTlist
+      have hk' : kt.val ≤ rf.env.tables.val.length := hk
+      have hT2 : (T.val.map absIProjTable).reverse
+          = mid ++ (rf.env.tables.val.map absIProjTable).reverse.drop kt.val := by
+        rw [hTlist, Nat.sub_self, List.take_zero, List.nil_append,
+          show rf.env.tables.val.length - start.val = kt.val by omega]
+      -- the slice's length is `kt`
+      have hmid : mid.length = kt.val := by
+        have h := congrArg List.length hT2
+        simp only [List.length_reverse, List.length_map, List.length_append,
+          List.length_drop, hTl] at h
+        omega
+      have hdrop : (T.val.drop start.val).map absIProjTable = mid.reverse := by
+        have h1 : (T.val.map absIProjTable).reverse.take kt.val = mid := by
+          rw [hT2]; exact List.take_left' hmid
+        rw [List.take_reverse, List.length_map, hTl,
+          show rf.env.tables.val.length - kt.val = start.val by omega, ← List.map_drop] at h1
+        rw [← h1, List.reverse_reverse]
+      -- the erased map, read through the promoted list
+      have hkeys3 : ∀ k s, ConRon.Refine.HashMap2.toFun tb2 k = some s →
+          ∃ tt, T.val[s.val]? = some tt ∧ absNIdx tt.struct_name = absNIdx k := by
+        intro k s hs
+        obtain ⟨hs', hlt⟩ := hbelow k s hs
+        obtain ⟨tt, htt, hname⟩ := hfe.tblKeys k s hs'
+        exact ⟨tt, by rw [hTpre _ hlt]; exact htt, hname⟩
+      have hread3 : TblsRead { rf with env := { rf.env with tables := T }, tbls := tb2 }
+          (eraseInstalledTables tbls (tables.take kt.val)) := by
+        intro k
+        show ((ConRon.Refine.HashMap2.toFun tb2 k).bind fun s =>
+          (T.val[s.val]?).map absIProjTable) = _
+        rw [eraseInstalledTables_getElem?_eq]
+        have hmem : (∃ c ∈ tables.take kt.val, c.structName = absNIdx k) ↔
+            (∃ c ∈ rf.env.tables.val.drop start.val, absNIdx c.struct_name = absNIdx k) := by
+          rw [hts, show kt.val = rf.env.tables.val.length - start.val by omega]
+          simp only [take_rev_mem, List.mem_map]
+          constructor
+          · rintro ⟨c, ⟨a, ha, rfl⟩, h⟩; exact ⟨a, ha, h⟩
+          · rintro ⟨a, ha, h⟩; exact ⟨_, ⟨a, ha, rfl⟩, h⟩
+        by_cases hr : ∃ c ∈ rf.env.tables.val.drop start.val, absNIdx c.struct_name = absNIdx k
+        · rw [herase k, ite_eq_left hr, ite_eq_left (hmem.mpr hr)]; rfl
+        · rw [ite_eq_right (fun h => hr (hmem.mp h)), ← hfe.tbls k]
+          cases hs : ConRon.Refine.HashMap2.toFun tb2 k with
+          | none =>
+            rw [herase k, ite_eq_right hr] at hs
+            rw [hs]; rfl
+          | some s =>
+            obtain ⟨hs', hlt⟩ := hbelow k s hs
+            rw [hs']
+            simp only [Option.bind_some]
+            rw [hTpre _ hlt]
+      obtain ⟨⟨tb4, rfl⟩, hI4, hK4, hR4⟩ :=
+        index_promoted_tables_aux (rf := { rf with env := { rf.env with tables := T }, tbls := tb2 })
+          _ rfl hI2 hkeys3 hread3 ho
+      rw [← indexPromotedTables_reverse] at hR4
+      simp only at hR4
+      rw [hdrop, List.reverse_reverse] at hR4
+      have hTlist' : (T.val.map absIProjTable).reverse = mid ++ tables.drop kt.val := by
+        rw [hT2, hts]
+      refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, hK4⟩,
+        ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hI4, ?_⟩⟩
+      · show IEnv.mk consts (mid ++ tables.drop (absU kt)) = absIEnv _
+        have h := hfe.env
+        simp only [absIEnv, IEnv.mk.injEq] at h ⊢
+        exact ⟨h.1, by rw [hkabs, ← hTlist']⟩
+      · intro k
+        rw [hR4 k, hkabs]
+      · intro k s hs
+        obtain ⟨tt, htt, -⟩ := hK4 k s hs
+        exact (List.getElem?_eq_some_iff.mp htt).1
+
+open Lockstep in
+/-- **`promote_new` ⊑ `promoteNew`** — the phase-A bracket's promotion half,
+as the checker tier consumes it: the step's `k` constants
+(`promote_new_consts_ls_keyed`, its key clause `IFEnvRel.keys`), then its `kt`
+projection tables (`promote_new_tables_ls`).  `hk`/`hkt` are finding C at each
+list; the constants' promotion leaves the tables alone, so `hkt` carries over.
+
+**The result relation is `IFEnvRelI`, not `IFEnvRel`** (task #97-P5-Checker
+round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
+`promote_new`'s environment to the NEXT step of their fold, which takes
+`IFEnvInv` beside `IFEnvRel` (task #97-P5-Checker-2 §3's `IFEnvRelI`). -/
+theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k kt : Std.U64}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hk : absU k ≤ rf.env.consts.val.length) (hkt : absU kt ≤ rf.env.tables.val.length) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+      (fun t' => glue t' st)
+      (arena.promote.promote_new t st rm fuel k kt rf) lst
+      (promoteNew lm (absU fuel) (absU k) (absU kt) lf) := by
+  show LS _ _ (packT _ _) _ _
+  rw [arena.promote.promote_new, promoteNew]
+  refine LS.packT_bind (LS.bindT
+    (promote_new_consts_ls_keyed hP ht hsc hrel hinv hm hfe hfinv hfe.keys hk) rfl ?_ ?_)
+  · intro e t1
+    exact ErrArm.packT_ok_err
+  · rintro ⟨m2, fe2⟩ t1 ⟨m2', fe2'⟩ lst1 ⟨⟨hM, ⟨hR, hI⟩, htb⟩, hf1⟩ hrel1 hinv1
+    try dsimp only
+    simp only at htb
+    exact LS.tailT (promote_new_tables_ls hP hf1 hsc hrel1 hinv1 hM hR hI (by rw [htb]; exact hkt))
+      rfl (fun _ _ h => h)
 
 open Lockstep in
 /-- `promote_vg` ⊑ `promoteVG` — the datum that crosses the install/check
@@ -1593,8 +2109,11 @@ handle type. -/
 /-- info: 'ConRon.Refine2.index_promoted_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms index_promoted_ls
 
-/-- info: 'ConRon.Refine2.promote_new_ls_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_new_ls_keyed
+/-- info: 'ConRon.Refine2.promote_new_consts_ls_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_consts_ls_keyed
+
+/-- info: 'ConRon.Refine2.promote_new_tables_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_tables_ls
 
 /-- info: 'ConRon.Refine2.promote_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promote_new_ls

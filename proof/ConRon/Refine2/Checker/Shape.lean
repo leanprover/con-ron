@@ -298,12 +298,20 @@ site needs.  That finding predicted the clause would be *"Theorem 1's to
 carry"*; it is cheaper than that, because the port's own `IFEnv` maintains it:
 `mk_ifenv` sets the counter to the list's length and `ifenv_push` grows both
 by one.  It belongs here, beside the index's `Inv`, for the same reason the
-index's does. -/
+index's does.
+
+**The table map's two clauses** are the index's first and third at `tbls`:
+its `Inv`, and every slot it stores in range of `env.tables` (`mk_tbls_go`
+stores its cursor, `ifenv_push_table` the length before its `push`,
+`index_promoted_tables` `j - 1` for a cursor `j ≥ 1`). -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
   Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
     rf.visible_below.val ≤ rf.env.consts.val.length ∧
-    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
-      p.2.val < rf.env.consts.val.length
+    (∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
+      p.2.val < rf.env.consts.val.length) ∧
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls ∧
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
+      s.val < rf.env.tables.val.length
 
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
@@ -327,7 +335,7 @@ models as a truncating cast — is the identity at every reachable row, and
 the Rust needs no test it does not already have. -/
 theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
-  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2 n p hp) rf.env.consts.property)
+  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2.1 n p hp) rf.env.consts.property)
 
 /-- **Every position the index stores is IN RANGE of the constant list** —
 task #97-P5-Checker round 3's strengthening of the clause above, and the one
@@ -351,7 +359,17 @@ no Rust test is missing. -/
 theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
       p.2.val < rf.env.consts.val.length :=
-  h.2.2
+  h.2.2.1
+
+/-- The table map's `Inv`. -/
+theorem IFEnvInv.tblInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls := h.2.2.2.1
+
+/-- Every slot the table map stores is in range of `env.tables`. -/
+theorem IFEnvInv.tblRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
+      s.val < rf.env.tables.val.length :=
+  h.2.2.2.2
 
 /-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
 
@@ -407,7 +425,7 @@ theorem i_constant_info_name_abs {c : arena.env.IConstantInfo}
     absNIdx o = (absIConstantInfo c).name := by
   rw [arena.env.i_constant_info_name.eq_def] at h
   cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
-    absIProjTable, dupId_nidx _ _ h]
+    dupId_nidx _ _ h]
 
 /-- **A handle comparison IS the abstraction's.**  `eq2` on an `NIdx` is word
 equality and `absNIdx` is injective, so the port's test and the twin's `==`
@@ -496,11 +514,14 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
   have hvv : v.val = rf.env.consts.val ++ [ci] := ConRon.Refine.vec_push_val hv
   have hc1v : c1.val = rf.visible_below.val + 1 := by
     simpa using ConRon.Refine.Nat.uadd_val hc1
-  have hrf' : rf' = { env := { consts := v }, idx := q.2, visible_below := c1 } :=
+  have hrf' : rf' =
+      { env := { consts := v, tables := rf.env.tables }, idx := q.2, visible_below := c1,
+        tbls := rf.tbls } :=
     (Result.ok_injective h).symm
   subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hinv', ?_, ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys⟩, hinv', ?_, ?_, hfinv.tblInv,
+    hfinv.tblRange⟩
   · -- the constant list
     show (lf.push (absIConstantInfo ci)).env = absIEnv _
     simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]

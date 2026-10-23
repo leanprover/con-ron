@@ -17,9 +17,9 @@ indexed `IFEnv`.
    `List`.  One `map` each; the twin's own choice of container per field is
    con-leche's (`Arena/Env.lean` follows `ConLeche/Kernel/Env.lean` field for
    field), so there is nothing to decide here.
-2. **`IEnv.consts` runs the other way.**  The twin's is con-leche's
-   newest-first `List` and the Rust's is an oldest-first `Vec` (its index
-   stores a POSITION into it), so the abstraction reverses — exactly as
+2. **`IEnv.consts` and `IEnv.tables` run the other way.**  The twin's are
+   con-leche's newest-first `List`s and the Rust's are oldest-first `Vec`s
+   (its indexes store POSITIONS into them), so the abstraction reverses — exactly as
    `RefineOld/Abs.lean`'s `absEnv` did for the `Expr`-tree checker.
 3. **`IFEnv.idx` stores a POSITION where the twin stores the CONSTANT**
    (task #97-P6-5's lever 1, absorbed there and owed here).  The Rust's
@@ -27,7 +27,9 @@ indexed `IFEnv`.
    position — and `ifenv_find` reads the constant out of `env.consts` at that
    position; the twin's is `HashMap NIdx (Nat × IConstantInfo)`.  `IFEnvRel`
    therefore composes the probe with the array read, which is the one clause
-   of this file that is not a field-for-field map.
+   of this file that is not a field-for-field map.  The table map `tbls` is
+   the same design: the Rust row is the table's slot in `env.tables`, the
+   twin's the table, and `IFEnvRel.tbls` composes the same way.
 -/
 import ConRon.Refine2.Inv
 import ConRon.Arena.Env
@@ -381,9 +383,9 @@ structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
 
 /-! ## The declaration layer (`arena::env`)
 
-Field-for-field, `Vec` to the container the twin has; the two places the
-shape genuinely moves are `IEnv.consts`' order and `IFEnv.idx`'s value, and
-the module note says why. -/
+Field-for-field, `Vec` to the container the twin has; the places the shape
+genuinely moves are the order of `IEnv`'s two lists and the values of
+`IFEnv`'s two maps, and the module note says why. -/
 
 def absIConstantVal (cv : arena.env.IConstantVal) : IConstantVal :=
   ⟨absNIdx cv.name, cv.level_params.val.map absNIdx, absEIdx cv.ty⟩
@@ -403,9 +405,9 @@ def absIIndCaps (c : arena.env.IIndCaps) : IIndCaps :=
     c.all.val.map absNIdx, absU c.nparams, c.ctors.val.map absNIdx⟩
 
 def absIProjTable (t : arena.env.IProjTable) : IProjTable :=
-  ⟨absNIdx t.struct_name, absNIdx t.table_name, t.level_params.val.map absNIdx,
+  ⟨absNIdx t.struct_name, t.level_params.val.map absNIdx,
     absU t.num_params, absNIdx t.ctor, absU t.num_fields, absLIdx t.struct_sort,
-    (t.bodies.val.map absEIdx).toArray, t.guards.val.map absLIdx, absU t.off⟩
+    (t.bodies.val.map absEIdx).toArray, t.guards.val.map absLIdx⟩
 
 def absIConstantInfo : arena.env.IConstantInfo → IConstantInfo
   | .AxiomInfo cv => .axiomInfo (absIConstantVal cv)
@@ -417,7 +419,6 @@ def absIConstantInfo : arena.env.IConstantInfo → IConstantInfo
   | .RecInfo cv mi rp rules =>
     .recInfo (absIConstantVal cv) (absU mi) (absU rp)
       (rules.val.map absIRecRule)
-  | .ProjInfo tbl => .projInfo (absIProjTable tbl)
 
 def absIDeclaration : arena.env.IDeclaration → IDeclaration
   | .AxiomDecl cv => .axiomDecl (absIConstantVal cv)
@@ -431,10 +432,12 @@ def absIDeclaration : arena.env.IDeclaration → IDeclaration
   | .QuotDecl k cv =>
     .quotDecl (ConRon.Refine.absQuotKind k) (absIConstantVal cv)
 
-/-- `IEnv.consts` runs the other way: con-leche's list is newest-first and the
-port's `Vec` is oldest-first, its index storing a position into it. -/
+/-- `IEnv.consts` and `IEnv.tables` run the other way: con-leche's lists are
+newest-first and the port's `Vec`s are oldest-first, its indexes storing
+positions into them. -/
 def absIEnv (e : arena.env.IEnv) : IEnv :=
-  ⟨(e.consts.val.map absIConstantInfo).reverse⟩
+  ⟨(e.consts.val.map absIConstantInfo).reverse,
+    (e.tables.val.map absIProjTable).reverse⟩
 
 /-- **The index clause `index_promoted` needs** (a statement gap, found by this
 task): every row of the port's index points at a slot whose constant carries
@@ -449,6 +452,17 @@ lane Promote). -/
 def IFEnvKeys (rf : arena.env.IFEnv) : Prop :=
   ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
     ∃ ci, rf.env.consts.val[p.2.val]? = some ci ∧ (absIConstantInfo ci).name = absNIdx k
+
+/-- **The table map's key clause**, `IFEnvKeys` for `tbls`: every row of the
+port's table map points at a slot of `env.tables` whose table belongs to the
+row's key.  `IFEnvRel.tbls` reads a row through its slot, the twin keys by
+the structure's name; they agree exactly when the rows at a slot are keyed by
+that slot's structure (every writer — `mk_tbls_go`, `ifenv_push_table`,
+`index_promoted_tables` — stores its own table's structure at its own
+slot). -/
+def IFEnvTblKeys (rf : arena.env.IFEnv) : Prop :=
+  ∀ k s, ConRon.Refine.HashMap2.toFun rf.tbls k = some s →
+    ∃ t, rf.env.tables.val[s.val]? = some t ∧ absNIdx t.struct_name = absNIdx k
 
 /-- **The Rust-side representation predicate of a stored constant** (task
 #97-P5-Core round 5, coordinator's ruling (d)): the data a lockstep step reads
@@ -482,5 +496,14 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
   /-- Every index row points at a slot whose constant carries the row's key
   (`IFEnvKeys`). -/
   keys : IFEnvKeys rf
+  /-- The table map, as `idx`: a row is a slot of `env.tables`, read through,
+  where the twin's row is the table; an out-of-range slot — which
+  `ifenv_raw_table` declines — is `none` on the twin's side too. -/
+  tbls : ∀ n, ((ConRon.Refine.HashMap2.toFun rf.tbls n).bind fun s =>
+      (rf.env.tables.val[s.val]?).map absIProjTable)
+    = lf.tbls[absNIdx n]?
+  /-- Every table-map row points at a slot whose table belongs to the row's
+  key (`IFEnvTblKeys`). -/
+  tblKeys : IFEnvTblKeys rf
 
 end ConRon.Refine2

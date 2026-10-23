@@ -30,7 +30,7 @@ open ConRon.Generated ConRon.Generated.kernel
 namespace ConRon.Refine
 
 /- The `Expr`-and-above abstraction functions (`absConstantVal`,
-   `absHint`, `absFire`, `absRecRule`, `absIndCaps`, `absProjTable`,
+   `absHint`, `absFire`, `absRecRule`, `absIndCaps`,
    `absConstantInfo`, `absConstantInfos`, `absBasisKind`) lived here in a
    nested `T22` namespace until task #46 moved them to
    `ConRon/Refine/Abs.lean`, as task #22's note said they would.  They are

@@ -213,7 +213,7 @@ local macro_rules
       | exact True.intro
       | decide
       | (simp only [ConstantInfoWF, ConstantValWF, IndCapsWF, RecRuleWF,
-            RecRuleFireWF, ProjTableWF]
+            RecRuleFireWF]
          repeat' first
            | assumption
            | apply And.intro
