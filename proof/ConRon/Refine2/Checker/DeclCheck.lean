@@ -157,31 +157,21 @@ open Lockstep in
       (eqBasisPinnedSpec lf) :=
   LS.ofSim₀ fun _ h => eq_basis_pinned_refines hrel hinv hfe.rel hfe.inv hvis h
 
-/-- `matches_pin_of_ci` — the header of a pinned constant, matched. -/
-theorem matches_pin_of_ci_refines {pers st lst} {cv : arena.env.IConstantVal}
-    {pin_ci : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.matches_pin_of_ci pers st cv pin_ci = ok o) :
-    Sim₀ id pers lst o
-      (do
-        let pcv ← (absIConstantInfo pin_ci).toConstantVal
-        (absIConstantVal cv).matchesPin pcv) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.decl_check.matches_pin_of_ci]
-  lockstep
-
 open Lockstep in
-@[lockstep] theorem matches_pin_of_ci_ls {pers st lst}
-    {cv : arena.env.IConstantVal}
-    {pin_ci : arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.matches_pin_of_ci pers st cv pin_ci) lst
-      (do
-        let pcv ← (absIConstantInfo pin_ci).toConstantVal
-        (absIConstantVal cv).matchesPin pcv) :=
-  LS.ofSim₀ fun _ h => matches_pin_of_ci_refines hrel hinv h
+/-- `matches_pin_of_ci` — the header of a pinned constant, matched: a pure
+function on both sides (`i_constant_val_matches_pin_spec` at the pinned
+constant's `toConstantVal`). -/
+@[lockstep] theorem matches_pin_of_ci_spec (cv : arena.env.IConstantVal)
+    (pin_ci : arena.env.IConstantInfo) :
+    LSP (arena.decl_check.matches_pin_of_ci cv pin_ci)
+      (fun a => a = ((absIConstantVal cv).name == (absIConstantInfo pin_ci).toConstantVal.name &&
+        (absIConstantVal cv).levelParams == (absIConstantInfo pin_ci).toConstantVal.levelParams &&
+        (absIConstantVal cv).type == (absIConstantInfo pin_ci).toConstantVal.type)) := by
+  intro a ha
+  rw [arena.decl_check.matches_pin_of_ci] at ha
+  obtain ⟨pcv, hpcv, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
+  rw [← i_constant_info_to_constant_val_abs hpcv]
+  exact i_constant_val_matches_pin_spec cv pcv a ha
 
 /-- `iff_pinned` — is `Iff` installed at its pinned shape? -/
 theorem iff_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
@@ -3152,11 +3142,16 @@ theorem bool_ctor_typed_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
   rw [arena.decl_check.bool_ctor_typed]
   unfold boolCtorTypedSpec boolCtorTyped
   lockstep
+  -- glue: the port reads the stored constant's copy (`i_constant_info_dup`),
+  -- the twin the constant itself
   all_goals
-    refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
-      (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
-    · rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›]; rfl
-    · lockstep
+    refine Lockstep.LS.pure ?_ ‹_› ‹_›
+    have h2 := ‹Lockstep.TwinEq (absIConstantInfo _).toConstantVal _›
+    simp only [Lockstep.TwinEq] at h2
+    rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›] at h2
+    simp only [absIConstantInfo] at h2
+    rw [h2]
+    rfl
 
 open Lockstep in
 @[lockstep] theorem bool_ctor_typed_ls {pers st lst}

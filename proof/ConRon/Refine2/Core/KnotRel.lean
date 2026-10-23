@@ -174,6 +174,10 @@ structure CoreCtx (vis : Std.U64) (fe : arena.env.IFEnv) (lfe : IFEnv) : Prop wh
   `ifenv_find_abs` is the only consumer. -/
   idxPos : ∀ n p, ConRon.Refine.HashMap2.toFun fe.idx n = some p →
     p.2.val ≤ Std.Usize.max
+  /-- The table map is a well-formed `ron::HashMap2`, as `idxInv` the index
+  (`IFEnvInv.tblInv`); its slots fit a `usize` by `fenv.tblKeys`. -/
+  tblInv : ConRon.Refine.HashMap2.Inv
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable fe.tbls
 
 
 /-- `fenv`'s index clause, at `lfe` itself.  **This is the one `ifenv_find_abs`

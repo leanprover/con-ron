@@ -232,7 +232,6 @@ theorem blockSplitCtors_of_not_ctor (L : List IConstantInfo)
   | .recInfo _ _ _ _ :: rest, _ =>
     simp only [blockSplitCtors, blockSplitRecs]
     cases blockSplitRecs rest <;> rfl
-  | .projInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
 
 /-- `blockSplit` at a list that does not start with a type former. -/
 theorem blockSplit_of_not_ind (L : List IConstantInfo)
@@ -249,7 +248,6 @@ theorem blockSplit_of_not_ind (L : List IConstantInfo)
     simp only [blockSplit]; cases blockSplitCtors (.ctorInfo a b c :: r) <;> rfl
   | .recInfo a b c d :: r, _ =>
     simp only [blockSplit]; cases blockSplitCtors (.recInfo a b c d :: r) <;> rfl
-  | .projInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.projInfo a :: r) <;> rfl
 
 theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (i : Std.Usize) out o,
@@ -286,7 +284,6 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     | ThmInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | ProjInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
 
 theorem block_split_recs_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (h : arena.inductives.block_parts.block_split_recs block i (alloc.vec.Vec.new _) = ok o) :

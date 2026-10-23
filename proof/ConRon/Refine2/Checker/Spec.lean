@@ -63,11 +63,9 @@ would otherwise join on a borrowed state (`check_constant_val_guards` /
 as con-leche does; these three are the shared pieces.  (Task #119: the
 annotation between the guards and the tail is gone, and both return `Unit`.) -/
 
-/-- The four guards past the reserved-name test:
-`Arena/CheckerBase.lean:checkConstantVal` clauses 3-6. -/
+/-- The three guards past the reserved-name test:
+`Arena/CheckerBase.lean:checkConstantVal` clauses 3-5. -/
 def checkConstantValGuardsRestSpec (cv : IConstantVal) : AM Unit := do
-  if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
     fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
@@ -75,8 +73,8 @@ def checkConstantValGuardsRestSpec (cv : IConstantVal) : AM Unit := do
   if ← hasFvarFast coreWalkFuel cv.type then
     fail (.invalid "unexpected free variable in type")
 
-/-- The six SYNTACTIC guards, in the twin's order:
-`checkConstantVal` clauses 1-6. -/
+/-- The five SYNTACTIC guards, in the twin's order:
+`checkConstantVal` clauses 1-5. -/
 def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
@@ -217,7 +215,7 @@ def eqBasisPinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `stdAxiomOk`'s `Iff` clause. -/
 def iffPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffName) with
-  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffA).toConstantVal)
+  | some (.indInfo cvI _) => cvI.matchesPin (← iffA).toConstantVal
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Iff.intro` clause, its arity test an explicit `if` as the
@@ -226,7 +224,7 @@ port writes it (the twin's literal pattern `.ctorInfo cv 2 2`, split by
 def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffIntroName) with
   | some (.ctorInfo cvIi np nf) =>
-    if np == 2 && nf == 2 then do cvIi.matchesPin (← (← iffIntroA).toConstantVal)
+    if np == 2 && nf == 2 then do cvIi.matchesPin (← iffIntroA).toConstantVal
     else pure false
   | _ => pure false
 
@@ -234,21 +232,21 @@ def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
 def iffRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffRecName) with
   | some (.recInfo cvIr mi rp _) =>
-    if mi == 4 && rp == 4 then do cvIr.matchesPin (← (← iffRecA).toConstantVal)
+    if mi == 4 && rp == 4 then do cvIr.matchesPin (← iffRecA).toConstantVal
     else pure false
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty` clause. -/
 def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyName) with
-  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyA).toConstantVal)
+  | some (.indInfo cvN _) => cvN.matchesPin (← nonemptyA).toConstantVal
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
 def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyIntroName) with
   | some (.ctorInfo cvNi np nf) =>
-    if np == 1 && nf == 1 then do cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)
+    if np == 1 && nf == 1 then do cvNi.matchesPin (← nonemptyIntroA).toConstantVal
     else pure false
   | _ => pure false
 
@@ -256,7 +254,7 @@ def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
 def nonemptyRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyRecName) with
   | some (.recInfo cvNr mi rp _) =>
-    if mi == 3 && rp == 3 then do cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)
+    if mi == 3 && rp == 3 then do cvNr.matchesPin (← nonemptyRecA).toConstantVal
     else pure false
   | _ => pure false
 
@@ -370,7 +368,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
     rcases fe.find? n1 with _ | ci
     · simp
     cases ci <;> simp
-    congr 1; funext p; congr 1; funext q; congr 1; funext b
+    congr 1; funext p; congr 1; funext b
     cases b <;> simp
     congr 1; funext n2
     rcases fe.find? n2 with _ | ci
@@ -378,7 +376,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
     cases ci <;> simp
     rename_i np nf
     rcases np with _ | _ | _ | np <;> rcases nf with _ | _ | _ | nf <;> simp
-    congr 1; funext p; congr 1; funext q; congr 1; funext b
+    congr 1; funext p; congr 1; funext b
     cases b <;> simp
     congr 1; funext n3
     rcases fe.find? n3 with _ | ci
@@ -392,7 +390,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
       rcases fe.find? n1 with _ | ci
       · simp
       cases ci <;> simp
-      congr 1; funext p; congr 1; funext q; congr 1; funext b
+      congr 1; funext p; congr 1; funext b
       cases b <;> simp
       congr 1; funext n2
       rcases fe.find? n2 with _ | ci
@@ -400,7 +398,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
       cases ci <;> simp
       rename_i np nf
       rcases np with _ | _ | np <;> rcases nf with _ | _ | nf <;> simp
-      congr 1; funext p; congr 1; funext q; congr 1; funext b
+      congr 1; funext p; congr 1; funext b
       cases b <;> simp
       congr 1; funext n3
       rcases fe.find? n3 with _ | ci

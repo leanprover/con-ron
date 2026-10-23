@@ -266,9 +266,7 @@ open Lockstep in
 theorem quotPinHit_split (k : ConLeche.QuotKind) (cv : ConRon.Arena.IConstantVal) :
     quotPinHit k cv = (do
       let blk ← ConRon.Arena.BasisKind.decls .quotK
-      if h : k.slot < blk.length then do
-        let pcv ← blk[k.slot].toConstantVal
-        cv.canonEq pcv
+      if h : k.slot < blk.length then cv.canonEq blk[k.slot].toConstantVal
       else pure false) := by
   unfold quotPinHit
   congr 1; funext blk
@@ -300,18 +298,17 @@ theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena
        have := alloc.vec.Vec.len_val ‹alloc.vec.Vec arena.env.IConstantInfo›
        simp only [absICIL, List.length_map] at *; scalar_tac)
     | (generalize hblk : ‹alloc.vec.Vec arena.env.IConstantInfo› = blk at *
+       generalize hix : ‹Std.Usize› = ix at *
        have hl := alloc.vec.Vec.len_val blk
-       have hia : a.val = (ConRon.Refine.absQuotKind k).slot := by
+       have hia : ix.val = (ConRon.Refine.absQuotKind k).slot := by
          obtain h | h := ‹_ ∨ Usize.max < _› <;> scalar_tac
        have e : (absICIL blk)[(ConRon.Refine.absQuotKind k).slot]'(by
            simp only [absICIL, List.length_map]; omega) =
-           absIConstantInfo (↑blk : List _)[a.val] := by
+           absIConstantInfo (↑blk : List _)[ix.val] := by
          simp only [absICIL, List.getElem_map]; congr 1; simp [hia]
-       rw [e]
-       refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
-         (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
-       · rfl
-       · lockstep)
+       rw [e, show (absIConstantInfo (↑blk : List _)[ix.val]).toConstantVal = _ from
+         ‹Lockstep.TwinEq _ _›]
+       exact hcanon _ _ ‹_› ‹_›)
 
 open Lockstep in
 @[lockstep] theorem quot_pin_hit_ls {pers st lst}

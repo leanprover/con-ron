@@ -904,19 +904,19 @@ def standIn (t : arena.store.PersTier) : arena.store.PersTier := { t with frozen
 
 /-- **`promote_new` at a frozen tier**, read back at the tier it returns — the
 promotion every bracket ends in, before its `drop_scratch`. -/
-theorem promote_new_drop {tier st lst rm lm rf lf} {fuel k : Std.U64} {r1 tier1}
+theorem promote_new_drop {tier st lst rm lm rf lf} {fuel k kt : Std.U64} {r1 tier1}
     (htf : tier.frozen = true)
     (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st)
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hk : absU k ≤ rf.env.consts.val.length)
-    (hrun : arena.promote.promote_new tier st rm fuel k rf = ok (r1, tier1)) :
+    (hk : absU k ≤ rf.env.consts.val.length) (hkt : absU kt ≤ rf.env.tables.val.length)
+    (hrun : arena.promote.promote_new tier st rm fuel k kt rf = ok (r1, tier1)) :
     Lockstep.LOut tier1 (fun a b => (PMemoRel a.1 b.1 ∧ IFEnvRelI a.2 b.2) ∧
-        tier1.frozen = true) r1 st ((promoteNew lm (absU fuel) (absU k) lf).run lst) := by
+        tier1.frozen = true) r1 st ((promoteNew lm (absU fuel) (absU k) (absU kt) lf).run lst) := by
   have hsc := ScratchOn.of_inv hinv htf
   have hP : (standIn tier).frozen = false := rfl
   exact LST.glue_out hP hsc
     (promote_new_ls hP htf hsc ((glue_rel (t := tier) hP).mpr hrel) ((glue_inv (t := tier) hP hsc).mpr hinv) hm hfe
-      hfinv hk) hrun
+      hfinv hk hkt) hrun
 
 /-- `promote_vg` at a frozen tier. -/
 theorem promote_vg_frozen {tier st lst rm lm} {fuel : Std.U64} {g r1 tier1}
@@ -1138,20 +1138,21 @@ SAME memo, so that the sharing between a header's type and its value survives
 the copy — **and the tier thawed back into the store** (task #98-FREEZE: the
 Rust takes the frozen tier by value and ends in `drop_scratch`).  The
 hypotheses are at the tier (`htf`), the conclusion at the caller's reader
-(`hpers`).  `hk` is finding C's bound, at the counter. -/
+(`hpers`).  `hk` and `hkt` are finding C's bounds, at the counter and at the
+table list. -/
 theorem install_step_promote_refines {pers tier st lst} {rf lf}
-    {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {i vis k kt : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {vg : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st)
     (htf : tier.frozen = true) (hpers : pers.frozen = false)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hk : k.val ≤ rf.visible_below.val)
-    (hrun : arena.checker.install_step_promote tier st i vis k rf pend vg = ok o) :
+    (hk : k.val ≤ rf.visible_below.val) (hkt : absU kt ≤ rf.env.tables.val.length)
+    (hrun : arena.checker.install_step_promote tier st i vis k kt rf pend vg = ok o) :
     SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
       pers lst o
       (do
         let (m, vg) ← promoteVG PMemo.empty coreWalkFuel (absValueGroup vg)
-        let (_, fe) ← promoteNew m coreWalkFuel (absU k) lf
+        let (_, fe) ← promoteNew m coreWalkFuel (absU k) (absU kt) lf
         dropScratch
         pure (fe, (absPendingCheckL pend).toArray.push ⟨vg, absU i, absU vis⟩)
         : AM (IFEnv × Array PendingCheck)) := by
@@ -1174,7 +1175,7 @@ theorem install_step_promote_refines {pers tier st lst} {rf lf}
     try simp only [Aeneas.Std.uncurry] at hrun
     obtain ⟨⟨r1, tier2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hk' : absU k ≤ rf.env.consts.val.length := le_trans hk hfinv.visBound
-    have hP := promote_new_drop htf1 hrel1 hinv1 hvm hfe hfinv hk' h2
+    have hP := promote_new_drop htf1 hrel1 hinv1 hvm hfe hfinv hk' hkt h2
     rw [core_walk_fuel_abs] at hP
     cases r1 with
     | Err e =>
@@ -1216,6 +1217,12 @@ theorem install_step_refines {pers st lst} {rf lf}
       (installStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absU i) lf
         (absPendingCheckL pend).toArray (absIDeclaration pd)) := by
   rw [arena.checker.install_step] at hrun
+  obtain ⟨nt, hnt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hntv : nt.val = rf.env.tables.val.length := by
+    simp only [lift, Result.ok.injEq] at hnt
+    subst hnt
+    rw [usize_cast_u64_val']
+    simp [alloc.vec.Vec.len]
   obtain ⟨st1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (flush_caches_sim₀ hrel hinv h1).apply
   obtain ⟨⟨tier, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1242,6 +1249,19 @@ theorem install_step_refines {pers st lst} {rf lf}
       ConRon.Refine.HashMap.uscalar_sub_eq hkk
     have hkabs : v.visibleBelow - lf.visibleBelow = absU kk := by
       rw [hv.rel.visibleBelow, hfe.visibleBelow]; simp only [absU]; omega
+    obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hi3v : i3.val = fe2.env.tables.val.length := by
+      simp only [lift, Result.ok.injEq] at hi3
+      subst hi3
+      rw [usize_cast_u64_val']
+      simp [alloc.vec.Vec.len]
+    obtain ⟨kt, hkt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hktv : kt.val = fe2.env.tables.val.length - rf.env.tables.val.length := by
+      rw [ConRon.Refine.HashMap.uscalar_sub_eq hkt, hi3v, hntv]
+    have hktabs : v.env.tables.length - lf.env.tables.length = absU kt := by
+      rw [hv.rel.env, hfe.env]; simp only [absIEnv, List.length_reverse, List.length_map, absU]
+      omega
+    have hktle : absU kt ≤ fe2.env.tables.val.length := by simp only [absU]; omega
     subst hvg
     cases vgo with
     | none =>
@@ -1250,8 +1270,8 @@ theorem install_step_refines {pers st lst} {rf lf}
       have hk : absU kk ≤ fe2.env.consts.val.length := by
         have := hv.inv.visBound; simp only [absU]; omega
       have hP := promote_new_drop (lm := PMemo.empty) htf hrel3 hinv3
-        (pmemo_empty_refines hpm) hv.rel hv.inv hk h4
-      rw [core_walk_fuel_abs, ← hkabs] at hP
+        (pmemo_empty_refines hpm) hv.rel hv.inv hk hktle h4
+      rw [core_walk_fuel_abs, ← hkabs, ← hktabs] at hP
       cases r1 with
       | Err e =>
         obtain ⟨st4, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1271,9 +1291,9 @@ theorem install_step_refines {pers st lst} {rf lf}
     | some vg =>
       have hk : kk.val ≤ fe2.visible_below.val := by omega
       have hA := install_step_promote_refines (i := i) (pend := pend) hrel3 hinv3 htf hpers
-        hv.rel hv.inv hk hrun
+        hv.rel hv.inv hk hktle hrun
       simp only [SimRel₀, AOutRel₀] at hA
-      simpa only [Option.map, ← hkabs, ← hfe.visibleBelow] using hA
+      simpa only [Option.map, ← hkabs, ← hktabs, ← hfe.visibleBelow] using hA
 
 /-- **`install_decl_step` ⊑ `installDeclStep`** — phase A's step with the position
 carried and the error tagged (finding 13's `SimFold`). -/

@@ -100,7 +100,6 @@ macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (apply IFEnv.restrictTo_of_eq; assumption))
 
-attribute [lockstep] proj_table_name_lss
 
 /-! ## The recursor rule's two install bits (`core::rec_rule_bits`)
 

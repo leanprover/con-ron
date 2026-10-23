@@ -117,7 +117,7 @@ because at this call site they genuinely differ. -/
 theorem IFEnvInv.coreCtxAt (vis : Std.U64) {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
     CoreCtx vis rf (lf.restrictTo (absU vis)) := by
-  refine ⟨?_, rfl, hfinv.idxInv, hfinv.idxPos⟩
+  refine ⟨?_, rfl, hfinv.idxInv, hfinv.idxPos, hfinv.tblInv⟩
   have : (lf.restrictTo (absU vis)).restrictTo (absU rf.visible_below) = lf := by
     rw [IFEnv.restrictTo, IFEnv.restrictTo, ← hfe.visibleBelow]
   rw [this]

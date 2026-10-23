@@ -183,37 +183,55 @@ section slots
 attribute [local lockstep_simp] Option.map_none Option.map_some Option.isSome_none
   Option.isSome_some absIProjEntry
 
-theorem tower_slots_all_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
-      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
-      (t : arena.handle.NIdx) (nn j : Std.U64),
-      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-      LS pers (fun a b => b = a) (arena.core.tower_slots_all_go pers vis st fe t nn j) lst
-        (towerSlotsAllGo lfe (absNIdx t) n (absU j)) := by
+theorem tower_slots_all_go_abs (n : Nat) :
+    ∀ {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+      (t : arena.handle.NIdx) (nn j : Std.U64) {o : Bool},
+      nn.val = n → CoreCtx vis fe lfe →
+      arena.core.tower_slots_all_go vis fe t nn j = ok o →
+      o = towerSlotsAllGo lfe (absNIdx t) n (absU j) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
-    rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
-    lockstep
+    intro vis fe lfe t nn j o hn hctx h
+    rw [arena.core.tower_slots_all_go] at h
+    rw [ite_eq_left (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rfl
   | succ m ih =>
-    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
-    rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
-    lockstep
+    intro vis fe lfe t nn j o hn hctx h
+    rw [arena.core.tower_slots_all_go] at h
+    rw [ite_eq_right (by scalar_tac)] at h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hf := ifenv_find_proj_abs hctx ho1
+    rw [towerSlotsAllGo, ← hf]
+    cases o1 with
+    | none =>
+      cases Result.ok_injective h
+      rfl
+    | some e =>
+      simp only at h
+      obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hiv : i.val = m := by
+        have := ConRon.Refine.HashMap.uscalar_sub_eq hi; simp at this; omega
+      have hi1v : absU i1 = absU j + 1 := by
+        have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa [absU] using this
+      rw [ih t i i1 hiv hctx h, hi1v]
+      rfl
 
-@[lockstep] theorem tower_slots_all_go_ls {pers vis st fe lfe t n j lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.tower_slots_all_go pers vis st fe t n j) lst
-      (towerSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) :=
-  tower_slots_all_go_aux _ t n j rfl hrel hinv hctx
+@[lockstep] theorem tower_slots_all_go_ls {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+    (t : arena.handle.NIdx) (n j : Std.U64) :
+    LSP (arena.core.tower_slots_all_go vis fe t n j)
+      (fun b => TwinEq (towerSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) b) :=
+  fun _ h => (tower_slots_all_go_abs _ t n j rfl hctx h).symm
 
-@[lockstep] theorem tower_slots_all_ls {pers vis st fe lfe t n_f lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.tower_slots_all pers vis st fe t n_f) lst
-      (towerSlotsAll lfe (absNIdx t) (absU n_f)) := by
-  rw [arena.core.tower_slots_all, towerSlotsAll]
-  lockstep
+@[lockstep] theorem tower_slots_all_ls {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+    (t : arena.handle.NIdx) (n_f : Std.U64) :
+    LSP (arena.core.tower_slots_all vis fe t n_f)
+      (fun b => TwinEq (towerSlotsAll lfe (absNIdx t) n_f.val) b) := by
+  intro b h
+  rw [arena.core.tower_slots_all] at h
+  rw [towerSlotsAll, tower_slots_all_go_abs _ t n_f 0#u64 rfl hctx h]
+  rfl
 
 end slots
 

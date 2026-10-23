@@ -29,7 +29,7 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.Env
 
-/-! ## The reserved names -/
+/-! ## Code points -/
 
 /-- `core_types::code_points` copies a slice of code points into a `Vec`: the
 index recursion, at its accumulator. -/

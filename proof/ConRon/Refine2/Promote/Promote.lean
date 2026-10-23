@@ -921,7 +921,7 @@ element out of an owned `Vec`) and inserts its row, then recurses.  Since
 invisible — but it is why `index_promoted_refines` is stated against the
 twin's two passes composed, and not against a loop.
 
-*Finding C — `promote_new` DECLINES where the twin promotes, and the
+*Finding C — `promote_new_consts` DECLINES where the twin promotes, and the
 statement needs `k ≤ n`.*  The port answers `Ok (m, fe)` unchanged when
 `k as usize > fe.env.consts.len()`; the twin's `promoteNew` has no such arm —
 `consts.take k` at `k > length` is the whole list, so it promotes everything.
@@ -1436,10 +1436,12 @@ theorem index_promoted_ls {P t st lst rm lm rf lf} {fuel : Std.U64}
 open Lockstep in
 /-- **`promote_new_consts` ⊑ `promoteNewConsts`** — the phase-A bracket's
 promotion of the constants: the `k` constants the step just installed, copied
-into the persistent tier and re-indexed, everything below them untouched.  `hk` is finding C.  A TIER walk
-(task #98-FREEZE): the frozen state is read, the bracket's tier is written,
-and the relation after it is the glued state's at the grown tier, which is
-still `frozen`.
+into the persistent tier and re-indexed, everything below them untouched.
+`hk` is finding C.  A TIER walk (task #98-FREEZE): the frozen state is read,
+the bracket's tier is written, and the relation after it is the glued state's
+at the grown tier, which is still `frozen`.  The table list is not touched,
+which the result relation says (`promote_new_ls` carries `kt`'s bound over
+it).
 
 **The result relation is `IFEnvRelI`, not `IFEnvRel`** (task #97-P5-Checker
 round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand

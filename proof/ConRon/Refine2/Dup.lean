@@ -330,6 +330,17 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     simp only [absIConstantInfo, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
 
 
+/-- **`arena::env::i_constant_info_to_constant_val` is
+`IConstantInfo.toConstantVal`** on the abstraction: every arm copies its
+`IConstantVal`. -/
+theorem i_constant_info_to_constant_val_abs {c : arena.env.IConstantInfo}
+    {o : arena.env.IConstantVal}
+    (h : arena.env.i_constant_info_to_constant_val c = ok o) :
+    absIConstantVal o = (absIConstantInfo c).toConstantVal := by
+  rw [arena.env.i_constant_info_to_constant_val.eq_def] at h
+  cases c <;> simp only at h <;>
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal, i_constant_val_dup_abs h]
+
 /-- `i_constant_infos_dup_from` copies `cs` from the cursor on onto `out`
 (`native_rec_pin_ok`'s `rest`). -/
 theorem i_constant_infos_dup_from_abs {cs : alloc.vec.Vec arena.env.IConstantInfo}

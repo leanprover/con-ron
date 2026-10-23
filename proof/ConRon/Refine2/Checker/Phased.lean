@@ -236,7 +236,9 @@ private theorem mk_ifenv_empty_refines' {e f}
     (he : arena.env.i_env_empty = ok e) (hf : arena.env.mk_ifenv e = ok f) :
     IFEnvRel f (mkIFEnv IEnv.empty) ∧ IFEnvInv f := by
   rw [arena.env.i_env_empty] at he
-  have he' : e = { consts := alloc.vec.Vec.new arena.env.IConstantInfo } :=
+  have he' : e =
+      { consts := alloc.vec.Vec.new arena.env.IConstantInfo,
+        tables := alloc.vec.Vec.new arena.env.IProjTable } :=
     (Result.ok_injective he).symm
   subst he'
   rw [arena.env.mk_ifenv] at hf
@@ -249,16 +251,33 @@ private theorem mk_ifenv_empty_refines' {e f}
   simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le] at hq
   have hq' : q = (0#u64, hm) := (Result.ok_injective hq).symm
   subst hq'
-  have hf' := (Result.ok_injective hf).symm
+  obtain ⟨hm1, hhm1, hf1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf
+  obtain ⟨tinv0, -, tnone⟩ :=
+    ConRon.Refine.HashMap2.with_capacity_refines
+      (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm1
+  obtain ⟨tb, htb, hf2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf1
+  rw [arena.env.mk_tbls_go] at htb
+  simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le] at htb
+  have htb' : tb = hm1 := (Result.ok_injective htb).symm
+  subst htb'
+  have hf' := (Result.ok_injective hf2).symm
   subst hf'
   refine ⟨⟨rfl, ?_, rfl, fun ci h => by simp [alloc.vec.Vec.new] at h,
-    fun k p hp => by rw [hnone k] at hp; exact absurd hp (by simp)⟩, hinv0, by simp, ?_⟩
+    fun k p hp => by rw [hnone k] at hp; exact absurd hp (by simp), ?_,
+    fun k s hs => by rw [tnone k] at hs; exact absurd hs (by simp)⟩,
+    hinv0, by simp, ?_, tinv0, ?_⟩
   · intro n
     rw [hnone n]
     simp [mkIFEnv, mkIFEnvGo, IEnv.empty]
+  · intro n
+    rw [tnone n]
+    simp [mkIFEnv, mkIFEnvTblsGo, IEnv.empty]
   · intro n p hp
     rw [hnone n] at hp
     exact absurd hp (by simp)
+  · intro n s hs
+    rw [tnone n] at hs
+    exact absurd hs (by simp)
 
 /-! ## The pool (tasks #97-P5-POOL, #98-POOL)
 

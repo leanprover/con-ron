@@ -98,7 +98,7 @@ theorem checkBlockTables_one (p : BlockShape) (m : MemberShape) (ms : List Membe
       (if m.nIdx == 0 then do
         let guards ← structProjGuards cA.type p.nP nF sorts
         let fe₂ ← checkStructProjTable m.cvT.name cA.name p.lps p.nP nF p.resSort
-          guards 1 cA fe
+          guards cA fe
         checkBlockTables p ms css sss fe₂
       else checkBlockTables p ms css sss fe) := by
   rw [checkBlockTables]

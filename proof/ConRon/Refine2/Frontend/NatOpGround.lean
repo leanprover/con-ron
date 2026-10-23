@@ -366,58 +366,48 @@ theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
   simpa [absIRecRuleL] using this
 
 /-- **`used_consts_block` refines `usedConstsBlock`**
-(`Arena/Frontend/NatOpGround.lean:86-96`).  The one walk of the group that
-APPENDS: `toConstantVal` interns a `Sort 1` for a projection table. -/
+(`Arena/Frontend/NatOpGround.lean:86-96`): the block's walk, the state
+untouched. -/
 theorem used_consts_block_refines {pers rst lst seen ls acc block o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_block pers rst seen acc block = ok o) :
     UOutS pers lst o (usedConstsBlock ls (absNIdxArr acc) (absICIL block)) := by
   rw [frontend.nat_op_ground.used_consts_block] at h
-  have key : ∀ (k : Nat) (i : Std.Usize) (st : arena.monad.AState) (lst : AState)
+  have key : ∀ (k : Nat) (i : Std.Usize)
       (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
       (ls : Std.HashSet EIdx) (out : alloc.vec.Vec arena.handle.NIdx) o,
-      block.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
-      HSetRel seen ls →
-      frontend.nat_op_ground.used_consts_block_loop pers st seen block out
+      block.val.length - i.val = k → HSetRel seen ls →
+      frontend.nat_op_ground.used_consts_block_loop pers rst seen block out
         (alloc.vec.Vec.len block) i = ok o →
-      UOutS pers lst o (usedConstsBlock ls (absNIdxArr out)
+      UOut lst o (usedConstsBlock ls (absNIdxArr out)
         ((block.val.drop i.val).map absIConstantInfo)) := by
     intro k
     induction k with
     | zero =>
-      intro i st lst seen ls out o hk hrel hinv hs h
+      intro i seen ls out o hk hs h
       rw [frontend.nat_op_ground.used_consts_block_loop, ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by omega)]
-      exact ⟨ls, lst, rfl, hs, hrel, hinv⟩
+      exact ⟨ls, rfl, hs⟩
     | succ k ih =>
-      intro i st lst seen ls out o hk hrel hinv hs h
+      intro i seen ls out o hk hs h
       have hi : i.val < block.val.length := by omega
       rw [frontend.nat_op_ground.used_consts_block_loop, ite_eq_left (by scalar_tac),
         vec_index_ok_eq block i hi, bind_ok] at h
       obtain ⟨ci, hci, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hcia := i_constant_info_dup_abs hci
-      obtain ⟨⟨r, e⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hT := i_constant_info_to_constant_val_refines hrel hinv hr
+      obtain ⟨cv, hcv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hT := i_constant_info_to_constant_val_abs hcv
       rw [hcia] at hT
       rw [List.drop_eq_getElem_cons hi, List.map_cons]
-      unfold UOutS
-      simp only [usedConstsBlock]
+      unfold UOut
+      simp only [usedConstsBlock, ← hT]
       rw [am_run_bind']
-      unfold Sim₀ at hT
-      cases r with
-      | Err e1 =>
-        cases Result.ok_injective h
-        exact AErrSim.bind hT _
-      | Ok cv =>
-      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hT
-      rw [hx1, except_ok_bind]
       obtain ⟨⟨r1, seen1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hG := used_consts_go_refines hrel1 hinv1 hs hr1
+      have hG := used_consts_go_refines hrel hinv hs hr1
       rw [core_walk_fuel_abs] at hG
       unfold UOut at hG
-      rw [am_run_bind']
       cases r1 with
       | Err e2 =>
         cases Result.ok_injective h
@@ -425,15 +415,15 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
       | Ok a2 =>
       obtain ⟨s1, hx2, hs1⟩ := hG
       have hx2' : (usedConstsGo ls (absNIdxArr out) coreWalkFuel
-          (absIConstantVal cv).type).run lst1 = .ok ((s1, absNIdxArr a2), lst1) := hx2
+          (absIConstantVal cv).type).run lst = .ok ((s1, absNIdxArr a2), lst) := hx2
       rw [hx2', except_ok_bind]
       rcases hbi : block.val[i.val] with cvx | ⟨cvx, v, hint⟩ | ⟨cvx, v⟩ | ⟨cvx, caps⟩ |
-        ⟨cvx, np, nf⟩ | ⟨cvx, mi, rp, rules⟩ | tbl
+        ⟨cvx, np, nf⟩ | ⟨cvx, mi, rp, rules⟩
       all_goals rw [hbi] at h
       all_goals simp only [absIConstantInfo]
       case RecInfo =>
         obtain ⟨⟨r2, seen2⟩, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hR := used_consts_rules_refines hrel1 hinv1 hs1 hr2
+        have hR := used_consts_rules_refines hrel hinv hs1 hr2
         unfold UOut at hR
         rw [am_run_bind']
         cases r2 with
@@ -442,23 +432,32 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
           exact AErrSim.bind hR _
         | Ok a3 =>
         obtain ⟨s2, hx3, hs2⟩ := hR
-        have hx3' : (usedConstsRules s1 (absNIdxArr a2) (rules.val.map absIRecRule)).run lst1
-            = .ok ((s2, absNIdxArr a3), lst1) := hx3
+        have hx3' : (usedConstsRules s1 (absNIdxArr a2) (rules.val.map absIRecRule)).run lst
+            = .ok ((s2, absNIdxArr a3), lst) := hx3
         rw [hx3', except_ok_bind]
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
-        have := ih i1 _ lst1 seen2 s2 a3 o (by omega) hrel1 hinv1 hs2 h
+        have := ih i1 seen2 s2 a3 o (by omega) hs2 h
         rw [hi1v] at this
         exact this
       all_goals
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
-        have := ih i1 _ lst1 seen1 s1 a2 o (by omega) hrel1 hinv1 hs1 h
+        have := ih i1 seen1 s1 a2 o (by omega) hs1 h
         rw [hi1v] at this
         simp only [pure_bind]
         exact this
-  have := key _ 0#usize rst lst seen ls acc o rfl hrel hinv hs h
-  simpa [absICIL] using this
+  obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have := key _ 0#usize seen ls acc _ rfl hs hr
+  unfold UOut at this
+  unfold UOutS
+  simp only [absICIL]
+  cases r with
+  | Err e => simpa using this
+  | Ok a =>
+    obtain ⟨s', hx, hs'⟩ := this
+    exact ⟨s', lst, by simpa using hx, hs', hrel, hinv⟩
 
 /-- **`decl_used_consts_value`** — the cited three-arm case of
 `IDeclaration.usedConsts` (a definition, a theorem, an opaque), which the port
