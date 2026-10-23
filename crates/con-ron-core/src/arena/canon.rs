@@ -538,7 +538,7 @@ pub fn canon_rules_eq(
 /// con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
 /// con-leche: ConLeche/Kernel/Canon.lean:225-227 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-217 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
 /// projection table is compared as it stands.
@@ -587,7 +587,7 @@ pub fn i_constant_info_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-217 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
 /// split at the twin's own `let cs` boundary.
@@ -624,7 +624,7 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-220 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:192-217 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
     pers: &PersTier,
@@ -661,7 +661,7 @@ pub fn canon_eq_cv_and_rules(
 
 /// con-leche: ConLeche/Kernel/Canon.lean:260-263 canonEqList
 /// con-leche: ConLeche/Kernel/Canon.lean:265-269 canonEqListFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:222-229 canonEqList` — two blocks
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:219-226 canonEqList` — two blocks
 /// are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(
     pers: &PersTier,
@@ -698,14 +698,14 @@ pub fn canon_eq_list(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:121-126 ConstantVal
-/// Lean twin: `proof/ConRon/Arena/Env.lean:62-68 IConstantVal` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:50-56 IConstantVal` — the cited
 /// `deriving DecidableEq`, field by field.
 pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:156-187 RecRule
-/// Lean twin: `proof/ConRon/Arena/Env.lean:80-91 IRecRule` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:68-79 IRecRule` — the cited
 /// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
 pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
     i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
@@ -726,7 +726,7 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:232-279 IndCaps
-/// Lean twin: `proof/ConRon/Arena/Env.lean:95-116 IIndCaps` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:83-104 IIndCaps` — the cited
 /// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
     a.eta == b.eta
@@ -743,7 +743,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:164-175 IConstantInfo` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:146-156 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
 /// `Eq` and `Nat` bases are recognised by.

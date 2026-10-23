@@ -37,16 +37,14 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
     checkStructDomsAt mode fe off fvs doms j
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
-Stage 5: **the projection table** (task #175 S1).  One constant per structure:
-the fields' result-type bodies read off the stored constructor type by
-substitution alone, the per-field guard levels, the constructor and the
-counts.  `IProjTable.tableName` is the reserved name the install interned,
-kept rather than recomputed (`Arena/Env.lean`'s one added field). -/
+Stage 5: **the projection table** (task #175 S1).  One table per structure, in
+the environment's table component: the fields' result-type bodies read off the
+stored constructor type by substitution alone, the per-field guard levels, the
+constructor and the counts.  The table follows its structure, installed by the
+same block: the structure must be stored, its table not yet taken. -/
 def checkStructProjTable (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (resSort : LIdx) (guards : List LIdx) (off : Nat) (cvCa : IConstantVal)
+    (resSort : LIdx) (guards : List LIdx) (cvCa : IConstantVal)
     (fe : IFEnv) : AM IFEnv := do
   let bodies ← unwrapOr (← structProjBodies T nP nF cvCa.type)
     (.internal "direct structure: projection bodies")
@@ -60,9 +58,10 @@ def checkStructProjTable (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       (← looseBVarsBoundedFast coreWalkFuel (nP + 1) b))
   unless bodies.size = nF ∧ scopedOk do
     fail (.internal "direct structure: projection body scoping")
-  let tn ← projTableName T
-  unless (fe.find? tn).isNone do
+  unless (fe.find? T).isSome do
+    fail (.internal "direct structure: projection table before its structure")
+  unless (fe.findTable? T).isNone do
     fail (.invalid "projection table taken")
-  pure (fe.push (.projInfo ⟨T, tn, lps, nP, C, nF, resSort, bodies, guards, off⟩))
+  pure (fe.pushTable ⟨T, lps, nP, C, nF, resSort, bodies, guards⟩)
 
 end ConRon.Arena

@@ -104,9 +104,7 @@ private def installed (dsCL : List Declaration) : Nat :=
 /-- con-leche: none — does con-leche's run install a projection TABLE? -/
 private def hasTable (dsCL : List Declaration) : Bool :=
   match (ConLeche.checkDeclsPure MU OPS [] dsCL : ConLeche.CheckM ConLeche.Env) with
-  | .ok e => e.consts.any fun ci => match ci with
-    | .projInfo _ => true
-    | _ => false
+  | .ok e => !e.tables.isEmpty
   | .error _ => false
 
 /-! ## Term builders -/
@@ -260,8 +258,9 @@ private def abBlock : List ConstantInfo :=
       [rl (nm2 "B" "b") 1] ]
 
 #guard accepts [.indDecl abBlock 0]
--- seven constants and `B`'s projection table (one constructor, no index)
-#guard installed [.indDecl abBlock 0] == 8
+-- seven constants (`B`'s projection table — one constructor, no index — is
+-- in the table component)
+#guard installed [.indDecl abBlock 0] == 7
 #guard chk [.indDecl abBlock 0]
 #guard chkInstall [.indDecl abBlock 0]
 
@@ -320,8 +319,9 @@ private def treeBlock : List ConstantInfo :=
 
 #guard accepts [.indDecl lBlock 1]
 #guard accepts [.indDecl lBlock 1, .indDecl treeBlock 0]
--- `L`'s four constants, `Tree`'s four and `Tree`'s projection table
-#guard installed [.indDecl lBlock 1, .indDecl treeBlock 0] == 9
+-- `L`'s four constants and `Tree`'s four (`Tree`'s projection table is in the
+-- table component)
+#guard installed [.indDecl lBlock 1, .indDecl treeBlock 0] == 8
 #guard chk [.indDecl lBlock 1, .indDecl treeBlock 0]
 #guard chkInstall [.indDecl lBlock 1, .indDecl treeBlock 0]
 

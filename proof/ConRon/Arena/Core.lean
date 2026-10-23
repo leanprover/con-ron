@@ -298,7 +298,7 @@ at a `.proj sn i _` whose subject type is headed by `T` (applied to `nArgs`
 arguments) with no table entry at field `i`**: an out-of-range index at a
 table; a positively detected indexed structure-like type DECLINES
 (`lean4#14977`); everything else is official's reject.  `hasTable` is the
-cited `(find? (projTableName T)).isSome`, read by the caller. -/
+cited `(findTable? T).isSome`, read by the caller. -/
 def projMissError (fe : IFEnv) (hasTable : Bool) (T sn : NIdx) (i nArgs : Nat) :
     CheckError :=
   if hasTable then .invalid "projection index out of range"
@@ -622,7 +622,7 @@ def strLitToConstructor (s : String) : AM EIdx := do
 `String` declaration has the expected shape. -/
 def stringTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     let s1 ← sortOne
     pure (cv.levelParams.isEmpty && cv.type == s1)
   | none => pure false
@@ -631,7 +631,7 @@ def stringTyOk : Option IConstantInfo → AM Bool
 `Char` declaration has the expected shape. -/
 def charTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     let s1 ← sortOne
     pure (cv.levelParams.isEmpty && cv.type == s1)
   | none => pure false
@@ -641,7 +641,7 @@ def charTyOk : Option IConstantInfo → AM Bool
 Type p`. -/
 def listTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     match cv.levelParams with
     | [p] => do
       let pl ← internLNode (.param p)
@@ -659,7 +659,7 @@ def listTyOk : Option IConstantInfo → AM Bool
 `List.nil` declaration has the expected (annotated) shape. -/
 def listNilTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     match cv.levelParams with
     | [p] => do
       let pl ← internLNode (.param p)
@@ -695,7 +695,7 @@ def listNilTyOk : Option IConstantInfo → AM Bool
 `List.cons` declaration has the expected (annotated) shape. -/
 def listConsTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     match cv.levelParams with
     | [p] => do
       let pl ← internLNode (.param p)
@@ -733,7 +733,7 @@ def listConsTyOk : Option IConstantInfo → AM Bool
 `Char.ofNat` declaration has the expected (annotated) shape `Nat → Char`. -/
 def charOfNatTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     if !cv.levelParams.isEmpty then pure false else do
       let nt ← pinNat
       let nc ← constE nt
@@ -751,7 +751,7 @@ stored `String.ofList` declaration has the expected (annotated) shape
 `List.{0} Char → String`. -/
 def stringOfListTyOk : Option IConstantInfo → AM Bool
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     if !cv.levelParams.isEmpty then pure false else do
       let z ← zeroLevel
       let zs ← internLsNode [z]
@@ -1051,7 +1051,7 @@ ci.toConstantVal.type == .const boolName []`: level-free, at the type `Bool`
 itself (con-leche's task #342).  The `&&` short-circuits as con-leche's does;
 the type test is handle equality against the interned `Bool` (exactness). -/
 def boolCtorOk (ci : IConstantInfo) : AM Bool := do
-  let cv ← ci.toConstantVal
+  let cv := ci.toConstantVal
   if cv.levelParams.isEmpty then do
     let b ← constE (← boolName)
     pure (cv.type == b)
@@ -1151,7 +1151,7 @@ def natOpCod (fe : IFEnv) (c : NIdx) (e : EIdx) : AM Bool := do
     if e != bc then pure false else
       match fe.find? bn with
       | some ci => do
-        let cv ← ci.toConstantVal
+        let cv := ci.toConstantVal
         let s1 ← sortOne
         pure (cv.levelParams.isEmpty && cv.type == s1)
       | none => pure false
@@ -1385,7 +1385,6 @@ def proofIrrel (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (a b : EIdx) :
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:322-364 propIrrel — **the hoisted
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.propIrrel_bridge, then delete this line
 proof-irrelevance test** (con-leche's task #168, Option U): the `Prop`
 branch of `proofIrrel` alone, with the head-symbol readers deciding both
 fast arms before any inference. -/
@@ -1421,16 +1420,17 @@ def propIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:723-728 towerSlotsAll — the slot
 walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN §3.4's rule
 turns the closure into a counted recursion. -/
-def towerSlotsAllGo (fe : IFEnv) (T : NIdx) : Nat → Nat → AM Bool
-  | 0, _ => pure true
-  | n + 1, j => do
-    if (← fe.findProj? T j).isSome then towerSlotsAllGo fe T n (j + 1)
-    else pure false
+def towerSlotsAllGo (fe : IFEnv) (T : NIdx) : Nat → Nat → Bool
+  | 0, _ => true
+  | n + 1, j =>
+    match fe.findProj? T j with
+    | some _ => towerSlotsAllGo fe T n (j + 1)
+    | none => false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:723-728 towerSlotsAll
 con-leche: ConLeche/Kernel/FEnv.lean:262-264 FEnv.towerSlotsAllF
 Are all `nF` projection slots of `T` table entries? -/
-def towerSlotsAll (fe : IFEnv) (T : NIdx) (nF : Nat) : AM Bool :=
+def towerSlotsAll (fe : IFEnv) (T : NIdx) (nF : Nat) : Bool :=
   towerSlotsAllGo fe T nF 0
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:730-735 etaProjs — the `.proj`
@@ -1517,7 +1517,7 @@ def structEtaCertWith (r : CoreFnsA) (fe : IFEnv)
                 match ← viewLsLen us' with
                 | none => failDanglingLs
                 | some uslen =>
-                let slots ← towerSlotsAll fe T caps.etaFields
+                let slots := towerSlotsAll fe T caps.etaFields
                 if caps.eta = true ∧ caps.etaCtor = c ∧
                     reserved.contains T = false ∧ reserved.contains c = false ∧
                     targs.length = caps.etaParams ∧
@@ -1662,7 +1662,7 @@ def andRescueSlotsGo (fe : IFEnv) (an ctor : NIdx) (nP : Nat) (ust : LsIdx) :
     Nat → Nat → AM Bool
   | 0, _ => pure true
   | n + 1, j => do
-    match ← fe.findProj? an j with
+    match fe.findProj? an j with
     | some e => do
       if e.ctor == ctor && e.numParams == nP && e.numFields == 2 &&
           (← e.fireOk ust) then
@@ -1769,7 +1769,7 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                     let reserved ← reservedBasisNames
                     if reserved.contains T = false ∧
                         reserved.contains caps.etaCtor = false then do
-                      if ← towerSlotsAll fe T caps.etaFields then do
+                      if towerSlotsAll fe T caps.etaFields then do
                         let fabArgs ← etaFabArgsE T targs major caps.etaFields
                         let hd ← internE (.const caps.etaCtor ust)
                         let fab ← mkAppN hd fabArgs
@@ -2305,7 +2305,7 @@ the rule does not fire.  Callers: `whnfCoreBody`'s `.proj` clause and
 def reduceProjCore (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (sn : NIdx) (i : Nat) (c : EIdx) : AM (Option EIdx) := do
   let e' ← projLitToCtor r fe depth c
-  match ← fe.findProj? sn i with
+  match fe.findProj? sn i with
   | some entry => do
     let hh ← getAppFn coreWalkFuel e'
     if hh.tag == ETag.const then
@@ -2447,7 +2447,6 @@ def ensureSort (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) :
   else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody — the λ clause's
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferLamResult_bridge, then delete this line
 result, `.forallE ty (bt.abstract1 depth)`.  con-leche writes it once at
 the end of a clause with three exits; the arena names it, so the three exits
 share one spelling and no arm is duplicated (DESIGN §8.4's Rust shape). -/
@@ -2575,7 +2574,6 @@ def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
         else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI — the `.lam`
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferLam_bridge, then delete this line
 clause: the binder's own domain is checked to be a type here (which is why the
 loop starts at `k = 1` with one free variable and a one-entry stack), and the
 rest of the λ-chain is peeled by `inferLams`. -/
@@ -2588,7 +2586,6 @@ def inferLam (r : CoreFnsA) (depth : Nat) (ty body : EIdx) : AM EIdx := do
   else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI — the
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferForall_bridge, then delete this line
 `.forallE` clause, `inferLam`'s twin. -/
 def inferForall (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty body : EIdx) : AM EIdx := do
@@ -2655,7 +2652,6 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI — the `.app`
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferApp_bridge, then delete this line
 clause: the head is inferred ONCE and the whole argument vector is run through
 `inferSpine`. -/
 def inferApp (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -2696,7 +2692,6 @@ def inferAppIOAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   inferSpineIO r fe depth tf #[] hv.2 0
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1035-1142 inferBodyI — the `.proj`
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferProj_bridge, then delete this line
 clause, shared by `inferBody` and `inferBodyIO` (con-leche's `inferBodyIOI`
 dispatches its `.proj` to `inferBodyI`'s): the subject type's head must be the
 node's structure at the table's arity (official `infer_proj`; these guards are
@@ -2710,7 +2705,7 @@ def inferProj (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (sn : NIdx) (i : Nat)
   if hh.tag == ETag.const then
     match ← view hh with
     | .const T us => do
-      match ← fe.findProj? T i with
+      match fe.findProj? T i with
       | some entry => do
         let targs ← getAppArgs coreWalkFuel te
         if T != sn then
@@ -2734,14 +2729,13 @@ def inferProj (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (sn : NIdx) (i : Nat)
             else entry.typeAt us targs pe
           else fail (.notImplemented "projection without a native entry")
       | none => do
-        let hasTable := (fe.find? (← projTableName T)).isSome
+        let hasTable := (fe.findTable? T).isSome
         let targs ← getAppArgs coreWalkFuel te
         fail (projMissError fe hasTable T sn i targs.length)
     | _ => failDanglingE
   else fail (.invalid "invalid projection: not a structure-like type, or no such field")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1182 inferBody — the inference
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferBody_bridge, then delete this line
 body.  The `.const` clause reads the stored type through `constTyAt`, so a
 constant inferred twice at the same levels pays the level substitution
 once. -/
@@ -2762,16 +2756,11 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
         let err ← unknownConstError n
         fail err
       | some ci => do
-        -- a projection table is not a term (con-leche's task #175 W4c)
-        if ci.isTowerEntry then do
-          -- no readback for the message: the port has none (round 4's audit)
-          fail (.invalid "projection table entry used as a constant")
-        else do
-          let cv ← ci.toConstantVal
-          let usl ← viewLs us
-          if usl.length != cv.levelParams.length then do
-            fail (.invalid "incorrect number of universe levels")
-          else constTyAt cv us
+        let cv := ci.toConstantVal
+        let usl ← viewLs us
+        if usl.length != cv.levelParams.length then do
+          fail (.invalid "incorrect number of universe levels")
+        else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
         let nn ← pinNat
@@ -2807,7 +2796,6 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
       fail (.notImplemented "inferType beyond the supported fragment")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1184-1276 inferBodyIO — **the io
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Core.inferBodyIO_bridge, then delete this line
 inference body**, official's `infer_only`: `inferBody` with the application,
 ∀, λ and `let` clauses changed — no argument check (`inferSpineIO`), the
 binder clauses chained, no domain-sort run at the λ, and a `let` infers its
@@ -2828,17 +2816,13 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
         let err ← unknownConstError n
         fail err
       | some ci => do
-        if ci.isTowerEntry then do
-          -- no readback for the message: the port has none (round 4's audit)
-          fail (.invalid "projection table entry used as a constant")
-        else do
-          let cv ← ci.toConstantVal
-          match ← viewLsLen us with
-          | none => failDanglingLs
-          | some usl =>
-          if usl != cv.levelParams.length then do
-            fail (.invalid "incorrect number of universe levels")
-          else constTyAt cv us
+        let cv := ci.toConstantVal
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+        if usl != cv.levelParams.length then do
+          fail (.invalid "incorrect number of universe levels")
+        else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
         let nn ← pinNat

@@ -321,6 +321,9 @@ macro "aext_auto" : tactic => `(tactic|
     | with_reducible exact AExtOf.of_promoteProjTable _ _ _
     | with_reducible exact AExtOf.of_promoteCI _ _ _
     | with_reducible exact AExtOf.of_promoteCIList _ _ _
+    | with_reducible exact AExtOf.of_promoteProjTables _ _ _
+    | with_reducible exact AExtOf.of_promoteNewConsts _ _ _ _
+    | with_reducible exact AExtOf.of_promoteNewTables _ _ _ _
     | with_reducible refine AExtOf.bind ?_ fun _ => ?_
     | split)
 
@@ -462,8 +465,31 @@ theorem promoteVG_aext (m : PMemo) (fuel : Nat) (g : ValueGroup) :
     AExtOf (promoteVG m fuel g) := by
   unfold promoteVG; aext_auto
 
-theorem promoteNew_aext (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
-    AExtOf (promoteNew m fuel k fe) := by
+theorem promoteProjTables_aext (m : PMemo) (fuel : Nat) (ts : List IProjTable) :
+    AExtOf (promoteProjTables m fuel ts) := by
+  induction ts generalizing m with
+  | nil => exact AExtOf.of_pure _
+  | cons a as ih => unfold promoteProjTables; aext_auto
+
+theorem AExtOf.of_promoteProjTables (m : PMemo) (fuel : Nat) (ts : List IProjTable) :
+    AExtOf (promoteProjTables m fuel ts) := promoteProjTables_aext m fuel ts
+
+theorem promoteNewConsts_aext (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
+    AExtOf (promoteNewConsts m fuel k fe) := by
+  unfold promoteNewConsts; aext_auto
+
+theorem AExtOf.of_promoteNewConsts (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
+    AExtOf (promoteNewConsts m fuel k fe) := promoteNewConsts_aext m fuel k fe
+
+theorem promoteNewTables_aext (m : PMemo) (fuel kt : Nat) (fe : IFEnv) :
+    AExtOf (promoteNewTables m fuel kt fe) := by
+  unfold promoteNewTables; aext_auto
+
+theorem AExtOf.of_promoteNewTables (m : PMemo) (fuel kt : Nat) (fe : IFEnv) :
+    AExtOf (promoteNewTables m fuel kt fe) := promoteNewTables_aext m fuel kt fe
+
+theorem promoteNew_aext (m : PMemo) (fuel k kt : Nat) (fe : IFEnv) :
+    AExtOf (promoteNew m fuel k kt fe) := by
   unfold promoteNew; aext_auto
 
 /-! ## The trust census

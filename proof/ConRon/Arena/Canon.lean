@@ -190,14 +190,10 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 con-leche: ConLeche/Kernel/Canon.lean:225-227 ConstantInfo.canonEq
 con-leche: ConLeche/Kernel/Canon.lean:229-244 ConstantInfo.canonEqFast
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
-are not compared (`canon` resets both to `{}`), and a projection table is
-compared as it stands (`canon` is the identity there — a table never occurs in
-parsed input). -/
+are not compared (`canon` resets both to `{}`). -/
 def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .axiomInfo cv, .axiomInfo cv' => cv.canonEq cv'
   | .defnInfo cv v h, .defnInfo cv' v' h' => do
@@ -218,7 +214,6 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
         canonRulesEq cv.levelParams cv'.levelParams cs coreWalkFuel rules rules'
       else pure false
     else pure false
-  | .projInfo t, .projInfo t' => pure (t == t')
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:260-263 canonEqList

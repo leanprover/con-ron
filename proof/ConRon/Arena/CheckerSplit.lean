@@ -57,7 +57,6 @@ structure ValueGroup where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader —
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerSplit.installHeader_bridge, then delete this line
 `checkConstantVal` minus its inference: the syntactic guards.  con-leche writes
 the shared clauses out twice and so does this, clause for clause. -/
 def installHeader (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
@@ -65,8 +64,6 @@ def installHeader (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
     fail (.invalid "reserved basis name")
-  if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
     fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do

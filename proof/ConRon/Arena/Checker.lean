@@ -168,8 +168,9 @@ bracket phase B already has with one operation added at its end:
     flushCaches; enterScratch; <the step>; promote; dropScratch
 
 `promote` (`Arena/Promote.lean`) is the memoised structural copy scratch →
-persistent, run on **exactly what leaves the step**: the `k` constants the
-step installed (`promoteNew`, `k` from the counter read before it) and the
+persistent, run on **exactly what leaves the step**: the `k` constants and the
+`kt` projection tables the step installed (`promoteNew`, `k` and `kt` from the
+counter and the table count read before it) and the
 pending record (`promoteVG` — an `opaque`'s value is not in the environment,
 so the seam has to be promoted beside it, at the SAME memo, so that the
 sharing between a header's type and its value survives the copy).  A
@@ -191,18 +192,20 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     (fe : IFEnv) (pend : Array PendingCheck) (pd : IDeclaration) :
     AM (IFEnv × Array PendingCheck) := do
   let vis := fe.visibleBelow
+  let nt := fe.env.tables.length
   flushCaches
   enterScratch
   let (fe, vg?) ← installStepGo mode pins fe pd
   let k := fe.visibleBelow - vis
+  let kt := fe.env.tables.length - nt
   match vg? with
   | none => do
-    let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k fe
+    let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k kt fe
     dropScratch
     pure (fe, pend)
   | some vg => do
     let (m, vg) ← promoteVG PMemo.empty coreWalkFuel vg
-    let (_, fe) ← promoteNew m coreWalkFuel k fe
+    let (_, fe) ← promoteNew m coreWalkFuel k kt fe
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 

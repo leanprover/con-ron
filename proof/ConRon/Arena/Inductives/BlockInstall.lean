@@ -179,7 +179,6 @@ def checkBlockAgree (mode : CheckMode) (fe : IFEnv) (nP : Nat)
     checkBlockAgree mode fe nP cvTa₀ s₀ rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:171-177 consBlockInds
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove BlockInstall.consBlockInds_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
 The members' formers consed, in block order (member 0 deepest), each with ITS
 capability record at the block's `is_rec` verdict. -/

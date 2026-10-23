@@ -169,7 +169,7 @@ pub fn check_block_rec(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-121 checkBlockTables
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:86-105 checkBlockTables` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:86-104 checkBlockTables` — **the
 /// projection table at every STRUCTURE-LIKE member** (one constructor, no
 /// index) from member `i` on: the member's table; nothing at any other
 /// member.
@@ -216,7 +216,7 @@ pub fn check_block_tables(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:123-136 checkBlockTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:154-176 checkBlockTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:107-122 checkBlockTail` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:106-121 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the
 /// recursors consed at their majors, and the projection tables.
@@ -247,7 +247,7 @@ pub fn check_block_tail(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:138-146 checkBlock
 /// con-leche: ConLeche/Cached/CheckerC.lean:178-186 checkBlockKS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:124-137 checkBlock` — **check
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:123-136 checkBlock` — **check
 /// and install a block on the uniform route**: the distinct names, the flush,
 /// the pass at official's `is_rec`, and the install after it.
 pub fn check_block(

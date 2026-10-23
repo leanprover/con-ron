@@ -500,7 +500,6 @@ def classFormerTy (fe : IFEnv) (cvTas : List IConstantVal) (m : TargetMajor) : A
     | _ => fail (.internal "generated recursor: a class's former vanished")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-378 classConstOk
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove GenRec.classConstOk_bridge, then delete this line
 **A generated constant, checked**: `checkConstantValF` — the generated type is
 stored as the generator built it; inference validates it like any other
 declared type: the guards in the cited order, then its type inferred and a
@@ -510,8 +509,6 @@ def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM Unit :
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
     fail (.invalid "reserved basis name")
-  if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
     fail (.invalid "duplicate universe parameters in")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
@@ -686,7 +683,6 @@ def checkBlockClasses (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (params :
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
 con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:343-351 consBlockRecsBare
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove GenRec.classFeR_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:141-146 consBlockRecsBareF
 **The rule-less generated recursors consed onto the constructors'
 environment**, pushed TEMPORARILY (the module note): each recursor `m` at its

@@ -80,7 +80,6 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
@@ -228,11 +227,13 @@ a fold with no tiers would say nothing about the fold the binary runs. -/
 def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   let vis := fe.visibleBelow
+  let nt := fe.env.tables.length
   flushCaches
   enterScratch
   let fe ← checkDecl mode pins fe d
   let k := fe.visibleBelow - vis
-  let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k fe
+  let kt := fe.env.tables.length - nt
+  let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k kt fe
   dropScratch
   pure fe
 

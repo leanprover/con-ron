@@ -85,7 +85,7 @@ def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
   let blk ← ConRon.Arena.BasisKind.decls .quotK
   match blk[k.slot]? with
   | some ci => do
-    let pcv ← ci.toConstantVal
+    let pcv := ci.toConstantVal
     cv.canonEq pcv
   | none => pure false
 

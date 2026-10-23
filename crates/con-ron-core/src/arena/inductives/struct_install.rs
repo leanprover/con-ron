@@ -151,7 +151,7 @@ pub fn check_struct_doms_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
 /// table per structure, in the environment's table component: the fields'
 /// result-type bodies read off the stored constructor type by substitution
@@ -190,7 +190,7 @@ pub fn check_struct_proj_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
@@ -235,7 +235,7 @@ pub fn proj_bodies_scoped(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-64 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
 /// — the table follows its structure, installed by the same block: the
 /// structure must be stored (an internal error otherwise), its table not yet
 /// taken, and then the table is installed.

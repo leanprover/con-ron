@@ -270,22 +270,19 @@ def promoteCaps (m : PMemo) (fuel : Nat) (c : IIndCaps) :
   let (m, ctors) ← promoteNList m fuel c.ctors
   pure (m, { c with etaCtor := ct, all := all, ctors := ctors })
 
-/-- con-leche: none — arena infrastructure; promote a projection table,
-`tableName` included (it is a stored handle, not a recomputed name —
-`Arena/Env.lean`'s one added field). -/
+/-- con-leche: none — arena infrastructure; promote a projection table. -/
 def promoteProjTable (m : PMemo) (fuel : Nat) (t : IProjTable) :
     AM (PMemo × IProjTable) := do
   let (m, sn) ← promoteN m fuel t.structName
-  let (m, tn) ← promoteN m fuel t.tableName
   let (m, lps) ← promoteNList m fuel t.levelParams
   let (m, c) ← promoteN m fuel t.ctor
   let (m, ss) ← promoteL m fuel t.structSort
   let (m, bs) ← promoteEList m fuel t.bodies.toList
   let (m, gs) ← promoteLList m fuel t.guards
-  pure (m, ⟨sn, tn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs, t.off⟩)
+  pure (m, ⟨sn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs⟩)
 
 /-- con-leche: none — arena infrastructure; **promote a stored constant** —
-the seven `IConstantInfo` constructors, which is what "the handles the
+the six `IConstantInfo` constructors, which is what "the handles the
 environment keeps" means. -/
 def promoteCI (m : PMemo) (fuel : Nat) :
     IConstantInfo → AM (PMemo × IConstantInfo)
@@ -310,9 +307,6 @@ def promoteCI (m : PMemo) (fuel : Nat) :
     let (m, cv) ← promoteCV m fuel v
     let (m, rules) ← promoteRules m fuel rs
     pure (m, .recInfo cv mI rP rules)
-  | .projInfo t => do
-    let (m, tbl) ← promoteProjTable m fuel t
-    pure (m, .projInfo tbl)
 
 /-- con-leche: none — arena infrastructure; promote a block's constants at ONE
 memo, so that the sharing between a block's members survives. -/
@@ -323,6 +317,16 @@ def promoteCIList (m : PMemo) (fuel : Nat) :
     let (m, c) ← promoteCI m fuel c
     let (m, cs) ← promoteCIList m fuel cs
     pure (m, c :: cs)
+
+/-- con-leche: none — arena infrastructure; promote a step's projection tables at
+ONE memo, as `promoteCIList` its constants. -/
+def promoteProjTables (m : PMemo) (fuel : Nat) :
+    List IProjTable → AM (PMemo × List IProjTable)
+  | [] => pure (m, [])
+  | t :: ts => do
+    let (m, t) ← promoteProjTable m fuel t
+    let (m, ts) ← promoteProjTables m fuel ts
+    pure (m, t :: ts)
 
 /-- con-leche: none — arena infrastructure; promote the datum that crosses the
 install/check seam (`Arena/CheckerSplit.lean`'s `ValueGroup`).  An `opaque`'s
@@ -355,26 +359,65 @@ def indexPromoted (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (c : Nat) :
   | [] => idx
   | ci :: cs => indexPromoted (idx.insert ci.name (c - 1, ci)) (c - 1) cs
 
-/-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion
-half**: the `k` constants the step just installed, copied into the persistent
-tier and re-indexed, everything below them untouched.
+/-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion of
+the constants**: the `k` constants the step just installed, copied into the
+persistent tier and re-indexed, everything below them untouched.
 
 `k` is `fe.visibleBelow - n₀` for the counter `n₀` read BEFORE the step: every
-install route in (B) grows the environment by `IFEnv.push` alone
+install route in (B) grows the environment's constants by `IFEnv.push` alone
 (`Arena/Checker.lean`, `Arena/DeclCheck.lean`, `Arena/Inductives/*`), so the
 `k` newest entries of `fe.env.consts` are exactly the step's, and the
 provisional self-environment the recursor stage builds (`genRecCheck`'s
 `feR`, popped before it returns) is discarded by their own callers and
 never reach here. -/
-def promoteNew (m : PMemo) (fuel k : Nat) (fe : IFEnv) : AM (PMemo × IFEnv) := do
+def promoteNewConsts (m : PMemo) (fuel k : Nat) (fe : IFEnv) : AM (PMemo × IFEnv) := do
   if k == 0 then pure (m, fe)
   else
-    let ⟨⟨consts⟩, idx, vb⟩ := fe
+    let ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := fe
     let installed := consts.take k
     let below := consts.drop k
     let idx := eraseInstalled idx installed
     let (m, installed) ← promoteCIList m fuel installed
     let idx := indexPromoted idx vb installed
-    pure (m, ⟨⟨installed ++ below⟩, idx, vb⟩)
+    pure (m, ⟨⟨installed ++ below, tables⟩, idx, vb, tbls⟩)
+
+/-- con-leche: none — arena infrastructure; forget the table-map rows of the
+tables a step installed, for the reason `eraseInstalled` forgets the
+constants': a row is keyed by the structure's name handle, which the
+promotion may move. -/
+def eraseInstalledTables (tbls : Std.HashMap NIdx IProjTable) :
+    List IProjTable → Std.HashMap NIdx IProjTable
+  | [] => tbls
+  | t :: ts => eraseInstalledTables (tbls.erase t.structName) ts
+
+/-- con-leche: none — arena infrastructure; re-index the promoted tables.  The
+list is NEWEST FIRST, as `IEnv.tables` is. -/
+def indexPromotedTables (tbls : Std.HashMap NIdx IProjTable) :
+    List IProjTable → Std.HashMap NIdx IProjTable
+  | [] => tbls
+  | t :: ts => indexPromotedTables (tbls.insert t.structName t) ts
+
+/-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion of
+the tables**: the `kt` projection tables the step just installed (`kt` is the
+growth of `fe.env.tables`, which only `IFEnv.pushTable` extends), copied and
+re-indexed as `promoteNewConsts` does the constants. -/
+def promoteNewTables (m : PMemo) (fuel kt : Nat) (fe : IFEnv) : AM (PMemo × IFEnv) := do
+  if kt == 0 then pure (m, fe)
+  else
+    let ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := fe
+    let installed := tables.take kt
+    let below := tables.drop kt
+    let tbls := eraseInstalledTables tbls installed
+    let (m, installed) ← promoteProjTables m fuel installed
+    let tbls := indexPromotedTables tbls installed
+    pure (m, ⟨⟨consts, installed ++ below⟩, idx, vb, tbls⟩)
+
+/-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion
+half**: what the step just installed — its `k` constants and its `kt`
+projection tables — copied into the persistent tier and re-indexed, everything
+below them untouched. -/
+def promoteNew (m : PMemo) (fuel k kt : Nat) (fe : IFEnv) : AM (PMemo × IFEnv) := do
+  let (m, fe) ← promoteNewConsts m fuel k fe
+  promoteNewTables m fuel kt fe
 
 end ConRon.Arena

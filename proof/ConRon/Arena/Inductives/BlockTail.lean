@@ -84,12 +84,9 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (nested : Boo
   genRecCheck mode fe p.shape nested params tbl rd ms cvTas block
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-121 checkBlockTables
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
 **The projection table at every STRUCTURE-LIKE member** (one constructor, no
-index): the member's table at the tagged tower's projection offset `1`;
-nothing at any other member.  The three lists are walked side by side, as the
+index): the member's table; nothing at any other member.  The three lists are walked side by side, as the
 Rust's index `i` walks them. -/
 def checkBlockTables (p : BlockShape) :
     List MemberShape → List (List (IConstantVal × Nat)) → List (List (List LIdx)) →
@@ -100,7 +97,7 @@ def checkBlockTables (p : BlockShape) :
       if m.nIdx == 0 then do
         let guards ← structProjGuards cA.type p.nP nF sorts
         let fe₂ ← checkStructProjTable m.cvT.name cA.name p.lps p.nP nF p.resSort
-          guards 1 cA fe
+          guards cA fe
         checkBlockTables p ms css sss fe₂
       else checkBlockTables p ms css sss fe
     | _, _ => checkBlockTables p ms css sss fe

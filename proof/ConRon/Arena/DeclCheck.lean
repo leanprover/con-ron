@@ -47,14 +47,14 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
     if fe.find? en != some ea then pure false else do
       match fe.find? (← iffName) with
       | some (.indInfo cvI _) => do
-        if !(← cvI.matchesPin (← (← iffA).toConstantVal)) then pure false else do
+        if !(← cvI.matchesPin (← iffA).toConstantVal) then pure false else do
           match fe.find? (← iffIntroName) with
           | some (.ctorInfo cvIi 2 2) => do
-            if !(← cvIi.matchesPin (← (← iffIntroA).toConstantVal)) then pure false
+            if !(← cvIi.matchesPin (← iffIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← iffRecName) with
               | some (.recInfo cvIr 4 4 _) => do
-                if !(← cvIr.matchesPin (← (← iffRecA).toConstantVal)) then pure false
+                if !(← cvIr.matchesPin (← iffRecA).toConstantVal) then pure false
                 else cv.matchesPin (← propextA)
               | _ => pure false
           | _ => pure false
@@ -67,14 +67,14 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
     if cv.name == cn then do
       match fe.find? (← nonemptyName) with
       | some (.indInfo cvN _) => do
-        if !(← cvN.matchesPin (← (← nonemptyA).toConstantVal)) then pure false else do
+        if !(← cvN.matchesPin (← nonemptyA).toConstantVal) then pure false else do
           match fe.find? (← nonemptyIntroName) with
           | some (.ctorInfo cvNi 1 1) => do
-            if !(← cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)) then pure false
+            if !(← cvNi.matchesPin (← nonemptyIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← nonemptyRecName) with
               | some (.recInfo cvNr 3 3 _) => do
-                if !(← cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)) then pure false
+                if !(← cvNr.matchesPin (← nonemptyRecA).toConstantVal) then pure false
                 else cv.matchesPin (← choiceA)
               | _ => pure false
           | _ => pure false
@@ -496,7 +496,7 @@ task #97-T2-LOCKSTEP lane Checker round 2. -/
 def boolCtorTyped (fe2 : IFEnv) (n : NIdx) : AM Bool := do
   match fe2.find? n with
   | some ci => do
-    let cv ← ci.toConstantVal
+    let cv := ci.toConstantVal
     let bn ← boolName
     let boolTy ← constE bn
     pure (cv.type == boolTy)
@@ -709,7 +709,6 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 /-! ## The three value kinds' full checks -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 pushed index.  The reducibility hint is stored untouched: it steers only the
 lazy delta unfolding order, never a verdict. -/
@@ -722,7 +721,6 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal — check a
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 `theorem` declaration's value against its checked constant (whose type must
 additionally be a proposition).  **A theorem is stored by its statement
 only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the checked
@@ -741,7 +739,6 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.thmInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal — check an
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.checkOpaqueVal_bridge, then delete this line
 `opaque` declaration's value against its checked constant: exactly the theorem
 check without the is-a-proposition requirement.  The result is stored as an
 `axiomInfo` — the checked value is a realizability witness, consumed by the
@@ -755,7 +752,6 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.axiomInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove DeclCheck.installBasisDecl_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:372-376 installBasisDeclF
 Install one pinned basis declaration (duplicate-checked), returning the
 pushed index. -/

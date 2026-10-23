@@ -87,7 +87,7 @@ def usedConstsBlock (seen : Std.HashSet EIdx) (acc : Array NIdx) :
     List IConstantInfo → AM (Std.HashSet EIdx × Array NIdx)
   | [] => pure (seen, acc)
   | ci :: cs => do
-    let ty := (← ci.toConstantVal).type
+    let ty := ci.toConstantVal.type
     let (seen, acc) ← usedConstsGo seen acc coreWalkFuel ty
     let (seen, acc) ← match ci with
       | .recInfo _ _ _ rules => usedConstsRules seen acc rules

@@ -111,9 +111,7 @@ def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
           c.ruleK, c.sortZ, all, c.nparams, ctors⟩
   | _, _, _ => none
 
-/-- con-leche: none — the denotation of a projection table.  `tableName` has
-no counterpart: con-leche recomputes it (`Arena/Env.lean`'s one-added-field
-note), so the denotation simply drops it. -/
+/-- con-leche: none — the denotation of a projection table. -/
 def denoteProjTable (st : EStore) (t : IProjTable) : Option ProjTable :=
   match denoteN st.ns t.structName, denoteNList st.ns t.levelParams,
         denoteN st.ns t.ctor with
@@ -121,7 +119,7 @@ def denoteProjTable (st : EStore) (t : IProjTable) : Option ProjTable :=
     match denoteL st.ls t.structSort, denoteEArray st t.bodies,
           denoteLList st.ls t.guards with
     | some ss, some bs, some gs =>
-      some ⟨sn, lps, t.numParams, c, t.numFields, ss, bs, gs, t.off⟩
+      some ⟨sn, lps, t.numParams, c, t.numFields, ss, bs, gs⟩
     | _, _, _ => none
   | _, _, _ => none
 
@@ -142,7 +140,6 @@ def denoteCI (st : EStore) : IConstantInfo → Option ConstantInfo
     match denoteCV st v, denoteRules st rs with
     | some cv, some rules => some (.recInfo cv mI rP rules)
     | _, _ => none
-  | .projInfo t => (denoteProjTable st t).map .projInfo
 
 /-- con-leche: none — the denotation of a block's constants. -/
 def denoteCIList (st : EStore) : List IConstantInfo → Option (List ConstantInfo)
@@ -308,19 +305,6 @@ def internCaps (c : IndCaps) : AM IIndCaps := do
   pure ⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
         c.ruleK, c.sortZ, all, c.nparams, ctors⟩
 
-/-- con-leche: none — intern a projection table.  `tableName` is the field
-`Arena/Env.lean` adds: the reserved name, interned here so that
-`IConstantInfo.name` stays pure. -/
-def internProjTable (m : EMemo) (t : ProjTable) : AM (EMemo × IProjTable) := do
-  let sn ← internName t.structName
-  let tn ← projTableName sn
-  let lps ← internNameList t.levelParams
-  let c ← internName t.ctor
-  let ss ← internLevel t.structSort
-  let (m, bs) ← internExprList m t.bodies.toList
-  let gs ← internLevelList t.guards
-  pure (m, ⟨sn, tn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs, t.off⟩)
-
 /-- con-leche: none — intern a stored constant. -/
 def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
   | .axiomInfo v => do
@@ -344,9 +328,6 @@ def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
     let (m, cv) ← internCV m v
     let (m, rules) ← internRules m rs
     pure (m, .recInfo cv mI rP rules)
-  | .projInfo t => do
-    let (m, tbl) ← internProjTable m t
-    pure (m, .projInfo tbl)
 
 /-- con-leche: none — intern a block's constants. -/
 def internCIList (m : EMemo) : List ConstantInfo → AM (EMemo × List IConstantInfo)

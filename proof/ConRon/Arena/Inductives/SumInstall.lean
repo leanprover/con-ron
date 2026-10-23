@@ -190,7 +190,6 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     pure ((cvCa, c.2) :: rest, sorts :: srest)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:164-167 consSumCtors
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove SumInstall.consSumCtors_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:116-119 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest).  Pure: the
 index push touches no term. -/

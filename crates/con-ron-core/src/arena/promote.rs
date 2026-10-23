@@ -805,7 +805,7 @@ pub fn promote_caps(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-285 promoteProjTable
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-282 promoteProjTable
 /// Promote a projection table.
 pub fn promote_proj_table(
     tier: &mut PersTier,
@@ -823,7 +823,7 @@ pub fn promote_proj_table(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-285 promoteProjTable
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-282 promoteProjTable
 /// The table's second half — the constructor, the sort, the bodies and the
 /// guards — split at the twin's own `let` boundary (task #97-P4c's rule).
 #[allow(clippy::too_many_arguments)]
@@ -863,7 +863,7 @@ pub fn promote_proj_table_rest(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:287-315 promoteCI
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:284-309 promoteCI
 /// **Promote a stored constant** — the six `IConstantInfo` constructors,
 /// which is what "the handles the environment keeps" means.
 pub fn promote_ci(
@@ -913,7 +913,7 @@ pub fn promote_ci(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:327-335 promoteVG
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:331-339 promoteVG
 /// Promote the datum that crosses the install/check seam
 /// (`arena::checker_split`'s `ValueGroup`).  An `opaque`'s value is NOT in the
 /// environment — only the pending record holds it — so the seam is promoted
@@ -947,7 +947,7 @@ pub fn promote_vg(
 // (`Promote.lean:368-410`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:339-348 eraseInstalled
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:343-352 eraseInstalled
 /// Forget the index rows of the constants a step installed — `consts[i..]`,
 /// which over this `Vec`'s oldest-first order is the twin's `consts.take k`
 /// over its newest-first list.
@@ -968,8 +968,8 @@ pub fn erase_installed(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:350-356 indexPromoted
-/// Lean twin: `proof/ConRon/Arena/Promote.lean:358-378 promoteNew`
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:354-360 indexPromoted
+/// Lean twin: `proof/ConRon/Arena/Promote.lean:362-382 promoteNewConsts`
 /// Promote the constants of slots `start..j` and re-index them at the
 /// installation counters they were pushed with, walking DOWN — the twin's list
 /// is newest-first and its counters run down from `c`, which over this `Vec`
@@ -1006,7 +1006,7 @@ pub fn index_promoted(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:358-378 promoteNewConsts
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:362-382 promoteNewConsts
 /// **The phase-A bracket's promotion of the constants**: the `k` constants the
 /// step just installed, copied into the persistent tier and re-indexed,
 /// everything below them untouched.
@@ -1042,7 +1042,7 @@ pub fn promote_new_consts(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 eraseInstalledTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:384-391 eraseInstalledTables
 /// Forget the table-map rows of the tables a step installed — `tables[i..]`,
 /// the twin's `tables.take kt` — for the reason `erase_installed` forgets the
 /// constants': a row is keyed by the structure's name HANDLE, which
@@ -1058,7 +1058,7 @@ pub fn erase_installed_tables(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 indexPromotedTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:393-398 indexPromotedTables
 /// Promote the tables of slots `start..j` and re-index them, walking DOWN as
 /// `index_promoted` does; the promoted table is written back into its own
 /// slot.
@@ -1086,7 +1086,7 @@ pub fn index_promoted_tables(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:1-1 promoteNewTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:400-413 promoteNewTables
 /// **The phase-A bracket's promotion of the tables**: the `kt` projection
 /// tables the step just installed (`kt` is the growth of `env.tables`, which
 /// only `ifenv_push_table` extends), copied and re-indexed as
@@ -1114,7 +1114,7 @@ pub fn promote_new_tables(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:358-378 promoteNew
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:415-421 promoteNew
 /// **The phase-A bracket's promotion half**: what the step just installed —
 /// its `k` constants and its `kt` projection tables — copied into the
 /// persistent tier and re-indexed, everything below them untouched.

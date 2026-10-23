@@ -119,23 +119,6 @@ def nameNodup : List NIdx → Bool
   | [] => true
   | n :: ns => !ns.contains n && nameNodup ns
 
-/-- con-leche: ConLeche/Kernel/Level.lean:216-223 Name.isProjFnShape — is
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.NIdx.isProjFnShape_bridge, then delete this line
-this shaped like an installed projection function's name (`(T.proj).i`) or a
-projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
-checker's own installs. -/
-def NIdx.isProjFnShape (n : NIdx) : AM Bool := do
-  if n.tag == NTag.num then
-    match ← viewN n with
-    | .num p _ => do
-      if p.tag == NTag.str then
-        match ← viewN p with
-        | .str _ s => pure (s == "proj" || s == "projTable")
-        | _ => pure false
-      else pure false
-    | _ => pure false
-  else pure false
-
 /-! ## Level parameters, defined
 
 `Expr.allLevelParamsDefined` is `ConLeche/Kernel/Level.lean`'s and was not
@@ -334,9 +317,7 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 /-! ## The per-declaration constant check -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
--- con-leche: CHANGED since ae1f3198 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, well-formed universe
 parameters, and a type that is a type and mentions only declared parameters.
 Returns nothing: the constant is stored as declared (con-leche's task #342).
@@ -349,8 +330,6 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
     fail (.invalid "reserved basis name")
-  if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
     fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do

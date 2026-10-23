@@ -140,9 +140,7 @@ private def internRules : List RecRule → AM (List IRecRule)
     let hs ← internRules rs
     pure (h :: hs)
 
-/-- con-leche: none — intern a `ConstantInfo`.  A `projInfo` is out of this
-module's scope (the fixture has no structure); it fails loudly rather than
-silently producing a different environment from con-leche's. -/
+/-- con-leche: none — intern a `ConstantInfo`. -/
 private def internCI : ConstantInfo → AM IConstantInfo
   | .axiomInfo cv => do pure (.axiomInfo (← internCV cv))
   | .defnInfo cv v h => do
@@ -161,7 +159,6 @@ private def internCI : ConstantInfo → AM IConstantInfo
     let icv ← internCV cv
     let rs ← internRules rules
     pure (.recInfo icv mI rP rs)
-  | .projInfo _ => fail (.internal "CoreTest: projInfo is out of scope")
 
 /-- con-leche: none — intern a whole environment, newest first. -/
 private def internConsts : List ConstantInfo → AM (List IConstantInfo)
@@ -210,7 +207,7 @@ private def envCL : ConLeche.Env :=
      .defnInfo ⟨twoName, [], natTy⟩ (.app succE (.app succE zeroE)) (.regular 1),
      .ctorInfo ⟨ConLeche.natSuccName, [], .forallE natTy natTy⟩ 0 1,
      .ctorInfo ⟨ConLeche.natZeroName, [], natTy⟩ 0 0,
-     .indInfo ⟨ConLeche.natName, [], .sort (.succ .zero)⟩ {} ]⟩
+     .indInfo ⟨ConLeche.natName, [], .sort (.succ .zero)⟩ {} ], []⟩
 
 /-! ## The subject terms, written once
 
@@ -306,7 +303,7 @@ private structure Fx where
   lam2 : EIdx
   beta2 : EIdx
 
-private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, 0⟩⟩
+private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, 0, ∅⟩⟩
 private instance : Inhabited Fx := ⟨⟨default, default, default, default, default,
   default, default, default, default, default, default, default, default,
   default, default, default, default, default, default, default, default,
@@ -316,7 +313,7 @@ private instance : Inhabited Fx := ⟨⟨default, default, default, default, def
 it, and intern every subject term. -/
 private def buildFx : AM Fx := do
   let cs ← internConsts envCL.consts
-  let fe := mkIFEnv ⟨cs⟩
+  let fe := mkIFEnv ⟨cs, []⟩
   let two ← internExprT tTwo
   let ax ← internExprT tAx
   let lit7 ← internExprT tLit7
