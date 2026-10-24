@@ -69934,3 +69934,113 @@ taking the 1 GiB stack, and keeping it: 150 con-ron dumps in
 the fixture takes 11 s and leaves no dump.  The fixture cannot be shrunk:
 it is con-leche's, and its depth has to exceed the 1 GiB stack both
 checkers give a checking thread.
+
+### Task #131 — con-leche sync 24980d94 → 0d2f467b: input names and strings are displayed escaped, and so is everything else from outside (2026-10-24, Opus)
+
+con-leche goes from `24980d94` to **`0d2f467b`** (no toolchain move): its task
+#365.  The checker used to print strings from the input verbatim, so a
+crafted stream could paint a fake `accepted` line, rewrite the `--progress`
+line, send OSC sequences or start a GitHub Actions `::error::` command.
+Upstream's fix is one display rendering at the source: `ToString Name` is
+`Name.render` (identifier-shaped components bare, any other `«…»` with `\`
+doubled and `»` and every Cc/Cf/Zl/Zp/non-ASCII-Zs character as `\u{XXXX}`,
+numeric components as decimals, capped at 512 characters, then
+`…[N more characters]`), and `Display.str` renders a raw string field the
+same way between `"`…`"`.
+
+| upstream | what it did | here |
+|---|---|---|
+| #365 (`Kernel/Name.lean`) | `Display.unsafeChar`, `maxLen`, `codeEscape`, `Acc` and its `piece`/`chars`/`escaped`/`finish`/`component`, `idShaped`, `str`; `Name.componentList`, `Name.render`; `ToString Name := ⟨render⟩` (`Name.toString` gone) | **ported** in `kernel::name` (below); the skip-list line `Name.lean toString` (STALE) deleted, coverage 856 → **869/952** |
+| #365 (`ExportC.lean` `declOfF`) | `definition with safety {Display.str s}`, `unknown quotient kind {Display.str k}` (were `'{s}'`) | **ported**: `export_c::safety_error`/`quot_kind_error`, the twin's `processLineCoreD` |
+| #365 (`TrustAxioms.lean`) | `nativeAxiomTactic?` returns the tactic component rendered | **ported**: `trust_axioms::native_axiom_tactic` |
+| #365 (`Main.lean`) | `progressStride`/`jobsCount` echo the value through `Display.str` (was `repr`), `parseArgs` the unknown option (was raw) | **ported**: `driver::progress_stride`/`jobs_count`, the binary's `parse_args`, the twin's three |
+| #365 (tests) | `DisplayTests.lean`; fixtures `render_name_axiom`, `render_name_progress`, `render_safety`; the display gate in `tests/arena.sh` | the guards are cargo tests (`kernel::name::tests`, `trust_axioms`, `crate::render`); the fixtures run in `diff-e2e.sh`, which gains the display gate |
+| #365 (docs) | OVERVIEW's rendering paragraph and the display gate | OVERVIEW §2.2 and the differential-testing paragraph say the same of con-ron |
+
+**The Rust.**  `kernel::name` gains the display section in con-leche's
+order: `display_unsafe_char`, `display_max_len`, `display_code_escape` (its
+`Nat.toDigits 16` is `display_hex_width`/`display_hex_from`), `DisplayAcc`
+with `display_acc_empty`/`_piece`/`_char`/`_chars`/`_escaped`/`_finish`/
+`_component`, `display_id_shaped` over Lean's `isIdFirst`/`isIdRest`/
+`isLetterLike`/`isSubScriptAlnum` (spelled out as code-point predicates,
+`con-leche: none`, they are `Init/Meta/Defs.lean`'s), `display_str`,
+`NameComponent`/`component_list` and `render`/`render_from`.  The folds are
+index recursions (kernel code has no loops, §3.4).  `frontend::text::name_str`
+is gone: every rendering of a name — the `validate_ind_d` messages
+(`show_name`), the non-standard-axiom decline, the driver's labels
+(`render::name_str` is now `name::render` converted) — is `name::render`.
+Three choices beyond the mirror:
+* **The predicates are `if` chains, not `||` chains.**  The first extraction
+  of `display_unsafe_char` as one 27-way `||` was **95 321 lines** of
+  `Funs.lean` (+101 715 in all): Aeneas turns each short-circuit into a
+  continuation and duplicates the rest into both arms.  As an `if … else if`
+  chain over `display_in_range` the whole display section is ≈ 750 lines of
+  model.  This is the "a chain of `||` is a tree" shape to avoid in the core.
+* **A code point that is not a Unicode scalar value is unsafe** (escaped as
+  `\u{D800}` etc.).  A Lean `Char` cannot hold one; a `Vec<u32>` can, and the
+  driver's `char::from_u32` would otherwise drop it silently.
+* `component_list` pushes onto the end of a `Vec`, so its answer is leaf
+  first where con-leche's `List` is root first; `render_from` reads it back
+  from the end.
+
+**The twin.**  `processLineCoreD`'s two messages and `Main.lean`'s three
+echoes call `ConLeche.Display.str` directly, and every `s!"{← readName n}"`
+picks up `Name.render` through con-leche's own `ToString Name`.
+
+**Theorems: nothing to do, and nothing broke.**  No relation compares a
+message (errors are related by kind, §3.1; `non_std_axiom_msg_spec` claims
+only that one is produced), so the new functions needed no lemma: after the
+regenerated model (`Funs.lean` +1 172 −371, `Types.lean` +21 −4) the whole
+`lake build` — both theorems and the capstone — went through **unchanged**,
+first time.  No proof broke with its mathematics unchanged; none was touched.
+
+#### The maintainer's audit: every other place untrusted text reaches the output
+
+Asked mid-task: audit every crate (and the Lean tools) for any other path by
+which a string from outside — the stream, the pins file, the command line,
+the input path — reaches stdout/stderr raw, and route it through the
+display.  What was found, by binary:
+
+| where | what reached the output raw | now | con-leche |
+|---|---|---|---|
+| `con-ron` (`bin/con-ron.rs`) | the input path in `con-ron: {file}: {io error}` and `con-ron: {file}:{line}: {msg}` | `render::display_path`: raw when the path holds no unsafe character, `\` or `"`, else `display_str` — an ordinary path prints exactly as con-leche prints it | **raw** (`Driver/Run.lean:321` `{file}:{line}`; a missing file surfaces as `Main.lean:427`'s `internal error: {e}`, whose IO error text names the path) — **deviation, to report upstream** |
+| `con-ron` (`driver::pins_for_run`) | the `--pins` path, twice | `display_path` | no `--pins` upstream |
+| `con-ron-dump` (`parse_pins`, `natdec`) | tokens of the pins file echoed as `'…'` (`expected a decimal number`, `unknown name/level/expr record`, `unknown record kind`, `bad header`) | `con_ron_dump::shown`, which is `display_str` | con-ron's own format |
+| `con-ron-lean` (`Arena/Main.lean`, `Exe.lean`) | the input path and the IO error naming it | `displayPath`, the Rust's twin | as above |
+| `con-ron-dump-pins` (`Dump/Pins.lean` reader) | tokens echoed as `'…'` | `ConLeche.Display.str` | con-ron's own tool |
+| `arena_parse` example | the path, an unknown flag | `display_str` | — |
+
+Audited and clean: every `CheckError` the verified core builds is a constant,
+a decimal, a rendered name (`name::render`) or a `display_str` — the
+frontend's scan errors are static tags with a byte offset, level-parameter
+names, string literals, binder names and JSON keys/values are never printed
+(as upstream's audit says of con-leche); the driver's heartbeat, `stats`,
+hoist receipt and failure labels go through `decl_label`/`name_of`, i.e.
+`render`; Rust's `io::Error` text carries no path; the remaining
+`eprintln!`s are constants and numbers.
+
+**Tests.**  `kernel::name::tests` are `DisplayTests.lean` guard for guard
+(ESC, newline, CR, DEL, C1, bidi, zero-width, BOM, tag, NBSP, `.`/`«`/`»`/`\`,
+`[anonymous]`, numerals, the cap) plus the non-scalar code points;
+`trust_axioms` the hostile `_native` tactic; `crate::render` names, words and
+paths; `con-ron-dump` a hostile header, record letter and decimal.  The
+display gate in `diff-e2e.sh` runs upstream's three fixtures with
+`--progress=1` and six command-line cases of con-ron's own (an unknown option,
+`--progress=`, `--jobs=`, a missing input path, a missing `--pins` path, a
+pins file with a hostile header — each an ESC, a newline and a `::error::`
+line): **9/9** on this branch, **0/9** on master's binary.
+
+**Measurement** (`bump-con-leche.sh measure`, `Init`, one worker, both
+accept 57 919; the rendering only runs when something is printed): master
+`cb18401f` 184 530 661 619, this branch `8aa25aa8` **184 532 520 441
+instructions:u (+0.001 %)**; peak RSS 481 808 → 487 724 KB, within the
+binaries' run-to-run spread (#128).  Upstream: init-full +0.009 %.
+
+**Findings.**  `update --auto`: 11 findings (11 changed), 0 deleted
+mechanically, **11 markers, 0 at the end**.  diff-e2e (634 fixtures, the
+three `render_*` included): master's binary 634/634; the branch's **634/634**
+at `--jobs=1` and at `--jobs=4`, display gate 9/9 in both.
+
+**Size** (from master, without the generated model): Rust core +581 −93
+(`kernel/name.rs` +473 with its tests); driver, dump reader, example +125
+−69; twin and Lean tools +22 −13; Theorem 1 and Theorem 2: 0.
