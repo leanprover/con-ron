@@ -70032,9 +70032,10 @@ line): **9/9** on this branch, **0/9** on master's binary.
 
 **Measurement** (`bump-con-leche.sh measure`, `Init`, one worker, both
 accept 57 919; the rendering only runs when something is printed): master
-`cb18401f` 184 530 661 619, this branch `8aa25aa8` **184 532 520 441
-instructions:u (+0.001 %)**; peak RSS 481 808 → 487 724 KB, within the
-binaries' run-to-run spread (#128).  Upstream: init-full +0.009 %.
+`cb18401f` 184 523 705 528, this branch `93359d7f` **184 526 753 125
+instructions:u (+0.002 %)**; peak RSS 584 600 → 495 168 KB, which is the
+binaries' run-to-run spread (two earlier `measure`s of the same master binary
+read 494 440 and 481 808 KB; #128).  Upstream: init-full +0.009 %.
 
 **Findings.**  `update --auto`: 11 findings (11 changed), 0 deleted
 mechanically, **11 markers, 0 at the end**.  diff-e2e (634 fixtures, the
