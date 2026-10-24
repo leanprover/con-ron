@@ -2669,11 +2669,6 @@ def absTypePinsIFrom (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)
     (i : Std.Usize) : List (NIdx × EIdx) :=
   (v.val.drop i.val).map fun q => (absNIdx q.1, absEIdx q.2)
 
-@[lockstep_simp] theorem absTypePinsIFrom_zero
-    (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
-    absTypePinsIFrom v 0#usize = absTypePinsI v := by
-  simp [absTypePinsIFrom, absTypePinsI]
-
 theorem absTypePinsIFrom_cons' (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx))
     (i : Std.Usize) (hi : i.val < v.val.length) :
     absTypePinsIFrom v i = (absNIdx v.val[i.val].1, absEIdx v.val[i.val].2) ::
@@ -2723,11 +2718,6 @@ open Lockstep in
       (typePinsGuard lf (absTypePinsIFrom tps i)) :=
   type_pins_guard_aux _ tps i rfl hrel hinv hfe hvis
 
-/-- The twin's `groundGuards` is Theorem 2's `groundGuardsSpec`, the shape
-`ground_guards_ls` states. -/
-theorem groundGuards_eq_spec (fe : IFEnv) (p : EIdx) :
-    groundGuards fe p = groundGuardsSpec fe p := rfl
-
 /-- `div_mod_pin_guard` ⊑ `divModPinGuard`. -/
 theorem div_mod_pin_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
@@ -2741,7 +2731,6 @@ theorem div_mod_pin_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.div_mod_pin_guard]
   unfold divModPinGuard
-  simp only [groundGuards_eq_spec]
   lockstep
 
 /-! `check_div_mod_cert_at` / `check_div_mod_cert_tail` are the Rust's split of

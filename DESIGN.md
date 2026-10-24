@@ -69764,17 +69764,18 @@ con-leche's arena tarball, `--verified --jobs=1`, one run each):
 
 | stream | master `e06c8d99` | this branch | Δ | upstream |
 |---|---:|---:|---:|---:|
-| `Init` (instructions:u) | 184 550 242 205 | 184 523 421 623 | −0.015 % | init-full −0.58 % |
+| `Init` (instructions:u) | 184 549 769 079 | 184 523 747 053 | −0.014 % | init-full −0.58 % |
 | `perf/grind-ring-5` | 8 362 157 491 | 8 173 233 745 | −2.26 % | −4.59 % |
 | `init-prelude` | 1 086 979 054 | 1 052 534 805 | −3.17 % | −6.66 % |
-| `Init` peak RSS | 505 416 KB | 510 644 KB | +1.0 % | |
+| `Init` peak RSS | 515 556 KB | 504 504 KB | −2.1 % | |
 
 Without the short circuit the branch read 8 343 206 681 and 1 082 409 894 on
 the two small streams (−0.23 %, −0.42 %): the gain is the skipped certificate
 guard walk of the variant whose type pin does not resolve, exactly upstream's
 diagnosis.  `Init`'s stream matches the first variant, so it has nothing to
-skip; peak RSS is within the same binaries' spread between runs (an earlier
-`measure` of the two read 513 256 and 515 840 KB; #128's note).
+skip; peak RSS is within the same binaries' spread between runs (two earlier
+`measure`s of the two read 513 256 → 515 840 and 505 416 → 510 644 KB;
+#128's note).
 
 **Findings.**  `update --auto`: 37 findings (37 changed), 4 doc-only deleted
 mechanically, **33 markers, 0 at the end**.  Coverage 852/934 at the old pin,
@@ -69893,8 +69894,8 @@ now needs the `false` direction.
 `unfold` + `lockstep`; the two cursors (`type_pins_guard`, `check_type_pins`)
 are the `check_div_mod_certs_aux` induction; the loop's step, which used to be
 a hand proof of the recovering seam, is now a `lockstep` call with the loop's
-own tail as its one hypothesis.  The twin's `groundGuards` is `rfl`-equal to
-`groundGuardsSpec`; the twin's `divModPinGuard` and `checkDivModPinLoop` were
+own tail as its one hypothesis.  The twin's `groundGuards` has `groundGuardsSpec`'s body, which
+`lockstep` sees through unaided; the twin's `divModPinGuard` and `checkDivModPinLoop` were
 written to the Rust's shape (the guards nested, the attempt split into
 `checkDivModPinValue`), so no glue was needed.  The decoder's third column
 (`Refine/Pins{Dec,Abs,Run}.lean`, `Refine2/Checker/PinsWF.lean`) and the
