@@ -128,22 +128,22 @@
      9  //! bits 26…0    index      into THAT CONSTRUCTOR'S array of THAT TIER
     10  //! ```
 
-== crates/con-ron-core/src/arena/store.rs#L1209-L1223
-  1209  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
-  1210  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1211  /// cons tables.
-  1212  pub struct ETables {
-  1213      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1214      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1215      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1216      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1217      pub apps: Tbl<AppNode, EIdx, u64>,
-  1218      pub lams: Tbl<BindNode, EIdx, u64>,
-  1219      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1220      pub lets: Tbl<LetNode, EIdx, u64>,
-  1221      pub lits: Tbl<LitNode, EIdx, u64>,
-  1222      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1223  }
+== crates/con-ron-core/src/arena/store.rs#L1170-L1184
+  1170  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
+  1171  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1172  /// cons tables.
+  1173  pub struct ETables {
+  1174      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1175      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1176      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1177      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1178      pub apps: Tbl<AppNode, EIdx, u64>,
+  1179      pub lams: Tbl<BindNode, EIdx, u64>,
+  1180      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1181      pub lets: Tbl<LetNode, EIdx, u64>,
+  1182      pub lits: Tbl<LitNode, EIdx, u64>,
+  1183      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1184  }
 
 == crates/con-ron/src/bin/con-ron.rs#L87-L209
     87  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -213,7 +213,7 @@
    151                      stride 1; a stride that is not a decimal numeral, or 0, is
    152                      a usage error.
    153    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   154                      `con-ron-pins/1` dump instead of the core's own embedded
+   154                      `con-ron-pins/2` dump instead of the core's own embedded
    155                      text (task #43), through the UNVERIFIED reader.  The pins
    156                      are interned into the persistent tier at startup, before
    157                      the fold (DESIGN.md section 8.6 P2d).
@@ -557,30 +557,30 @@
     37    | src, c :: cs => c.val ≠ [] ∧
     38        ∃ src', inst.next_chunk src = ok (c, src') ∧ ReadsAs inst src' cs
 
-== crates/con-ron-core/src/arena/monad.rs#L303-L325
-   303  
-   304  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-   305  /// Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` — the checker
-   306  /// state of (C): the arena, the per-call memo tables and — since task
-   307  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
-   308  /// grades, `defeq`, the level verdicts, the instantiated constants).
-   309  pub struct AState {
-   310      pub store: EStore,
-   311      pub memos: Memos,
-   312      /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
-   313      /// four entry-point memos (and `whnfCore`'s cheap mode's own), the
-   314      /// `defeq` verdict table, the two level-verdict tables and the three lazy
-   315      /// instantiated-constant tables.
-   316      /// A record of its own beside `memos`, because the per-call clear and the
-   317      /// per-declaration drop are different operations on different lifetimes.
-   318      pub caches: Caches,
-   319      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
-   320      /// fifty-one constant names, the empty level list, the level `0` and
-   321      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
-   322      /// `intern_all_pins` and read by handle ever after.  Empty until then,
-   323      /// which is what makes a premature read a stop rather than a wrong
-   324      /// answer (task #97c's hazard).
-   325      pub pins: Pins,
+== crates/con-ron-core/src/arena/monad.rs#L295-L317
+   295  
+   296  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
+   297  /// Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` — the checker
+   298  /// state of (C): the arena, the per-call memo tables and — since task
+   299  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
+   300  /// grades, `defeq`, the level verdicts, the instantiated constants).
+   301  pub struct AState {
+   302      pub store: EStore,
+   303      pub memos: Memos,
+   304      /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
+   305      /// four entry-point memos (and `whnfCore`'s cheap mode's own), the
+   306      /// `defeq` verdict table, the two level-verdict tables and the three lazy
+   307      /// instantiated-constant tables.
+   308      /// A record of its own beside `memos`, because the per-call clear and the
+   309      /// per-declaration drop are different operations on different lifetimes.
+   310      pub caches: Caches,
+   311      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
+   312      /// fifty-one constant names, the empty level list, the level `0` and
+   313      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
+   314      /// `intern_all_pins` and read by handle ever after.  Empty until then,
+   315      /// which is what makes a premature read a stop rather than a wrong
+   316      /// answer (task #97c's hazard).
+   317      pub pins: Pins,
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L15
      4  //! One 32-bit word per handle:
@@ -688,109 +688,109 @@
    337      }
    338  }
 
-== crates/con-ron-core/src/arena/store.rs#L1209-L1223
-  1209  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
-  1210  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1211  /// cons tables.
-  1212  pub struct ETables {
-  1213      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1214      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1215      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1216      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1217      pub apps: Tbl<AppNode, EIdx, u64>,
-  1218      pub lams: Tbl<BindNode, EIdx, u64>,
-  1219      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1220      pub lets: Tbl<LetNode, EIdx, u64>,
-  1221      pub lits: Tbl<LitNode, EIdx, u64>,
-  1222      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1223  }
+== crates/con-ron-core/src/arena/store.rs#L1170-L1184
+  1170  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
+  1171  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1172  /// cons tables.
+  1173  pub struct ETables {
+  1174      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1175      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1176      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1177      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1178      pub apps: Tbl<AppNode, EIdx, u64>,
+  1179      pub lams: Tbl<BindNode, EIdx, u64>,
+  1180      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1181      pub lets: Tbl<LetNode, EIdx, u64>,
+  1182      pub lits: Tbl<LitNode, EIdx, u64>,
+  1183      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1184  }
 
-== crates/con-ron-core/src/arena/store.rs#L3737-L3772
-  3737  
-  3738      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:472-492 EStore.intern
-  3739      /// Hash-cons an expression node: probe the persistent cons table, then the
-  3740      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
-  3741      /// The cap test is the Lean's `capOK` turned into the `Native` decline
-  3742      /// §8.3 puts here.
-  3743      ///
-  3744      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
-  3745      /// whole sequence over the `ENodeView`, and each of its four steps
-  3746      /// dispatched on the view's tag again and built the node record again:
-  3747      /// the persistent probe built it (inside `ETables::find`), the scratch
-  3748      /// probe built it a second time, `der_of_view` re-dispatched to compute
-  3749      /// the derived word, and `ETables::push` re-dispatched and built it a
-  3750      /// third time to append it.  So the tag is read once here and the ten per-constructor
-  3751      /// paths below each build their record ONCE and hand the same `&r` to the
-  3752      /// two probes, to the capacity test and to the push — the same clauses in
-  3753      /// the same order, with the dispatch and the two rebuilds gone.
-  3754      ///
-  3755      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
-  3756      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
-  3757      /// each of them `rfl` after the `match`.
-  3758      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
-  3759          match v {
-  3760              ENodeView::BVar(i) => self.intern_bvar(pers, i),
-  3761              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
-  3762              ENodeView::Sort(u) => self.intern_sort(pers, u),
-  3763              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
-  3764              ENodeView::App(f, a) => self.intern_app(pers, f, a),
-  3765              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
-  3766              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
-  3767              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
-  3768              ENodeView::Lit(l) => self.intern_lit(pers, l),
-  3769              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
-  3770          }
-  3771      }
-  3772  
+== crates/con-ron-core/src/arena/store.rs#L3596-L3631
+  3596  
+  3597      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:472-492 EStore.intern
+  3598      /// Hash-cons an expression node: probe the persistent cons table, then the
+  3599      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
+  3600      /// The cap test is the Lean's `capOK` turned into the `Native` decline
+  3601      /// §8.3 puts here.
+  3602      ///
+  3603      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
+  3604      /// whole sequence over the `ENodeView`, and each of its four steps
+  3605      /// dispatched on the view's tag again and built the node record again:
+  3606      /// the persistent probe built it (inside `ETables::find`), the scratch
+  3607      /// probe built it a second time, `der_of_view` re-dispatched to compute
+  3608      /// the derived word, and `ETables::push` re-dispatched and built it a
+  3609      /// third time to append it.  So the tag is read once here and the ten per-constructor
+  3610      /// paths below each build their record ONCE and hand the same `&r` to the
+  3611      /// two probes, to the capacity test and to the push — the same clauses in
+  3612      /// the same order, with the dispatch and the two rebuilds gone.
+  3613      ///
+  3614      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
+  3615      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
+  3616      /// each of them `rfl` after the `match`.
+  3617      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+  3618          match v {
+  3619              ENodeView::BVar(i) => self.intern_bvar(pers, i),
+  3620              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
+  3621              ENodeView::Sort(u) => self.intern_sort(pers, u),
+  3622              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
+  3623              ENodeView::App(f, a) => self.intern_app(pers, f, a),
+  3624              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
+  3625              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
+  3626              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
+  3627              ENodeView::Lit(l) => self.intern_lit(pers, l),
+  3628              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
+  3629          }
+  3630      }
+  3631  
 
-== crates/con-ron-core/src/arena/store.rs#L4022-L4068
-  4022      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
-  4023          let r: AppNode = AppNode { f, a };
-  4024          let sk: bool = if self.scratch_on {
-  4025              if r.f.is_persistent() {
-  4026                  !r.a.is_persistent()
-  4027              } else {
-  4028                  true
-  4029              }
-  4030          } else {
-  4031              false
-  4032          };
-  4033          let hit: Option<EIdx> = if sk {
-  4034              None
-  4035          } else if pers.frozen {
-  4036              pers.e.apps.find(&r)
-  4037          } else {
-  4038              self.pers.apps.find(&r)
-  4039          };
-  4040          match hit {
-  4041              Some(hp) => Ok(hp),
-  4042              None => {
-  4043                  if self.scratch_on {
-  4044                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
-  4045                      match at.1 {
-  4046                          Some(hs) => Ok(hs),
-  4047                          None => {
-  4048                              if self.scr.apps.full() {
-  4049                                  Err(CheckError::Native(code_points(&M_E_CAP)))
-  4050                              } else {
-  4051                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  4052                                  let h: EIdx =
-  4053                                      EIdx::pack(ETAG_APP, TIER_S, self.scr.apps.size() as u32);
-  4054                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
-  4055                                  Ok(h)
-  4056                              }
-  4057                          }
-  4058                      }
-  4059                  } else if self.pers.apps.full() {
-  4060                      Err(CheckError::Native(code_points(&M_E_CAP)))
-  4061                  } else {
-  4062                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  4063                      let h: EIdx = EIdx::pack(ETAG_APP, TIER_P, self.pers.apps.size() as u32);
-  4064                      self.pers.apps.push(r, d, h.dup2());
-  4065                      Ok(h)
-  4066                  }
-  4067              }
-  4068          }
+== crates/con-ron-core/src/arena/store.rs#L3881-L3927
+  3881      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
+  3882          let r: AppNode = AppNode { f, a };
+  3883          let sk: bool = if self.scratch_on {
+  3884              if r.f.is_persistent() {
+  3885                  !r.a.is_persistent()
+  3886              } else {
+  3887                  true
+  3888              }
+  3889          } else {
+  3890              false
+  3891          };
+  3892          let hit: Option<EIdx> = if sk {
+  3893              None
+  3894          } else if pers.frozen {
+  3895              pers.e.apps.find(&r)
+  3896          } else {
+  3897              self.pers.apps.find(&r)
+  3898          };
+  3899          match hit {
+  3900              Some(hp) => Ok(hp),
+  3901              None => {
+  3902                  if self.scratch_on {
+  3903                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
+  3904                      match at.1 {
+  3905                          Some(hs) => Ok(hs),
+  3906                          None => {
+  3907                              if self.scr.apps.full() {
+  3908                                  Err(CheckError::Native(code_points(&M_E_CAP)))
+  3909                              } else {
+  3910                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3911                                  let h: EIdx =
+  3912                                      EIdx::pack(ETAG_APP, TIER_S, self.scr.apps.size() as u32);
+  3913                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
+  3914                                  Ok(h)
+  3915                              }
+  3916                          }
+  3917                      }
+  3918                  } else if self.pers.apps.full() {
+  3919                      Err(CheckError::Native(code_points(&M_E_CAP)))
+  3920                  } else {
+  3921                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3922                      let h: EIdx = EIdx::pack(ETAG_APP, TIER_P, self.pers.apps.size() as u32);
+  3923                      self.pers.apps.push(r, d, h.dup2());
+  3924                      Ok(h)
+  3925                  }
+  3926              }
+  3927          }
 
 == proof/ConRon/Arena/WFProofs.lean#L1121-L1122
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
@@ -906,82 +906,82 @@
    637          e,
    638      }
 
-== crates/con-ron-core/src/arena/store.rs#L1279-L1288
-  1279  pub struct PersTier {
-  1280      /// This is a frozen store's tier: a store read through it reads its
-  1281      /// persistent tables HERE.  `false` only for the empty stand-in an owned
-  1282      /// store is handed (`PersTier::empty`), which is never read.
-  1283      pub frozen: bool,
-  1284      pub n: NTables,
-  1285      pub l: LTables,
-  1286      pub ls: LsTables,
-  1287      pub e: ETables,
-  1288  }
+== crates/con-ron-core/src/arena/store.rs#L1240-L1249
+  1240  pub struct PersTier {
+  1241      /// This is a frozen store's tier: a store read through it reads its
+  1242      /// persistent tables HERE.  `false` only for the empty stand-in an owned
+  1243      /// store is handed (`PersTier::empty`), which is never read.
+  1244      pub frozen: bool,
+  1245      pub n: NTables,
+  1246      pub l: LTables,
+  1247      pub ls: LsTables,
+  1248      pub e: ETables,
+  1249  }
 
-== crates/con-ron-core/src/arena/monad.rs#L181-L243
-   181  /// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
-   182  /// Lean twin: `proof/ConRon/Arena/Monad.lean:60-104 Memos` — the memo tables of
-   183  /// the `ExprOps` twins, in one record.
-   184  ///
-   185  /// con-leche threads each memo as an explicit argument-and-result pair
-   186  /// (`instantiate1Go v memo e d : Expr × Std.HashMap …`), and
-   187  /// `con_ron_core::kernel::expr_ops` turns that into a `&mut HashMap`
-   188  /// parameter; the arena carries the eight tables in the state instead, which
-   189  /// is what lets a `…Fast` entry clear one without its callers seeing it.
-   190  ///
-   191  /// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
-   192  /// NEST: `instantiate1Lift`'s `bvar` arm runs `liftLooseBVars`, so a shared
-   193  /// table would answer one walk with the other's answers.  One of those walks
-   194  /// has no cursor (`instLPGo` keys on the node alone); the arena keys it at
-   195  /// cursor `0`, so that all six handle-valued tables have one shape.
-   196  /// (`resetMetaGo` and `renameConstsGo` had tables here too; the arena runs
-   197  /// neither walk, and task #105 removed both; `lowerLooseBVars`' went with
-   198  /// the walk, task #119.)
-   199  pub struct Memos {
-   200      /// `instantiate1` (`ExprOps.lean:80-116`).
-   201      pub inst1_c: HashMap<EIdxNat, EIdx>,
-   202      /// `instantiateList` (`ExprOps.lean:267-303`).
-   203      pub inst_l_c: HashMap<EIdxNat, EIdx>,
-   204      /// `liftLooseBVars` (`ExprOps.lean:430-466`).
-   205      pub lift_c: HashMap<EIdxNat, EIdx>,
-   206      /// `abstract1` (`ExprOps.lean:1789-1833`).
-   207      pub abs1_c: HashMap<EIdxNat, EIdx>,
-   208      /// `instantiate1Lift` (`ExprOps.lean:2222-2261`).
-   209      pub inst1_l_c: HashMap<EIdxNat, EIdx>,
-   210      /// `instantiateLevelParams` (`ExprOps.lean:2564-2603`), at cursor `0`.
-   211      pub inst_lp_c: HashMap<EIdxNat, EIdx>,
-   212      /// `bvarBound` (`ExprOps.lean:1368-1392`).
-   213      pub bvar_b_c: HashMap<EIdx, u64>,
-   214      /// `fvarRange` (`ExprOps.lean:1397-1422`).
-   215      pub fvar_b_c: HashMap<EIdx, u64>,
+== crates/con-ron-core/src/arena/monad.rs#L173-L235
+   173  /// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
+   174  /// Lean twin: `proof/ConRon/Arena/Monad.lean:60-104 Memos` — the memo tables of
+   175  /// the `ExprOps` twins, in one record.
+   176  ///
+   177  /// con-leche threads each memo as an explicit argument-and-result pair
+   178  /// (`instantiate1Go v memo e d : Expr × Std.HashMap …`), and
+   179  /// `con_ron_core::kernel::expr_ops` turns that into a `&mut HashMap`
+   180  /// parameter; the arena carries the eight tables in the state instead, which
+   181  /// is what lets a `…Fast` entry clear one without its callers seeing it.
+   182  ///
+   183  /// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
+   184  /// NEST: `instantiate1Lift`'s `bvar` arm runs `liftLooseBVars`, so a shared
+   185  /// table would answer one walk with the other's answers.  One of those walks
+   186  /// has no cursor (`instLPGo` keys on the node alone); the arena keys it at
+   187  /// cursor `0`, so that all six handle-valued tables have one shape.
+   188  /// (`resetMetaGo` and `renameConstsGo` had tables here too; the arena runs
+   189  /// neither walk, and task #105 removed both; `lowerLooseBVars`' went with
+   190  /// the walk, task #119.)
+   191  pub struct Memos {
+   192      /// `instantiate1` (`ExprOps.lean:80-116`).
+   193      pub inst1_c: HashMap<EIdxNat, EIdx>,
+   194      /// `instantiateList` (`ExprOps.lean:267-303`).
+   195      pub inst_l_c: HashMap<EIdxNat, EIdx>,
+   196      /// `liftLooseBVars` (`ExprOps.lean:430-466`).
+   197      pub lift_c: HashMap<EIdxNat, EIdx>,
+   198      /// `abstract1` (`ExprOps.lean:1789-1833`).
+   199      pub abs1_c: HashMap<EIdxNat, EIdx>,
+   200      /// `instantiate1Lift` (`ExprOps.lean:2222-2261`).
+   201      pub inst1_l_c: HashMap<EIdxNat, EIdx>,
+   202      /// `instantiateLevelParams` (`ExprOps.lean:2564-2603`), at cursor `0`.
+   203      pub inst_lp_c: HashMap<EIdxNat, EIdx>,
+   204      /// `bvarBound` (`ExprOps.lean:1368-1392`).
+   205      pub bvar_b_c: HashMap<EIdx, u64>,
+   206      /// `fvarRange` (`ExprOps.lean:1397-1422`).
+   207      pub fvar_b_c: HashMap<EIdx, u64>,
+   208      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   209      /// **The level substitution at a LEVEL handle**, for `instLPGo`'s `.sort`
+   210      /// arm: `ks` and `us` are fixed for the whole `instLPFast` call, so the
+   211      /// handle alone is the key — DESIGN.md §8.3's own idiom, "cleared at every
+   212      /// top-level call, so the substitution vector is not in the key".  A hit
+   213      /// is one `u32`, where a miss reads the level back, substitutes and
+   214      /// re-interns.
+   215      pub inst_lp_l_c: HashMap<LIdx, LIdx>,
    216      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   217      /// **The level substitution at a LEVEL handle**, for `instLPGo`'s `.sort`
-   218      /// arm: `ks` and `us` are fixed for the whole `instLPFast` call, so the
-   219      /// handle alone is the key — DESIGN.md §8.3's own idiom, "cleared at every
-   220      /// top-level call, so the substitution vector is not in the key".  A hit
-   221      /// is one `u32`, where a miss reads the level back, substitutes and
-   222      /// re-interns.
-   223      pub inst_lp_l_c: HashMap<LIdx, LIdx>,
-   224      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   225      /// The same at a universe-argument LIST handle, for the `.const` arm.
-   226      pub inst_lp_ls_c: HashMap<LsIdx, LsIdx>,
-   227      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   228      /// **The two guard walks' memos, kept for their ALLOCATION only.**
-   229      /// `allLevelParamsDefinedGo` and `constsResolveFGo` thread their memo as
-   230      /// an argument (the twin's `(Bool, memo)` result), starting from `∅` at
-   231      /// every entry; the port parks the table here between calls so that the
-   232      /// next call starts from a cleared table instead of a `HashMap::new()`
-   233      /// that re-grows by doubling (task #97-PERF-FRESH §3 item 1).  The entry
-   234      /// moves it out, resets it (`arena::core_state::take_walk_memo`, which is
-   235      /// the twin's `∅`) and puts it back after the walk, so nothing ever reads
-   236      /// a row a previous call left; the twin's `Memos` has no counterpart, and
-   237      /// Theorem 2's `MemosRel` has no clause for either (only `MemosInv`'s
-   238      /// `Inv`).  `all_level_params_defined`'s table.
-   239      pub lp_def_c: HashMap<EIdx, bool>,
-   240      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   241      /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
-   242      pub crf_c: HashMap<EIdx, bool>,
-   243  }
+   217      /// The same at a universe-argument LIST handle, for the `.const` arm.
+   218      pub inst_lp_ls_c: HashMap<LsIdx, LsIdx>,
+   219      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   220      /// **The two guard walks' memos, kept for their ALLOCATION only.**
+   221      /// `allLevelParamsDefinedGo` and `constsResolveFGo` thread their memo as
+   222      /// an argument (the twin's `(Bool, memo)` result), starting from `∅` at
+   223      /// every entry; the port parks the table here between calls so that the
+   224      /// next call starts from a cleared table instead of a `HashMap::new()`
+   225      /// that re-grows by doubling (task #97-PERF-FRESH §3 item 1).  The entry
+   226      /// moves it out, resets it (`arena::core_state::take_walk_memo`, which is
+   227      /// the twin's `∅`) and puts it back after the walk, so nothing ever reads
+   228      /// a row a previous call left; the twin's `Memos` has no counterpart, and
+   229      /// Theorem 2's `MemosRel` has no clause for either (only `MemosInv`'s
+   230      /// `Inv`).  `all_level_params_defined`'s table.
+   231      pub lp_def_c: HashMap<EIdx, bool>,
+   232      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   233      /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
+   234      pub crf_c: HashMap<EIdx, bool>,
+   235  }
 
 == crates/con-ron-core/src/arena/expr_ops.rs#L35-L49
     35  //!
@@ -1000,120 +1000,120 @@
     48  //! cutoff the original does not have needs its own licence proved.
     49  //!
 
-== crates/con-ron-core/src/arena/core_state.rs#L510-L557
-   510  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   511  /// The slot count past which `take_walk_memo` hands back a FRESH table
-   512  /// instead of a cleared one; see its note for how the value was chosen.
-   513  pub const WALK_MEMO_KEEP: usize = 1 << 16;
-   514  
-   515  /// con-leche: ConLeche/Kernel/Level.lean:386-388 Expr.allLevelParamsDefinedFast
-   516  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
-   517  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
-   518  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
-   519  /// **the parked walk memo, moved out of the state and emptied** (task
-   520  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
-   521  /// allocates nothing) for the length of the walk, and the entry puts the
-   522  /// grown table back afterwards; either way the table this returns is empty,
-   523  /// so the walk starts where the twin's does.
-   524  ///
-   525  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
-   526  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
-   527  /// does not leave a huge table behind for every later call.  `reset_map`'s
-   528  /// `clear_fit` already decays such a table, one eighth of its high-water mark
-   529  /// a call, so the guard only decides which of the two is cheaper for an
-   530  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
-   531  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
-   532  /// `perf stat -e instructions:u` run each, all accepting 57 977):
-   533  ///
-   534  /// | `WALK_MEMO_KEEP` | instructions:u |
-   535  /// |---|---:|
-   536  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
-   537  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
-   538  /// | 2^12 | 206 572 063 910 |
-   539  /// | 2^14 | 205 851 105 938 |
-   540  /// | **2^16** | **205 785 515 243** |
-   541  /// | no guard (2^60) | 205 783 023 575 |
-   542  ///
-   543  /// A guard low enough to trip on ordinary calls gives the saving back — at
-   544  /// nanoda's 1024 more than half of it — because those calls re-grow by
-   545  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
-   546  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
-   547  /// instructions over no guard), so it only ever fires on an outlier.
-   548  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
-   549      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
-   550      if m.capacity() > WALK_MEMO_KEEP {
-   551          HashMap::new()
-   552      } else {
-   553          let mut m2: HashMap<K, V> = m;
-   554          reset_map(&mut m2);
-   555          m2
-   556      }
-   557  }
+== crates/con-ron-core/src/arena/core_state.rs#L466-L513
+   466  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   467  /// The slot count past which `take_walk_memo` hands back a FRESH table
+   468  /// instead of a cleared one; see its note for how the value was chosen.
+   469  pub const WALK_MEMO_KEEP: usize = 1 << 16;
+   470  
+   471  /// con-leche: ConLeche/Kernel/Level.lean:386-388 Expr.allLevelParamsDefinedFast
+   472  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
+   473  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+   474  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+   475  /// **the parked walk memo, moved out of the state and emptied** (task
+   476  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+   477  /// allocates nothing) for the length of the walk, and the entry puts the
+   478  /// grown table back afterwards; either way the table this returns is empty,
+   479  /// so the walk starts where the twin's does.
+   480  ///
+   481  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+   482  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+   483  /// does not leave a huge table behind for every later call.  `reset_map`'s
+   484  /// `clear_fit` already decays such a table, one eighth of its high-water mark
+   485  /// a call, so the guard only decides which of the two is cheaper for an
+   486  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+   487  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+   488  /// `perf stat -e instructions:u` run each, all accepting 57 977):
+   489  ///
+   490  /// | `WALK_MEMO_KEEP` | instructions:u |
+   491  /// |---|---:|
+   492  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+   493  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+   494  /// | 2^12 | 206 572 063 910 |
+   495  /// | 2^14 | 205 851 105 938 |
+   496  /// | **2^16** | **205 785 515 243** |
+   497  /// | no guard (2^60) | 205 783 023 575 |
+   498  ///
+   499  /// A guard low enough to trip on ordinary calls gives the saving back — at
+   500  /// nanoda's 1024 more than half of it — because those calls re-grow by
+   501  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+   502  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+   503  /// instructions over no guard), so it only ever fires on an outlier.
+   504  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+   505      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+   506      if m.capacity() > WALK_MEMO_KEEP {
+   507          HashMap::new()
+   508      } else {
+   509          let mut m2: HashMap<K, V> = m;
+   510          reset_map(&mut m2);
+   511          m2
+   512      }
+   513  }
 
-== crates/con-ron-core/src/arena/core_state.rs#L359-L421
-   359  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-   360  /// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-128 Caches` — the
-   361  /// per-declaration caches of the arena checker, in one record beside
-   362  /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
-   363  /// the per-call clear and the per-declaration drop are different operations
-   364  /// on different lifetimes.
-   365  pub struct Caches {
-   366      /// `whnfCore` at the node (con-leche `CState.whnfCoreC`).  The depth is
-   367      /// NOT in the key: a handle carries its own typing context, because an
-   368      /// `fvar` node carries its type (DESIGN.md §8.3, "Free variables").
-   369      pub whnf_core_c: HashMap<EIdx, EIdx>,
-   370      /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
-   371      /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
-   372      /// since the two modes' answers differ on a stuck projection.
-   373      pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
-   374      /// The full reduction loop at the node (`CState.whnfC`).
-   375      pub whnf_c: HashMap<EIdx, EIdx>,
-   376      /// Full-grade inference (`CState.inferC`).
-   377      pub infer_c: HashMap<EIdx, EIdx>,
-   378      /// **The io grade's own table** (`CState.inferIOC`): a hit here never
-   379      /// serves a full-`infer` query, and a full-`infer` hit never serves this
-   380      /// one.
-   381      pub infer_io_c: HashMap<EIdx, EIdx>,
-   382      /// Definitional equality at the ORDERED pair, with the verdict — both
-   383      /// signs, as con-leche's `defeqC` stores them.
-   384      pub defeq_c: HashMap<EIdxPair, bool>,
-   385      /// `Level.isEquiv`'s verdict at a pair of level handles.
-   386      pub lvl_eq_c: HashMap<LIdxPair, bool>,
-   387      /// `Level.isEquivList`'s verdict at a pair of universe-argument lists.
-   388      pub lvls_eq_c: HashMap<LsIdxPair, bool>,
-   389      /// A stored constant's TYPE at a universe instantiation.
-   390      pub const_ty_c: HashMap<NLsKey, EIdx>,
-   391      /// A stored definition's VALUE at a universe instantiation.
-   392      pub const_val_c: HashMap<NLsKey, EIdx>,
-   393      /// An iota rule's right-hand side at the recursor's universe
-   394      /// instantiation, keyed by the recursor, the rule's constructor and the
-   395      /// levels — the three data that determine it.
-   396      pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
-   397      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   398      /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
-   399      /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
-   400      /// (*memoised readback per declaration*; levels are small)".  A level
-   401      /// handle's denotation is a function of the handle and of the tier it
-   402      /// names, so it is stable for exactly as long as the other tables
-   403      /// are, and `Caches::reset` is what makes that true.  The value is an
-   404      /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
-   405      /// whole tree node by node.
-   406      pub read_l_c: HashMap<LIdx, Level>,
-   407      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   408      /// The same for a NAME handle (`readName`).
-   409      pub read_n_c: HashMap<NIdx, Name>,
-   410      /// con-leche: none — arena infrastructure (task #97-P6-13)
-   411      /// The same for an interned universe-argument LIST (`readLevels`).  A hit
-   412      /// is one `Vec` allocation and `n` reference bumps.
-   413      pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
-   414      /// **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
-   415      /// six entry-point tables of the eager tower (the knot at `to_eager(mode)`,
-   416      /// the `defeqE` slot), stored here between eager comparisons and swapped
-   417      /// in for each one (`arena::core::enter_eager`).  Kept for the declaration
-   418      /// like the plain ones, and apart from them: an eager entry never serves a
-   419      /// plain query, nor the other way round.
-   420      pub eager_memos: ModeMemos,
-   421  }
+== crates/con-ron-core/src/arena/core_state.rs#L315-L377
+   315  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
+   316  /// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-128 Caches` — the
+   317  /// per-declaration caches of the arena checker, in one record beside
+   318  /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
+   319  /// the per-call clear and the per-declaration drop are different operations
+   320  /// on different lifetimes.
+   321  pub struct Caches {
+   322      /// `whnfCore` at the node (con-leche `CState.whnfCoreC`).  The depth is
+   323      /// NOT in the key: a handle carries its own typing context, because an
+   324      /// `fvar` node carries its type (DESIGN.md §8.3, "Free variables").
+   325      pub whnf_core_c: HashMap<EIdx, EIdx>,
+   326      /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
+   327      /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
+   328      /// since the two modes' answers differ on a stuck projection.
+   329      pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
+   330      /// The full reduction loop at the node (`CState.whnfC`).
+   331      pub whnf_c: HashMap<EIdx, EIdx>,
+   332      /// Full-grade inference (`CState.inferC`).
+   333      pub infer_c: HashMap<EIdx, EIdx>,
+   334      /// **The io grade's own table** (`CState.inferIOC`): a hit here never
+   335      /// serves a full-`infer` query, and a full-`infer` hit never serves this
+   336      /// one.
+   337      pub infer_io_c: HashMap<EIdx, EIdx>,
+   338      /// Definitional equality at the ORDERED pair, with the verdict — both
+   339      /// signs, as con-leche's `defeqC` stores them.
+   340      pub defeq_c: HashMap<EIdxPair, bool>,
+   341      /// `Level.isEquiv`'s verdict at a pair of level handles.
+   342      pub lvl_eq_c: HashMap<LIdxPair, bool>,
+   343      /// `Level.isEquivList`'s verdict at a pair of universe-argument lists.
+   344      pub lvls_eq_c: HashMap<LsIdxPair, bool>,
+   345      /// A stored constant's TYPE at a universe instantiation.
+   346      pub const_ty_c: HashMap<NLsKey, EIdx>,
+   347      /// A stored definition's VALUE at a universe instantiation.
+   348      pub const_val_c: HashMap<NLsKey, EIdx>,
+   349      /// An iota rule's right-hand side at the recursor's universe
+   350      /// instantiation, keyed by the recursor, the rule's constructor and the
+   351      /// levels — the three data that determine it.
+   352      pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
+   353      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   354      /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
+   355      /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
+   356      /// (*memoised readback per declaration*; levels are small)".  A level
+   357      /// handle's denotation is a function of the handle and of the tier it
+   358      /// names, so it is stable for exactly as long as the other tables
+   359      /// are, and `Caches::reset` is what makes that true.  The value is an
+   360      /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
+   361      /// whole tree node by node.
+   362      pub read_l_c: HashMap<LIdx, Level>,
+   363      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   364      /// The same for a NAME handle (`readName`).
+   365      pub read_n_c: HashMap<NIdx, Name>,
+   366      /// con-leche: none — arena infrastructure (task #97-P6-13)
+   367      /// The same for an interned universe-argument LIST (`readLevels`).  A hit
+   368      /// is one `Vec` allocation and `n` reference bumps.
+   369      pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
+   370      /// **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
+   371      /// six entry-point tables of the eager tower (the knot at `to_eager(mode)`,
+   372      /// the `defeqE` slot), stored here between eager comparisons and swapped
+   373      /// in for each one (`arena::core::enter_eager`).  Kept for the declaration
+   374      /// like the plain ones, and apart from them: an eager entry never serves a
+   375      /// plain query, nor the other way round.
+   376      pub eager_memos: ModeMemos,
+   377  }
 
 == crates/con-ron-core/src/arena/core.rs#L371-L384
    371  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
@@ -1509,33 +1509,33 @@
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
-    41  con-ron-pins/1
+    41  con-ron-pins/2
     42  E 0 n 0
     43  N 0 a
     44  N 1 s 0 12 instOfNatNat
 
-== crates/con-ron-core/src/kernel/pins_decode.rs#L1212-L1232
-  1212  /// **The decoder.**  `con-ron-pins/1` text in, con-leche's pin variants out,
-  1213  /// in file order — which is the order `checker::check_div_mod_pin_loop` tries
-  1214  /// them in, and therefore the order the list has to be in.
-  1215  pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
-  1216      let hdr = pins_header();
-  1217      if !starts_with_from(t, &hdr, 0) {
-  1218          Err(bad_text())
-  1219      } else {
-  1220          run_records(t, hdr.len(), tables_new())
-  1221      }
-  1222  }
-  1223  
-  1224  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-  1225  /// (The cited range is the `#load_natop_pins` command that *produces*
-  1226  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
-  1227  /// written there, hence the `_`.)
-  1228  /// **The pin list the binary checks with**: the embedded text, decoded.  This
-  1229  /// is what `cached::installed::check_decls`' `pins` parameter is given for a
-  1230  /// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
-  1231  /// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
-  1232  pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
+== crates/con-ron-core/src/kernel/pins_decode.rs#L1336-L1356
+  1336  /// in file order — which is the order `arena::decl_check::check_div_mod_pin_loop` tries
+  1337  /// them in, and therefore the order the list has to be in.
+  1338  pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
+  1339      let hdr = pins_header();
+  1340      if !starts_with_from(t, &hdr, 0) {
+  1341          Err(bad_text())
+  1342      } else {
+  1343          run_records(t, hdr.len(), tables_new())
+  1344      }
+  1345  }
+  1346  
+  1347  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+  1348  /// (The cited range is the `#load_natop_pins` command that *produces*
+  1349  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
+  1350  /// written there, hence the `_`.)
+  1351  /// **The pin list the binary checks with**: the embedded text, decoded.  This
+  1352  /// is what `cached::installed::check_decls`' `pins` parameter is given for a
+  1353  /// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
+  1354  /// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
+  1355  pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
+  1356      decode(PINS_TEXT.as_bytes())
 
 == crates/con-ron-core/src/frontend/mod.rs#L19-L30
     19  //! | Rust | Lean twin | con-leche |
@@ -1980,23 +1980,23 @@
    273    lss : LsExt st.lss st'.lss
    274    expr : ∀ i e, denoteE st i = some e → denoteE st' i = some e
 
-== proof/ConRon/Bridge/Checker/Fold.lean#L111-L126
-   111  /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
-   112  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
-   113  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
-   114  `Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
-   115  (all proved: the tier is `sorry`-free).
-   116  
-   117  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
-   118  `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
-   119  total extension holds here and weakens one level up. -/
-   120  theorem Arena.checkDecl_bridge {μ : CheckMode}
-   121      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-   122      {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-   123      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-   124      (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-   125      (hd : Frontend.denoteDecl s.store pd = some d)
-   126      (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
+== proof/ConRon/Bridge/Checker/Fold.lean#L138-L153
+   138  /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+   139  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
+   140  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
+   141  `Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
+   142  (all proved: the tier is `sorry`-free).
+   143  
+   144  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
+   145  `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
+   146  total extension holds here and weakens one level up. -/
+   147  theorem Arena.checkDecl_bridge {μ : CheckMode}
+   148      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
+   149      {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
+   150      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+   151      (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+   152      (hd : Frontend.denoteDecl s.store pd = some d)
+   153      (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
 
 == proof/ConRon/Bridge/Checker/Phased.lean#L86-L97
     86  theorem Arena.pooledAccepts_bridge {μ : CheckMode}
@@ -2207,12 +2207,12 @@
    377  /-- The Rust-side invariant of the whole state. -/
    378  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
 
-== proof/ConRon/Refine2/Shape.lean#L224-L228
-   224  /-- The lockstep simulation statement for a state-threading Rust function. -/
-   225  def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
-   226      (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
-   227      (x : AM β) : Prop :=
-   228    AOut₀ A pers o.1 o.2 (x.run lst)
+== proof/ConRon/Refine2/Shape.lean#L205-L209
+   205  /-- The lockstep simulation statement for a state-threading Rust function. -/
+   206  def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+   207      (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
+   208      (x : AM β) : Prop :=
+   209    AOut₀ A pers o.1 o.2 (x.run lst)
 
 == proof/ConRon/Refine2/Checker/Shape.lean#L146-L150
    146  def SimRel₀ {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)

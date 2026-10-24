@@ -230,7 +230,7 @@ Aeneas cannot translate.
 ## 4. The expression representation
 
 The checker's state is one value,
-[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L303-L325):
+[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L295-L317):
 the **arena** (the store of all terms), the per-call memo tables and the
 per-declaration caches (§5), and the reserved-name pins (§6.1).  Checker
 functions take it as `&mut AState`, together with the shared persistent tier
@@ -266,7 +266,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1209-L1223)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1170-L1184)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -280,10 +280,10 @@ bit.  So "does this term have loose bound variables?" is one array read.
 Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3737-L3772)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3596-L3631)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L4022-L4068)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3881-L3927)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -333,7 +333,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  At the phase boundary,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L616-L638)
 moves the four stores' persistent tables out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1279-L1288)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1240-L1249)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -360,7 +360,7 @@ alone is sound because an `fvar` node carries its own type, so a handle
 determines its typing context.
 
 **Per-call memos**
-([`Memos`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L181-L243)).
+([`Memos`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L173-L235)).
 Each term walk of con-leche's `ExprOps` (instantiate, abstract, lift,
 instantiate level parameters, the bound computations) has its own table,
 keyed by `(handle, cursor)`.  A walk's top-level entry clears its table, so
@@ -373,11 +373,11 @@ Two more tables sit in the same record for their allocation only: the
 declaration guards `allLevelParamsDefined` and `constsResolve` thread their
 memo as an argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L510-L557)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L466-L513)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
-([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L359-L421)).
+([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L315-L377)).
 These are con-leche's memo tables:
 
 * `whnfCore`, `whnf`, `infer` and `inferIO`, each `EIdx ↦ EIdx`.
@@ -448,7 +448,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three 
    ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
    generated from con-leche by `scripts/gen-pins.sh`) and read by a verified
    decoder
-   ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1212-L1232)).
+   ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1336-L1356)).
 6. **The fold**: install every declaration, then check them (§6.3, §6.4).
 
 ### 6.2 Parsing
@@ -612,7 +612,7 @@ Two definitions connect it to con-leche:
 proves that every twin function computes, on denotations, what the
 corresponding con-leche function computes.  The per-declaration statement
 is
-[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L111-L126),
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L138-L153),
 and
 [`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L86-L97)
 lifts it to the whole two-phase fold: the pure fold accepts the denoted
@@ -696,7 +696,7 @@ for hash maps, by the map they represent.
 holds the Rust-only invariants, such as each hash map's own well-formedness.
 
 **The statement.**  A state-threading Rust function is specified by
-[`Sim₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Shape.lean#L224-L228):
+[`Sim₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Shape.lean#L205-L209):
 if the Rust returns `Ok r` in state `st'`, the twin returns `A r` in a state
 related to `st'`; if the Rust returns a mirrored error, the twin throws the
 same kind (`Native` included: the twin raises its `native` at the same point,
