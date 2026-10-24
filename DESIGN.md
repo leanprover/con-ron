@@ -69671,14 +69671,14 @@ accept 57 919):
 
 | binary | instructions:u | cycles:u | peak RSS |
 |---|---:|---:|---:|
-| master `12752ca7` | 186 302 180 981 | 82 673 261 410 | 569 MB |
-| this branch `917a6513` | **184 549 536 982** (−0.941 %) | 81 060 419 888 | 597 MB |
+| master `12752ca7` | 186 301 958 590 | 79 273 684 473 | 517 MB |
+| this branch `bb947168` | **184 549 307 343** (−0.941 %) | 78 491 388 392 | 515 MB |
 
 Upstream measured +0.022 % on its `init-full`; here the deleted name guard
 (`nidx_is_proj_fn_shape` ran at every header) and the pure lookups pay for
-the table map.  Peak RSS +5 % on `Init` (one run each; an earlier run at
-`c2be4ff9` gave 553 → 563 MB), well inside the `ulimit` budget; not
-investigated further.
+the table map.  Peak RSS on `Init` is unchanged (one run each; two earlier
+runs at `c2be4ff9` and `917a6513` read 553 → 563 and 569 → 597 MB, the same
+binaries' spread between runs, not a difference between them).
 
 **Size** (from `12752ca7`): Rust core +1201 −1321; twin +415 −398; generated
 model +1752 −2218; Theorem 1 (`Bridge/`) +2959 −3607 in 57 files; Theorem 2
