@@ -16,7 +16,7 @@ guard the checker ran:
 |---|---|
 | `defn` / `thm` / `opaque` / `axiom` | `ConstantValRun`'s first conjunct, `(env.find? cv.name).isNone` |
 | `basis` (and a pinned `ind`/`quot` block) | `BasisInstallRun`'s per-constant `isNone` |
-| `ind` (the uniform route, `DeclBlockRun`) | the formers' `checkConstantVal` (fresh at the base) and the front guard's `Nodup` of the member names; each constructor's `checkConstantVal` (fresh at the formers' environment, `checkSumCtors_names`) and the front guard's `Nodup` of the constructor names; the generated recursors fresh at the constructors' environment (`genRecCheck_out_fresh`) and pairwise distinct (`targetRecPins`' own `Nodup` test); `checkStructProjTable_inv`'s `projTableName` guard |
+| `ind` (the uniform route, `DeclBlockRun`) | the formers' `checkConstantVal` (fresh at the base) and the front guard's `Nodup` of the member names; each constructor's `checkConstantVal` (fresh at the formers' environment, `checkSumCtors_names`) and the front guard's `Nodup` of the constructor names; the generated recursors fresh at the constructors' environment (`genRecCheck_out_fresh`) and pairwise distinct (`targetRecPins`' own `Nodup` test) |
 
 The statements and the proofs are pure: con-leche's checker, and the
 basis install's table lemma from `Bridge/Checker/DeclWF.lean`.
