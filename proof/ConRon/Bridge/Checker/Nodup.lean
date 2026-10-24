@@ -18,7 +18,8 @@ guard the checker ran:
 | `basis` (and a pinned `ind`/`quot` block) | `BasisInstallRun`'s per-constant `isNone` |
 | `ind` (the uniform route, `DeclBlockRun`) | the formers' `checkConstantVal` (fresh at the base) and the front guard's `Nodup` of the member names; each constructor's `checkConstantVal` (fresh at the formers' environment, `checkSumCtors_names`) and the front guard's `Nodup` of the constructor names; the generated recursors fresh at the constructors' environment (`genRecCheck_out_fresh`) and pairwise distinct (`targetRecPins`' own `Nodup` test); `checkStructProjTable_inv`'s `projTableName` guard |
 
-This module imports con-leche only: the statement and the proof are pure.
+The statements and the proofs are pure: con-leche's checker, and the
+basis install's table lemma from `Bridge/Checker/DeclWF.lean`.
 -/
 import ConLeche.Semantics.Bridge.Sound
 import ConLeche.Verify.Extend.Inversions
@@ -26,6 +27,7 @@ import ConLeche.Verify.EnvBound
 import ConLeche.Verify.EnvWF
 import ConLeche.Verify.ExceptBind
 import ConLeche.Verify.Inductives.GenRecRun
+import ConRon.Bridge.Checker.DeclWF
 
 namespace ConRon.Bridge
 
@@ -144,8 +146,8 @@ theorem consBlockRecsT_nodup (find? : Name → Option ConstantInfo)
     exact consBlockRecsT_nodup find? q rest (m + 1)
       (nodupNames_push hnd (hfr.2 _ (List.mem_cons_self ..))) hfr'.step
 
-/-- con-leche: ConLeche/Verify/Cached/PushChain.lean checkBlockTablesF_push — every
-projection table's push is guarded by its own lookup. -/
+/-- con-leche: ConLeche/Verify/Cached/PushChain.lean checkBlockTablesF_push — a
+projection table's install leaves the constants alone. -/
 theorem checkBlockTables_nodup (p : BlockShape) :
     ∀ (l : List (MemberShape × List (ConstantVal × Nat) × List (List Level))) {e e' : Env},
       checkBlockTables (m := CheckM) p l e = .ok e' → NodupNames e → NodupNames e'
@@ -158,8 +160,8 @@ theorem checkBlockTables_nodup (p : BlockShape) :
     refine checkBlockTables_nodup p rest hrest ?_
     split at hstep
     · split at hstep
-      · obtain ⟨-, -, -, hfP, rfl⟩ := checkStructProjTable_inv hstep
-        exact nodupNames_push hnd hfP
+      · obtain ⟨-, -, -, -, -, rfl⟩ := checkStructProjTable_inv hstep
+        exact hnd
       · simp only [pure, Except.pure, Except.ok.injEq] at hstep
         subst hstep; exact hnd
     · simp only [pure, Except.pure, Except.ok.injEq] at hstep
@@ -394,6 +396,169 @@ theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
     · simp only [DeclIndRunDispatchK] at hrun
       split at hrun
       · exact declBlockRun_nodup hrun hnd
+      · exact hrun.elim
+
+/-! ## The table list only grows, by tables of fresh structures
+
+The two-phase fold's prefix views agree with the environment a record was
+installed at on their TABLE lookups too (`Bridge/Checker/Split.lean`), because
+every table a later step installs belongs to a structure that environment
+does not store: con-leche's `PushChain`'s table clause, here for the pure
+checker. -/
+
+/-- con-leche: ConLeche/Verify/Cached/PushChain.lean:45-49 PushChain (the
+table clause) — `e'`'s tables are `e`'s with tables of structures `e` does not
+store in front. -/
+def TblExt (e e' : Env) : Prop :=
+  ∃ newQ, e'.tables = newQ ++ e.tables ∧ ∀ t ∈ newQ, e.find? t.structName = none
+
+/-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain.find?_none —
+**the relation chains** along a constant extension: a structure the middle
+environment does not store, the first does not either. -/
+theorem TblExt.trans {a b c : Env} (h₁ : TblExt a b) (h₂ : TblExt b c)
+    (hab : ∃ new, b.consts = new ++ a.consts) : TblExt a c := by
+  obtain ⟨q₁, e₁, f₁⟩ := h₁
+  obtain ⟨q₂, e₂, f₂⟩ := h₂
+  obtain ⟨new, hn⟩ := hab
+  refine ⟨q₂ ++ q₁, by rw [e₂, e₁, List.append_assoc], fun t ht => ?_⟩
+  rcases List.mem_append.mp ht with ht | ht
+  · have hb := f₂ t ht
+    unfold Env.find? at hb ⊢
+    rw [hn, List.find?_append] at hb
+    cases h : a.consts.find? (·.name == t.structName) with
+    | none => rfl
+    | some x => rw [h] at hb; cases new.find? (·.name == t.structName) <;> simp at hb
+  · exact f₁ t ht
+
+/-- con-leche: none — a step that leaves the tables alone. -/
+theorem TblExt.of_eq {e e' : Env} (h : e'.tables = e.tables) : TblExt e e' :=
+  ⟨[], by rw [h]; rfl, fun _ h => nomatch h⟩
+
+/-- con-leche: none — the formers' conses leave the tables alone. -/
+theorem consBlockInds_tables (p₁ : BlockShape) (isRec : Bool) :
+    ∀ (cvTas : List ConstantVal) (i : Nat) (e : Env),
+      (consBlockInds p₁ isRec cvTas i e).tables = e.tables
+  | [], _, _ => rfl
+  | _ :: cs, i, _ => consBlockInds_tables p₁ isRec cs (i + 1) _
+
+/-- con-leche: none — the constructors' conses leave the tables alone. -/
+theorem consSumCtors_tables (nP : Nat) :
+    ∀ (cs : List (ConstantVal × Nat)) (e : Env), (consSumCtors nP cs e).tables = e.tables
+  | [], _ => rfl
+  | _ :: cs, _ => consSumCtors_tables nP cs _
+
+/-- con-leche: none — the recursors' conses leave the tables alone. -/
+theorem consBlockRecsT_tables (find? : Name → Option ConstantInfo) (q : BlockShape) :
+    ∀ (out : List (ConstantVal × TargetMajor × List Expr)) (m : Nat) (e : Env),
+      (consBlockRecsT find? q m out e).tables = e.tables
+  | [], _, _ => rfl
+  | (_, _, _) :: rest, m, _ => consBlockRecsT_tables find? q rest (m + 1) _
+
+/-- con-leche: ConLeche/Verify/Cached/PushChain.lean checkBlockTablesF_push —
+the projection tables' installs push tables only, each named by a member of
+the list walked. -/
+theorem checkBlockTables_tables (p : BlockShape) :
+    ∀ (l : List (MemberShape × List (ConstantVal × Nat) × List (List Level))) {e e' : Env},
+      checkBlockTables (m := CheckM) p l e = .ok e' →
+      e'.consts = e.consts ∧ ∃ newQ, e'.tables = newQ ++ e.tables ∧
+        ∀ t ∈ newQ, ∃ x ∈ l, t.structName = x.1.cvT.name
+  | [], e, e', h => by
+    simp only [checkBlockTables, pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact ⟨rfl, [], rfl, fun _ h => nomatch h⟩
+  | (ms, ctorsA, sortss) :: rest, e, e', h => by
+    unfold checkBlockTables at h
+    obtain ⟨e'', hstep, hrest⟩ := exceptBind_ok h
+    obtain ⟨hc, newQ, hq, hqn⟩ := checkBlockTables_tables p rest hrest
+    have hmid : e''.consts = e.consts ∧ ∃ q : List ProjTable, e''.tables = q ++ e.tables ∧
+        ∀ t ∈ q, t.structName = ms.cvT.name := by
+      split at hstep
+      · split at hstep
+        · obtain ⟨bodies, -, -, -, -, rfl⟩ := checkStructProjTable_inv hstep
+          refine ⟨rfl, [_], rfl, fun t ht => ?_⟩
+          rw [List.mem_singleton] at ht
+          subst ht; rfl
+        · simp only [pure, Except.pure, Except.ok.injEq] at hstep
+          subst hstep; exact ⟨rfl, [], rfl, fun _ h => nomatch h⟩
+      · simp only [pure, Except.pure, Except.ok.injEq] at hstep
+        subst hstep; exact ⟨rfl, [], rfl, fun _ h => nomatch h⟩
+    obtain ⟨hc', q, hq', hqn'⟩ := hmid
+    refine ⟨hc.trans hc', newQ ++ q, by rw [hq, hq', List.append_assoc], fun t ht => ?_⟩
+    rcases List.mem_append.mp ht with ht | ht
+    · obtain ⟨x, hx, hxn⟩ := hqn t ht
+      exact ⟨x, List.mem_cons_of_mem _ hx, hxn⟩
+    · exact ⟨(ms, ctorsA, sortss), List.mem_cons_self .., hqn' t ht⟩
+
+/-- con-leche: ConLeche/Semantics/Inductives/DeclBlock.lean:40 DeclBlockRun —
+the uniform install's tables are its members' structures', each fresh at the
+base (the formers' `checkConstantVal`, `declBlockRun_nodup`'s first stage). -/
+theorem declBlockRun_tables {μ : CheckMode} {F : Nat} {e e' : Env}
+    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun μ F e block p₀ e') :
+    TblExt e e' := by
+  obtain ⟨-, -, isRec, env₁, cvTas, p₁, p, ctorsAs, sortsss, ctx, holes, rd, Ms, kinds,
+    nfs, pos, st, isorts, out, hInd, hp, -, -, -, -, -, -, -, -, hTbl⟩ := h
+  obtain ⟨ms0, rest, cvTa0, s0, cvs, hm, hcv, hp1, henv1, htele0, hteles, -⟩ :=
+    checkBlockInds_shape hInd
+  obtain ⟨cvT0, hn0, -, heq0, hccv0, -⟩ := checkBlockTele_shape htele0
+  have hf0 := (checkConstantVal_inv hccv0).1
+  have hname0 : cvTa0.name = ms0.cvT.name := by rw [heq0]; exact hn0
+  obtain ⟨-, hfrR⟩ := checkBlockTeles_names hteles
+  -- every member's name is fresh at the base
+  have hfrM : ∀ ms ∈ p₀.members, e.find? ms.cvT.name = none := by
+    intro ms hms
+    rw [hm] at hms
+    rcases List.mem_cons.mp hms with rfl | hms
+    · rw [← hn0]; exact hf0
+    · obtain ⟨hnsR, -⟩ := checkBlockTeles_names hteles
+      have : ms.cvT.name ∈ cvs.map (·.1.name) := by
+        rw [hnsR]; exact List.mem_map_of_mem hms
+      obtain ⟨q, hq, hqn⟩ := List.mem_map.mp this
+      rw [← hqn]; exact hfrR q hq
+  have hmem : p.members = p₀.members := by
+    rw [hp, BlockParts.complete_members, hp1, BlockShape.withSort_members]
+  obtain ⟨-, newQ, hq, hqn⟩ := checkBlockTables_tables _ _ hTbl
+  refine ⟨newQ, ?_, fun t ht => ?_⟩
+  · rw [hq, consBlockRecsT_tables, consBlockCtors_flatten, consSumCtors_tables, henv1,
+      consBlockInds_tables]
+  · obtain ⟨x, hx, hxn⟩ := hqn t ht
+    rw [hxn]
+    exact hfrM x.1 (hmem ▸ (List.of_mem_zip hx).1)
+
+/-- con-leche: ConLeche/Verify/Cached/InstalledC.lean installRun_trace — **the
+pure fold's table list only grows, by tables of structures the step's
+environment does not store**: every arm but the inductive route installs no
+table, and the route installs its own members' (`declBlockRun_tables`). -/
+theorem checkDecl_tables {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
+    {env env' : Env} {d : Declaration}
+    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') :
+    TblExt env env' := by
+  have hrun := checkDeclRun_ofEnvFactsK h
+  cases d with
+  | defnDecl cv value hint =>
+    obtain ⟨type', value', hcv, -, rfl, -⟩ := hrun
+    exact TblExt.of_eq rfl
+  | thmDecl cv value =>
+    obtain ⟨type', value', hcv, -, -, rfl⟩ := hrun
+    exact TblExt.of_eq rfl
+  | opaqueDecl cv value =>
+    obtain ⟨type', value', hcv, -, rfl, -⟩ := hrun
+    exact TblExt.of_eq rfl
+  | axiomDecl cv =>
+    rcases hrun with ⟨-, rfl⟩ | ⟨type', hcv, hdisj⟩
+    · exact TblExt.of_eq rfl
+    · rcases hdisj with ⟨-, rfl⟩ | ⟨-, -, rfl⟩ | ⟨-, -, rfl⟩ | ⟨-, -, -, -, -, -, -, rfl⟩
+      all_goals exact TblExt.of_eq rfl
+  | basisDecl kind => exact TblExt.of_eq (basisInstallRun_tables _ hrun.2)
+  | quotDecl k cv =>
+    cases k with
+    | type => exact TblExt.of_eq (basisInstallRun_tables _ hrun.2)
+    | _ => (simp only [DeclRun] at hrun; subst hrun; exact TblExt.of_eq rfl)
+  | indDecl block nP =>
+    simp only [DeclRun] at hrun
+    split at hrun
+    · exact TblExt.of_eq (basisInstallRun_tables _ hrun.2)
+    · simp only [DeclIndRunDispatchK] at hrun
+      split at hrun
+      · exact declBlockRun_tables hrun
       · exact hrun.elim
 
 end ConRon.Bridge

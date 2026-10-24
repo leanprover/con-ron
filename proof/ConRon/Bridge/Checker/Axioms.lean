@@ -188,7 +188,6 @@ namespace ConRon.Bridge
 #print axioms IConstantVal.canonEq_run
 #print axioms denoteCI_axiom_inv
 #print axioms denoteCI_ctor_inv
-#print axioms denoteCI_proj_inv
 #print axioms denoteCI_defn_inv
 #print axioms denoteCI_thm_inv
 #print axioms denoteCI_ind_inv
@@ -272,6 +271,7 @@ namespace ConRon.Bridge
 #print axioms denoteCIList_length
 #print axioms denoteCIList_nodup
 #print axioms IFEnvOK_restrictTo
+#print axioms IFEnvOK.congr_env
 
 -- the `.projInfo` comparison, and the two injectivity facts it needed
 #print axioms denoteNList_inj
@@ -289,6 +289,12 @@ namespace ConRon.Bridge
 
 -- the `IFEnv.push` family: the index, and the whole step invariant
 #print axioms IFEnvOK.push
+#print axioms IFEnvOK.pushTable
+#print axioms IFEnvOK.congr_lookup
+#print axioms IFEnvOK.findTable_isSome
+#print axioms IFEnvOK.pushStored
+#print axioms TablesStored.of_envWF
+#print axioms TablesStored.cons
 #print axioms StepOK.push
 
 -- `ConstWF` at an install: the type half (a hypothesis, read off the front
@@ -316,22 +322,13 @@ namespace ConRon.Bridge
 -- scratch flag (the tier's fifth `.projInfo` site)
 #print axioms internCI_fresh
 #print axioms internCV_fresh
-#print axioms toConstantVal_sstep
 
 -- the pinned blocks, interned
 #print axioms BasisKind.decls_run
 #print axioms BasisKind.declsA_run
-#print axioms BasisKind.decls_proj
 
 -- no pinned block declares a projection table, so the tier's `.projInfo`
 -- hypothesis is DISCHARGED at the basis route rather than carried
-#print axioms basis_declsA_no_proj
-#print axioms basis_decls_no_proj
-#print axioms basis_decls_name_not_num
-#print axioms canon_isTowerEntry
-#print axioms ci_ne_proj_of_denote
-#print axioms noTable_of_names
-#print axioms noTable_of_canon
 
 -- the two recognisers and the block install
 #print axioms denoteCIList_names
@@ -366,7 +363,10 @@ namespace ConRon.Bridge
 #print axioms PhaseA.foldlM
 #print axioms SplitInstall.checkDecl
 #print axioms SplitInstall.nodup
+#print axioms SplitInstall.tables
 #print axioms PendRel.mono
+#print axioms PendRel.prefix_find?
+#print axioms PendRel.prefix_findTable?
 
 /-! ## Group 2 — the three headline theorems
 
@@ -401,11 +401,14 @@ hypotheses of the statement. -/
 #print axioms declBlockRun_nodup
 #print axioms checkShapeless_ne_ok
 #print axioms checkDecl_nodup
+#print axioms TblExt.trans
+#print axioms checkBlockTables_tables
+#print axioms declBlockRun_tables
+#print axioms checkDecl_tables
 #print axioms Arena.checkPending_prefix
 #print axioms denoteN_default_of_pinNames
 #print axioms internPinSets_run
 #print axioms bracketClose_foldOK
-#print axioms FoldOK.projMem
 -- `installStep_split`'s bracket; it reaches `Arena.checkDecl_wfProj` through
 -- `Arena.installStepGo_full`
 #print axioms Arena.installStepGo_bridge
@@ -417,7 +420,6 @@ hypotheses of the statement. -/
 -- `DeclOut`'s two clauses (each prints the three standard axioms)
 #print axioms declBasisRun_envWF
 #print axioms checkDecl_wf_pure
-#print axioms projMem_of_noTower
 #print axioms DeclCore.out
 #print axioms divModEnvGuard_run
 #print axioms divModPinGuard_run

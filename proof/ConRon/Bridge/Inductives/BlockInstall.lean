@@ -79,17 +79,28 @@ theorem dCvL_inv {st : EStore} {x : IConstantVal × LIdx} {y : ConstantVal × Le
   obtain rfl := (Option.some.inj h).symm
   exact ⟨rfl, rfl⟩
 
-/-- con-leche: none — the index spec across `consSumCtors`' pushes (none of
-them a projection table). -/
+/-- con-leche: none — `consSumCtors` only conses constants, so every table
+stays with a stored structure. -/
+theorem consSumCtors_ts (nP : Nat) :
+    ∀ (csP : List (ConstantVal × Nat)) (env : Env),
+      TablesStored env → TablesStored (ConLeche.consSumCtors nP csP env)
+  | [], _, h => h
+  | _ :: csP, _, h => by
+    simp only [ConLeche.consSumCtors]
+    exact consSumCtors_ts nP csP _ h.cons
+
+/-- con-leche: none — the index spec across `consSumCtors`' pushes
+(`IFEnvOK.pushStored`, each). -/
 theorem consSumCtors_ifenvok {st : EStore} (hwf : StoreWF st) (nP : Nat) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)) (fe : IFEnv)
-      (env : Env), denoteCtors st cs = some csP → IFEnvCoh fe → IFEnvOKS env fe st →
+      (env : Env), denoteCtors st cs = some csP → IFEnvCoh fe →
+      denoteFEnv st fe = some env → TablesStored env → IFEnvOKS env fe st →
       IFEnvOKS (ConLeche.consSumCtors nP csP env) (Arena.consSumCtors nP cs fe) st
-  | [], csP, fe, env, hcs, _, h => by
+  | [], csP, fe, env, hcs, _, _, _, h => by
     simp only [denoteCtors, Option.some.injEq] at hcs
     subst hcs
     exact h
-  | (cv, n) :: cs, csP, fe, env, hcs, hcoh, h => by
+  | (cv, n) :: cs, csP, fe, env, hcs, hcoh, hfe, hts, h => by
     simp only [denoteCtors] at hcs
     cases hcv : Frontend.denoteCV st cv with
     | none => rw [hcv] at hcs; simp at hcs
@@ -102,9 +113,10 @@ theorem consSumCtors_ifenvok {st : EStore} (hwf : StoreWF st) (nP : Nat) :
     have hci : Frontend.denoteCI st (.ctorInfo cv nP n) = some (.ctorInfo cP nP n) := by
       simp only [Frontend.denoteCI, hcv, Option.map_some]
     simp only [Arena.consSumCtors, ConLeche.consSumCtors]
-    refine consSumCtors_ifenvok hwf nP cs restP _ _ hrest (hcoh.push _) ?_
+    refine consSumCtors_ifenvok hwf nP cs restP _ _ hrest (hcoh.push _)
+      (denoteFEnv_push hfe hci) hts.cons ?_
     intro s hs
-    exact (h s hs).push ⟨by rw [hs]; exact hwf⟩ hcoh (fun t h => by cases h)
+    exact (h s hs).pushStored ⟨by rw [hs]; exact hwf⟩ hcoh (by rw [hs]; exact hfe) hts
       (by rw [hs]; exact hci)
 
 /-- con-leche: none — a list of level-handle lists survives an append. -/
@@ -708,7 +720,7 @@ theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
         denoteFEnv st fe = some env')
       (Arena.consBlockInds p₁ isRec cvs i fe)
       (fun st r => InstRel fe (fun e => e = ConLeche.consBlockInds p₁P isRec cvsP i env') st r ∧
-        (StoreWF st → IFEnvOKS env' fe st →
+        (StoreWF st → TablesStored env' → IFEnvOKS env' fe st →
           IFEnvOKS (ConLeche.consBlockInds p₁P isRec cvsP i env') r st)) := by
   intro cvs
   induction cvs with
@@ -720,7 +732,7 @@ theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
     simp only [Arena.consBlockInds] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env', hfe, rfl⟩,
-      ProjOut.refl _ _⟩, fun _ h => h⟩
+      ProjOut.refl _⟩, fun _ _ h => h⟩
   | cons cv rest ih =>
     intro cvsP i fe env' hcoh s₀ s' r hok hpre hrun
     obtain ⟨hp, hcvs, hfe⟩ := hpre
@@ -733,21 +745,21 @@ theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
         some (.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec)) := by
       simp only [Frontend.denoteCI, denoteCV_ext hcv x1, hcaps]
     have hpush := denoteFEnv_push (denoteFEnv_mono x1 hfe) hci
-    have hnp : ∀ t, IConstantInfo.indInfo cv caps ≠ .projInfo t := fun t h => by cases h
     obtain ⟨c2, hR, hO⟩ := ih restP (i + 1) (fe.push (.indInfo cv caps))
-      ⟨.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec) :: env'.consts⟩ (hcoh.push _) s₁ s' r
+      ⟨.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec) :: env'.consts, env'.tables⟩ (hcoh.push _) s₁ s' r
       c1.ok ⟨dShape_ext x1 _ _ hp, dExt_denoteCV.list x1 _ _ hrest, hpush⟩ z1
     have h1 : InstRel fe (fun _ => True) s₁.store (fe.push (.indInfo cv caps)) :=
       ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
-        ProjOut.push hcoh _ hnp⟩
-    refine ⟨c1.trans c2, InstRel.trans c2.ext h1 hR, ?_⟩
-    intro hwf hS
+        ProjOut.push _ _⟩
+    refine ⟨c1.trans c2, InstRel.trans h1 hR, ?_⟩
+    intro hwf hts hS
     simp only [ConLeche.consBlockInds]
-    refine hO hwf ?_
+    refine hO hwf hts.cons ?_
     intro s hs
     have hS' := hS s hs
     have hst : StateOK s := ⟨by rw [hs]; exact hwf⟩
-    exact hS'.push hst hcoh hnp (by rw [hs]; exact denoteCI_ext hci c2.ext)
+    exact hS'.pushStored hst hcoh (by rw [hs]; exact denoteFEnv_mono (x1.trans c2.ext) hfe) hts
+      (by rw [hs]; exact denoteCI_ext hci c2.ext)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:174-187 checkBlockInds
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
@@ -828,7 +840,7 @@ theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (cvTa₀P :: cvsP.map (·.1)) 0 env, cvTa₀P :: cvsP.map (·.1),
       ConLeche.BlockShape.withSort
       ⟨ms₀P :: restP, rs, p.shape.nP, el, sP, p.shape.large, p.shape.isProp⟩ s0P),
-    ⟨hR, hO c5.ok.state.wf (c5.ok.ienv.toS), dExt_denoteCV.list c5.ext _ _ hcvTas,
+    ⟨hR, hO c5.ok.state.wf (TablesStored.of_envWF henv) (c5.ok.ienv.toS), dExt_denoteCV.list c5.ext _ _ hcvTas,
     dShape_ext c5.ext _ _ hp₁, ?_⟩, ?_⟩
   · intro cv hcv
     rcases List.mem_cons.mp hcv with rfl | hcv
@@ -1197,21 +1209,22 @@ theorem consBlockCtors_spec (st : EStore) (nP : Nat) :
       denoteFEnv st fe = some env → IFEnvCoh fe →
       InstRel fe (fun e => e = ConLeche.consBlockCtors nP cssP env) st
         (Arena.consBlockCtors nP css fe) ∧
-      (StoreWF st → IFEnvOKS env fe st →
+      (StoreWF st → TablesStored env → IFEnvOKS env fe st →
         IFEnvOKS (ConLeche.consBlockCtors nP cssP env) (Arena.consBlockCtors nP css fe) st)
   | [], cssP, fe, env, hcss, hfe, hcoh => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcss
     subst hcss
-    exact ⟨⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _ _⟩,
-      fun _ h => h⟩
+    exact ⟨⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _⟩,
+      fun _ _ h => h⟩
   | cs :: css, cssP, fe, env, hcss, hfe, hcoh => by
     obtain ⟨csP, cssP', rfl, hcs, hcss'⟩ := mapM_option_cons_inv hcss
     rw [dCtors_eq_denoteCtors] at hcs
     have h1 := consSumCtors_spec st nP cs csP fe env hcs hfe hcoh
     obtain ⟨e1, he1, rfl⟩ := h1.denote
     obtain ⟨h2, hO⟩ := consBlockCtors_spec st nP css cssP' _ _ hcss' he1 h1.coh
-    refine ⟨InstRel.trans (Ext.refl _) h1 h2, fun hwf hS => ?_⟩
-    exact hO hwf (consSumCtors_ifenvok hwf nP cs csP fe env hcs hcoh hS)
+    refine ⟨InstRel.trans h1 h2, fun hwf hts hS => ?_⟩
+    exact hO hwf (consSumCtors_ts nP csP env hts)
+      (consSumCtors_ifenvok hwf nP cs csP fe env hcs hcoh hfe hts hS)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:260-274 blockNestCtx
 **The walk's context** of a block, against
@@ -1262,7 +1275,7 @@ theorem blockNestCtx_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (henv : EnvW
   obtain ⟨holesP, hnh, hholes⟩ := hoh
   have hw0 : Expr.WScoped 0 cv0P.type := hT _ List.mem_cons_self
   have hctxOk : NestCtxOk (pP.nestCtx xs env.find?) :=
-    fun n ci hf => (henv ci (List.mem_of_find?_eq_some hf)).1
+    fun n ci hf => (henv.consts ci (List.mem_of_find?_eq_some hf)).1
   have hparN : ∀ y ∈ xs, Expr.WScoped pP.nP y := by
     intro y hy
     have := (ConLeche.openPisAtFvars_WScoped pP.nP cv0P.type 0 hpq hw0).1 y hy

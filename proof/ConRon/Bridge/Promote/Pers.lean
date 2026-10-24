@@ -494,6 +494,23 @@ theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
       exact hp.idx n (c, cj) hidx
     · rw [ite_eq_right hlt] at hf; exact absurd hf (by simp)
 
+/-- con-leche: none — arena infrastructure; a gated table hit is a raw one. -/
+theorem IFEnv.rawTable?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
+    (h : fe.findTable? n = some t) : fe.rawTable? n = some t := by
+  unfold IFEnv.findTable? at h
+  split at h
+  · exact h
+  · cases h
+
+/-- con-leche: none — arena infrastructure; a gated table hit's structure is
+stored. -/
+theorem IFEnv.find?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
+    (h : fe.findTable? n = some t) : (fe.find? n).isSome = true := by
+  unfold IFEnv.findTable? at h
+  split at h
+  · assumption
+  · cases h
+
 /-- con-leche: none — arena infrastructure; **what a table lookup in a
 persistent index answers is persistent**: `IFEnv.rawTable?` reads the table map
 and nothing else. -/

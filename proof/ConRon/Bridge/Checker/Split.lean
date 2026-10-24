@@ -544,29 +544,24 @@ theorem denoteCIList_drop {st : EStore} : ∀ (m : Nat) (cs : List IConstantInfo
 two entries with the same handle would be two constants with the same name.
 This is how `IFEnvOK_restrictTo` spends con-leche's own `Nodup` side
 condition on the arena's index. -/
-theorem denoteCIList_nodup {st : EStore} (hwf : StoreWF st) :
+theorem denoteCIList_nodup {st : EStore} :
     ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
       Frontend.denoteCIList st cs = some zs →
-      (∀ t, IConstantInfo.projInfo t ∈ cs → IProjTableOK st t) →
       (zs.map (·.name)).Nodup → (cs.map (·.name)).Nodup := by
-  obtain ⟨rk, hrk⟩ := hwf
   intro cs
   induction cs with
-  | nil => intro zs _ _ _; simp
+  | nil => intro zs _ _; simp
   | cons a as ih =>
-    intro zs hz hproj hnd
+    intro zs hz hnd
     obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
     simp only [List.map_cons, List.nodup_cons] at hnd ⊢
     obtain ⟨hxa, hxs⟩ := hnd
-    refine ⟨?_, ih xs has (fun t ht => hproj t (List.mem_cons_of_mem _ ht)) hxs⟩
+    refine ⟨?_, ih xs has hxs⟩
     intro hmem
     obtain ⟨b, hbm, hbn⟩ := List.mem_map.mp hmem
     obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hbm
-    have h1 : denoteN st.ns a.name = some x.name :=
-      denoteCI_name_of (fun t ht => (hproj t (by simp [ht])).toNamed) ha
-    have h2 : denoteN st.ns b.name = some z.name :=
-      denoteCI_name_of
-        (fun t ht => (hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))).toNamed) hzd
+    have h1 : denoteN st.ns a.name = some x.name := denoteCI_name ha
+    have h2 : denoteN st.ns b.name = some z.name := denoteCI_name hzd
     rw [hbn] at h2
     have hxz : x.name = z.name := Option.some.inj (h1.symm.trans h2)
     exact hxa (hxz ▸ List.mem_map_of_mem hzm)
@@ -587,11 +582,11 @@ denotation-shaped statement
 
 is FALSE.  `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a
 change to the INDEX's bound and to nothing else — while `denoteFEnv st fe` is
-`denoteIEnv st fe.env`, which reads `fe.env.consts` and ignores `idx` and
+`denoteIEnv st fe.env`, which reads `fe.env` and ignores `idx` and
 `visibleBelow` entirely.  So `denoteFEnv s.store (fe.restrictTo k)
 = denoteFEnv s.store fe = some env`, `envK = env` is forced, and the second
 conjunct degenerates to `env.find? = (env.prefixTo k).find?`, which fails at
-`k = 0` and any non-empty `env` (`env.prefixTo 0 = ⟨[]⟩`).
+`k = 0` and any `env` with a constant (`env.prefixTo 0` has none).
 
 con-leche's own `mkFEnv_find?_visibleBelow` is a statement about `FEnv.find?`,
 not about a denotation — *"looking a name up in the full index with the bound
@@ -602,52 +597,45 @@ is what stands here, and it is what the one consumer
 `fe.restrictTo pc.vis`) actually needs: the Core tier's hypotheses are
 `IFEnvOK`-shaped, not denotation-shaped.
 
-**The proof.**  `proj` is immediate: `hk` makes every hit of the restricted
-view a hit of `fe` (`IFEnv.restrictTo_find?_le`), so `FoldOK`'s own
-`IFEnvOK.proj` applies.  `hit` and `cover` are con-leche's `idxBelow_eq` at a
+**The proof.**  `hit` and `cover` are con-leche's `idxBelow_eq` at a
 DENOTED list: `mkIFEnvGo_below` and `mkIFEnvGo_below_of` above turn the
 bounded index read into `List.find?` over `cs.drop (cs.length - k)` — the
 counter an entry gets is the length of the list BEHIND it, so `c < k` says
 exactly "within the last `k`" — and then `Bridge/Checker/Inv.lean`'s
 `denoteCIList_find?` applies to the two DROPPED lists, because the readback is
-elementwise and so commutes with `List.drop`.
+elementwise and so commutes with `List.drop`.  The two table clauses are the
+gates: a table the view finds is one `fe` finds (`IFEnv.restrictTo_find?_le`
+at its open gate), so `FoldOK`'s own `IFEnvOK.tblHit` applies, and the
+prefix's gate is the view's `hit`; the prefix keeps the tables
+(`Env.prefixTo`), so behind an open gate the two raw lookups are `fe`'s and
+`env`'s.
 
 **`hnd` is spent in exactly one place**, `mkIFEnvGo_below_of`: without it an
 entry of the suffix could be shadowed by an earlier entry with the same
 handle, which the index would answer with instead.  It arrives as con-leche's
 own NAME uniqueness and `denoteCIList_nodup` transports it to HANDLE
-uniqueness through `denoteN_inj`.
-
-**`hproj` is the tier's standing `.projInfo` hypothesis**, the same one
-`IFEnvOK_of_denote`, `installBasisDecl_bridge` and `IConstantInfo.canonEq_run`
-take at the same gap (`Frontend.denoteProjTable` drops `tableName`), and the
-same debtor discharges it (`projTableOK_of_install`).  It is needed here for
-`denoteCIList_find?`'s use of `denoteCI_name_of`. -/
+uniqueness through `denoteN_inj`. -/
 theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
     {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
-    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →
-      IProjTableOK s.store t)
     (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :
     IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
   have hwf := hok.check.state.wf
-  have hd := hok.denote
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
-  obtain ⟨zs, hzs, rfl⟩ := hd
+  obtain ⟨rk, hrk⟩ := hok.check.state.wf
+  obtain ⟨hzs, -⟩ := denoteIEnv_some.mp hok.denote
   have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
   have hk' : k ≤ fe.env.consts.length := hvb ▸ hk
-  have hlen : fe.env.consts.length = zs.length := denoteCIList_length _ _ hzs
+  have hlen : fe.env.consts.length = env.consts.length := denoteCIList_length _ _ hzs
   have hndH : (fe.env.consts.map (·.name)).Nodup :=
-    denoteCIList_nodup hwf _ _ hzs hproj hnd
+    denoteCIList_nodup _ _ hzs hnd
   obtain ⟨hH, hC⟩ :=
     denoteCIList_find? hwf (fe.env.consts.drop (fe.env.consts.length - k))
-      (zs.drop (fe.env.consts.length - k)) (denoteCIList_drop _ _ _ hzs)
-      (fun t ht => hproj t (List.drop_subset _ _ ht))
+      (env.consts.drop (fe.env.consts.length - k)) (denoteCIList_drop _ _ _ hzs)
   have hfwd : ∀ (n : NIdx) (ci : IConstantInfo),
       (fe.restrictTo k).find? n = some ci →
       (fe.env.consts.drop (fe.env.consts.length - k)).find?
         (fun d => d.name == n) = some ci := by
     intro n ci hf
-    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2 n] at hf
+    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2.1 n] at hf
     cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
     | none => rw [hg] at hf; simp at hf
     | some p =>
@@ -665,21 +653,67 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
       (fe.restrictTo k).find? n = some ci := by
     intro n ci hf
     obtain ⟨c, hc, hck⟩ := mkIFEnvGo_below_of _ n k ci hk' hndH hf
-    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2 n, hc]
+    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2.1 n, hc]
     rw [ite_eq_left hck]
-  refine ⟨?_, ?_, ?_⟩
-  · intro n ci hf
+  have hit : ∀ (n : NIdx) (ci : IConstantInfo), (fe.restrictTo k).find? n = some ci →
+      ∃ nm c, denoteN s.store.ns n = some nm ∧ Frontend.denoteCI s.store ci = some c ∧
+        (env.prefixTo k).find? nm = some c := by
+    intro n ci hf
     obtain ⟨nm, c, h1, h2, h3⟩ := hH n ci (hfwd n ci hf)
     refine ⟨nm, c, h1, h2, ?_⟩
     simpa [Env.prefixTo, Env.find?, ← hlen] using h3
-  · intro nm c he
-    have he' : (zs.drop (fe.env.consts.length - k)).find?
+  have hcover : ∀ (nm : ConLeche.Name) (c : ConstantInfo), (env.prefixTo k).find? nm = some c →
+      ∃ n ci, denoteN s.store.ns n = some nm ∧ (fe.restrictTo k).find? n = some ci ∧
+        Frontend.denoteCI s.store ci = some c := by
+    intro nm c he
+    have he' : (env.consts.drop (fe.env.consts.length - k)).find?
         (fun d => d.name == nm) = some c := by
       simpa [Env.prefixTo, Env.find?, ← hlen] using he
     obtain ⟨n, ci, h1, h2, h3⟩ := hC nm c he'
     exact ⟨n, ci, h1, hbwd n ci h2, h3⟩
-  · intro n t hf
-    exact hok.check.ienv.proj n t (IFEnv.restrictTo_find?_le hk hf)
+  refine ⟨hit, hcover, ?_, ?_⟩
+  · -- `tblHit`: the view's gate is open, so `fe`'s is, and the raw tables are one
+    intro n t hf
+    obtain ⟨ci, hci⟩ := Option.isSome_iff_exists.mp (IFEnv.find?_of_findTable? hf)
+    have hraw : fe.rawTable? n = some t := IFEnv.rawTable?_of_findTable? (fe := fe.restrictTo k) hf
+    have hf' : fe.findTable? n = some t := by
+      simp only [IFEnv.findTable?, IFEnv.restrictTo_find?_le hk hci, Option.isSome_some,
+        ↓reduceIte]
+      exact hraw
+    obtain ⟨nm, pt, h1, h2, h3, h4⟩ := hok.check.ienv.tblHit n t hf'
+    refine ⟨nm, pt, h1, h2, ?_, h4⟩
+    obtain ⟨nm', c, h1', -, h3'⟩ := hit n ci hci
+    obtain rfl : nm' = nm := Option.some.inj (h1'.symm.trans h1)
+    have hraw' : env.tables.find? (·.structName == nm') = some pt := by
+      unfold Env.findTable? at h3
+      split at h3
+      · exact h3
+      · cases h3
+    unfold Env.findTable?
+    simp only [h3', Option.isSome_some, ↓reduceIte]
+    exact hraw'
+  · -- `tblCover`: the prefix's gate is the view's hit, `fe`'s gate then `fe`'s hit
+    intro nm pt he
+    unfold Env.findTable? at he
+    split at he
+    · rename_i hg
+      obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hg
+      obtain ⟨n, ci, h1, h2, -⟩ := hcover nm c hc
+      have hfe : fe.find? n = some ci := IFEnv.restrictTo_find?_le hk h2
+      obtain ⟨nm', c', h1', -, h3'⟩ := hok.check.ienv.hit n ci hfe
+      obtain rfl : nm = nm' := Option.some.inj (h1.symm.trans h1')
+      have heF : env.findTable? nm = some pt := by
+        unfold Env.findTable?
+        simp only [h3', Option.isSome_some, ↓reduceIte]
+        exact he
+      obtain ⟨n', t, h1'', h2'', h3''⟩ := hok.check.ienv.tblCover nm pt heF
+      obtain rfl := denoteN_inj hrk.nsWF h1 h1''
+      refine ⟨n, t, h1, ?_, h3''⟩
+      have hraw := IFEnv.rawTable?_of_findTable? h2''
+      unfold IFEnv.findTable?
+      simp only [h2, Option.isSome_some, ↓reduceIte]
+      exact hraw
+    · cases he
 
 /-! ## The two-phase fold
 
@@ -702,9 +736,10 @@ value declaration's install halves at `env`, plus its check half at the SAME
 `PendRel` is what crosses the seam for one record: the handle record
 denotes the pure one, the two scope facts phase B's knot calls need, the
 environment it was installed at (`EnvWF`, its length = `pc.vis`, and the
-final environment extends it — so `env'.prefixTo pc.vis` IS it,
-`Env.prefixTo_of_extends`), and persistence, so that it survives every later
-bracket. -/
+final environment extends it, by constants and by tables of structures it
+does not store — so `env'.prefixTo pc.vis` looks up exactly as it does,
+`PendRel.prefix_find?`/`prefix_findTable?`), and persistence, so that it
+survives every later bracket. -/
 
 /-- con-leche: none — two lists related pointwise (core has no
 `List.Forall₂`). -/
@@ -840,13 +875,15 @@ structure PendRel (st : EStore) (envF : Env) (pc : PendingCheck)
   envWF : EnvWF p.1
   vis : pc.vis = p.1.consts.length
   ext : ∃ new, envF.consts = new ++ p.1.consts
+  extT : TblExt p.1 envF
   pers : PersVG pc.vg
 
 /-- con-leche: none — a record's relation survives a later bracket (`PExt`,
 the record being persistent) and a later extension of the environment. -/
 theorem PendRel.mono {st st' : EStore} {envF envF' : Env} {pc : PendingCheck}
     {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p)
-    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts) :
+    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts)
+    (heT : TblExt envF envF') :
     PendRel st' envF' pc p where
   kind := h.kind
   cv := denoteCV_pext hx h.pers.cv h.cv
@@ -859,16 +896,42 @@ theorem PendRel.mono {st st' : EStore} {envF envF' : Env} {pc : PendingCheck}
     obtain ⟨n1, h1⟩ := h.ext
     obtain ⟨n2, h2⟩ := he
     exact ⟨n2 ++ n1, by rw [h2, h1, List.append_assoc]⟩
+  extT := h.extT.trans heT h.ext
   pers := h.pers
 
-/-- con-leche: none — the prefix at a record's visibility bound IS the
-environment it was installed at. -/
-theorem PendRel.prefix {st : EStore} {envF : Env} {pc : PendingCheck}
-    {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p) :
-    envF.prefixTo pc.vis = p.1 := by
+/-- con-leche: ConLeche/Verify/Cached/InstalledC.lean:197-208
+restrictTo_find?_of_extends — the prefix at a record's visibility bound looks
+constants up as the environment it was installed at. -/
+theorem PendRel.prefix_find? {st : EStore} {envF : Env} {pc : PendingCheck}
+    {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p) (nm : ConLeche.Name) :
+    (envF.prefixTo pc.vis).find? nm = p.1.find? nm := by
   obtain ⟨new, hn⟩ := h.ext
-  rw [h.vis]
-  exact Env.prefixTo_of_extends hn
+  unfold Env.find?
+  rw [h.vis, Env.prefixTo_consts_of_extends hn]
+
+/-- con-leche: ConLeche/Verify/Cached/InstalledC.lean:210-236
+restrictTo_findTable?_of_extends — **and tables too**: the prefix keeps every
+table, but a later one belongs to a structure the record's environment does
+not store (`TblExt`), so its gate is shut there. -/
+theorem PendRel.prefix_findTable? {st : EStore} {envF : Env} {pc : PendingCheck}
+    {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p) (nm : ConLeche.Name) :
+    (envF.prefixTo pc.vis).findTable? nm = p.1.findTable? nm := by
+  unfold Env.findTable?
+  rw [h.prefix_find? nm]
+  split
+  · next hT =>
+    obtain ⟨newQ, hQ, hQf⟩ := h.extT
+    rw [Env.prefixTo_tables, hQ, List.find?_append]
+    have : newQ.find? (·.structName == nm) = none := by
+      rw [List.find?_eq_none]
+      intro t ht hq
+      have hn : t.structName = nm := by simpa using hq
+      have h' := hQf t ht
+      rw [hn] at h'
+      rw [h'] at hT
+      exact absurd hT (by simp)
+    rw [this, Option.none_or]
+  · rfl
 
 /-! `checkDecl_nodup` — the pure fold keeps names unique — is
 `Bridge/Checker/Nodup.lean`'s (proved off con-leche's `DeclRun`, arm by
@@ -901,6 +964,14 @@ theorem SplitInstall.nodup {μ : CheckMode} {F : Nat} {env env' : Env}
   · exact key hI (by subst hcv; rfl)
   · exact key hI (by subst hcv; rfl)
 
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:30-77 installHeader_inv — a
+split install pushes a constant and no table. -/
+theorem SplitInstall.tables {μ : CheckMode} {F : Nat} {env env' : Env}
+    {d : Declaration} {vg : ConLeche.ValueGroup}
+    (h : SplitInstall μ F env d vg env') : env'.tables = env.tables := by
+  rcases h with ⟨_, _, _, -, -, -, -, -, -, -, rfl⟩ | ⟨_, _, -, -, -, -, -, rfl⟩ |
+    ⟨_, _, -, -, -, -, -, -, -, rfl⟩ <;> rfl
+
 theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
     {env : Env} {ds : List Declaration} {env' : Env}
     {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA μ pinsP env ds env' pend) :
@@ -910,83 +981,6 @@ theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
   | full F h rest ih => exact fun hnd => ih (checkDecl_nodup h hnd)
   | split vg F h rest ih => exact fun hnd => ih (h.nodup hnd)
 
-/-- con-leche: none — two entries of a denoting list that denote the SAME
-constant are the same entry, when the denoted names are unique (a constant
-occurring at two positions would repeat its name). -/
-theorem denoteCIList_inj_nodup {st : EStore} :
-    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
-      Frontend.denoteCIList st cs = some zs → (zs.map (·.name)).Nodup →
-      ∀ a ∈ cs, ∀ b ∈ cs, ∀ c, Frontend.denoteCI st a = some c →
-        Frontend.denoteCI st b = some c → a = b := by
-  intro cs
-  induction cs with
-  | nil => intro _ _ _ a ha; simp at ha
-  | cons x xs ih =>
-    intro zs hz hnd a ha b hb c hac hbc
-    obtain ⟨z, zs', hx, hxs, rfl⟩ := denoteCIList_cons hz
-    simp only [List.map_cons, List.nodup_cons] at hnd
-    -- an entry of the tail denotes a constant of the tail, which is not `z`
-    have htail : ∀ y ∈ xs, Frontend.denoteCI st y = some z → False := by
-      intro y hy hyz
-      obtain ⟨w, hw, hwd⟩ := denoteCIList_mem xs zs' hxs y hy
-      rw [hyz] at hwd
-      obtain rfl := Option.some.inj hwd
-      exact hnd.1 (List.mem_map_of_mem hw)
-    rcases List.mem_cons.mp ha with ha' | ha' <;>
-      rcases List.mem_cons.mp hb with hb' | hb'
-    · rw [ha', hb']
-    · rw [ha', hx] at hac; obtain rfl := Option.some.inj hac
-      exact (htail b hb' hbc).elim
-    · rw [hb', hx] at hbc; obtain rfl := Option.some.inj hbc
-      exact (htail a ha' hac).elim
-    · exact ih zs' hxs hnd.2 a ha' b hb' c hac hbc
-
-/-- con-leche: ConLeche/Verify/Cached/StreamConsts.lean:641 find?_name_of_mem —
-a name-unique environment finds every constant it holds (con-leche's lemma,
-restated: its module is not in this tier's import closure). -/
-theorem find?_of_mem_nodupNames : ∀ {cs : List ConstantInfo},
-    (cs.map (·.name)).Nodup → ∀ {c : ConstantInfo}, c ∈ cs →
-      (⟨cs⟩ : Env).find? c.name = some c := by
-  intro cs
-  induction cs with
-  | nil => intro _ c hc; exact absurd hc List.not_mem_nil
-  | cons a t ih =>
-    intro hnd c hc
-    rw [List.map_cons, List.nodup_cons] at hnd
-    show (a :: t).find? (·.name == c.name) = some c
-    rw [List.find?_cons]
-    by_cases hb : (a.name == c.name) = true
-    · simp only [hb]
-      rcases List.mem_cons.mp hc with rfl | hc'
-      · rfl
-      · exact absurd (by rw [eq_of_beq hb]; exact List.mem_map.mpr ⟨c, hc', rfl⟩) hnd.1
-    · rw [Bool.not_eq_true] at hb
-      simp only [hb]
-      rcases List.mem_cons.mp hc with rfl | hc'
-      · simp at hb
-      · exact ih hnd.2 hc'
-
-/-- con-leche: none — **every projection table the fold's index holds is well
-shaped**, not only the ones a lookup reaches: under name uniqueness every
-entry of the list IS the answer of a lookup (the `cover` clause finds a
-handle for its denoted name, and `denoteCIList_inj_nodup` says the entry
-found is this one), so `IFEnvOK.proj` reaches it.  This is
-`IFEnvOK_restrictTo`'s membership-shaped `hproj`. -/
-theorem FoldOK.projMem {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) :
-    ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t := by
-  intro t ht
-  have hd := hok.denote
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
-  obtain ⟨zs, hzs, rfl⟩ := hd
-  obtain ⟨c, hcm, hcd⟩ := denoteCIList_mem _ zs hzs _ ht
-  have hfind : (⟨zs⟩ : Env).find? c.name = some c :=
-    find?_of_mem_nodupNames hnd hcm
-  obtain ⟨n, ci, -, hf, hci⟩ := hok.check.ienv.cover c.name c hfind
-  have hmem := IFEnv.find?_mem hok.coh hf
-  obtain rfl := denoteCIList_inj_nodup _ zs hzs hnd ci hmem _ ht c hci hcd
-  exact hok.check.ienv.proj n t hf
-
 /-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
 `IFEnvOK_restrictTo` at ANY bound: past the index's size the restriction
 hides nothing and the prefix is the whole environment. -/
@@ -994,12 +988,9 @@ theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
     IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
   by_cases hk : k ≤ fe.visibleBelow
-  · exact IFEnvOK_restrictTo hok (hok.projMem hnd) hnd hk
-  · have hlen : env.consts.length = fe.env.consts.length := by
-      have hd := hok.denote
-      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
-      obtain ⟨zs, hzs, rfl⟩ := hd
-      exact (denoteCIList_length _ _ hzs).symm
+  · exact IFEnvOK_restrictTo hok hnd hk
+  · have hlen : env.consts.length = fe.env.consts.length :=
+      (denoteCIList_length _ _ (denoteIEnv_some.mp hok.denote).1).symm
     have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
     have hpre : env.prefixTo k = env := by
       simp only [Env.prefixTo]
@@ -1012,15 +1003,10 @@ theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
       | some p =>
         obtain ⟨c, ci⟩ := p
         have hc : c < fe.env.consts.length :=
-          mkIFEnvGo_lt _ n c ci (hok.coh.2 n ▸ hg)
+          mkIFEnvGo_lt _ n c ci (hok.coh.2.1 n ▸ hg)
         simp only [ite_eq_left (show c < k by omega), ite_eq_left (show c < fe.visibleBelow by omega)]
     rw [hpre]
-    have h := hok.check.ienv
-    exact ⟨fun n ci hf => h.hit n ci (by rw [← hfind]; exact hf),
-      fun nm c hf => by
-        obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
-        exact ⟨n, ci, h1, by rw [hfind]; exact h2, h3⟩,
-      fun n t hf => h.proj n t (by rw [← hfind]; exact hf)⟩
+    exact hok.check.ienv.congr_lookup hfind fun _ => rfl
 
 /-! ## The bracket's close, shared
 
@@ -1030,8 +1016,9 @@ pushed onto `fe`; `promoteNew` copies the `k` new constants into the
 persistent tier and re-indexes, and `dropScratch` takes the tier.  What the
 body must hand the close is `BodyOut` — the index facts at the pushed
 environment `env'` that the next boundary's `FoldOK` needs and the close
-cannot conjure: `EnvWF env'`, the membership-shaped projection clause
-`IFEnvOK_of_denote` takes, and `promoteNew_spec`'s `NamesDistinct`. -/
+cannot conjure: `EnvWF env'`, the table list's growth and the membership-shaped
+table clause `IFEnvOK_of_denote` takes, and `promoteNew_spec`'s
+`NamesDistinct`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain — **what a step
 body leaves for the bracket's close**, at the scratch-tier state `s2` it ended
@@ -1041,9 +1028,10 @@ structure BodyOut (env' : Env) (fe fe1 : IFEnv) (s2 : AState) : Prop where
   state : StateOK s2
   coh : IFEnvCoh fe1
   pushed : Pushed fe fe1
+  tpushed : TPushed fe fe1
   denote : denoteFEnv s2.store fe1 = some env'
   envWF : EnvWF env'
-  proj : ∀ t, IConstantInfo.projInfo t ∈ fe1.env.consts → IProjTableOK s2.store t
+  proj : ∀ t ∈ fe1.env.tables, IProjTableOK t
   distinct : NamesDistinct s2.store
     (fe1.env.consts.take (fe1.visibleBelow - fe.visibleBelow))
 
@@ -1052,14 +1040,6 @@ theorem NamesDistinct.mono {st st' : EStore} {cs : List IConstantInfo}
     (h : NamesDistinct st cs) (hx : Ext st st') : NamesDistinct st' cs :=
   List.Pairwise.imp (fun ⟨x, y, h1, h2, h3⟩ =>
     ⟨x, y, denoteN_ext h1 hx, denoteN_ext h2 hx, h3⟩) h
-
-/-- con-leche: none — a stored table's shape survives a `PExt` at a
-persistent table (`IFEnvOK.pmono`'s `proj` clause, standing alone). -/
-theorem IProjTableOK.pmono {st st' : EStore} {t : IProjTable} (h : IProjTableOK st t)
-    (hp : PersProjTable t) (hx : PExt st st') : IProjTableOK st' t := by
-  obtain ⟨sn, h1, h2⟩ := h.named
-  exact ⟨h.bodies, h.guards, sn, denoteN_pext hx hp.structName h1,
-    denoteN_pext hx hp.tableName h2⟩
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the bracket closes onto a boundary**: from `FoldOK` at the step's opening
@@ -1076,8 +1056,8 @@ theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEn
     (hxb : Ext sb.store s2.store)
     (hwf2 : StoreWF' s2.store) (hm : PMemoOK m s2.store)
     (hext : Ext s0.store.enableScratch s2.store) (hpins : s2.pins = s0.pins)
-    (hrun : promoteNew m fuel (fe1.visibleBelow - fe.visibleBelow) fe1 s2
-      = .ok ((m', fe'), s3)) :
+    (hrun : promoteNew m fuel (fe1.visibleBelow - fe.visibleBelow)
+      (fe1.env.tables.length - fe.env.tables.length) fe1 s2 = .ok ((m', fe'), s3)) :
     FoldOK μ env' fe'
         ({ store := s3.store.dropScratch, memos := s3.memos, caches := Caches.empty,
            pins := s3.pins } : AState) ∧
@@ -1085,10 +1065,10 @@ theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEn
       PMemoOK m' s3.store ∧ Ext s2.store s3.store ∧ s3.pins = s0.pins ∧
       StoreWF' s3.store := by
   obtain ⟨hwf3, hx23, hm3, hp3, hcoh3, hd3, -, hfr⟩ :=
-    promoteNew_spec hwf2 hm hok.coh hok.persEnv hb.coh hb.pushed rfl (hb.distinct.mono hxb)
-      (denoteFEnv_mono hxb hb.denote) hrun
+    promoteNew_spec hwf2 hm hok.coh hok.persEnv hb.coh hb.pushed hb.tpushed rfl rfl
+      (hb.distinct.mono hxb) (denoteFEnv_mono hxb hb.denote) hrun
   have hpush := promoteNew_pushed hok.coh hb.coh hb.pushed rfl hrun
-  have hproj3 := promoteNew_projOK hwf2 hm (fun t ht => (hb.proj t ht).mono hxb) hrun
+  have hproj3 := promoteNew_projOK hwf2 hm hb.proj hrun
   obtain ⟨-, hwf4, hx04, hx34⟩ :=
     promoteBracket_close hok.check.state.wf hwf3 (hext.trans hx23)
   have hpins3 : s3.pins = s0.pins := by rw [hfr.pins, hpins]
@@ -1100,9 +1080,9 @@ theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEn
         { state := ⟨hwf4⟩
           caches := CacheOK.of_empty rfl
           pins := hok.check.pins.pmono hok.persPins hx04 hpins3
-          ienv := IFEnvOK_of_denote ⟨hwf4⟩ hcoh3
-            (fun t ht => (hproj3 t ht).pmono (hp3.env _ ht) hx34) hd4 }
+          ienv := IFEnvOK_of_denote ⟨hwf4⟩ hcoh3 hproj3 hd4 }
       envWF := hb.envWF
+      tblShape := hproj3
       persPins := hok.persPins.mono hpins3
       persEnv := hp3
       coh := hcoh3
@@ -1114,14 +1094,13 @@ theorem envExt_of_pushed {st : EStore} {fe fe1 : IFEnv} {env env' : Env}
     (hd : denoteFEnv st fe = some env) (hd1 : denoteFEnv st fe1 = some env')
     (hp : Pushed fe fe1) : ∃ new, env'.consts = new ++ env.consts := by
   obtain ⟨newI, hn⟩ := hp
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd hd1
-  obtain ⟨zs, hzs, rfl⟩ := hd
-  obtain ⟨zs1, hzs1, rfl⟩ := hd1
+  have hzs := (denoteIEnv_some.mp hd).1
+  have hzs1 := (denoteIEnv_some.mp hd1).1
   rw [hn] at hzs1
-  obtain ⟨za, zb, -, hzb, rfl⟩ := denoteCIList_append _ _ zs1 hzs1
+  obtain ⟨za, zb, -, hzb, he⟩ := denoteCIList_append _ _ _ hzs1
   rw [hzs] at hzb
   obtain rfl := Option.some.inj hzb
-  exact ⟨za, rfl⟩
+  exact ⟨za, he⟩
 
 /-- con-leche: none — the bracket's opening (`flushCaches`, `enterScratch`)
 keeps the boundary invariant: the caches are empty, the store is the same up
@@ -1140,6 +1119,7 @@ theorem FoldOK.enter {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
           pins := hok.check.pins.pmono hok.persPins hx rfl
           ienv := hok.check.ienv.pmono hok.persEnv hx }
       envWF := hok.envWF
+      tblShape := hok.tblShape
       persPins := hok.persPins.mono rfl
       persEnv := hok.persEnv
       coh := hok.coh
@@ -1155,26 +1135,23 @@ theorem installHeader_typeWF {env : Env} {cv : ConstantVal}
   exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt }
 
 /-- con-leche: none — a denoting list whose denoted names are unique names
-pairwise different names, handle by handle (`denoteCI_name_of` at every
-entry, which needs the tables' name clause). -/
+pairwise different names, handle by handle (`denoteCI_name` at every
+entry). -/
 theorem namesDistinct_of_denote {st : EStore} :
     ∀ (l : List IConstantInfo) (zs : List ConstantInfo),
       Frontend.denoteCIList st l = some zs → (zs.map (·.name)).Nodup →
-      (∀ t, IConstantInfo.projInfo t ∈ l → IProjNamed st t) → NamesDistinct st l := by
+      NamesDistinct st l := by
   intro l
   induction l with
-  | nil => intro _ _ _ _; exact List.Pairwise.nil
+  | nil => intro _ _ _; exact List.Pairwise.nil
   | cons a as ih =>
-    intro zs hz hnd hproj
+    intro zs hz hnd
     obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
     simp only [List.map_cons, List.nodup_cons] at hnd
-    refine List.pairwise_cons.mpr ⟨?_, ih xs has hnd.2
-      (fun t ht => hproj t (List.mem_cons_of_mem _ ht))⟩
+    refine List.pairwise_cons.mpr ⟨?_, ih xs has hnd.2⟩
     intro b hb
     obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hb
-    refine ⟨x.name, z.name,
-      denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha,
-      denoteCI_name_of (fun t ht => hproj t (List.mem_cons_of_mem _ (ht ▸ hb))) hzd, ?_⟩
+    refine ⟨x.name, z.name, denoteCI_name ha, denoteCI_name hzd, ?_⟩
     intro he
     exact hnd.1 (he ▸ List.mem_map_of_mem hzm)
 
@@ -1182,8 +1159,8 @@ theorem namesDistinct_of_denote {st : EStore} :
 formed, and every projection table of the pushed index is well shaped**.
 
 The proof is `DeclOut`'s `envWF` and `proj` clauses: `envWF` at the one
-denotation, and `proj`, whose old tables are the incoming index's —
-`FoldOK.projMem` under name uniqueness, carried across the arm's `Ext`.  The
+denotation, and `proj`, whose old tables are the incoming index's
+(`FoldOK.tblShape`).  The
 arms prove the two clauses off their pure run (`DeclCore.out`,
 `Bridge/Checker/Arms.lean`), except the unpinned inductive route, which is
 `IndSpec.wf` (`Bridge/Checker/Hyp.lean`), owed by the Inductives tier. -/
@@ -1191,17 +1168,16 @@ theorem Arena.checkDecl_wfProj {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env' : Env}
     {fe fe' : IFEnv} {pd : IDeclaration} {d : Declaration} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hnd : NodupNames env)
+    (hok : FoldOK μ env fe s)
     (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s'))
     (hden : denoteFEnv s'.store fe' = some env') :
-    EnvWF env' ∧
-      ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts → IProjTableOK s'.store t := by
+    EnvWF env' ∧ ∀ t ∈ fe'.env.tables, IProjTableOK t := by
   have hout := Arena.checkDecl_bridge hμ hk hind hok hpins hd hrun
   refine ⟨hout.envWF env' hden, fun t ht => ?_⟩
   rcases hout.proj t ht with hold | hnew
-  · exact (hok.projMem hnd t hold).mono hout.ext
+  · exact hok.tblShape t hold
   · exact hnew
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 installStepC (the
@@ -1220,8 +1196,8 @@ theorem Arena.installStepGo_full {μ : CheckMode}
       ∃ F, ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env' := by
   have hout := Arena.checkDecl_bridge hμ hk hind hok hpins hd hrun
   obtain ⟨env', F, hden, hF⟩ := hout.run
-  obtain ⟨hwf', hproj⟩ := Arena.checkDecl_wfProj hμ hk hind hok hnd hpins hd hrun hden
-  refine ⟨env', ⟨hout.state, hout.coh, hout.pushed, hden, hwf', hproj, ?_⟩, hout.ext,
+  obtain ⟨hwf', hproj⟩ := Arena.checkDecl_wfProj hμ hk hind hok hpins hd hrun hden
+  refine ⟨env', ⟨hout.state, hout.coh, hout.pushed, hout.tpushed, hden, hwf', hproj, ?_⟩, hout.ext,
     hout.pins, F, hF⟩
   -- the pushed constants: the `k` newest, denoting the pure step's new ones
   obtain ⟨newI, hn⟩ := hout.pushed
@@ -1229,17 +1205,14 @@ theorem Arena.installStepGo_full {μ : CheckMode}
     rw [hout.coh.1, hok.coh.1, hn, List.length_append]; omega
   rw [hk', hn, List.take_left' rfl]
   have hnd' : NodupNames env' := checkDecl_nodup hF hnd
-  have hden1 := hden
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hden1
-  obtain ⟨zs, hzs, rfl⟩ := hden1
+  have hzs := (denoteIEnv_some.mp hden).1
   rw [hn] at hzs
-  obtain ⟨za, zb, hza, -, rfl⟩ := denoteCIList_append _ _ zs hzs
+  obtain ⟨za, zb, hza, -, he⟩ := denoteCIList_append _ _ _ hzs
   have hndza : (za.map (·.name)).Nodup := by
-    have : ((za ++ zb).map (·.name)).Nodup := hnd'
+    have : ((za ++ zb).map (·.name)).Nodup := by rw [← he]; exact hnd'
     rw [List.map_append] at this
     exact this.sublist (List.sublist_append_left _ _)
   exact namesDistinct_of_denote newI za hza hndza
-    (fun t ht => (hproj t (by rw [hn]; exact List.mem_append_left _ ht)).toNamed)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 installStepC — **phase A's
 step body, unbracketed**: `installStepGo`'s four arms, from the state the
@@ -1291,17 +1264,14 @@ theorem Arena.installStepGo_bridge {μ : CheckMode}
       Arena.installStepGo_full hμ hk hind hok hnd hpins hd gA
     exact ⟨env', hb, hx, hp, Or.inl ⟨rfl, F, hF⟩⟩
   -- a split arm's shared tail: one pushed value-kind constant
-  have split : ∀ {ci : IConstantInfo} {c : ConstantInfo}, (∀ t, ci ≠ .projInfo t) →
+  have split : ∀ {ci : IConstantInfo} {c : ConstantInfo},
       StateOK s2 → Ext s1.store s2.store →
       Frontend.denoteCI s2.store ci = some c → ConstWF ⟨c :: env.consts, env.tables⟩ c →
       BodyOut ⟨c :: env.consts, env.tables⟩ fe (fe.push ci) s2 := by
-    intro ci c hnp hst hx hci hcw
-    have hso := (hok.toStepOK.mono hx).push hst hnp hci hcw
-    refine ⟨hst, hso.coh, Pushed.push fe ci, hso.denote, hso.envWF, ?_, ?_⟩
-    · intro t ht
-      rcases List.mem_cons.mp ht with h | h
-      · exact absurd h.symm (hnp t)
-      · exact (hok.projMem hnd t h).mono hx
+    intro ci c hst hx hci hcw
+    have hso := (hok.toStepOK.mono hx).push hst hci hcw
+    refine ⟨hst, hso.coh, Pushed.push fe ci, TPushed.push fe ci, hso.denote, hso.envWF,
+      hok.tblShape, ?_⟩
     · show NamesDistinct s2.store ((ci :: fe.env.consts).take (fe.visibleBelow + 1 - fe.visibleBelow))
       rw [show fe.visibleBelow + 1 - fe.visibleBelow = 1 by omega]
       exact List.pairwise_singleton _ _
@@ -1352,7 +1322,7 @@ theorem Arena.installStepGo_bridge {μ : CheckMode}
       have hnatP : (ConLeche.natOpNames.contains c.name ||
           ConLeche.natDivModNames.contains c.name) = false := by
         rw [← hcN, ← hcD]; simpa using hnat
-      refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
+      refine ⟨_, split hsb.ok.state hx12 hci
           (constWF_defnInfo htw.cons gf gl (ConLeche.Expr.constsResolve_mono gr) gb'),
         hx12, by rw [hsb.pins, hsa.pins],
         Or.inr ⟨_, ⟨.defn, c, x⟩, 0, rfl, Or.inl ⟨c, x, hint, rfl, hnatP, rfl, rfl, rfl,
@@ -1382,7 +1352,7 @@ theorem Arena.installStepGo_bridge {μ : CheckMode}
     have hci : Frontend.denoteCI s2.store (.thmInfo cv)
         = some (.thmInfo c) := by
       simp only [Frontend.denoteCI, hcA, Option.map_some]
-    refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsa.ok.state hsa.ext hci
+    refine ⟨_, split hsa.ok.state hsa.ext hci
         (constWF_thmInfo htw.cons),
       hsa.ext, hsa.pins,
       Or.inr ⟨_, ⟨.thm, c, x⟩, 0, rfl,
@@ -1429,7 +1399,7 @@ theorem Arena.installStepGo_bridge {μ : CheckMode}
         simp only [Frontend.denoteCI, hcA2, Option.map_some]
       have hredP : ConLeche.reduceOpNames.contains c.name = false := by
         rw [← hcR]; simpa using hred
-      refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
+      refine ⟨_, split hsb.ok.state hx12 hci
           (constWF_axiomInfo htw.cons),
         hx12, by rw [hsb.pins, hsa.pins],
         Or.inr ⟨_, ⟨.opaque, c, x⟩, 0, rfl, Or.inr (Or.inr ⟨c, x, rfl, hredP, rfl, rfl, rfl,
@@ -1453,12 +1423,11 @@ for the split arms' record, and `bracketClose_foldOK` (`promoteNew_spec`,
 `promoteNew_pushed`, `promoteNew_projOK`, `promoteBracket_close`) for the close
 — around ONE child, `Arena.installStepGo_bridge`, the step body.
 
-**Why `hnd : NodupNames env`**: the close's `IFEnvOK_of_denote` needs every
-stored table of the pushed index well shaped, and `FoldOK` states that only for
-tables a LOOKUP reaches; under name uniqueness the two agree
-(`FoldOK.projMem`).  The fold has it (`PhaseA.nodup` from the empty
-environment, carried by `Arena.installFold_bridge`).  **And `hpd : PersDecl
-pd`**: the record must be persistent for its denotation to survive the opening
+**Why `hnd : NodupNames env`**: the close's `promoteNew_spec` needs the
+pushed constants' names distinct, which the full arm reads off the pure
+fold's name uniqueness (`checkDecl_nodup`).  The fold has it (`PhaseA.nodup`
+from the empty environment, carried by `Arena.installFold_bridge`).  **And
+`hpd : PersDecl pd`**: the record must be persistent for its denotation to survive the opening
 `enterScratch`; the fold carries it (`Arena.installFold_bridge`'s `hpd`). -/
 theorem Arena.installStep_split {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
@@ -1473,6 +1442,7 @@ theorem Arena.installStep_split {μ : CheckMode}
     ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
       s'.caches = Caches.empty ∧ (∃ new, env'.consts = new ++ env.consts) ∧
+      TblExt env env' ∧
       ((pend'.toList = pend.toList ∧ ∃ F,
           ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
         ∃ pc gP F, pend'.toList = pend.toList ++ [pc] ∧ pc.pos = i ∧
@@ -1512,7 +1482,8 @@ theorem Arena.installStep_split {μ : CheckMode}
     obtain ⟨hfold, hx04, hpush, -, -, -, -⟩ :=
       bracketClose_foldOK (s0 := s) (hok := hok)
         hb (Ext.refl _) (StoreWF'.of_wf hb.state.wf) (PMemoOK.empty _) hx12 hp12 g3
-    exact ⟨env', hfold, hx04, hpush, hpend, rfl, hnew, Or.inl ⟨rfl, F, hF⟩⟩
+    exact ⟨env', hfold, hx04, hpush, hpend, rfl, hnew, checkDecl_tables hF,
+      Or.inl ⟨rfl, F, hF⟩⟩
   · -- a split step: promote the record, then the pushed constant, drop
     simp only at r2
     obtain ⟨⟨m, vg'⟩, s2', g2', r2'⟩ := AM.bind_ok r2
@@ -1533,10 +1504,8 @@ theorem Arena.installStep_split {μ : CheckMode}
     have hx2'4 : PExt s2'.store s3.store.dropScratch := (PExt.of_ext hx2'3).trans hx34
     have hvis : fe.visibleBelow = env.consts.length := by
       rw [hok.coh.1]
-      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hdenv
-      obtain ⟨zs, hzs, rfl⟩ := hdenv
-      exact denoteCIList_length _ _ hzs
-    refine ⟨env', hfold, hx04, hpush, ?_, rfl, hnew,
+      exact denoteCIList_length _ _ (denoteIEnv_some.mp hdenv).1
+    refine ⟨env', hfold, hx04, hpush, ?_, rfl, hnew, TblExt.of_eq hsplit.tables,
       Or.inr ⟨⟨vg', i, fe.visibleBelow⟩, gP, F, Array.toList_push, rfl, rfl, hsplit, ?_⟩⟩
     · intro pc hpc
       rw [Array.toList_push] at hpc
@@ -1552,6 +1521,7 @@ theorem Arena.installStep_split {μ : CheckMode}
           envWF := hok.envWF
           vis := hvis
           ext := hnew
+          extT := TblExt.of_eq hsplit.tables
           pers := hpvg }
 
 /-- con-leche: none — every related record is persistent. -/
@@ -1568,12 +1538,14 @@ theorem PendRel.listRel_pers {st : EStore} {envF : Env} :
 /-- con-leche: none — the relation survives a later bracket, record by
 record. -/
 theorem PendRel.listRel_mono {st st' : EStore} {envF envF' : Env}
-    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts) :
+    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts)
+    (heT : TblExt envF envF') :
     ∀ {l : List PendingCheck} {l' : List (Env × ConLeche.ValueGroup)},
       ListRel (PendRel st envF) l l' →
       ListRel (PendRel st' envF') l l'
   | [], [], .nil => .nil
-  | _ :: _, _ :: _, .cons h hs => .cons (h.mono hx he) (PendRel.listRel_mono hx he hs)
+  | _ :: _, _ :: _, .cons h hs =>
+    .cons (h.mono hx he heT) (PendRel.listRel_mono hx he heT hs)
 
 theorem ListRel.snoc {α β : Type} {R : α → β → Prop} :
     ∀ {l : List α} {l' : List β} {a : α} {b : β},
@@ -1672,11 +1644,11 @@ theorem Arena.installFold_bridge {μ : CheckMode}
           obtain ⟨h1, h2⟩ := hstep
           subst h1
           subst s₁'
-          obtain ⟨env₁, hok₁, hx₁', -, -, hc₁, hext₁, hcase⟩ :=
+          obtain ⟨env₁, hok₁, hx₁', -, -, hc₁, hext₁, hextT₁, hcase⟩ :=
             Arena.installStep_split hμ hk hind hok' hnd hpins0 hpp
               (PendRel.listRel_pers hrel) (hpd a (by simp)) ha0 hA
           have hx₁ : PExt s.store s₁.store := hx0'.trans hx₁'
-          have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hrel
+          have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hextT₁ hrel
           have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
           have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
           have has₁ := denoteDecls_pext hx₁ as xs hpd₁ has
@@ -1704,24 +1676,36 @@ theorem Arena.installFold_bridge {μ : CheckMode}
             · rw [hnil' hnil]; exact hc₁
             · exact hc' hnil
 
+/-- con-leche: none — `IFEnvOK` reads the environment through `find?` and
+`findTable?` only, so it transports to any environment that looks up alike. -/
+theorem IFEnvOK.congr_env {env env' : Env} {fe : IFEnv} {s : AState}
+    (h : IFEnvOK env fe s) (hf : ∀ nm, env.find? nm = env'.find? nm)
+    (ht : ∀ nm, env.findTable? nm = env'.findTable? nm) : IFEnvOK env' fe s where
+  hit := fun n ci hn => by
+    obtain ⟨nm, c, h1, h2, h3⟩ := h.hit n ci hn
+    exact ⟨nm, c, h1, h2, by rw [← hf]; exact h3⟩
+  cover := fun nm c he => h.cover nm c (by rw [hf]; exact he)
+  tblHit := fun n t hn => by
+    obtain ⟨nm, pt, h1, h2, h3, h4⟩ := h.tblHit n t hn
+    exact ⟨nm, pt, h1, h2, by rw [← ht]; exact h3, h4⟩
+  tblCover := fun nm pt he => h.tblCover nm pt (by rw [ht]; exact he)
+
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
-B's check of one record, at the prefix environment itself**.  The form the
-fold consumes: `checkDecl_of_split_*` needs the check half at the SAME
-environment as the install halves, and `Arena.checkPending_bridge`'s
-existential `envK` (equal to the prefix only up to `find?`) cannot be fed to
-it without a `find?`-congruence of the whole pure core that con-leche does not
-state.  It is available here directly: `IFEnvOK_restrictTo` gives the index
-invariant AT `env.prefixTo pc.vis`, so the knot is instantiated there.
+B's check of one record, at the environment it was installed at**.  The form
+the fold consumes: `checkDecl_of_split_*` needs the check half at the SAME
+environment as the install halves.  `IFEnvOK_prefix` gives the index
+invariant at `env.prefixTo pc.vis`, which keeps every table of the final
+environment, and `IFEnvOK.congr_env` moves it to `envK`, which looks up
+alike (`hfind`, `htab`: `PendRel.prefix_find?`/`prefix_findTable?` at the
+call site), so the knot is instantiated at `envK` itself.
 
-The proof: `IFEnvOK_prefix` (`IFEnvOK_restrictTo`,
-its `hproj` from `FoldOK.projMem` — every stored table IS a lookup's answer
-under name uniqueness), carried into the fresh scratch tier by
-`IFEnvOK.pmono`, `checkValueGroup_bridge` at the prefix, then the bracket
-with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch` and
-`FoldOK` across them.
+The proof: `IFEnvOK_prefix`, `IFEnvOK.congr_env`, carried into the fresh
+scratch tier by `IFEnvOK.pmono`, `checkValueGroup_bridge` at `envK`, then the
+bracket with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch`
+and `FoldOK` across them.
 
-**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ (env.prefixTo
-pc.vis) s`.**  `checkPending` opens with `enterScratch`, which REPLACES the
+**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ envK s`.**
+`checkPending` opens with `enterScratch`, which REPLACES the
 scratch tier by an empty one and keeps the caches; a cache row valid at `s`
 whose handles are scratch handles names nothing — or, once the check interns
 again, something else — after it, so `CacheOK` at `s` does not survive the
@@ -1733,8 +1717,9 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
-    (hcE : s.caches = Caches.empty)
-    (henvK : EnvWF (env.prefixTo pc.vis))
+    (hcE : s.caches = Caches.empty) {envK : Env} (henvK : EnvWF envK)
+    (hfind : ∀ nm, (env.prefixTo pc.vis).find? nm = envK.find? nm)
+    (htab : ∀ nm, (env.prefixTo pc.vis).findTable? nm = envK.findTable? nm)
     (hkind : KindRel pc.vg.kind gP.kind)
     (hcv : Frontend.denoteCV s.store pc.vg.cv = some gP.cv)
     (hjv : denoteE s.store pc.vg.jv = some gP.jv)
@@ -1742,8 +1727,7 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
     FoldOK μ env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
-      ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps μ F)
-        (env.prefixTo pc.vis) gP = .ok () := by
+      ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps μ F) envK gP = .ok () := by
   have hwf := hok.check.state.wf
   simp only [Arena.checkPending] at hrun
   obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok hrun
@@ -1757,15 +1741,15 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
   -- the opening: the prefix view's invariant, carried into the fresh scratch tier
   have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
   have hwf1 := (EStore.enableScratch_spec hwf).1
-  have hck1 : CheckOK μ (env.prefixTo pc.vis) (fe.restrictTo pc.vis)
+  have hck1 : CheckOK μ envK (fe.restrictTo pc.vis)
       { store := s.store.enableScratch, memos := Memos.empty, caches := s.caches,
         pins := s.pins } :=
     { state := ⟨hwf1⟩
       caches := CacheOK.of_empty hcE
       pins := hok.check.pins.pmono hok.persPins hx1 rfl
-      ienv := (IFEnvOK_prefix hok hnd pc.vis).pmono
-        ⟨hok.persEnv.env, hok.persEnv.idx⟩ hx1 }
-  -- the check, at the prefix
+      ienv := ((IFEnvOK_prefix hok hnd pc.vis).congr_env hfind htab).pmono
+        ⟨hok.persEnv.env, hok.persEnv.idx, hok.persEnv.tables, hok.persEnv.tbls⟩ hx1 }
+  -- the check, at the record's environment
   obtain ⟨hcs, F, hF⟩ := checkValueGroup_bridge hμ hk henvK hck1 hkind
     (denoteCV_pext hx1 hpers.cv hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2
   -- the close
@@ -1781,6 +1765,7 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
           pins := hok.check.pins.pmono hok.persPins hx hpins
           ienv := hok.check.ienv.pmono hok.persEnv hx }
       envWF := hok.envWF
+      tblShape := hok.tblShape
       persPins := hok.persPins.mono hpins
       persEnv := hok.persEnv
       coh := hok.coh
@@ -1826,14 +1811,12 @@ theorem Arena.checkPendingList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
       | ok v =>
         obtain ⟨⟨⟩, s₁⟩ := v
         rw [hA] at hrun
-        have hpre := hp.prefix
         obtain ⟨hok₁, hx₁, hc₁, F, hF⟩ :=
           Arena.checkPending_prefix hμ hk hok hp.pers hnd
-            hc0 (by rw [hpre]; exact hp.envWF) hp.kind hp.cv
+            hc0 hp.envWF hp.prefix_find? hp.prefix_findTable? hp.kind hp.cv
             hp.jv hp.wsty hp.wsjv hA
-        rw [hpre] at hF
         obtain ⟨hok', hx', hall⟩ :=
-          ih pendP' s₁ s' hok₁ (PendRel.listRel_mono hx₁ ⟨[], rfl⟩ hrest)
+          ih pendP' s₁ s' hok₁ (PendRel.listRel_mono hx₁ ⟨[], rfl⟩ (TblExt.of_eq rfl) hrest)
             (fun _ => hc₁) hrun
         refine ⟨hok', hx₁.trans hx', fun q hq => ?_⟩
         rcases List.mem_cons.mp hq with rfl | hq

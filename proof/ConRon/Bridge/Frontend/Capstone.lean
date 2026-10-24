@@ -104,12 +104,15 @@ theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
       caches := hc
       pins := hpins
       ienv := IFEnvOK_of_denote hok (IFEnvCoh.mk _)
-        (by intro t hn
-            simp [mkIFEnv, IEnv.empty] at hn) rfl }
-  envWF := by intro c hc'; exact absurd hc' (by simp [Env.empty])
+        (by intro t ht; simp [mkIFEnv, IEnv.empty] at ht) rfl }
+  envWF := ⟨by intro c hc'; exact absurd hc' (by simp [Env.empty]),
+    by intro t ht; exact absurd ht (by simp [Env.empty])⟩
+  tblShape := by intro t ht; simp [mkIFEnv, IEnv.empty] at ht
   persPins := hpp
   persEnv := { env := by intro c hc'; simp [mkIFEnv, IEnv.empty] at hc'
-               idx := by intro n p hn; simp [mkIFEnv, mkIFEnvGo, IEnv.empty] at hn }
+               idx := by intro n p hn; simp [mkIFEnv, mkIFEnvGo, IEnv.empty] at hn
+               tables := by intro t ht; simp [mkIFEnv, IEnv.empty] at ht
+               tbls := by intro n t hn; simp [mkIFEnv, mkIFEnvTblsGo, IEnv.empty] at hn }
   coh := IFEnvCoh.mk _
   denote := rfl
 
@@ -162,7 +165,7 @@ has to be carried past it.  What survives of the cached proof is its first two
 ingredients — *the stored type is the declared one* (`ConstantValRun`'s
 `type' = cv.type`) and *a theorem record is never dropped*
 (`declThmRun_of`'s `env₂ = ⟨.thmInfo ⟨cv.name, cv.levelParams, type'⟩ ::
-env.consts⟩`) — and the third, the `PushChain`, is not needed at all.
+env.consts, env.tables⟩`) — and the third, the `PushChain`, is not needed at all.
 
 **It is still a con-leche-tier lemma** and belongs beside the original: the
 whole statement is about con-leche's own functions and mentions no handle.
@@ -202,7 +205,7 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
   -- `DeclThmRun`: the header as declared, and the constant it pushes
   obtain ⟨type', value', hcv, -, -, henv⟩ :=
     ConLeche.Semantics.declThmRun_of (pins := pins) h₂
-  obtain ⟨-, -, -, -, -, -, htype, -, -, -⟩ := hcv
+  obtain ⟨-, -, -, -, -, htype, -, -, -⟩ := hcv
   obtain rfl : type' = .const n ls := htype.trans hty
   refine ⟨ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩,
     ?_, rfl⟩

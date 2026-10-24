@@ -270,17 +270,18 @@ theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
 /-- con-leche: ConLeche/Kernel/Checker.lean:27-30 installBasisDecl — **the
 block, one constant at a time**, against con-leche's `foldlM`.
 
-The hypotheses are the four facts `installBasisDecl_bridge` actually reads —
-`StateOK`, `IFEnvOK`, `IFEnvCoh`, `denoteFEnv` — and NOT `FoldOK`: the fold
+The hypotheses are the five facts `installBasisDecl_bridge` actually reads —
+`StateOK`, `IFEnvOK`, `IFEnvCoh`, `denoteFEnv`, `TablesStored` — and NOT `FoldOK`: the fold
 cannot carry `FoldOK`, because `EnvWF` of the extended environment would ask
 for `ConstWF` of a basis constant and nothing in the install establishes one
 (nor needs to: the basis route never reads it).  So
-the step is `IFEnvOK.push`, `IFEnvCoh.push` and `denoteFEnv_push`. -/
+the step is `IFEnvOK.pushStored`, `IFEnvCoh.push`, `denoteFEnv_push` and
+`TablesStored.cons`. -/
 theorem installBasisDecls_bridge :
     ∀ (cis : List IConstantInfo) (xs : List ConstantInfo) {env : Env}
       {fe fe' : IFEnv} {s s' : AState},
       StateOK s → IFEnvOK env fe s → IFEnvCoh fe →
-      denoteFEnv s.store fe = some env →
+      denoteFEnv s.store fe = some env → TablesStored env →
       Frontend.denoteCIList s.store cis = some xs →
       installBasisDecls fe cis s = .ok (fe', s') →
       s' = s ∧ IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
@@ -289,14 +290,14 @@ theorem installBasisDecls_bridge :
   intro cis
   induction cis with
   | nil =>
-    intro xs env fe fe' s s' hst hie hcoh hden hcs hrun
+    intro xs env fe fe' s s' hst hie hcoh hden htS hcs hrun
     simp only [Frontend.denoteCIList, Option.some.injEq] at hcs
     subst hcs
     simp only [ConRon.Arena.installBasisDecls] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, hcoh, Pushed.refl _, rfl, env, hden, hie, rfl⟩
   | cons a as ih =>
-    intro xs env fe fe' s s' hst hie hcoh hden hcs hrun
+    intro xs env fe fe' s s' hst hie hcoh hden htS hcs hrun
     obtain ⟨x, xt, hx, hxt, rfl⟩ := denoteCIList_cons hcs
     simp only [ConRon.Arena.installBasisDecls] at hrun
     obtain ⟨fe1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -312,8 +313,8 @@ theorem installBasisDecls_bridge :
     have hnm := denoteCI_name hx
     have hfindP : env.find? x.name = none := IFEnvOK.miss hst hie hnm hfind
     obtain ⟨rfl, hcoh', hpu', htb', env', hden', hie', hfold⟩ :=
-      ih xt hst (hie.push hst hcoh hx) (hcoh.push a)
-        (denoteFEnv_push hden hx) hxt hrest
+      ih xt hst (hie.pushStored hst hcoh hden htS hx) (hcoh.push a)
+        (denoteFEnv_push hden hx) htS.cons hxt hrest
     refine ⟨rfl, hcoh', (Pushed.push fe a).trans hpu', htb', env', hden', hie', ?_⟩
     simp only [List.foldlM_cons, ConLeche.installBasisDecl, hfindP,
       Option.isNone_none, ite_true, bind, Except.bind, pure, Except.pure]
@@ -352,7 +353,8 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
     obtain ⟨hss, hcoh', hpu', htb', env', hden', -, hfold⟩ :=
       installBasisDecls_bridge d _ hok1
         (hok.check.ienv.mono (hx0.trans hx1)) hok.coh
-        (denoteFEnv_mono (hx0.trans hx1) hok.denote) hden1 hrest
+        (denoteFEnv_mono (hx0.trans hx1) hok.denote)
+        (TablesStored.of_envWF hok.envWF) hden1 hrest
     subst hss
     exact ⟨hok1, hx0.trans hx1, by rw [hp1, hp0], hcoh', hpu', htb', env', hden',
       hfold⟩

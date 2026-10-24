@@ -774,246 +774,13 @@ theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   simp only [hcln, hclty, hcllps]
   rfl
 
-/-! ## The stored constant's common data
-
-`IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`) is the one projection
-of the environment vocabulary that is MONADIC: its `.projInfo` arm builds the
-closed dummy type `Sort 1`, which over handles means interning `.zero`,
-`.succ .zero` and `.sort one`.  Its NAME is the stored `tbl.tableName`, and
-`CIProjNamed` is what ties that to con-leche's recomputed `projTableName`. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-**the three fields of a stored constant's common data denote con-leche's**, in
-the `ParseStep` frame the `.projInfo` arm's three interns force. -/
-theorem toConstantVal_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
-    (hn : CIProjNamed s.store ci)
-    (hd : ConRon.Arena.Frontend.denoteCI s.store ci = some c) {v : IConstantVal}
-    (hrun : IConstantInfo.toConstantVal ci s = .ok (v, s')) :
-    ParseStep s s' ∧ denoteN s'.store.ns v.name = some c.toConstantVal.name ∧
-      denoteNList s'.store.ns v.levelParams = some c.toConstantVal.levelParams ∧
-      denoteE s'.store v.type = some c.toConstantVal.type := by
-  have hcv : ∀ (w : IConstantVal) (cw : ConstantVal),
-      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
-      denoteN s.store.ns w.name = some cw.name ∧
-        denoteNList s.store.ns w.levelParams = some cw.levelParams ∧
-        denoteE s.store w.type = some cw.type := by
-    intro w cw hw
-    simp only [ConRon.Arena.Frontend.denoteCV] at hw
-    cases h1 : denoteN s.store.ns w.name with
-    | none => rw [h1] at hw; simp at hw
-    | some n =>
-      cases h2 : ConRon.Arena.Frontend.denoteNList s.store.ns w.levelParams with
-      | none => rw [h1, h2] at hw; simp at hw
-      | some lps =>
-        cases h3 : denoteE s.store w.type with
-        | none => rw [h1, h2, h3] at hw; simp at hw
-        | some ty =>
-          rw [h1, h2, h3] at hw
-          obtain rfl := Option.some.inj hw
-          exact ⟨rfl, rfl, rfl⟩
-  -- the six pure arms
-  have hpure : ∀ (w : IConstantVal) (cw : ConstantVal),
-      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
-      (pure w : AM IConstantVal) s = .ok (v, s') →
-      ParseStep s s' ∧ denoteN s'.store.ns v.name = some cw.name ∧
-        denoteNList s'.store.ns v.levelParams = some cw.levelParams ∧
-        denoteE s'.store v.type = some cw.type := by
-    intro w cw hw hr
-    obtain ⟨a, b, c⟩ := hcv w cw hw
-    obtain ⟨hvv, hss⟩ := AM.pure_ok hr
-    subst hvv; subst hss
-    exact ⟨ParseStep.refl hok, a, b, c⟩
-  cases ci with
-  | axiomInfo w =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
-    obtain ⟨cw, hw, rfl⟩ := hd
-    exact hpure w cw hw hrun
-  | ctorInfo w nP nF =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
-    obtain ⟨cw, hw, rfl⟩ := hd
-    exact hpure w cw hw hrun
-  | defnInfo w e hh =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        exact hpure w cw hw hrun
-  | thmInfo w =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
-    obtain ⟨cw, hw, rfl⟩ := hd
-    exact hpure w cw hw hrun
-  | indInfo w cps =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases hc : ConRon.Arena.Frontend.denoteCaps s.store cps with
-      | none => rw [hw, hc] at hd; simp at hd
-      | some x =>
-        rw [hw, hc] at hd
-        obtain rfl := Option.some.inj hd
-        exact hpure w cw hw hrun
-  | recInfo w mI rP rs =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases hr : ConRon.Arena.Frontend.denoteRules s.store rs with
-      | none => rw [hw, hr] at hd; simp at hd
-      | some x =>
-        rw [hw, hr] at hd
-        obtain rfl := Option.some.inj hd
-        exact hpure w cw hw hrun
-  | projInfo tbl =>
-    -- the one arm that moves the store
-    obtain ⟨sn, hsn, htn⟩ := hn tbl rfl
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
-    obtain ⟨pt, hpt, rfl⟩ := hd
-    have hlps : ConRon.Arena.Frontend.denoteNList s.store.ns tbl.levelParams
-        = some pt.levelParams ∧ pt.structName = sn := by
-      simp only [ConRon.Arena.Frontend.denoteProjTable, hsn] at hpt
-      cases hl : ConRon.Arena.Frontend.denoteNList s.store.ns tbl.levelParams with
-      | none => rw [hl] at hpt; simp at hpt
-      | some lps =>
-        cases hc : denoteN s.store.ns tbl.ctor with
-        | none => rw [hl, hc] at hpt; simp at hpt
-        | some cn =>
-          cases hss : denoteL s.store.ls tbl.structSort with
-          | none => rw [hl, hc, hss] at hpt; simp at hpt
-          | some ss =>
-            cases hbs : ConRon.Arena.Frontend.denoteEArray s.store tbl.bodies with
-            | none => rw [hl, hc, hss, hbs] at hpt; simp at hpt
-            | some bs =>
-              cases hgs : denoteLList s.store.ls tbl.guards with
-              | none => rw [hl, hc, hss, hbs, hgs] at hpt; simp at hpt
-              | some gs =>
-                rw [hl, hc, hss, hbs, hgs] at hpt
-                obtain rfl := Option.some.inj hpt
-                exact ⟨rfl, rfl⟩
-    obtain ⟨hdlps, hstruct⟩ := hlps
-    rw [IConstantInfo.toConstantVal] at hrun
-    obtain ⟨z, s₁, h1, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hstep1, hpz, hdz⟩ :=
-      internLNode_istep hok hoff
-        ⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
-         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h1
-    have hdz' : denoteL s₁.store.ls z = some .zero := by
-      rw [hdz]; rfl
-    obtain ⟨one, s₂, h2, hrest2⟩ := AM.bind_ok hrest
-    obtain ⟨hstep2, hpo, hdo⟩ :=
-      internLNode_istep hstep1.ok hstep1.off
-        ⟨by intro c hc
-            simp only [LNodeView.lchildren, List.mem_singleton] at hc
-            subst hc; exact lview_isSome_of_denote hdz',
-         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h2
-    have hdo' : denoteL s₂.store.ls one = some (.succ .zero) := by
-      rw [hdo]
-      simp only [denoteLView, denoteL_ext hdz' hstep2.ext, Option.map_some]
-    obtain ⟨ty, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
-    obtain ⟨hstep3, hpty, hdty⟩ :=
-      internE_istep hstep2.ok hstep2.off (viewOK_sort (lview_isSome_of_denote hdo')) h3
-    have hdty' : denoteE s₃.store ty = some (.sort (.succ .zero)) := by
-      rw [hdty]
-      simp only [denoteEView, denoteL_ext hdo' hstep3.ext, Option.map_some]
-    have hx : Ext s.store s₃.store :=
-      (hstep1.ext.trans hstep2.ext).trans hstep3.ext
-    obtain ⟨hvv, hss⟩ := AM.pure_ok hrest3
-    subst hss; subst hvv
-    refine ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, ?_, ?_, ?_⟩
-    · simp only [ConstantInfo.toConstantVal, hstruct]
-      exact denoteN_ext htn hx
-    · exact denoteNListE_ext hx _ _ hdlps
-    · exact hdty'
-
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-**the TYPE half alone, which needs no name clause.**  The `.projInfo` arm's
-common data is the closed dummy `Sort 1` whatever the table is called, so this
-half is true of a table that is NOT rightly named, and `CIProjNamed` buys
-nothing here.
-
-Stated separately because `Bridge/Frontend/Prepare.lean`'s `usedConsts_run`
-reads only the type: taking `toConstantVal_run` there would force
-`DeclProjNamed` into a statement that does not need it, which is the wrong
-direction for a hypothesis to travel.  The six non-projection arms are
-`toConstantVal_run` at a vacuous clause; the seventh is its three interns
-without the name half. -/
-theorem toConstantVal_type_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
-    (hd : ConRon.Arena.Frontend.denoteCI s.store ci = some c) {v : IConstantVal}
-    (hrun : IConstantInfo.toConstantVal ci s = .ok (v, s')) :
-    ParseStep s s' ∧ denoteE s'.store v.type = some c.toConstantVal.type := by
-  cases ci with
-  | axiomInfo w =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | ctorInfo w nP nF =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | defnInfo w e hh =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | thmInfo w =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | indInfo w cps =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | recInfo w mI rP rs =>
-    obtain ⟨a, -, -, b⟩ :=
-      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
-    exact ⟨a, b⟩
-  | projInfo tbl =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
-    obtain ⟨pt, -, rfl⟩ := hd
-    rw [IConstantInfo.toConstantVal] at hrun
-    obtain ⟨z, s₁, h1, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hstep1, -, hdz⟩ :=
-      internLNode_istep hok hoff
-        ⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
-         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h1
-    have hdz' : denoteL s₁.store.ls z = some .zero := by rw [hdz]; rfl
-    obtain ⟨one, s₂, h2, hrest2⟩ := AM.bind_ok hrest
-    obtain ⟨hstep2, -, hdo⟩ :=
-      internLNode_istep hstep1.ok hstep1.off
-        ⟨by intro c hc
-            simp only [LNodeView.lchildren, List.mem_singleton] at hc
-            subst hc; exact lview_isSome_of_denote hdz',
-         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h2
-    have hdo' : denoteL s₂.store.ls one = some (.succ .zero) := by
-      rw [hdo]
-      simp only [denoteLView, denoteL_ext hdz' hstep2.ext, Option.map_some]
-    obtain ⟨ty, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
-    obtain ⟨hstep3, -, hdty⟩ :=
-      internE_istep hstep2.ok hstep2.off (viewOK_sort (lview_isSome_of_denote hdo')) h3
-    have hdty' : denoteE s₃.store ty = some (.sort (.succ .zero)) := by
-      rw [hdty]
-      simp only [denoteEView, denoteL_ext hdo' hstep3.ext, Option.map_some]
-    obtain ⟨hvv, hss⟩ := AM.pure_ok hrest3
-    subst hss; subst hvv
-    exact ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, hdty'⟩
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:65-72 pushDecl — one parsed
 record, appended.  `pushDecl` is a plain state update, so the whole frame is
-`s' = s`.
-
-**This is `StateDRel.projNamed`'s one debtor**: the pushed record's clause is
-what keeps the relation's `projNamed` conjunct true across the append, and
-`DeclsProjNamed.push` is the whole of it. -/
+`s' = s`. -/
 theorem pushDecl_run {s s' : AState} {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
-    (hpd : PersDecl d) (hpn : DeclProjNamed s.store d)
+    (hpd : PersDecl d)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     (hrun : pushDecl sd d s = .ok (sd', s')) :
     s' = s ∧ PersStateD sd' ∧
@@ -1030,7 +797,7 @@ theorem pushDecl_run {s s' : AState} {sd sd' : StateD}
     have h := denoteDeclArray_append hrel.decls hone
     simpa only [Array.push_eq_append] using h
   refine ⟨rfl, ?_,
-    { hrel with decls := hdecls, projNamed := hrel.projNamed.push hpn }⟩
+    { hrel with decls := hdecls }⟩
   refine { hp with decls := ?_ }
   intro x hx
   rcases Array.mem_push.mp hx with h | h
@@ -2054,12 +1821,12 @@ theorem ListRel.append {α β : Type} {P : α → β → Prop} :
 /-- con-leche: none — a block related member for member denotes. -/
 theorem denoteCIList_of_listRel {st : EStore} :
     ∀ {cs : List IConstantInfo} {csP : List ConstantInfo},
-      ListRel (fun ci c => denoteCI st ci = some c ∧ ∀ t, ci ≠ .projInfo t) cs csP →
+      ListRel (fun ci c => denoteCI st ci = some c) cs csP →
       denoteCIList st cs = some csP := by
   intro cs csP h
   induction h with
   | nil => rfl
-  | cons hab _ ih => simp only [denoteCIList, hab.1, ih]
+  | cons hab _ ih => simp only [denoteCIList, hab, ih]
 
 /-- con-leche: ConLeche/Kernel/Env.lean:352-371 IndCaps — the DEFAULT capability
 record denotes con-leche's default, once the zero name handle decodes to
@@ -2099,7 +1866,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
           pure (ConstantInfo.indInfo (← cvOfF sc.name sc.level sc.expr x.cv) {}))
             = .ok outP ∧
-        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+        ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
     intro ts
     induction ts with
@@ -2123,7 +1890,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       rw [hs4] at hrest2
       obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
       subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, ConstantInfo.indInfo cvP {} :: ysP, ?_, .cons ⟨?_, by simp⟩ hdys⟩
+      refine ⟨rfl, ConstantInfo.indInfo cvP {} :: ysP, ?_, .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
       · simp only [denoteCI, hdcv, hcaps]
   -- the constructors
@@ -2135,7 +1902,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
           pure (ConstantInfo.ctorInfo (← cvOfF sc.name sc.level sc.expr x.cv)
             x.numParams x.numFields)) = .ok outP ∧
-        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+        ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
     intro ts
     induction ts with
@@ -2160,7 +1927,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
       subst hv2; subst hst2; subst hv1
       refine ⟨rfl, ConstantInfo.ctorInfo cvP x.numParams x.numFields :: ysP, ?_,
-        .cons ⟨?_, by simp⟩ hdys⟩
+        .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
       · simp only [denoteCI, hdcv, Option.map_some]
   -- the recursors
@@ -2176,7 +1943,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
           pure (ConstantInfo.recInfo (← cvOfF sc.name sc.level sc.expr x.cv)
             (x.numParams + x.numMotives + x.numMinors + x.numIndices)
             (x.numParams + x.numMotives + x.numMinors) rules)) = .ok outP ∧
-        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+        ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
     intro ts
     induction ts with
@@ -2207,7 +1974,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
         ConstantInfo.recInfo cvP
           (x.numParams + x.numMotives + x.numMinors + x.numIndices)
           (x.numParams + x.numMotives + x.numMinors) rsP :: ysP, ?_,
-        .cons ⟨?_, by simp⟩ hdys⟩
+        .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclrs, hclcv, hclys]; rfl
       · simp only [denoteCI, hdcv, hdrs]
   obtain ⟨types, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -2219,34 +1986,20 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
   obtain ⟨recs, s₃, h3, hrun⟩ := AM.bind_ok hrun
   obtain ⟨hs3, recsP, hclrcs, hdrcs⟩ := hrcs rcs h3
   rw [hs3] at hrun
-  -- the whole block denotes, and none of it is a `.projInfo`
-  have hforall : ∀ {α β : Type} {P : α → β → Prop} {xs : List α} {ys : List β},
-      ListRel P xs ys → ∀ x ∈ xs, ∃ y, P x y := by
-    intro α β P xs ys h
-    induction h with
-    | nil => intro x hx; simp at hx
-    | cons hab _ ih =>
-      intro x hx
-      simp only [List.mem_cons] at hx
-      rcases hx with rfl | hx
-      · exact ⟨_, hab⟩
-      · exact ih x hx
+  -- the whole block denotes
   have hblockRel : ListRel
-      (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+      (fun ci c => denoteCI s.store ci = some c)
       (types ++ ctors ++ recs) (typesP ++ ctorsP ++ recsP) :=
     ListRel.append (ListRel.append hdtys hdcts) hdrcs
   have hb : denoteCIList s.store (types ++ ctors ++ recs)
       = some (typesP ++ ctorsP ++ recsP) :=
     denoteCIList_of_listRel hblockRel
-  have hpn : DeclProjNamed s.store (.indDecl (types ++ ctors ++ recs) nPd) :=
-    DeclProjNamed.of_indDecl fun ci hci =>
-      CIProjNamed.of_ne (hforall hblockRel ci hci).choose_spec.2
   have hd : ConRon.Arena.Frontend.denoteDecl s.store
       (.indDecl (types ++ ctors ++ recs) nPd)
       = some (.indDecl (typesP ++ ctorsP ++ recsP) nPd) := by
     simp only [ConRon.Arena.Frontend.denoteDecl, hb, Option.map_some]
   obtain ⟨hv, hp', hrel'⟩ :=
-    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
+    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hd) hd hrun
   refine ⟨hv, hp', .indDecl (typesP ++ ctorsP ++ recsP) nPd, ?_, hrel'⟩
   rw [indBlockOfF]
   simp only [hcltys, hclcts, hclrcs]
@@ -2256,19 +2009,18 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
 /-! ## The line -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:675-676 processLineCoreD — a
-record the parse builds itself, pushed: the three facts `pushDecl_run` asks,
+record the parse builds itself, pushed: the two facts `pushDecl_run` asks,
 off the record's denotation. -/
 theorem pushDecl_built_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
-    (hpn : DeclProjNamed s.store d)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     (hrun : pushDecl sd d s = .ok (sd', s')) :
     ParseStep s s' ∧ PersStateD sd' ∧
       StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
   obtain ⟨hv, hp', hrel'⟩ :=
-    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
+    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hd) hd hrun
   subst hv
   exact ⟨ParseStep.refl hok, hp', hrel'⟩
 
@@ -2278,11 +2030,7 @@ record's own semantics**: six declaration kinds and the inductive route.
 string is con-leche's", and this is that sentence as a theorem.
 
 Every arm pushes the record it parsed unconditionally — `pushDecl_built_run`
-alone.  A record this function builds itself is an
-`.axiomDecl`/`.defnDecl`/`.thmDecl`/`.opaqueDecl`/`.quotDecl`
-(`DeclProjNamed.of_…`, vacuous) or an `.indDecl` block of
-`.indInfo`/`.ctorInfo`/`.recInfo` (`installIndD_run`'s own `DeclProjNamed.of_indDecl`
-at a block with no `.projInfo` in it).
+alone.
 
 Six arms over `parseCVD_run`, `getDeclD_run` and `pushDecl_built_run`, plus
 the `ind` arm over `validateIndD_run'` and `installIndD_run`. -/
@@ -2313,7 +2061,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
       simp only [Bool.false_eq_true, ite_false, pure_bind] at hrun ⊢
       obtain ⟨sd', s₂, h2, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
-        DeclProjNamed.of_axiomDecl (by simp only [denoteDecl, hdc]; rfl) h2
+        (by simp only [denoteDecl, hdc]; rfl) h2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | defn cvr value hints safety =>
@@ -2336,7 +2084,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
         rw [he, except_ok_bind]
         obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
         obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
-          DeclProjNamed.of_defnDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+          (by simp only [denoteDecl, hdc, hde]; try rfl) h3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
         exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
       · split
@@ -2357,7 +2105,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
     rw [he, except_ok_bind]
     obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
-      DeclProjNamed.of_thmDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+      (by simp only [denoteDecl, hdc, hde]; try rfl) h3
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | opaq cvr value isUnsafe =>
@@ -2381,7 +2129,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
       rw [he, except_ok_bind]
       obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
-        DeclProjNamed.of_opaqueDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+        (by simp only [denoteDecl, hdc, hde]; try rfl) h3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | quot cvr kind =>
@@ -2401,7 +2149,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
         | (simp only [pure_bind] at hrun
            obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
            obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
-             DeclProjNamed.of_quotDecl (by simp only [denoteDecl, hdc]; try rfl) h3
+             (by simp only [denoteDecl, hdc]; try rfl) h3
            obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
            refine ⟨hstep, fun _ h => by cases h; exact hp', ?_⟩
            split

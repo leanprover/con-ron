@@ -437,7 +437,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨hstep2, hpush2, env2, F2, hst2, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, htb2, env2, F2, hst2, hpure2⟩ :=
     checkDefnVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 g2
   have hok2 : FoldOK μ env fe s2 := hok1.ofCore hstep2
   have hcA2 : Frontend.denoteCV s2.store cv = some c :=
@@ -463,7 +463,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     intro sX FX hst hx hp hden hpure
     exact DeclCore.out hok (fun _ _ h => nomatch h)
       { state := hst, ext := hx, pins := hp, coh := hst2.coh,
-        pushed := hpush2, run := ⟨env2, FX, hden, hpure⟩ }
+        pushed := hpush2, tables := htb2, run := ⟨env2, FX, hden, hpure⟩ }
   -- the `Nat.div`/`Nat.mod` gate, which both branches of the first gate end in
   have tail : ∀ (sA : AState) (FA : Nat), FoldOK μ env fe sA →
       Ext s.store sA.store → sA.pins = s.pins →
@@ -626,8 +626,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       | .thmInfo _, hfind
       | .indInfo _ _, hfind
       | .ctorInfo _ _ _, hfind
-      | .recInfo _ _ _ _, hfind
-      | .projInfo _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+      | .recInfo _ _ _ _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · -- the structural-`Nat` gate is skipped
     have hnatP : ConLeche.natOpNames.contains c.name = false := by
       rw [← hcont3]
@@ -669,7 +668,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
-  obtain ⟨hstep2, hpush2, env', F2, hstep, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, htb2, env', F2, hstep, hpure2⟩ :=
     checkThmVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 r1
   have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
   have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
@@ -679,6 +678,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
       pins := by rw [hstep2.pins, hstep1.pins]
       coh := hstep.coh
       pushed := hpush2
+      tables := htb2
       run := ⟨env', max F1 F2, hstep.denote,
         checkDecl_thm_pure (checkConstantVal_mono hle1 hpure1)
           (checkThmVal_mono hle2 hpure2)⟩ }
@@ -709,7 +709,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨hstep2, hpush2, env2, F2, hstepOK2, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, htb2, env2, F2, hstepOK2, hpure2⟩ :=
     checkOpaqueVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 g2
   have hx2 : Ext s1.store s2.store := hstep2.ext
   have hp2 : s2.pins = s1.pins := hstep2.pins
@@ -752,6 +752,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
         pins := by rw [hp4, hp2, hstep1.pins]
         coh := hstepOK2.coh
         pushed := hpush2
+        tables := htb2
         run := ⟨env2, max (max F1 F2) F4,
           denoteFEnv_mono hx4 hstepOK2.denote,
           checkDecl_opaque_pin_pure (checkConstantVal_mono hle1' hpure1)
@@ -771,6 +772,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
         pins := by rw [hp2, hstep1.pins]
         coh := hstepOK2.coh
         pushed := hpush2
+        tables := htb2
         run := ⟨env2, max F1 F2, hstepOK2.denote,
           checkDecl_opaque_pure (checkConstantVal_mono hle1 hpure1)
             (checkOpaqueVal_mono hle2 hpure2) hnoP⟩ }
@@ -819,7 +821,6 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
       obtain ⟨hst3, hx3, hc3, hp3, he3⟩ :=
         IConstantInfo.canonEq_run (ci := .axiomInfo cv)
           (c := ConstantInfo.axiomInfo c) hst2
-          (by intro t t' ht _; exact absurd ht (by simp))
           (by simp only [Frontend.denoteCI, hcv2, Option.map_some]) hd4 g3
       rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨_, hbad3⟩
       · have hext : Ext s.store s3.store := hx2.trans hx3
@@ -843,6 +844,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
             pins := hpins3
             coh := hok.coh
             pushed := Pushed.refl _
+            tables := rfl
             run := ⟨env, 0, hden3, hpureQ⟩ }
       · exact absurd hbad3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · -- the ordinary axiom route
@@ -879,6 +881,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
           pins := hpin02
           coh := hok.coh.push _
           pushed := Pushed.push _ _
+          tables := rfl
           run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureS⟩ }
     · -- not a standard axiom: the three named families, then `sorryAx`
       have hstdP : ConLeche.stdAxiomOk env c = false := by
@@ -912,6 +915,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
               pins := hpins5
               coh := hok.coh.push _
               pushed := Pushed.push _ _
+              tables := rfl
               run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureT⟩ }
         · exact absurd hbad5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
       · -- not `trustCompiler`
@@ -954,6 +958,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                 pins := hpins8
                 coh := hok.coh.push _
                 pushed := Pushed.push _ _
+                tables := rfl
                 run := ⟨⟨.axiomInfo c :: env.consts, env.tables⟩, F2, hden, hpureR⟩ }
           · exact absurd hbad8 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
         · -- neither: `propext`/`choice` decline, `sorryAx` skip, else decline
@@ -1003,6 +1008,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                   pins := hpin02
                   coh := hok.coh
                   pushed := Pushed.refl _
+                  tables := rfl
                   run := ⟨env, F2, hden, hpureA⟩ }
             · -- the decline reads the name back for its message, then fails
               exact absurd hbad11 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
@@ -1020,10 +1026,10 @@ theorem checkDecl_bridge_basis {μ : CheckMode}
     (hrun : Arena.checkDecl μ pins fe (.basisDecl kind) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.basisDecl kind) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
-  obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
+  obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
     checkBasisDecl_bridge (μ := μ) hok hrun
   exact DeclCore.out hok (fun _ _ h => nomatch h)
-    { state := hst, ext := hx, pins := hp, coh := hcoh, pushed := hpush
+    { state := hst, ext := hx, pins := hp, coh := hcoh, pushed := hpush, tables := htb
       run := ⟨env', 0, hden, checkDecl_basis_pure hpure⟩ }
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:564-600 checkDecl (the `.indDecl`
@@ -1053,7 +1059,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
     denoteCIList_mono hx1 _ _ hb
   cases r with
   | some kind =>
-    obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
+    obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
       checkBasisDecl_bridge (μ := μ) hok1 r1
     have hd : ∀ b' nP', Declaration.indDecl b nP = .indDecl b' nP' →
         (ConLeche.basisPinHit b').isSome = true := by
@@ -1067,9 +1073,10 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
         pins := by rw [hp, hp1]
         coh := hcoh
         pushed := hpush
+        tables := htb
         run := ⟨env', 0, hden, checkDecl_ind_basis_pure hr1.symm hpure⟩ }
   | none =>
-    obtain ⟨hst, hx, hp, hcoh, hpush, hvis, env', F, hden, hpure, -⟩ :=
+    obtain ⟨hst, hx, hp, hcoh, hpush, htpush, hvis, env', F, hden, hpure, -⟩ :=
       hind.run (pinsP := pinsP) hok1 hb1 hr1.symm r1
     -- the `envWF` and `proj` clauses: the Inductives tier's, through `IndSpec.wf`
     obtain ⟨hwfI, hprojI⟩ := (IndSpec.wf hμ hind).run hok1 hb1 hr1.symm r1
@@ -1081,6 +1088,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
         pushed := hpush
         run := ⟨env', F, hden, hpure⟩
         envWF := hwfI
+        tpushed := htpush
         proj := hprojI }
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:602-626 checkDecl (the `.quotDecl`
@@ -1109,7 +1117,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
   · have hhit : ConLeche.quotPinHit k c = true := by rw [← hb1]; exact hb
     cases k with
     | type =>
-      obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
+      obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
         checkBasisDecl_bridge (μ := μ) hok1 hgood
       exact DeclCore.out hok (fun _ _ h => nomatch h)
         { state := hst
@@ -1117,6 +1125,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
           pins := by rw [hp, hp1]
           coh := hcoh
           pushed := hpush
+          tables := htb
           run := ⟨env', 0, hden, checkDecl_quot_type_pure hhit hpure⟩ }
     | ctor | lift | ind | sound =>
       all_goals (
@@ -1127,6 +1136,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
             pins := hp1
             coh := hok.coh
             pushed := Pushed.refl _
+            tables := rfl
             run := ⟨env, 0, hok1.denote,
               checkDecl_quot_other_pure (by simp) hhit⟩ })
   · exact absurd hbad (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)

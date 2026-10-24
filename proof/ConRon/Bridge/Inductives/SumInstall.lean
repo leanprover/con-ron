@@ -1049,7 +1049,7 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
   | nil =>
     simp only [denoteCtors, Option.some.injEq] at hcs
     subst hcs
-    exact ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _ _⟩
+    exact ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _⟩
   | cons c cs ih =>
     obtain ⟨cv, n⟩ := c
     simp only [denoteCtors] at hcs
@@ -1066,10 +1066,10 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
     have hpush := denoteFEnv_push hfe hci
     have h1 : InstRel fe (fun _ => True) st (fe.push (.ctorInfo cv nP n)) :=
       ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
-        ProjOut.push hcoh st (fun t h => by cases h)⟩
+        ProjOut.push _ _⟩
     have h2 := ih restP (fe.push (.ctorInfo cv nP n)) ⟨.ctorInfo cP nP n :: env.consts, env.tables⟩
       hrest hpush (hcoh.push _)
-    exact InstRel.trans (Ext.refl _) h1 h2
+    exact InstRel.trans h1 h2
 
 /-! ## The two rescue bits
 

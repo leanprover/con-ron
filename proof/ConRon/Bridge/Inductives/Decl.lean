@@ -26,7 +26,7 @@ where con-leche installs (or the reverse) and Theorem 1 would be a statement
 about a different program.
 
 `IndOut` (`Bridge/Inductives/Rel.lean`) is `IndSpec.run`'s conclusion
-clause for clause (plus the `find?`-shaped half of `ProjOut`), so
+clause for clause, so
 `indSpec_of_bridge` is a record projection of `checkIndRoute_bridge`.
 -/
 import ConRon.Bridge.Inductives.BlockTail
@@ -138,15 +138,6 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
         | axiomInfo v =>
           simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
           obtain ⟨cvP, _, rfl⟩ := hc
-          have hrun' : (if (true : Bool) = true then Arena.indParamsOk nP rest
-              else (pure false : AM Bool)) s₀ = .ok (r, s') := hrun
-          obtain ⟨hstep, hr⟩ := indParamsOk_tail (ih xs) hok hcs hrun'
-          refine ⟨hstep, ?_⟩
-          rw [hr]
-          simp only [ConLeche.indParamsOk, List.all_cons]
-        | projInfo t =>
-          simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
-          obtain ⟨pt, _, rfl⟩ := hc
           have hrun' : (if (true : Bool) = true then Arena.indParamsOk nP rest
               else (pure false : AM Bool)) s₀ = .ok (r, s') := hrun
           obtain ⟨hstep, hr⟩ := indParamsOk_tail (ih xs) hok hcs hrun'
@@ -269,13 +260,13 @@ theorem checkIndRoute_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:167-200 checkDecl (the
 `.indDecl` arm) — **`Bridge/Checker/Hyp.lean`'s `IndSpec`, discharged**: a
 record projection of `checkIndRoute_bridge` (`IndOut`'s clauses are
-`IndSpec.run`'s, the membership half of `ProjOut` its table clause). -/
+`IndSpec.run`'s, `ProjOut`'s two halves its `TPushed` and table clauses). -/
 theorem indSpec_of_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) : IndSpec μ := by
   refine ⟨fun {env fe fe' s s' block b nP pinsP} hok hb hpin hrun => ?_⟩
   have out := checkIndRoute_bridge (pinsP := pinsP) hμ hk hok hb hpin hrun
   obtain ⟨env', hden, F, hrunP⟩ := out.denote
-  exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.visible, env',
+  exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.proj.1, out.visible, env',
     F, hden, hrunP, out.envWF env' hden, out.proj.2⟩
 
 end ConRon.Bridge.Inductives

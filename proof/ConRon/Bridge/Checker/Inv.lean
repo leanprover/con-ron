@@ -597,13 +597,13 @@ theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
     exact ⟨n, ci, denoteN_pext hx hpn h1, h2, denoteCI_pext hx hpci h3⟩
   tblHit := by
     intro n t hf
-    obtain ⟨hpn, hpt⟩ := hp.rawTable hf
+    obtain ⟨hpn, hpt⟩ := hp.rawTable (IFEnv.rawTable?_of_findTable? hf)
     obtain ⟨nm, pt, h1, h2, h3, h4⟩ := h.tblHit n t hf
     exact ⟨nm, pt, denoteN_pext hx hpn h1, denoteProjTable_pext hx hpt h2, h3, h4⟩
   tblCover := by
     intro nm pt hf
     obtain ⟨n, t, h1, h2, h3⟩ := h.tblCover nm pt hf
-    obtain ⟨hpn, hpt⟩ := hp.rawTable h2
+    obtain ⟨hpn, hpt⟩ := hp.rawTable (IFEnv.rawTable?_of_findTable? h2)
     exact ⟨n, t, denoteN_pext hx hpn h1, h2, denoteProjTable_pext hx hpt h3⟩
 
 /-! ## The two invariants, and the rule that separates them
@@ -674,6 +674,9 @@ structure FoldOK (μ : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
   check : CheckOK μ env fe s
   envWF : EnvWF env
+  /-- every table of the index's list is well shaped (`IFEnvOK_of_denote`'s
+  `hproj`, which the bracket's close re-derives the index spec from) -/
+  tblShape : ∀ t ∈ fe.env.tables, IProjTableOK t
   persPins : PersPins s
   persEnv : PersIFEnv fe
   coh : IFEnvCoh fe
@@ -706,6 +709,7 @@ theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     FoldOK μ env fe s' where
   check := hck
   envWF := h.envWF
+  tblShape := h.tblShape
   persPins := h.persPins.mono hp
   persEnv := h.persEnv
   coh := h.coh
@@ -852,12 +856,18 @@ push.**  With `IFEnvCoh` on both sides the index reduces to its list:
 pushed key is not cannot denote the pushed constant's name, because the two
 handles would then be equal.
 
-The table clauses cost nothing: a push touches neither the table map nor the
-environment's tables. -/
+A push touches neither the table map nor the environment's tables, but it
+opens both table gates at the new name: `hA`/`hB` are the raw lookups there,
+side by side (`IFEnvOK.pushStored` discharges them). -/
 theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
     {ci : IConstantInfo} {c : ConstantInfo}
     (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
-    (hci : Frontend.denoteCI s.store ci = some c) :
+    (hci : Frontend.denoteCI s.store ci = some c)
+    (hA : ∀ t, fe.rawTable? ci.name = some t → ∃ pt,
+      Frontend.denoteProjTable s.store t = some pt ∧
+      env.tables.find? (·.structName == c.name) = some pt ∧ IProjTableOK t)
+    (hB : ∀ pt, env.tables.find? (·.structName == c.name) = some pt → ∃ t,
+      fe.rawTable? ci.name = some t ∧ Frontend.denoteProjTable s.store t = some pt) :
     IFEnvOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s := by
   obtain ⟨rk, hrk⟩ := hst.wf
   have hnm : denoteN s.store.ns ci.name = some c.name := denoteCI_name hci
@@ -872,7 +882,31 @@ theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
   have keyF : ∀ n : NIdx, (ci.name == n) = false →
       (fe.push ci).find? n = fe.find? n := by
     intro n hb; rw [keyE, hb]; simp
-  refine ⟨?_, ?_, h.tblHit, h.tblCover⟩
+  -- the table lookups: the gate opens at the new name, the raw lookups stay
+  have keyTb : ∀ n : NIdx, (fe.push ci).findTable? n
+      = if (ci.name == n) = true then fe.rawTable? ci.name else fe.findTable? n := by
+    intro n
+    cases hb : (ci.name == n) with
+    | true =>
+      have hn : ci.name = n := by simpa using hb
+      subst hn
+      simp only [IFEnv.findTable?, keyT, Option.isSome_some, ↓reduceIte]
+      rfl
+    | false =>
+      simp only [IFEnv.findTable?, keyF n hb, Bool.false_eq_true, ↓reduceIte]
+      rfl
+  have keyEnvT : ∀ nm : ConLeche.Name,
+      (⟨c :: env.consts, env.tables⟩ : Env).findTable? nm
+        = if c.name = nm then env.tables.find? (·.structName == c.name)
+          else env.findTable? nm := by
+    intro nm
+    unfold Env.findTable?
+    rw [Env.find?_cons]
+    by_cases hq : c.name = nm
+    · subst hq
+      simp only [Option.isSome_some, ↓reduceIte]
+    · simp only [hq, ↓reduceIte]
+  refine ⟨?_, ?_, ?_, ?_⟩
   · -- `hit`
     intro n ci' hf
     cases hb : (ci.name == n) with
@@ -905,6 +939,44 @@ theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
         rw [hnm] at hd
         exact absurd (Option.some.inj hd) hq
       | false => rw [keyF n hb]; exact hf
+  · -- `tblHit`
+    intro n t hf
+    rw [keyTb] at hf
+    cases hb : (ci.name == n) with
+    | true =>
+      rw [hb] at hf
+      simp only [↓reduceIte] at hf
+      obtain rfl : ci.name = n := by simpa using hb
+      obtain ⟨pt, hp, he, hk⟩ := hA t hf
+      refine ⟨c.name, pt, hnm, hp, ?_, hk⟩
+      rw [keyEnvT]; simpa using he
+    | false =>
+      rw [hb] at hf
+      simp only [Bool.false_eq_true, ↓reduceIte] at hf
+      obtain ⟨nm, pt, hd, hp, he, hk⟩ := h.tblHit n t hf
+      refine ⟨nm, pt, hd, hp, ?_, hk⟩
+      rw [keyEnvT, ite_eq_right, he]
+      intro hq
+      obtain rfl := denoteN_inj hrk.nsWF (hq ▸ hnm) hd
+      simp at hb
+  · -- `tblCover`
+    intro nm pt he
+    rw [keyEnvT] at he
+    by_cases hq : c.name = nm
+    · rw [ite_eq_left hq] at he
+      subst hq
+      obtain ⟨t, hr, hp⟩ := hB pt he
+      exact ⟨ci.name, t, hnm, by rw [keyTb]; simpa using hr, hp⟩
+    · rw [ite_eq_right hq] at he
+      obtain ⟨n, t, hd, hf, hp⟩ := h.tblCover nm pt he
+      refine ⟨n, t, hd, ?_, hp⟩
+      rw [keyTb]
+      cases hb : (ci.name == n) with
+      | true =>
+        obtain rfl : ci.name = n := by simpa using hb
+        rw [hnm] at hd
+        exact absurd (Option.some.inj hd) hq
+      | false => simpa using hf
 
 /-- con-leche: none — a denoting table's key denotes its structure's name. -/
 theorem denoteProjTable_structName {st : EStore} {t : IProjTable} {pt : ProjTable}
@@ -925,32 +997,58 @@ negative cases are `denoteN_inj`, as at a push. -/
 theorem IFEnvOK.pushTable {env : Env} {fe : IFEnv} {s : AState}
     {t : IProjTable} {pt : ProjTable}
     (h : IFEnvOK env fe s) (hst : StateOK s)
-    (ht : Frontend.denoteProjTable s.store t = some pt) (hok : IProjTableOK t) :
+    (ht : Frontend.denoteProjTable s.store t = some pt) (hok : IProjTableOK t)
+    (hT : (fe.find? t.structName).isSome = true) :
     IFEnvOK ⟨env.consts, pt :: env.tables⟩ (fe.pushTable t) s := by
   obtain ⟨rk, hrk⟩ := hst.wf
   have hnm := denoteProjTable_structName ht
-  have keyR : ∀ n, (fe.pushTable t).rawTable? n =
-      if (t.structName == n) = true then some t else fe.rawTable? n := by
+  -- the structure is stored on con-leche's side too
+  have hgate : (env.find? pt.structName).isSome = true := by
+    obtain ⟨ci, hci⟩ := Option.isSome_iff_exists.mp hT
+    obtain ⟨nm, c, hd, -, he⟩ := h.hit _ ci hci
+    rw [hnm] at hd
+    obtain rfl := Option.some.inj hd
+    rw [he]; rfl
+  have keyTb : ∀ n, (fe.pushTable t).findTable? n =
+      if (t.structName == n) = true then some t else fe.findTable? n := by
     intro n
-    simp only [IFEnv.rawTable?, IFEnv.pushTable, Std.HashMap.getElem?_insert]
-  have keyE : ∀ nm, envRawTable ⟨env.consts, pt :: env.tables⟩ nm =
-      if (pt.structName == nm) = true then some pt else envRawTable env nm := by
-    intro nm
-    simp only [envRawTable, List.find?_cons]
-    cases (pt.structName == nm) <;> rfl
-  refine ⟨h.hit, h.cover, ?_, ?_⟩
-  · intro n t' hf
-    rw [keyR] at hf
     cases hb : (t.structName == n) with
     | true =>
-      rw [hb] at hf; simp only [↓reduceIte] at hf
-      have ht' : t = t' := Option.some.inj hf
-      subst ht'
       have hn : t.structName = n := by simpa using hb
       subst hn
-      exact ⟨pt.structName, pt, hnm, ht, by rw [keyE]; simp, hok⟩
+      simp only [IFEnv.findTable?, IFEnv.rawTable?, IFEnv.pushTable,
+        Std.HashMap.getElem?_insert_self, ↓reduceIte]
+      exact ite_eq_left hT
     | false =>
-      rw [hb] at hf; simp only [↓reduceIte, Bool.false_eq_true] at hf
+      simp only [IFEnv.findTable?, IFEnv.rawTable?, IFEnv.pushTable,
+        Std.HashMap.getElem?_insert, hb, Bool.false_eq_true, ↓reduceIte]
+      rfl
+  have keyEnvT : ∀ nm, (⟨env.consts, pt :: env.tables⟩ : Env).findTable? nm =
+      if (pt.structName == nm) = true then some pt else env.findTable? nm := by
+    intro nm
+    cases hq : (pt.structName == nm) with
+    | true =>
+      have hn : pt.structName = nm := by simpa using hq
+      subst hn
+      simp only [Env.findTable?, List.find?_cons, beq_self_eq_true, ↓reduceIte]
+      exact ite_eq_left hgate
+    | false =>
+      simp only [Env.findTable?, List.find?_cons, hq, Bool.false_eq_true, ↓reduceIte]
+      rfl
+  refine ⟨h.hit, h.cover, ?_, ?_⟩
+  · intro n t' hf
+    rw [keyTb] at hf
+    cases hb : (t.structName == n) with
+    | true =>
+      rw [hb] at hf
+      simp only [↓reduceIte, Option.some.injEq] at hf
+      subst hf
+      have hn : t.structName = n := by simpa using hb
+      subst hn
+      exact ⟨pt.structName, pt, hnm, ht, by rw [keyEnvT]; simp, hok⟩
+    | false =>
+      rw [hb] at hf
+      simp only [Bool.false_eq_true, ↓reduceIte] at hf
       obtain ⟨nm, p, hd, hp, he, hk⟩ := h.tblHit n t' hf
       refine ⟨nm, p, hd, hp, ?_, hk⟩
       cases hq : (pt.structName == nm) with
@@ -959,19 +1057,20 @@ theorem IFEnvOK.pushTable {env : Env} {fe : IFEnv} {s : AState}
         subst hq'
         obtain rfl := denoteN_inj hrk.nsWF hnm hd
         simp at hb
-      | false => rw [keyE, hq]; simpa using he
+      | false => rw [keyEnvT, hq]; simpa using he
   · intro nm p he
-    rw [keyE] at he
+    rw [keyEnvT] at he
     cases hq : (pt.structName == nm) with
     | true =>
-      rw [hq] at he; simp only [↓reduceIte] at he
-      have hp' : pt = p := Option.some.inj he
-      subst hp'
+      rw [hq] at he
+      simp only [↓reduceIte, Option.some.injEq] at he
+      subst he
       have hq' : pt.structName = nm := by simpa using hq
       subst hq'
-      exact ⟨t.structName, t, hnm, by rw [keyR]; simp, ht⟩
+      exact ⟨t.structName, t, hnm, by rw [keyTb]; simp, ht⟩
     | false =>
-      rw [hq] at he; simp only [↓reduceIte, Bool.false_eq_true] at he
+      rw [hq] at he
+      simp only [Bool.false_eq_true, ↓reduceIte] at he
       obtain ⟨n, t', hd, hf, hp⟩ := h.tblCover nm p he
       refine ⟨n, t', hd, ?_, hp⟩
       cases hb : (t.structName == n) with
@@ -981,24 +1080,7 @@ theorem IFEnvOK.pushTable {env : Env} {fe : IFEnv} {s : AState}
         rw [hnm] at hd
         obtain rfl := Option.some.inj hd
         simp at hq
-      | false => rw [keyR, hb]; simpa using hf
-
-
-/-- con-leche: ConLeche/Verify/EnvWF.lean:452 EnvWF.cons — **`StepOK` survives
-a push**, which is what each of the three value checks concludes.  Three of
-the four clauses are push lemmas (above, and in `Bridge/Promote/Exact.lean`);
-the fourth is `EnvWF.cons`, and its `ConstWF` premise is the one thing
-con-leche does not prove about the value checks (see the section note). -/
-theorem StepOK.push {env : Env} {fe : IFEnv} {s : AState}
-    {ci : IConstantInfo} {c : ConstantInfo}
-    (h : StepOK env fe s) (hst : StateOK s)
-    (hci : Frontend.denoteCI s.store ci = some c)
-    (hcw : ConstWF ⟨c :: env.consts, env.tables⟩ c) :
-    StepOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s where
-  ienv := h.ienv.push hst h.coh hci
-  envWF := EnvWF.cons h.envWF hcw
-  coh := h.coh.push ci
-  denote := denoteFEnv_push h.denote hci
+      | false => rw [keyTb, hb]; simpa using hf
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the two `find?`s agree,
 entry by entry**: the arena's list and its denotation answer at handles and
@@ -1220,6 +1302,7 @@ theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ t ∈ fe.env.tables, IProjTableOK t)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
+  obtain ⟨rk, hrk⟩ := hwf.wf
   obtain ⟨hzs, hts⟩ := denoteIEnv_some.mp hd
   obtain ⟨hH, hC⟩ := denoteCIList_find? hwf.wf fe.env.consts _ hzs
   obtain ⟨tH, tC⟩ := denoteProjTableList_find? hwf.wf fe.env.tables _ hts
@@ -1231,11 +1314,132 @@ theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
     obtain ⟨n, ci, h1, h2, h3⟩ := hC nm c he
     exact ⟨n, ci, h1, by rw [hcoh.find?]; exact h2, h3⟩
   · intro n t hf
-    rw [hcoh.rawTable?] at hf
-    obtain ⟨nm, pt, h1, h2, h3⟩ := tH n t hf
-    exact ⟨nm, pt, h1, h2, h3, hproj t (List.mem_of_find?_eq_some hf)⟩
+    have hgate := IFEnv.find?_of_findTable? hf
+    have hraw := IFEnv.rawTable?_of_findTable? hf
+    rw [hcoh.rawTable?] at hraw
+    obtain ⟨nm, pt, h1, h2, h3⟩ := tH n t hraw
+    obtain ⟨ci, hci⟩ := Option.isSome_iff_exists.mp hgate
+    rw [hcoh.find?] at hci
+    obtain ⟨nm', c, h1', -, h3'⟩ := hH n ci hci
+    obtain rfl := Option.some.inj (h1'.symm.trans h1)
+    refine ⟨nm', pt, h1, h2, ?_, hproj t (List.mem_of_find?_eq_some hraw)⟩
+    unfold Env.findTable?
+    have : (env.find? nm').isSome = true := by
+      show (env.consts.find? (·.name == nm')).isSome = true
+      rw [h3']; rfl
+    rw [ite_eq_left this]
+    exact h3
   · intro nm pt he
-    obtain ⟨n, t, h1, h2, h3⟩ := tC nm pt he
-    exact ⟨n, t, h1, by rw [hcoh.rawTable?]; exact h2, h3⟩
+    unfold Env.findTable? at he
+    split at he
+    · rename_i hg
+      obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hg
+      obtain ⟨n, t, h1, h2, h3⟩ := tC nm pt he
+      obtain ⟨n', ci, h1', h2', -⟩ := hC nm c hc
+      obtain rfl := denoteN_inj hrk.nsWF h1 h1'
+      refine ⟨n, t, h1, ?_, h3⟩
+      unfold IFEnv.findTable?
+      have : (fe.find? n).isSome = true := by
+        rw [hcoh.find?]; simp only [IEnv.find?, h2', Option.isSome_some]
+      rw [ite_eq_left this, hcoh.rawTable?]
+      exact h2
+    · cases he
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:161-162 TableWF — every stored table
+belongs to a stored structure: `TableWF`'s first clause alone, which is what the
+push of a fresh constant reads and what the basis install keeps without
+`EnvWF`. -/
+def TablesStored (env : Env) : Prop :=
+  ∀ pt ∈ env.tables, (env.find? pt.structName).isSome = true
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:161-162 TableWF — off `EnvWF`. -/
+theorem TablesStored.of_envWF {env : Env} (h : EnvWF env) : TablesStored env :=
+  fun pt hp => (h.tables pt hp).1
+
+/-- con-leche: none — a pushed constant keeps every structure stored. -/
+theorem TablesStored.cons {env : Env} {c : ConstantInfo} (h : TablesStored env) :
+    TablesStored ⟨c :: env.consts, env.tables⟩ := by
+  intro pt hp
+  rw [Env.find?_cons]
+  split
+  · rfl
+  · exact h pt hp
+
+/-- con-leche: none — **`IFEnvOK` survives any push** once every con-leche
+table belongs to a stored structure (`TablesStored`, `TableWF`'s first
+clause).  At a name the index already holds, both gates are open already and
+the new name's raw lookups are the old visible ones (`IFEnvOK.tblHit`,
+`tblCover`); at a fresh name con-leche has no table (`TablesStored`) and the
+arena none either, because its tables denote con-leche's. -/
+theorem IFEnvOK.pushStored {env : Env} {fe : IFEnv} {s : AState}
+    {ci : IConstantInfo} {c : ConstantInfo}
+    (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
+    (hden : denoteFEnv s.store fe = some env) (hstored : TablesStored env)
+    (hci : Frontend.denoteCI s.store ci = some c) :
+    IFEnvOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s := by
+  obtain ⟨rk, hrk⟩ := hst.wf
+  have hnm := denoteCI_name hci
+  cases hfi : fe.find? ci.name with
+  | none =>
+    have hfresh : env.find? c.name = none := IFEnvOK.miss hst h hnm hfi
+    have htab : env.tables.find? (·.structName == c.name) = none := by
+      cases hf : env.tables.find? (·.structName == c.name) with
+      | none => rfl
+      | some pt =>
+        have hn : pt.structName = c.name := by simpa using List.find?_some hf
+        have hg := hstored pt (List.mem_of_find?_eq_some hf)
+        rw [hn, hfresh] at hg
+        cases hg
+    have hraw : fe.rawTable? ci.name = none := by
+      obtain ⟨-, hts⟩ := denoteIEnv_some.mp hden
+      obtain ⟨tH, -⟩ := denoteProjTableList_find? hst.wf fe.env.tables _ hts
+      cases hf : fe.rawTable? ci.name with
+      | none => rfl
+      | some t =>
+        rw [hcoh.rawTable?] at hf
+        obtain ⟨nm, pt, hd, -, he⟩ := tH _ t hf
+        rw [hnm] at hd
+        obtain rfl := Option.some.inj hd
+        rw [htab] at he
+        cases he
+    refine h.push hst hcoh hci (fun t ht => ?_) (fun pt hp => ?_)
+    · rw [hraw] at ht; cases ht
+    · rw [htab] at hp; cases hp
+  | some ci₀ =>
+    -- both gates are open at the name already
+    obtain ⟨nm, c₀, hd, -, he⟩ := h.hit _ ci₀ hfi
+    rw [hnm] at hd
+    obtain rfl := Option.some.inj hd
+    have gA : fe.findTable? ci.name = fe.rawTable? ci.name := by
+      simp only [IFEnv.findTable?, hfi, Option.isSome_some, ↓reduceIte]
+    have gB : env.findTable? c.name = env.tables.find? (·.structName == c.name) := by
+      simp only [Env.findTable?, he, Option.isSome_some, ↓reduceIte]
+    refine h.push hst hcoh hci (fun t ht => ?_) (fun pt hp => ?_)
+    · rw [← gA] at ht
+      obtain ⟨nm', pt, hd', hp, he', hk⟩ := h.tblHit _ t ht
+      rw [hnm] at hd'
+      obtain rfl := Option.some.inj hd'
+      exact ⟨pt, hp, gB ▸ he', hk⟩
+    · rw [← gB] at hp
+      obtain ⟨n, t, hd', hf, hp'⟩ := h.tblCover _ pt hp
+      obtain rfl := denoteN_inj hrk.nsWF hd' hnm
+      exact ⟨t, gA ▸ hf, hp'⟩
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:406 EnvWF.cons — **`StepOK` survives
+a push**, which is what each of the three value checks
+concludes.  Three of the four clauses are push lemmas (above, and in
+`Bridge/Promote/Exact.lean`); the fourth is `EnvWF.cons`, and its `ConstWF`
+premise is the one thing con-leche does not prove about the value checks (see
+the section note). -/
+theorem StepOK.push {env : Env} {fe : IFEnv} {s : AState}
+    {ci : IConstantInfo} {c : ConstantInfo}
+    (h : StepOK env fe s) (hst : StateOK s)
+    (hci : Frontend.denoteCI s.store ci = some c)
+    (hcw : ConstWF ⟨c :: env.consts, env.tables⟩ c) :
+    StepOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s where
+  ienv := h.ienv.pushStored hst h.coh h.denote (TablesStored.of_envWF h.envWF) hci
+  envWF := EnvWF.cons h.envWF hcw
+  coh := h.coh.push ci
+  denote := denoteFEnv_push h.denote hci
 
 end ConRon.Bridge

@@ -2297,29 +2297,19 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     cases hb : rs.contains cv.name with
     | false => rfl
     | true => rw [hb] at hres; exact absurd rfl hres
-  -- 3. the reserved-projection-name guard
-  obtain ⟨b3, s3, k3, r4⟩ := AM.bind_ok r3
-  obtain ⟨rfl, hb3⟩ := isProjFnShape_run p2.ok rfl (denoteN_ext hnm p2.ext) k3
-  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
-  replace r5 := AM.pure_bind_ok r5
-  have hprojP : cP.name.isProjFnShape = false := by
-    rw [← hb3]
-    cases hb : b3 with
-    | false => rfl
-    | true => rw [hb] at hproj; exact absurd rfl hproj
-  -- 4. the duplicate-universe-parameter guard
-  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
+  -- 3. the duplicate-universe-parameter guard
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r3
   replace r6 := AM.pure_bind_ok r6
   have hnodP : ConLeche.Name.nodup cP.levelParams = true := by
     rw [← nameNodup_spec p2.ok.wf cv.levelParams cP.levelParams
       (denoteNList_ext p2.ext.lss.ls.ns _ _ hlps)]
     exact hnod
-  -- 5. the loose-bound-variable guard
+  -- 4. the loose-bound-variable guard
   obtain ⟨b5, s5, k5, r7⟩ := AM.bind_ok r6
   obtain ⟨p5, rfl⟩ := RC.looseBVarsBoundedFast_pstep p2.ok (denote_ext hty p2.ext) k5
   obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
-  -- 6. the free-variable guard
+  -- 5. the free-variable guard
   have p25 := p2.trans p5
   obtain ⟨b6, s6, k6, r9⟩ := AM.bind_ok r8
   obtain ⟨p6, rfl⟩ := RC.hasFvarFast_pstep p5.ok (denote_ext hty p25.ext) k6
@@ -2331,7 +2321,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | true => rw [hb] at hfv; exact absurd rfl hfv
   have hws : Expr.WScoped 0 cP.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
   have p26 := p25.trans p6
-  -- 7. the undeclared-universe-parameter guard
+  -- 6. the undeclared-universe-parameter guard
   obtain ⟨b7, s7, k7, r11⟩ := AM.bind_ok r10
   obtain ⟨h7st, h7c, h7p, rfl⟩ := allLevelParamsDefined_run p6.ok
     (denoteNList_ext p26.ext.lss.ls.ns _ _ hlps) (denote_ext hty p26.ext) k7
@@ -2340,7 +2330,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have p7 : PStep s6 s7 := PStep.of_caches ⟨by rw [h7st]; exact p6.ok.wf⟩
     (by rw [h7st]; exact Ext.refl _) h7c h7p
   have p27 := p26.trans p7
-  -- 8. the unresolved-constant guard
+  -- 7. the unresolved-constant guard
   have c7 := p27.toCore hok
   obtain ⟨b8, s8, k8, r13⟩ := AM.bind_ok r12
   obtain ⟨h8st, h8c, h8p, rfl⟩ := constsResolveFFast_runR c7.ok.toR
@@ -2350,20 +2340,20 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have p8 : PStep s7 s8 := PStep.of_caches ⟨by rw [h8st]; exact p7.ok.wf⟩
     (by rw [h8st]; exact Ext.refl _) h8c h8p
   have c8 := (p27.trans p8).toCore hok
-  -- 9. the inference
+  -- 8. the inference
   obtain ⟨stype, s9, k9, r15⟩ := AM.bind_ok r14
   obtain ⟨c9, w, hw, hww, hF9⟩ := infer_crun hk henv c8.ok (denote_ext hty c8.ext) hws k9
-  -- 10. the sort test
+  -- 9. the sort test
   obtain ⟨u, s10, k10, r16⟩ := AM.bind_ok r15
   obtain ⟨c10, uu, -, hF10⟩ := ensureSort_crun hk henv c9.ok hw hww k10
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r16
   refine ⟨(c8.trans c9).trans c10, (), ⟨hws, hfindP⟩, ?_⟩
   simp only [ConLeche.classConstOk, mkFEnv_find?, hfindP, Option.isSome_none,
-    Bool.false_eq_true, ↓reduceIte, hresP, hprojP, hnodP, hlbb, hfvP, hlpd,
+    Bool.false_eq_true, ↓reduceIte, hresP, hnodP, hlbb, hfvP, hlpd,
     constsResolveF_eq, hcr, mkFEnv_env]
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq
     (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
-      (FOk.seq (FOk.pure ()) (FOk.bind hF9 (FOk.bind hF10 (FOk.pure ()))))))))))
+      (FOk.bind hF9 (FOk.bind hF10 (FOk.pure ())))))))))
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:389-407 classRecTyOk —
 **one recursor's generated type, checked and compared**: the record's member,
@@ -2815,35 +2805,38 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 namespace GR
 
 /-- con-leche: none — two indexes that answer alike: the same list, the same
-bound, the same row at every key. -/
+bound, the same row at every key, the same table map. -/
 def FEq (a b : IFEnv) : Prop :=
-  a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ ∀ n : NIdx, a.idx[n]? = b.idx[n]?
+  a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ (∀ n : NIdx, a.idx[n]? = b.idx[n]?) ∧
+    a.tbls = b.tbls
 
 /-- con-leche: none — `FEq` is reflexive. -/
-theorem FEq.refl (a : IFEnv) : FEq a a := ⟨rfl, rfl, fun _ => rfl⟩
+theorem FEq.refl (a : IFEnv) : FEq a a := ⟨rfl, rfl, fun _ => rfl, rfl⟩
 
 /-- con-leche: none — `FEq` is transitive. -/
 theorem FEq.trans {a b c : IFEnv} (h₁ : FEq a b) (h₂ : FEq b c) : FEq a c :=
-  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2 n).trans (h₂.2.2 n)⟩
+  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2.1 n).trans (h₂.2.2.1 n),
+    h₁.2.2.2.trans h₂.2.2.2⟩
 
 /-- con-leche: none — a temporary pop respects `FEq`. -/
 theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option (Nat × IConstantInfo)) :
     FEq (a.popTemp n prev) (b.popTemp n prev) := by
-  refine ⟨by simp only [IFEnv.popTemp, h.1], by simp only [IFEnv.popTemp, h.2.1], fun k => ?_⟩
+  refine ⟨by simp only [IFEnv.popTemp, h.1], by simp only [IFEnv.popTemp, h.2.1], fun k => ?_,
+    by simp only [IFEnv.popTemp, h.2.2.2]⟩
   simp only [IFEnv.popTemp]
   cases prev with
   | none =>
     simp only [Std.HashMap.getElem?_erase]
-    split <;> simp [h.2.2 k]
+    split <;> simp [h.2.2.1 k]
   | some r =>
     simp only [Std.HashMap.getElem?_insert]
-    split <;> simp [h.2.2 k]
+    split <;> simp [h.2.2.1 k]
 
 /-- con-leche: none — **a pop undoes its push** (`IFEnv.popTemp`'s purpose, the
 port's `ifenv_pop_temp`): the list, the bound and every row as before. -/
 theorem popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     FEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_⟩
+  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_, rfl⟩
   simp only [IFEnv.popTemp, IFEnv.push]
   cases hprev : fe.idx[ci.name]? with
   | none =>
@@ -2895,31 +2888,44 @@ theorem classFeR_pop (p : Arena.BlockShape) (cvGs : List IConstantVal) (recCls :
 con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:338-346 consBlockRecsBare —
 **the pushed index is the rule-less recursors' environment's**: every push a
 value row whose denotation is con-leche's cons, so the index spec and the
-coherence survive (`IFEnvOK.push`, `IFEnvCoh.push`). -/
+coherence survive (`IFEnvOK.pushStored`, `IFEnvCoh.push`). -/
 theorem classFeR_go_ok {s : AState} (hst : StateOK s) (p : Arena.BlockShape)
     (pP : ConLeche.BlockShape) (hsh : dShape s.store p = some pP) (f : Nat → Nat) :
     ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (rc : List Nat) (m : Nat)
       (fe : IFEnv) (env : Env) (prevs : List (NIdx × Option (Nat × IConstantInfo))),
-      IFEnvOK env fe s → IFEnvCoh fe → cvs.mapM (Frontend.denoteCV s.store) = some cvsP →
+      IFEnvOK env fe s → IFEnvCoh fe → denoteFEnv s.store fe = some env → TablesStored env →
+      cvs.mapM (Frontend.denoteCV s.store) = some cvsP →
       IFEnvOK (consBlockRecsBare pP m ((cvsP.zip rc).map fun x => (x.1, f x.2)) env)
           (Arena.classFeR.go p m (cvs.zip rc) fe prevs).1 s ∧
         IFEnvCoh (Arena.classFeR.go p m (cvs.zip rc) fe prevs).1
-  | [], cvsP, rc, m, fe, env, prevs, hie, hcoh, hcvs => by
+  | [], cvsP, rc, m, fe, env, prevs, hie, hcoh, _, _, hcvs => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcvs
     subst hcvs
     exact ⟨hie, hcoh⟩
-  | cv :: cvs, cvsP, [], m, fe, env, prevs, hie, hcoh, hcvs => by
+  | cv :: cvs, cvsP, [], m, fe, env, prevs, hie, hcoh, _, _, hcvs => by
     obtain ⟨cvP, cvsP', rfl, -, -⟩ := mapM_option_cons_inv hcvs
     exact ⟨hie, hcoh⟩
-  | cv :: cvs, cvsP, c :: rc, m, fe, env, prevs, hie, hcoh, hcvs => by
+  | cv :: cvs, cvsP, c :: rc, m, fe, env, prevs, hie, hcoh, hden, hts, hcvs => by
     obtain ⟨cvP, cvsP', rfl, hcv, hcvs'⟩ := mapM_option_cons_inv hcvs
     obtain ⟨hmI, hrP⟩ := RC.recAt_eq hsh m
     have hci : Frontend.denoteCI s.store (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []) =
         some (.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m) []) := by
       simp only [Frontend.denoteCI, hcv, hmI, hrP]; rfl
-    have hie' := hie.push hst hcoh (fun t h => by cases h) hci
+    have hie' := hie.pushStored hst hcoh hden hts hci
     simp only [List.zip_cons_cons, List.map_cons, Arena.classFeR.go, consBlockRecsBare]
-    exact classFeR_go_ok hst p pP hsh f cvs cvsP' rc (m + 1) _ _ _ hie' (hcoh.push _) hcvs'
+    exact classFeR_go_ok hst p pP hsh f cvs cvsP' rc (m + 1) _ _ _ hie' (hcoh.push _)
+      (denoteFEnv_push hden hci) hts.cons hcvs'
+
+/-- con-leche: none — `classFeR.go` pushes constants only: the table map is the
+input's. -/
+theorem classFeR_go_tbls (p : Arena.BlockShape) :
+    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option (Nat × IConstantInfo))),
+      (Arena.classFeR.go p m l fe prevs).1.tbls = fe.tbls
+  | [], _, _, _ => rfl
+  | (_, _) :: rest, m, fe, prevs => by
+    simp only [Arena.classFeR.go]
+    exact classFeR_go_tbls p rest (m + 1) _ _
 
 /-- con-leche: none — **the constructors' view stays put**: the pushed names
 fresh at the view `fe.restrictTo k`, every push lands above the bound
@@ -3009,14 +3015,14 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
         tbl.mapM (dCtorNf st) = some tblP ∧ dClassRead st rd = some rdP ∧
         ms.mapM (dMajor st) = some MsP ∧ cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧
-        Frontend.denoteCIList st block = some blockP)
+        Frontend.denoteCIList st block = some blockP ∧ denoteFEnv st fe₂ = some env₂)
       (Arena.genRecCheck μ fe₂ p nestedBit params tbl rd ms cvTas block)
       (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
         GR.FEq r.1 fe₂)
       (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM μ)) (mkFEnv env₂) pP nestedBit paramsP
         tblP rdP MsP cvTasP blockP) := by
   intro s₀ s' r hok hpre hrun
-  obtain ⟨hsh, hpar, htbl, hrd, hms, hcvT, hblk⟩ := hpre
+  obtain ⟨hsh, hpar, htbl, hrd, hms, hcvT, hblk, hfe₂⟩ := hpre
   simp only [Arena.genRecCheck] at hrun
   obtain ⟨-, -, hnP, -, -, hlarge, -⟩ := dShape_inv hsh
   have hk' := BlockShape.k_spec hsh
@@ -3144,7 +3150,8 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     have hrecCls : rd.recCls = rdP.recCls := hrc
     have hfeR := GR.classFeR_go_ok c10.ok.state p pP (dShape_ext c110.ext _ _ hsh)
       (fun c => (Ms2P.getD c default).nIdx) cvGs cvGsP rd.recCls 0 fe₂ env₂ []
-      (hok.ienv.mono c110.ext) hcoh hcvGs
+      (hok.ienv.mono c110.ext) hcoh (denoteFEnv_mono c110.ext hfe₂)
+      (TablesStored.of_envWF henv₂) hcvGs
     obtain ⟨F10, hF10'⟩ := id hF10
     rw [classRecTysOk_datF] at hF10'
     obtain ⟨hlenG, hallG⟩ := classRecTysOk_run hF10'
@@ -3171,6 +3178,8 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
           (hfrG cP hcP)
     have hie2R : IFEnvOK env₂ ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo
         fe₂.visibleBelow) s10 := RC.IFEnvOK.of_find? (hok.ienv.mono c110.ext) hview
+      (fun n => by simp only [IFEnv.rawTable?, IFEnv.restrictTo, Arena.classFeR,
+        GR.classFeR_go_tbls p _ 0 fe₂ []])
     -- the flush into the rule-less recursors' environment
     obtain ⟨u11, s11, k11, z13⟩ := AM.bind_ok z12
     obtain ⟨hok11, hi11, hst11⟩ := (⟨c10.ok.state, c10.ok.pins, hfeR.1⟩ :

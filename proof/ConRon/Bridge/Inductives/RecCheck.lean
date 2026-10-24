@@ -1583,14 +1583,12 @@ theorem restrictTo_push_find? {fe : IFEnv} {k : Nat} (hk : k ≤ fe.visibleBelow
     exact hnone.symm
   · rw [ite_eq_right hEq]
 
-/-- con-leche: none — `IFEnvOK` reads the index only through `find?`. -/
+/-- con-leche: none — `IFEnvOK` reads the index only through `find?` and the
+table map. -/
 theorem IFEnvOK.of_find? {env : Env} {fe fe' : IFEnv} {s : AState} (h : IFEnvOK env fe s)
-    (e : fe'.find? = fe.find?) : IFEnvOK env fe' s :=
-  ⟨fun n ci hf => h.hit n ci (by rw [← e]; exact hf),
-   fun nm c hc => by
-     obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hc
-     exact ⟨n, ci, h1, by rw [e]; exact h2, h3⟩,
-   fun n t hf => h.proj n t (by rw [← e]; exact hf)⟩
+    (e : fe'.find? = fe.find?) (et : ∀ n, fe'.rawTable? n = fe.rawTable? n := by exact fun _ => rfl) :
+    IFEnvOK env fe' s :=
+  h.congr_lookup (fun n => by rw [e]) et
 
 end RC
 
@@ -1629,7 +1627,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     simp only [Arena.consBlockRecsTF] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩,
-      ProjOut.refl _ _⟩
+      ProjOut.refl _⟩
   | cons t rest ih =>
     intro outP m fe env s₀ s' fe' hok hie hvis hcoh hfe hsh hout hfresh hrun
     obtain ⟨cv, M, rhss⟩ := t
@@ -1680,8 +1678,8 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
             (pP.rulePrefixAt m) MP rhssP) :: env.consts, env.tables⟩) s1.store
         (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)) :=
       ⟨hcoh.push _, Pushed.push _ _, by simp only [IFEnv.push]; omega, ⟨_, hfe1, rfl⟩,
-        ProjOut.push hcoh _ (by intro t h; cases h)⟩
-    exact InstRel.trans c2.ext h1 hrel
+        ProjOut.push _ _⟩
+    exact InstRel.trans h1 hrel
 
 /-! ## Node agreement (K.53′) -/
 

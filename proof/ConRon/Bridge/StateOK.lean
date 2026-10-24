@@ -507,12 +507,6 @@ structure IProjTableOK (t : IProjTable) : Prop where
   bodies : t.bodies.size = t.numFields
   guards : t.guards.length = t.numFields
 
-/-- con-leche: ConLeche/Kernel/Env.lean:549-554 Env.findTable? (its ungated
-half) — the environment's table of structure `nm`, whatever the constants
-say: the newest table of that name, which `FEnv.rawTable?` indexes. -/
-def envRawTable (env : Env) (nm : ConLeche.Name) : Option ProjTable :=
-  env.tables.find? (·.structName == nm)
-
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
 index answers exactly what the denoted environment answers.
 
@@ -532,16 +526,17 @@ structure IFEnvOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
   cover : ∀ nm c, env.find? nm = some c →
     ∃ n ci, denoteN s.store.ns n = some nm ∧ fe.find? n = some ci ∧
       Frontend.denoteCI s.store ci = some c
-  /-- **the table map answers what the environment's tables answer**, at
-  the raw (ungated) lookup — the gate is `find?`'s on both sides, so the
-  gated lookups follow from this and `hit`/`cover` — and the stored tables are
-  well shaped (`IProjTableOK`). -/
-  tblHit : ∀ n t, fe.rawTable? n = some t →
+  /-- **the table lookup answers what the environment's table lookup
+  answers**, both gated by their structure's lookup (`IFEnv.findTable?`,
+  `Env.findTable?`), so that a prefix view hides a table by hiding its
+  structure on both sides — and a table the index answers with is well shaped
+  (`IProjTableOK`).  `tblCover` is `cover`'s twin. -/
+  tblHit : ∀ n t, fe.findTable? n = some t →
     ∃ nm pt, denoteN s.store.ns n = some nm ∧
-      Frontend.denoteProjTable s.store t = some pt ∧ envRawTable env nm = some pt ∧
+      Frontend.denoteProjTable s.store t = some pt ∧ env.findTable? nm = some pt ∧
       IProjTableOK t
-  tblCover : ∀ nm pt, envRawTable env nm = some pt →
-    ∃ n t, denoteN s.store.ns n = some nm ∧ fe.rawTable? n = some t ∧
+  tblCover : ∀ nm pt, env.findTable? nm = some pt →
+    ∃ n t, denoteN s.store.ns n = some nm ∧ fe.findTable? n = some t ∧
       Frontend.denoteProjTable s.store t = some pt
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half,

@@ -349,7 +349,7 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
     (hrun : checkDefnVal μ fe cv value hint s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkDefnVal (ConLeche.fueledOps μ F) env c x hint = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
@@ -395,7 +395,7 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
   have hci3 : Frontend.denoteCI s'.store (.defnInfo cv value hint)
       = some (.defnInfo c x hint) := by
     simp only [Frontend.denoteCI, hcv3, hy3]
-  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _,
+  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _, rfl,
     ⟨.defnInfo c x hint :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
   · exact (hok.toStepOK.mono hext).push hck3.state hci3
       (constWF_defnInfo htw.cons gf gl
@@ -428,7 +428,7 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
     (hrun : checkThmVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
@@ -525,7 +525,7 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
       = some (.thmInfo c) := by
     simp only [Frontend.denoteCI, hcv8, Option.map_some]
   refine ⟨⟨hck8, hext, by rw [hp8, hp7, hstep6.pins, hpin4]⟩,
-    Pushed.push fe _, ⟨.thmInfo c :: env.consts, env.tables⟩,
+    Pushed.push fe _, rfl, ⟨.thmInfo c :: env.consts, env.tables⟩,
     max (max Fa Fb) (max F2 F3), ?_, ?_⟩
   · exact (hok.toStepOK.mono hext).push hck8.state
       hci8
@@ -554,7 +554,7 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
     (hrun : checkOpaqueVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
@@ -595,7 +595,7 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
   have hci3 : Frontend.denoteCI s'.store (.axiomInfo cv)
       = some (.axiomInfo c) := by
     simp only [Frontend.denoteCI, hcv3, Option.map_some]
-  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _,
+  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _, rfl,
     ⟨.axiomInfo c :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
   · exact (hok.toStepOK.mono hext).push hck3.state hci3
       (constWF_axiomInfo htw.cons)

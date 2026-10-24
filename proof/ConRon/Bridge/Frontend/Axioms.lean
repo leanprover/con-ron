@@ -28,19 +28,8 @@ namespace ConRon.Bridge.Frontend
 #print axioms IdTableRel.singleton
 #print axioms IdTableRel.insert
 
-#print axioms ciName_denote_proj
-#print axioms ciName_denote_of
 #print axioms ciNames_denote
 #print axioms declNames_denote
-#print axioms IProjNamed.mono
-#print axioms CIProjNamed.mono
-#print axioms CIProjNamed.of_ne
-#print axioms CIProjNamed.of_proj
-#print axioms DeclProjNamed.mono
-#print axioms DeclProjNamed.of_indDecl
-#print axioms DeclsProjNamed.mono
-#print axioms DeclsProjNamed.empty
-#print axioms DeclsProjNamed.push
 
 #print axioms ListRel.length_eq
 #print axioms IdTableRel.mono
@@ -278,8 +267,6 @@ The machinery `installIndD_run`, `processLineCoreD_run` and
 #print axioms chunkFinish_run
 #print axioms parseBytes_run
 #print axioms parseChunksGo_run
-#print axioms toConstantVal_run
-#print axioms toConstantVal_type_run
 #print axioms pushDecl_run
 #print axioms denoteNList_contains
 #print axioms declares_denote

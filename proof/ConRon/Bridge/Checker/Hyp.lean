@@ -109,20 +109,29 @@ theorem IFEnv.find?_push_restrict (fe : IFEnv) (ci : IConstantInfo)
     rw [hfresh]
   · simp only [h, Bool.false_eq_true, ite_false]
 
-/-- con-leche: none — `IFEnvOK` reads its index through `find?` only. -/
+/-- con-leche: none — `IFEnvOK` reads its index through `find?` and the raw
+table lookup only. -/
+theorem IFEnvOK.congr_lookup {env : Env} {fe fe' : IFEnv} {s : AState}
+    (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
+    (ht : ∀ n, fe'.rawTable? n = fe.rawTable? n) :
+    IFEnvOK env fe' s :=
+  have hT : ∀ n, fe'.findTable? n = fe.findTable? n := fun n => by
+    simp only [IFEnv.findTable?, hf, ht]
+  { hit := fun n ci hn => h.hit n ci (by rw [← hf]; exact hn)
+    cover := fun nm c he => by
+      obtain ⟨n, ci, hd, hfn, hc⟩ := h.cover nm c he
+      exact ⟨n, ci, hd, by rw [hf]; exact hfn, hc⟩
+    tblHit := fun n t hn => h.tblHit n t (by rw [← hT]; exact hn)
+    tblCover := fun nm pt he => by
+      obtain ⟨n, t, hd, hfn, hc⟩ := h.tblCover nm pt he
+      exact ⟨n, t, hd, by rw [hT]; exact hfn, hc⟩ }
+
+/-- con-leche: none — `IFEnvOK.congr_lookup` at the same table map. -/
 theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
     (ht : fe'.tbls = fe.tbls) :
-    IFEnvOK env fe' s where
-  hit := fun n ci hn => h.hit n ci (by rw [← hf]; exact hn)
-  cover := fun nm c he => by
-    obtain ⟨n, ci, hd, hfn, hc⟩ := h.cover nm c he
-    exact ⟨n, ci, hd, by rw [hf]; exact hfn, hc⟩
-  tblHit := fun n t hn => h.tblHit n t (by
-    simp only [IFEnv.rawTable?, ← ht]; exact hn)
-  tblCover := fun nm pt he => by
-    obtain ⟨n, t, hd, hfn, hc⟩ := h.tblCover nm pt he
-    exact ⟨n, t, hd, by simp only [IFEnv.rawTable?, ht]; exact hfn, hc⟩
+    IFEnvOK env fe' s :=
+  h.congr_lookup hf fun n => by simp only [IFEnv.rawTable?, ht]
 
 /-- con-leche: none — so does the whole checker invariant. -/
 theorem CheckOK.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}

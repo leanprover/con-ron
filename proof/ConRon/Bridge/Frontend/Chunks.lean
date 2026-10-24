@@ -183,8 +183,7 @@ theorem StateD_init_run {s s' : AState} (hok : StateOK s)
       { names := IdTableRel.singleton hdn
         levels := IdTableRel.singleton hdl
         exprs := IdTableRel.empty _
-        decls := denoteDeclArray_empty _
-        projNamed := DeclsProjNamed.empty _ }
+        decls := denoteDeclArray_empty _ }
 
 /-! ## The line feed -/
 

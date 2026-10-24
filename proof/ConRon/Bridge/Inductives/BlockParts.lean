@@ -259,7 +259,6 @@ def CIShape (st : EStore) : IConstantInfo → ConstantInfo → Prop
   | .ctorInfo v a b, .ctorInfo cv a' b' => Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b'
   | .recInfo v a b rs, .recInfo cv a' b' rs' =>
     Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b' ∧ Frontend.denoteRules st rs = some rs'
-  | .projInfo _, .projInfo _ => True
   | _, _ => False
 
 theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
@@ -291,9 +290,6 @@ theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
     · rename_i cv rules hcv hr
       obtain rfl := Option.some.inj h; exact ⟨hcv, rfl, rfl, hr⟩
     · exact nomatch h
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨pt, _, rfl⟩ := h; trivial
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:231-237 blockSplitRecs
 The closing recursors, two-sided. -/

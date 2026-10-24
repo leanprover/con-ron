@@ -453,6 +453,28 @@ theorem IFEnvOK.find_isSome {env : Env} {fe : IFEnv} {s : AState}
     obtain rfl := Option.some.inj hd'
     rw [hfind]; rfl
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:248-254 findTable? — the table
+lookups agree at a handle that denotes, both ways (`IFEnvOK.tblHit`, and
+`IFEnvOK.tblCover` through `denoteN_inj`). -/
+theorem IFEnvOK.findTable_isSome {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) :
+    (fe.findTable? n).isSome = (env.findTable? nm).isSome := by
+  obtain ⟨rk, hrk⟩ := hok.wf
+  cases hf : fe.findTable? n with
+  | some t =>
+    obtain ⟨nm', pt, hd', -, he, -⟩ := h.tblHit n t hf
+    rw [hd] at hd'
+    obtain rfl := Option.some.inj hd'
+    rw [he]; rfl
+  | none =>
+    cases he : env.findTable? nm with
+    | none => rfl
+    | some pt =>
+      obtain ⟨n', t, hd', hf', -⟩ := h.tblCover nm pt he
+      obtain rfl := denoteN_inj hrk.nsWF hd hd'
+      rw [hf] at hf'; cases hf'
+
 /-! ### `constsResolve` — the pure walk
 
 `Arena/Core.lean`'s `constsResolve` is con-leche's `Expr.constsResolve`,
