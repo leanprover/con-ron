@@ -153,7 +153,7 @@ pub fn eidx_vec_dup_from(es: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> 
 }
 
 /// con-leche: none — a `List LIdx` copy; Lean's list is shared by value (DESIGN.md §3.2)
-/// A projection table's field-sort guards, copied.  `store::lidx_vec_dup` is
+/// A nested rule's stored levels, copied.  `store::lidx_vec_dup` is
 /// the same walk; this name is here so that the three handle kinds read alike
 /// at the call sites of this module.
 pub fn lidx_vec_dup(us: &Vec<LIdx>) -> Vec<LIdx> {
@@ -359,21 +359,6 @@ pub struct IProjTable {
     pub struct_sort: LIdx,
     pub bodies: Vec<EIdx>,
     pub guards: Vec<LIdx>,
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable
-/// The record copy.
-pub fn i_proj_table_dup(t: &IProjTable) -> IProjTable {
-    IProjTable {
-        struct_name: t.struct_name.dup2(),
-        level_params: nidx_vec_dup(&t.level_params),
-        num_params: t.num_params,
-        ctor: t.ctor.dup2(),
-        num_fields: t.num_fields,
-        struct_sort: t.struct_sort.dup2(),
-        bodies: eidx_vec_dup(&t.bodies),
-        guards: lidx_vec_dup(&t.guards),
-    }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:328-345 ProjEntry

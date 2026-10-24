@@ -307,7 +307,7 @@ theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
 
 /-! ### The declaration copies -/
 
--- `i_ind_caps_dup_abs`, `i_proj_table_dup_abs` and `i_constant_info_dup_abs`
+-- `i_ind_caps_dup_abs` and `i_constant_info_dup_abs`
 -- moved down to `Refine2/Dup.lean` (task #97-P5-Front round 2).
 
 -- `i_constant_info_name_abs` moved down to `Refine2/Checker/Shape.lean`

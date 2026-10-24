@@ -275,22 +275,6 @@ theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
   simp only [absIIndCaps, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw,
     nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 
-/-- `arena::env::i_proj_table_dup` is the identity on the abstraction. -/
-theorem i_proj_table_dup_abs {t o : arena.env.IProjTable}
-    (h : arena.env.i_proj_table_dup t = ok o) : absIProjTable o = absIProjTable t := by
-  rw [arena.env.i_proj_table_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h]
-  simp only [absIProjTable, dupId_nidx _ _ hn,
-    dupId_nidx _ _ hn2, dupId_lidx _ _ hl, nidx_vec_dup_val hv,
-    eidx_vec_dup_val hv1,
-    lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv2; exact hv2)]
-
 /-- **`arena::env::i_constant_info_dup` is the identity on the abstraction.** -/
 theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     (h : arena.env.i_constant_info_dup c = ok o) :

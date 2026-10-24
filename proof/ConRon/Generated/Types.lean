@@ -857,7 +857,7 @@ structure arena.env.IConstantVal where
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IConstantInfo]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 431:0-438:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 416:0-423:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IConstantInfo where
@@ -896,7 +896,7 @@ inductive kernel.env.QuotKind where
 | Sound : kernel.env.QuotKind
 
 /-- [con_ron_core::arena::env::IDeclaration]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 494:0-502:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 479:0-487:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IDeclaration where
@@ -948,14 +948,14 @@ structure arena.env.IProjTable where
   guards : alloc.vec.Vec arena.handle.LIdx
 
 /-- [con_ron_core::arena::env::IEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 618:0-621:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 603:0-606:1
     Visibility: public -/
 structure arena.env.IEnv where
   consts : alloc.vec.Vec arena.env.IConstantInfo
   tables : alloc.vec.Vec arena.env.IProjTable
 
 /-- [con_ron_core::arena::env::IFEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 671:0-676:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 656:0-661:1
     Visibility: public -/
 structure arena.env.IFEnv where
   env : arena.env.IEnv
@@ -977,7 +977,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::arena::env::IProjEntry]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 382:0-392:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 367:0-377:1
     Visibility: public -/
 structure arena.env.IProjEntry where
   struct_name : arena.handle.NIdx
