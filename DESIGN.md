@@ -1205,8 +1205,9 @@ proof-carrying apparatus (the sixteen `*MemoInv`s, `Installed.lean`'s
 `InstallRun`/`GroupChecked`/`collectChecks` family, `PropWhen.casesZ`);
 the address-keyed apparatus of `Expr.beq` that §3.2's pointer axioms replace;
 and driver-only rendering (`msSecs`, `declCLabel`, `ValueKind.word`,
-`Name.toString`, `reprPrec'` — §3.1: the theorem never
-reads a message).  The long argument for each lives in the Rust module note of
+`reprPrec'` — §3.1: the theorem never reads a message; the display
+rendering of names and input strings, `Name.render` and `Display.*`, is
+ported all the same, so that the port prints what con-leche prints).  The long argument for each lives in the Rust module note of
 the module that would have held it; the skip file is the machine-readable index
 of those notes.
 

@@ -66,7 +66,7 @@ pub fn from_decimal(s: &str) -> Result<Nat, String> {
         return Err("expected a decimal number, got an empty field".to_string());
     }
     if !b.iter().all(|c| c.is_ascii_digit()) {
-        return Err(format!("expected a decimal number, got '{}'", s));
+        return Err(format!("expected a decimal number, got {}", crate::shown(s)));
     }
     let mut limbs: Vec<u64> = Vec::new();
     let mut i: usize = 0;

@@ -295,8 +295,9 @@ pub fn pins_for_run(
     }
     match over {
         Some(p) => {
-            let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {}", p, e))?;
-            con_ron_dump::parse_pins(&text).map_err(|e| format!("{}: {}", p, e))
+            let shown = crate::render::display_path(p);
+            let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {}", shown, e))?;
+            con_ron_dump::parse_pins(&text).map_err(|e| format!("{}: {}", shown, e))
         }
         None => match pins_decode::decode_embedded() {
             Ok(ps) => Ok(ps),

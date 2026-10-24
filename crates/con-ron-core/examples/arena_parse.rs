@@ -62,6 +62,13 @@ fn vm_hwm_kb() -> u64 {
     0
 }
 
+/// A command-line word for a message, escaped as every input string is
+/// (`kernel::name::display_str`, task #131).
+fn disp(s: &str) -> String {
+    let v: Vec<u32> = s.chars().map(|c| c as u32).collect();
+    cps(&con_ron_core::kernel::name::display_str(&v))
+}
+
 fn cps(v: &[u32]) -> String {
     v.iter().filter_map(|c| char::from_u32(*c)).collect()
 }
@@ -95,7 +102,7 @@ fn main() {
     let mut path: Option<String> = None;
     for a in args.iter() {
         if a.starts_with("--") {
-            eprintln!("arena-parse: unknown flag {}", a);
+            eprintln!("arena-parse: unknown flag {}", disp(a));
             std::process::exit(3);
         } else {
             path = Some(a.clone());
@@ -147,7 +154,7 @@ fn main() {
     let mut f = match std::fs::File::open(&path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("arena-parse: {}: {}", path, e);
+            eprintln!("arena-parse: {}: {}", disp(&path), e);
             std::process::exit(3);
         }
     };
@@ -169,7 +176,7 @@ fn main() {
         let n = match f.read(&mut buf[..]) {
             Ok(n) => n,
             Err(e) => {
-                eprintln!("arena-parse: {}: {}", path, e);
+                eprintln!("arena-parse: {}: {}", disp(&path), e);
                 std::process::exit(3);
             }
         };
@@ -205,7 +212,7 @@ fn main() {
     match r {
         Err((e, line)) => {
             let (m, code) = render(&e);
-            println!("arena-parse: {}", path);
+            println!("arena-parse: {}", disp(&path));
             println!("  stopped at line {}: {}", group(line), m);
             println!("  bytes read           {}", group(bytes));
             println!(
@@ -243,7 +250,7 @@ fn main() {
             let (n_e, n_l, n_n) =
                 (ar.node_count(pers), ar.ls().node_count(pers), ar.ns().node_count(pers));
             let wall = t0.elapsed();
-            println!("arena-parse: {}", path);
+            println!("arena-parse: {}", disp(&path));
             println!("  declarations parsed  {}", group(records));
             println!("  lines                {}", group(line_no));
             println!("  bytes read           {}", group(bytes));

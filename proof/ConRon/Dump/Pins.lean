@@ -336,7 +336,7 @@ def natTok : R Nat := do
   let s ← nextTok
   match s.toNat? with
   | some n => return n
-  | none => rerr ("expected a decimal number, got '" ++ s ++ "'")
+  | none => rerr ("expected a decimal number, got " ++ ConLeche.Display.str s)
 
 /-- A counted list of whatever `p` reads. -/
 def listTok (p : R α) : R (List α) := do
@@ -453,7 +453,7 @@ def parseRecord (kind : String) : R Unit := do
     let v ← if t == "a" then pure Name.anonymous
       else if t == "s" then do let p ← nameRef; let s ← strTok; pure (Name.str p s)
       else if t == "n" then do let p ← nameRef; let k ← natTok; pure (Name.num p k)
-      else rerr ("unknown name record '" ++ t ++ "'")
+      else rerr ("unknown name record " ++ ConLeche.Display.str t)
     modify fun st => { st with names := st.names.push v }
   else if kind == "L" then
     expectId (← get).levels.size "level"
@@ -463,7 +463,7 @@ def parseRecord (kind : String) : R Unit := do
       else if t == "m" then do let a ← levelRef; let b ← levelRef; pure (Level.max a b)
       else if t == "i" then do let a ← levelRef; let b ← levelRef; pure (Level.imax a b)
       else if t == "p" then do pure (Level.param (← nameRef))
-      else rerr ("unknown level record '" ++ t ++ "'")
+      else rerr ("unknown level record " ++ ConLeche.Display.str t)
     modify fun st => { st with levels := st.levels.push v }
   else if kind == "E" then
     expectId (← get).exprs.size "expr"
@@ -490,7 +490,7 @@ def parseRecord (kind : String) : R Unit := do
       else if t == "p" then do
         let sn ← nameRef; let i ← natTok; let s ← exprRef
         pure (Expr.mkProj sn i s)
-      else rerr ("unknown expr record '" ++ t ++ "'")
+      else rerr ("unknown expr record " ++ ConLeche.Display.str t)
     modify fun st => { st with exprs := st.exprs.push v }
   else if kind == "S" then
     let toolchain ← strTok
@@ -526,7 +526,7 @@ def parseRecord (kind : String) : R Unit := do
         xorTypePins, shiftLeftTypePins, shiftRightTypePins }
     modify fun st => { st with pinSets := st.pinSets.push v }
   else
-    rerr ("unknown record kind '" ++ kind ++ "'")
+    rerr ("unknown record kind " ++ ConLeche.Display.str kind)
 
 /-! ## The driver -/
 
@@ -568,7 +568,7 @@ def parsePins (s : String) : Except String (List NatOpPinSet) :=
   | [] => Except.error "empty input"
   | hdr :: rest =>
     if hdr != pinsHeader then
-      Except.error ("bad header: expected '" ++ pinsHeader ++ "', got '" ++ hdr ++ "'")
+      Except.error ("bad header: expected '" ++ pinsHeader ++ "', got " ++ ConLeche.Display.str hdr)
     else
       match (runLines rest).run { lineNo := 1 } with
       | .error e => Except.error e

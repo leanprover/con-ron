@@ -376,13 +376,13 @@ impl<'s, 'l> Rec<'s, 'l> {
     fn nat(&mut self) -> Result<u64, String> {
         let t = self.next_tok()?;
         if t.is_empty() || !t.bytes().all(|c| c.is_ascii_digit()) {
-            return self.err(format!("expected a decimal number, got '{}'", t));
+            return self.err(format!("expected a decimal number, got {}", crate::shown(t)));
         }
         match t.parse::<u64>() {
             Ok(n) => Ok(n),
             Err(_) => self.err(format!(
-                "decimal number '{}' does not fit a 64-bit index (DESIGN.md §3.3)",
-                t
+                "decimal number {} does not fit a 64-bit index (DESIGN.md §3.3)",
+                crate::shown(t)
             )),
         }
     }
@@ -515,7 +515,7 @@ impl<'s, 'l> Rec<'s, 'l> {
             let k = self.nat()?;
             name::mk_num(p, k)
         } else {
-            return self.err(format!("unknown name record '{}'", t));
+            return self.err(format!("unknown name record {}", crate::shown(t)));
         };
         self.st.names.push(v);
         Ok(())
@@ -542,7 +542,7 @@ impl<'s, 'l> Rec<'s, 'l> {
             let n = self.name_ref()?;
             level::param(n)
         } else {
-            return self.err(format!("unknown level record '{}'", t));
+            return self.err(format!("unknown level record {}", crate::shown(t)));
         };
         self.st.levels.push(v);
         Ok(())
@@ -598,7 +598,7 @@ impl<'s, 'l> Rec<'s, 'l> {
             let s = self.expr_ref()?;
             expr::proj(sn, i, s)
         } else {
-            return self.err(format!("unknown expr record '{}'", t));
+            return self.err(format!("unknown expr record {}", crate::shown(t)));
         };
         self.st.exprs.push(v);
         Ok(())
@@ -671,7 +671,7 @@ impl<'s, 'l> Rec<'s, 'l> {
             "L" => self.record_level(),
             "E" => self.record_expr(),
             "S" => self.record_pin_set(),
-            _ => self.err(format!("unknown record kind '{}'", kind)),
+            _ => self.err(format!("unknown record kind {}", crate::shown(kind))),
         }
     }
 }
@@ -788,12 +788,23 @@ impl Session {
     }
 }
 
+/// A token of the file being read, for an error message: the core's
+/// `name::display_str` (con-leche's `Display.str`), so that no byte of a pins
+/// file reaches the terminal raw (task #131).
+pub fn shown(t: &str) -> String {
+    let cs: Vec<u32> = t.chars().map(|c| c as u32).collect();
+    name::display_str(&cs)
+        .iter()
+        .filter_map(|c| char::from_u32(*c))
+        .collect()
+}
+
 /// The header check both drivers do.
 fn check_header(hdr: &str, header: &str) -> Result<(), String> {
     if hdr == header {
         Ok(())
     } else {
-        Err(format!("bad header: expected '{}', got '{}'", header, hdr))
+        Err(format!("bad header: expected '{}', got {}", header, shown(hdr)))
     }
 }
 
@@ -1066,7 +1077,7 @@ mod tests {
     fn the_header_and_the_footer_are_checked() {
         // a record letter this format does not have
         let bad = "con-ron-pins/2\nD b nat\nend 0\n";
-        assert!(pins_err(bad).contains("unknown record kind 'D'"), "{}", pins_err(bad));
+        assert!(pins_err(bad).contains("unknown record kind \"D\""), "{}", pins_err(bad));
         // a foreign header, and the previous version
         assert!(parse_pins("lean4export/1\nend 0\n").is_err());
         assert!(parse_pins("con-ron-pins/1\nend 0\n").is_err());
@@ -1148,6 +1159,20 @@ mod tests {
         pins_err(text)
     }
 
+    /// A token of the file reaches a message only escaped (task #131).
+    #[test]
+    fn parse_errors_escape_the_file() {
+        assert_eq!(
+            perr("con-ron-pins/2\u{1b}[2K\n"),
+            "bad header: expected 'con-ron-pins/2', got \"con-ron-pins/2\\u{001B}[2K\""
+        );
+        let e = perr("con-ron-pins/2\nQ\u{7}\u{202e}x 0\nend 0\n");
+        assert!(e.contains("\\u{0007}\\u{202E}"), "{}", e);
+        assert!(!e.chars().any(|c| con_ron_core::kernel::name::display_unsafe_char(c as u32)));
+        let n = perr("con-ron-pins/2\nN 1 n 0 9\u{1b}\nend 0\n");
+        assert!(!n.contains('\u{1b}'), "{}", n);
+    }
+
     #[test]
     fn parse_errors_name_the_line() {
         assert!(perr("").contains("bad header"));
@@ -1167,11 +1192,11 @@ mod tests {
         // an unknown kind letter, and an unknown constructor letter
         assert_eq!(
             perr("con-ron-pins/2\nX 0 a\nend 0\n"),
-            "line 2: unknown record kind 'X'"
+            "line 2: unknown record kind \"X\""
         );
         assert_eq!(
             perr("con-ron-pins/2\nN 0 q\nend 0\n"),
-            "line 2: unknown name record 'q'"
+            "line 2: unknown name record \"q\""
         );
         // a bad footer count, trailing fields, content after the footer
         assert!(perr("con-ron-pins/2\nN 0 a\nend 1\n")

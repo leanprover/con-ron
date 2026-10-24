@@ -394,6 +394,15 @@ def parseArgs : List String → Args → Args
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
 
+/-- con-leche: none — con-leche prints a command-line path raw
+A text that came from outside the input proper (a command-line path, an IO
+error, which names that path), for a message: as it is when it holds nothing
+a display must escape, else `Display.str` of it.  Deviation from con-leche,
+which prints `{file}: {e}` raw (task #131); an ordinary path prints exactly as
+con-leche prints it.  The Rust driver's `render::display_path`. -/
+def displayPath (s : String) : String :=
+  if s.any fun c => c == '\\' || c == '"' || Display.unsafeChar c then Display.str s else s
+
 /-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
@@ -409,7 +418,7 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
   let h? ← try
       pure (some (← IO.FS.Handle.mk file .read))
     catch e => do
-      IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
+      IO.eprintln s!"con-ron-lean: {displayPath file}: {displayPath (toString e)} ({modeTag})"
       pure none
   let some h := h? | return 3
   let (verdict, chunks, tParse, nodes) ← runPipelineIO h mode pins

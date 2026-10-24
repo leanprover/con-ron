@@ -290,24 +290,48 @@ done <"$CL/tests/e2e-expected.txt"
 # and the BOM, must not start with `::`, and must show the ESC as its escape.
 display_ok=0
 display_total=0
+display_check() { # <label> <output file>: the gate's test of one output
+  if LC_ALL=C grep -qP '[\x00-\x09\x0b-\x1f\x7f]|\xc2[\x80-\x9f]|\xe2\x80[\x8b-\x8f\xa8-\xae]|\xe2\x81[\xa0-\xa4\xa6-\xa9]|\xef\xbb\xbf|\xd8\x9c|^::' "$2"; then
+    echo "DISPLAY FAIL $1: raw control/format character or a '::' line in the output"
+  elif ! grep -qF '\u{001B}' "$2"; then
+    echo "DISPLAY FAIL $1: the ESC's escape \\u{001B} is missing from the output"
+  else
+    display_ok=$((display_ok + 1))
+  fi
+}
 display_case() { # <fixture>
   local src="$CL/tests/e2e/$1" out="$WORK/display-$1.out"
   [ -f "$src" ] || return 0
   if [ -n "$only" ] && ! printf '%s' "display/$1" | grep -qE "$only"; then return 0; fi
   display_total=$((display_total + 1))
   (ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs --progress=1 "$src" >"$out" 2>&1)
-  if LC_ALL=C grep -qP '[\x00-\x09\x0b-\x1f\x7f]|\xc2[\x80-\x9f]|\xe2\x80[\x8b-\x8f\xa8-\xae]|\xe2\x81[\xa0-\xa4\xa6-\xa9]|\xef\xbb\xbf|\xd8\x9c|^::' "$out"; then
-    echo "DISPLAY FAIL $1: raw control/format character or a '::' line in the output"
-  elif ! grep -qF '\u{001B}' "$out"; then
-    echo "DISPLAY FAIL $1: the ESC's escape \\u{001B} is missing from the output"
-  else
-    display_ok=$((display_ok + 1))
-  fi
+  display_check "$1" "$out"
   rm -f "$out"
 }
+# con-ron's own cases (task #131): what reaches the output from outside the
+# stream — a command-line word, a path, a pins file — gets the same
+# guarantee.  Each carries an ESC, a newline and a `::` line.
+display_cli() { # <label> <args...>
+  local label=$1 out="$WORK/display-cli-$1.out"; shift
+  if [ -n "$only" ] && ! printf '%s' "display/$label" | grep -qE "$only"; then return 0; fi
+  display_total=$((display_total + 1))
+  (ulimit -c 0; timeout "$TO" "$BIN" "$@" >"$out" 2>&1)
+  display_check "cli/$label" "$out"
+  rm -f "$out"
+}
+evil=$'x\e[31m\n::error::y\u202e'
+mkdir -p "$WORK/display-$evil"
+printf 'con-ron-pins/2%s\n' "$evil" >"$WORK/display-pins"
 display_case render_name_axiom.ndjson
 display_case render_name_progress.ndjson
 display_case render_safety.ndjson
+display_cli option "--$evil" "$CL/tests/e2e/render_safety.ndjson"
+display_cli progress "--progress=$evil" "$CL/tests/e2e/render_safety.ndjson"
+display_cli jobs "--jobs=$evil" "$CL/tests/e2e/render_safety.ndjson"
+display_cli path "$WORK/display-$evil/missing.ndjson"
+display_cli pins-path --pins "$WORK/display-$evil/missing" "$CL/tests/e2e/render_name_progress.ndjson"
+display_cli pins-file --pins "$WORK/display-pins" "$CL/tests/e2e/render_name_progress.ndjson"
+rm -rf "$WORK/display-$evil" "$WORK/display-pins"
 
 t1=$(date +%s)
 

@@ -26,6 +26,24 @@ pub fn display_str(s: &str) -> String {
     from_cps(&name::display_str(&cps(s)))
 }
 
+/// con-leche: none — con-leche prints a path from the command line raw
+/// A file path from the command line, for a message: as it is when it holds
+/// nothing a display must escape, else `display_str` of it.  Deviation from
+/// con-leche, which prints `{file}` raw (task #131): a path is the caller's
+/// own word, but a script can pass one it did not choose (a file name from an
+/// archive), so it gets the same guarantee as the input.  An ordinary path
+/// prints exactly as con-leche prints it.
+pub fn display_path(s: &str) -> String {
+    let plain = s
+        .chars()
+        .all(|c| c != '\\' && c != '"' && !name::display_unsafe_char(c as u32));
+    if plain {
+        s.to_string()
+    } else {
+        display_str(s)
+    }
+}
+
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code
 /// points (DESIGN.md §3.3); a driver message on its way into a `CheckError`.
 pub fn cps(s: &str) -> Vec<u32> {
@@ -56,6 +74,14 @@ mod tests {
     fn words_render_quoted() {
         assert_eq!(display_str("x"), "\"x\"");
         assert_eq!(display_str("\u{1b}"), "\"\\u{001B}\"");
+    }
+
+    #[test]
+    fn paths_render_raw_unless_hostile() {
+        assert_eq!(display_path("tests/e2e/a b.ndjson"), "tests/e2e/a b.ndjson");
+        assert_eq!(display_path("x\u{1b}[2Ky\n::error::z"), "\"x\\u{001B}[2Ky\\u{000A}::error::z\"");
+        assert_eq!(display_path("a\\b"), "\"a\\\\b\"");
+        assert_eq!(display_path("a\u{202e}b"), "\"a\\u{202E}b\"");
     }
 
     #[test]

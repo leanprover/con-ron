@@ -426,7 +426,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         export_c::CHUNK_SIZE,
     ) {
         Err(e) => {
-            eprintln!("con-ron: {}: {}", file, e);
+            eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
             return 3;
         }
         Ok((Err((e, line)), _)) => match classify(&e) {
@@ -441,7 +441,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
                 return 1;
             }
             FrontendClass::Internal(msg) => {
-                eprintln!("con-ron: {}:{}: {}", file, line, msg);
+                eprintln!("con-ron: {}:{}: {}", con_ron::render::display_path(file), line, msg);
                 return 3;
             }
         },

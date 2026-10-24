@@ -22,7 +22,7 @@ right after the verdict with the two streams flushed, without unwinding the
 heap (task #336). -/
 def main (args : List String) : IO UInt32 := do
   let code ← try ConRon.Arena.main args catch e => do
-    (try IO.eprintln s!"con-ron-lean: internal error: {e}" catch _ => pure ())
+    (try IO.eprintln s!"con-ron-lean: internal error: {ConRon.Arena.displayPath (toString e)}" catch _ => pure ())
     pure 3
   (← IO.getStdout).flush
   (← IO.getStderr).flush
