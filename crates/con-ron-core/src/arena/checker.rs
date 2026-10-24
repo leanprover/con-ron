@@ -90,7 +90,7 @@ pub const M_AND_PIN: [u32; 32] = [
 // The pinned basis install (`Checker.lean:65-78` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Checker.lean:423-433 checkBasisDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:37-48 checkBasisDecl` —
 /// **install the pinned (stored) basis block.**  The three records that
 /// install one — the fold's own `basisDecl` kind, a stream block
@@ -118,7 +118,7 @@ pub fn check_basis_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:423-433 checkBasisDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:37-48 checkBasisDecl` — the
 /// cited `installBasisDecls fe (← BasisKind.declsA kind)`, past the quotient
 /// gate.  Split off so the gate's two branches are tail calls.

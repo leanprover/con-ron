@@ -33,7 +33,8 @@ DESIGN §8.3 and OVERVIEW §6.5 (the `Native` kind) describe con-ron's
 `or_else_attempt` (`crates/con-ron-core/src/arena/checker_base.rs`), and this
 section is its twin. -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — what
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps — what
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove CheckerBase.OrElseStep_bridge, then delete this line
 `orElse` decides once the attempt has run.  con-leche's clause is three-way;
 the port's is four, and the arena's is the port's:
 
@@ -53,19 +54,22 @@ inductive OrElseStep where
   | recovered (e : CheckError)
   | failed (e : CheckError)
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — take the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps — take the
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove CheckerBase.attemptSnapshot_bridge, then delete this line
 snapshot a variant attempt is restored from: the WHOLE state (task
 #97-T2-LOCKSTEP D4b).  In Lean it is the state itself; the port copies it
 (`attempt_snapshot`: the four stores with both tiers, the memos, the caches
 and the pins). -/
 @[inline] def attemptSnapshot (st : AState) : AState := st
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — the restore
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps — the restore
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove CheckerBase.attemptRestore_bridge, then delete this line
 of `OrElseStep.recovered`: the snapshot becomes the state, so everything the
 attempt did goes.  The port moves its copy back (`attempt_restore`). -/
 @[inline] def attemptRestore (_st : AState) (snap : AState) : AState := snap
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — **the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps — **the
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove CheckerBase.orElseStepOf_bridge, then delete this line
 four-way step itself**, as a PURE function of the attempt's outcome, which is
 the shape the port has. -/
 @[inline] def orElseStepOf : Except CheckError Bool → OrElseStep
@@ -74,7 +78,8 @@ the shape the port has. -/
   | .error (.native m) => .failed (.native m)
   | .error e => .recovered e
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — **the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps — **the
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove CheckerBase.orElseAttempt_bridge, then delete this line
 attempt, with the memo state snapshotted and restored on a mirrored error.**
 
 This is the ONE place (B) recovers from a thrown error, and it is scoped to
@@ -253,7 +258,7 @@ term `constsResolve` has just walked — is `Arena/Inductives/StructParts.lean`'
 question of a block's field types.  That module imports `Arena/FEnv.lean` and
 nothing above it, so it sits below this one and there is ONE walk. -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:67-87 unresolvedConstsError —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:46-66 unresolvedConstsError —
 **the verdict at a term whose constants do not all resolve.**  A term that
 mentions `sorryAx` DECLINES (the axiom is tolerated as a declaration and
 installs nothing, so a use of it is a positively detected unsupported
@@ -265,7 +270,7 @@ def unresolvedConstsError (where_ : String) (e : EIdx) : AM CheckError := do
     pure (.notImplemented s!"use of the sorryAx axiom in {where_}")
   else pure (.invalid s!"unknown constant in {where_}")
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo — does
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:68-90 Expr.hasStrLitGo — does
 the term contain a string literal?  (Error path only.)  A memoized DAG walk:
 con-leche's visited set is the memo's key set (the Rust's `HashMap<EIdx,
 bool>`, every entry `false`), threaded as con-leche threads its
@@ -300,7 +305,7 @@ def hasStrLitGo (memo : Std.HashMap EIdx Bool) :
         | .proj _ _ x => hasStrLitGo memo fuel x
         | _ => pure (false, memo)
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:92-98 unresolvedConstsErrorL —
 `unresolvedConstsError` with a string-literal guard ahead of it: a string
 literal is declined here, before resolution, when the String support
 declarations are not yet present (con-leche's task #342: the guard the retired
@@ -316,8 +321,8 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-142 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:352-370 checkConstantValF
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:102-121 checkConstantVal
+con-leche: ConLeche/Kernel/DeclCheck.lean:361-379 checkConstantValF
 Checks common to all declarations: fresh name, well-formed universe
 parameters, and a type that is a type and mentions only declared parameters.
 Returns nothing: the constant is stored as declared (con-leche's task #342).
@@ -346,7 +351,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:144-154 openPisAtFvars — open
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-133 openPisAtFvars — open
 the first `n` `∀`-binders at fresh free variables `0..n-1` (each fvar's type
 is the binder domain, instantiated with the earlier fvars).  Structural on
 `n`, so no fuel of its own. -/
@@ -364,7 +369,7 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:156-170 openPisAtFvarsFGo —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:135-149 openPisAtFvarsFGo —
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
 binder first.  One `instantiateList` pass per domain instead of one
 whole-telescope `instantiate1` pass per binder. -/
@@ -383,7 +388,7 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:172-179 openPisAtFvarsF —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:151-158 openPisAtFvarsF —
 one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 appear after substitution). -/
 def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
@@ -392,7 +397,7 @@ def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
   | some r => pure (some r)
   | none => openPisAtFvars n e i
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:224-230 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:203-209 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with

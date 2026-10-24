@@ -197,7 +197,7 @@ constructors.  Over handles every one of them interns, and DESIGN §3.4
 forbids the function values, so each is a `def` — the treatment
 `Arena/Core.lean` gives `natOpEquations`' three. -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 statements' `Eq.{1} τ a b` former. -/
 def eqAt1 (ty a b : EIdx) : AM EIdx := do
   let z ← zeroLevel
@@ -209,20 +209,20 @@ def eqAt1 (ty a b : EIdx) : AM EIdx := do
   let e2 ← internE (.app e1 a)
   internE (.app e2 b)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 numeral `1` as `Nat.succ Nat.zero`. -/
 def natOne : AM EIdx := do
   let s ← pinNatSucc
   let z ← pinNatZero
   natAp1 s (← constE z)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 open statements' variables `x := fvar 0`, `y := fvar 1` at `Nat`. -/
 def natVar (i : Nat) : AM EIdx := do
   let nt ← pinNat
   internE (.fvar i (← constE nt))
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 twenty-one pinned handles the statements are built from (the port's
 `CertCtx`: a record, because a `let`-bound handle that outlives a `match` arm is
 a loan the Aeneas subset will not take; the twin follows the port's factoring,
@@ -250,7 +250,7 @@ structure CertCtxA where
   lorN : NIdx
   xorN : NIdx
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 context, in the port's order (`cert_ctx`). -/
 def certCtx : AM CertCtxA := do
   let nt ← pinNat
@@ -279,25 +279,25 @@ def certCtx : AM CertCtxA := do
   pure ⟨natTy, x, y, one, bleN, boolTy, bT, bF, z, two, modN, divN, addN, mulN,
     subN, gcdN, slN, srN, landN, lorN, xorN⟩
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 guard `ble a b = r` (`eqB (ble2 a b) r`). -/
 def certGuard (cx : CertCtxA) (a b r : EIdx) : AM EIdx := do
   eqAt1 cx.boolTy (← natAp2 cx.bleN a b) r
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 characteristic equation `c x y = rhs` (`eqN (op2 x y) rhs`), its left side
 interned AFTER the right one, as the port does. -/
 def certEq (cx : CertCtxA) (c : NIdx) (rhs : EIdx) : AM EIdx := do
   eqAt1 cx.natTy (← natAp2 c cx.x cx.y) rhs
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 bitwise branches' `op2 (div2 x two) (div2 y two)`. -/
 def certHalves (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   let hx ← natAp2 cx.divN cx.x cx.two
   let hy ← natAp2 cx.divN cx.y cx.two
   natAp2 c hx hy
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 six one-hypothesis branches' two certificates. -/
 def certTwoEqs (cx : CertCtxA) (c : NIdx) (h1 h2 r1 r2 : EIdx) :
     AM (List (List EIdx × EIdx)) := do
@@ -305,7 +305,7 @@ def certTwoEqs (cx : CertCtxA) (c : NIdx) (h1 h2 r1 r2 : EIdx) :
   let e2 ← certEq cx c r2
   pure [([h1], e1), ([h2], e2)]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`. -/
 def certGcd (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.x cx.bT
@@ -313,7 +313,7 @@ def certGcd (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let r1 ← natAp2 c (← natAp2 cx.modN cx.y cx.x) cx.x
   certTwoEqs cx c h1 h2 r1 cx.y
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`. -/
 def certShiftLeft (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.y cx.bT
@@ -321,7 +321,7 @@ def certShiftLeft (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := 
   let r1 ← natAp2 c (← natAp2 cx.mulN cx.two cx.x) (← natAp2 cx.subN cx.y cx.one)
   certTwoEqs cx c h1 h2 r1 cx.x
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`. -/
 def certShiftRight (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.y cx.bT
@@ -329,7 +329,7 @@ def certShiftRight (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) :=
   let r1 ← natAp2 cx.divN (← natAp2 c cx.x (← natAp2 cx.subN cx.y cx.one)) cx.two
   certTwoEqs cx c h1 h2 r1 cx.x
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`, `x = 0 → … = 0`. -/
 def certLand (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.x cx.bT
@@ -340,7 +340,7 @@ def certLand (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
       (← natAp2 cx.modN cx.y cx.two))
   certTwoEqs cx c h1 h2 r1 cx.z
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `|||`'s right-hand side `2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`. -/
 def certLorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   let rec1 ← certHalves cx c
@@ -350,7 +350,7 @@ def certLorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   natAp2 cx.addN t2 (← natAp2 cx.subN (← natAp2 cx.addN mx my)
     (← natAp2 cx.mulN mx my))
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `|||`: `x = 0 → x ||| y = y`. -/
 def certLor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.x cx.bT
@@ -358,7 +358,7 @@ def certLor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let r1 ← certLorRhs cx c
   certTwoEqs cx c h1 h2 r1 cx.y
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `^^^`'s right-hand side `2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`. -/
 def certXorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   let rec1 ← certHalves cx c
@@ -367,7 +367,7 @@ def certXorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   let my ← natAp2 cx.modN cx.y cx.two
   natAp2 cx.addN t2 (← natAp2 cx.modN (← natAp2 cx.addN mx my) cx.two)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts —
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts —
 `^^^`: `x = 0 → x ^^^ y = y`. -/
 def certXor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let h1 ← certGuard cx cx.one cx.x cx.bT
@@ -375,7 +375,7 @@ def certXor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let r1 ← certXorRhs cx c
   certTwoEqs cx c h1 h2 r1 cx.y
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 `div`/`mod` branch's recursive right-hand side: `c (x - y) y`, under
 `Nat.succ` for `div` (the successor pin read after the two interns, as the
 port's `cert_rec_rhs` does). -/
@@ -384,7 +384,7 @@ def certRecRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
   let step ← natAp2 c d cx.y
   if c == cx.divN then natAp1 (← pinNatSucc) step else pure step
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 `div`/`mod` branch's three certificates, at the four guards. -/
 def certDivModEqs (cx : CertCtxA) (c : NIdx)
     (h1 h2 h3 h4 recRhs baseRhs : EIdx) : AM (List (List EIdx × EIdx)) := do
@@ -392,7 +392,7 @@ def certDivModEqs (cx : CertCtxA) (c : NIdx)
   let e2 ← certEq cx c baseRhs
   pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 `div`/`mod` branch's four guards. -/
 def certDivModGuards (cx : CertCtxA) (c : NIdx) (recRhs baseRhs : EIdx) :
     AM (List (List EIdx × EIdx)) := do
@@ -402,14 +402,14 @@ def certDivModGuards (cx : CertCtxA) (c : NIdx) (recRhs baseRhs : EIdx) :
   let h4 ← certGuard cx cx.one cx.y cx.bF
   certDivModEqs cx c h1 h2 h3 h4 recRhs baseRhs
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 `div`/`mod` branch. -/
 def certDivMod (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let recRhs ← certRecRhs cx c
   let baseRhs := if c == cx.divN then cx.z else cx.x
   certDivModGuards cx c recRhs baseRhs
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — the
 seven-way dispatch over the operation name. -/
 def divModCertStmtsAt (cx : CertCtxA) (c : NIdx) :
     AM (List (List EIdx × EIdx)) := do
@@ -421,7 +421,7 @@ def divModCertStmtsAt (cx : CertCtxA) (c : NIdx) :
   else if c == cx.xorN then certXor cx c
   else certDivMod cx c
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:140-218 divModCertStmts — **the
+/-- con-leche: ConLeche/Kernel/Checker.lean:163-241 divModCertStmts — **the
 pinned characterization statements** of a pin-certified WF-recursive op, in
 *open* form over `x := fvar 0`, `y := fvar 1` (the hypotheses become
 `fvar 2, fvar 3`): per certificate, the list of hypothesis types and the
@@ -435,7 +435,7 @@ different handles. -/
 def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   divModCertStmtsAt (← certCtx) c
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:220-233 divModCertApplied — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:243-256 divModCertApplied — the
 vendored proof applied to the statement's free variables (`x`, `y`, then one
 `fvar` per hypothesis, carrying the hypothesis *type* as its annotation — the
 checker's implicit local context). -/
@@ -471,7 +471,7 @@ def constsResolveAll (fe : IFEnv) : List EIdx → AM Bool
   | h :: hs => do
     if ← constsResolveFFast fe h then constsResolveAll fe hs else pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:235-246 divModCertGuard
+/-- con-leche: ConLeche/Kernel/Checker.lean:258-269 divModCertGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:314-323 divModCertGuardF
 The syntactic guards of one certificate check: the substituted proof is
 closed, level-monomorphic and resolving, and the substituted statement
@@ -487,7 +487,7 @@ def divModCertGuard (fe : IFEnv) (c : NIdx) (annVal : EIdx)
     pure false
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:278-286 divModEnvGuard
+/-- con-leche: ConLeche/Kernel/Checker.lean:301-309 divModEnvGuard
 One `Bool` constructor's clause: is `n` stored with the type `Bool` itself?  The
 lookup first, then the stored type, then `Bool` interned: the Rust's order
 (`bool_ctor_typed`).  The twin used to intern `.const Bool []` once, BEFORE
@@ -502,7 +502,7 @@ def boolCtorTyped (fe2 : IFEnv) (n : NIdx) : AM Bool := do
     pure (cv.type == boolTy)
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:273-286 divModEnvGuard
+/-- con-leche: ConLeche/Kernel/Checker.lean:296-309 divModEnvGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:303-312 divModEnvGuardF
 Environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
 guard, pinned dependencies, the pinned `Eq` basis, and the `Bool` constructors
@@ -516,8 +516,10 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
         if !(← boolCtorTyped fe2 (← boolTrueName)) then pure false
         else boolCtorTyped fe2 (← boolFalseName)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:288-293 divModPinGuard
-con-leche: ConLeche/Kernel/DeclCheck.lean:325-329 divModPinGuardF
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModPinGuard_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModPinGuard_bridge, then delete this line
 Syntactic guards on one variant's pin (generated; checked once at install
 rather than proven about the blob). -/
 def divModPinGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx) : AM Bool := do
@@ -527,8 +529,8 @@ def divModPinGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx) : AM Bool := do
   else if !(← allLevelParamsDefined [] p) then pure false
   else constsResolveFFast fe p
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:295-302 divModCertsGuard
-con-leche: ConLeche/Kernel/DeclCheck.lean:331-335 divModCertsGuardF
+/-- con-leche: ConLeche/Kernel/Checker.lean:323-330 divModCertsGuard
+con-leche: ConLeche/Kernel/DeclCheck.lean:340-344 divModCertsGuardF
 All of one variant's certificates' syntactic guards at once, `zip`ped with
 the statements.  Checked *before* the pin comparison; a failure moves on to
 the next variant. -/
@@ -541,16 +543,16 @@ def divModCertsGuardGo (fe : IFEnv) (c : NIdx) (annVal : EIdx) :
       divModCertsGuardGo fe c annVal srest prest
     else pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:295-302 divModCertsGuard
-con-leche: ConLeche/Kernel/DeclCheck.lean:331-335 divModCertsGuardF
+/-- con-leche: ConLeche/Kernel/Checker.lean:323-330 divModCertsGuard
+con-leche: ConLeche/Kernel/DeclCheck.lean:340-344 divModCertsGuardF
 `List.zip` truncates at the shorter list, which is why the helper's two
 `[]` clauses are both `true`. -/
 def divModCertsGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx)
     (annVal : EIdx) : AM Bool := do
   divModCertsGuardGo fe c annVal (← divModCertStmts c) (← divModCertProofs ps c)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-con-leche: ConLeche/Kernel/DeclCheck.lean:378-392 checkDivModCertsF
+/-- con-leche: ConLeche/Kernel/Checker.lean:271-294 checkDivModCerts
+con-leche: ConLeche/Kernel/DeclCheck.lean:387-401 checkDivModCertsF
 Check the pinned certificates of op `c`: per certificate, the vendored proof
 (with the op's self-references replaced by the stored value — the
 checks run in the *pre-insertion* environment) is applied to free variables
@@ -572,8 +574,10 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     else pure false
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
-con-leche: ConLeche/Kernel/DeclCheck.lean:394-402 checkDivModPinAtF
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:412-422 checkDivModPinAtF
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
 **One pin variant's attempt**: the stored value against the variant's pin by
 definitional equality, and on a match the variant's certificates.  `true` =
 matched; `false` = the pin is not definitionally equal, or a certificate did
@@ -588,7 +592,8 @@ def checkDivModPinAt (mode : CheckMode) (fe : IFEnv) (c : NIdx)
       (← divModCertProofs ps c)
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:326-332 divModAttemptReason — what
+/-- con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason — what
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModAttemptReason_bridge, then delete this line
 a variant failed on, for the decline message.  con-leche's pure
 instantiations always report the `none` text; the arena's `orElseAttempt`
 delivers the error, as the executable's `sharedOpsC` does. -/
@@ -597,8 +602,10 @@ def divModAttemptReason (ps : INatOpPinSet) : Option CheckError → String
       certificate failed"
   | some e => s!"{ps.toolchain}: {reprStr e}"
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:334-356 checkDivModPinLoop
-con-leche: ConLeche/Kernel/DeclCheck.lean:404-418 checkDivModPinLoopF
+/-- con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinLoop_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:424-439 checkDivModPinLoopF
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinLoop_bridge, then delete this line
 **The variant loop**: the first variant whose guards pass and whose attempt
 succeeds enables the fast path; every other outcome moves on to the next
 variant, and when none is left the stream DECLINES with the per-variant
@@ -631,8 +638,8 @@ def checkDivModPinLoop (mode : CheckMode) (fe : IFEnv) (c : NIdx)
         (tried ++ [s!"{ps.toolchain}: pin or certificate ground constants \
           absent"])
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:358-384 checkDivModPin
-con-leche: ConLeche/Kernel/DeclCheck.lean:420-430 checkDivModPinF
+/-- con-leche: ConLeche/Kernel/Checker.lean:399-425 checkDivModPin
+con-leche: ConLeche/Kernel/DeclCheck.lean:441-451 checkDivModPinF
 The pin-certified operations' install gate, run after the ordinary definition
 check (`fe2` is the already-extended environment, `fe` the pre-insertion one
 all checks run in).  The variant list is its parameter (con-leche's task
@@ -647,8 +654,8 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
   else fail (.notImplemented
     "unsupported Nat.div/mod environment")
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-con-leche: ConLeche/Kernel/DeclCheck.lean:432-451 checkReducePinF
+/-- con-leche: ConLeche/Kernel/Checker.lean:427-462 checkReducePin
+con-leche: ConLeche/Kernel/DeclCheck.lean:453-472 checkReducePinF
 The `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 opaque check: the stored constant carries the pinned type, the witness value
 is definitionally equal to the build-time pin, and the *identity certificate*
@@ -752,7 +759,7 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.axiomInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-con-leche: ConLeche/Kernel/DeclCheck.lean:372-376 installBasisDeclF
+con-leche: ConLeche/Kernel/DeclCheck.lean:381-385 installBasisDeclF
 Install one pinned basis declaration (duplicate-checked), returning the
 pushed index. -/
 def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do

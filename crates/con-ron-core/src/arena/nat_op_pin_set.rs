@@ -24,7 +24,8 @@ use crate::kernel::expr;
 use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
+/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
+/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove nat_op_pin_set::INatOpPinSet_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:24-48 INatOpPinSet` — the
 /// pins of one toolchain: eight pinned defining expressions and eight
 /// certificate-proof lists, in the order of `natDivModNames`' family (`div`,

@@ -1799,7 +1799,7 @@ pub fn domains_resolve(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:412-433 classRuleOk
-/// con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
+/// con-leche: ConLeche/Cached/CheckerC.lean:89-115 sharedOpsRuleR
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:559-587 classRuleOk` — **one
 /// generated rule, installed as generated**: closed, its level parameters the
 /// recursor's, resolving and typed at the rule-less recursors' environment
@@ -2387,7 +2387,7 @@ pub fn gen_rec_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:528-570 genRecCheck
-/// con-leche: ConLeche/Cached/CheckerC.lean:125-132 shadowOpsC
+/// con-leche: ConLeche/Cached/CheckerC.lean:117-124 shadowOpsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:703-756 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the
 /// rule-less recursors pushed, the flush entering them, every rule

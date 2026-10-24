@@ -34,7 +34,7 @@ open ConLeche
 
 /-! ## The pinned basis install -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:423-433 checkBasisDecl —
+/-- con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl —
 **install the pinned (pre-annotated) basis block.**  The three records that
 install one — the fold's own `basisDecl` kind, a stream block `basisPinHit`
 recognises and a quotient record `quotPinHit` recognises — share this body.

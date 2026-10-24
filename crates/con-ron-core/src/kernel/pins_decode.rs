@@ -1028,7 +1028,8 @@ pub fn record_expr_proj(
 // The payload record (FORMAT.md §4)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
+/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
+/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove pins_decode::record_pin_set_refines, then delete this line
 /// con-leche: none — `Read.lean`'s `S` arm of `parseRecord`
 /// `S <string> <expr>×8 (<k> <expr>*)×8`: one toolchain's pins.  An `S` record
 /// carries no id — the record *is* the payload and its position in the text is

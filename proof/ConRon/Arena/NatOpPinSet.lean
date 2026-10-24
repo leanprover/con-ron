@@ -21,7 +21,8 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet — the pins
+/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet — the pins
+-- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove NatOpPinSet.INatOpPinSet_bridge, then delete this line
 of one toolchain: eight pinned defining expressions and eight
 certificate-proof lists, in the order of `natDivModNames`' family (`div`,
 `mod`, `gcd`, `land`, `lor`, `xor`, `shiftLeft`, `shiftRight`), plus the

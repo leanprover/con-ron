@@ -1514,28 +1514,28 @@
     43  N 0 a
     44  N 1 s 0 12 instOfNatNat
 
-== crates/con-ron-core/src/kernel/pins_decode.rs#L1211-L1231
-  1211  /// **The decoder.**  `con-ron-pins/1` text in, con-leche's pin variants out,
-  1212  /// in file order — which is the order `checker::check_div_mod_pin_loop` tries
-  1213  /// them in, and therefore the order the list has to be in.
-  1214  pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
-  1215      let hdr = pins_header();
-  1216      if !starts_with_from(t, &hdr, 0) {
-  1217          Err(bad_text())
-  1218      } else {
-  1219          run_records(t, hdr.len(), tables_new())
-  1220      }
-  1221  }
-  1222  
-  1223  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-  1224  /// (The cited range is the `#load_natop_pins` command that *produces*
-  1225  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
-  1226  /// written there, hence the `_`.)
-  1227  /// **The pin list the binary checks with**: the embedded text, decoded.  This
-  1228  /// is what `cached::installed::check_decls`' `pins` parameter is given for a
-  1229  /// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
-  1230  /// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
-  1231  pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
+== crates/con-ron-core/src/kernel/pins_decode.rs#L1212-L1232
+  1212  /// **The decoder.**  `con-ron-pins/1` text in, con-leche's pin variants out,
+  1213  /// in file order — which is the order `checker::check_div_mod_pin_loop` tries
+  1214  /// them in, and therefore the order the list has to be in.
+  1215  pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
+  1216      let hdr = pins_header();
+  1217      if !starts_with_from(t, &hdr, 0) {
+  1218          Err(bad_text())
+  1219      } else {
+  1220          run_records(t, hdr.len(), tables_new())
+  1221      }
+  1222  }
+  1223  
+  1224  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+  1225  /// (The cited range is the `#load_natop_pins` command that *produces*
+  1226  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
+  1227  /// written there, hence the `_`.)
+  1228  /// **The pin list the binary checks with**: the embedded text, decoded.  This
+  1229  /// is what `cached::installed::check_decls`' `pins` parameter is given for a
+  1230  /// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
+  1231  /// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
+  1232  pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
 
 == crates/con-ron-core/src/frontend/mod.rs#L19-L30
     19  //! | Rust | Lean twin | con-leche |

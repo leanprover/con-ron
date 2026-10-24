@@ -41,7 +41,8 @@
 use crate::kernel::expr::Expr;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
+/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
+/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove nat_op_pins::NatOpPinSet_refines, then delete this line
 /// The pins of one toolchain: eight pinned defining expressions and eight
 /// certificate-proof lists, in the order of `natDivModNames`' family, plus
 /// the toolchain string for diagnostics.  Deviation: `toolchain : String` is

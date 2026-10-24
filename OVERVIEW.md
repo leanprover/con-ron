@@ -448,7 +448,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three 
    ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
    generated from con-leche by `scripts/gen-pins.sh`) and read by a verified
    decoder
-   ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1211-L1231)).
+   ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1212-L1232)).
 6. **The fold**: install every declaration, then check them (§6.3, §6.4).
 
 ### 6.2 Parsing

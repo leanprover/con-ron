@@ -51,7 +51,7 @@ structure BlockPass where
   tbl : List NestCtorNf
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-con-leche: ConLeche/Cached/CheckerC.lean:134-152 checkBlockPassS
+con-leche: ConLeche/Cached/CheckerC.lean:126-144 checkBlockPassS
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -104,7 +104,7 @@ def checkBlockTables (p : BlockShape) :
   | _, _, _, fe => pure fe
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:123-136 checkBlockTail
-con-leche: ConLeche/Cached/CheckerC.lean:154-176 checkBlockTailS
+con-leche: ConLeche/Cached/CheckerC.lean:146-168 checkBlockTailS
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
 recursors consed at their majors, and the projection tables. -/
@@ -121,7 +121,7 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   checkBlockTables q.p.shape q.p.shape.members q.ctorsAs q.sortsss fe₃
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:138-146 checkBlock
-con-leche: ConLeche/Cached/CheckerC.lean:178-186 checkBlockKS
+con-leche: ConLeche/Cached/CheckerC.lean:170-178 checkBlockKS
 **Check and install a block on the uniform route**: the distinct names, the
 flush, the pass at official's `is_rec`, and the install after it. -/
 def checkBlock (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)

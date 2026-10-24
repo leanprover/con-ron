@@ -557,7 +557,7 @@ def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
   | _, _, _ => fail (.internal "generated recursor: recursor list")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:412-433 classRuleOk
-con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
+con-leche: ConLeche/Cached/CheckerC.lean:89-115 sharedOpsRuleR
 **One generated rule, installed as generated**: closed, its level parameters
 the recursor's, resolving and typed at the rule-less recursors' environment
 `feR` (`sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n`
@@ -701,7 +701,7 @@ where
       go (m + 1) rest fe2 (prevs ++ [(cv.name, prev)])
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:528-570 genRecCheck
-con-leche: ConLeche/Cached/CheckerC.lean:125-132 shadowOpsC
+con-leche: ConLeche/Cached/CheckerC.lean:117-124 shadowOpsC
 **The generated recursor stage**, at the constructors' environment `fe`, on
 the classes and the positivity check's table: the pins, the stream's recursor
 types checked, the elimination guard, the classes' table entries and
