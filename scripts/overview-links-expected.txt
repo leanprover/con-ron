@@ -796,48 +796,48 @@
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L10381-L10421
- 10381  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10382  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3688 flushCaches` — **what
- 10383  /// the per-declaration bracket does to the caches**: it drops them whole,
- 10384  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
- 10385  /// this point.
- 10386  ///
- 10387  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
- 10388  /// rows whose key AND value are persistent — which is sound and strictly more
- 10389  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
- 10390  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
- 10391  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
- 10392  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
- 10393  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
- 10394  /// its eleven journals — P3 needs it to state that flushing is sound.
- 10395  pub fn flush_caches(st: &mut AState) {
- 10396      st.caches.reset();
- 10397  }
- 10398  
- 10399  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10400  /// Lean twin: `proof/ConRon/Arena/Core.lean:3690-3698 dropScratch` — drop the
- 10401  /// scratch tier of the store and the cache entries that name it, in one
- 10402  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 10403  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 10404  /// store is owned and scratch-off again.
- 10405  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 10406      flush_caches(st);
- 10407      st.store.thaw(tier);
- 10408  }
- 10409  
- 10410  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10411  /// Lean twin: `proof/ConRon/Arena/Core.lean:3700-3707 enterScratch` — turn the
- 10412  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 10413  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 10414  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 10415  /// are handed back as the `PersTier` every read inside the bracket goes
- 10416  /// through and promotion writes, and every append inside it is a scratch
- 10417  /// append.
- 10418  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 10419      st.memos.reset();
- 10420      st.store.freeze()
- 10421  }
+== crates/con-ron-core/src/arena/core.rs#L10283-L10323
+ 10283  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+ 10284  /// Lean twin: `proof/ConRon/Arena/Core.lean:3674-3680 flushCaches` — **what
+ 10285  /// the per-declaration bracket does to the caches**: it drops them whole,
+ 10286  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
+ 10287  /// this point.
+ 10288  ///
+ 10289  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
+ 10290  /// rows whose key AND value are persistent — which is sound and strictly more
+ 10291  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
+ 10292  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
+ 10293  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
+ 10294  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
+ 10295  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
+ 10296  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 10297  pub fn flush_caches(st: &mut AState) {
+ 10298      st.caches.reset();
+ 10299  }
+ 10300  
+ 10301  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 10302  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3690 dropScratch` — drop the
+ 10303  /// scratch tier of the store and the cache entries that name it, in one
+ 10304  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 10305  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 10306  /// store is owned and scratch-off again.
+ 10307  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 10308      flush_caches(st);
+ 10309      st.store.thaw(tier);
+ 10310  }
+ 10311  
+ 10312  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 10313  /// Lean twin: `proof/ConRon/Arena/Core.lean:3692-3699 enterScratch` — turn the
+ 10314  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 10315  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 10316  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 10317  /// are handed back as the `PersTier` every read inside the bracket goes
+ 10318  /// through and promotion writes, and every append inside it is a scratch
+ 10319  /// append.
+ 10320  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 10321      st.memos.reset();
+ 10322      st.store.freeze()
+ 10323  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -881,30 +881,30 @@
     39  //!   `ron::HashMap` returned, which is `frontend::proj_rec`'s spelling for its
     40  //!   `seen` set and `arena::expr_ops`' for the three memoized scope walks;
 
-== crates/con-ron-core/src/arena/checker.rs#L612-L634
-   612  /// con-leche: none — the phase boundary, which con-leche has no tier to make
-   613  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
-   614  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
-   615  /// **The persistent tier out of the store and into a value** (task
-   616  /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
-   617  /// persistent tables move into one `PersTier` handed back `frozen`, for the
-   618  /// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
-   619  /// store's scratch tiers and flags are untouched (a worker's store is its own,
-   620  /// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
-   621  /// is gone), and `thaw_tier` puts the tables back where they were.  The
-   622  /// driver's store is not read between the two.
-   623  pub fn freeze_tier(ar: &mut EStore) -> PersTier {
-   624      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
-   625      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
-   626      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
-   627      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
-   628      PersTier {
-   629          frozen: true,
-   630          n,
-   631          l,
-   632          ls,
-   633          e,
-   634      }
+== crates/con-ron-core/src/arena/checker.rs#L616-L638
+   616  /// con-leche: none — the phase boundary, which con-leche has no tier to make
+   617  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
+   618  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
+   619  /// **The persistent tier out of the store and into a value** (task
+   620  /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
+   621  /// persistent tables move into one `PersTier` handed back `frozen`, for the
+   622  /// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
+   623  /// store's scratch tiers and flags are untouched (a worker's store is its own,
+   624  /// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
+   625  /// is gone), and `thaw_tier` puts the tables back where they were.  The
+   626  /// driver's store is not read between the two.
+   627  pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+   628      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+   629      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+   630      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+   631      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+   632      PersTier {
+   633          frozen: true,
+   634          n,
+   635          l,
+   636          ls,
+   637          e,
+   638      }
 
 == crates/con-ron-core/src/arena/store.rs#L1279-L1288
   1279  pub struct PersTier {
@@ -1116,20 +1116,20 @@
    421  }
 
 == crates/con-ron-core/src/arena/core.rs#L371-L384
-   371  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
-   372  // ---------------------------------------------------------------------------
-   373  
-   374  /// con-leche: ConLeche/Kernel/Core.lean:1728-1763 coreKnot
-   375  /// Lean twin: `proof/ConRon/Arena/Core.lean:3536-3626 coreKnot` — **the
-   376  /// executed knot**: the memoized one, `pureFnsA`'s.
-   377  pub const LANE_FULL: u32 = 0;
-   378  
-   379  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-   380  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
-   381  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
-   382  /// unmemoized; every other slot is the full knot's.
-   383  pub const LANE_IO: u32 = 2;
-   384  
+   371  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
+   372  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
+   373  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
+   374  /// unmemoized; every other slot is the full knot's.
+   375  pub const LANE_IO: u32 = 2;
+   376  
+   377  // ---------------------------------------------------------------------------
+   378  // Fuel for the store walks (`Core.lean:74-86`)
+   379  // ---------------------------------------------------------------------------
+   380  
+   381  /// con-leche: none — the fuel every store walk in this module runs at
+   382  /// Lean twin: `proof/ConRon/Arena/Core.lean:85-87 coreWalkFuel`.  DESIGN.md §8.4
+   383  /// asks for fuel as an explicit `Nat`; the walks below are over the handle
+   384  /// DAG, so any bound above the store's node count is unreachable.
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
      1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
@@ -1458,7 +1458,7 @@
     30  //! **Where the store comes from.**  Only `prelude_key`, whose `.anonymous`
     31  //! fall-through has to be INTERNED, and the two functions that call it;
     32  //! [`pick_idx`] and [`declares`] are pure, exactly as con-leche's are, because
-    33  //! `env::i_declaration_names` is (`arena/env.rs`'s `table_name` note).
+    33  //! `env::i_declaration_names` is.
     34  //! Nothing in this module reads or writes a term.
     35  //!
     36  //! **The deviation of the port into the verified core** (task #84), kept
@@ -1478,34 +1478,34 @@
     50  //! on every `cargo test`.
 
 == crates/con-ron-core/src/arena/checker.rs#L685-L712
-   685  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-   686  /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-   687  /// Lean twin: `proof/ConRon/Arena/Checker.lean:309-339 internAllPins` — **the
-   688  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
-   689  /// a stream record against, interned into the tier that is live at the call —
-   690  /// which, at the driver's call, is the persistent one.
-   691  ///
-   692  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
-   693  /// `quot_pin_hit` compare against, the STORED ones `check_basis_decl`
-   694  /// installs), the standard and compiler-trust axiom pins, the reserved names
-   695  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
-   696  /// interned form is the checker's pin-list parameter (con-leche's task #304).
-   697  pub fn intern_all_pins(
-   698      pers: &PersTier,
-   699      st: &mut AState,
-   700      pins: &Vec<NatOpPinSet>,
-   701  ) -> Result<Vec<INatOpPinSet>, CheckError> {
-   702      match intern_all_basis(pers, st, 0) {
-   703          Err(e) => Err(e),
-   704          Ok(()) => match intern_all_axiom_pins(pers, st) {
-   705              Err(e) => Err(e),
-   706              Ok(()) => match intern_all_names(st) {
-   707                  Err(e) => Err(e),
-   708                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
-   709              },
-   710          },
-   711      }
-   712  }
+   685  // ---------------------------------------------------------------------------
+   686  // The startup walk (`Checker.lean:343-373` of the twin)
+   687  // ---------------------------------------------------------------------------
+   688  
+   689  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+   690  /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+   691  /// Lean twin: `proof/ConRon/Arena/Checker.lean:312-342 internAllPins` — **the
+   692  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
+   693  /// a stream record against, interned into the tier that is live at the call —
+   694  /// which, at the driver's call, is the persistent one.
+   695  ///
+   696  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
+   697  /// `quot_pin_hit` compare against, the STORED ones `check_basis_decl`
+   698  /// installs), the standard and compiler-trust axiom pins, the reserved names
+   699  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
+   700  /// interned form is the checker's pin-list parameter (con-leche's task #304).
+   701  pub fn intern_all_pins(
+   702      pers: &PersTier,
+   703      st: &mut AState,
+   704      pins: &Vec<NatOpPinSet>,
+   705  ) -> Result<Vec<INatOpPinSet>, CheckError> {
+   706      match intern_all_basis(pers, st, 0) {
+   707          Err(e) => Err(e),
+   708          Ok(()) => match intern_all_axiom_pins(pers, st) {
+   709              Err(e) => Err(e),
+   710              Ok(()) => match intern_all_names(st) {
+   711                  Err(e) => Err(e),
+   712                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
@@ -1644,7 +1644,7 @@
 
 == crates/con-ron-core/src/arena/checker.rs#L184-L240
    184  /// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
-   185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:153-207 installStep` — **phase
+   185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:153-210 installStep` — **phase
    186  /// A's step, bracketed**; `i` is the fold position the record is tagged with.
    187  ///
    188  /// **The bracket** (DESIGN.md §8.3, "Phase A runs in the scratch tier too,
@@ -1655,65 +1655,65 @@
    193  /// ```
    194  ///
    195  /// `promote` (`arena::promote`) is the memoised structural copy scratch →
-   196  /// persistent, run on **exactly what leaves the step**: the `k` constants the
-   197  /// step installed (`promote_new`) and the pending record (`promote_vg`, at the
-   198  /// SAME memo).  A persistent handle promotes to itself, so a record that
-   199  /// installs what the parse already built — every value kind since task #119,
-   200  /// whose install half interns nothing — pays one tier-bit test per handle;
-   201  /// the blocks the ordinary step installs (inductives, the basis) still build
-   202  /// terms.  The flush stays where con-leche puts it, at the head
-   203  /// (`installGuardsC` and the `.thmDecl` arm's own `flushC`, and
-   204  /// `checkDeclStepC`'s), so every phase-A record starts with EMPTY caches.
-   205  pub fn install_step(
-   206      _pers: &PersTier,
-   207      st: &mut AState,
-   208      mode: &CheckMode,
-   209      pins: &Vec<INatOpPinSet>,
-   210      i: u64,
-   211      fe: IFEnv,
-   212      pend: Vec<PendingCheck>,
-   213      pd: &IDeclaration,
-   214  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-   215      let vis: u64 = fe.visible_below;
-   216      flush_caches(st);
-   217      let mut tier: PersTier = enter_scratch(st);
-   218      match install_step_go(&tier, st, mode, pins, fe, pd) {
-   219          Err(e) => {
-   220              drop_scratch(st, tier);
-   221              Err(e)
-   222          }
-   223          Ok((fe2, vg_opt)) => {
-   224              let k: u64 = fe2.visible_below - vis;
-   225              match vg_opt {
-   226                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-   227                      Err(e) => {
-   228                          drop_scratch(st, tier);
-   229                          Err(e)
-   230                      }
-   231                      Ok((_, fe3)) => {
-   232                          drop_scratch(st, tier);
-   233                          Ok((fe3, pend))
-   234                      }
-   235                  },
-   236                  Some(vg) => install_step_promote(tier, st, i, vis, k, fe2, pend, vg),
-   237              }
-   238          }
-   239      }
-   240  }
+   196  /// persistent, run on **exactly what leaves the step**: the `k` constants and
+   197  /// the `kt` projection tables the step installed (`promote_new`) and the
+   198  /// pending record (`promote_vg`, at the
+   199  /// SAME memo).  A persistent handle promotes to itself, so a record that
+   200  /// installs what the parse already built — every value kind since task #119,
+   201  /// whose install half interns nothing — pays one tier-bit test per handle;
+   202  /// the blocks the ordinary step installs (inductives, the basis) still build
+   203  /// terms.  The flush stays where con-leche puts it, at the head
+   204  /// (`installGuardsC` and the `.thmDecl` arm's own `flushC`, and
+   205  /// `checkDeclStepC`'s), so every phase-A record starts with EMPTY caches.
+   206  pub fn install_step(
+   207      _pers: &PersTier,
+   208      st: &mut AState,
+   209      mode: &CheckMode,
+   210      pins: &Vec<INatOpPinSet>,
+   211      i: u64,
+   212      fe: IFEnv,
+   213      pend: Vec<PendingCheck>,
+   214      pd: &IDeclaration,
+   215  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+   216      let vis: u64 = fe.visible_below;
+   217      let nt: u64 = fe.env.tables.len() as u64;
+   218      flush_caches(st);
+   219      let mut tier: PersTier = enter_scratch(st);
+   220      match install_step_go(&tier, st, mode, pins, fe, pd) {
+   221          Err(e) => {
+   222              drop_scratch(st, tier);
+   223              Err(e)
+   224          }
+   225          Ok((fe2, vg_opt)) => {
+   226              let k: u64 = fe2.visible_below - vis;
+   227              let kt: u64 = fe2.env.tables.len() as u64 - nt;
+   228              match vg_opt {
+   229                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, kt, fe2) {
+   230                      Err(e) => {
+   231                          drop_scratch(st, tier);
+   232                          Err(e)
+   233                      }
+   234                      Ok((_, fe3)) => {
+   235                          drop_scratch(st, tier);
+   236                          Ok((fe3, pend))
+   237                      }
+   238                  },
+   239                  Some(vg) => install_step_promote(tier, st, i, vis, k, kt, fe2, pend, vg),
+   240              }
 
-== crates/con-ron-core/src/arena/checker.rs#L532-L543
-   532  pub fn check_pending(
-   533      pers: &PersTier,
-   534      st: &mut AState,
-   535      mode: &CheckMode,
-   536      fe: &IFEnv,
-   537      pc: &PendingCheck,
-   538  ) -> Result<(), CheckError> {
-   539      enter_record(st);
-   540      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
-   541      leave_record(st);
-   542      r
-   543  }
+== crates/con-ron-core/src/arena/checker.rs#L536-L547
+   536  pub fn check_pending(
+   537      pers: &PersTier,
+   538      st: &mut AState,
+   539      mode: &CheckMode,
+   540      fe: &IFEnv,
+   541      pc: &PendingCheck,
+   542  ) -> Result<(), CheckError> {
+   543      enter_record(st);
+   544      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
+   545      leave_record(st);
+   546      r
+   547  }
 
 == crates/con-ron/src/driver.rs#L529-L622
    529  
@@ -1827,21 +1827,21 @@
     42  //! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
     43  //! at all — task #97-P6-6b).
 
-== crates/con-ron-core/src/arena/checker.rs#L666-L679
-   666  /// con-leche: ConLeche/Driver/CheckPool.lean:180-196 checkWorker
-   667  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
-   668  /// phase-B worker reads the persistent tier where it is.
-   669  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
-   670  /// moved here by task #97-P5-Driver): the empty store, FROZEN
-   671  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
-   672  /// goes to the `PersTier` the boundary froze and every append is a scratch
-   673  /// append; fresh memos and caches; and a copy of the pins.  The store stays
-   674  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
-   675  pub fn worker_state(pins: &Pins) -> AState {
-   676      let mut st = AState::init(EStore::empty_frozen());
-   677      st.pins = pins_dup(pins);
-   678      st
-   679  }
+== crates/con-ron-core/src/arena/checker.rs#L670-L683
+   670  /// con-leche: ConLeche/Driver/CheckPool.lean:180-196 checkWorker
+   671  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
+   672  /// phase-B worker reads the persistent tier where it is.
+   673  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
+   674  /// moved here by task #97-P5-Driver): the empty store, FROZEN
+   675  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
+   676  /// goes to the `PersTier` the boundary froze and every append is a scratch
+   677  /// append; fresh memos and caches; and a copy of the pins.  The store stays
+   678  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
+   679  pub fn worker_state(pins: &Pins) -> AState {
+   680      let mut st = AState::init(EStore::empty_frozen());
+   681      st.pins = pins_dup(pins);
+   682      st
+   683  }
 
 == crates/con-ron/src/pool.rs#L227-L253
    227  /// con-leche: ConLeche/Driver/CheckPool.lean:207-245 checkPool
@@ -2182,30 +2182,30 @@
     83          memoInferIO_step henv
     84            (inferBodyIO_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw }
 
-== proof/ConRon/Refine2/AbsState.lean#L348-L362
-   348    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
-   349    carried by Theorem 2's relation. -/
-   350    storeWF : StoreWF ls.store
-   351  
-   352  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
-   353  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
-   354  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
-   355  made a knot statement false at a state both programs handle alike: the port
-   356  and the twin both intern `app d a` over a dangling `d` without looking at it,
-   357  their stores stay equal field for field, and only `StoreWF` fails.  The Core
-   358  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
-   359  it later (tier-wide migration, scheduled separately), and until then
-   360  `AStateRel` keeps its five fields and these two lemmas convert. -/
-   361  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
-   362      (ls : AState) : Prop where
+== proof/ConRon/Refine2/AbsState.lean#L350-L364
+   350    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
+   351    carried by Theorem 2's relation. -/
+   352    storeWF : StoreWF ls.store
+   353  
+   354  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
+   355  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
+   356  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
+   357  made a knot statement false at a state both programs handle alike: the port
+   358  and the twin both intern `app d a` over a dangling `d` without looking at it,
+   359  their stores stay equal field for field, and only `StoreWF` fails.  The Core
+   360  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
+   361  it later (tier-wide migration, scheduled separately), and until then
+   362  `AStateRel` keeps its five fields and these two lemmas convert. -/
+   363  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
+   364      (ls : AState) : Prop where
 
-== proof/ConRon/Refine2/AbsState.lean#L371-L376
-   371      AStateRel pers rs ls :=
-   372    ⟨h.store, h.memos, h.caches, h.pins, hwf⟩
-   373  
-   374  
-   375  /-- The Rust-side invariant of the whole state. -/
-   376  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
+== proof/ConRon/Refine2/AbsState.lean#L373-L378
+   373      AStateRel pers rs ls :=
+   374    ⟨h.store, h.memos, h.caches, h.pins, hwf⟩
+   375  
+   376  
+   377  /-- The Rust-side invariant of the whole state. -/
+   378  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
 
 == proof/ConRon/Refine2/Shape.lean#L224-L228
    224  /-- The lockstep simulation statement for a state-threading Rust function. -/
@@ -2494,18 +2494,18 @@
    131    `no_False_declaration_embedded` fix the text to the embedded `PINS_TEXT`;
    132  -/
 
-== proof/ConRon/Refine2/Checker/Phased.lean#L489-L499
-   489  theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
-   490      {h : H} {pers st lst}
-   491      {mode : kernel.env.CheckMode}
-   492      {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   493      {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
-   494      (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-   495      (hpers : pers.frozen = false)
-   496      (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
-   497      ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-   498          (absIDeclL ds).toArray lst lfe lst' ∧
-   499        IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
+== proof/ConRon/Refine2/Checker/Phased.lean#L508-L518
+   508  theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
+   509      {h : H} {pers st lst}
+   510      {mode : kernel.env.CheckMode}
+   511      {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   512      {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
+   513      (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+   514      (hpers : pers.frozen = false)
+   515      (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
+   516      ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+   517          (absIDeclL ds).toArray lst lfe lst' ∧
+   518        IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
 
 == proof/ConRon/Generated/TypesExternal.lean#L41-L42
     41  @[reducible, rust_type "alloc::sync::Arc"]
@@ -2805,12 +2805,12 @@
     96  //! claim itself on a state that records its claims.
     97  //!
 
-== proof/ConRon/Refine2/Checker/Phased.lean#L309-L313
-   309  def ParallelAll {S E : Type} (n : Nat) (init : Result S)
-   310      (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
-   311    ∃ parts : List (List Nat),
-   312      (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
-   313      ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
+== proof/ConRon/Refine2/Checker/Phased.lean#L328-L332
+   328  def ParallelAll {S E : Type} (n : Nat) (init : Result S)
+   329      (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
+   330    ∃ parts : List (List Nat),
+   331      (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
+   332      ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
 
 == crates/con-ron-core/src/arena/handle.rs#L444-L447
    444  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
