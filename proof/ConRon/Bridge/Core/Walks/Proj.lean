@@ -147,22 +147,6 @@ grind_pattern [bridge_grind] findProjAt =>
   CheckOK mode env fe s, fe.findProj? T i, env.findProj? Tn i where
   guard denoteN s.store.ns T = some Tn
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:248-254 findTable? — the table
-lookups' presence agree at a handle denoting `Tn` (`findTable?_at`), for
-`projMissError`'s `hasTable`. -/
-theorem findTable?_isSome_at {s : AState} {T : NIdx} {Tn : ConLeche.Name}
-    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
-    (fe.findTable? T).isSome = (env.findTable? Tn).isSome := by
-  obtain ⟨hhit, hmiss⟩ := findTable?_at hck hT
-  cases hr : fe.findTable? T with
-  | none => rw [hmiss hr]; rfl
-  | some t =>
-    obtain ⟨pt, -, he, -⟩ := hhit t hr
-    rw [he]; rfl
-grind_pattern [bridge_grind] findTable?_isSome_at =>
-  CheckOK mode env fe s, fe.findTable? T, env.findTable? Tn where
-  guard denoteN s.store.ns T = some Tn
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? — **THEOREM 1
 for the indexed projection-table lookup**, `findProjAt` read off: the entry the
 arena answers with denotes the entry con-leche's environment answers with, and
@@ -657,7 +641,6 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-
 /-! ## 5b. The arity certificate -/
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — the successor
@@ -775,7 +758,6 @@ section Census
 
 #print axioms findTable?_at
 #print axioms findProjAt
-#print axioms findTable?_isSome_at
 #print axioms IFEnv.findProj?_spec
 #print axioms IProjEntry.fireOk_spec
 #print axioms instantiateListFast_specC

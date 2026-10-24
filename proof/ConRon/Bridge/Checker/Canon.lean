@@ -117,8 +117,7 @@ LEVEL tier's five are wanted only by the lockstep comparison, so they are
 here.  Each is three lines off `Arena/WFProofs.lean`'s `denoteL_unfold`,
 exactly as the expression ones are off `denoteE_unfold`. -/
 
-/-- con-leche: none — `viewL`'s inversion, off `Bridge/Specs.lean`'s triple
-(`Bridge/Checker/Base.lean`'s `viewN_run` is the name tier's twin). -/
+/-- con-leche: none — `viewL`'s inversion, off `Bridge/Specs.lean`'s triple. -/
 theorem viewL_run {h : LIdx} {s s' : AState} {v : LNodeView}
     (hr : viewL h s = .ok (v, s')) : s' = s ∧ s.store.ls.view h = some v :=
   AM.of_run (P := fun t => t = s)

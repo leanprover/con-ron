@@ -36,7 +36,6 @@ macro_rules
           | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
           | assumption | (checker_env_facts; simp_all; done)))
 
-
 -- A twin `if` whose test a `TwinEq` rewrote to a literal.
 attribute [lockstep_simp] ite_true ite_false
 
@@ -78,20 +77,8 @@ open Lockstep in
   fun _ h => (ifenv_find_abs hctx h).symm
 
 open Lockstep in
-/-- `ifenv_find_table` (`ifenv_find_table_abs`, `Refine2/Core/LS/Prims.lean`). -/
-@[lockstep] theorem ifenv_find_table_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
-    LSP (arena.env.ifenv_find_table vis rf n)
-      (fun o => TwinEq (lf.findTable? (absNIdx n)) (o.map absIProjTable)) :=
-  fun _ h => (Lockstep.ifenv_find_table_abs hctx h).symm
-
-
--- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
--- checker tier's statements are at the restriction, the tier's twins at `lf`.
 macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
-
-
 
 end ConRon.Refine2

@@ -331,21 +331,6 @@ theorem internStrN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
   rw [hd]
   simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
 
-/-- con-leche: none — and at a `.num`: `projFnName`'s last component. -/
-theorem internNumN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
-    {i : Nat} {h : NIdx} (hok : StateOK s)
-    (hp : denoteN s.store.ns p = some pm)
-    (hrun : internNNode (.num p i) s = .ok (h, s')) :
-    PStep s s' ∧ denoteN s'.store.ns h = some (pm.num i) := by
-  obtain ⟨hstep, hd⟩ := internNNode_run hok
-    (by intro c hc
-        simp only [NNodeView.children, List.mem_singleton] at hc
-        subst hc
-        exact nview_isSome_of_denote hp) hrun
-  refine ⟨hstep, ?_⟩
-  rw [hd]
-  simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
-
 /-- con-leche: none — a handle list's denotation splits over an append, which
 is what the two-spine generators (`structCtorSpine`, `structFamI`) need before
 `mkAppN`.  Belongs in `Bridge/Rel.lean` beside `denoteEList_snoc`. -/
@@ -568,27 +553,6 @@ theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
   visible := Nat.le_trans h₁.visible h₂.visible
   denote := h₂.denote
   proj := h₁.proj.trans h₂.proj
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push's
-denotation, inverted**: the pushed row denotes, and the new environment is
-the old one with it consed. -/
-theorem denoteFEnv_push_inv {st : EStore} {fe : IFEnv} {env env' : Env}
-    {ci : IConstantInfo} (h : denoteFEnv st fe = some env)
-    (h' : denoteFEnv st (fe.push ci) = some env') :
-    ∃ c, Frontend.denoteCI st ci = some c ∧ env' = ⟨c :: env.consts, env.tables⟩ := by
-  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
-  obtain ⟨hcs', hts'⟩ := denoteIEnv_some.mp h'
-  simp only [IFEnv.push, Frontend.denoteCIList] at hcs' hts'
-  cases hc : Frontend.denoteCI st ci with
-  | none => rw [hc] at hcs'; simp at hcs'
-  | some c =>
-    rw [hc, hcs] at hcs'
-    rw [hts] at hts'
-    simp only [Option.some.injEq] at hcs' hts'
-    refine ⟨c, rfl, ?_⟩
-    cases env'
-    simp only at hcs' hts'
-    rw [← hcs', ← hts']
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **a table push's
 denotation, inverted**: the pushed table denotes, and the new environment is
@@ -986,8 +950,6 @@ theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
         (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
 
-
-
 /-! ## The knot's entry points, in run form
 
 Each answer is an `FOk` of `fueledOpsM`'s operation, the frame a `CoreStep`. -/
@@ -1085,8 +1047,6 @@ theorem defeq_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
       Core.SimV (ConLeche.isDefEqCore μ env) d aP bP x)
     rfl hrun (hknot.defeq s₀ d a b aP bP hok ha hb hwa hwb)
   exact ⟨⟨h1, h2, h3⟩, FOk.isDefEq hF⟩
-
-
 
 end Knot
 

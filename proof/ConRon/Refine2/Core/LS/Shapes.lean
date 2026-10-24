@@ -218,12 +218,6 @@ theorem tower_slots_all_go_abs (n : Nat) :
       rw [ih t i i1 hiv hctx h, hi1v]
       rfl
 
-@[lockstep] theorem tower_slots_all_go_ls {vis fe lfe} (hctx : CoreCtx vis fe lfe)
-    (t : arena.handle.NIdx) (n j : Std.U64) :
-    LSP (arena.core.tower_slots_all_go vis fe t n j)
-      (fun b => TwinEq (towerSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) b) :=
-  fun _ h => (tower_slots_all_go_abs _ t n j rfl hctx h).symm
-
 @[lockstep] theorem tower_slots_all_ls {vis fe lfe} (hctx : CoreCtx vis fe lfe)
     (t : arena.handle.NIdx) (n_f : Std.U64) :
     LSP (arena.core.tower_slots_all vis fe t n_f)

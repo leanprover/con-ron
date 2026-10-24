@@ -138,7 +138,6 @@ namespace ConRon.Bridge
 #print axioms denoteNList_contains
 #print axioms beq_handle_iff
 #print axioms nameNodup_spec
-#print axioms viewN_run
 
 -- the pin readers and the nineteen reserved names
 #print axioms pinAt_run
@@ -255,10 +254,8 @@ namespace ConRon.Bridge
 #print axioms mkIFEnvGo_fst
 #print axioms mkIFEnvGo_snd
 #print axioms mkIFEnvGo_lt
-#print axioms mkIFEnvGo_mem
 #print axioms mkIFEnv_find?
 #print axioms IFEnvCoh.find?
-#print axioms IFEnv.find?_mem
 #print axioms denoteCIList_find?
 #print axioms IFEnvOK_of_denote
 

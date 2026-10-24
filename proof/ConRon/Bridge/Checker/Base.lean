@@ -88,13 +88,6 @@ obligation).  The LIST membership test of the family,
 **The `AM` readers, as equations.**  `viewN` is a `get` and a `match`, so its
 run form is `rfl`; after `viewN_apply` no proof below mentions `StateT`. -/
 
-/-- con-leche: none — `viewN`'s inversion, off `Bridge/Specs.lean`'s triple:
-an accepting read leaves the state alone and names the view. -/
-theorem viewN_run {h : NIdx} {s s' : AState} {v : NNodeView}
-    (hr : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
-  AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ s.store.ns.view h = some r) rfl hr (viewN_spec s h)
-
 /-- con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup — the handle test
 is the name test, by `denoteNList_contains` at every tail. -/
 theorem nameNodup_spec {st : EStore} (hwf : StoreWF st) :
@@ -121,39 +114,6 @@ theorem nameNodup_spec {st : EStore} (hwf : StoreWF st) :
         subst h
         simp only [nameNodup, ConLeche.Name.nodup,
           denoteNList_contains hwf as ys has a y ha, ih ys has]
-
-/-- con-leche: none — **a name handle's tag is its view's constructor**
-(unconditionally: `NTables.get` dispatches on the tag).  What turns the
-tag-first twin's tag test into the con-leche constructor test. -/
-theorem NTables.tagOf_of_get {t : NTables} {i : NIdx} {v : NNodeView}
-    (h : t.get i = some v) : i.tag = v.tagOf := by
-  simp only [NTables.get] at h
-  split at h
-  · rename_i h1
-    simp only [Option.map_eq_some_iff] at h
-    obtain ⟨_, _, rfl⟩ := h
-    exact eq_of_beq h1
-  · split at h
-    · rename_i _ h1
-      simp only [Option.map_eq_some_iff] at h
-      obtain ⟨_, _, rfl⟩ := h
-      exact eq_of_beq h1
-    · split at h
-      · rename_i _ _ h1
-        simp only [Option.map_eq_some_iff] at h
-        obtain ⟨_, _, rfl⟩ := h
-        exact eq_of_beq h1
-      · exact absurd h (by simp)
-
-/-- con-leche: none — `NTables.tagOf_of_get` at the store. -/
-theorem NStore.tagOf_of_view {st : NStore} {i : NIdx} {v : NNodeView}
-    (h : st.view i = some v) : i.tag = v.tagOf := by
-  simp only [NStore.view] at h
-  split at h
-  · exact NTables.tagOf_of_get h
-  · split at h
-    · exact NTables.tagOf_of_get h
-    · exact absurd h (by simp)
 
 /-! ## The per-declaration constant check -/
 
@@ -338,7 +298,6 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     hlpdP hcrP
     (ConLeche.inferTypeCore_mono hle10 hF10)
     (ConLeche.ensureSortCore_mono hle11 hF11)
-
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS1.lean:43 checkConstantValS_sim —
 `checkConstantVal_bridge` at the fold's invariant, which is what the seven

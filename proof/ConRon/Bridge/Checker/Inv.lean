@@ -91,7 +91,6 @@ theorem denoteCV_inv {st : EStore} {cv : IConstantVal} {c : ConstantVal}
         subst h
         exact ⟨rfl, rfl, rfl⟩
 
-
 /-! ## The four handle kinds across a `PExt` -/
 
 theorem denoteN_pext {st st' : EStore} (hx : PExt st st') {n : NIdx}
@@ -714,43 +713,6 @@ theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
   persEnv := h.persEnv
   coh := h.coh
   denote := denoteFEnv_pext (PExt.of_ext hx) h.persEnv h.denote
-
-/-- con-leche: none — **every entry the index answers with is an entry of the
-list it was built from**.  `mkIFEnvGo` only ever inserts entries of its own
-list, so a hash-map hit is a list member.  This is what makes the
-membership-shaped `hproj` of `IFEnvOK_of_denote` strictly stronger than the
-`find?`-shaped clause its conclusion has to deliver. -/
-theorem mkIFEnvGo_mem : ∀ (cs : List IConstantInfo) (n : NIdx)
-    (p : Nat × IConstantInfo), (mkIFEnvGo cs).2[n]? = some p → p.2 ∈ cs := by
-  intro cs
-  induction cs with
-  | nil => intro n p h; simp [mkIFEnvGo] at h
-  | cons a as ih =>
-    intro n p h
-    simp only [mkIFEnvGo] at h
-    rw [Std.HashMap.getElem?_insert] at h
-    by_cases hn : a.name == n
-    · rw [ite_eq_left hn] at h
-      obtain rfl := Option.some.inj h
-      simp
-    · rw [ite_eq_right hn] at h
-      exact List.mem_cons_of_mem _ (ih n p h)
-
-/-- con-leche: none — `mkIFEnvGo_mem` at the index of a coherent `IFEnv`. -/
-theorem IFEnv.find?_mem {fe : IFEnv} (hcoh : IFEnvCoh fe) {n : NIdx}
-    {ci : IConstantInfo} (h : fe.find? n = some ci) : ci ∈ fe.env.consts := by
-  simp only [IFEnv.find?, hcoh.idx n] at h
-  cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
-  | none => rw [hg] at h; simp at h
-  | some p =>
-    obtain ⟨c0, ci0⟩ := p
-    rw [hg] at h
-    dsimp only at h
-    by_cases hc : c0 < fe.visibleBelow
-    · rw [ite_eq_left hc] at h
-      obtain rfl : ci0 = ci := Option.some.inj h
-      exact mkIFEnvGo_mem _ n (c0, ci0) hg
-    · rw [ite_eq_right hc] at h; simp at h
 
 /-! ## The index IS the list
 

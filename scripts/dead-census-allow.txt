@@ -7,7 +7,6 @@ ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque ty
 _private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
 ConRon.Bridge.RelL.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
 ConRon.Bridge.RelLs.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
-ConRon.Bridge.nameIsNum_projTable	simp argument in Bridge/Checker/Basis.lean
 ConRon.Bridge.matchOwner_denoteLs	elaborates the matcher auxiliary once (Bridge/Specs.lean's note, DESIGN finding 18)
 ConRon.Bridge.matchOwner_fvarLeaves	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmApp	as matchOwner_denoteLs
@@ -168,3 +167,5 @@ ConRon.Bridge.Core.pureFns_whnfCore_succ	rfl lemma in the `simp` set of Bridge/C
 ConRon.Bridge.Core.mtcK_eq	rfl lemma in `simp only [mtcKOp, mtcK_eq, …]` of Bridge/Core/Walks/IotaMajor.lean
 ConRon.Bridge.Core.mtcEta_eq	rfl lemma in `simp only [mtcEtaOp, mtcEta_eq, …]` of Bridge/Core/Walks/IotaMajor.lean
 ConRon.Bridge.Core.mtcAnd_eq	rfl lemma in `simp only [mtcAndOp, mtcAnd_eq, …]` of Bridge/Core/Walks/IotaMajor.lean
+ConRon.Refine2.Lockstep.LSS	the `@[lockstep]` attribute dispatches on this name (Refine2/Tactic/Attr.lean), shared core (CLAUDE.md); no current lemma is LSS-shaped
+ConRon.Refine2.Lockstep.LSS.bind	as ConRon.Refine2.Lockstep.LSS

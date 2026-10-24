@@ -193,7 +193,6 @@ theorem denoteRules_le {st st' : EStore} {rs : List IRecRule} (hx : st ≤ st')
   rw [h]; exact denoteRules_ext hx _ _ h
 grind_pattern [bridge_grind] denoteRules_le => st ≤ st', Frontend.denoteRules st rs
 
-
 /-- con-leche: none — `denote_le` for a level-handle LIST. -/
 theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
     (hd : denoteLList st.ls hs ≠ none) :
@@ -1549,9 +1548,6 @@ with a `fun` (`grind`'s `funext` would split on it). -/
 /-- con-leche: none — `denoteEView` at a `bvar` view. -/
 @[bridge_grind =] theorem denoteEView_bvar_eq (st : EStore) (k : Nat) :
     denoteEView st (.bvar k) = some (.bvar k) := rfl
-/-- con-leche: none — `denoteEView` at a `sort` view. -/
-@[bridge_grind =] theorem denoteEView_sort_eq (st : EStore) (u : LIdx) :
-    denoteEView st (.sort u) = (denoteL st.ls u).map Expr.sort := rfl
 /-- con-leche: none — `denoteEView` at a `const` view. -/
 @[bridge_grind =] theorem denoteEView_const_eq (st : EStore) (n : NIdx) (us : LsIdx) :
     denoteEView st (.const n us) = opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us) := rfl
@@ -1579,18 +1575,6 @@ with a `fun` (`grind`'s `funext` would split on it). -/
 
 attribute [bridge_grind ←] viewOK_bvar viewOK_lit viewOK_sort viewOK_app viewOK_lam
   viewOK_forallE viewOK_letE viewOK_proj
-
-/-- con-leche: none — `internLNode .zero`'s precondition. -/
-@[bridge_grind .] theorem lviewOK_zero {st : EStore} : st.ls.ViewOK .zero :=
-  ⟨fun c hc => by simp [LNodeView.lchildren] at hc,
-   fun c hc => by simp [LNodeView.nchildren] at hc⟩
-
-/-- con-leche: none — `internLNode (.succ u)`'s precondition, at a level
-handle that has a view. -/
-@[bridge_grind ←] theorem lviewOK_succ {st : EStore} {u : LIdx}
-    (h : (st.ls.view u).isSome = true) : st.ls.ViewOK (.succ u) :=
-  ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
-   fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
 /-- con-leche: none — `internLNode (.imax u v)`'s precondition, at level
 handles that denote. -/

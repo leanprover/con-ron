@@ -659,18 +659,6 @@ theorem TblListKept.pre {st0 st st' : EStore} {ts ts' : List IProjTable}
     exact .cons ⟨hc.numFields, hc.bodies, hc.guards,
       fun x h => hc.structName x (hx.lss.ls.ns _ _ h), hc.structPers⟩ ih
 
-theorem TblListKept.post {st st' st'' : EStore} {ts ts' : List IProjTable}
-    (h : TblListKept st st' ts ts') (hx : Ext st' st'') : TblListKept st st'' ts ts' := by
-  induction h with
-  | nil => exact .nil
-  | cons hc _ ih => exact .cons (hc.mono hx) ih
-
-theorem TblListKept.length {st st' : EStore} {ts ts' : List IProjTable}
-    (h : TblListKept st st' ts ts') : ts'.length = ts.length := by
-  induction h with
-  | nil => rfl
-  | cons _ _ ih => simp [ih]
-
 /-- con-leche: none — arena infrastructure; the denotation of a list of
 projection tables survives an append. -/
 theorem denoteProjTableList_mono {st st' : EStore} (hx : Ext st st') :

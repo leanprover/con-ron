@@ -45,10 +45,6 @@ def ProjAns (st : EStore) : Option IProjEntry → Option ProjEntry → Prop
 @[bridge_grind =] theorem ProjAns.some_eq (st : EStore) (en : IProjEntry) (o : Option ProjEntry) :
     ProjAns st (some en) o = (denoteProjEntry st en = o ∧ o.isSome = true) := rfl
 
-/-- con-leche: none — `ProjAns` at a miss. -/
-@[bridge_grind =] theorem ProjAns.none_eq (st : EStore) (o : Option ProjEntry) :
-    ProjAns st none o = (o = none) := rfl
-
 /-- con-leche: none — a found entry is `some` of its projection. -/
 theorem projOf_eta {o : Option ProjEntry} (h : o.isSome = true) : o = some (projOf o) := by
   cases o with

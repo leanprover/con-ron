@@ -45,18 +45,6 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
 
 /-! ## The projection-table lookup -/
 
-/-- con-leche: none — an optional projection-table entry is found exactly
-when its denotation is. -/
-theorem isSome_of_denoteProjEntryO {st : EStore} {o : Option IProjEntry}
-    {o' : Option ProjEntry} (h : denoteProjEntryO st o = some o') : o.isSome = o'.isSome := by
-  cases o with
-  | none => simp only [denoteProjEntryO, Option.some.injEq] at h; subst h; rfl
-  | some e =>
-    simp only [denoteProjEntryO, Option.map_eq_some_iff] at h
-    obtain ⟨p, _, rfl⟩ := h; rfl
-grind_pattern [bridge_grind] isSome_of_denoteProjEntryO => denoteProjEntryO st o, some o' where
-  guard denoteProjEntryO st o = some o'
-
 /-! ## 2. The slot walk -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the

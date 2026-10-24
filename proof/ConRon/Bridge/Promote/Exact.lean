@@ -206,27 +206,6 @@ theorem IFEnvCoh.pushTable {fe : IFEnv} (h : IFEnvCoh fe) (t : IProjTable) :
   refine ⟨h.1, fun n => h.idx n, fun n => ?_⟩
   simp only [IFEnv.pushTable, mkIFEnvTblsGo, Std.HashMap.getElem?_insert, h.tbls n]
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — **every counter the
-index build hands out is BELOW the counter it stops at**, which is what makes
-`IFEnv.push`'s raised `visibleBelow` safe: a push cannot REVEAL an entry the
-old index was hiding.  `Bridge/Inductives/Rel.lean`'s `ProjOut.push` is the
-consumer. -/
-theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
-    (c : Nat) (ci : IConstantInfo),
-    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
-  intro cs
-  induction cs with
-  | nil => intro n c ci h; simp [mkIFEnvGo] at h
-  | cons a as ih =>
-    intro n c ci h
-    simp only [mkIFEnvGo] at h ⊢
-    rw [Std.HashMap.getElem?_insert] at h
-    split at h
-    · rename_i hEq
-      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
-      omega
-    · exact Nat.lt_succ_of_lt (ih n c ci h)
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the step only
 PUSHED**: everything the fold's step did to the environment was `IFEnv.push`,
 so the old list is a suffix of the new one.  `Arena/Promote.lean`'s
@@ -698,24 +677,6 @@ theorem promoteNew_pushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
   · obtain ⟨cs', -, rfl⟩ := promoteNewConsts_run_pos hk0 h1
     exact ⟨cs', by simp only [hdrop]⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the promotion
-keeps the step's tables a push onto the ones before it**. -/
-theorem promoteNew_tpushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
-    {s s' : AState} (hpush : TPushed fe0 fe)
-    (hk : kt = fe.env.tables.length - fe0.env.tables.length)
-    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) : TPushed fe0 fe' := by
-  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
-  obtain ⟨ht1, -⟩ := promoteNewConsts_tables h1
-  have hpush1 : TPushed fe0 fe1 := by obtain ⟨n, hn⟩ := hpush; exact ⟨n, by rw [ht1, hn]⟩
-  have hk1 : kt = fe1.env.tables.length - fe0.env.tables.length := by rw [ht1]; exact hk
-  obtain ⟨-, hdrop, -⟩ := TPushed.split hpush1 hk1
-  by_cases hk0 : kt = 0
-  · subst hk0
-    obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero h2
-    exact hpush1
-  · obtain ⟨ts', -, rfl⟩ := promoteNewTables_run_pos hk0 h2
-    exact ⟨ts', by simp only [hdrop]⟩
-
 /-- con-leche: none — arena infrastructure; **the projection tables survive
 the promotion**: every table of the promoted environment is well shaped, given
 that every table of the environment was before it.  (`IFEnvOK_of_denote`'s
@@ -780,9 +741,6 @@ theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
 
 /-- info: 'ConRon.Bridge.promoteNew_pushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_pushed
-
-/-- info: 'ConRon.Bridge.promoteNew_tpushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteNew_tpushed
 
 /-- info: 'ConRon.Bridge.promoteNew_projOK' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_projOK

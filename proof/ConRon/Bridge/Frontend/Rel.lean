@@ -594,39 +594,6 @@ theorem PersCaps_of_denote {st : EStore} (hwf : StoreWF st)
     exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
       PersNList_of_denote hwf hoff h3⟩
 
-/-- con-leche: none — a projection table: every handle field is read by
-`denoteProjTable`. -/
-theorem PersProjTable_of_denote {st : EStore} (hwf : StoreWF st)
-    (hoff : st.scratchOn = false) {ti : IProjTable} {t : ProjTable}
-    (hd : denoteProjTable st ti = some t) :
-    PersProjTable ti := by
-  rw [denoteProjTable] at hd
-  cases h1 : denoteN st.ns ti.structName with
-  | none => rw [h1] at hd; simp at hd
-  | some x1 =>
-  cases h2 : denoteNList st.ns ti.levelParams with
-  | none => rw [h1, h2] at hd; simp at hd
-  | some x2 =>
-  cases h3 : denoteN st.ns ti.ctor with
-  | none => rw [h1, h2, h3] at hd; simp at hd
-  | some x3 =>
-  cases h4 : denoteL st.ls ti.structSort with
-  | none => rw [h1, h2, h3, h4] at hd; simp at hd
-  | some x4 =>
-  cases h5 : denoteEArray st ti.bodies with
-  | none => rw [h1, h2, h3, h4, h5] at hd; simp at hd
-  | some x5 =>
-  cases h6 : denoteLList st.ls ti.guards with
-  | none => rw [h1, h2, h3, h4, h5, h6] at hd; simp at hd
-  | some x6 =>
-  refine ⟨PersN_of_denote hwf hoff h1,
-    PersNList_of_denote hwf hoff h2, PersN_of_denote hwf hoff h3,
-    PersL_of_denote hwf hoff h4, ?_, PersLList_of_denote hwf hoff h6⟩
-  rw [denoteEArray] at h5
-  cases h7 : denoteEList st ti.bodies.toList with
-  | none => rw [h7] at h5; simp at h5
-  | some x7 => exact PersEList_of_denote hwf hoff h7
-
 /-- con-leche: none — **a stored constant**: six arms, each of them the
 layers above assembled. -/
 theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)

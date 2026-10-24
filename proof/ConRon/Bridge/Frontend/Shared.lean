@@ -564,16 +564,6 @@ theorem internExprList_sstep : ∀ (es : List Expr) {s s' : AState}
 
 /-! ## The reserved projection-table name -/
 
-theorem internNNode_sstep {s s' : AState} (hok : StateOK s)
-    {v : NNodeView}
-    (hv : s.store.ns.ViewOK v) {h : NIdx}
-    (hrun : internNNode v s = .ok (h, s')) :
-    IStepS s s' ∧
-      denoteN s'.store.ns h = denoteNView s'.store.ns v := by
-  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, -, hden⟩ :=
-    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
-  exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
-
 /-- con-leche: ConLeche/Kernel/Expr.lean Level — a LEVEL node, in the `IStep`
 frame: `parseLevelEntryD`'s four arms intern one apiece. -/
 theorem internLNode_sstep {s s' : AState} (hok : StateOK s)
@@ -596,7 +586,6 @@ theorem internLsNode_sstep {s s' : AState} (hok : StateOK s)
   obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, -, hden⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hv)
   exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
-
 
 theorem internCV_sstep {s s' : AState} (hok : StateOK s)
     {m m' : EMemo} (hm : EMemoOK s.store m)
