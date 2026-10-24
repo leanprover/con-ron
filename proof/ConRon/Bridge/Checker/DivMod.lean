@@ -3,12 +3,12 @@
 
 `checkDivModPin` is an environment guard, a lookup of the stored value, and
 the variant loop over the interned pin sets, whose step is two syntactic
-guards and one attempt.  `Bridge/Checker/DeclVal.lean` holds the shared
+guards and one attempt (the type pins, the pin, the certificates).  `Bridge/Checker/DeclVal.lean` holds the shared
 four-walk pin guard (`pinGuardWalk_run`) that the compiler-trust gate
 uses too; `Bridge/Checker/Arms.lean`'s `defn` arm consumes
 `checkDivModPin_bridge` from here.
 -/
-import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.TypePins
 
 open ConLeche ConRon.Arena
 
@@ -19,17 +19,13 @@ set_option autoImplicit false
 /-! ## The `Nat.div`/`Nat.mod` variant gate
 
 `checkDivModPin` is an environment guard, a lookup of the stored value, and
-the variant loop; the loop's step is two syntactic guards and one ATTEMPT
-under `orElseAttempt`.  The proof below reads that structure over four
-pieces: the three guards' exactness and the attempt's.
-
-**The loop needs only the `true` direction of each piece.**  Every outcome
-but `matched` moves the arena to the next variant, and con-leche's
-`(fueledOps μ F).orElse x k` is `match x with | .ok true => pure () | _ => k
-none` (`fueledOps_orElse`): whether the pure side's guards or attempt agree or
-not, it either stops with `.ok ()` or recurses — and the recursion is the
-induction hypothesis, at the SAME fuel.  Only the `matched` step has to line
-the two sides up: guards `true` and the pure attempt `.ok true`. -/
+the variant loop; the loop's step is two syntactic guards and one ATTEMPT —
+the variant's type pins (`Bridge/Checker/TypePins.lean`), its pin and its
+certificates.  Every step is a boolean decision on both sides, so the proof
+lines the two up decision by decision: the guards are exact (the arena's
+answer IS con-leche's `Bool`), the attempt's answer is con-leche's at some
+fuel, and where a variant is declined both sides move on to the next one,
+the attempt's fuel and the rest's merged by monotonicity. -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:285-290 divModEnvGuard (one
 `Bool` constructor's clause) — the twin's `boolCtorTyped` is con-leche's
@@ -390,6 +386,83 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   refine ⟨rfl, ?_⟩
   rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6]
   exact hps.modProofs
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:140-152 divModTypePins — one
+variant's type pins, by the same seven tests. -/
+theorem divModTypePins_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
+    {nm : ConLeche.Name} {p : List (NIdx × EIdx)} {s s' : AState} (hst : StateOK s)
+    (hp : PinsOK s) (hps : PinSetDenote s.store ps psP)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hrun : Arena.divModTypePins ps cn s = .ok (p, s')) :
+    s' = s ∧ TypePinsDenote s.store p (ConLeche.divModTypePins psP nm) := by
+  simp only [Arena.divModTypePins] at hrun
+  obtain ⟨h0, u0, g0, w0⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d0⟩ := pinAt_run (x := ConLeche.natDivName) hp (by rfl) g0
+  have b0 := beq_handle_iff hst.wf hn d0
+  rcases AM.ite_ok w0 with ⟨y0, a0⟩ | ⟨z0, v0⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a0
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_left (b0.mp y0)]
+    exact hps.divTypePins
+  have nb0 : ¬ (nm = ConLeche.natDivName) := fun h => z0 (b0.mpr h)
+  obtain ⟨h1, u1, g1, w1⟩ := AM.bind_ok v0
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natGcdName) hp (by rfl) g1
+  have b1 := beq_handle_iff hst.wf hn d1
+  rcases AM.ite_ok w1 with ⟨y1, a1⟩ | ⟨z1, v1⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a1
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_left (b1.mp y1)]
+    exact hps.gcdTypePins
+  have nb1 : ¬ (nm = ConLeche.natGcdName) := fun h => z1 (b1.mpr h)
+  obtain ⟨h2, u2, g2, w2⟩ := AM.bind_ok v1
+  obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natLandName) hp (by rfl) g2
+  have b2 := beq_handle_iff hst.wf hn d2
+  rcases AM.ite_ok w2 with ⟨y2, a2⟩ | ⟨z2, v2⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a2
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_left (b2.mp y2)]
+    exact hps.landTypePins
+  have nb2 : ¬ (nm = ConLeche.natLandName) := fun h => z2 (b2.mpr h)
+  obtain ⟨h3, u3, g3, w3⟩ := AM.bind_ok v2
+  obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natLorName) hp (by rfl) g3
+  have b3 := beq_handle_iff hst.wf hn d3
+  rcases AM.ite_ok w3 with ⟨y3, a3⟩ | ⟨z3, v3⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a3
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_left (b3.mp y3)]
+    exact hps.lorTypePins
+  have nb3 : ¬ (nm = ConLeche.natLorName) := fun h => z3 (b3.mpr h)
+  obtain ⟨h4, u4, g4, w4⟩ := AM.bind_ok v3
+  obtain ⟨rfl, d4⟩ := pinAt_run (x := ConLeche.natXorName) hp (by rfl) g4
+  have b4 := beq_handle_iff hst.wf hn d4
+  rcases AM.ite_ok w4 with ⟨y4, a4⟩ | ⟨z4, v4⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a4
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_left (b4.mp y4)]
+    exact hps.xorTypePins
+  have nb4 : ¬ (nm = ConLeche.natXorName) := fun h => z4 (b4.mpr h)
+  obtain ⟨h5, u5, g5, w5⟩ := AM.bind_ok v4
+  obtain ⟨rfl, d5⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp (by rfl) g5
+  have b5 := beq_handle_iff hst.wf hn d5
+  rcases AM.ite_ok w5 with ⟨y5, a5⟩ | ⟨z5, v5⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a5
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_left (b5.mp y5)]
+    exact hps.shiftLeftTypePins
+  have nb5 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z5 (b5.mpr h)
+  obtain ⟨h6, u6, g6, w6⟩ := AM.bind_ok v5
+  obtain ⟨rfl, d6⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp (by rfl) g6
+  have b6 := beq_handle_iff hst.wf hn d6
+  rcases AM.ite_ok w6 with ⟨y6, a6⟩ | ⟨z6, v6⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a6
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_left (b6.mp y6)]
+    exact hps.shiftRightTypePins
+  have nb6 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z6 (b6.mpr h)
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok v6
+  refine ⟨rfl, ?_⟩
+  rw [ConLeche.divModTypePins, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6]
+  exact hps.modTypePins
 
 /-! ## The certificate statements, interned -/
 
@@ -1492,19 +1565,35 @@ theorem checkDivModCerts_cons_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h2 : ConLeche.inferTypeCore μ env F 4 (ConLeche.divModCertApplied
       (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok tp)
     (h3 : ConLeche.isDefEqCore μ env F 4 tp (Expr.substConst0 nm v eqE) = .ok true)
+    {r : Bool}
     (h4 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v srest prest
-      = .ok true) :
+      = .ok r) :
     ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v ((hyps, eqE) :: srest)
-      (proof :: prest) = .ok true := by
+      (proof :: prest) = .ok r := by
   simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h2, h3,
     bind, Except.bind]
   exact h4
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts — one
+certificate's comparison fails: so does the loop, at that fuel. -/
+theorem checkDivModCerts_cons_false_pure {μ : CheckMode} {F : Nat} {env : Env}
+    {nm : ConLeche.Name} {v : Expr} {hyps : List Expr} {eqE proof tp : Expr}
+    {srest : List (List Expr × Expr)} {prest : List Expr}
+    (hg : ConLeche.divModCertGuard env nm v hyps eqE proof = true)
+    (h2 : ConLeche.inferTypeCore μ env F 4 (ConLeche.divModCertApplied
+      (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok tp)
+    (h3 : ConLeche.isDefEqCore μ env F 4 tp (Expr.substConst0 nm v eqE) = .ok false) :
+    ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v ((hyps, eqE) :: srest)
+      (proof :: prest) = .ok false := by
+  simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h2, h3,
+    bind, Except.bind, Bool.false_eq_true, ite_false]
+  rfl
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts — **the
 certificate loop**: per certificate, the guards (`divModCertGuard_run`), the
 substituted proof applied to the open statement's variables, its type
 inferred and compared with the substituted equation, all at depth 4
-through `KnotSpec`; a `true` answer is con-leche's at one fuel. -/
+through `KnotSpec`; the answer is con-leche's at one fuel. -/
 theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) {cn : NIdx}
     {nm : ConLeche.Name} {val : EIdx} {v : Expr} (hwsv : Expr.WScoped 0 v) :
@@ -1516,8 +1605,7 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       (∀ q ∈ xs, (∀ h ∈ q.1, Expr.WScoped 2 h) ∧ Expr.WScoped 2 q.2) →
       Arena.checkDivModCerts μ fe cn val stmts proofs s = .ok (r, s') →
       CoreStep μ env fe s s' ∧
-        (r = true → ∃ F, ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v xs ps
-          = .ok true) := by
+        ∃ F, ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v xs ps = .ok r := by
   have hknot := hk.knot env fe henv
   have hws4 : Expr.WScoped 4 v := ConLeche.Expr.WScoped.mono (by omega) hwsv
   have hws2 : Expr.WScoped 2 v := ConLeche.Expr.WScoped.mono (by omega) hwsv
@@ -1534,11 +1622,12 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
         subst hpr
         simp only [Arena.checkDivModCerts] at hrun
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-        exact ⟨CoreStep.refl hck, fun _ => ⟨0, rfl⟩⟩
+        exact ⟨CoreStep.refl hck, 0, rfl⟩
       | cons _ _ =>
         simp only [Arena.checkDivModCerts] at hrun
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-        exact ⟨CoreStep.refl hck, fun h => absurd h (by simp)⟩
+        obtain ⟨_, _, _, _, rfl⟩ := denoteEList_cons hpr
+        exact ⟨CoreStep.refl hck, 0, rfl⟩
   | cons st srest ih =>
     intro xs proofs ps r s s' hck hn hv hsd hpr hwq hrun
     cases xs with
@@ -1551,17 +1640,22 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     | nil =>
       simp only [Arena.checkDivModCerts] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      exact ⟨CoreStep.refl hck, fun h => absurd h (by simp)⟩
+      simp only [Frontend.denoteEList, Option.some.injEq] at hpr
+      subst hpr
+      exact ⟨CoreStep.refl hck, 0, rfl⟩
     | cons pf prest =>
     obtain ⟨px, pxs, hpx, hpxs, rfl⟩ := denoteEList_cons hpr
     obtain ⟨hwh, hwe⟩ := hwq (hx, ex) (by simp)
     simp only [Arena.checkDivModCerts] at hrun
     obtain ⟨g, s1, g1, r1⟩ := AM.bind_ok hrun
     obtain ⟨c1, rfl⟩ := divModCertGuard_run hck hn hv h1 h2 hpx _ _ g1
-    rcases AM.ite_ok r1 with ⟨hg, r2⟩ | ⟨-, r2⟩
+    rcases AM.ite_ok r1 with ⟨hg, r2⟩ | ⟨hng, r2⟩
     rotate_left
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
-      exact ⟨c1, fun h => absurd h (by simp)⟩
+      have hgf : ConLeche.divModCertGuard env nm v hx ex px = false := by simpa using hng
+      refine ⟨c1, 0, ?_⟩
+      simp only [ConLeche.checkDivModCerts, hgf, Bool.false_eq_true, ite_false]
+      rfl
     have hg' := hg
     simp only [ConLeche.divModCertGuard, Bool.and_eq_true, Bool.not_eq_true'] at hg'
     have hPf : (Expr.substConstAll nm v px).hasFvar = false := hg'.1.1.1.1.2
@@ -1610,17 +1704,21 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     obtain ⟨F8, hF8⟩ := hsim8
     have c8 : CoreStep μ env fe s7 s8 := ⟨hck8, hx8, hp8⟩
     have c08 := (c06.trans c7).trans c8
-    rcases AM.ite_ok r9 with ⟨hb, r10⟩ | ⟨-, r10⟩
+    rcases AM.ite_ok r9 with ⟨hb, r10⟩ | ⟨hnb, r10⟩
     rotate_left
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok r10
-      exact ⟨c08, fun h => absurd h (by simp)⟩
+      have hbf : b = false := by simpa using hnb
+      subst hbf
+      have l6 : F6 ≤ max F6 F8 := by omega
+      have l8 : F8 ≤ max F6 F8 := by omega
+      exact ⟨c08, _, checkDivModCerts_cons_false_pure hg
+        (ConLeche.inferTypeCore_mono l6 hF6) (ConLeche.isDefEqCore_mono l8 hF8)⟩
     have hb' : b = true := hb
     subst hb'
-    obtain ⟨c9, himp⟩ := ih xrest prest pxs r s8 s' c8.ok (denoteN_ext hn c08.ext)
+    obtain ⟨c9, F9, hF9⟩ := ih xrest prest pxs r s8 s' c8.ok (denoteN_ext hn c08.ext)
       (denote_ext hv c08.ext) (StmtsDenote.mono c08.ext _ _ h3)
       (denoteEList_ext c08.ext _ _ hpxs) (fun q hq => hwq q (List.mem_cons_of_mem _ hq)) r10
-    refine ⟨c08.trans c9, fun hr => ?_⟩
-    obtain ⟨F9, hF9⟩ := himp hr
+    refine ⟨c08.trans c9, ?_⟩
     have l6 : F6 ≤ max (max F6 F8) F9 := by omega
     have l8 : F8 ≤ max (max F6 F8) F9 := by omega
     have l9 : F9 ≤ max (max F6 F8) F9 := by omega
@@ -1628,24 +1726,85 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       (ConLeche.inferTypeCore_mono l6 hF6) (ConLeche.isDefEqCore_mono l8 hF8)
       (checkDivModCerts_mono l9 hF9)⟩
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:321-328 checkDivModPinAt — the
-attempt's clause at one fuel. -/
-theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt — a
+variant's type pins fail: so does its attempt, at that fuel. -/
+theorem checkDivModPinAt_types_false {μ : CheckMode} {F : Nat} {env : Env}
     {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet}
+    (h1 : ConLeche.checkTypePins (ConLeche.fueledOps μ F) env
+      (ConLeche.divModTypePins psP nm) = .ok false) :
+    ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok false := by
+  unfold ConLeche.checkDivModPinAt
+  rw [h1]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt — a
+variant's type pins hold and its pin does not: the attempt fails. -/
+theorem checkDivModPinAt_pin_false {μ : CheckMode} {F : Nat} {env : Env}
+    {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet}
+    (h1 : ConLeche.checkTypePins (ConLeche.fueledOps μ F) env
+      (ConLeche.divModTypePins psP nm) = .ok true)
+    (h2 : ConLeche.isDefEqCore μ env F 0 v (ConLeche.divModDeclPin psP nm) = .ok false) :
+    ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok false := by
+  unfold ConLeche.checkDivModPinAt
+  rw [h1]
+  simp only [bind, Except.bind, ite_true, ConLeche.fueledOps, h2, Bool.false_eq_true,
+    ite_false]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt — the
+attempt's clause past its type pins and its pin, at one fuel: the
+certificates' answer. -/
+theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
+    {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet} {r : Bool}
+    (h1 : ConLeche.checkTypePins (ConLeche.fueledOps μ F) env
+      (ConLeche.divModTypePins psP nm) = .ok true)
     (h2 : ConLeche.isDefEqCore μ env F 0 v (ConLeche.divModDeclPin psP nm) = .ok true)
     (h3 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v
-      (ConLeche.divModCertStmts nm) (ConLeche.divModCertProofs psP nm) = .ok true) :
-    ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok true := by
-  simp only [ConLeche.checkDivModPinAt, ConLeche.fueledOps, h2, ite_true, bind,
-    Except.bind]
+      (ConLeche.divModCertStmts nm) (ConLeche.divModCertProofs psP nm) = .ok r) :
+    ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok r := by
+  unfold ConLeche.checkDivModPinAt
+  rw [h1]
+  simp only [bind, Except.bind, ite_true, ConLeche.fueledOps, h2]
   exact h3
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — one
-variant's pin guards.
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean checkDivModPinAt_datF — one
+variant's attempt is monotone in its fuel. -/
+theorem checkDivModPinAt_mono {μ : CheckMode} {env : Env} {nm : ConLeche.Name} {v : Expr}
+    {psP : NatOpPinSet} {r : Bool} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok r) :
+    ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F') env nm v psP = .ok r := by
+  rw [← ConLeche.checkDivModPinAt_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkDivModPinAt (ConLeche.fueledOpsM μ) env nm v psP).property hle h
 
-**Proof:** `divModDeclPin_run` (the
-handle-comparison chain against the pins), then `pinGuardWalk_run`, the four
-walks `reducePinGuard_run` shares. -/
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean checkDivModPinLoop_datF — the
+variant loop is monotone in its fuel. -/
+theorem checkDivModPinLoop_mono {μ : CheckMode} {env : Env} {nm : ConLeche.Name}
+    {v : Expr} {psP : List NatOpPinSet} {tried : List String} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v psP tried = .ok ()) :
+    ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F') env nm v psP tried = .ok () := by
+  rw [← ConLeche.checkDivModPinLoop_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkDivModPinLoop (ConLeche.fueledOpsM μ) env nm v psP tried).property
+    hle h
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard — a
+variant whose pin guard passed has closed type pins on both sides (the
+precondition of `checkTypePins_spec`). -/
+theorem divModTypePins_closed {psP : NatOpPinSet} {env : Env} {nm : ConLeche.Name}
+    (h : ConLeche.divModPinGuard psP env nm = true) :
+    ∀ p ∈ ConLeche.divModTypePins psP nm,
+      (ConLeche.typePinStored env p.1).hasFvar = false ∧ p.2.hasFvar = false := by
+  simp only [ConLeche.divModPinGuard, Bool.and_eq_true, List.all_eq_true,
+    Bool.not_eq_true'] at h
+  intro p hp
+  have hp' := h.2 p hp
+  exact ⟨hp'.1.1.1.2, hp'.1.2⟩
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard — one
+variant's pin guards: the four ground guards on its pin, then its type pins'.
+
+**Proof:** `divModDeclPin_run` (the handle-comparison chain against the
+pins), `pinGuardWalk_run` (the four walks `reducePinGuard_run` shares), and
+on a pin that passes them `divModTypePins_run` and `typePinsGuard_spec`. -/
 theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {r : Bool} {s s' : AState}
@@ -1657,8 +1816,28 @@ theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
   simp only [Arena.divModPinGuard] at hr
   obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hr
   obtain ⟨rfl, hpd⟩ := divModDeclPin_run hck.state hck.pins hps hn g1
-  simp only [ConLeche.divModPinGuard, Bool.and_assoc]
-  exact pinGuardWalk_run hck (Ext.refl _) rfl hpd r1
+  obtain ⟨g, s2, g2, r2⟩ := AM.bind_ok r1
+  simp only [Arena.groundGuards] at g2
+  obtain ⟨hck2, hx2, hp2, hg⟩ := pinGuardWalk_run hck (Ext.refl _) rfl hpd g2
+  have hgP : ConLeche.divModPinGuard psP env nm =
+      (g && (ConLeche.divModTypePins psP nm).all fun p =>
+        (env.find? p.1).isSome && !(ConLeche.typePinStored env p.1).hasFvar &&
+          p.2.looseBVarsBounded 0 && !p.2.hasFvar && p.2.constsResolve env) := by
+    rw [hg]; simp only [ConLeche.divModPinGuard, Bool.and_assoc]
+  rw [hgP]
+  cases g with
+  | false =>
+    simp only [Bool.false_eq_true, ite_false] at r2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+    exact ⟨hck2, hx2, hp2, rfl⟩
+  | true =>
+    simp only [ite_true] at r2
+    obtain ⟨tps, s3, g3, r3⟩ := AM.bind_ok r2
+    obtain ⟨rfl, htd⟩ := divModTypePins_run hck2.state hck2.pins
+      (PinsDenote.mono hx2 [ps] [psP] ⟨hps, trivial⟩).1 (denoteN_ext hn hx2) g3
+    obtain ⟨hck4, hx4, hp4, rfl⟩ := AM.of_run (P := fun t => t = s3) rfl r3
+      (typePinsGuard_spec tps _ s3 hck2 htd)
+    exact ⟨hck4, hx2.trans hx4, by rw [hp4, hp2], by rw [typePinsGuardP_eq, Bool.true_and]⟩
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:299-306 divModCertsGuard — one
 variant's certificate guards, over the pinned statements.
@@ -1688,77 +1867,100 @@ theorem divModCertsGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     (denote_ext hv c1.ext) hsd hpr _ _ r2
   exact ⟨c2.ok, c1.ext.trans c2.ext, by rw [c2.pins, c1.pins], rfl⟩
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:308-328 checkDivModPinAt — one
-variant's attempt: on success the invariant stands, and a `true` answer is
-con-leche's.
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt — one
+variant's attempt: on success the invariant stands, and the answer is
+con-leche's at some fuel, `true` or `false`.
 
-**Proof:** `divModDeclPin_run`, one
-`KnotSpec.defeq` at depth 0 for the pin, then `divModCertStmts_run`,
-`divModCertProofs_run` and the certificate loop
+**Proof:** `divModTypePins_run` and `checkTypePins_spec` (the type pins); on
+`true`, `divModDeclPin_run`, one `KnotSpec.defeq` at depth 0 for the pin,
+then `divModCertStmts_run`, `divModCertProofs_run` and the certificate loop
 (`checkDivModCerts_bridge_aux`: `KnotSpec.infer`/`defeq` at depth 4 over
 `divModCertApplied`, scoped by `divModCertApplied_wscoped` and
-`divModCertStmts_wscoped`).
+`divModCertStmts_wscoped`); the fuels merged at the end.
 
-**The statement takes `hpg : divModPinGuard psP env nm = true`**: the pin is
-compared through `KnotSpec.defeq`, which needs it `WScoped 0`, and nothing else
-in the hypotheses says the pin is closed.  The one call site, the variant loop,
-runs the attempt only after the pin guard answered `true`. -/
+**The statement takes `hpg : divModPinGuard psP env nm = true`**: the pin
+and the type pins are compared through `KnotSpec.defeq`, which needs them
+`WScoped 0`, and nothing else in the hypotheses says they are closed.  The
+one call site, the variant loop, runs the attempt only after the pin guard
+answered `true`. -/
 theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {val : EIdx} {v : Expr} {b : Bool} {s s' : AState}
-    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hk : CoreSpec μ Arena.checkFuel)
     (henv : EnvWF env) (hck : CheckOK μ env fe s) (hps : PinSetDenote s.store ps psP)
     (hn : denoteN s.store.ns cn = some nm) (hv : denoteE s.store val = some v)
     (hwsv : Expr.WScoped 0 v) (hpg : ConLeche.divModPinGuard psP env nm = true)
     (hr : Arena.checkDivModPinAt μ fe cn val ps s = .ok (b, s')) :
     CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      (b = true → ∃ F, ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP
-        = .ok true) := by
+      ∃ F, ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok b := by
   have hknot := hk.knot env fe henv
   have hwsP : Expr.WScoped 0 (ConLeche.divModDeclPin psP nm) := by
     simp only [ConLeche.divModPinGuard, Bool.and_eq_true, Bool.not_eq_true'] at hpg
-    exact ConLeche.Expr.WScoped.of_not_hasFvar hpg.1.1.2
+    exact ConLeche.Expr.WScoped.of_not_hasFvar hpg.1.1.1.2
   simp only [Arena.checkDivModPinAt] at hr
-  obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hr
-  obtain ⟨hs1, hpd⟩ := divModDeclPin_run hck.state hck.pins hps hn g1
+  obtain ⟨tps, s1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨hs1, htd⟩ := divModTypePins_run hck.state hck.pins hps hn g1
   subst s1
-  obtain ⟨ok, s3, g3, r3⟩ := AM.bind_ok r1
-  obtain ⟨hck3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧ t.pins = s.pins ∧
+  obtain ⟨okT, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨hck2, hx2, hp2, F1, hF1⟩ := AM.of_run (P := fun t => t = s) rfl g2
+    (checkTypePins_spec hk henv tps _ s hck htd (divModTypePins_closed hpg))
+  simp only [typePinsOp] at hF1
+  cases okT with
+  | false =>
+    simp only [Bool.false_eq_true, ite_false] at r2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+    exact ⟨hck2, hx2, hp2, F1, checkDivModPinAt_types_false hF1⟩
+  | true =>
+  simp only [ite_true, Arena.checkDivModPinValue] at r2
+  have hps2 := (PinsDenote.mono hx2 [ps] [psP] ⟨hps, trivial⟩).1
+  have hn2 := denoteN_ext hn hx2
+  have hv2 := denote_ext hv hx2
+  obtain ⟨p, s3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨rfl, hpd⟩ := divModDeclPin_run hck2.state hck2.pins hps2 hn2 g3
+  obtain ⟨ok, s4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨hck4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun t => t = s3)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s3.store t.store ∧ t.pins = s3.pins ∧
       Core.SimV (ConLeche.isDefEqCore μ env) 0 v (ConLeche.divModDeclPin psP nm) r)
-    rfl g3 (hknot.defeq s 0 val p v _ hck hv hpd hwsv hwsP)
-  obtain ⟨F3, hF3⟩ := hsim3
-  have hx03 : Ext s.store s3.store := hx3
-  rcases AM.ite_ok r3 with ⟨hok, r4⟩ | ⟨-, r4⟩
-  rotate_left
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
-    exact ⟨hck3, hx03, hp3, fun h => absurd h (by simp)⟩
-  have hok' : ok = true := hok
-  subst hok'
-  obtain ⟨st, s4, g4, r5⟩ := AM.bind_ok r4
-  obtain ⟨hs4, hsd⟩ := divModCertStmts_run hck3.state hck3.pins (denoteN_ext hn hx03) g4
-  have c4 := CoreStep.of_istep hck3 hs4
-  obtain ⟨prs, s5, g5, r6⟩ := AM.bind_ok r5
-  have hx04 : Ext s.store s4.store := hx03.trans hs4.ext
-  obtain ⟨rfl, hpr⟩ := divModCertProofs_run c4.ok.state c4.ok.pins
-    (PinsDenote.mono hx04 [ps] [psP] ⟨hps, trivial⟩).1 (denoteN_ext hn hx04) g5
-  obtain ⟨c6, himp⟩ := checkDivModCerts_bridge_aux hk henv hwsv _ _ _ _ _ _ _ c4.ok
-    (denoteN_ext hn hx04) (denote_ext hv hx04) hsd hpr (divModCertStmts_wscoped nm) r6
-  refine ⟨c6.ok, hx04.trans c6.ext, by rw [c6.pins, hs4.pins, hp3], fun hb => ?_⟩
-  obtain ⟨F6, hF6⟩ := himp hb
-  have l3 : F3 ≤ max F3 F6 := by omega
-  have l6 : F6 ≤ max F3 F6 := by omega
-  exact ⟨_, checkDivModPinAt_pure
-    (ConLeche.isDefEqCore_mono l3 hF3) (checkDivModCerts_mono l6 hF6)⟩
+    rfl g4 (hknot.defeq s3 0 val p v _ hck2 hv2 hpd hwsv hwsP)
+  obtain ⟨F4, hF4⟩ := hsim4
+  have hx04 : Ext s.store s4.store := hx2.trans hx4
+  have l1 : F1 ≤ max F1 F4 := by omega
+  have l4 : F4 ≤ max F1 F4 := by omega
+  cases ok with
+  | false =>
+    simp only [Bool.false_eq_true, ite_false] at r4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
+    exact ⟨hck4, hx04, by rw [hp4, hp2], _, checkDivModPinAt_pin_false
+      (checkTypePins_mono l1 hF1) (ConLeche.isDefEqCore_mono l4 hF4)⟩
+  | true =>
+  simp only [ite_true] at r4
+  obtain ⟨st, s5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨hs5, hsd⟩ := divModCertStmts_run hck4.state hck4.pins (denoteN_ext hn hx04) g5
+  have c5 := CoreStep.of_istep hck4 hs5
+  obtain ⟨prs, s6, g6, r6⟩ := AM.bind_ok r5
+  have hx05 : Ext s.store s5.store := hx04.trans hs5.ext
+  obtain ⟨rfl, hpr⟩ := divModCertProofs_run c5.ok.state c5.ok.pins
+    (PinsDenote.mono hx05 [ps] [psP] ⟨hps, trivial⟩).1 (denoteN_ext hn hx05) g6
+  obtain ⟨c7, F7, hF7⟩ := checkDivModCerts_bridge_aux hk henv hwsv _ _ _ _ _ _ _ c5.ok
+    (denoteN_ext hn hx05) (denote_ext hv hx05) hsd hpr (divModCertStmts_wscoped nm) r6
+  refine ⟨c7.ok, hx05.trans c7.ext, by rw [c7.pins, hs5.pins, hp4, hp2], ?_⟩
+  have m1 : F1 ≤ max (max F1 F4) F7 := by omega
+  have m4 : F4 ≤ max (max F1 F4) F7 := by omega
+  have m7 : F7 ≤ max (max F1 F4) F7 := by omega
+  exact ⟨_, checkDivModPinAt_pure (checkTypePins_mono m1 hF1)
+    (ConLeche.isDefEqCore_mono m4 hF4) (checkDivModCerts_mono m7 hF7)⟩
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop — **the
+/-- con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop — **the
 variant loop**: an accepting arena loop is an accepting pure loop, at some
-fuel, whatever the two sides' decline messages.  Proved over the four pieces
-above (the module section's note says why only their `true` direction is
-spent). -/
+fuel, whatever the two sides' decline messages.  Each step is a boolean
+decision the two sides take alike: the guards are exact
+(`divModPinGuard_run`, `divModCertsGuard_run`), the attempt's answer is
+con-leche's at some fuel (`checkDivModPinAt_bridge`), and a declined variant
+moves both sides on, the attempt's fuel and the rest's merged
+(`checkDivModPinAt_mono`, `checkDivModPinLoop_mono`). -/
 theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cn : NIdx} {nm : ConLeche.Name} {val : EIdx} {v : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hk : CoreSpec μ Arena.checkFuel)
     (henv : EnvWF env) (hwsv : Expr.WScoped 0 v) :
     ∀ (ps : List INatOpPinSet) (psP : List NatOpPinSet) (tried : List String)
       (triedP : List String) (s s' : AState),
@@ -1780,78 +1982,88 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     | nil => exact hps.elim
     | cons q restP =>
     obtain ⟨hq, hrestP⟩ := hps
-    simp only [Arena.checkDivModPinLoop] at hrun
-    obtain ⟨a, s1, g1, r1⟩ := AM.bind_ok hrun
-    obtain ⟨hck1, hx1, hp1, rfl⟩ := divModPinGuard_run hck hq hn g1
-    have hq1 := (PinsDenote.mono hx1 [p] [q] ⟨hq, trivial⟩).1
-    obtain ⟨b, s2, g2, r2⟩ := AM.bind_ok r1
-    obtain ⟨hck2, hx2, hp2, rfl⟩ :=
-      divModCertsGuard_run hck1 hq1 (denoteN_ext hn hx1) (denote_ext hv hx1) g2
-    have hx02 : Ext s.store s2.store := hx1.trans hx2
-    have hn2 := denoteN_ext hn hx02
-    have hv2 := denote_ext hv hx02
-    have hrest2 := PinsDenote.mono hx02 _ _ hrestP
-    -- the pure side's step, whichever branch its attempt takes
-    have pureStep : ∀ F, (ConLeche.divModPinGuard q env nm &&
-        ConLeche.divModCertsGuard q env nm v) = true →
-        (ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v q = .ok true ∨
-          ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v restP
-            (triedP ++ [ConLeche.divModAttemptReason q none]) = .ok ()) →
-        ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v (q :: restP) triedP
-          = .ok () := by
-      intro F hg hor
-      simp only [ConLeche.checkDivModPinLoop, hg, ite_true, fueledOps_orElse]
-      split
-      · rfl
-      · rcases hor with h | h
-        · rename_i hne; exact absurd h hne
-        · exact h
-    -- the rest of the loop, at the state the step left
-    have recurse : ∀ (t : AState) (tr : List String), CheckOK μ env fe t →
+    -- the rest of the loop, from a state the step left, at a declined variant
+    have recurse : ∀ (t : AState) (tr trP : List String), CheckOK μ env fe t →
         Ext s.store t.store → t.pins = s.pins →
         Arena.checkDivModPinLoop μ fe cn val rest tr t = .ok ((), s') →
         CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-          ∃ F, ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v (q :: restP)
-            triedP = .ok () := by
-      intro t tr hckt hxt hpt hrt
-      by_cases hg : (ConLeche.divModPinGuard q env nm &&
-          ConLeche.divModCertsGuard q env nm v) = true
-      · obtain ⟨hck', hx', hp', F, hF⟩ :=
-          ih restP tr (triedP ++ [ConLeche.divModAttemptReason q none]) t s' hckt
-            (PinsDenote.mono hxt _ _ hrestP) (denoteN_ext hn hxt) (denote_ext hv hxt) hrt
-        exact ⟨hck', hxt.trans hx', by rw [hp', hpt], F, pureStep F hg (Or.inr hF)⟩
-      · obtain ⟨hck', hx', hp', F, hF⟩ :=
-          ih restP tr (triedP ++ [s!"{q.toolchain}: pin or certificate ground constants \
-          absent"]) t s' hckt
-            (PinsDenote.mono hxt _ _ hrestP) (denoteN_ext hn hxt) (denote_ext hv hxt) hrt
-        refine ⟨hck', hxt.trans hx', by rw [hp', hpt], F, ?_⟩
-        rw [Bool.not_eq_true] at hg
-        simp only [ConLeche.checkDivModPinLoop, hg, Bool.false_eq_true, ite_false]
-        exact hF
+          ∃ F, ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v restP trP
+            = .ok () := by
+      intro t tr trP hckt hxt hpt hrt
+      obtain ⟨hck', hx', hp', F, hF⟩ := ih restP tr trP t s' hckt
+        (PinsDenote.mono hxt _ _ hrestP) (denoteN_ext hn hxt) (denote_ext hv hxt) hrt
+      exact ⟨hck', hxt.trans hx', by rw [hp', hpt], F, hF⟩
+    simp only [Arena.checkDivModPinLoop] at hrun
+    obtain ⟨g1, s1, gg1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨hck1, hx1, hp1, rfl⟩ := divModPinGuard_run hck hq hn gg1
+    have absent : ∀ F, (ConLeche.divModPinGuard q env nm &&
+        ConLeche.divModCertsGuard q env nm v) = false →
+        ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v restP
+          (triedP ++ [s!"{q.toolchain}: pin or certificate ground constants absent"])
+          = .ok () →
+        ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v (q :: restP) triedP
+          = .ok () := by
+      intro F hg hF
+      simp only [ConLeche.checkDivModPinLoop, hg, Bool.false_eq_true, ite_false]
+      exact hF
+    cases hg1 : ConLeche.divModPinGuard q env nm with
+    | false =>
+      rw [hg1] at r1
+      simp only [Bool.false_eq_true, ite_false] at r1
+      obtain ⟨hck', hx', hp', F, hF⟩ := recurse s1 _
+        (triedP ++ [s!"{q.toolchain}: pin or certificate ground constants absent"])
+        hck1 hx1 hp1 r1
+      exact ⟨hck', hx', hp', F, absent F (by rw [hg1, Bool.false_and]) hF⟩
+    | true =>
+    rw [hg1] at r1
+    simp only [ite_true] at r1
+    have hq1 := (PinsDenote.mono hx1 [p] [q] ⟨hq, trivial⟩).1
+    obtain ⟨g2, s2, gg2, r2⟩ := AM.bind_ok r1
+    obtain ⟨hck2, hx2, hp2, rfl⟩ :=
+      divModCertsGuard_run hck1 hq1 (denoteN_ext hn hx1) (denote_ext hv hx1) gg2
+    have hx02 : Ext s.store s2.store := hx1.trans hx2
     have hp02 : s2.pins = s.pins := by rw [hp2, hp1]
-    split at r2
-    · rename_i hg
-      obtain ⟨o, s3, g3, r3⟩ := AM.bind_ok r2
-      rcases orElseAttempt_run g3 with ⟨b', ha, ho⟩ | ⟨e, ha, ho, rfl⟩
-      · obtain ⟨hck3, hx3, hp3, himp⟩ :=
-          checkDivModPinAt_bridge hμ hk henv hck2 (PinsDenote.mono hx2 [p] [q] ⟨hq1, trivial⟩).1
-            hn2 hv2 hwsv (Bool.and_eq_true _ _ |>.mp hg).1 ha
-        cases b' with
-        | true =>
-          simp only [orElseStepOf] at ho
-          subst ho
-          obtain ⟨-, rfl⟩ := AM.pure_ok r3
-          obtain ⟨F, hF⟩ := himp rfl
-          exact ⟨hck3, hx02.trans hx3, by rw [hp3, hp02], F, pureStep F hg (Or.inl hF)⟩
-        | false =>
-          simp only [orElseStepOf] at ho
-          subst ho
-          exact recurse s3 _ hck3 (hx02.trans hx3) (by rw [hp3, hp02]) r3
-      · cases e <;> (simp only [orElseStepOf] at ho; subst ho)
-        all_goals first
-          | exact absurd r3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-          | exact recurse _ _ hck2 hx02 hp02 r3
-    · exact recurse s2 _ hck2 hx02 hp02 r2
+    cases hg2 : ConLeche.divModCertsGuard q env nm v with
+    | false =>
+      rw [hg2] at r2
+      simp only [Bool.false_eq_true, ite_false] at r2
+      obtain ⟨hck', hx', hp', F, hF⟩ := recurse s2 _
+        (triedP ++ [s!"{q.toolchain}: pin or certificate ground constants absent"])
+        hck2 hx02 hp02 r2
+      exact ⟨hck', hx', hp', F, absent F (by rw [hg2, Bool.and_false]) hF⟩
+    | true =>
+    rw [hg2] at r2
+    simp only [ite_true] at r2
+    obtain ⟨b, s3, gg3, r3⟩ := AM.bind_ok r2
+    obtain ⟨hck3, hx3, hp3, F1, hF1⟩ :=
+      checkDivModPinAt_bridge hk henv hck2 (PinsDenote.mono hx2 [p] [q] ⟨hq1, trivial⟩).1
+        (denoteN_ext hn hx02) (denote_ext hv hx02) hwsv hg1 gg3
+    have hstep : ∀ F, ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v q
+          = .ok b →
+        (b = false → ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v restP
+          (triedP ++ [ConLeche.divModAttemptReason q]) = .ok ()) →
+        ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v (q :: restP) triedP
+          = .ok () := by
+      intro F ha hrest
+      simp only [ConLeche.checkDivModPinLoop, hg1, hg2, Bool.and_self, ite_true, ha, bind,
+        Except.bind]
+      cases b with
+      | true => rfl
+      | false => exact hrest rfl
+    cases b with
+    | true =>
+      simp only [ite_true] at r3
+      obtain ⟨-, rfl⟩ := AM.pure_ok r3
+      exact ⟨hck3, hx02.trans hx3, by rw [hp3, hp02], F1, hstep F1 hF1 nofun⟩
+    | false =>
+      simp only [Bool.false_eq_true, ite_false] at r3
+      obtain ⟨hck', hx', hp', F2, hF2⟩ := recurse s3 _
+        (triedP ++ [ConLeche.divModAttemptReason q]) hck3 (hx02.trans hx3)
+        (by rw [hp3, hp02]) r3
+      have l1 : F1 ≤ max F1 F2 := by omega
+      have l2 : F2 ≤ max F1 F2 := by omega
+      exact ⟨hck', hx', hp', _, hstep _ (checkDivModPinAt_mono l1 hF1)
+        (fun _ => checkDivModPinLoop_mono l2 hF2)⟩
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:380-388 checkDivModPin — **the
 `Nat.div`/`Nat.mod` variant gate**: the stored value must be definitionally
@@ -1866,7 +2078,7 @@ index's `IFEnvOK` (its `WScoped 0` from `EnvWF env2`), and the variant loop
 theorem checkDivModPin_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hk : CoreSpec μ Arena.checkFuel)
     (hck : CheckOK μ env fe s) (henv : EnvWF env) (hok2 : StepOK env2 fe2 s)
     (hpins : PinsDenote s.store pins pinsP)
     (hn : denoteN s.store.ns cn = some nm)
@@ -1905,7 +2117,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       obtain ⟨hf1, -, -, -⟩ := hwc.2.2.2.2.1 cv' v' hint' rfl
       have hck1 : CheckOK μ env fe s1 := hck.mono hst1 hx1 hc1 hp1
       obtain ⟨hck', hx', hp', F, hF⟩ :=
-        checkDivModPinLoop_bridge hμ hk henv (ConLeche.Expr.WScoped.of_not_hasFvar hf1)
+        checkDivModPinLoop_bridge hk henv (ConLeche.Expr.WScoped.of_not_hasFvar hf1)
           pins pinsP [] [] s1 s' hck1 (PinsDenote.mono hx1 _ _ hpins) (denoteN_ext hn hx1)
           (denote_ext hvv hx1) r1
       refine ⟨hck'.state, hx1.trans hx', by rw [hp', hp1], F, ?_⟩

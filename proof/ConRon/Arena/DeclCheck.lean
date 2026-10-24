@@ -543,6 +543,16 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
+The pin's four ground guards — closed, free-variable-free, level-monomorphic
+and resolving — the first four clauses of `divModPinGuard`. -/
+def groundGuards (fe : IFEnv) (p : EIdx) : AM Bool := do
+  if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
+  else if ← hasFvarFast coreWalkFuel p then pure false
+  else if !(← allLevelParamsDefined [] p) then pure false
+  else constsResolveFFast fe p
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
 One type pin's guard, the body of `divModPinGuard`'s `List.all` closure: the
 constant stored, its stored type free of free variables, the pinned type
 closed, free of free variables and resolving. -/
@@ -572,11 +582,7 @@ constant stored with a closed type, each pinned type closed over constants
 the stream declares. -/
 def divModPinGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx) : AM Bool := do
   let p ← divModDeclPin ps c
-  if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
-  else if ← hasFvarFast coreWalkFuel p then pure false
-  else if !(← allLevelParamsDefined [] p) then pure false
-  else if ← constsResolveFFast fe p then
-    typePinsGuard fe (← divModTypePins ps c)
+  if ← groundGuards fe p then typePinsGuard fe (← divModTypePins ps c)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:323-330 divModCertsGuard

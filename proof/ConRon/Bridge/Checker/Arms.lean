@@ -496,7 +496,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     rcases AM.ite_ok rB with ⟨hyD, hgD⟩ | ⟨hnD, hgD⟩
     · obtain ⟨u, sC, gC, rC⟩ := AM.bind_ok hgD
       obtain ⟨hstC, hxC, hpC, FD, hpureD⟩ :=
-        checkDivModPin_bridge hμ hk (hokA.check.congr_find hpre hpreT) hokA.envWF hstA
+        checkDivModPin_bridge hk (hokA.check.congr_find hpre hpreT) hokA.envWF hstA
           (PinsDenote.mono hextA _ _ hpins) hnmA gC
       obtain ⟨rfl, rfl⟩ := AM.pure_ok rC
       exact mkOut _ (max FA FD) hstC (hextA.trans hxC) (by rw [hpC, hpinA])

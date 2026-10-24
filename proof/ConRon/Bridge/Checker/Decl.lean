@@ -67,9 +67,29 @@ open ConLeche ConRon.Arena
 
 /-! ## The interned pin variants denote -/
 
-/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:31-50 NatOpPinSet — one
+/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet — an
+interned type-pin list denotes con-leche's, pair by pair and in order. -/
+def TypePinsDenote (st : EStore) :
+    List (NIdx × EIdx) → List (ConLeche.Name × Expr) → Prop
+  | [], [] => True
+  | p :: ps, q :: qs =>
+    denoteN st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2 ∧ TypePinsDenote st ps qs
+  | _, _ => False
+
+/-- con-leche: none — a type-pin list's denotation transports across an
+append. -/
+theorem TypePinsDenote.mono {st st' : EStore} (hx : Ext st st') :
+    ∀ ps qs, TypePinsDenote st ps qs → TypePinsDenote st' ps qs
+  | [], [], _ => trivial
+  | _ :: ps, _ :: qs, ⟨h1, h2, h3⟩ =>
+    ⟨denoteN_ext h1 hx, denote_ext h2 hx, TypePinsDenote.mono hx ps qs h3⟩
+  | [], _ :: _, h => h.elim
+  | _ :: _, [], h => h.elim
+
+/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet — one
 interned pin variant denotes con-leche's: the toolchain string is carried
-verbatim and each of the sixteen terms denotes its counterpart. -/
+verbatim, each of the sixteen terms denotes its counterpart and each of the
+eight type-pin lists its own. -/
 structure PinSetDenote (st : EStore) (p : INatOpPinSet) (q : NatOpPinSet) :
     Prop where
   toolchain : p.toolchain = q.toolchain
@@ -91,6 +111,14 @@ structure PinSetDenote (st : EStore) (p : INatOpPinSet) (q : NatOpPinSet) :
     = some q.shiftLeftProofs
   shiftRightProofs : Frontend.denoteEList st p.shiftRightProofs
     = some q.shiftRightProofs
+  divTypePins : TypePinsDenote st p.divTypePins q.divTypePins
+  modTypePins : TypePinsDenote st p.modTypePins q.modTypePins
+  gcdTypePins : TypePinsDenote st p.gcdTypePins q.gcdTypePins
+  landTypePins : TypePinsDenote st p.landTypePins q.landTypePins
+  lorTypePins : TypePinsDenote st p.lorTypePins q.lorTypePins
+  xorTypePins : TypePinsDenote st p.xorTypePins q.xorTypePins
+  shiftLeftTypePins : TypePinsDenote st p.shiftLeftTypePins q.shiftLeftTypePins
+  shiftRightTypePins : TypePinsDenote st p.shiftRightTypePins q.shiftRightTypePins
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the interned pin LIST
 denotes con-leche's, variant by variant and in order (the order is the order
@@ -131,7 +159,15 @@ theorem PinsDenote.mono {st st' : EStore} (hx : Ext st st') :
         lorProofs := denoteEList_ext hx _ _ h1.lorProofs
         xorProofs := denoteEList_ext hx _ _ h1.xorProofs
         shiftLeftProofs := denoteEList_ext hx _ _ h1.shiftLeftProofs
-        shiftRightProofs := denoteEList_ext hx _ _ h1.shiftRightProofs }
+        shiftRightProofs := denoteEList_ext hx _ _ h1.shiftRightProofs
+        divTypePins := TypePinsDenote.mono hx _ _ h1.divTypePins
+        modTypePins := TypePinsDenote.mono hx _ _ h1.modTypePins
+        gcdTypePins := TypePinsDenote.mono hx _ _ h1.gcdTypePins
+        landTypePins := TypePinsDenote.mono hx _ _ h1.landTypePins
+        lorTypePins := TypePinsDenote.mono hx _ _ h1.lorTypePins
+        xorTypePins := TypePinsDenote.mono hx _ _ h1.xorTypePins
+        shiftLeftTypePins := TypePinsDenote.mono hx _ _ h1.shiftLeftTypePins
+        shiftRightTypePins := TypePinsDenote.mono hx _ _ h1.shiftRightTypePins }
 
 /-! ## What an arm concludes -/
 

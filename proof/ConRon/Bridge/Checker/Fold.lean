@@ -66,6 +66,17 @@ theorem dropScratch_run (s : AState) :
 
 /-! ## The pin list survives a drop -/
 
+/-- con-leche: none — a persistent type-pin list keeps denoting across a
+`dropScratch`. -/
+theorem TypePinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
+    ∀ ps qs, PersTypePins ps → TypePinsDenote st ps qs → TypePinsDenote st' ps qs
+  | [], [], _, _ => trivial
+  | p :: ps, _ :: qs, hp, ⟨h1, h2, h3⟩ =>
+    ⟨denoteN_pext hx (hp p (by simp)).1 h1, denoteE_pext hx (hp p (by simp)).2 h2,
+      TypePinsDenote.pmono hx ps qs (fun c hc => hp c (by simp [hc])) h3⟩
+  | [], _ :: _, _, h => h.elim
+  | _ :: _, [], _, h => h.elim
+
 /-- con-leche: none — the interned pin variants keep denoting across a
 `dropScratch`, because `internAllPins` ran before the parse with the scratch
 tier closed and every pin handle is therefore persistent. -/
@@ -104,7 +115,23 @@ theorem PinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
         shiftLeftProofs := denoteEList_pext hx _ _
           (fun c hc => hpr c (by simp [hc])) h1.shiftLeftProofs
         shiftRightProofs := denoteEList_pext hx _ _
-          (fun c hc => hpr c (by simp [hc])) h1.shiftRightProofs }
+          (fun c hc => hpr c (by simp [hc])) h1.shiftRightProofs
+        divTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.divTypePins
+        modTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.modTypePins
+        gcdTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.gcdTypePins
+        landTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.landTypePins
+        lorTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.lorTypePins
+        xorTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.xorTypePins
+        shiftLeftTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.shiftLeftTypePins
+        shiftRightTypePins := TypePinsDenote.pmono hx _ _
+          (fun c hc => hpa.typePins c (by simp [hc])) h1.shiftRightTypePins }
 
 /-! ## THE PER-DECLARATION BRIDGE -/
 

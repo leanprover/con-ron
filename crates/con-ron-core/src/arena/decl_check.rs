@@ -762,9 +762,9 @@ pub fn reduce_pin_guard(
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:192-196 reducePinGuard
 /// con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:136-144 reducePinGuard` (and
-/// the first four guards of `divModPinGuard`, the same four on a different
-/// pin) — closed, free-variable-free, level-monomorphic and resolving.  The
-/// twin writes the four out twice; one function here.
+/// `groundGuards`, the same four on a different pin) — closed,
+/// free-variable-free, level-monomorphic and resolving.  The twin writes the
+/// four out twice; one function here.
 pub fn ground_guards(
     pers: &PersTier,
     vis: u64,

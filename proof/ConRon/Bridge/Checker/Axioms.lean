@@ -422,5 +422,9 @@ hypotheses of the statement. -/
 #print axioms divModCertsGuard_run
 #print axioms checkDivModCerts_bridge_aux
 #print axioms checkDivModPinAt_bridge
+-- the type pins (`Bridge/Checker/TypePins.lean`)
+#print axioms typePinStored_spec
+#print axioms typePinsGuard_spec
+#print axioms checkTypePins_spec
 
 end ConRon.Bridge

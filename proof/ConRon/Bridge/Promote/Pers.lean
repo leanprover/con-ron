@@ -536,6 +536,10 @@ structure PersVG (g : Arena.ValueGroup) : Prop where
   cv : PersCV g.cv
   jv : PersE g.jv
 
+/-- con-leche: none — a type-pin list is persistent: every name and every
+type handle. -/
+def PersTypePins (ps : List (NIdx × EIdx)) : Prop := ∀ p ∈ ps, PersN p.1 ∧ PersE p.2
+
 /-- con-leche: none — a `Nat`-operation pin variant is persistent
 (`internAllPins` runs before the parse, with the scratch tier closed). -/
 structure PersPinSet (p : INatOpPinSet) : Prop where
@@ -544,6 +548,9 @@ structure PersPinSet (p : INatOpPinSet) : Prop where
   proofs : PersEList (p.divProofs ++ p.modProofs ++ p.gcdProofs ++
     p.landProofs ++ p.lorProofs ++ p.xorProofs ++ p.shiftLeftProofs ++
     p.shiftRightProofs)
+  typePins : PersTypePins (p.divTypePins ++ p.modTypePins ++ p.gcdTypePins ++
+    p.landTypePins ++ p.lorTypePins ++ p.xorTypePins ++ p.shiftLeftTypePins ++
+    p.shiftRightTypePins)
 
 /-- con-leche: none — every pin variant is persistent. -/
 def PersPinSets (ps : List INatOpPinSet) : Prop := ∀ p ∈ ps, PersPinSet p

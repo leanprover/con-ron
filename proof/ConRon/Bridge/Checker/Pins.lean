@@ -262,10 +262,95 @@ theorem internReservedPins_run {s s' : AState} (hok : StateOK s)
         zeroLevel := Frontend.PersL_of_denote hwf6 hoff6 hz6
         sortOne := Frontend.PersE_of_denote hwf6 hoff6 he6 }
 
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — one type-pin list,
+interned: each name and type an `IStepS` link (`Frontend.internName_sstep`,
+`Frontend.internExpr_sstep`), every denotation transported to the final
+store. -/
+theorem internTypePins_sstep : ∀ (ps : List (ConLeche.Name × Expr))
+    {r : List (NIdx × EIdx)} {s s' : AState}, StateOK s →
+    ConRon.Arena.internTypePins ps s = .ok (r, s') →
+    Frontend.IStepS s s' ∧ TypePinsDenote s'.store r ps := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro r s s' hok hrun
+    rw [ConRon.Arena.internTypePins] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst; subst hv
+    exact ⟨Frontend.IStepS.refl hok, trivial⟩
+  | cons q qs ih =>
+    intro r s s' hok hrun
+    rw [ConRon.Arena.internTypePins] at hrun
+    obtain ⟨n, s₁, g1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨t1, d1⟩ := Frontend.internName_sstep hok g1
+    obtain ⟨t, s₂, g2, r2⟩ := AM.bind_ok r1
+    obtain ⟨t2, d2⟩ := Frontend.internExpr_sstep t1.ok g2
+    obtain ⟨rs, s₃, g3, r3⟩ := AM.bind_ok r2
+    obtain ⟨t3, d3⟩ := ih t2.ok g3
+    obtain ⟨hv, hst⟩ := AM.pure_ok r3
+    subst hst; subst hv
+    exact ⟨(t1.trans t2).trans t3, denoteN_ext d1 (t2.ext.trans t3.ext),
+      denote_ext d2 t3.ext, d3⟩
+
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the eight type-pin
+lists, written into the record. -/
+theorem internPinSetTypePins_sstep {ps : NatOpPinSet} {p0 p : INatOpPinSet}
+    {s s' : AState} (hok : StateOK s)
+    (hrun : ConRon.Arena.internPinSetTypePins ps p0 s = .ok (p, s')) :
+    Frontend.IStepS s s' ∧ p.toolchain = p0.toolchain ∧
+      p.divPin = p0.divPin ∧ p.modPin = p0.modPin ∧ p.gcdPin = p0.gcdPin ∧
+      p.landPin = p0.landPin ∧ p.lorPin = p0.lorPin ∧ p.xorPin = p0.xorPin ∧
+      p.shiftLeftPin = p0.shiftLeftPin ∧ p.shiftRightPin = p0.shiftRightPin ∧
+      p.divProofs = p0.divProofs ∧ p.modProofs = p0.modProofs ∧
+      p.gcdProofs = p0.gcdProofs ∧ p.landProofs = p0.landProofs ∧
+      p.lorProofs = p0.lorProofs ∧ p.xorProofs = p0.xorProofs ∧
+      p.shiftLeftProofs = p0.shiftLeftProofs ∧ p.shiftRightProofs = p0.shiftRightProofs ∧
+      TypePinsDenote s'.store p.divTypePins ps.divTypePins ∧
+      TypePinsDenote s'.store p.modTypePins ps.modTypePins ∧
+      TypePinsDenote s'.store p.gcdTypePins ps.gcdTypePins ∧
+      TypePinsDenote s'.store p.landTypePins ps.landTypePins ∧
+      TypePinsDenote s'.store p.lorTypePins ps.lorTypePins ∧
+      TypePinsDenote s'.store p.xorTypePins ps.xorTypePins ∧
+      TypePinsDenote s'.store p.shiftLeftTypePins ps.shiftLeftTypePins ∧
+      TypePinsDenote s'.store p.shiftRightTypePins ps.shiftRightTypePins := by
+  simp only [ConRon.Arena.internPinSetTypePins] at hrun
+  obtain ⟨x1, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨t1, d1⟩ := internTypePins_sstep _ hok g1
+  obtain ⟨x2, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨t2, d2⟩ := internTypePins_sstep _ t1.ok g2
+  obtain ⟨x3, s3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨t3, d3⟩ := internTypePins_sstep _ t2.ok g3
+  obtain ⟨x4, s4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨t4, d4⟩ := internTypePins_sstep _ t3.ok g4
+  obtain ⟨x5, s5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨t5, d5⟩ := internTypePins_sstep _ t4.ok g5
+  obtain ⟨x6, s6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨t6, d6⟩ := internTypePins_sstep _ t5.ok g6
+  obtain ⟨x7, s7, g7, r7⟩ := AM.bind_ok r6
+  obtain ⟨t7, d7⟩ := internTypePins_sstep _ t6.ok g7
+  obtain ⟨x8, s8, g8, r8⟩ := AM.bind_ok r7
+  obtain ⟨t8, d8⟩ := internTypePins_sstep _ t7.ok g8
+  obtain ⟨hv, hst⟩ := AM.pure_ok r8
+  subst hst; subst hv
+  have e7 : Ext s7.store s'.store := t8.ext
+  have e6 : Ext s6.store s'.store := t7.ext.trans e7
+  have e5 : Ext s5.store s'.store := t6.ext.trans e6
+  have e4 : Ext s4.store s'.store := t5.ext.trans e5
+  have e3 : Ext s3.store s'.store := t4.ext.trans e4
+  have e2 : Ext s2.store s'.store := t3.ext.trans e3
+  have e1 : Ext s1.store s'.store := t2.ext.trans e2
+  exact ⟨((((((t1.trans t2).trans t3).trans t4).trans t5).trans t6).trans t7).trans t8,
+    rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    TypePinsDenote.mono e1 _ _ d1, TypePinsDenote.mono e2 _ _ d2,
+    TypePinsDenote.mono e3 _ _ d3, TypePinsDenote.mono e4 _ _ d4,
+    TypePinsDenote.mono e5 _ _ d5, TypePinsDenote.mono e6 _ _ d6,
+    TypePinsDenote.mono e7 _ _ d7, d8⟩
+
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — ONE pin variant,
 interned: sixteen `internExpr`/`internExprList` calls, each an `IStepS` link
 (`Frontend.internExpr_sstep`, `Frontend.internExprList_sstep` at a fresh
-memo), every denotation transported to the final store. -/
+memo), then the type pins (`internPinSetTypePins_sstep`), every denotation
+transported to the final store. -/
 theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
     (hok : StateOK s) (hrun : ConRon.Arena.internPinSet ps s = .ok (p, s')) :
     Frontend.IStepS s s' ∧ PinSetDenote s'.store p ps := by
@@ -317,9 +402,9 @@ theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
   obtain ⟨t15, d15⟩ := iL t14.ok g15
   obtain ⟨x16, s16, g16, r16⟩ := AM.bind_ok r15
   obtain ⟨t16, d16⟩ := iL t15.ok g16
-  obtain ⟨hv, hst⟩ := AM.pure_ok r16
-  subst hst; subst hv
-  have e16 : Ext s'.store s'.store := Ext.refl _
+  obtain ⟨t17, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16,
+    k1, k2, k3, k4, k5, k6, k7, k8⟩ := internPinSetTypePins_sstep t16.ok r16
+  have e16 : Ext s16.store s'.store := t17.ext
   have e15 : Ext s15.store s'.store := t16.ext.trans e16
   have e14 : Ext s14.store s'.store := t15.ext.trans e15
   have e13 : Ext s13.store s'.store := t14.ext.trans e14
@@ -335,25 +420,33 @@ theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
   have e3 : Ext s3.store s'.store := t4.ext.trans e4
   have e2 : Ext s2.store s'.store := t3.ext.trans e3
   have e1 : Ext s1.store s'.store := t2.ext.trans e2
-  refine ⟨(((((((((((((((t1).trans t2).trans t3).trans t4).trans t5).trans t6).trans t7).trans t8).trans t9).trans t10).trans t11).trans t12).trans t13).trans t14).trans t15).trans t16, ?_⟩
+  refine ⟨((((((((((((((((t1).trans t2).trans t3).trans t4).trans t5).trans t6).trans t7).trans t8).trans t9).trans t10).trans t11).trans t12).trans t13).trans t14).trans t15).trans t16).trans t17, ?_⟩
   exact
-    { toolchain := rfl
-      divPin := e1.expr _ _ d1
-      modPin := e2.expr _ _ d2
-      gcdPin := e3.expr _ _ d3
-      landPin := e4.expr _ _ d4
-      lorPin := e5.expr _ _ d5
-      xorPin := e6.expr _ _ d6
-      shiftLeftPin := e7.expr _ _ d7
-      shiftRightPin := e8.expr _ _ d8
-      divProofs := denoteEList_ext e9 _ _ d9
-      modProofs := denoteEList_ext e10 _ _ d10
-      gcdProofs := denoteEList_ext e11 _ _ d11
-      landProofs := denoteEList_ext e12 _ _ d12
-      lorProofs := denoteEList_ext e13 _ _ d13
-      xorProofs := denoteEList_ext e14 _ _ d14
-      shiftLeftProofs := denoteEList_ext e15 _ _ d15
-      shiftRightProofs := denoteEList_ext e16 _ _ d16 }
+    { toolchain := h0
+      divPin := h1 ▸ e1.expr _ _ d1
+      modPin := h2 ▸ e2.expr _ _ d2
+      gcdPin := h3 ▸ e3.expr _ _ d3
+      landPin := h4 ▸ e4.expr _ _ d4
+      lorPin := h5 ▸ e5.expr _ _ d5
+      xorPin := h6 ▸ e6.expr _ _ d6
+      shiftLeftPin := h7 ▸ e7.expr _ _ d7
+      shiftRightPin := h8 ▸ e8.expr _ _ d8
+      divProofs := h9 ▸ denoteEList_ext e9 _ _ d9
+      modProofs := h10 ▸ denoteEList_ext e10 _ _ d10
+      gcdProofs := h11 ▸ denoteEList_ext e11 _ _ d11
+      landProofs := h12 ▸ denoteEList_ext e12 _ _ d12
+      lorProofs := h13 ▸ denoteEList_ext e13 _ _ d13
+      xorProofs := h14 ▸ denoteEList_ext e14 _ _ d14
+      shiftLeftProofs := h15 ▸ denoteEList_ext e15 _ _ d15
+      shiftRightProofs := h16 ▸ denoteEList_ext e16 _ _ d16
+      divTypePins := k1
+      modTypePins := k2
+      gcdTypePins := k3
+      landTypePins := k4
+      lorTypePins := k5
+      xorTypePins := k6
+      shiftLeftTypePins := k7
+      shiftRightTypePins := k8 }
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the variant list,
 interned: the list recursion over `internPinSet_sstep`. -/
@@ -389,7 +482,22 @@ theorem PersPinSet_of_denote {st : EStore} (hwf : StoreWF st)
   have hL := fun {xs : List EIdx} {es : List Expr}
     (hd : Frontend.denoteEList st xs = some es) =>
     Frontend.PersEList_of_denote hwf hoff hd
-  refine ⟨?_, ?_⟩
+  have hT : ∀ {xs : List (NIdx × EIdx)} {qs : List (ConLeche.Name × Expr)},
+      TypePinsDenote st xs qs → PersTypePins xs := by
+    intro xs
+    induction xs with
+    | nil => intro _ _ x hx; simp at hx
+    | cons a as ih =>
+      intro qs hd
+      cases qs with
+      | nil => exact hd.elim
+      | cons b bs =>
+        obtain ⟨d1, d2, d3⟩ := hd
+        intro x hx
+        rcases List.mem_cons.mp hx with rfl | hx
+        · exact ⟨Frontend.PersN_of_denote hwf hoff d1, Frontend.PersE_of_denote hwf hoff d2⟩
+        · exact ih d3 x hx
+  refine ⟨?_, ?_, ?_⟩
   · intro e he
     simp only [List.mem_cons, List.not_mem_nil, or_false] at he
     rcases he with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
@@ -412,6 +520,17 @@ theorem PersPinSet_of_denote {st : EStore} (hwf : StoreWF st)
     · exact hL h.xorProofs e he
     · exact hL h.shiftLeftProofs e he
     · exact hL h.shiftRightProofs e he
+  · intro e he
+    simp only [List.mem_append] at he
+    rcases he with ((((((he | he) | he) | he) | he) | he) | he) | he
+    · exact hT h.divTypePins e he
+    · exact hT h.modTypePins e he
+    · exact hT h.gcdTypePins e he
+    · exact hT h.landTypePins e he
+    · exact hT h.lorTypePins e he
+    · exact hT h.xorTypePins e he
+    · exact hT h.shiftLeftTypePins e he
+    · exact hT h.shiftRightTypePins e he
 
 /-- con-leche: none — the same, list-wise. -/
 theorem PersPinSets_of_denote {st : EStore} (hwf : StoreWF st)
