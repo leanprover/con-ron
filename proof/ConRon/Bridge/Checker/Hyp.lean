@@ -289,8 +289,8 @@ its own.
   carries the same clause and `indSpec_of_bridge` passes it through.
 * **The membership-shaped projection-table clause**: every table of the new
   index's table list is an old one or well shaped.
-  `IndOut.proj` (`ProjOut`, both shapes) carries it; the one table push,
-  `checkStructProjTable`, has `IProjTableOK` in hand (`ProjOut.push_table`).
+  `IndOut.proj` (`ProjOut`) carries it; the one table push,
+  `checkStructProjTable`, has `IProjTableOK` in hand (`ProjOut.pushTable`).
   With it `IndSpec.wf` below is a projection.
 
 No fold theorem reads `IndSpec`; they pass it down to `checkDecl_bridge_ind`,
@@ -317,12 +317,11 @@ index is an old one or well shaped.
 
 **Owed by the INDUCTIVES tier**: `IndSpec.run` concludes both clauses —
 `EnvWF` and the membership-shaped table clause (`Bridge/Inductives/Rel.lean`'s
-`ProjOut` carries it beside its `find?` form as `ProjOutM`).  The table clause
-is asked for over MEMBERSHIP, not over `find?`: that is the shape the
-bracket's close consumes (`IFEnvOK_of_denote`), and turning a `find?`-shaped
-clause into it needs the index to answer for every stored table, which is
-itself what the membership clause is used to prove.  The route pushes its
-tables explicitly, so it can state this shape directly.
+`ProjOut`).  The table clause is asked for over MEMBERSHIP, not over the
+gated `findTable?`: that is the shape the bracket's close consumes
+(`IFEnvOK_of_denote`), and a lookup does not reach a table whose structure is
+hidden.  The route pushes its tables explicitly, so it can state this shape
+directly.
 
 Since `IndSpec.run` concludes both clauses, `IndSpec.wf` below is a record
 projection. -/

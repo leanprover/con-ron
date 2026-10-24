@@ -262,10 +262,9 @@ pub fn intern_name_list(
 }
 
 /// con-leche: none — intern a list of transient levels; Lean twin: proof/ConRon/Arena/Monad.lean:525-531 internLevelList
-/// The level-list cursor, for a nested rule's stored levels and a projection
-/// table's guards.  `arena::monad::intern_level_list` is the same walk; this
-/// one is here so that `intern_fire` and `intern_proj_table` read like the
-/// twin's clauses.
+/// The level-list cursor, for a nested rule's stored levels.
+/// `arena::monad::intern_level_list` is the same walk; this one is here so
+/// that `intern_fire` reads like the twin's clause.
 pub fn intern_level_list_go(
     pers: &PersTier,
     st: &mut AState,

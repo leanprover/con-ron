@@ -1196,28 +1196,6 @@ record equality is a HANDLE record equality, so the bridge needs the readback
 to be injective at each field a rule carries — `denoteN_inj` at `ctor`,
 `denoteLList_inj`/`denoteEList_inj` inside a `.nested` firing mode. -/
 
-/-- con-leche: none — `Frontend.denoteEArray` is injective: it is
-`denoteEList` on `toList`, and `Array.toList` is injective. -/
-theorem denoteEArray_inj {st : EStore} (hwf : StoreWF st) {as bs : Array EIdx}
-    {xs : Array Expr} (ha : Frontend.denoteEArray st as = some xs)
-    (hb : Frontend.denoteEArray st bs = some xs) : as = bs := by
-  simp only [Frontend.denoteEArray] at ha hb
-  cases ha' : Frontend.denoteEList st as.toList with
-  | none => rw [ha'] at ha; simp at ha
-  | some xa =>
-    cases hb' : Frontend.denoteEList st bs.toList with
-    | none => rw [hb'] at hb; simp at hb
-    | some xb =>
-      rw [ha'] at ha
-      rw [hb'] at hb
-      simp only [Option.some.injEq] at ha hb
-      have hxx : xa = xb := by
-        have h2 : xa.toArray = xb.toArray := by rw [ha, hb]
-        simpa using congrArg Array.toList h2
-      subst hxx
-      have hl := denoteEList_inj hwf _ _ _ ha' hb'
-      simpa using congrArg List.toArray hl
-
 /-- con-leche: none — a rule's firing mode is determined by its denotation:
 the leaf carries nothing, and `.nested`'s two handle lists are injective
 (`denoteLList_inj`, `denoteEList_inj`). -/

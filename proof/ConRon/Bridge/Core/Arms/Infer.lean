@@ -10,7 +10,7 @@ a twin SUCCESS is what each success lemma is the licence for.
 |---|---|---|
 | `.sort u` | `Sort (u+1)` | `infer_sort` |
 | `.fvar idx ty` | in scope | `infer_fvar` |
-| `.const n us` | stored, not a tower entry, level arity matches | `infer_const` |
+| `.const n us` | stored, level arity matches | `infer_const` |
 | `.lit (.natVal _)` | the `Nat` basis is installed | `infer_natLit` |
 | `.lit (.strVal _)` | the `String` basis is installed | `infer_strLit` |
 | `.forallE` | domain and codomain sorts | the batched `inferPis` (`Walks/BinderLoop.lean`) |
@@ -312,7 +312,7 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
-clause**: the index lookup, the tower-entry and level-arity guards, and the
+clause**: the index lookup, the level-arity guard, and the
 stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec`);
 pure side `infer_const`. -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}

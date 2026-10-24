@@ -15,8 +15,8 @@ and why the capstone needs only its corollary
 **preparation keeps every record it was given.**
 
 Over handles nothing about that changes, and more: `declares` and `pick` are
-PURE on both sides (`Arena/Env.lean`'s `IProjTable.tableName` note is what buys
-it — `IDeclaration.names` is a pure function of handles), so the two `Array`
+PURE on both sides (`IDeclaration.names` is a pure function of handles), so
+the two `Array`
 walks are the same walk with `NIdx` where con-leche has `Name`, and the only
 monadic step in the whole module is `preludeKey`'s `.anonymous` fall-through,
 which has to be interned.

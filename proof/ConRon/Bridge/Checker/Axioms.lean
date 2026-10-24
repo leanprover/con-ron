@@ -273,9 +273,8 @@ namespace ConRon.Bridge
 #print axioms IFEnvOK_restrictTo
 #print axioms IFEnvOK.congr_env
 
--- the `.projInfo` comparison, and the two injectivity facts it needed
+-- the canonical-form comparison
 #print axioms denoteNList_inj
-#print axioms denoteEArray_inj
 #print axioms IConstantInfo.canonEq_run
 #print axioms canonEqList_run
 
@@ -318,17 +317,13 @@ namespace ConRon.Bridge
 -- intern family: the two interned blocks, the two recognisers and the block
 -- install.
 
--- `Arena/Intern.lean`'s fresh-memo wrappers, and `toConstantVal` without a
--- scratch flag (the tier's fifth `.projInfo` site)
+-- `Arena/Intern.lean`'s fresh-memo wrappers
 #print axioms internCI_fresh
 #print axioms internCV_fresh
 
 -- the pinned blocks, interned
 #print axioms BasisKind.decls_run
 #print axioms BasisKind.declsA_run
-
--- no pinned block declares a projection table, so the tier's `.projInfo`
--- hypothesis is DISCHARGED at the basis route rather than carried
 
 -- the two recognisers and the block install
 #print axioms denoteCIList_names

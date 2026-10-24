@@ -8,12 +8,11 @@ arena only grows, the answer is persistent, and it denotes whatever the
 subject denoted — at the `Arena/Frontend/Readback.lean` denotation of its
 record.
 
-One thing is added at the projection table: `denoteProjTable` drops
-`tableName` (con-leche recomputes it), so the denotation cannot say what the
-promotion did to it.  `PromotedTable` says it: the shape fields the index
-invariant `IProjTableOK` reads are unchanged, and both name handles denote
-what they denoted.  That is what carries `IProjTableOK` — hence `IFEnvOK`'s
-`proj` clause — across the promotion (`IProjTableOK.promoted`).
+One thing is added at the projection table: the denotation cannot say what
+the promotion did to the table's SHAPE or to its key.  `PromotedTable` says
+it: the shape fields `IProjTableOK` reads are unchanged, and the structure's
+name handle — the table map's key — denotes what it denoted.  That is what
+carries `IProjTableOK` across the promotion (`IProjTableOK.promoted`).
 -/
 import ConRon.Bridge.Promote.Walk
 

@@ -37,7 +37,7 @@
   plus `merge2`.  It mentions no arena state: it is pure con-leche over
   `Verify/PairM.lean`'s projections and `Verify/Mono.lean`'s `pureFns_mono`.
 * `Walks/Proj.lean` — **the projection table**, on `Bridge/Rel.lean`'s
-  `denoteProjEntry`: `projTableName_spec`, `IFEnv.findProj?_spec`,
+  `denoteProjEntry`: `findTable?_at`, `findProjAt`, `IFEnv.findProj?_spec`,
   `IProjEntry.fireOk_spec`, `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`,
   `projCert_spec` and `projCertAt_spec`.
 * `Walks/Nat.lean` — **the literal acceleration**: `reduceNat_spec` and the

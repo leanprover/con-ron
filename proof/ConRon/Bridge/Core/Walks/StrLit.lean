@@ -11,12 +11,6 @@ name (`ConLeche/Kernel/CoreDefs.lean:301-403`) — `Walks/Nat.lean`'s
 shape's pieces and compares handles, con-leche matches the stored type, and
 DESIGN §8.3's *index equality is structural equality* (`beq_of_denoteE`,
 `beq_of_denoteLs`, `beq_handle_eq`) makes the two the same test.
-
-Also here, because the two inference bodies' `.const` clauses need it and a
-`Walks/` module is where a callee fact belongs: `denoteCI_nonTower`, the
-constant lookup's two facts behind the tower-entry guard, and
-`toConstantVal_spec`, the stored constant's common data in general (the
-`.projInfo` arm INTERNS its `Sort 1`).
 -/
 import ConRon.Bridge.Core.Walks.Nat
 

@@ -675,9 +675,8 @@ theorem structUsedLaterList_spec (cty : EIdx) (ctyP : Expr) (nP : Nat)
 structProjGuards — **the guard list has one entry per field**, by
 construction: the pure function is a `List.range nF` map.  This is the fact
 `Bridge/StateOK.lean`'s `IProjTableOK.guards` asks of the table
-`checkStructProjTable` pushes, and `checkStructProjTable_spec`'s hypothesis
-`hg` is where it has to arrive (`Bridge/Checker/Inv.lean`'s
-`projTableOK_of_install` names the same hypothesis).  The chain is
+`checkStructProjTable` pushes, and `checkStructProjTable_run`'s hypothesis
+`hg` is where it has to arrive.  The chain is
 `structProjGuards_spec` (the handle list denotes the pure one) plus
 `denoteLList_length` (a denotation keeps its length) plus this. -/
 theorem structProjGuards_length (cty : Expr) (nP nF : Nat)

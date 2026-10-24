@@ -8,12 +8,8 @@ Each walk is proved in ONE form, the core:
       StoreWF' s'.store ∧ PMemoOK m' s'.store ∧ PersX r ∧
         (∀ x, denoteX s.store h = some x → denoteX s'.store r = some x)
 
-with the DENOTATION as an implication rather than a hypothesis.  That is not
-cosmetic: a projection table's `tableName` is promoted by `promoteN` and is
-not read back by `denoteProjTable` (con-leche recomputes it), so the
-declaration layer has to promote a handle nobody has asked to denote, and
-still needs the invariant and the memo afterwards.  The implication form
-costs nothing inside the induction, because under the promote window's
+with the DENOTATION as an implication rather than a hypothesis.  The
+implication form costs nothing inside the induction, because under the promote window's
 invariant **every handle that has a view denotes** (`denote*_of_view'`, a rank
 induction): a node the walk reads it can also read back, so the memo row it
 records is a promoted pair whether or not the caller cared.

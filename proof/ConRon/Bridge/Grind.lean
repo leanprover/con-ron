@@ -89,10 +89,10 @@ a walk module adds only what is about its own walk.
 8. **The environment index as equations.**  A lookup `fe.find? c` and the
    environment's `env.find? nm` at the name `c` denotes agree on every
    projection the walks read — ONE fact per lookup (`IndexAt`): is it
-   present, a definition, a constructor, an inductive, a recursor, a tower
-   entry; a definition's hint, record and value, a constructor's record and
-   counts, an inductive's record, level parameters and capabilities, a
-   recursor's record, rules and indices, any record off the tower.  A lookup
+   present, a definition, a constructor, an inductive, a recursor; a
+   definition's hint, record and value, a constructor's record and counts, an
+   inductive's record, level parameters and capabilities, a recursor's
+   record, rules and indices, any record's common data.  A lookup
    that is a definition (an inductive, a constructor) IS one
    (`iDefn?_eta`, …), which refutes a match's fall-through arm; the one case
    split left is on "definition or not" where a walk needs the hint of a

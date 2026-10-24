@@ -278,8 +278,7 @@ theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
               rw [denoteE_inj hwf ha hb, ih bs _ has hbs]
 
 /-- con-leche: none — `Frontend.denoteNList` is injective; `denoteEList_inj`'s
-twin at the NAME store, off `Arena/WFProofs.lean`'s `denoteN_inj`.  The
-`.projInfo` comparison (`denoteProjTable_inj`) needs it at `levelParams`. -/
+twin at the NAME store, off `Arena/WFProofs.lean`'s `denoteN_inj`. -/
 theorem denoteNList_inj {st : EStore} (hwf : StoreWF st) :
     ∀ (as bs : List NIdx) (xs : List ConLeche.Name),
       Frontend.denoteNList st.ns as = some xs →

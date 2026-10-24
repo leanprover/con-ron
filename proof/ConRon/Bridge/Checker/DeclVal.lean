@@ -869,8 +869,8 @@ HANDLES; none of them interns a whole `ConstantInfo`.  They are read through
 `Bridge/Checker/Basis.lean`'s `RunsB` combinators, with four local helpers:
 `constE_run`, the handle comparison at expressions (`beqE_of_denote`), the
 level-parameter emptiness transfer (`lpsEmpty_of_denote`), and — for the
-two `Bool` constructor lookups — `toConstantVal_sstep` at a stored constant,
-whose `.projInfo` premise `IFEnvOK.proj` discharges. -/
+two `Bool` constructor lookups — `denoteCI_toConstantVal` at a stored
+constant. -/
 
 /-- con-leche: none — `constE n` is `.const n []`, interned. -/
 theorem constE_run {n : NIdx} {nm : ConLeche.Name} {e : EIdx} {s s' : AState}
@@ -1223,7 +1223,7 @@ site (`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
 The proof reads the `do`-block link by link
 through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
 `natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
-constructor lookups (whose `.projInfo` premise `IFEnvOK.proj` discharges); the
+constructor lookups (`denoteCI_toConstantVal`); the
 chain is `natOpGuard_runsB`, which `divModEnvGuard` binds too. -/
 theorem natOpGuard_runsB {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {s : AState} (hok : StateOK s) (hp : PinsOK s)

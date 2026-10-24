@@ -35,8 +35,8 @@ the REFINED side only**, `denoteProjTable` transports both columns pointwise
 and copies `numFields` verbatim, so the pure table's sizes ARE ours.  The
 clause is `Bridge/StateOK.lean`'s `IProjTableOK`, carried by `IFEnvOK.tblHit`,
 and `findProjAt` reads it off `hok.ienv` with no hypothesis of its own.
-Its one debtor is the install (`Bridge/Checker/Inv.lean`'s
-`projTableOK_of_install`, owned by the Inductives tier).
+Its one debtor is the table install (`Bridge/Inductives/StructInstall.lean`,
+owned by the Inductives tier).
 
 ## 2. The `readNamesM` frame
 

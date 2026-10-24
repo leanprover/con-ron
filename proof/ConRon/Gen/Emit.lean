@@ -305,17 +305,6 @@ def gHint : ReducibilityHint → String
   | .abbrev => "ReducibilityHint::Abbrev"
   | .regular h => s!"ReducibilityHint::Regular({h})"
 
-def gProjTable (t : ProjTable) : G String := do
-  let sn ← gName t.structName
-  let lps ← gNameVec t.levelParams
-  let ct ← gName t.ctor
-  let ss ← gLevel t.structSort
-  let bs ← gExprVec t.bodies.toList
-  let gs ← gLevelVec t.guards
-  bind "pt" s!"ProjTable {lb} struct_name: name::dup(&{sn}), level_params: {lps}, \
-num_params: {t.numParams}, ctor: name::dup(&{ct}), num_fields: {t.numFields}, \
-struct_sort: level::dup(&{ss}), bodies: {bs}, guards: {gs}, off: {t.off} {rb}"
-
 def gConstantInfo : ConstantInfo → G String
   | .axiomInfo cv => do
     let v ← gConstantVal cv
@@ -339,9 +328,6 @@ def gConstantInfo : ConstantInfo → G String
     let rvs ← rs.mapM gRecRule
     let rsv ← gVec "rs" "RecRule" rvs
     bind "ci" s!"ConstantInfo::RecInfo({v}, {np}, {nm}, {rsv})"
-  | .projInfo t => do
-    let v ← gProjTable t
-    bind "ci" s!"ConstantInfo::ProjInfo({v})"
 
 /-! ## Assembling a function -/
 

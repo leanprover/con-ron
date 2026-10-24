@@ -29,7 +29,7 @@ and never the other way round.  Part 2 ports
 **Where the monad comes from.**  Only `preludeKey`, whose `.anonymous`
 fall-through has to be interned, and the two functions that call it; `pick`
 and `declares` are pure, exactly as con-leche's are, because
-`IDeclaration.names` is (`Arena/Env.lean`'s `IProjTable.tableName` note).
+`IDeclaration.names` is.
 Nothing in this module reads or writes a term.
 -/
 import ConRon.Arena.Frontend.ExportC
@@ -81,8 +81,8 @@ when no record declares the name — is exactly "the stream does not declare it,
 nothing is erased".
 
 PURE, like con-leche's: `IDeclaration.names` is pure because
-`IConstantInfo.name` is (`Arena/Env.lean`'s `tableName` note), which is what
-keeps `findIdx`'s predicate a predicate.  A stream is millions of records
+`IConstantInfo.name` is, which is what keeps `findIdx`'s predicate a
+predicate.  A stream is millions of records
 long, and this runs once per prelude record over all of them. -/
 def pick (n : NIdx) (ds : Array IDeclaration) :
     Option IDeclaration × Array IDeclaration :=

@@ -18,8 +18,7 @@ stand on it (`propIrrel`, `annotPwPi`, `annotPwLam`).
   their postcondition is `CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
   s'.pins = s₀.pins`, the frame `Walks/Frame.lean`'s `ReadbackFrame`
   delivers.  The store EQUATION is stronger than `Ext` and is what these
-  readers actually satisfy (nothing is interned: `toConstantVal` is pure off
-  a projection table, and the tower guard keeps the readers off that arm).
+  readers actually satisfy (nothing is interned: `toConstantVal` is pure).
 * **Every reader is stated in ANSWER shape**: each one is reached, inside
   this file or from a caller, through another call's answer (`getAppFn`'s
   head, `peelPisW`'s residual, `toConstantVal`'s stored type, the knot's
@@ -29,9 +28,7 @@ stand on it (`propIrrel`, `annotPwPi`, `annotPwLam`).
 ## The index lookup
 
 `fe.find? I` against `env.find? nm` is `Bridge/Grind.lean` §8's `IndexAt`:
-a hit's tower-ness is the denotation's, and off the tower the stored record
-denotes the environment's; the arena's monadic `toConstantVal` is then pure
-(``).
+the stored record denotes the environment's, and `toConstantVal` is pure.
 The has-parameters cutoff (DESIGN, task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 

@@ -545,8 +545,8 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
             -- stage 5: the slot discipline
             have hslots := towerSlotsAll_spec T Tn icaps.etaFields hok5 (denoteN_ext hTn hx5)
             generalize ConRon.Arena.towerSlotsAll fe T icaps.etaFields = slots at hslots ⊢
-            have hx07 : Ext s₀.store s5.store := hx5.trans (Ext.refl _)
-            have hp07 : s5.pins = s₀.pins := rfl.trans hp5
+            have hx07 : Ext s₀.store s5.store := hx5
+            have hp07 : s5.pins = s₀.pins := hp5
             obtain ⟨_, hlpsC, _⟩ := denoteCV_inv hdcvc
             obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
             have hctr : icaps.etaCtor = c ↔ ct = cn :=
