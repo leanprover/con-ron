@@ -2612,7 +2612,10 @@ pub fn check_div_mod_pin_certs(
 /// succeeds enables the fast path; every other outcome moves on to the next
 /// variant, and when none is left the stream DECLINES.  Every step is a
 /// boolean decision — the guards, then the attempt's `true`/`false`
-/// (`check_div_mod_pin_at`) — and an error from either is the run's.
+/// (`check_div_mod_pin_at`, in `check_div_mod_pin_try`) — and an error from
+/// either is the run's.  The two guards short-circuit as the cited `&&` of
+/// two pure `Bool`s does: a variant whose pin guard fails never walks its
+/// certificates.
 ///
 /// Deviation: the cited loop accumulates one reason per variant
 /// (`divModAttemptReason`, the ground-constants text) for the decline
@@ -2636,27 +2639,53 @@ pub fn check_div_mod_pin_loop(
     } else {
         match div_mod_pin_guard(pers, vis, st, &variants[i], fe, c) {
             Err(e) => Err(e),
-            Ok(g1) => match div_mod_certs_guard(pers, vis, st, &variants[i], fe, c, value2) {
-                Err(e) => Err(e),
-                Ok(g2) => {
-                    if g1 && g2 {
-                        match check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, &variants[i]) {
-                            Err(e) => Err(e),
-                            Ok(ok) => {
-                                if ok {
-                                    Ok(())
-                                } else {
-                                    check_div_mod_pin_loop(
-                                        pers, vis, st, mode, fe, c, value2, variants, i + 1,
-                                    )
-                                }
+            Ok(g1) => {
+                if g1 {
+                    match div_mod_certs_guard(pers, vis, st, &variants[i], fe, c, value2) {
+                        Err(e) => Err(e),
+                        Ok(g2) => {
+                            if g2 {
+                                check_div_mod_pin_try(pers, vis, st, mode, fe, c, value2, variants, i)
+                            } else {
+                                check_div_mod_pin_loop(
+                                    pers, vis, st, mode, fe, c, value2, variants, i + 1,
+                                )
                             }
                         }
-                    } else {
-                        check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1)
                     }
+                } else {
+                    check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1)
                 }
-            },
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:424-439 checkDivModPinLoopF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinTry` — the
+/// loop's step at a variant whose guards passed: the attempt, then the
+/// loop's tail call on `false`.
+#[allow(clippy::too_many_arguments)]
+pub fn check_div_mod_pin_try(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    c: &NIdx,
+    value2: &EIdx,
+    variants: &Vec<INatOpPinSet>,
+    i: usize,
+) -> Result<(), CheckError> {
+    match check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, &variants[i]) {
+        Err(e) => Err(e),
+        Ok(ok) => {
+            if ok {
+                Ok(())
+            } else {
+                check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1)
+            }
         }
     }
 }
