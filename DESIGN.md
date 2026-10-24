@@ -987,48 +987,22 @@ statements and it is already over every pin list.  Nothing about the port's
 own tower changed: it was already stated at `absPins pins`, so the bump cost
 one argument order and `Refine/Main.lean`'s two compositions.
 
-**`orElse`: an attempt's error is the verdict (ruling of 2026-09-13, task
-#65).**  con-leche has exactly one error-recovery point: the Nat-op pin loop
-tries the pin variants in order and `orElse` (`Kernel/CheckerBase.lean:53`)
-has three arms — `true` is the match, `false` moves to the next variant with
-the *post*-attempt state, and `error e` moves to the next variant with the
-*pre*-attempt state, remembering `e` for the decline message.  **The port's
-loop no longer acts on an attempt's error.**  `cached::checker_c::or_else_step`
-maps `Err e` to `Failed(e)` and `checker::check_div_mod_pin_loop` returns it:
-an attempt that throws makes the whole pin check fail with `e`, the decline
-naming what that variant failed on, exactly as con-leche's decline names it
-once every variant has failed.  Only `Ok(false)` walks on, and it walks on
-with the attempt's own state — con-leche's `false` arm, which the port's
-`&mut CState` already threads.
-
-Why: the tier is stated in the accept direction only (§3.5), but the loop
-*observed* failure, so tasks #56/#58 had to carry two facts no accept-direction
-lemma supplies — that a failed port attempt's memo writes are invisible to
-`StateRel` (con-leche discards them, a `&mut CState` cannot), and that a
-port-side throw is a model-side throw (`Core.Wrappers` says nothing when the
-Rust fails).  They were the named hypotheses `OrElseErrorStateSound` and
-`OrElseErrorDeclines`, bundled as `CheckerDecl.DivModOrElse` and carried by
-every capstone.  Discharging them meant either an error-direction restatement
-of the whole tower (a second `*_err_refines` family the size of the first,
-preceded by turning every Rust-only `CheckError` — overflow, shift amount —
-into an Aeneas `fail`) or keeping them as assumptions; the cheaper targeted
-fix, relaxing `StateRel` to a soundness invariant, does not work, because the
-cached `orElse` (`Cached/CheckerC.lean:93`) discards the attempt's state on
-`error` and characterising the per-declaration memos by soundness is the
-memo-soundness proof §3.1 exists to avoid.  Making the error the verdict
-removes the observation instead: the error arm becomes unreachable from an
-accept, both hypotheses are deleted, and the capstones are hypothesis-free
-here.
-
-**It is a deviation, and it is in the port, not the proof** — recorded in
-`cached::checker_c.rs`'s module note, in `checker.rs`'s note 3, and in
-`Refine/CheckerC.lean`'s.  It can only *lose* acceptances: the one stream
-shape it separates the two checkers on is one where variant `i`'s pin is
-definitionally equal to the stored value but one of its certificates throws
-*and* a later variant `j` matches in full — con-leche accepts by walking on,
-con-ron declines with variant `i`'s error.  A decline is never an unsound
-accept, so §1's claim is untouched; the fixture corpus does not contain the
-shape (task #65: `diff-e2e` 348/348, `diff-fixtures` 315/0 unchanged).
+**The pin gate's variant selection is boolean (con-leche's task #364,
+ported at task #129).**  The Nat-op pin gate tries the pin variants in order,
+and every step of the selection is a `Bool`: the variant's guards
+(`divModPinGuard` — the four ground guards on its pin and the syntactic guards
+on its type pins — `&&` `divModCertsGuard`), then its attempt
+(`checkDivModPinAt`: the type pins by definitional equality, the value pin,
+the certificates).  `true` enables the operation's fast path, `false` moves to
+the next variant, and an error thrown anywhere is the run's error: the checker
+has no recovery point.  The type pins are what make that possible — they
+compare the types of the constants whose types differ between supported
+toolchains (`Decidable.rec`/`Decidable.casesOn`), so a foreign toolchain's
+variant fails by a `false` before its certificates are inferred.  The port is
+the same program: `arena::decl_check::check_div_mod_pin_loop` and its twin
+decide exactly these booleans, the two guards short-circuiting as con-leche's
+`&&` of two pure `Bool`s does, and the one deviation is the decline's text (a
+fixed message where con-leche lists a reason per variant; §3.1).
 
 **The port's accept-direction deviations, in one place.**  Each *declines*
 where con-leche accepts, which §1's one-directional theorem permits and the
@@ -1040,19 +1014,16 @@ differential gates measure:
 * `checkDecl`'s `.indDecl` arm before its routes landed, and any family not
   yet ported: a decline, never a silent accept (the declared parameter count
   is still checked first, so a wrong `nparams` is a *rejection*).
-* **the pin loop's error arm** (this ruling): a thrown attempt declines the
-  stream instead of trying the remaining variants.
 
 **Ruling of 2026-09-13 (maintainer): full-outcome simulation, partial only
 in the Rust-only errors.**  Task #65's "an attempt's error is the verdict"
-is superseded.  The architecture: (1) `CheckError` gets a fourth
+is superseded (and since task #129 there is no recovery point left to
+rule on).  The architecture: (1) `CheckError` gets a fourth
 constructor `native` for failures with no con-leche counterpart (word
 overflow, the shift amount beyond `u64`, index-width checks); the three
 mirrored constructors keep con-leche's meaning; `absErr` maps mirrored
 errors to con-leche's kind (messages are not compared) and `native` to
-nothing.  (2) `orElse` backtracks on a *mirrored* error, continuing from
-the pre-attempt state (a `CState` snapshot, con-leche's `k (some e) s`),
-and treats a `native` error as the verdict.  (3) Every refinement lemma is
+nothing.  (2) Every refinement lemma is
 stated over the full outcome: `Ok r ↦ .ok (abs r)` with the state related;
 `Err (mirrored e) ↦ .error e'` with `absErr e = e'.kind`; `Err (native _)`
 unconstrained; aborts (Aeneas `fail`) unconstrained.  §3.5's "exact on
@@ -1234,7 +1205,7 @@ proof-carrying apparatus (the sixteen `*MemoInv`s, `Installed.lean`'s
 `InstallRun`/`GroupChecked`/`collectChecks` family, `PropWhen.casesZ`);
 the address-keyed apparatus of `Expr.beq` that §3.2's pointer axioms replace;
 and driver-only rendering (`msSecs`, `declCLabel`, `ValueKind.word`,
-`divModAttemptReason`, `Name.toString`, `reprPrec'` — §3.1: the theorem never
+`Name.toString`, `reprPrec'` — §3.1: the theorem never
 reads a message).  The long argument for each lives in the Rust module note of
 the module that would have held it; the skip file is the machine-readable index
 of those notes.
@@ -2978,9 +2949,7 @@ Things deliberately left for the end, recorded here so they are not lost.
   the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
   persistent intern) from `Internal` to `Native` — "fine for now, it gives
   partial correctness; but if there is an invariant why we do not hit this
-  code path we should be able to prove this."  `M_REFREEZE` joins them (task
-  #97-T2-LOCKSTEP D4c: the pin attempt reached on an already-frozen store;
-  unreachable because phase B never calls `check_decl`).  So, once every `sorry` is
+  code path we should be able to prove this."  So, once every `sorry` is
   gone: for each `Native` site, either prove it unreachable from the
   checker's entry (the frozen guard should follow from the phase discipline:
   nothing interns persistently while the tier is shared), or document why it

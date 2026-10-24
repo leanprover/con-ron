@@ -76,7 +76,7 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 open ConRon.Refine
 
-/-- A pin variant's seventeen fields are well formed. -/
+/-- A pin variant's twenty-five fields are well formed. -/
 structure NatOpPinSetWF (s : nat_op_pins.NatOpPinSet) : Prop where
   toolchain : StrWF s.toolchain
   divPin : ExprWF s.div_pin
@@ -95,6 +95,14 @@ structure NatOpPinSetWF (s : nat_op_pins.NatOpPinSet) : Prop where
   xorProofs : ExprsWF s.xor_proofs
   shiftLeftProofs : ExprsWF s.shift_left_proofs
   shiftRightProofs : ExprsWF s.shift_right_proofs
+  divTypePins : ConRon.Refine2.TypePinsWF s.div_type_pins
+  modTypePins : ConRon.Refine2.TypePinsWF s.mod_type_pins
+  gcdTypePins : ConRon.Refine2.TypePinsWF s.gcd_type_pins
+  landTypePins : ConRon.Refine2.TypePinsWF s.land_type_pins
+  lorTypePins : ConRon.Refine2.TypePinsWF s.lor_type_pins
+  xorTypePins : ConRon.Refine2.TypePinsWF s.xor_type_pins
+  shiftLeftTypePins : ConRon.Refine2.TypePinsWF s.shift_left_type_pins
+  shiftRightTypePins : ConRon.Refine2.TypePinsWF s.shift_right_type_pins
 
 /-- Every variant of a pin list is well formed. -/
 def PinListWF (ps : alloc.vec.Vec nat_op_pins.NatOpPinSet) : Prop :=
@@ -1279,10 +1287,11 @@ theorem record_expr_wf {t : Slice Std.U8} {i j : Std.Usize}
 /-! ### `S` — the payload record
 
 The one record that builds a `NatOpPinSet`, and the only place a `<string>`
-field and the two eight-element lists meet.  `pins_eight`/`proofs_eight` are
-counted lists like the three above, over `expr_ref` and `expr_list`; the
-seventeen fields are then read back out of them by index, through `expr::dup`
-and `env::exprs_copy`, both of which are the identity. -/
+field and the three eight-element lists meet.  `pins_eight`/`proofs_eight`/
+`type_pins_eight` are counted lists like the three above, over `expr_ref`,
+`expr_list` and `type_pin_list`; the twenty-five fields are then read back out
+of them by index, through `expr::dup`, `env::exprs_copy` and
+`pins_decode::type_pins_copy`, all of which are the identity. -/
 
 /-- `expr::dup` is `Arc::clone`, so it hands back the term it was given. -/
 private theorem expr_dup_wf {e d : expr.Expr} (he : ExprWF e)
@@ -1393,9 +1402,135 @@ theorem proofs_eight_wf {t : Slice Std.U8} {i j : Std.Usize}
   exact proofs_eight_from_wf htb 8 i 8#usize _ (by scalar_tac)
     (by simp [alloc.vec.Vec.new]) res j h
 
-/-- **The `S` record.**  Seventeen fields, each read out of one of the two
-eight-element lists and copied; the copies are the identity, so each field
-carries the list entry's own derivation. -/
+private theorem type_pin_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
+    (htb : TablesWF tb) :
+    ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec (name.Name × expr.Expr)),
+      k.val ≤ kf → ConRon.Refine2.TypePinsWF out →
+      ∀ (res : alloc.vec.Vec (name.Name × expr.Expr)) (j : Std.Usize),
+        pins_decode.type_pin_list_from t i tb k out = ok (.Ok (res, j)) →
+        ConRon.Refine2.TypePinsWF res := by
+  intro kf
+  induction kf with
+  | zero =>
+    intro i k out hk hout res j h
+    rw [pins_decode.type_pin_list_from.eq_def] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact hout
+  | succ kf ih =>
+    intro i k out hk hout res j h
+    rw [pins_decode.type_pin_list_from.eq_def] at h
+    split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hout
+    · rename_i hk0
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok j1 =>
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        cases r1 with
+        | Err e => simp at h
+        | Ok p =>
+          obtain ⟨n, m⟩ := p
+          obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+          cases r2 with
+          | Err e => simp at h
+          | Ok j2 =>
+            obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+            cases r3 with
+            | Err e => simp at h
+            | Ok p3 =>
+              obtain ⟨x, m2⟩ := p3
+              obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+              have hk1v : k1.val = k.val - 1 := usub_eq hk1
+              have hout' : ∀ y ∈ out.val, NameWF y.1 ∧ ExprWF y.2 := hout
+              have hout1' : ∀ y ∈ out1.val, NameWF y.1 ∧ ExprWF y.2 :=
+                push_wf (P := fun (q : name.Name × expr.Expr) => NameWF q.1 ∧ ExprWF q.2)
+                  hout' ⟨name_ref_wf htb hr1, expr_ref_wf htb hr3⟩ hout1
+              exact ih m2 k1 out1 (by scalar_tac) hout1' res j h
+
+/-- `type_pin_list` enters the loop at the count it just read, with an empty
+accumulator. -/
+theorem type_pin_list_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tables}
+    {res : alloc.vec.Vec (name.Name × expr.Expr)} (htb : TablesWF tb)
+    (h : pins_decode.type_pin_list t i tb = ok (.Ok (res, j))) : ConRon.Refine2.TypePinsWF res := by
+  rw [pins_decode.type_pin_list] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => simp at h
+  | Ok p =>
+    obtain ⟨n, j1⟩ := p
+    exact type_pin_list_from_wf htb n.val j1 n _ (le_refl _)
+      (by simp [ConRon.Refine2.TypePinsWF, alloc.vec.Vec.new]) res j h
+
+private theorem type_pins_eight_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
+    (htb : TablesWF tb) :
+    ∀ (kf : Nat) (i k : Std.Usize)
+      (out : alloc.vec.Vec (alloc.vec.Vec (name.Name × expr.Expr))),
+      k.val ≤ kf → (∀ ps ∈ out.val, ConRon.Refine2.TypePinsWF ps) →
+      ∀ (res : alloc.vec.Vec (alloc.vec.Vec (name.Name × expr.Expr))) (j : Std.Usize),
+        pins_decode.type_pins_eight_from t i tb k out = ok (.Ok (res, j)) →
+        ∀ ps ∈ res.val, ConRon.Refine2.TypePinsWF ps := by
+  intro kf
+  induction kf with
+  | zero =>
+    intro i k out hk hout res j h
+    rw [pins_decode.type_pins_eight_from.eq_def] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact hout
+  | succ kf ih =>
+    intro i k out hk hout res j h
+    rw [pins_decode.type_pins_eight_from.eq_def] at h
+    split at h
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hout
+    · rename_i hk0
+      have hkpos : 0 < k.val := by
+        rcases Nat.eq_zero_or_pos k.val with _ | hp
+        · exact absurd (by scalar_tac : k = 0#usize) hk0
+        · exact hp
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Err e => simp at h
+      | Ok j1 =>
+        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+        cases r1 with
+        | Err e => simp at h
+        | Ok p =>
+          obtain ⟨x, m⟩ := p
+          obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+          have hk1v : k1.val = k.val - 1 := usub_eq hk1
+          exact ih m k1 out1 (by omega)
+            (push_wf hout (type_pin_list_wf htb hr1) hout1) res j h
+
+/-- The eight type-pin lists are well formed. -/
+theorem type_pins_eight_wf {t : Slice Std.U8} {i j : Std.Usize}
+    {tb : pins_decode.Tables}
+    {res : alloc.vec.Vec (alloc.vec.Vec (name.Name × expr.Expr))}
+    (htb : TablesWF tb)
+    (h : pins_decode.type_pins_eight t i tb = ok (.Ok (res, j))) :
+    ∀ ps ∈ res.val, ConRon.Refine2.TypePinsWF ps := by
+  rw [pins_decode.type_pins_eight] at h
+  exact type_pins_eight_from_wf htb 8 i 8#usize _ (by scalar_tac)
+    (by simp [alloc.vec.Vec.new]) res j h
+
+/-- `pins_decode::type_pins_copy` is the identity, so it keeps the
+derivation. -/
+private theorem type_pins_copy_wf {ps v : alloc.vec.Vec (name.Name × expr.Expr)}
+    (hps : ConRon.Refine2.TypePinsWF ps) (h : pins_decode.type_pins_copy ps = ok v) : ConRon.Refine2.TypePinsWF v := by
+  rw [ConRon.Refine.PinsRun.type_pins_copy_refines h]; exact hps
+
+/-- **The `S` record.**  Twenty-five fields, each read out of one of the
+three eight-element lists and copied; the copies are the identity, so each
+field carries the list entry's own derivation. -/
 theorem record_pin_set_wf {t : Slice Std.U8} {i j : Std.Usize}
     {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
     (h : pins_decode.record_pin_set t i tb = ok (.Ok (tb', j))) : TablesWF tb' := by
@@ -1417,21 +1552,42 @@ theorem record_pin_set_wf {t : Slice Std.U8} {i j : Std.Usize}
       | Ok p2 =>
         obtain ⟨proofs, i3⟩ := p2
         have hproofs : ∀ es ∈ proofs.val, ExprsWF es := proofs_eight_wf htb hr2
+        obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
+        cases r5 with
+        | Err e => simp at h
+        | Ok p5 =>
+        obtain ⟨tps, i5⟩ := p5
+        have htps : ∀ ps ∈ tps.val, ConRon.Refine2.TypePinsWF ps := type_pins_eight_wf htb hr5
         obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
         cases r3 with
         | Err e => simp at h
         | Ok i4 =>
           simp only [] at h
+          rw [pins_decode.record_pin_set_push] at h
           split at h
           · exact (err_ne_ok h).elim
           · rename_i hp8
+            dsimp only at h
             split at h
             · exact (err_ne_ok h).elim
             · rename_i hq8
-              -- The two guards the record just passed, in the form the
-              -- sixteen field reads want: both lists are exactly eight long.
+              split at h
+              · exact (err_ne_ok h).elim
+              rename_i ht8
+              -- The three guards the record just passed, in the form the
+              -- twenty-four field reads want: all three lists are exactly
+              -- eight long.
               have hplen : pins.length = 8 := by scalar_tac
               have hqlen : proofs.length = 8 := by scalar_tac
+              have htlen : tps.length = 8 := by scalar_tac
+              have ht0 : (0#usize).val < tps.length := by simp [htlen]
+              have ht1 : (1#usize).val < tps.length := by simp [htlen]
+              have ht2 : (2#usize).val < tps.length := by simp [htlen]
+              have ht3 : (3#usize).val < tps.length := by simp [htlen]
+              have ht4 : (4#usize).val < tps.length := by simp [htlen]
+              have ht5 : (5#usize).val < tps.length := by simp [htlen]
+              have ht6 : (6#usize).val < tps.length := by simp [htlen]
+              have ht7 : (7#usize).val < tps.length := by simp [htlen]
               have hp0 : (0#usize).val < pins.length := by simp [hplen]
               have hp1 : (1#usize).val < pins.length := by simp [hplen]
               have hp2 : (2#usize).val < pins.length := by simp [hplen]
@@ -1480,12 +1636,36 @@ theorem record_pin_set_wf {t : Slice Std.U8} {i j : Std.Usize}
               obtain ⟨d6, hd6, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨c7, hc7, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨d7, hd7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e0, he0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f0, hf0, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e2, he2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f2, hf2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e3, he3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f3, hf3, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e4, he4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f4, hf4, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e5, he5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f5, hf5, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e6, he6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f6, hf6, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨e7, he7, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨f7, hf7, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨v16, hv16, h⟩ := bind_eq_ok_iff.mp h
               simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
                 Prod.mk.injEq] at h
               rw [← h.1]
               refine with_sets htb (push_wf htb.sets ⟨read_string_wf hr, ?_, ?_,
-                ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ hv16)
+                ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+                type_pins_copy_wf (htps _ (vec_index_mem ht0 he0)) hf0,
+                type_pins_copy_wf (htps _ (vec_index_mem ht1 he1)) hf1,
+                type_pins_copy_wf (htps _ (vec_index_mem ht2 he2)) hf2,
+                type_pins_copy_wf (htps _ (vec_index_mem ht3 he3)) hf3,
+                type_pins_copy_wf (htps _ (vec_index_mem ht4 he4)) hf4,
+                type_pins_copy_wf (htps _ (vec_index_mem ht5 he5)) hf5,
+                type_pins_copy_wf (htps _ (vec_index_mem ht6 he6)) hf6,
+                type_pins_copy_wf (htps _ (vec_index_mem ht7 he7)) hf7⟩ hv16)
               · exact expr_dup_wf (hpins _ (vec_index_mem hp0 ha0)) hb0
               · exact expr_dup_wf (hpins _ (vec_index_mem hp1 ha1)) hb1
               · exact expr_dup_wf (hpins _ (vec_index_mem hp2 ha2)) hb2
@@ -1674,7 +1854,9 @@ theorem decode_wf_refine2 {t : Slice Std.U8}
   have w := decode_wf h p hp
   exact ⟨w.toolchain, w.divPin, w.modPin, w.gcdPin, w.landPin, w.lorPin, w.xorPin,
     w.shiftLeftPin, w.shiftRightPin, w.divProofs, w.modProofs, w.gcdProofs,
-    w.landProofs, w.lorProofs, w.xorProofs, w.shiftLeftProofs, w.shiftRightProofs⟩
+    w.landProofs, w.lorProofs, w.xorProofs, w.shiftLeftProofs, w.shiftRightProofs,
+    w.divTypePins, w.modTypePins, w.gcdTypePins, w.landTypePins, w.lorTypePins,
+    w.xorTypePins, w.shiftLeftTypePins, w.shiftRightTypePins⟩
 
 /-- info: 'ConRon.Refine.PinsWF.decode_wf_refine2' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms decode_wf_refine2

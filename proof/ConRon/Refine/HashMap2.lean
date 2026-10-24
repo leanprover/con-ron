@@ -1268,100 +1268,6 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       · exact hlazy h
     · exact hlazy h
 
-/-! ## `dup`, the pin loop's pre-attempt snapshot
-
-`HashMap.lean`'s argument transfers unchanged and is shorter: there is no
-chain to rebuild, so `dup_slot` replaces `dup_alist` and the nested induction
-goes with it.  **In the model the copy is the identity** — every `Dup` the
-port instantiates copies by a pointer bump or by rebuilding a `Vec` element by
-element, and each is already proved to return its argument — so `dup_spec`
-proves `m' = m` and every consequence (`Inv`, `toFun`, `sl_v`, `KeysOk`) is a
-rewrite.  Stale slots are copied too: they are not part of the abstract map,
-and reproducing the table exactly is what makes the copy behave identically. -/
-
-section Dup
-
-variable {DupK : ron.hashmap.Dup K} {DupV : ron.hashmap.Dup V}
-
-omit [DecidableEq K] in
-theorem dup_slot_id (hK : DupId DupK) (hV : DupId DupV)
-    {s s' : ron.hashmap2.Slot K V}
-    (h : ron.hashmap2.dup_slot DupK DupV s = ok s') : s' = s := by
-  rw [ron.hashmap2.dup_slot.eq_def] at h
-  cases hsc : s with
-  | Vacant => rw [hsc] at h; exact (Result.ok_injective h).symm
-  | Live g k v =>
-    rw [hsc] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨a, ha, b, hb, hs⟩ := h
-    rw [hK _ _ ha, hV _ _ hb] at hs
-    exact (Result.ok_injective hs).symm
-
-omit [DecidableEq K] in
-/-- `dup`'s slot walk, halving exactly as `allocate_slots` does. -/
-theorem dup_slots_spec (hK : DupId DupK) (hV : DupId DupV) (N : Nat) :
-    ∀ (src out out' : alloc.vec.Vec (ron.hashmap2.Slot K V)) (lo hi : Std.Usize),
-      hi.val - lo.val = N → hi.val ≤ src.val.length →
-      ron.hashmap2.HashMap2.dup_slots DupK DupV src out lo hi = ok out' →
-      out'.val = out.val ++ (src.val.drop lo.val).take (hi.val - lo.val) := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro src out out' lo hi hN hhi h
-    rw [ron.hashmap2.HashMap2.dup_slots.eq_def] at h
-    split at h
-    · rename_i hgt
-      have hlt : lo.val < hi.val := by scalar_tac
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨n, hn, h⟩ := h
-      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
-      split at h
-      · rename_i h1
-        have hn1 : hi.val = lo.val + 1 := by
-          have : n.val = 1 := by scalar_tac
-          omega
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨a, ha, a1, ha1, hp⟩ := h
-        obtain ⟨hlo, rfl⟩ := vec_index_eq ha
-        rw [vec_push_eq hp, dup_slot_id hK hV ha1, hn1,
-          show lo.val + 1 - lo.val = 1 by omega, take_one_drop hlo]
-      · rename_i h1
-        have hn2 : 2 ≤ n.val := by
-          have : n.val ≠ 1 := by scalar_tac
-          omega
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨i, hi2, mid, hmid, out1, hs1, h2⟩ := h
-        have hiv : i.val = n.val / 2 := by
-          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
-        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
-        have e1 := ih (mid.val - lo.val) (by omega) src out out1 lo mid rfl (by omega) hs1
-        have e2 := ih (hi.val - mid.val) (by omega) src out1 out' mid hi rfl hhi h2
-        rw [e2, e1, List.append_assoc,
-          show hi.val - lo.val = (mid.val - lo.val) + (hi.val - mid.val) by omega,
-          List.take_add, List.drop_drop,
-          show lo.val + (mid.val - lo.val) = mid.val by omega]
-    · rename_i hgt
-      have hle : hi.val ≤ lo.val := by scalar_tac
-      rw [← Result.ok_injective h, show hi.val - lo.val = 0 by omega]
-      simp
-
-omit [DecidableEq K] in
-/-- **The snapshot is the table.** -/
-theorem dup_spec (hK : DupId DupK) (hV : DupId DupV) {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.dup DupK DupV m = ok m') : m' = m := by
-  rw [ron.hashmap2.HashMap2.dup] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨slots, hs, hm⟩ := h
-  have hv : slots.val = m.slots.val := by
-    have := dup_slots_spec hK hV
-      ((alloc.vec.Vec.len m.slots).val - (0#usize : Std.Usize).val) m.slots
-      (alloc.vec.Vec.with_capacity (ron.hashmap2.Slot K V)
-        (alloc.vec.Vec.len m.slots)) slots 0#usize (alloc.vec.Vec.len m.slots)
-      rfl (by simp) hs
-    simpa [alloc.vec.Vec.with_capacity] using this
-  rw [← Result.ok_injective hm, alloc.vec.Vec.ext _ _ hv]
-
-end Dup
-
 /-! ## `insert`
 
 `insert_no_resize` is `HashMap.lean`'s lemma of the same name with
@@ -2844,9 +2750,6 @@ in particular **both fuel obligations are discharged, not assumed** —
 
 /-- info: 'ConRon.Refine.HashMap2.len_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.len_refines
-
-/-- info: 'ConRon.Refine.HashMap2.dup_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.dup_spec
 
 /-- info: 'ConRon.Refine.HashMap2.probe_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.probe_spec

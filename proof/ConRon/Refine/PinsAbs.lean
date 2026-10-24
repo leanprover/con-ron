@@ -25,10 +25,17 @@ namespace ConRon.Refine
 
 /-! ## The abstractions -/
 
+/-- A type-pin list of the model as con-leche's `List (Name × Expr)`, pair by
+pair. -/
+def absTypePins (ps : alloc.vec.Vec (name.Name × expr.Expr)) :
+    List (ConLeche.Name × ConLeche.Expr) :=
+  ps.val.map fun p => (absName p.1, absExpr p.2)
+
 /-- A pin variant of the model as `ConLeche.NatOpPinSet`
-(`ConLeche/Kernel/NatOpPinSet.lean:26-49`): the toolchain string, the eight
-pinned defining expressions and the eight certificate lists, field for field,
-through the abstractions of `ConRon/Refine/Abs.lean`. -/
+(`ConLeche/Kernel/NatOpPinSet.lean:35-68`): the toolchain string, the eight
+pinned defining expressions, the eight certificate lists and the eight
+type-pin lists, field for field, through the abstractions of
+`ConRon/Refine/Abs.lean`. -/
 def absNatOpPinSet (s : nat_op_pins.NatOpPinSet) : ConLeche.NatOpPinSet :=
   { toolchain := absString s.toolchain
     divPin := absExpr s.div_pin
@@ -46,7 +53,15 @@ def absNatOpPinSet (s : nat_op_pins.NatOpPinSet) : ConLeche.NatOpPinSet :=
     lorProofs := absExprs s.lor_proofs
     xorProofs := absExprs s.xor_proofs
     shiftLeftProofs := absExprs s.shift_left_proofs
-    shiftRightProofs := absExprs s.shift_right_proofs }
+    shiftRightProofs := absExprs s.shift_right_proofs
+    divTypePins := absTypePins s.div_type_pins
+    modTypePins := absTypePins s.mod_type_pins
+    gcdTypePins := absTypePins s.gcd_type_pins
+    landTypePins := absTypePins s.land_type_pins
+    lorTypePins := absTypePins s.lor_type_pins
+    xorTypePins := absTypePins s.xor_type_pins
+    shiftLeftTypePins := absTypePins s.shift_left_type_pins
+    shiftRightTypePins := absTypePins s.shift_right_type_pins }
 
 /-- The pin list: a `Vec<NatOpPinSet>` as `List ConLeche.NatOpPinSet`, in file
 order — which is the order `checkDivModPinLoop` tries the variants in, so the

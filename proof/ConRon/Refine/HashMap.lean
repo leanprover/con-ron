@@ -655,35 +655,20 @@ theorem Inv_of_slots_eq {m₁ m₂ : ron.hashmap.HashMap K V} (h₁ : Inv Hashab
   nodup := by rw [al_v_congr hs]; exact h₁.nodup
   entries := he
 
-/-! ## `dup`, the pin loop's pre-attempt snapshot (task #67)
+/-! ## `DupId`, the value copy in the model
 
-`CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) resumes its
-error arm from the state the failed attempt *started* in — `k (some e) s`, not
-the `s'` the attempt left behind — so the memo entries a failed Nat-op pin
-attempt wrote are discarded with it.  con-leche gets that for free, `s` being a
-value; the port threads one `&mut CState`, so
-`kernel::checker::check_div_mod_pin_loop` restores from a snapshot instead, and
-a snapshot of a memo table is `ron::HashMap::dup`: the three scalar fields
-carried over and `slots` rebuilt bucket by bucket (`dup_slots`, which halves
-its range exactly as `allocate_slots` and `clear_slots` do) with `dup_alist`
-under the one-method `Dup` dictionary.
-
-**In the model that copy is the identity.**  Every type the port instantiates
-`Dup` at copies by a pointer bump (`kernel::name::dup` and friends, whose `P`
-field the abstraction does not see — DESIGN.md §3.2) or by rebuilding a `Vec`
-element by element (`env::levels_copy`), and each of those is already proved to
-return its argument unchanged.  So rather than transport `Inv`, `toFun`,
-`al_v`, `KeysOk` and the `Std.HashMap` bridge one at a time, `dup_spec` proves
-the one fact that gives all of them at once: `dup m = ok m'` implies `m' = m`.
-`DupId` is the hypothesis it runs on, discharged per dictionary in
-`Refine/State.lean`. -/
+Every type the port instantiates `Dup` at copies by a pointer bump
+(`kernel::name::dup` and friends, whose `P` field the abstraction does not
+see — DESIGN.md §3.2) or by rebuilding a `Vec` element by element
+(`env::levels_copy`), and each of those returns its argument unchanged in the
+model.  `DupId` states that of one dictionary; the lookups that hand back a
+copy of a stored value (`HashMap2.find_slot_spec`) run on it. -/
 
 section Dup
 
 /-- **The hypothesis on a `Dup` dictionary**: `dup2` returns its argument *in
 the model*.  Forward, as DESIGN.md §3.5 asks (`dup2` may fail; when it returns,
-it returns a copy indistinguishable from the original).  `Refine/State.lean`
-discharges it for the nine dictionaries `cached::state_c::dup` uses. -/
+it returns a copy indistinguishable from the original). -/
 def DupId {α : Type} (DupInst : ron.hashmap.Dup α) : Prop :=
   ∀ a b : α, DupInst.dup2 a = ok b → b = a
 

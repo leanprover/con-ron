@@ -670,13 +670,7 @@ beyond con-leche's three, and of which the `_embedded` pair is the instance at
 censuses is pinned with `#guard_msgs in #print axioms`, which is what keeps the
 boundary honest.
 
-**`hoe` is gone for good.**  Tasks #24/#56/#58 carried two `orElse`
-hypotheses to the capstones (`OrElseErrorStateSound`, `OrElseErrorDeclines`,
-bundled as `CheckerDecl.DivModOrElse`); task #65 deleted them by making a
-thrown pin attempt the verdict, and task #67 — which put the cited recovery
-back — **proves** what they assumed rather than restoring them
-(`CheckerPins.check_div_mod_pin_at_err` and `State.dup_state_eq`).  The
-capstones' hypothesis list is the five rows above and nothing else.
+The capstones' hypothesis list is the five rows above and nothing else.
 
 **`hvar` is discharged too, for the embedded pins (task #66).**  It used to be
 what the `_embedded` corollaries still owed: they gave the pins' *value* and not

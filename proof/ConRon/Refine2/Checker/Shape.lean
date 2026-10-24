@@ -745,6 +745,10 @@ pins over handles.  The `toolchain` string is `Vec<u32>` code points against
 the twin's `String` (DESIGN §3.3), which is `Refine/Abs.lean`'s `absString`
 and holds on valid code points only — `StrWF` is the caller's obligation,
 exactly as it is at `StrNode`. -/
+def absTypePinsI (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
+    List (NIdx × EIdx) :=
+  v.val.map fun q => (absNIdx q.1, absEIdx q.2)
+
 def absINatOpPinSet (p : arena.nat_op_pin_set.INatOpPinSet) : INatOpPinSet :=
   ⟨ConRon.Refine.absString p.toolchain,
     absEIdx p.div_pin, absEIdx p.mod_pin, absEIdx p.gcd_pin, absEIdx p.land_pin,
@@ -752,7 +756,11 @@ def absINatOpPinSet (p : arena.nat_op_pin_set.INatOpPinSet) : INatOpPinSet :=
     absEIdx p.shift_right_pin,
     absEIdxL p.div_proofs, absEIdxL p.mod_proofs, absEIdxL p.gcd_proofs,
     absEIdxL p.land_proofs, absEIdxL p.lor_proofs, absEIdxL p.xor_proofs,
-    absEIdxL p.shift_left_proofs, absEIdxL p.shift_right_proofs⟩
+    absEIdxL p.shift_left_proofs, absEIdxL p.shift_right_proofs,
+    absTypePinsI p.div_type_pins, absTypePinsI p.mod_type_pins,
+    absTypePinsI p.gcd_type_pins, absTypePinsI p.land_type_pins,
+    absTypePinsI p.lor_type_pins, absTypePinsI p.xor_type_pins,
+    absTypePinsI p.shift_left_type_pins, absTypePinsI p.shift_right_type_pins⟩
 
 def absINatOpPinSetL (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) :
     List INatOpPinSet := v.val.map absINatOpPinSet
@@ -760,9 +768,13 @@ def absINatOpPinSetLFrom (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (i : Std.Usize) : List INatOpPinSet :=
   (v.val.drop i.val).map absINatOpPinSet
 
+/-- A type-pin list's well-formedness: every name and every type. -/
+def TypePinsWF (v : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)) : Prop :=
+  ∀ q ∈ v.val, ConRon.Refine.NameWF q.1 ∧ ConRon.Refine.ExprWF q.2
+
 /-- `kernel::nat_op_pins::NatOpPinSet`'s well-formedness, as
-`Refine/PinsAbs.lean`'s `absNatOpPinSet` needs it: every term and every
-toolchain code point.  The pins are con-leche's own data, so
+`Refine/PinsAbs.lean`'s `absNatOpPinSet` needs it: every term, every name
+and every toolchain code point.  The pins are con-leche's own data, so
 `Refine/Pins*.lean`'s decoder lemmas are where it is discharged. -/
 def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
   ConRon.Refine.StrWF p.toolchain ∧
@@ -775,9 +787,13 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
     ConRon.Refine.ExprsWF p.gcd_proofs ∧ ConRon.Refine.ExprsWF p.land_proofs ∧
     ConRon.Refine.ExprsWF p.lor_proofs ∧ ConRon.Refine.ExprsWF p.xor_proofs ∧
     ConRon.Refine.ExprsWF p.shift_left_proofs ∧
-    ConRon.Refine.ExprsWF p.shift_right_proofs
+    ConRon.Refine.ExprsWF p.shift_right_proofs ∧
+    TypePinsWF p.div_type_pins ∧ TypePinsWF p.mod_type_pins ∧
+    TypePinsWF p.gcd_type_pins ∧ TypePinsWF p.land_type_pins ∧
+    TypePinsWF p.lor_type_pins ∧ TypePinsWF p.xor_type_pins ∧
+    TypePinsWF p.shift_left_type_pins ∧ TypePinsWF p.shift_right_type_pins
 
-attribute [simp] absPendingCheck absPendingCheckL absINatOpPinSet absINatOpPinSetL
+attribute [simp] absPendingCheck absPendingCheckL absTypePinsI absINatOpPinSet absINatOpPinSetL
   absINatOpPinSetLFrom
 
 /-! ## The axiom census — rule 11's four, and the relation's weakening -/

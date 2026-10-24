@@ -519,20 +519,13 @@ theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
   · simp [h, bne]
 
 /-- `checkDivModPinLoop`'s step at a variant whose two guards passed — the
-Rust's `check_div_mod_pin_try`: the `orElseAttempt` seam, then the twin's
-`match` on the step (task #97-T2-LOCKSTEP lane Checker: the old statement
-named the whole loop, guards included, where the Rust function starts past
-them). -/
+Rust's `check_div_mod_pin_try`: the attempt, then the loop's tail call on
+`false`. -/
 def checkDivModPinTrySpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value' : EIdx) (ps : INatOpPinSet) (rest : List INatOpPinSet)
     (tried : List String) : AM Unit := do
-  match ← orElseAttempt (checkDivModPinAt mode fe c value' ps) with
-  | .matched => pure ()
-  | .continued =>
-    checkDivModPinLoop mode fe c value' rest (tried ++ [divModAttemptReason ps none])
-  | .recovered e =>
-    checkDivModPinLoop mode fe c value' rest (tried ++ [divModAttemptReason ps (some e)])
-  | .failed e => fail e
+  if ← checkDivModPinAt mode fe c value' ps then pure ()
+  else checkDivModPinLoop mode fe c value' rest (tried ++ [divModAttemptReason ps])
 
 /-- `checkDivModPinAt`'s certificate half, past the pin comparison. -/
 def checkDivModPinCertsSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)

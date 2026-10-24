@@ -30,33 +30,14 @@ operations from related states, and the relation says only that the two sides
 hold the same data in different representations (`AStateRel₀`).  **No
 semantic invariant lives in Theorem 2**: `StoreWF` and `Ext` are Theorem 1's
 (which proves `StoreWF` along its own run).  The statements are therefore
-`AOut₀`/`Sim₀`/`SimS₀`, at the end of this file.  `AOut`/`Sim`/`SimS` below,
-with their `AStateRel` (= `AStateRel₀ ∧ StoreWF`) and `Ext`, are
-**deprecated shims** kept until every lane has moved (`Sim.to₀`,
-`SimS.to₀` project a proved old statement onto the new one).  The next
-paragraph is the old shapes' rationale, kept for the record: its premise,
-that `orElseAttempt` resumes at the pre-attempt store where the port keeps the
-appends, was divergence D4, fixed in the RUST (task #97-T2-LOCKSTEP D4, D4b: the
-port restores a full copy of its pre-attempt state, `Checker/Base.lean`).
+`AOut₀`/`Sim₀`/`SimS₀`, at the end of this file.
 
-## Why `Ext` (historical), and why an existential state
+## Why an existential state
 
-**`Ext`** (`Arena/Denote.lean`'s, the conjunct con-leche's own `SimAt`
-carries) is in the success arm because `orElseAttempt` needs it and nothing
-else does: task #97-LC's ledger row says the twin's error arm resumes at the
-pre-attempt store where the port keeps the attempt's unreachable appends, so
-*"the difference is handle NUMBERING, never a denotation and never a verdict;
-what the refinement owes at this seam is `Ext` rather than store equality"*.
-Carrying it in every lemma's conclusion — it is free, `Ext.refl` for a
-function that appends nothing and `Ext.trans` through a bind — is what makes
-that seam statable when the checker tier reaches it.
-
-**The existential twin state** is `RefineOld/State.lean`'s `Out`, for the same
-reason: the cons tables and the memo tables are related by a probe agreement
+The cons tables and the memo tables are related by a probe agreement
 (`Refine/HashMap2.lean`'s `RelOn`) and a `Std.HashMap` is not recoverable from
 one, so the abstraction of the state is a relation and the twin's post-state
-has to be quantified.  `AUTOMATION.md`'s rule about existentials in
-CONCLUSIONS is why `AOut.ofRun` exists beside it.
+has to be quantified.
 
 ## The error kinds
 

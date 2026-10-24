@@ -1473,9 +1473,221 @@ theorem pin_of_reduce_bool_refines {pers st lst} {o}
 /-! ## `arena::nat_op_pin_set` — the `Nat`-operation pin variants
 
 DESIGN §8.6 P2d: *intern con-leche's `natOpPinSets` `Expr`s into the
-persistent tier at startup — a one-time tree walk*.  Sixteen terms deep per
+persistent tier at startup — a one-time tree walk*.  Twenty-four fields per
 variant, and `Modeller`-style indirection is explicitly NOT wanted: the pins
 are data the checker reads, not a seam. -/
+
+/-- The abstraction of a model type-pin list at the twin's input: con-leche's
+`List (Name × Expr)`. -/
+def absTypePinsK (l : List (kernel.name.Name × kernel.expr.Expr)) :
+    List (ConLeche.Name × ConLeche.Expr) :=
+  l.map fun q => (ConRon.Refine.absName q.1, ConRon.Refine.absExpr q.2)
+
+/-- `internTypePins` of a cons behind an accumulated prefix, re-bracketed so
+that the head's two interns are the first steps and the prefix grows by
+them. -/
+private theorem internTypePins_cons_acc (L : List (NIdx × EIdx))
+    (a : ConLeche.Name × ConLeche.Expr) (rest : List (ConLeche.Name × ConLeche.Expr)) :
+    (do pure (L ++ (← internTypePins (a :: rest))) : AM (List (NIdx × EIdx)))
+      = (do
+          let n ← Arena.internName a.1
+          let t ← internExpr a.2
+          (do pure ((L ++ [(n, t)]) ++ (← internTypePins rest)) :
+            AM (List (NIdx × EIdx)))) := by
+  simp only [internTypePins, bind_assoc, pure_bind, List.append_assoc,
+    List.singleton_append]
+
+/-- The cursor's measure induction behind `intern_type_pins_refines`. -/
+private theorem intern_type_pins_go_aux {pers : arena.store.PersTier}
+    {tps : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)}
+    (hwf : TypePinsWF tps) (m : Nat) :
+    ∀ {st lst} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)} {o},
+      tps.val.length - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      arena.nat_op_pin_set.intern_type_pins_go pers st tps i out = ok o →
+      Sim₀ absTypePinsI pers lst o
+        (do pure (absTypePinsI out ++
+          (← internTypePins (absTypePinsK (tps.val.drop i.val))))) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro st lst i out o hm hrel hinv hrun
+    rw [arena.nat_op_pin_set.intern_type_pins_go.eq_def] at hrun
+    dsimp only at hrun
+    unfold Sim₀
+    have hl := alloc.vec.Vec.len_val tps
+    by_cases hge : i ≥ tps.len
+    · have hle : tps.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge] at hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      rw [List.drop_eq_nil_of_le hle]
+      refine AOut₀.ok (lst' := lst) ?_ hrel hinv
+      simp only [absTypePinsK, List.map_nil, internTypePins, List.append_nil, pure_bind]
+      rfl
+    · have hlt : i.val < tps.val.length := by scalar_tac
+      rw [ite_eq_right hge] at hrun
+      obtain ⟨nops, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
+      have hq := hwf _ (List.getElem_mem hlt)
+      rw [List.drop_eq_getElem_cons hlt, absTypePinsK, List.map_cons, ← absTypePinsK,
+        internTypePins_cons_acc]
+      obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := q1
+      have hS1 := intern_name_run₀ hrel hinv hq.1 hq1
+      cases r1 with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact AOut₀.errBind hS1
+      | Ok n1 =>
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+      rw [run_bind_ok hx1]
+      obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r2, st2⟩ := q2
+      have hS2 := intern_expr_refines hrel1 hinv1 hq.2 hq2
+      cases r2 with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact AOut₀.errBind hS2
+      | Ok t =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+      rw [run_bind_ok hx2]
+      obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      have hrec := ih (tps.val.length - i2.val) (by omega) rfl hrel2 hinv2 hrun
+      have hacc : absTypePinsI out1 = absTypePinsI out ++ [(absNIdx n1, absEIdx t)] := by
+        simp only [absTypePinsI, ConRon.Refine.vec_push_val hout1, List.map_append,
+          List.map_cons, List.map_nil]
+      rw [hacc, hi2v] at hrec
+      exact hrec
+
+/-- `intern_type_pins` ⊑ `internTypePins` — one type-pin list. -/
+theorem intern_type_pins_refines {pers st lst}
+    {tps : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : TypePinsWF tps)
+    (hrun : arena.nat_op_pin_set.intern_type_pins pers st tps = ok o) :
+    Sim₀ absTypePinsI pers lst o (internTypePins (ConRon.Refine.absTypePins tps)) := by
+  rw [arena.nat_op_pin_set.intern_type_pins] at hrun
+  have h := intern_type_pins_go_aux hwf _ (i := 0#usize) (out := alloc.vec.Vec.new _) rfl
+    hrel hinv hrun
+  have e1 : absTypePinsI (alloc.vec.Vec.new (arena.handle.NIdx × arena.handle.EIdx)) = [] :=
+    rfl
+  have e2 : absTypePinsK (tps.val.drop (0#usize : Std.Usize).val) =
+      ConRon.Refine.absTypePins tps := by
+    simp [absTypePinsK, ConRon.Refine.absTypePins]
+  rw [e1, e2] at h
+  simpa using h
+
+/-- `intern_pin_set_type_pins` ⊑ `internPinSetTypePins` — the eight
+type-pin lists, written into the record. -/
+theorem intern_pin_set_type_pins_refines {pers st lst}
+    {ps : kernel.nat_op_pins.NatOpPinSet} {p0 : arena.nat_op_pin_set.INatOpPinSet}
+    {q : INatOpPinSet} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hwf : NatOpPinSetWF ps) (hq : absINatOpPinSet p0 = q)
+    (hrun : arena.nat_op_pin_set.intern_pin_set_type_pins pers st ps p0 = ok o) :
+    Sim₀ absINatOpPinSet pers lst o
+      (internPinSetTypePins (ConRon.Refine.absNatOpPinSet ps) q) := by
+  subst hq
+  rw [arena.nat_op_pin_set.intern_pin_set_type_pins] at hrun
+  unfold Sim₀
+  simp only [internPinSetTypePins, ConRon.Refine.absNatOpPinSet]
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -,
+    hdt, hmt, hgt, hlat, hlot, hxt, hslt, hsrt⟩ := hwf
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := intern_type_pins_refines hrel hinv hdt hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+  rw [run_bind_ok hx1]
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := intern_type_pins_refines hrel1 hinv1 hmt hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+  rw [run_bind_ok hx2]
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := intern_type_pins_refines hrel2 hinv2 hgt hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
+  rw [run_bind_ok hx3]
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := intern_type_pins_refines hrel3 hinv3 hlat hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4⟩ := Sim₀.apply hS4
+  rw [run_bind_ok hx4]
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r5, st5⟩ := q5
+  have hS5 := intern_type_pins_refines hrel4 hinv4 hlot hq5
+  cases r5 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS5
+  | Ok u5 =>
+  obtain ⟨lst5, hx5, hrel5, hinv5⟩ := Sim₀.apply hS5
+  rw [run_bind_ok hx5]
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r6, st6⟩ := q6
+  have hS6 := intern_type_pins_refines hrel5 hinv5 hxt hq6
+  cases r6 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS6
+  | Ok u6 =>
+  obtain ⟨lst6, hx6, hrel6, hinv6⟩ := Sim₀.apply hS6
+  rw [run_bind_ok hx6]
+  obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r7, st7⟩ := q7
+  have hS7 := intern_type_pins_refines hrel6 hinv6 hslt hq7
+  cases r7 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS7
+  | Ok u7 =>
+  obtain ⟨lst7, hx7, hrel7, hinv7⟩ := Sim₀.apply hS7
+  rw [run_bind_ok hx7]
+  obtain ⟨q8, hq8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r8, st8⟩ := q8
+  have hS8 := intern_type_pins_refines hrel7 hinv7 hsrt hq8
+  cases r8 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut₀.errBind hS8
+  | Ok u8 =>
+  obtain ⟨lst8, hx8, hrel8, hinv8⟩ := Sim₀.apply hS8
+  rw [run_bind_ok hx8]
+  have ho := Result.ok_injective hrun
+  subst ho
+  exact AOut₀.ok rfl hrel8 hinv8
 
 /-- `intern_pin_set_proofs` is the Rust-only tail of `intern_pin_set` past its
 eight pinned defining expressions (extraction rule 5 again — eight live
@@ -1498,12 +1710,13 @@ theorem intern_pin_set_proofs_refines {pers st lst}
         let xc ← internExprList (ConRon.Refine.absExprs ps.xor_proofs)
         let slc ← internExprList (ConRon.Refine.absExprs ps.shift_left_proofs)
         let src ← internExprList (ConRon.Refine.absExprs ps.shift_right_proofs)
-        pure ⟨ConRon.Refine.absString ps.toolchain, absEIdx dp, absEIdx mp,
+        internPinSetTypePins (ConRon.Refine.absNatOpPinSet ps)
+          ⟨ConRon.Refine.absString ps.toolchain, absEIdx dp, absEIdx mp,
           absEIdx gp, absEIdx lap, absEIdx lop, absEIdx xp, absEIdx slp,
-          absEIdx srp, dc, mc, gc, lac, loc, xc, slc, src⟩) := by
+          absEIdx srp, dc, mc, gc, lac, loc, xc, slc, src, [], [], [], [], [], [], [], []⟩) := by
   rw [arena.nat_op_pin_set.intern_pin_set_proofs] at hrun
   unfold Sim₀
-  obtain ⟨htc, -, -, -, -, -, -, -, -, hdc, hmc, hgc, hlac, hloc, hxc, hslc, hsrc⟩ := hwf
+  obtain ⟨htc, -, -, -, -, -, -, -, -, hdc, hmc, hgc, hlac, hloc, hxc, hslc, hsrc, -⟩ := id hwf
   have hrel0 := hrel
   have hinv0 := hinv
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1597,11 +1810,10 @@ theorem intern_pin_set_proofs_refines {pers st lst}
   obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hv' := ConRon.Refine.Expr.str_copy_eq hv
   subst hv'
-  have ho := Result.ok_injective hrun
-  subst ho
-  exact AOut₀.ok rfl hrel8 hinv8
+  exact intern_pin_set_type_pins_refines hrel8 hinv8 hwf
+    (by simp only [absINatOpPinSet, absTypePinsI, alloc.vec.Vec.new]; rfl) hrun
 
-/-- `intern_pin_set` ⊑ `internPinSet` — one variant, sixteen terms. -/
+/-- `intern_pin_set` ⊑ `internPinSet` — one variant, twenty-four fields. -/
 theorem intern_pin_set_refines {pers st lst}
     {ps : kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

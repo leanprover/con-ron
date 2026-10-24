@@ -90,16 +90,16 @@ builds (`tried ++ [msg]`). -/
 example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx} {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
-    {tried : alloc.vec.Vec Std.U32} {ltried : List String}
+    {ltried : List String}
     (hloop : ∀ {st lst} (ltried' : List String), AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = (fun _ : Unit => ()) a)
-        (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i tried)
+        (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i)
         lst
         (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c) (absEIdx value2)
           (absINatOpPinSetLFrom variants i) ltried'))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i tried) lst
+      (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i) lst
       (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c) (absEIdx value2)
         (absINatOpPinSetLFrom variants i) (ltried ++ ["absent"])) := by
   lockstep

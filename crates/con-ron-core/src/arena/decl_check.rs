@@ -2581,7 +2581,7 @@ pub fn check_div_mod_pin_value(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinCertsSpec` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinValue`'s tail —
 /// the certificates, past the pin comparison.
 pub fn check_div_mod_pin_certs(
     pers: &PersTier,
@@ -2663,9 +2663,9 @@ pub fn check_div_mod_pin_loop(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:424-439 checkDivModPinLoopF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinTry` — the
-/// loop's step at a variant whose guards passed: the attempt, then the
-/// loop's tail call on `false`.
+/// Lean twin: the inner `if` of `proof/ConRon/Arena/DeclCheck.lean
+/// checkDivModPinLoop` — the loop's step at a variant whose guards passed:
+/// the attempt, then the loop's tail call on `false`.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_try(
     pers: &PersTier,

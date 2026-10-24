@@ -248,6 +248,28 @@ def exprList (bs : Bytes) (tb : Tables) : Option (List Expr × Bytes) :=
   | none => none
   | some (n, r) => exprListFrom r tb n []
 
+/-- `type_pin_list_from`: each type pin `<name> <expr>`, each field preceded
+by its space. -/
+def typePinListFrom (bs : Bytes) (tb : Tables) : Nat → List (Name × Expr) →
+    Option (List (Name × Expr) × Bytes)
+  | 0, out => some (out, bs)
+  | k + 1, out =>
+    match afterSpace bs with
+    | none => none
+    | some r => match nameRef r tb with
+      | none => none
+      | some (n, r) => match afterSpace r with
+        | none => none
+        | some r => match exprRef r tb with
+          | none => none
+          | some (e, r) => typePinListFrom r tb k (out ++ [(n, e)])
+
+/-- `type_pin_list`. -/
+def typePinList (bs : Bytes) (tb : Tables) : Option (List (Name × Expr) × Bytes) :=
+  match readIndex bs with
+  | none => none
+  | some (n, r) => typePinListFrom r tb n []
+
 /-! ## The records (FORMAT.md §4, the kinds a pin dump uses) -/
 
 /-- `record_name_str`. -/
@@ -543,8 +565,25 @@ def proofsEight (bs : Bytes) (tb : Tables) :
     Option (List (List Expr) × Bytes) :=
   proofsEightFrom bs tb 8 []
 
-/-- `record_pin_set`: `S <string> <expr>×8 (<k> <expr>*)×8`.  An `S` record
-carries no id — the record *is* the payload. -/
+/-- `type_pins_eight_from`: the eight counted type-pin lists. -/
+def typePinsEightFrom (bs : Bytes) (tb : Tables) : Nat → List (List (Name × Expr)) →
+    Option (List (List (Name × Expr)) × Bytes)
+  | 0, out => some (out, bs)
+  | k + 1, out =>
+    match afterSpace bs with
+    | none => none
+    | some r => match typePinList r tb with
+      | none => none
+      | some (ps, r) => typePinsEightFrom r tb k (out ++ [ps])
+
+/-- `type_pins_eight`. -/
+def typePinsEight (bs : Bytes) (tb : Tables) :
+    Option (List (List (Name × Expr)) × Bytes) :=
+  typePinsEightFrom bs tb 8 []
+
+/-- `record_pin_set`: `S <string> <expr>×8 (<k> <expr>*)×8
+(<k> (<name> <expr>)*)×8`.  An `S` record carries no id — the record *is*
+the payload. -/
 def recordPinSet (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
   match readString bs with
   | none => none
@@ -552,20 +591,26 @@ def recordPinSet (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
     | none => none
     | some (pins, r) => match proofsEight r tb with
       | none => none
-      | some (proofs, r) => match afterNewline r with
+      | some (proofs, r) => match typePinsEight r tb with
         | none => none
-        | some r =>
-          match pins, proofs with
-          | [p0, p1, p2, p3, p4, p5, p6, p7],
-            [q0, q1, q2, q3, q4, q5, q6, q7] =>
-            some ({ tb with sets := tb.sets ++ [{
-              toolchain := decString toolchain
-              divPin := p0, modPin := p1, gcdPin := p2, landPin := p3
-              lorPin := p4, xorPin := p5, shiftLeftPin := p6
-              shiftRightPin := p7
-              divProofs := q0, modProofs := q1, gcdProofs := q2
-              landProofs := q3, lorProofs := q4, xorProofs := q5
-              shiftLeftProofs := q6, shiftRightProofs := q7 }] }, r)
-          | _, _ => none
+        | some (tps, r) => match afterNewline r with
+          | none => none
+          | some r =>
+            match pins, proofs, tps with
+            | [p0, p1, p2, p3, p4, p5, p6, p7],
+              [q0, q1, q2, q3, q4, q5, q6, q7],
+              [t0, t1, t2, t3, t4, t5, t6, t7] =>
+              some ({ tb with sets := tb.sets ++ [{
+                toolchain := decString toolchain
+                divPin := p0, modPin := p1, gcdPin := p2, landPin := p3
+                lorPin := p4, xorPin := p5, shiftLeftPin := p6
+                shiftRightPin := p7
+                divProofs := q0, modProofs := q1, gcdProofs := q2
+                landProofs := q3, lorProofs := q4, xorProofs := q5
+                shiftLeftProofs := q6, shiftRightProofs := q7
+                divTypePins := t0, modTypePins := t1, gcdTypePins := t2
+                landTypePins := t3, lorTypePins := t4, xorTypePins := t5
+                shiftLeftTypePins := t6, shiftRightTypePins := t7 }] }, r)
+            | _, _, _ => none
 
 end ConRon.Refine.PinsDec
