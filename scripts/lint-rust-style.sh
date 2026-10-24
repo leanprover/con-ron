@@ -116,7 +116,7 @@ check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!
 # all, and (2) inside `hashmap2.rs` every call that can reach `Slot::clone` --
 # `.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec`,
 # `vec![` -- must be the single `slots.resize(len, Slot::Vacant);` in
-# `allocate_slots`.  A real slot copy is `dup_slot`.
+# `allocate_slots`.  Nothing copies a live slot.
 check_slot_clone() {
   local hits
   hits=$(gather | grep -E '\bSlot\b' | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
@@ -126,7 +126,7 @@ check_slot_clone() {
     | grep -E '\.clone\(\)|Clone::clone|\.resize\(|extend_from_slice|to_vec|vec!\[' \
     | grep -vE ':[[:space:]]*slots\.resize\(len, Slot::Vacant\);$')
   if [ -n "$hits" ]; then
-    echo "== Slot's filler-only Clone reached outside allocate_slots (use dup_slot; ron/hashmap2.rs, task #97-PERF-BULKFILL)"
+    echo "== Slot's filler-only Clone reached outside allocate_slots (ron/hashmap2.rs, task #97-PERF-BULKFILL)"
     echo "$hits"; fail=1
   fi
 }

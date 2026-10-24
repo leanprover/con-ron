@@ -69722,3 +69722,184 @@ now-pure call (`structEtaCertWith_spec`, the `.proj` inference arm) — (c).
 The con-leche inversions this tier destructures positionally lost a conjunct
 each (`ConstantValRun`, `checkConstantVal_inv`, `installHeader_inv`,
 `ConstWF`) and `EnvWF` became a structure — (c), about twenty patterns.
+
+### Task #129 — con-leche sync 8e166ca5 → 24980d94: type pins make the variant selection boolean; everything `orElse` needed is gone (2026-10-24, Opus)
+
+con-leche goes from `8e166ca5` to **`24980d94`** (no toolchain move): its task
+#364.  The Nat-op pin gate used to catch an error thrown while checking a
+foreign toolchain's certificates (`CheckerOps.orElse`).  Each pin variant now
+carries, per operation, its toolchain's types of the constants the
+certificates use whose types differ between supported toolchains
+(`Decidable.rec`/`Decidable.casesOn`); the gate compares them by `isDefEq`
+before the value pin, every step of the selection is a `Bool`, and a
+certificate that still throws is the run's error.
+
+| upstream | what it did | here |
+|---|---|---|
+| #364 (kernel) | `NatOpPinSet`'s eight `…TypePins : List (Name × Expr)`; `divModTypePins`, `typePinStored(F)`, `checkTypePins(F)`; the type-pin clause of `divModPinGuard(F)`; `checkDivModPinAt` = type pins → value pin → certificates; the loop `if guards then (if ← attempt then pure () else next) else next`; `divModAttemptReason` one string; `CheckerOps.orElse` deleted | **ported**: Rust, twin, both theorems (below) |
+| #364 (dumps) | format `con-leche-natop-pins/4`: per op `typePins`; the three dumps regenerated, pins and blobs byte-identical | the port's own dump format is now **`con-ron-pins/2`**: the `S` record gains eight counted `(<name> <expr>)*` lists (`proof/ConRon/Dump/FORMAT.md` §4); `Dump/Pins.lean` (writer, reader), `crates/con-ron-dump` (reader, writer, DAG census), the verified decoder `kernel::pins_decode` and `scripts/gen-pins.sh`'s embedded `PINS_TEXT` follow |
+| #364 (proofs) | `fueledOpsM.orElse`, `fueledOps_orElse`, `SimC.orElse`, `orElseS_spec` gone; `checkTypePins_datF`, `checkTypePinsS_spec` new | nothing to port; Theorem 1 uses `checkTypePins_datF`/`checkDivModPinAt_datF`/`checkDivModPinLoop_datF` for fuel monotonicity, as it already did `checkDivModCerts_datF` |
+| #364 (fixture) | `natop_typepin_foreign` (decline, both modes) | agrees |
+
+**The Rust.**  `kernel::nat_op_pins::NatOpPinSet` and `arena::nat_op_pin_set::
+INatOpPinSet` carry the eight type-pin lists (`Vec<(Name, Expr)>`,
+`Vec<(NIdx, EIdx)>`), interned by `intern_pin_set_type_pins`/
+`intern_type_pins`.  `arena::decl_check` gains `div_mod_type_pins` (a borrow
+of the variant's list, no copy), `type_pin_stored` (the stored type, `Sort 0`
+interned for an absent constant), `type_pin_guard`/`type_pins_guard` (the
+`List.all` closure and its cursor) behind `ground_guards` in
+`div_mod_pin_guard`, `check_type_pins` and `check_div_mod_pin_value` (the
+attempt past its type pins).  The loop is the boolean decision, its step
+`check_div_mod_pin_try` an `if` on the attempt.  Two choices beyond the
+mirror: the loop **short-circuits its two guards** as con-leche's `&&` of two
+pure `Bool`s does (master ran `div_mod_certs_guard` after a failed pin guard;
+the twin's `(← a) && (← b)` did too) — this is where upstream's gains come
+from, see below — and the Rust **drops `tried`**: with no recovered error to
+report, the port's decline is the one fixed message `M_DIVMOD_NO_VARIANT`
+(§3.1), where the twin keeps upstream's per-variant reasons.
+
+**The measurement** (`bump-con-leche.sh measure`, `Init`, con-ron, one
+worker, both accept 57 919; plus upstream's two headline streams from
+con-leche's arena tarball, `--verified --jobs=1`, one run each):
+
+| stream | master `e06c8d99` | this branch | Δ | upstream |
+|---|---:|---:|---:|---:|
+| `Init` (instructions:u) | 184 549 257 757 | 184 523 265 993 | −0.014 % | init-full −0.58 % |
+| `perf/grind-ring-5` | 8 362 157 491 | 8 173 233 745 | −2.26 % | −4.59 % |
+| `init-prelude` | 1 086 979 054 | 1 052 534 805 | −3.17 % | −6.66 % |
+| `Init` peak RSS | 513 256 KB | 515 840 KB | +0.5 % | |
+
+Without the short circuit the branch read 8 343 206 681 and 1 082 409 894 on
+the two small streams (−0.23 %, −0.42 %): the gain is the skipped certificate
+guard walk of the variant whose type pin does not resolve, exactly upstream's
+diagnosis.  `Init`'s stream matches the first variant, so it has nothing to
+skip; peak RSS is the same binary's spread (#128's note).
+
+**Findings.**  `update --auto`: 37 findings (37 changed), 4 doc-only deleted
+mechanically, **33 markers, 0 at the end**.  Coverage 852/934 at the old pin,
+852/939 at the new before the port (`checkTypePins(F)`, `divModTypePins`,
+`typePinStored(F)` new) → **856/939**.  diff-e2e (631 fixtures, upstream's
+new `natop_typepin_foreign` included): master's binary at the new pin
+631/631; the branch's **631/631** at `--verified --jobs=1` and at `--trusted
+--jobs=4`.
+
+#### What was removed with `orElse` (the maintainer's ask)
+
+Everything that existed only so that a failed variant attempt could be undone.
+The chain was: con-leche's `orElse` resumed its error arm at the pre-attempt
+state; the twin got that free from its state function; the port, threading
+one `&mut AState`, had to copy the whole state before every attempt and move
+the copy back on a recovered error (tasks #97-T2-LOCKSTEP D4, D4b, D4c,
+#98-FREEZE); every table therefore needed a deep copy, every copied value a
+`Dup` impl, and Theorem 2 a lemma that each copy is the identity.
+
+| what | where | lines |
+|---|---|---:|
+| `attempt_snapshot`, `attempt_restore`, `OrElseStep`, `or_else_attempt`, `memos_dup`, `caches_dup`, `mode_memos_dup`, `pins_dup` (the snapshot's), `vec_dup`/`vec_dup_range`, module notes 3 and 6 | `arena/checker_base.rs` | −211 |
+| `check_div_mod_pin_attempt`, the four-way `check_div_mod_pin_try`, `div_mod_attempt_reason`, the loop's `tried` | `arena/decl_check.rs` | ≈ −110 (+28 for the boolean `check_div_mod_pin_try`) |
+| `core_types::message` (the recovered error's text) | `kernel/core_types.rs` | −18 |
+| `Tbl::dup`/`dup_rows` and the `dup` of every tier and store (`N/L/Ls/E Tables`, `…Store`) | `arena/store.rs` | −141 |
+| `HashMap2::dup`/`dup_slots`/`dup_slot` and their two tests | `ron/hashmap2.rs` | −103 |
+| the `Dup` impls only the snapshot used (`Level`, `Name`, `Vec<Level>`, `EIdxNat`, the five key records, `IConstantInfo`, `bool`, the pair and triple), the "copying a table (task #67)" section | `arena/{monad,core_state,env}.rs`, `ron/hashmap.rs` | −132 |
+| `OrElseStep`, `attemptSnapshot`, `attemptRestore`, `orElseStepOf`, `orElseAttempt`, deviation 3 | twin `Arena/CheckerBase.lean` | −80 |
+| `divModAttemptReason`'s `Option CheckError` | twin `Arena/DeclCheck.lean` | −5 |
+| `orElseAttempt_run` and the module's recovery section | T1 `Bridge/Checker/Base.lean`, `Axioms.lean` | −52 |
+| `attempt_snapshot_eq` and the twenty-six copy lemmas under it (`dupId_*`, `tbl_dup_*`, `*_dup_eq`, `vec_dup_*`), `attemptRestore_self`, their census | T2 `Refine2/Checker/Base.lean` | −395 |
+| `OrElseRel`, `AttemptSim`, `DivModPinAtSim`, `check_div_mod_pin_attempt_refines₀`, the four-way `check_div_mod_pin_try_refines` | T2 `Refine2/Checker/DeclCheck.lean` | −214 (+45 for the boolean step) |
+| `checkDivModPinTrySpec`'s `orElseAttempt` match | T2 `Refine2/Checker/Spec.lean` | −7 |
+| `HashMap2`'s `dup` section (`dup_slot_id`, `dup_slots_spec`, `dup_spec`) | `Refine/HashMap2.lean` | −97 |
+| `Shape.lean`'s historical `Ext`/`orElseAttempt` rationale, `HashMap.lean`'s snapshot section, `Refine/README.md`'s `hoe` paragraph | docs | −45 |
+
+**Net, the `orElse` cleanup alone: Rust ≈ −690, twin ≈ −85, Theorem 1 ≈ −52,
+Theorem 2 ≈ −770** (≈ −1 600 lines; the type-pin port adds back, net, Rust core ≈ +475,
+twin ≈ +120, Theorem 1 ≈ +670, Theorem 2 ≈ +1 045, mostly the decoder's third
+column and the type-pin gate).  The generated model lost 364 lines net
+(`Generated/Funs.lean` +1 344 −1 708, with the type pins in).  `fueledOps`
+losing its `orElse` field also left two `simp` arguments unused in
+`Bridge/Inductives/SumInstall.lean` (five sites), removed.  DESIGN §3's
+"`orElse`: an attempt's error is the verdict" text and the full-outcome
+ruling's backtracking clause are rewritten to describe the boolean selection;
+the task sections #65, #67, #97-T2-AUDIT, #97-T2-LOCKSTEP D4/D4b/D4c keep the
+history.
+
+**Considered and kept, with the reason.**
+* The `Dup` trait, its `u64` impl, the handle impls (`EIdx`/`NIdx`/`LIdx`/
+  `LsIdx`) and every store node and derived-datum impl: the cons tables
+  copy their keys on insert and `HashMap2`'s value reads copy out, so
+  `Tbl` and `HashMap2` require them; `cargo build --all-targets` fails
+  without each (checked one by one).
+* `DupId` and `take_one_drop` (`Refine/HashMap.lean`): `HashMap2.find_slot_spec`
+  and the node-record `DupId` lemmas of `Refine2/Specs.lean` run on them.
+* `arena::checker::pins_dup`: the phase-B worker pool copies the pin table
+  into each worker's state (`crates/con-ron/src/pool.rs`); not a snapshot.
+* The declaration bracket's freeze (task #98-FREEZE) and the scratch/persistent
+  tiers: they are the phase discipline and the promotion; the attempt was
+  one reader of a frozen store, not its reason.
+* `Ext` as Theorem 1's store order (`Bridge/Grind.lean` §1): general store
+  monotonicity, used by every walk; no Theorem 1 document gave `orElse` as
+  its reason.  The one place that did was `Refine2/Shape.lean`'s rationale
+  for the long-gone `AOut`/`Sim` shims (Theorem 2), rewritten.
+* `CheckError::Native` and Theorem 2's comparison of all four kinds: task
+  #98-NATIVE's capacity guards, independent of the pin gate.
+* The twin's `tried` list: upstream's message, kept as upstream writes it
+  (Theorem 2 relates an error by its kind).
+
+#### Theorem 1 and Theorem 2
+
+**Theorem 1.**  The type-pin gate is a new module in the #123 idiom,
+`Bridge/Checker/TypePins.lean` (265 lines): `typePinStored_spec`,
+`typePinGuard_spec`, `typePinsGuard_spec` and `checkTypePins_spec`, each
+`sym only [bridge_grind, …] => vcgen [f, callee specs…] <;> finish`, over the
+existing vocabulary (`indexAt`'s `IndexCI` for the lookup, `denoteCV_type`,
+`internE_specC`, `pinZeroLevel_spec`, the `Fast` walks' specs at the tier's
+invariant).  The answers are named (`TypePinGuardP`, `typePinsGuardP` with
+`typePinsGuardP_eq` back to the closure; `SimBOp (typePinsOp …)` with one
+lemma per clause, the fuels merged by `checkTypePins_mono`).  Two local
+additions, no `finish` limit raised: `denoteEView_sort_eq` (§6 of
+`Grind.lean` has every view constructor but `sort`) and the `KnotSpec.defeq`
+spec restated at `Arena.isDefEqCore`, the name the program calls it by (the
+knot's field is `(coreKnot …).defeq`, which `vcgen` does not see through
+`isDefEqCore`/`pureFnsA`).  No reproducer was needed.  The rest of the gate
+stays staged, as before: `divModTypePins_run` (the seven-test chain of
+`divModCertProofs_run`), `divModPinGuard_run` over the twin's new
+`groundGuards` (the first four clauses, shared with `pinGuardWalk_run`), and
+the attempt and the loop.  **The loop proof changed shape**: with
+`orElse` its step needed only the `true` direction of the attempt (every other
+outcome fell through at the same fuel); now a `false` must be con-leche's
+`false`, so `checkDivModCerts_bridge_aux` and `checkDivModPinAt_bridge` prove
+`∃ F, … = .ok b` for both values and the loop merges the attempt's fuel with
+the rest's (`checkDivModPinAt_mono`, `checkDivModPinLoop_mono`, over
+con-leche's `_datF` lemmas as `checkDivModCerts_mono` already was).
+`checkDivModPinAt_bridge` lost its unused `μ.verifiedChecks` premise, and
+with it `checkDivModPin_bridge`.
+
+| file | +/− | cat. | what |
+|---|---:|---|---|
+| `Checker/TypePins.lean` | 265/0 | a | the type-pin gate, #123 idiom (above) |
+| `Checker/DivMod.lean` | 373/161 | a | `divModTypePins_run`, `divModPinGuard_run`, both-direction certificate loop and attempt, the boolean loop with the fuel merge |
+| `Checker/{Decl,Fold,Pins}.lean`, `Promote/Pers.lean` | 216/27 | a | `TypePinsDenote` (`mono`, `pmono`), `PersTypePins`, `internTypePins_sstep`, `internPinSetTypePins_sstep` |
+| `Checker/{Base,Axioms,DeclVal,Arms}.lean` | 12/61 | c | `orElseAttempt_run` gone; census, prose, one argument |
+| `Inductives/SumInstall.lean` | 5/5 | c | unused `simp` arguments after `fueledOps` lost `orElse` |
+
+**(b): none.**  No proof broke with its mathematics unchanged.  The one
+existing proof whose statement changed for a reason other than the code
+changing is the certificate loop's, and that is (a): its consumer, the loop,
+now needs the `false` direction.
+
+**Theorem 2.**  Lockstep throughout, no new invariant, no twin divergence:
+`div_mod_type_pins`, `type_pin_stored`, `type_pin_guard`, `type_pins_guard`,
+`check_type_pins`, `check_div_mod_pin_value`, `_at` and `_try` are `rw` +
+`unfold` + `lockstep`; the two cursors (`type_pins_guard`, `check_type_pins`)
+are the `check_div_mod_certs_aux` induction; the loop's step, which used to be
+a hand proof of the recovering seam, is now a `lockstep` call with the loop's
+own tail as its one hypothesis.  The twin's `groundGuards` is `rfl`-equal to
+`groundGuardsSpec`; the twin's `divModPinGuard` and `checkDivModPinLoop` were
+written to the Rust's shape (the guards nested, the attempt split into
+`checkDivModPinValue`), so no glue was needed.  The decoder's third column
+(`Refine/Pins{Dec,Abs,Run}.lean`, `Refine2/Checker/PinsWF.lean`) and the
+interning (`Refine2/Checker/Pins.lean`) are the existing proofs extended by
+one list type.  `Refine2/Tactic/{Lockstep,Prims}.lean` are untouched.
+
+**Size** (from `e06c8d99`, without `pins_text.rs` and the generated model):
+Rust core +706 −922; twin +223 −187; Theorem 1 (`Bridge/`) +871 −254 in 11
+files; Theorem 2 (`Refine2/`, `Refine/`) +1 203 −928 in 14 files.
