@@ -70003,7 +70003,7 @@ display.  What was found, by binary:
 
 | where | what reached the output raw | now | con-leche |
 |---|---|---|---|
-| `con-ron` (`bin/con-ron.rs`) | the input path in `con-ron: {file}: {io error}` and `con-ron: {file}:{line}: {msg}` | `render::display_path`: raw when the path holds no unsafe character, `\` or `"`, else `display_str` — an ordinary path prints exactly as con-leche prints it | **raw** (`Driver/Run.lean:321` `{file}:{line}`; a missing file surfaces as `Main.lean:427`'s `internal error: {e}`, whose IO error text names the path) — **deviation, to report upstream** |
+| `con-ron` (`bin/con-ron.rs`) | the input path in `con-ron: {file}: {io error}` and `con-ron: {file}:{line}: {msg}` | `render::display_path`: raw when the path holds no unsafe character, `\` or `"`, else `display_str` — an ordinary path prints exactly as con-leche prints it | **raw** (`Driver/Run.lean:321` `{file}:{line}`; a missing file surfaces as `Main.lean:427`'s `internal error: {e}`, whose IO error text names the path) — **deviation, kept**: con-leche decided against escaping paths (maintainer, 2026-10-24); either is fine, so con-ron keeps its escaping |
 | `con-ron` (`driver::pins_for_run`) | the `--pins` path, twice | `display_path` | no `--pins` upstream |
 | `con-ron-dump` (`parse_pins`, `natdec`) | tokens of the pins file echoed as `'…'` (`expected a decimal number`, `unknown name/level/expr record`, `unknown record kind`, `bad header`) | `con_ron_dump::shown`, which is `display_str` | con-ron's own format |
 | `con-ron-lean` (`Arena/Main.lean`, `Exe.lean`) | the input path and the IO error naming it | `displayPath`, the Rust's twin | as above |
