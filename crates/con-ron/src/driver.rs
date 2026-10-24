@@ -223,6 +223,7 @@ pub fn default_jobs() -> u64 {
 }
 
 /// con-leche: Main.lean:65-88 jobsCount
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove driver::jobs_count_refines, then delete this line
 /// The worker count: a decimal numeral of at least 1, `1` being the sequential
 /// lane (one worker, no shared counter and no result table).  `0` and a
 /// non-numeral are usage errors (exit 3), as in con-leche, so a script that
@@ -245,6 +246,7 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
 }
 
 /// con-leche: Main.lean:52-63 progressStride
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove driver::progress_stride_refines, then delete this line
 /// The progress heartbeat's stride: no flag is off; bare `--progress` is
 /// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
 /// for no heartbeat — are usage errors: a run's output must be readable off

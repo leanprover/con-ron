@@ -1823,6 +1823,7 @@ pub fn install_ind_d(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::safety_error_refines, then delete this line
 /// `"definition with safety '{s}'"`.
 pub fn safety_error(s: &Vec<u32>) -> Vec<u32> {
     const A_SAFETY: [u32; 24] = [
@@ -1840,6 +1841,7 @@ pub fn safety_error(s: &Vec<u32>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::quot_kind_error_refines, then delete this line
 /// `"unknown quotient kind '{k}'"`.
 pub fn quot_kind_error(k: &Vec<u32>) -> Vec<u32> {
     const A_QUOTKIND: [u32; 23] = [
@@ -1857,6 +1859,7 @@ pub fn quot_kind_error(k: &Vec<u32>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::quot_kind_of_refines, then delete this line
 /// The `#QUOT` record's `kind` word, as the kernel's `QuotKind`.
 pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
     const K_TYPE: [u32; 4] = [
@@ -1886,6 +1889,7 @@ pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:479-484 processLineCoreD
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::process_line_core_d_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:405-455 processLineCoreD`
 /// — the record's own semantics: the declaration kinds, producing
 /// `IDeclaration` records.  Every branch, guard and error string is

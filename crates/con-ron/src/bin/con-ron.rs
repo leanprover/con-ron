@@ -223,6 +223,7 @@ struct Args {
 }
 
 /// con-leche: Main.lean:330-358 parseArgs
+/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.

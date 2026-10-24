@@ -190,6 +190,7 @@ def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
   | .ok _ => pure (.ok records)
 
 /-- con-leche: Main.lean:52-63 progressStride
+-- con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove Main.progressStride_bridge, then delete this line
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
 flag is off; bare `--progress` is stride 1.  A value that is not a decimal
 numeral, and `0` — the flag asking for no heartbeat — are usage errors
@@ -204,6 +205,7 @@ def progressStride (v : String) : Except String Nat :=
       (a decimal numeral of at least 1), got {repr v}"
 
 /-- con-leche: Main.lean:65-88 jobsCount
+-- con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove Main.jobsCount_bridge, then delete this line
 The worker count, read off `--jobs=<n>`: a decimal numeral of at least 1.
 `0` and a non-numeral are usage errors (exit 3); without the flag the
 count is the machine's hardware thread count.
@@ -368,6 +370,7 @@ structure Args where
   bad : Option String := none
 
 /-- con-leche: Main.lean:330-358 parseArgs
+-- con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove Main.parseArgs_bridge, then delete this line
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
