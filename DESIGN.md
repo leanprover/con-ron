@@ -69625,3 +69625,131 @@ the seven hand-built `CacheOK` records (`mono`, `monoF`, `of_empty`,
 `ofInstLP`, `ofReadbackFrame`, the two swap lemmas) — the per-record cost of a
 flat invariant structure, mechanical, and the same that upstream paid in
 `CSOK`.  No walk proof in the idiom and no staged proof was edited.
+
+### Task #128 — con-leche sync ae1f3198 → 8e166ca5: projection tables leave the constants (2026-10-24, Opus)
+
+con-leche goes from `ae1f3198` to **`8e166ca5`** (no toolchain move): its
+tasks #362 (projection tables are their own environment component) and #363
+(the reserved projection-name shape is gone).
+
+| upstream | what it did | here |
+|---|---|---|
+| #362 | `Env = {consts, tables}`; `ConstantInfo.projInfo`, `ProjInfo`, `ProjTable.off`/`tableName`, `projTableName`, `isTowerEntry` deleted; `findTable?` gated by the structure's `find?` (a prefix view hides a table with its structure); `FEnv.tbls`, `pushTable`/`pushTables`/`pushDelta`, `rawTable?`, `mkTblsGo`, `ProjTable.lastOf?`; `checkStructProjTable` checks the structure is stored and its table not taken, then `pushTable`; `PushChain`'s table clause (tables of structures the start does not store) | **ported**, below |
+| #363 | `Name.isProjFnShape` and its guards deleted (`installHeader`, `checkConstantVal`, `classConstOk`); fixtures `projtable_name_free`, `proj_name_free` now accept | **ported**: the guard is gone from Rust, twin and both theorems |
+| #362 (driver) | `FBase.findTable?`, `ProjTable.lastOf?`, `pushTables`, `FEnv.pushDelta`, `Env`'s cached `findTable?` | **skipped** (`scripts/provenance-skip.txt`, with reasons): the base-layer/delta machinery of con-leche's cached driver, which the arena replaces by its own promotion (`promote_new`) |
+
+**The Rust data structure.**  `IEnv { consts, tables: Vec<IProjTable> }`,
+tables oldest first, and `IFEnv` gains `tbls: HashMap<NIdx, u64>`: the
+structure's handle to the table's SLOT in `env.tables`.  The constant index
+already works this way (`idx` maps a handle to `(counter, slot)`), and a slot
+map keeps the hash map plain data, so the promotion's re-index
+(`index_promoted_tables`) and every `dup` copy a word per row instead of a
+table — the same lever as task #97-P6-5's lever 1 for constants.  The twin
+keeps `tbls : Std.HashMap NIdx IProjTable` (the row itself; Theorem 2's
+`IFEnvRel.tbls` reads the Rust slot through `env.tables`).  The promotion is
+`promote_new_consts` then `promote_new_tables` (erase the step's `kt` new
+rows, promote the tables down, re-index walking UP so the newest wins with no
+distinctness assumption); `install_step`/`check_decl_step` compute `kt` from
+the table count before the step.  `check_struct_proj_table_push` is upstream's
+two gates (`M_TBL_ORPHAN`, internal; `M_TBL_TAKEN`, invalid) then the push.
+`find_proj`, `to_constant_val`, `tower_slots_all`, `matches_pin_of_ci` became
+pure; `intern_proj_table`, `i_proj_table_beq`, `proj_table_name`,
+`is_tower_entry`, `nidx_is_proj_fn_shape`, `M_RESERVED_PROJ`, `M_TOWER` and
+the kernel's `ProjTable`/`ProjInfo` are deleted, as are the table generator's
+`gProjTable`/`ProjInfo` arm (`Gen/Emit.lean`; `basis_tables.rs` regenerates
+unchanged).
+
+**Findings.**  `update --auto`: **165 markers, 0 at the end**.  Coverage
+850/932 at the old pin, 848/939 at the new before the port → **852/934**.
+diff-e2e: master's binary at the new pin 628/630 (the two DIFFERs are
+upstream's newly accepting `proj_name_free`/`projtable_name_free`); the
+branch's **630/630** at `--verified --jobs=1` and **630/630** at
+`--trusted --jobs=4`.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker; both
+accept 57 919):
+
+| binary | instructions:u | cycles:u | peak RSS |
+|---|---:|---:|---:|
+| master `12752ca7` | 186 302 180 981 | 82 673 261 410 | 569 MB |
+| this branch `917a6513` | **184 549 536 982** (−0.941 %) | 81 060 419 888 | 597 MB |
+
+Upstream measured +0.022 % on its `init-full`; here the deleted name guard
+(`nidx_is_proj_fn_shape` ran at every header) and the pure lookups pay for
+the table map.  Peak RSS +5 % on `Init` (one run each; an earlier run at
+`c2be4ff9` gave 553 → 563 MB), well inside the `ulimit` budget; not
+investigated further.
+
+**Size** (from `12752ca7`): Rust core +1201 −1321; twin +415 −398; generated
+model +1752 −2218; Theorem 1 (`Bridge/`) +2959 −3607 in 57 files; Theorem 2
+(`Refine2/`, `Refine/`, `Capstone.lean`) +1191 −1244 in 40 files (the T2
+lane's own report is in its commits `5e717691`, `8551bb3c`: `IFEnvRel` gains
+`tbls`/`tblKeys`, `IFEnvInv` gains the table map's `Inv` and slot range,
+`promote_new_ls` composes the two halves; no twin divergence, the shared
+`Lockstep.lean` untouched; four glue edits where a store step became a pure
+`LSP` step answered through a `dup` copy).
+
+#### The shape of Theorem 1's change
+
+* **`IFEnvOK`'s table clauses are GATED**: `tblHit`/`tblCover` relate
+  `fe.findTable?` and `env.findTable?` (both gated by `find?`), not the raw
+  lookups.  A raw clause is false at phase B's view `fe.restrictTo k` against
+  the record's own environment (the view still holds later tables); the gated
+  one survives the view (`IFEnvOK_restrictTo`) and transports to any
+  environment that looks up alike (`IFEnvOK.congr_env`).  Phase B now runs the
+  knot AT the record's environment `p.1`, not at `envF.prefixTo vis` (which
+  keeps every table and so is no longer `p.1`): `PendRel` gains
+  `extT : TblExt p.1 envF` and `PendRel.prefix_find?`/`prefix_findTable?`
+  replace the old equation `PendRel.prefix`.  `TblExt` is con-leche's
+  `PushChain` table clause for the PURE checker, proved off `DeclRun` in
+  `Checker/Nodup.lean` (`checkDecl_tables`, `declBlockRun_tables`: a block's
+  tables are its members', each fresh at the base).
+* **A push needs the tables stored**: with gated clauses a constant's push
+  opens a gate, so `IFEnvOK.push` takes the raw lookups at the new name and
+  `IFEnvOK.pushStored` discharges them from `TablesStored env` (`TableWF`'s
+  first clause) and the denotation — at a fresh name both sides have no
+  table, at an old one both gates were open.  `StepOK.push` reads it off
+  `EnvWF`; the basis install and the inductive route (`consBlockInds`,
+  `consSumCtors`, the generated recursors' temporary pushes) thread
+  `TablesStored` explicitly.  `IFEnvOK.pushTable` takes the structure's gate.
+* **`FoldOK.tblShape`**: every table of the list is well shaped; it replaces
+  `FoldOK.projMem` (which derived shapes from lookups under name uniqueness
+  and no longer can: a lookup does not reach a hidden table).  The bracket's
+  close gets it from `promoteNew_projOK`.
+* **Deleted with upstream**: `IProjNamed`/`CIProjNamed`/`DeclProjNamed`/
+  `DeclsProjNamed` and the frontend relation's `projNamed` clause (the name of
+  a table is no longer a stored handle), `toConstantVal_run`/`_type_run`,
+  `projTableName_spec`, `IFEnvOK.pushT`, `ProjOutF`/`ProjOutM` (`ProjOut` is
+  now `TPushed` plus membership shapes), `FoldOK.projMem`,
+  `denoteCIList_inj_nodup`, `find?_of_mem_nodupNames`, `IProjTableOK.pmono`,
+  `denoteEArray_inj`, the canon `.projInfo` arm.
+
+#### How stable is Theorem 1 this time
+
+Classified as in #125–#127 — **(a)** the code changed, **(b)** a proof broke
+with its mathematics unchanged, **(c)** mechanical.  57 files, +2959 −3607;
+the large ones are (a): `Checker/Inv.lean` 469/112 (the gated clauses, push
+lemmas, `TablesStored`), `Promote/Exact.lean` 392/51 and `Promote/Coh.lean`
+216/53 (the table promotion's specs), `Checker/Split.lean` 248/277 (phase B
+at the record's environment), `Checker/Nodup.lean` 173/8 (`TblExt`), the
+inductive tier's `Rel`/`BlockTail`/`StructInstall` (the table push), and the
+deletions (`Basis` −393, `Frontend/Lines` −274, `Canon` −198,
+`Frontend/Rel` −196, `Walks/Proj` −184, `StateOK` −162).
+
+**The #123-style walk proofs.**  No walk's statement changed.  Three callees
+became PURE (`toConstantVal`, `findProj?`, `towerSlotsAll`), so they dropped
+out of the `vcgen` lists of every walk that called them and their facts became
+keyed `@[bridge_grind]` patterns — `cvFieldsAt` (`StrLit`), `findProjAt`/
+`findTable?_isSome_at` (`Walks/Proj`), `projAnsAt` (`ProjLit`), `projFoundAt'`/
+`ProjFoundAt` (`PropRead`), `towerSlotsAllAt`/`TowerAt` (`Eta`, where the
+counted recursion's #123 proof became an equation lemma by induction, the
+function no longer being monadic).  Every walk proof that kept its
+`sym only … => vcgen […] <;> finish` closed with the shortened list except
+**one (b)**: `andRescueSlotsGo_specA` (`IotaLeaves.lean`) needs
+`finish (ematch := 6)` — the lookup's answer now arrives by e-matching instead
+of a callee's postcondition, one round deeper; raised locally with the reason
+in a comment.  Two staged (non-idiom) proofs lost a `triple_seq` for the
+now-pure call (`structEtaCertWith_spec`, the `.proj` inference arm) — (c).
+The con-leche inversions this tier destructures positionally lost a conjunct
+each (`ConstantValRun`, `checkConstantVal_inv`, `installHeader_inv`,
+`ConstWF`) and `EnvWF` became a structure — (c), about twenty patterns.
