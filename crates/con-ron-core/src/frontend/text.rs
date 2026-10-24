@@ -97,7 +97,6 @@ pub fn cps_starts_with(s: &Vec<u32>, lit: &[u32]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::name;
 
     fn s(v: &[u32]) -> String {
         v.iter().filter_map(|c| char::from_u32(*c)).collect()
