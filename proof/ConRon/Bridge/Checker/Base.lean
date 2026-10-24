@@ -2,33 +2,12 @@
 # `ConRon.Bridge.Checker.Base` — `CheckerBase`'s specs
 
 The twin of `ConLeche/Kernel/CheckerBase.lean` is `Arena/CheckerBase.lean`,
-and this module is its bridge tier: the variant fallback, the two memoised
-DAG walks the declaration front door runs, and the per-declaration constant
-check.
+and this module is its bridge tier: the two memoised DAG walks the
+declaration front door runs, and the per-declaration constant check.
 
-## `orElseAttempt` — the only recovery
+## What it rests on
 
-`Arena/CheckerBase.lean`'s `orElseAttempt` is the one place (B) recovers from
-a thrown error.  A throw in `StateT σ (Except ε)` carries no state at all, so
-the twin's error arm can only resume at `s`; the port moves back a full copy
-of the pre-attempt state (DESIGN `### Task #97-T2-LOCKSTEP` D4b), which is
-the same state.
-
-`orElseAttempt_run` below is that, as a theorem: the attempt's outcome
-determines the step, and on a recovered error the state is *literally* the
-pre-attempt one — `attemptRestore s (attemptSnapshot s) = s` is `rfl`, which
-is what makes the snapshot/restore pair invisible to the bridge.  con-leche's
-`orElse` combinator (`CheckerBase.lean:25-53`'s sixth field, its
-`fueledOps` clause) has the same three-way outcome with the same states, so
-the two agree on the verdict and on everything the bridge can observe.
-
-**Where con-leche has no counterpart**: `OrElseStep.failed`, the fourth arm,
-carries only a `native` error (DESIGN §8.3's ruling), and a `native` claims
-nothing.  So the bridge says nothing about that arm and does not need to.
-
-## The rest
-
-Everything else here bottoms out in `KnotSpec` (the inference call) and in the `ExprOps` tier's walks, and the guards that do
+Everything here bottoms out in `KnotSpec` (the inference call) and in the `ExprOps` tier's walks, and the guards that do
 NOT are the memoised ones — `allLevelParamsDefined` and `constsResolveFFast`
 — which `Arena/CheckerBase.lean` carries because con-leche's own tree walks do
 not terminate on a shared DAG (con-leche's task #210 Part B).  Each is a
@@ -46,36 +25,6 @@ open ConLeche ConRon.Arena
 namespace ConRon.Bridge
 
 set_option autoImplicit false
-
-/-! ## The variant fallback -/
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps (the `orElse`
-field) — **the attempt's snapshot and restore, closed.**  Three outcomes, and
-on the recovered one the state handed back is the pre-attempt state itself.
-
-The `rfl` in the last arm is the whole content of the snapshot/restore pair:
-`attemptRestore s (attemptSnapshot s)` is `s`.  In (C) the restore moves the
-snapshot, a full copy of the pre-attempt state, back as the state, and
-Theorem 2 (`Refine2/Checker/Base.lean`'s `attempt_restore_refines₀`) relates
-that to `s` (DESIGN `### Task #97-T2-LOCKSTEP` D4b). -/
-theorem orElseAttempt_run {att : AM Bool} {s s' : AState} {r : OrElseStep}
-    (h : orElseAttempt att s = .ok (r, s')) :
-    (∃ b, att s = .ok (b, s') ∧ r = orElseStepOf (.ok b)) ∨
-      (∃ e, att s = .error e ∧ r = orElseStepOf (.error e) ∧ s' = s) := by
-  simp only [orElseAttempt] at h
-  revert h
-  cases ha : att s with
-  | ok p =>
-    obtain ⟨b, s₁⟩ := p
-    intro h
-    simp only [Except.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact Or.inl ⟨b, rfl, rfl⟩
-  | error e =>
-    intro h
-    simp only [Except.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact Or.inr ⟨e, rfl, rfl, rfl⟩
 
 /-! ## The name-shape guards
 

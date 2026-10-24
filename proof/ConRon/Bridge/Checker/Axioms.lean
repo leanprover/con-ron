@@ -91,9 +91,6 @@ namespace ConRon.Bridge
 #print axioms enterScratch_run
 #print axioms dropScratch_run
 
--- the variant fallback
-#print axioms orElseAttempt_run
-
 /-! ### The bracket, the `AM` reading layer, the index and the pin tables -/
 
 -- the bracket's OPENING step, and the eight congruences under it

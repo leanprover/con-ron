@@ -20,8 +20,9 @@ module is its bridge tier.  Four groups, and they are exactly the four things
 2. **the structural-`Nat` gate** — `natOpGuard` / `natOpStoredOkAll` /
    `certifyNatEqs`, run in the PRE-insertion environment with the operation's
    self-references replaced by its stored value;
-3. **the `Nat.div`/`Nat.mod` variant gate** — `checkDivModPin`, whose loop is
-   the one consumer of `Bridge/Checker/Base.lean`'s `orElseAttempt_run`;
+3. **the `Nat.div`/`Nat.mod` variant gate** — `checkDivModPin`
+   (`Bridge/Checker/DivMod.lean`), a loop of boolean decisions over the pin
+   variants;
 4. **the compiler-trust gate** — `checkReducePin`.
 
 **Why the pin gates are not `Bridge/Checker/Arms.lean`'s business.**  Each of

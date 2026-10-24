@@ -190,6 +190,31 @@ def divModCertProofs (ps : INatOpPinSet) (c : NIdx) : AM (List EIdx) := do
   else if c == (← natShiftRightName) then pure ps.shiftRightProofs
   else pure ps.modProofs
 
+/-- con-leche: ConLeche/Kernel/Checker.lean:140-152 divModTypePins — the
+type pins of a pin-certified WF-recursive op in one pin variant: the
+constants its certificates use whose types differ between supported
+toolchains, each with its type in this variant's toolchain. -/
+def divModTypePins (ps : INatOpPinSet) (c : NIdx) : AM (List (NIdx × EIdx)) := do
+  if c == (← natDivName) then pure ps.divTypePins
+  else if c == (← natGcdName) then pure ps.gcdTypePins
+  else if c == (← natLandName) then pure ps.landTypePins
+  else if c == (← natLorName) then pure ps.lorTypePins
+  else if c == (← natXorName) then pure ps.xorTypePins
+  else if c == (← natShiftLeftName) then pure ps.shiftLeftTypePins
+  else if c == (← natShiftRightName) then pure ps.shiftRightTypePins
+  else pure ps.modTypePins
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:154-161 typePinStored
+con-leche: ConLeche/Kernel/DeclCheck.lean:325-329 typePinStoredF
+The stored type a type pin is compared against: the constant's type in the
+environment.  An absent constant gives `Sort 0`, which nothing is compared
+against: the guard (`divModPinGuard`) requires every type-pinned constant
+present. -/
+def typePinStored (fe : IFEnv) (n : NIdx) : AM EIdx := do
+  match fe.find? n with
+  | some ci => pure ci.toConstantVal.type
+  | none => internE (.sort (← zeroLevel))
+
 /-! ### The pinned characterization statements
 
 con-leche writes `divModCertStmts` with eleven local lambdas over `Expr`
@@ -517,17 +542,42 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
         else boolCtorTyped fe2 (← boolFalseName)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModPinGuard_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModPinGuard_bridge, then delete this line
+One type pin's guard, the body of `divModPinGuard`'s `List.all` closure: the
+constant stored, its stored type free of free variables, the pinned type
+closed, free of free variables and resolving. -/
+def typePinGuard (fe : IFEnv) (n : NIdx) (ty : EIdx) : AM Bool := do
+  if (fe.find? n).isSome then
+    if ← hasFvarFast coreWalkFuel (← typePinStored fe n) then pure false
+    else if !(← looseBVarsBoundedFast coreWalkFuel 0 ty) then pure false
+    else if ← hasFvarFast coreWalkFuel ty then pure false
+    else constsResolveFFast fe ty
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
+`(divModTypePins ps c).all fun p => …` as a list recursion (DESIGN §3.4
+forbids the closure). -/
+def typePinsGuard (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
+  | [] => pure true
+  | p :: rest => do
+    if ← typePinGuard fe p.1 p.2 then typePinsGuard fe rest
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
 Syntactic guards on one variant's pin (generated; checked once at install
-rather than proven about the blob). -/
+rather than proven about the blob), and on its type pins: each type-pinned
+constant stored with a closed type, each pinned type closed over constants
+the stream declares. -/
 def divModPinGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx) : AM Bool := do
   let p ← divModDeclPin ps c
   if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
   else if ← hasFvarFast coreWalkFuel p then pure false
   else if !(← allLevelParamsDefined [] p) then pure false
-  else constsResolveFFast fe p
+  else if ← constsResolveFFast fe p then
+    typePinsGuard fe (← divModTypePins ps c)
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:323-330 divModCertsGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:340-344 divModCertsGuardF
@@ -574,16 +624,22 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     else pure false
   | _, _ => pure false
 
+/-- con-leche: ConLeche/Kernel/Checker.lean:332-340 checkTypePins
+con-leche: ConLeche/Kernel/DeclCheck.lean:403-410 checkTypePinsF
+The type pins: each type-pinned constant's stored type against the variant's
+pinned one, by definitional equality. -/
+def checkTypePins (mode : CheckMode) (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
+  | [] => pure true
+  | p :: rest => do
+    if ← isDefEqCore mode fe checkFuel 0 (← typePinStored fe p.1) p.2 then
+      checkTypePins mode fe rest
+    else pure false
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:412-422 checkDivModPinAtF
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
-**One pin variant's attempt**: the stored value against the variant's pin by
-definitional equality, and on a match the variant's certificates.  `true` =
-matched; `false` = the pin is not definitionally equal, or a certificate did
-not check.  The third outcome is an error thrown from inside, which
-`orElseAttempt` turns into "this variant does not match". -/
-def checkDivModPinAt (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+The attempt past its type pins: the stored value against the variant's pin
+by definitional equality, and on a match the variant's certificates. -/
+def checkDivModPinValue (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value' : EIdx) (ps : INatOpPinSet) : AM Bool := do
   let pinA ← divModDeclPin ps c
   let okPin ← isDefEqCore mode fe checkFuel 0 value' pinA
@@ -592,47 +648,50 @@ def checkDivModPinAt (mode : CheckMode) (fe : IFEnv) (c : NIdx)
       (← divModCertProofs ps c)
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason — what
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.divModAttemptReason_bridge, then delete this line
-a variant failed on, for the decline message.  con-leche's pure
-instantiations always report the `none` text; the arena's `orElseAttempt`
-delivers the error, as the executable's `sharedOpsC` does. -/
-def divModAttemptReason (ps : INatOpPinSet) : Option CheckError → String
-  | none => s!"{ps.toolchain}: pin not definitionally equal, or a \
-      certificate failed"
-  | some e => s!"{ps.toolchain}: {reprStr e}"
+/-- con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
+con-leche: ConLeche/Kernel/DeclCheck.lean:412-422 checkDivModPinAtF
+**One pin variant's attempt**: the variant's type pins (`checkTypePins`),
+then the value pin and the certificates (`checkDivModPinValue`).  `true` =
+matched; `false` = a type pin or the pin is not definitionally equal, or a
+certificate did not check.  Every outcome is a boolean; an error is the
+run's. -/
+def checkDivModPinAt (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (value' : EIdx) (ps : INatOpPinSet) : AM Bool := do
+  if ← checkTypePins mode fe (← divModTypePins ps c) then
+    checkDivModPinValue mode fe c value' ps
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason —
+what a variant whose guards passed failed on, for the decline message. -/
+def divModAttemptReason (ps : INatOpPinSet) : String :=
+  s!"{ps.toolchain}: a type pin or the pin not definitionally equal, or \
+    a certificate failed"
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinLoop_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:424-439 checkDivModPinLoopF
--- con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove DeclCheck.checkDivModPinLoop_bridge, then delete this line
 **The variant loop**: the first variant whose guards pass and whose attempt
 succeeds enables the fast path; every other outcome moves on to the next
 variant, and when none is left the stream DECLINES with the per-variant
-reasons.
-
-This is (B)'s one variant-fallback point.  con-leche's `ops.orElse … fun r =>
-…` passes a continuation, which DESIGN §3.4 forbids; the continuation is this
-loop's own tail call, exactly as `crates/con-ron-core/src/kernel/checker.rs`
-spells it, and the decision is `orElseAttempt`'s four-way step — `.recovered`
-resumes at the PRE-attempt state, `.failed` (a `native` error only) is the
-verdict. -/
+reasons.  Every step is a boolean decision: the guards, then the attempt's
+`true`/`false` (`checkDivModPinAt`).  The two guards short-circuit, as
+con-leche's `&&` of two pure `Bool`s does: a variant whose pin guard fails
+never walks its certificates. -/
 def checkDivModPinLoop (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value' : EIdx) : List INatOpPinSet → List String → AM Unit
   | [], tried => do
     fail (.notImplemented s!"unsupported Nat.div/mod spelling (no pin variant \
       matched — {String.intercalate "; " tried})")
   | ps :: rest, tried => do
-    if (← divModPinGuard ps fe c) && (← divModCertsGuard ps fe c value') then
-      match ← orElseAttempt (checkDivModPinAt mode fe c value' ps) with
-      | .matched => pure ()
-      | .continued =>
+    if ← divModPinGuard ps fe c then
+      if ← divModCertsGuard ps fe c value' then
+        if ← checkDivModPinAt mode fe c value' ps then pure ()
+        else
+          checkDivModPinLoop mode fe c value' rest
+            (tried ++ [divModAttemptReason ps])
+      else
         checkDivModPinLoop mode fe c value' rest
-          (tried ++ [divModAttemptReason ps none])
-      | .recovered e =>
-        checkDivModPinLoop mode fe c value' rest
-          (tried ++ [divModAttemptReason ps (some e)])
-      | .failed e => fail e
+          (tried ++ [s!"{ps.toolchain}: pin or certificate ground constants \
+            absent"])
     else
       checkDivModPinLoop mode fe c value' rest
         (tried ++ [s!"{ps.toolchain}: pin or certificate ground constants \
