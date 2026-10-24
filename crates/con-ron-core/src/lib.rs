@@ -54,7 +54,7 @@
 //! | `trust_pins` | `ConLeche/Kernel/TrustPins.lean` |
 //! | `trust_axioms` | `ConLeche/Kernel/TrustAxioms.lean` |
 //! | `nat_op_pins` | `ConLeche/Kernel/NatOpPinSet.lean` + `Kernel/NatOpPins.lean` (the record only: `natOpPinSets` is data, the last argument of `checkDecls` on both sides — §3.6, tasks #31/#43/#74) |
-//! | `pins_text`, `pins_decode` | the embedded `con-ron-pins/1` dump and its reader (§3.6, task #43) |
+//! | `pins_text`, `pins_decode` | the embedded `con-ron-pins/2` dump and its reader (§3.6, task #43) |
 //!
 //! **Why `Expr` survives the arena rewrite.**  Three families of con-leche
 //! declaration are pure `Expr` / `ConstantInfo` *values* written out by hand or

@@ -94,14 +94,6 @@ impl Eq2 for EIdxPair {
     }
 }
 
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for EIdxPair {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> EIdxPair {
-        EIdxPair { a: self.a.dup2(), b: self.b.dup2() }
-    }
-}
-
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:96-98 Caches.defeqC
 /// Build a `defeq` key, copying the two handle words.
 pub fn eidx_pair(a: &EIdx, b: &EIdx) -> EIdxPair {
@@ -133,14 +125,6 @@ impl Eq2 for LIdxPair {
         } else {
             false
         }
-    }
-}
-
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for LIdxPair {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> LIdxPair {
-        LIdxPair { a: self.a.dup2(), b: self.b.dup2() }
     }
 }
 
@@ -178,14 +162,6 @@ impl Eq2 for LsIdxPair {
     }
 }
 
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for LsIdxPair {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> LsIdxPair {
-        LsIdxPair { a: self.a.dup2(), b: self.b.dup2() }
-    }
-}
-
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:101-102 Caches.lvlsEqC
 /// Build a level-list-verdict key.
 pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
@@ -218,14 +194,6 @@ impl Eq2 for NLsKey {
         } else {
             false
         }
-    }
-}
-
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for NLsKey {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> NLsKey {
-        NLsKey { n: self.n.dup2(), us: self.us.dup2() }
     }
 }
 
@@ -268,18 +236,6 @@ impl Eq2 for NNLsKey {
             }
         } else {
             false
-        }
-    }
-}
-
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for NNLsKey {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> NNLsKey {
-        NNLsKey {
-            rec_name: self.rec_name.dup2(),
-            ctor: self.ctor.dup2(),
-            us: self.us.dup2(),
         }
     }
 }

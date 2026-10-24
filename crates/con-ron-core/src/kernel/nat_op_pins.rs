@@ -4,12 +4,14 @@
 //!
 //! A **pin variant** carries, per pin-certified WF-recursive `Nat` operation
 //! (`Nat.div`, `Nat.mod`, `gcd`, `land`, `lor`, `xor`, `shiftLeft`,
-//! `shiftRight`), that toolchain's pinned defining expression and its
-//! certificate proof blobs.  The install gate
-//! (`checker::check_div_mod_pin_loop`) tries the variants in order and
-//! enables the operation's literal fast path on the first whose guards pass,
-//! whose pin is definitionally equal to the stream's stored value and whose
-//! certificates check.  The certificate *statements* the proofs are checked
+//! `shiftRight`), that toolchain's pinned defining expression, its
+//! certificate proof blobs and its type pins (the types, in that toolchain,
+//! of the constants the certificates use whose types differ between
+//! supported toolchains).  The install gate
+//! (`arena::decl_check::check_div_mod_pin_loop`) tries the variants in order
+//! and enables the operation's literal fast path on the first whose guards
+//! pass, whose type pins and pin are definitionally equal to the stream's
+//! stored types and value, and whose certificates check.  The certificate *statements* the proofs are checked
 //! against are hand-pinned in `checker::div_mod_cert_stmts` and shared by
 //! every variant.
 //!
@@ -29,7 +31,7 @@
 //! whose only effect is on completeness.  So
 //! `cached::installed::check_decls` takes it as `pins : &Vec<NatOpPinSet>`
 //! and threads it down to the loop, and the binary's own value is the
-//! embedded `con-ron-pins/1` text decoded inside the core (task #43,
+//! embedded `con-ron-pins/2` text decoded inside the core (task #43,
 //! `kernel::pins_text` + `kernel::pins_decode`; `con-ron --pins FILE`
 //! survives as a test override).  **This module therefore declares the record
 //! and nothing else**: there is no `nat_op_pin_sets()` (§3.4 forbids the
@@ -39,13 +41,15 @@
 //! `checkDivModPin{,F}` take the list as an argument as well.
 
 use crate::kernel::expr::Expr;
+use crate::kernel::name::Name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove nat_op_pins::NatOpPinSet_refines, then delete this line
-/// The pins of one toolchain: eight pinned defining expressions and eight
-/// certificate-proof lists, in the order of `natDivModNames`' family, plus
-/// the toolchain string for diagnostics.  Deviation: `toolchain : String` is
+/// The pins of one toolchain: eight pinned defining expressions, eight
+/// certificate-proof lists and eight type-pin lists, in the order of
+/// `natDivModNames`' family, plus the toolchain string for diagnostics.  A
+/// type pin `(n, ty)` says that the constant `n`, which the operation's
+/// certificates use, has type `ty` in this toolchain.  Deviation: `toolchain : String` is
 /// a `Vec<u32>` of code points (DESIGN.md §3.3).
 pub struct NatOpPinSet {
     pub toolchain: Vec<u32>,
@@ -65,4 +69,12 @@ pub struct NatOpPinSet {
     pub xor_proofs: Vec<Expr>,
     pub shift_left_proofs: Vec<Expr>,
     pub shift_right_proofs: Vec<Expr>,
+    pub div_type_pins: Vec<(Name, Expr)>,
+    pub mod_type_pins: Vec<(Name, Expr)>,
+    pub gcd_type_pins: Vec<(Name, Expr)>,
+    pub land_type_pins: Vec<(Name, Expr)>,
+    pub lor_type_pins: Vec<(Name, Expr)>,
+    pub xor_type_pins: Vec<(Name, Expr)>,
+    pub shift_left_type_pins: Vec<(Name, Expr)>,
+    pub shift_right_type_pins: Vec<(Name, Expr)>,
 }

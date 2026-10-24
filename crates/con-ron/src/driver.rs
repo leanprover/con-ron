@@ -280,7 +280,7 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
 /// the text to `PINS_TEXT`).
 ///
 /// The two overrides are **for testing only** and neither is a con-leche
-/// spelling: `--pins FILE` reads a `con-ron-pins/1` dump through the
+/// spelling: `--pins FILE` reads a `con-ron-pins/2` dump through the
 /// *unverified* reader (task #31's arrangement, kept so that a differential
 /// sweep can hand the checker a pin list the embedded one is not, e.g. after a
 /// con-leche bump and before `scripts/gen-pins.sh` runs), and `--no-pins` is

@@ -1,4 +1,4 @@
-# `con-ron-pins/1` — the `Nat`-operation pin dump format
+# `con-ron-pins/2` — the `Nat`-operation pin dump format
 
 con-leche's `natOpPinSets` (`ConLeche/Kernel/NatOpPins.lean:61`), written out
 as text.  DESIGN.md §3.6 and task #31: encoding those pin sets as *generated
@@ -34,13 +34,13 @@ is a trailing `\n` after the last line.  Fields inside a line are separated by
 a single space `U+0020`; no other whitespace occurs anywhere.
 
 ```
-con-ron-pins/1         <- the version header, the whole first line
+con-ron-pins/2         <- the version header, the whole first line
 <record>               <- one per line, in the order described below
 ...
 end <setCount>         <- the footer; <setCount> = the number of `S` records
 ```
 
-A reader must reject a file whose first line is not exactly `con-ron-pins/1`,
+A reader must reject a file whose first line is not exactly `con-ron-pins/2`,
 and one whose footer count disagrees with the number of `S` records seen.
 Blank lines are ignored; there are no comments.
 
@@ -159,20 +159,24 @@ nothing may compare them.
 `fvar` does not occur in a pin blob, but it is a constructor of the type and
 is representable here.
 
-### Pin variants — `ConLeche/Kernel/NatOpPinSet.lean:30`
+### Pin variants — `ConLeche/Kernel/NatOpPinSet.lean:35-68`
 
 ```
 S <len> <text> <expr> <expr> <expr> <expr> <expr> <expr> <expr> <expr>
         toolchain  div    mod    gcd   land   lor    xor    shl    shr
   <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>* <k> <expr>*
   divProofs   modProofs   gcdProofs   landProofs  lorProofs   xorProofs   shlProofs   shrProofs
+  <k> (<name> <expr>)* <k> (<name> <expr>)* … (eight lists)
+  divTypePins          modTypePins          …  shiftRightTypePins
 ```
 
 (one line, the wrap above is presentation).  `S` records carry **no id**: the
 record *is* the payload, and its position in the file is its position in
 `natOpPinSets`, which is the order `checkDivModPinLoop` tries the variants in.
-The eight pins come first and the eight counted proof lists follow, in the
-field order of the structure; `<len> <text>` is the toolchain string (§3),
+The eight pins come first, the eight counted proof lists follow, then the
+eight counted type-pin lists, in the field order of the structure; a type pin
+is the pinned constant's name and its type in the generating toolchain, and
+the count `<k>` counts pairs.  `<len> <text>` is the toolchain string (§3),
 which the decline message names and nothing else reads.
 
 ## 5. Emission order

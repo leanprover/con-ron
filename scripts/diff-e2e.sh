@@ -32,7 +32,7 @@
 # text constant inside the verified core and the core decodes it, so a plain
 # run uses con-leche's own pins.  `--no-pins` passes the empty list, under which
 # the 17 fixtures that define `Nat.div` decline (task #28's numbers), and
-# `--pins-file` reads the `con-ron-pins/1` dump `scripts/gen-pins.sh` writes
+# `--pins-file` reads the `con-ron-pins/2` dump `scripts/gen-pins.sh` writes
 # (`_tmp/gen-pins-<key>/pins.dump`) through the unverified reader instead (task
 # #31's arrangement, kept as a test route).
 #

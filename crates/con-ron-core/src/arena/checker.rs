@@ -1099,7 +1099,7 @@ mod tests {
     }
 
     /// **The startup walk at the binary's own pin list**, not the empty one
-    /// every check above runs with: the embedded `con-ron-pins/1` text
+    /// every check above runs with: the embedded `con-ron-pins/2` text
     /// (`kernel::pins_text::PINS_TEXT`, 26 721 records) decoded and interned
     /// into the persistent tier.  This is the path `run_pipeline` takes and the
     /// one thing about it that could fail quietly — the `2^27` handle cap, or a

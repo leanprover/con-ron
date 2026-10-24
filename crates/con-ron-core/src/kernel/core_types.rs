@@ -146,25 +146,6 @@ pub fn native(m: Vec<u32>) -> CheckError {
     CheckError::Native(m)
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove core_types::message_refines, then delete this line
-/// The message out of an error, by move.  The cited `divModAttemptReason ps
-/// (some e)` renders `e` into the variant's decline reason with `toString`;
-/// the port has no `ToString` instance (the note on `CheckError` above) and
-/// no accumulator (`kernel::checker`'s module note 2), so the reason *is* the
-/// payload, and `check_div_mod_pin_loop` carries it to the final
-/// `notImplemented`.  The kind is dropped, which is what makes this the whole
-/// of the cited rendering: the decline con-leche throws at the end of the
-/// loop is a `notImplemented` whatever the variants threw.
-pub fn message(e: CheckError) -> Vec<u32> {
-    match e {
-        CheckError::NotImplemented(m) => m,
-        CheckError::Invalid(m) => m,
-        CheckError::Internal(m) => m,
-        CheckError::Native(m) => m,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::kernel::core_types;

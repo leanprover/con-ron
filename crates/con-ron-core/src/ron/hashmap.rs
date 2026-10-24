@@ -411,23 +411,17 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// Copying a table (task #67)
+// The value copy
 // ---------------------------------------------------------------------------
-//
-// `CheckerOps.orElse` (`ConLeche/Kernel/CheckerBase.lean:36-53`) continues its
-// error arm from the **pre-attempt** state, `k (some e) s`: whatever memo
-// entries the failed attempt wrote are discarded.  Lean gets that for free —
-// `s` is a value — while the port threads one `&mut CState`, so it needs a
-// snapshot to restore from, and a snapshot of a `CState` is a copy of its
-// fourteen tables.  Since there is no iteration API (the module note), the
-// copy is *structural*: the three scalar fields, then a rebuilt `slots`.
 
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-/// A value that can be copied into an independent one.  Deliberately our own
-/// trait rather than `core::clone::Clone`, for `Eq2`'s reasons (see its doc
-/// comment) and DESIGN.md §3.4's ban on `derive(Clone)` for the core types:
-/// the copy of a `Name`/`Level`/`Expr` is the `P` bump `kernel::name::dup` and
-/// friends already spell, and nothing here may descend into a node.
+/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+/// A value that can be copied into an independent one: a key the tables store
+/// while the caller keeps its own, a handle read out of a table by `&`.
+/// Deliberately our own trait rather than `core::clone::Clone`, for `Eq2`'s
+/// reasons (see its doc comment) and DESIGN.md §3.4's ban on `derive(Clone)`
+/// for the core types: the copy of a `Name`/`Level`/`Expr` is the `P` bump
+/// `kernel::name::dup` and friends already spell, and nothing here may
+/// descend into a node.
 ///
 /// The method is `dup2`, not `dup`, so that it never collides with the
 /// free-function `dup`s the modules already export.
@@ -435,47 +429,12 @@ pub trait Dup {
     fn dup2(&self) -> Self;
 }
 
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
+/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
 /// A `u64` key or value (`instC`'s offset) is copied by reading it.
 impl Dup for u64 {
     fn dup2(&self) -> u64 {
         *self
     }
-}
-
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-/// The value type of `lnzC`, `eqvC` and `defeqC`.
-impl Dup for bool {
-    fn dup2(&self) -> bool {
-        *self
-    }
-}
-
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-/// The pair keys of `constTyAt`, `constValAt`, `defeqC` and `eqvC`.  Charon
-/// and Aeneas do take a user trait impl on a tuple type: the generated
-/// instance is `Pair.Insts.<...>` applied to the component instances
-/// (checked by the `dup-tuple` spike, retired at task #76).
-impl<A: Dup, B: Dup> Dup for (A, B) {
-    fn dup2(&self) -> (A, B) {
-        (self.0.dup2(), self.1.dup2())
-    }
-}
-
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-/// The triple keys of `ruleRhsAt` and `instC`; `TupleABC.Insts.<...>` on the
-/// Lean side.
-impl<A: Dup, B: Dup, C: Dup> Dup for (A, B, C) {
-    fn dup2(&self) -> (A, B, C) {
-        (self.0.dup2(), self.1.dup2(), self.2.dup2())
-    }
-}
-
-impl<K, V> HashMap<K, V>
-where
-    K: Dup,
-    V: Dup,
-{
 }
 
 // ---------------------------------------------------------------------------

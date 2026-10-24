@@ -124,7 +124,7 @@ impl Walk {
 
 }
 
-/// The census of a `con-ron-pins/1` payload (FORMAT.md §4).  A pin
+/// The census of a `con-ron-pins/2` payload (FORMAT.md §4).  A pin
 /// variant is where the sharing matters most: as a *tree* the v4.33.0 variant
 /// is 5.1 M nodes against 20 183 in the DAG (DESIGN.md task #22), so a reader
 /// that lost the sharing would be found here and nowhere else.
@@ -147,6 +147,21 @@ pub fn census_pins(ss: &[NatOpPinSet]) -> Census {
         w.exprs_of(&s.xor_proofs);
         w.exprs_of(&s.shift_left_proofs);
         w.exprs_of(&s.shift_right_proofs);
+        for tps in [
+            &s.div_type_pins,
+            &s.mod_type_pins,
+            &s.gcd_type_pins,
+            &s.land_type_pins,
+            &s.lor_type_pins,
+            &s.xor_type_pins,
+            &s.shift_left_type_pins,
+            &s.shift_right_type_pins,
+        ] {
+            for (n, t) in tps {
+                w.name(n);
+                w.expr(t);
+            }
+        }
     }
     Census {
         names: w.names.len(),

@@ -5,7 +5,7 @@
 //! common per-declaration constant check, and the strategy-independent helpers
 //! the install paths share.
 //!
-//! ## The four systematic deviations, and the two the port adds
+//! ## The three systematic deviations, and the one the port adds
 //!
 //! 1. **`env : Env` is `fe : IFEnv`** — `arena::core`'s deviation 1.  con-leche
 //!    carries each of these functions twice, once reading the linear
@@ -18,45 +18,25 @@
 //!    the `ops` binder for exactly that reason.  Neither side has the record:
 //!    every body below calls `arena::core`'s fueled entry points by name, as
 //!    the Lean twin's do.
-//! 3. **`orElse` is `or_else_attempt`, the four-way step**, and it is the one
-//!    place in (C) that recovers from a thrown error.  See its own note.
-//! 4. **A `g : Nat → Expr → Expr` argument is not a function value.**
+//! 3. **A `g : Nat → Expr → Expr` argument is not a function value.**
 //!    `domsMatchAux` is called at the identity everywhere in this module, so
 //!    the twin here is the identity one and it is PURE: over handles a domain
 //!    comparison is a handle comparison.
 //!
-//! The port's own two:
+//! The port's own:
 //!
-//! 5. **`mentionsConst` is here, not in `arena::inductives`.**  The Lean twin
+//! 4. **`mentionsConst` is here, not in `arena::inductives`.**  The Lean twin
 //!    puts it in `Arena/Inductives/StructParts.lean`, which sits *below*
 //!    `CheckerBase.lean` in the Lean import order; the Rust module graph has
 //!    `arena::inductives` *above* this module (it calls `check_ind_decl`), so
 //!    the walk is spelled here, at its one caller.  Task #97d's own "IndBase
 //!    duplication" note is the Lean-side record of the same seam.
-//! 6. **`or_else_attempt`'s state restore is the WHOLE state** (tasks
-//!    #97-T2-LOCKSTEP D4b, D4c, #98-FREEZE).  The twin writes the attempt as a
-//!    state function, which makes the whole pre-attempt state free; `&mut
-//!    AState` has no such thing.  The caller copies the state
-//!    (`attempt_snapshot`: scratch tiers, memos, caches, pins, flags — the
-//!    persistent tables are not in it, because the attempt runs inside a
-//!    declaration bracket, whose store is frozen), runs the attempt against
-//!    the bracket's tier, and on `Recovered` moves the copy back.  History: task #97-P4d's `astate_dup` copied the whole store
-//!    with a recursion one frame per node and overflowed the stack on
-//!    `Init`+`Std`+`Lean`'s `Nat.mod` (12.3 M nodes); task #97-P6-2 then
-//!    restored only the caches, D4 added the scratch tiers (a kept scratch
-//!    node shifts every later scratch handle's word), which is the whole state
-//!    only given a frame over the attempt's 1 187-function closure; D4b copied
-//!    everything (+6.4 % instructions on `Init`); D4c moves the persistent
-//!    tier instead of copying it, which is exact by construction because the
-//!    attempt reads it through the frozen `PersTier` and cannot write it;
-//!    #98-FREEZE made opening the bracket the freeze, so the attempt no longer
-//!    moves anything itself.
 
 use crate::arena::core::{
     consts_resolve, ensure_sort_core, infer_type_core, reserved_basis_names, str_lit_supported,
     CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR, M_UNKNOWN_CONST,
 };
-use crate::arena::core_state::{take_walk_memo, Caches, ModeMemos};
+use crate::arena::core_state::take_walk_memo;
 use crate::arena::env::{
     ifenv_find, IConstantInfo,
     IConstantVal, IFEnv,
@@ -67,10 +47,10 @@ use crate::arena::expr_ops::{
 };
 use crate::arena::handle::{EIdx, NIdx, ETAG_FORALL_E};
 use crate::arena::monad::{
-    AState, Memos, fail, fail_dangling_e, intern_e_fvar, read_level, read_levels, read_names, view, view_bind,
+    AState, fail, fail_dangling_e, intern_e_fvar, read_level, read_levels, read_names, view, view_bind,
 };
 use crate::arena::store::ENodeView;
-use crate::arena::pins::{pin_sorry_ax, Pins};
+use crate::arena::pins::pin_sorry_ax;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
 use crate::kernel::expr::Literal;
@@ -147,201 +127,6 @@ pub const M_FUEL_CRF: [u32; 30] = [
     116, 115, 82, 101, 115, 111, 108, 118, 101, 70,
 ];
 
-
-// ---------------------------------------------------------------------------
-// The state snapshot (`CheckerBase.lean:113-139`'s `orElseAttempt`, deviation 6)
-// ---------------------------------------------------------------------------
-
-/// con-leche: none — a `Vec` copy; Lean's value semantics hides it (DESIGN.md §3.2)
-/// Every `Vec` copy of the snapshot below: the journals of `Caches`.
-pub fn vec_dup<T: Dup>(xs: &Vec<T>) -> Vec<T> {
-    let n = xs.len();
-    vec_dup_range(xs, Vec::with_capacity(n), 0, n)
-}
-
-/// con-leche: none — a `Vec` copy; Lean's value semantics hides it (DESIGN.md §3.2)
-/// `vec_dup`'s walk over `[lo, hi)`, pushing the copies onto `out` in index
-/// order.  **Halved rather than peeled one at a time**, so the recursion is
-/// `log2 n` deep — `con_ron_core::ron::hashmap::HashMap::dup_slots`' own
-/// shape, and for its own reason: a peeling recursion is one frame per
-/// element, which is a stack overflow on a long `Vec` (task #97-P6-2 found it
-/// as one, at `Init`+`Std`+`Lean`'s `Nat.mod`).  The left half is copied
-/// first, which is what keeps the pushes in order; the accumulator is passed
-/// by value and returned (task #6's rule).
-pub fn vec_dup_range<T: Dup>(xs: &Vec<T>, out: Vec<T>, lo: usize, hi: usize) -> Vec<T> {
-    if hi > lo {
-        let n = hi - lo;
-        if n == 1 {
-            let mut out2 = out;
-            out2.push(xs[lo].dup2());
-            out2
-        } else {
-            let mid = lo + n / 2;
-            let out2 = vec_dup_range(xs, out, lo, mid);
-            vec_dup_range(xs, out2, mid, hi)
-        }
-    } else {
-        out
-    }
-}
-
-/// con-leche: none — the per-call memo tables, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt`.
-pub fn memos_dup(m: &Memos) -> Memos {
-    Memos {
-        inst1_c: m.inst1_c.dup(),
-        inst_l_c: m.inst_l_c.dup(),
-        lift_c: m.lift_c.dup(),
-        abs1_c: m.abs1_c.dup(),
-        inst1_l_c: m.inst1_l_c.dup(),
-        inst_lp_c: m.inst_lp_c.dup(),
-        bvar_b_c: m.bvar_b_c.dup(),
-        fvar_b_c: m.fvar_b_c.dup(),
-        inst_lp_l_c: m.inst_lp_l_c.dup(),
-        inst_lp_ls_c: m.inst_lp_ls_c.dup(),
-        lp_def_c: m.lp_def_c.dup(),
-        crf_c: m.crf_c.dup(),
-    }
-}
-
-/// con-leche: none — the per-declaration caches, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt`.
-pub fn caches_dup(c: &Caches) -> Caches {
-    Caches {
-        whnf_core_c: c.whnf_core_c.dup(),
-        whnf_core_cheap_c: c.whnf_core_cheap_c.dup(),
-        whnf_c: c.whnf_c.dup(),
-        infer_c: c.infer_c.dup(),
-        infer_io_c: c.infer_io_c.dup(),
-        defeq_c: c.defeq_c.dup(),
-        lvl_eq_c: c.lvl_eq_c.dup(),
-        lvls_eq_c: c.lvls_eq_c.dup(),
-        const_ty_c: c.const_ty_c.dup(),
-        const_val_c: c.const_val_c.dup(),
-        rule_rhs_c: c.rule_rhs_c.dup(),
-        // The readback memo (task #97-P6-13) is copied too (task
-        // #97-T2-LOCKSTEP D4).  It used to be restored EMPTY, on the argument
-        // that `denoteL`/`denoteN`/`denoteLs` are functions of the store so an
-        // empty memo loses rows and nothing else — true of the answers, false
-        // of the state: the twin resumes a recovered attempt with its
-        // pre-attempt `readLC`/`readNC`/`readLsC`, and the lockstep relation
-        // compares the tables key by key.  Eight snapshots on the whole of
-        // `Init` (task #97-P6-4a §4) make the three copies free.
-        read_l_c: c.read_l_c.dup(),
-        read_n_c: c.read_n_c.dup(),
-        read_ls_c: c.read_ls_c.dup(),
-        eager_memos: mode_memos_dup(&c.eager_memos),
-    }
-}
-
-/// con-leche: none — the eager tower's mode memos, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt`.
-pub fn mode_memos_dup(m: &ModeMemos) -> ModeMemos {
-    ModeMemos {
-        whnf_core_c: m.whnf_core_c.dup(),
-        whnf_core_cheap_c: m.whnf_core_cheap_c.dup(),
-        whnf_c: m.whnf_c.dup(),
-        infer_c: m.infer_c.dup(),
-        infer_io_c: m.infer_io_c.dup(),
-        defeq_c: m.defeq_c.dup(),
-    }
-}
-
-/// con-leche: none — the reserved-name pins, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt`.
-pub fn pins_dup(p: &Pins) -> Pins {
-    Pins {
-        names: vec_dup(&p.names),
-        reserved: vec_dup(&p.reserved),
-        empty_levels: p.empty_levels.dup2(),
-        zero_level: p.zero_level.dup2(),
-        sort_one: p.sort_one.dup2(),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove checker_base::attempt_snapshot_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
-/// take the snapshot, before the attempt runs: **a full copy of the whole
-/// checker state** (task #97-T2-LOCKSTEP D4b) — the four stores with both
-/// tiers, their cons tables and their flags (`EStore::dup`), the memos, the
-/// caches and the pins.  Its one caller
-/// (`arena::decl_check::check_div_mod_pin_attempt`) takes it AFTER moving the
-/// persistent tier aside (task #97-T2-LOCKSTEP D4c), so the persistent tables
-/// it copies are empty and the copy is `O(scratch + caches)`.  Every copy is
-/// a halved recursion (`Tbl::dup`, `HashMap2::dup`, `vec_dup`), so it is
-/// `log2 n` deep.
-pub fn attempt_snapshot(st: &AState) -> AState {
-    AState {
-        store: st.store.dup(),
-        memos: memos_dup(&st.memos),
-        caches: caches_dup(&st.caches),
-        pins: pins_dup(&st.pins),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove checker_base::attempt_restore_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
-/// the restore of `OrElseStep::Recovered`: the snapshot is MOVED back as the
-/// whole state, so everything the attempt did goes (module note 6).
-pub fn attempt_restore(st: &mut AState, snap: AState) {
-    *st = snap;
-}
-
-// ---------------------------------------------------------------------------
-// The variant fallback (`CheckerBase.lean:87-139`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove checker_base::OrElseStep_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:36-54 OrElseStep` — what
-/// `orElse` decides once the attempt has run.  con-leche's clause is
-/// three-way; the port's is four, and the arena's is the port's:
-///
-/// ```text
-/// | .ok (true,  s') => .ok ((), s')     ->  Matched
-/// | .ok (false, s') => k none      s'   ->  Continued   (post-attempt state)
-/// | .error e        => k (some e)  s    ->  Recovered e (PRE-attempt state)
-///                                       ->  Failed e    when e is `native`
-/// ```
-///
-/// `Failed` carries **only** a `Native` error (DESIGN.md §8.3's ruling, task
-/// #67's for the Rust port): the arena's own machine-word limit has no `throw`
-/// behind it in con-leche, so "con-leche would have recovered from this too"
-/// is a claim about a run the cited checker never has.  The stream declines
-/// instead; an accept-direction deviation that can only lose acceptances.
-pub enum OrElseStep {
-    Matched,
-    Continued,
-    Recovered(CheckError),
-    Failed(CheckError),
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove checker_base::or_else_attempt_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
-/// **the attempt's verdict.**  This is the ONE place (C) recovers from a
-/// thrown error, and it is scoped to one `Nat.div`/`Nat.mod` pin variant's
-/// attempt: a certificate blob generated by another toolchain can be ill-typed
-/// against this stream, and that is "this variant does not match", not a
-/// checker bug.
-///
-/// The twin is a state function, so restoring the pre-attempt state is free
-/// there; here the decision is pure and the caller
-/// (`arena::decl_check::check_div_mod_pin_attempt`) restores its own
-/// `attempt_snapshot` on `Recovered` (`attempt_restore`), the twin's
-/// `orElseAttempt` restoring its snapshot.
-pub fn or_else_attempt(attempt: Result<bool, CheckError>) -> OrElseStep {
-    match attempt {
-        Ok(true) => OrElseStep::Matched,
-        Ok(false) => OrElseStep::Continued,
-        Err(e) => match e {
-            CheckError::Native(m) => OrElseStep::Failed(CheckError::Native(m)),
-            _ => OrElseStep::Recovered(e),
-        },
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Name-shape tests (`CheckerBase.lean:141-172`)

@@ -3,7 +3,7 @@ name = "con-ron-dump"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Reader and writer for the `con-ron-pins/1` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #31 and #80)"
+description = "Reader and writer for the `con-ron-pins/2` dump format; UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §3.6, tasks #31 and #80)"
 
 [lib]
 path = "src/lib.rs"
@@ -12,7 +12,7 @@ path = "src/lib.rs"
 # checker-only differential seam it served (`con-ron-check`,
 # `con-ron-dump-check`, `scripts/diff-fixtures.sh`): `scripts/diff-e2e.sh`
 # runs the whole binary on every fixture's raw export and subsumes it.  What
-# is left is the `con-ron-pins/1` reader and writer of task #31 — the format
+# is left is the `con-ron-pins/2` reader and writer of task #31 — the format
 # `scripts/gen-pins.sh` embeds and `con-ron --pins FILE` reads — and
 # `natdec`, the decimal parser the frontend shares.
 

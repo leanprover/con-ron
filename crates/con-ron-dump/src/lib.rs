@@ -1,4 +1,4 @@
-//! The Rust reader and writer for the `con-ron-pins/1` dump format
+//! The Rust reader and writer for the `con-ron-pins/2` dump format
 //! (DESIGN.md §3.6, task #31; `proof/ConRon/Dump/FORMAT.md` specifies it and
 //! `proof/ConRon/Dump/Pins.lean` is the Lean writer this file mirrors
 //! function for function).
@@ -218,7 +218,7 @@ pub use write::dump_pins;
 
 /// The version header, the whole first line of a pin dump (`Pins.lean`'s
 /// `pinsHeader`, FORMAT.md §1).
-pub const PINS_HEADER: &str = "con-ron-pins/1";
+pub const PINS_HEADER: &str = "con-ron-pins/2";
 
 // ---------------------------------------------------------------------------
 // String fields
@@ -484,6 +484,17 @@ impl<'s, 'l> Rec<'s, 'l> {
         Ok(v)
     }
 
+    fn type_pin_list(&mut self) -> Result<Vec<(Name, Expr)>, String> {
+        let n = self.count()?;
+        let mut v: Vec<(Name, Expr)> = Vec::new();
+        for _ in 0..n {
+            let nm = self.name_ref()?;
+            let ty = self.expr_ref()?;
+            v.push((nm, ty));
+        }
+        Ok(v)
+    }
+
     // --- inline enumerations ----------------------------------------------
 
     // --- the records -------------------------------------------------------
@@ -615,6 +626,14 @@ impl<'s, 'l> Rec<'s, 'l> {
         let xor_proofs = self.expr_list()?;
         let shift_left_proofs = self.expr_list()?;
         let shift_right_proofs = self.expr_list()?;
+        let div_type_pins = self.type_pin_list()?;
+        let mod_type_pins = self.type_pin_list()?;
+        let gcd_type_pins = self.type_pin_list()?;
+        let land_type_pins = self.type_pin_list()?;
+        let lor_type_pins = self.type_pin_list()?;
+        let xor_type_pins = self.type_pin_list()?;
+        let shift_left_type_pins = self.type_pin_list()?;
+        let shift_right_type_pins = self.type_pin_list()?;
         self.st.pin_sets.push(NatOpPinSet {
             toolchain,
             div_pin,
@@ -633,6 +652,14 @@ impl<'s, 'l> Rec<'s, 'l> {
             xor_proofs,
             shift_left_proofs,
             shift_right_proofs,
+            div_type_pins,
+            mod_type_pins,
+            gcd_type_pins,
+            land_type_pins,
+            lor_type_pins,
+            xor_type_pins,
+            shift_left_type_pins,
+            shift_right_type_pins,
         });
         Ok(())
     }
@@ -952,16 +979,24 @@ mod tests {
             xor_proofs: vec![p(13)],
             shift_left_proofs: vec![p(14)],
             shift_right_proofs: vec![expr::dup(&shared)],
+            div_type_pins: vec![(nm("Decidable.rec"), p(15))],
+            mod_type_pins: vec![(nm("Decidable.rec"), p(15)), (nm("Decidable.casesOn"), p(16))],
+            gcd_type_pins: Vec::new(),
+            land_type_pins: vec![(nm("Decidable.casesOn"), p(16))],
+            lor_type_pins: Vec::new(),
+            xor_type_pins: Vec::new(),
+            shift_left_type_pins: Vec::new(),
+            shift_right_type_pins: Vec::new(),
         }
     }
 
-    // --- `con-ron-pins/1` (FORMAT.md §4) -----------------------------------
+    // --- `con-ron-pins/2` (FORMAT.md §4) -----------------------------------
 
     #[test]
     fn a_pin_dump_round_trips() {
         let ss = vec![a_pin_set("lean4:v4.33.0"), a_pin_set("lean4-nightly")];
         let text = dump_pins(&ss);
-        assert!(text.starts_with("con-ron-pins/1\n"));
+        assert!(text.starts_with("con-ron-pins/2\n"));
         assert!(text.ends_with("end 2\n"));
         let (back, counts) = parse_pins_counted(&text).unwrap();
         assert_eq!(counts.pin_sets, 2);
@@ -974,6 +1009,8 @@ mod tests {
         assert_eq!(back[0].toolchain, cps("lean4:v4.33.0"));
         assert_eq!(back[0].gcd_proofs.len(), 0);
         assert_eq!(back[0].div_proofs.len(), 2);
+        assert_eq!(back[0].mod_type_pins.len(), 2);
+        assert_eq!(back[0].gcd_type_pins.len(), 0);
     }
 
     /// The **embedded** pin text (task #43) decoded by the *verified* decoder
@@ -1017,7 +1054,7 @@ mod tests {
     #[test]
     fn an_empty_pin_list_round_trips() {
         let text = dump_pins(&Vec::new());
-        assert_eq!(text, "con-ron-pins/1\nend 0\n");
+        assert_eq!(text, "con-ron-pins/2\nend 0\n");
         assert_eq!(parse_pins(&text).unwrap().len(), 0);
     }
 
@@ -1028,11 +1065,11 @@ mod tests {
     #[test]
     fn the_header_and_the_footer_are_checked() {
         // a record letter this format does not have
-        let bad = "con-ron-pins/1\nD b nat\nend 0\n";
+        let bad = "con-ron-pins/2\nD b nat\nend 0\n";
         assert!(pins_err(bad).contains("unknown record kind 'D'"), "{}", pins_err(bad));
-        // a foreign header, and a bumped version
+        // a foreign header, and the previous version
         assert!(parse_pins("lean4export/1\nend 0\n").is_err());
-        assert!(parse_pins("con-ron-pins/2\nend 0\n").is_err());
+        assert!(parse_pins("con-ron-pins/1\nend 0\n").is_err());
         // and the footer counts the pin sets
         let ss = vec![a_pin_set("t")];
         let text = dump_pins(&ss).replace("end 1", "end 2");
@@ -1114,59 +1151,59 @@ mod tests {
     #[test]
     fn parse_errors_name_the_line() {
         assert!(perr("").contains("bad header"));
-        assert!(perr("con-ron-pins/2\nend 0\n").contains("bad header"));
-        assert!(perr("con-ron-pins/1\n").contains("no 'end' footer"));
+        assert!(perr("con-ron-pins/1\nend 0\n").contains("bad header"));
+        assert!(perr("con-ron-pins/2\n").contains("no 'end' footer"));
 
         // a forward reference
         assert_eq!(
-            perr("con-ron-pins/1\nN 0 s 0 1 a\nend 0\n"),
+            perr("con-ron-pins/2\nN 0 s 0 1 a\nend 0\n"),
             "line 2: name id 0 is not defined yet"
         );
         // a wrong own id
         assert_eq!(
-            perr("con-ron-pins/1\nN 1 a\nend 0\n"),
+            perr("con-ron-pins/2\nN 1 a\nend 0\n"),
             "line 2: name id 1, expected 0"
         );
         // an unknown kind letter, and an unknown constructor letter
         assert_eq!(
-            perr("con-ron-pins/1\nX 0 a\nend 0\n"),
+            perr("con-ron-pins/2\nX 0 a\nend 0\n"),
             "line 2: unknown record kind 'X'"
         );
         assert_eq!(
-            perr("con-ron-pins/1\nN 0 q\nend 0\n"),
+            perr("con-ron-pins/2\nN 0 q\nend 0\n"),
             "line 2: unknown name record 'q'"
         );
         // a bad footer count, trailing fields, content after the footer
-        assert!(perr("con-ron-pins/1\nN 0 a\nend 1\n")
+        assert!(perr("con-ron-pins/2\nN 0 a\nend 1\n")
             .starts_with("line 3: footer count 1 != the 0"));
         assert_eq!(
-            perr("con-ron-pins/1\nN 0 a 7\nend 0\n"),
+            perr("con-ron-pins/2\nN 0 a 7\nend 0\n"),
             "line 2: trailing fields in a record"
         );
         assert_eq!(
-            perr("con-ron-pins/1\nend 0\nN 0 a\n"),
+            perr("con-ron-pins/2\nend 0\nN 0 a\n"),
             "line 3: content after the footer"
         );
         // the redundant string length is cross-checked
         assert_eq!(
-            perr("con-ron-pins/1\nN 0 a\nN 1 s 0 2 a\nend 0\n"),
+            perr("con-ron-pins/2\nN 0 a\nN 1 s 0 2 a\nend 0\n"),
             "line 3: string length 1 != the declared 2"
         );
         // an index that does not fit a machine word (DESIGN.md §3.3)
         assert!(
-            perr("con-ron-pins/1\nE 0 b 99999999999999999999999\nend 0\n")
+            perr("con-ron-pins/2\nE 0 b 99999999999999999999999\nend 0\n")
                 .contains("does not fit a 64-bit index")
         );
         // but an unbounded `natVal` literal does fit
         assert!(
-            parse_pins("con-ron-pins/1\nE 0 n 99999999999999999999999\nend 0\n").is_ok()
+            parse_pins("con-ron-pins/2\nE 0 n 99999999999999999999999\nend 0\n").is_ok()
         );
         // every record kind's own truncation, and a bad reference
-        assert!(perr("con-ron-pins/1\nE 0 a 0 0\nend 0\n")
+        assert!(perr("con-ron-pins/2\nE 0 a 0 0\nend 0\n")
             .contains("expr id 0 is not defined yet"));
-        assert!(perr("con-ron-pins/1\nL 0\nend 0\n").contains("unexpected end of record"));
+        assert!(perr("con-ron-pins/2\nL 0\nend 0\n").contains("unexpected end of record"));
         // task #119: the binder datum's `W` record is gone from the format
-        assert!(perr("con-ron-pins/1\nW 0 n\nend 0\n").contains("unknown record kind"));
+        assert!(perr("con-ron-pins/2\nW 0 n\nend 0\n").contains("unknown record kind"));
 
         // a mutilated real dump fails, never silently succeeds
         let ok = dump_pins(&[a_pin_set("t"), a_pin_set("u")]);

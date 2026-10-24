@@ -1,4 +1,4 @@
-//! The decoder of the embedded `con-ron-pins/1` text (DESIGN.md §3, task #43).
+//! The decoder of the embedded `con-ron-pins/2` text (DESIGN.md §3, task #43).
 //!
 //! `kernel::pins_text::PINS_TEXT` is con-leche's `natOpPinSets` as the text
 //! format `proof/ConRon/Dump/FORMAT.md` specifies; this module is the
@@ -14,7 +14,7 @@
 //! datum and with it the `W` records and the `l`/`f` records' third field are
 //! gone), `S` records
 //! (one per toolchain variant, in the order
-//! `checker::check_div_mod_pin_loop` tries them) and the `end <count>` footer.
+//! `arena::decl_check::check_div_mod_pin_loop` tries them) and the `end <count>` footer.
 //! Ids are dense and backward-only, which is what lets a single forward pass
 //! with one `Vec` per kind resolve every reference by indexing a table that is
 //! already long enough — no fixups, no second pass.
@@ -83,7 +83,7 @@ pub fn tables_new() -> Tables {
 
 /// con-leche: none — Rust-only failures, DESIGN.md §3
 /// The one error this module reports: the embedded text is not a
-/// `con-ron-pins/1` dump.  `Native` (task #67), because the cited checker has
+/// `con-ron-pins/2` dump.  `Native` (task #67), because the cited checker has
 /// no decoder to throw — the pins are elaboration-time data there — and
 /// because the text is a committed constant (see the module note).  It is the
 /// spelling of `Read.lean`'s `rerr`, with the line number dropped.
@@ -125,11 +125,11 @@ pub fn starts_with_from(t: &[u8], p: &[u8], i: usize) -> bool {
 }
 
 /// con-leche: none — the header line of `parsePins`
-/// `con-ron-pins/1` and its newline, as the bytes the text must open with
+/// `con-ron-pins/2` and its newline, as the bytes the text must open with
 /// (`Write.lean`'s `pinsHeader`).
 pub fn pins_header() -> Vec<u8> {
     const H: [u8; 15] = [
-        99, 111, 110, 45, 114, 111, 110, 45, 112, 105, 110, 115, 47, 49, 10,
+        99, 111, 110, 45, 114, 111, 110, 45, 112, 105, 110, 115, 47, 50, 10,
     ];
     bytes_from(&H, 0, Vec::new())
 }
@@ -499,6 +499,72 @@ pub fn expr_list_from(
                 }
             },
         }
+    }
+}
+
+/// con-leche: none — `Read.lean`'s `listTok typePinRef`
+/// A counted list of type pins, each `<name> <expr>`.
+pub fn type_pin_list(
+    t: &[u8],
+    i: usize,
+    tb: &Tables,
+) -> CheckM<(Vec<(Name, Expr)>, usize)> {
+    match read_index(t, i) {
+        Err(e) => Err(e),
+        Ok((n, j)) => type_pin_list_from(t, j, tb, n, Vec::new()),
+    }
+}
+
+/// con-leche: none — the index recursion behind `type_pin_list`
+pub fn type_pin_list_from(
+    t: &[u8],
+    i: usize,
+    tb: &Tables,
+    k: usize,
+    out: Vec<(Name, Expr)>,
+) -> CheckM<(Vec<(Name, Expr)>, usize)> {
+    if k == 0 {
+        Ok((out, i))
+    } else {
+        match after_space(t, i) {
+            Err(e) => Err(e),
+            Ok(j) => match name_ref(t, j, tb) {
+                Err(e) => Err(e),
+                Ok((n, m)) => match after_space(t, m) {
+                    Err(e) => Err(e),
+                    Ok(j2) => match expr_ref(t, j2, tb) {
+                        Err(e) => Err(e),
+                        Ok((ty, m2)) => {
+                            let mut out = out;
+                            out.push((n, ty));
+                            type_pin_list_from(t, m2, tb, k - 1, out)
+                        }
+                    },
+                },
+            },
+        }
+    }
+}
+
+/// con-leche: none — a `Vec<(Name, Expr)>` copy; Lean's `List` is shared by value
+/// The entry point of the index recursion below (`env::exprs_copy`'s shape).
+pub fn type_pins_copy(ps: &Vec<(Name, Expr)>) -> Vec<(Name, Expr)> {
+    type_pins_copy_from(ps, 0, Vec::with_capacity(ps.len()))
+}
+
+/// con-leche: none — the index recursion behind `type_pins_copy`
+/// Each component is a `P` bump; only the spine is copied.
+pub fn type_pins_copy_from(
+    ps: &Vec<(Name, Expr)>,
+    i: usize,
+    out: Vec<(Name, Expr)>,
+) -> Vec<(Name, Expr)> {
+    if i >= ps.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push((name::dup(&ps[i].0), expr::dup(&ps[i].1)));
+        type_pins_copy_from(ps, i + 1, out)
     }
 }
 
@@ -1029,11 +1095,11 @@ pub fn record_expr_proj(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove pins_decode::record_pin_set_refines, then delete this line
 /// con-leche: none — `Read.lean`'s `S` arm of `parseRecord`
-/// `S <string> <expr>×8 (<k> <expr>*)×8`: one toolchain's pins.  An `S` record
-/// carries no id — the record *is* the payload and its position in the text is
-/// its position in the list `checker::check_div_mod_pin_loop` walks.
+/// `S <string> <expr>×8 (<k> <expr>*)×8 (<k> (<name> <expr>)*)×8`: one
+/// toolchain's pins.  An `S` record carries no id — the record *is* the
+/// payload and its position in the text is its position in the list
+/// `arena::decl_check::check_div_mod_pin_loop` walks.
 pub fn record_pin_set(t: &[u8], i: usize, tb: Tables) -> CheckM<(Tables, usize)> {
     match read_string(t, i) {
         Err(e) => Err(e),
@@ -1041,42 +1107,65 @@ pub fn record_pin_set(t: &[u8], i: usize, tb: Tables) -> CheckM<(Tables, usize)>
             Err(e) => Err(e),
             Ok((pins, i)) => match proofs_eight(t, i, &tb) {
                 Err(e) => Err(e),
-                Ok((proofs, i)) => match after_newline(t, i) {
+                Ok((proofs, i)) => match type_pins_eight(t, i, &tb) {
                     Err(e) => Err(e),
-                    Ok(i) => {
-                        if pins.len() != 8 || proofs.len() != 8 {
-                            // Unreachable: both readers are counted loops of
-                            // exactly eight steps.  Spelled out because the
-                            // model's indexing below is a `Result` too.
-                            Err(bad_text())
-                        } else {
-                            let s = NatOpPinSet {
-                                toolchain,
-                                div_pin: expr::dup(&pins[0]),
-                                mod_pin: expr::dup(&pins[1]),
-                                gcd_pin: expr::dup(&pins[2]),
-                                land_pin: expr::dup(&pins[3]),
-                                lor_pin: expr::dup(&pins[4]),
-                                xor_pin: expr::dup(&pins[5]),
-                                shift_left_pin: expr::dup(&pins[6]),
-                                shift_right_pin: expr::dup(&pins[7]),
-                                div_proofs: env::exprs_copy(&proofs[0]),
-                                mod_proofs: env::exprs_copy(&proofs[1]),
-                                gcd_proofs: env::exprs_copy(&proofs[2]),
-                                land_proofs: env::exprs_copy(&proofs[3]),
-                                lor_proofs: env::exprs_copy(&proofs[4]),
-                                xor_proofs: env::exprs_copy(&proofs[5]),
-                                shift_left_proofs: env::exprs_copy(&proofs[6]),
-                                shift_right_proofs: env::exprs_copy(&proofs[7]),
-                            };
-                            let mut tb = tb;
-                            tb.sets.push(s);
-                            Ok((tb, i))
-                        }
-                    }
+                    Ok((tps, i)) => match after_newline(t, i) {
+                        Err(e) => Err(e),
+                        Ok(i) => record_pin_set_push(tb, toolchain, &pins, &proofs, &tps, i),
+                    },
                 },
             },
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet
+/// con-leche: none — `Read.lean`'s `S` arm of `parseRecord`, its last line
+/// The record out of its three eight-column reads, pushed onto the tables.
+pub fn record_pin_set_push(
+    tb: Tables,
+    toolchain: Vec<u32>,
+    pins: &Vec<Expr>,
+    proofs: &Vec<Vec<Expr>>,
+    tps: &Vec<Vec<(Name, Expr)>>,
+    i: usize,
+) -> CheckM<(Tables, usize)> {
+    if pins.len() != 8 || proofs.len() != 8 || tps.len() != 8 {
+        // Unreachable: the three readers are counted loops of exactly
+        // eight steps.  Spelled out because the model's indexing below is a
+        // `Result` too.
+        Err(bad_text())
+    } else {
+        let s = NatOpPinSet {
+            toolchain,
+            div_pin: expr::dup(&pins[0]),
+            mod_pin: expr::dup(&pins[1]),
+            gcd_pin: expr::dup(&pins[2]),
+            land_pin: expr::dup(&pins[3]),
+            lor_pin: expr::dup(&pins[4]),
+            xor_pin: expr::dup(&pins[5]),
+            shift_left_pin: expr::dup(&pins[6]),
+            shift_right_pin: expr::dup(&pins[7]),
+            div_proofs: env::exprs_copy(&proofs[0]),
+            mod_proofs: env::exprs_copy(&proofs[1]),
+            gcd_proofs: env::exprs_copy(&proofs[2]),
+            land_proofs: env::exprs_copy(&proofs[3]),
+            lor_proofs: env::exprs_copy(&proofs[4]),
+            xor_proofs: env::exprs_copy(&proofs[5]),
+            shift_left_proofs: env::exprs_copy(&proofs[6]),
+            shift_right_proofs: env::exprs_copy(&proofs[7]),
+            div_type_pins: type_pins_copy(&tps[0]),
+            mod_type_pins: type_pins_copy(&tps[1]),
+            gcd_type_pins: type_pins_copy(&tps[2]),
+            land_type_pins: type_pins_copy(&tps[3]),
+            lor_type_pins: type_pins_copy(&tps[4]),
+            xor_type_pins: type_pins_copy(&tps[5]),
+            shift_left_type_pins: type_pins_copy(&tps[6]),
+            shift_right_type_pins: type_pins_copy(&tps[7]),
+        };
+        let mut tb = tb;
+        tb.sets.push(s);
+        Ok((tb, i))
     }
 }
 
@@ -1139,6 +1228,40 @@ pub fn proofs_eight_from(
                     let mut out = out;
                     out.push(es);
                     proofs_eight_from(t, m, tb, k - 1, out)
+                }
+            },
+        }
+    }
+}
+
+/// con-leche: none — the eight counted type-pin lists of `Read.lean`'s `S` arm
+pub fn type_pins_eight(
+    t: &[u8],
+    i: usize,
+    tb: &Tables,
+) -> CheckM<(Vec<Vec<(Name, Expr)>>, usize)> {
+    type_pins_eight_from(t, i, tb, 8, Vec::new())
+}
+
+/// con-leche: none — the index recursion behind `type_pins_eight`
+pub fn type_pins_eight_from(
+    t: &[u8],
+    i: usize,
+    tb: &Tables,
+    k: usize,
+    out: Vec<Vec<(Name, Expr)>>,
+) -> CheckM<(Vec<Vec<(Name, Expr)>>, usize)> {
+    if k == 0 {
+        Ok((out, i))
+    } else {
+        match after_space(t, i) {
+            Err(e) => Err(e),
+            Ok(j) => match type_pin_list(t, j, tb) {
+                Err(e) => Err(e),
+                Ok((ps, m)) => {
+                    let mut out = out;
+                    out.push(ps);
+                    type_pins_eight_from(t, m, tb, k - 1, out)
                 }
             },
         }
@@ -1209,8 +1332,8 @@ pub fn run_footer(t: &[u8], i: usize, tb: Tables) -> CheckM<Vec<NatOpPinSet>> {
 }
 
 /// con-leche: none — `Read.lean`'s `parsePins`
-/// **The decoder.**  `con-ron-pins/1` text in, con-leche's pin variants out,
-/// in file order — which is the order `checker::check_div_mod_pin_loop` tries
+/// **The decoder.**  `con-ron-pins/2` text in, con-leche's pin variants out,
+/// in file order — which is the order `arena::decl_check::check_div_mod_pin_loop` tries
 /// them in, and therefore the order the list has to be in.
 pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
     let hdr = pins_header();
@@ -1250,7 +1373,7 @@ mod tests {
 
     #[test]
     fn the_empty_pin_list_decodes() {
-        let v = decode(b"con-ron-pins/1\nend 0\n").ok().unwrap();
+        let v = decode(b"con-ron-pins/2\nend 0\n").ok().unwrap();
         assert_eq!(v.len(), 0);
     }
 
@@ -1293,15 +1416,15 @@ mod tests {
     /// after the footer and a missing final newline.
     #[test]
     fn malformed_texts_are_rejected() {
-        assert!(decode(b"con-ron-pins/2\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nend 1\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nD a 0\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nN 1 a\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nN 0 s 0 1 a\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nend 0\nN 0 a\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nend 0").is_err());
+        assert!(decode(b"con-ron-pins/1\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nend 1\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nD a 0\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 1 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 0 s 0 1 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nend 0\nN 0 a\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nend 0").is_err());
         // a string field whose declared length disagrees with its text
-        assert!(decode(b"con-ron-pins/1\nN 0 a\nN 1 s 0 2 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 0 a\nN 1 s 0 2 a\nend 0\n").is_err());
     }
 
     /// An index field wider than `u32` is rejected at the cast rather than
@@ -1313,12 +1436,12 @@ mod tests {
     /// would otherwise truncate to `0` and *pass* `expect_id(_, _, 0)`.
     #[test]
     fn an_index_wider_than_u32_is_rejected() {
-        assert!(decode(b"con-ron-pins/1\nN 4294967296 a\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nN 0 a\nN 1 s 0 4294967296 x\nend 0\n").is_err());
-        assert!(decode(b"con-ron-pins/1\nend 4294967296\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 4294967296 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 0 a\nN 1 s 0 4294967296 x\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nend 4294967296\n").is_err());
         // the largest value the guard still admits is read, not rejected at
         // the cast (it fails later, on the id comparison)
-        assert!(decode(b"con-ron-pins/1\nN 4294967295 a\nend 0\n").is_err());
+        assert!(decode(b"con-ron-pins/2\nN 4294967295 a\nend 0\n").is_err());
     }
 
     /// The escape of FORMAT.md §3, the part of the format a byte reader has to
@@ -1326,10 +1449,10 @@ mod tests {
     /// point above the BMP all come back.
     #[test]
     fn the_string_escape_round_trips() {
-        let t = b"con-ron-pins/1\nN 0 a\nN 1 s 0 3 a\\20;b\nN 2 s 1 1 \\5c;\nN 3 s 2 1 \\10ffff;\nend 0\n";
+        let t = b"con-ron-pins/2\nN 0 a\nN 1 s 0 3 a\\20;b\nN 2 s 1 1 \\5c;\nN 3 s 2 1 \\10ffff;\nend 0\n";
         assert!(decode(t).is_ok());
         // ... and an escape that is not a code point does not
-        let bad = b"con-ron-pins/1\nN 0 a\nN 1 s 0 1 \\d800;\nend 0\n";
+        let bad = b"con-ron-pins/2\nN 0 a\nN 1 s 0 1 \\d800;\nend 0\n";
         assert!(decode(bad).is_err());
     }
 }

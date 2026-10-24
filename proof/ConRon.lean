@@ -12,7 +12,7 @@ task #105's unused-code sweep deleted the ones with nothing live left), in tier
 order: the runtime primitives (`Nat`, `HashMap`, `HashMap2`), the
 representation-free types (`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`,
 `Env`, `FEnv`, `Canon`), the `core_k` readers and shape guards, the pinned
-data (`Basis*`, `StdAxioms`, `TrustAxioms`) and the `con-ron-pins/1` decoder
+data (`Basis*`, `StdAxioms`, `TrustAxioms`) and the `con-ron-pins/2` decoder
 (`Pins*`); and `Fixpoint`, the `partial_fixpoint` admissibility lemma and
 `partial_induct` tactic of task #99-PFIX.  Every one of them is in
 `ConRon.Capstone`'s import closure (checked mechanically at task #97-PRUNE),

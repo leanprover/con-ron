@@ -283,8 +283,7 @@ where
 /// `core::clone::Clone` for `Slot`, which `Vec::resize`'s signature demands of
 /// `allocate_slots`' filler, and **that filler is its one use**: it answers
 /// `Vacant` for every slot, a `Live` one included, because a `Live` slot's key
-/// and value have no generic copy (`dup_slot` is the real copy, and needs
-/// `Dup`).  So it is not a copy of a `Live` slot, and nothing but
+/// and value have no generic copy.  So it is not a copy of a `Live` slot, and nothing but
 /// `allocate_slots` may call it (`scripts/lint-rust-style.sh` enforces that).
 impl<K, V> core::clone::Clone for Slot<K, V> {
     /// con-leche: none — arena infrastructure (task #97-PERF-BULKFILL)
@@ -807,68 +806,6 @@ where
     }
 }
 
-impl<K, V> HashMap2<K, V>
-where
-    K: Dup,
-    V: Dup,
-{
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// A copy of the table that shares nothing with it — the snapshot
-    /// `CheckerOps.orElse` restores from (`ron::hashmap::HashMap::dup`'s doc
-    /// comment has the argument).  Stale slots are copied too: they are not
-    /// part of the abstract map, and reproducing the table exactly is what
-    /// makes the copy's later behaviour identical.
-    pub fn dup(&self) -> HashMap2<K, V> {
-        let n = self.slots.len();
-        let slots = HashMap2::dup_slots(&self.slots, Vec::with_capacity(n), 0, n);
-        HashMap2 {
-            num_entries: self.num_entries,
-            max_load: self.max_load,
-            epoch: self.epoch,
-            fit_hw: self.fit_hw,
-            slots,
-        }
-    }
-
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// `dup`'s slot walk over `[lo, hi)`, pushing the copies onto `out` in
-    /// index order; halved, as `vacate_slots` is.
-    fn dup_slots(
-        src: &Vec<Slot<K, V>>,
-        out: Vec<Slot<K, V>>,
-        lo: usize,
-        hi: usize,
-    ) -> Vec<Slot<K, V>> {
-        if hi > lo {
-            let n = hi - lo;
-            if n == 1 {
-                let mut out = out;
-                out.push(dup_slot(&src[lo]));
-                out
-            } else {
-                let mid = lo + n / 2;
-                let out = HashMap2::dup_slots(src, out, lo, mid);
-                HashMap2::dup_slots(src, out, mid, hi)
-            }
-        } else {
-            out
-        }
-    }
-}
-
-/// con-leche: none — arena infrastructure (task #97-P6-4b)
-/// Copy one slot.
-fn dup_slot<K, V>(s: &Slot<K, V>) -> Slot<K, V>
-where
-    K: Dup,
-    V: Dup,
-{
-    match s {
-        Slot::Vacant => Slot::Vacant,
-        Slot::Live(g, k, v) => Slot::Live(*g, k.dup2(), v.dup2()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1109,45 +1046,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn dup_is_independent_of_the_original() {
-        let mut m: HashMap2<u64, u64> = HashMap2::new();
-        let mut i: u64 = 0;
-        while i < 100 {
-            assert_eq!(m.insert(i, i), None);
-            i += 1;
-        }
-        let mut d = m.dup();
-        assert_eq!(d.insert(1000, 7), None);
-        assert_eq!(m.get(&1000), None);
-        assert_eq!(m.len(), 100);
-        assert_eq!(d.len(), 101);
-        assert_eq!(m.insert(2000, 9), None);
-        assert_eq!(d.get(&2000), None);
-        assert_eq!(d.remove(&5), Some(5));
-        assert_eq!(m.get(&5), Some(&5));
-        assert_eq!(d.insert(0, 42), Some(0));
-        assert_eq!(m.get(&0), Some(&0));
-    }
-
-    #[test]
-    fn dup_after_a_clear_carries_no_stale_row() {
-        let mut m: HashMap2<u64, u64> = HashMap2::new();
-        let mut i: u64 = 0;
-        while i < 100 {
-            m.insert(i, i);
-            i += 1;
-        }
-        m.clear();
-        let d = m.dup();
-        assert_eq!(d.len(), 0);
-        let mut i: u64 = 0;
-        while i < 100 {
-            assert_eq!(d.get(&i), None);
-            i += 1;
-        }
-    }
-
     /// Growth keeps the table at most three-quarters full: the tables the
     /// checker builds always double before `insert` could run out of room.
     #[test]
@@ -1202,12 +1100,11 @@ mod tests {
             assert_eq!(m.insert(Pair(i, i + 1), i % 2 == 0), None);
             i += 1;
         }
-        let d = m.dup();
         let mut i: u64 = 0;
         while i < 50 {
-            assert_eq!(d.get(&Pair(i, i + 1)), Some(&(i % 2 == 0)));
+            assert_eq!(m.get(&Pair(i, i + 1)), Some(&(i % 2 == 0)));
             i += 1;
         }
-        assert_eq!(d.get(&Pair(3, 3)), None);
+        assert_eq!(m.get(&Pair(3, 3)), None);
     }
 }

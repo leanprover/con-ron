@@ -924,16 +924,6 @@ pub fn ifenv_find_proj(vis: u64, fe: &IFEnv, t: &NIdx, i: u64) -> Option<IProjEn
 // tree-shaped side.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:146-156 IConstantInfo` — the
-/// dictionary `ron::HashMap::dup` needs to copy an `IFEnv`'s index.
-impl Dup for IConstantInfo {
-    /// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
-    fn dup2(&self) -> IConstantInfo {
-        i_constant_info_dup(self)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // `Monad.lean`'s primitives, pending `arena/monad.rs` (task #97 P4b)
 //

@@ -28,10 +28,7 @@
 //! theirs, because they call into those modules and nothing here does.
 
 use crate::arena::canon::i_constant_info_beq;
-use crate::arena::checker_base::{
-    all_level_params_defined, attempt_restore, attempt_snapshot, consts_resolve_f_fast,
-    or_else_attempt, OrElseStep,
-};
+use crate::arena::checker_base::{all_level_params_defined, consts_resolve_f_fast};
 use crate::arena::checker_split::{
     install_value_guards, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
     M_TYPE_MISMATCH_THM,
@@ -51,7 +48,8 @@ use crate::arena::env::{
 use crate::arena::expr_ops::{has_fvar_fast, loose_bvars_bounded_fast};
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::monad::{
-    AState, fail, intern_e_app, intern_e_const, intern_e_fvar, intern_l_node, intern_ls_node,
+    AState, fail, intern_e_app, intern_e_const, intern_e_fvar, intern_e_sort, intern_l_node,
+    intern_ls_node,
 };
 use crate::arena::nat_op_pin_set::INatOpPinSet;
 use crate::arena::std_axioms::{
@@ -67,7 +65,6 @@ use crate::arena::trust_axioms::{
     trust_compiler_a,
 };
 use crate::arena::pins::{pin_eq, pin_nat, pin_nat_succ, pin_nat_zero};
-use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{CheckMode, ReducibilityHint};
 use crate::ron::hashmap::{Dup, Eq2};
@@ -764,9 +761,8 @@ pub fn reduce_pin_guard(
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:192-196 reducePinGuard
 /// con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::ground_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:136-144 reducePinGuard` (and
-/// `:411-416 divModPinGuard`, which is the same four guards on a different
+/// the first four guards of `divModPinGuard`, the same four on a different
 /// pin) — closed, free-variable-free, level-monomorphic and resolving.  The
 /// twin writes the four out twice; one function here.
 pub fn ground_guards(
@@ -980,6 +976,53 @@ pub fn div_mod_cert_proofs(
         Ok(5) => Ok(crate::arena::env::eidx_vec_dup(&ps.shift_left_proofs)),
         Ok(6) => Ok(crate::arena::env::eidx_vec_dup(&ps.shift_right_proofs)),
         Ok(_) => Ok(crate::arena::env::eidx_vec_dup(&ps.mod_proofs)),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:140-152 divModTypePins
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean divModTypePins` — the type
+/// pins of a pin-certified WF-recursive op in one pin variant: the constants
+/// its certificates use whose types differ between supported toolchains, each
+/// with its type in this variant's toolchain.  Borrowed from the variant, not
+/// copied: the gate only reads them.
+pub fn div_mod_type_pins<'a>(
+    st: &mut AState,
+    ps: &'a INatOpPinSet,
+    c: &NIdx,
+) -> Result<&'a Vec<(NIdx, EIdx)>, CheckError> {
+    match div_mod_slot(st, c) {
+        Err(e) => Err(e),
+        Ok(0) => Ok(&ps.div_type_pins),
+        Ok(1) => Ok(&ps.gcd_type_pins),
+        Ok(2) => Ok(&ps.land_type_pins),
+        Ok(3) => Ok(&ps.lor_type_pins),
+        Ok(4) => Ok(&ps.xor_type_pins),
+        Ok(5) => Ok(&ps.shift_left_type_pins),
+        Ok(6) => Ok(&ps.shift_right_type_pins),
+        Ok(_) => Ok(&ps.mod_type_pins),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:154-161 typePinStored
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:325-329 typePinStoredF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean typePinStored` — the stored
+/// type a type pin is compared against: the constant's type in the
+/// environment.  An absent constant gives `Sort 0`, which nothing is compared
+/// against: the guard (`div_mod_pin_guard`) requires every type-pinned
+/// constant present.
+pub fn type_pin_stored(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    n: &NIdx,
+) -> Result<EIdx, CheckError> {
+    match ifenv_find(vis, fe, n) {
+        Some(ci) => Ok(i_constant_info_to_constant_val(ci).ty),
+        None => match zero_level(st) {
+            Err(e) => Err(e),
+            Ok(z) => intern_e_sort(pers, st, z),
+        },
     }
 }
 
@@ -2153,12 +2196,12 @@ pub fn bool_ctor_typed(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::div_mod_pin_guard_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::div_mod_pin_guard_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:519-528 divModPinGuard` —
-/// syntactic guards on one variant's pin (generated; checked once at install
-/// rather than proven about the blob).
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean divModPinGuard` — syntactic
+/// guards on one variant's pin (generated; checked once at install rather
+/// than proven about the blob), and on its type pins: each type-pinned
+/// constant stored with a closed type, each pinned type closed over constants
+/// the stream declares.
 pub fn div_mod_pin_guard(
     pers: &PersTier,
     vis: u64,
@@ -2169,7 +2212,99 @@ pub fn div_mod_pin_guard(
 ) -> Result<bool, CheckError> {
     match div_mod_decl_pin(st, ps, c) {
         Err(e) => Err(e),
-        Ok(p) => ground_guards(pers, vis, st, fe, &p),
+        Ok(p) => match ground_guards(pers, vis, st, fe, &p) {
+            Err(e) => Err(e),
+            Ok(g) => {
+                if g {
+                    match div_mod_type_pins(st, ps, c) {
+                        Err(e) => Err(e),
+                        Ok(tps) => type_pins_guard(pers, vis, st, fe, tps, 0),
+                    }
+                } else {
+                    Ok(false)
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean typePinsGuard` — the cited
+/// `(divModTypePins ps c).all fun p => …` as a cursor recursion (DESIGN.md
+/// §3.4 forbids the closure `List.all` takes).
+pub fn type_pins_guard(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    tps: &Vec<(NIdx, EIdx)>,
+    i: usize,
+) -> Result<bool, CheckError> {
+    if i >= tps.len() {
+        Ok(true)
+    } else {
+        match type_pin_guard(pers, vis, st, fe, &tps[i].0, &tps[i].1) {
+            Err(e) => Err(e),
+            Ok(g) => {
+                if g {
+                    type_pins_guard(pers, vis, st, fe, tps, i + 1)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:331-338 divModPinGuardF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean typePinGuard` — one type
+/// pin's guard, the `List.all` closure's body: the constant stored, its
+/// stored type free of free variables, the pinned type closed, free of free
+/// variables and resolving.
+pub fn type_pin_guard(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    n: &NIdx,
+    ty: &EIdx,
+) -> Result<bool, CheckError> {
+    if ifenv_find(vis, fe, n).is_some() {
+        match type_pin_stored(pers, vis, st, fe, n) {
+            Err(e) => Err(e),
+            Ok(stored) => match has_fvar_fast(pers, st, CORE_WALK_FUEL, &stored) {
+                Err(e) => Err(e),
+                Ok(f) => {
+                    if f {
+                        Ok(false)
+                    } else {
+                        match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, ty) {
+                            Err(e) => Err(e),
+                            Ok(b) => {
+                                if !b {
+                                    Ok(false)
+                                } else {
+                                    match has_fvar_fast(pers, st, CORE_WALK_FUEL, ty) {
+                                        Err(e) => Err(e),
+                                        Ok(f2) => {
+                                            if f2 {
+                                                Ok(false)
+                                            } else {
+                                                consts_resolve_f_fast(pers, vis, st, fe, ty)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -2345,17 +2480,82 @@ pub fn check_div_mod_cert_tail(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Checker.lean:332-340 checkTypePins
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:403-410 checkTypePinsF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkTypePins` — the type
+/// pins: each type-pinned constant's stored type against the variant's pinned
+/// one, by definitional equality; the cited list recursion as a cursor.
+#[allow(clippy::too_many_arguments)]
+pub fn check_type_pins(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    tps: &Vec<(NIdx, EIdx)>,
+    i: usize,
+) -> Result<bool, CheckError> {
+    if i >= tps.len() {
+        Ok(true)
+    } else {
+        match type_pin_stored(pers, vis, st, fe, &tps[i].0) {
+            Err(e) => Err(e),
+            Ok(stored) => {
+                match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stored, &tps[i].1) {
+                    Err(e) => Err(e),
+                    Ok(ok) => {
+                        if ok {
+                            check_type_pins(pers, vis, st, mode, fe, tps, i + 1)
+                        } else {
+                            Ok(false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:412-422 checkDivModPinAtF
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:575-589 checkDivModPinAt` —
-/// **one pin variant's attempt**: the stored value against the variant's pin by
-/// definitional equality, and on a match the variant's certificates.  `true` =
-/// matched; `false` = the pin is not definitionally equal, or a certificate did
-/// not check.  The third outcome is an error thrown from inside, which
-/// `or_else_attempt` turns into "this variant does not match".
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinAt` — **one pin
+/// variant's attempt**: the variant's type pins (`check_type_pins`), then the
+/// stored value against the variant's pin by definitional equality, and on a
+/// match the variant's certificates.  `true` = matched; `false` = a type pin
+/// or the pin is not definitionally equal, or a certificate did not check.
+/// Every outcome is a boolean; an error is the run's.
 pub fn check_div_mod_pin_at(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    c: &NIdx,
+    value2: &EIdx,
+    ps: &INatOpPinSet,
+) -> Result<bool, CheckError> {
+    match div_mod_type_pins(st, ps, c) {
+        Err(e) => Err(e),
+        Ok(tps) => match check_type_pins(pers, vis, st, mode, fe, tps, 0) {
+            Err(e) => Err(e),
+            Ok(ok_types) => {
+                if ok_types {
+                    check_div_mod_pin_value(pers, vis, st, mode, fe, c, value2, ps)
+                } else {
+                    Ok(false)
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:412-422 checkDivModPinAtF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinValue` — the
+/// attempt past its type pins: the value pin, and on a match the
+/// certificates.
+#[allow(clippy::too_many_arguments)]
+pub fn check_div_mod_pin_value(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -2381,8 +2581,7 @@ pub fn check_div_mod_pin_at(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:342-369 checkDivModPinAt
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:575-589 checkDivModPinAt` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinCertsSpec` —
 /// the certificates, past the pin comparison.
 pub fn check_div_mod_pin_certs(
     pers: &PersTier,
@@ -2405,33 +2604,21 @@ pub fn check_div_mod_pin_certs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::div_mod_attempt_reason_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:591-598 divModAttemptReason` —
-/// what a variant failed on, for the decline message.  The twin renders
-/// `{toolchain}: {repr e}`; the port drops the interpolation (§3.1) and keeps
-/// the RECOVERED ERROR's own message, which is
-/// `con_ron_core::kernel::checker::check_div_mod_pin_loop`'s `tried`
-/// accumulator exactly.
-pub fn div_mod_attempt_reason(e: CheckError) -> Vec<u32> {
-    core_types::message(e)
-}
-
 /// con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_loop_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:424-439 checkDivModPinLoopF
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_loop_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:600-632 checkDivModPinLoop` —
-/// **the variant loop**: the first variant whose guards pass and whose attempt
+/// con-leche: ConLeche/Kernel/Checker.lean:371-375 divModAttemptReason
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean checkDivModPinLoop` — **the
+/// variant loop**: the first variant whose guards pass and whose attempt
 /// succeeds enables the fast path; every other outcome moves on to the next
-/// variant, and when none is left the stream DECLINES.
+/// variant, and when none is left the stream DECLINES.  Every step is a
+/// boolean decision — the guards, then the attempt's `true`/`false`
+/// (`check_div_mod_pin_at`) — and an error from either is the run's.
 ///
-/// This is (C)'s one variant-fallback point.  con-leche's
-/// `ops.orElse … fun r => …` passes a continuation, which §3.4 forbids; the
-/// continuation is this loop's own tail call, and the decision is
-/// `or_else_attempt`'s four-way step — `Recovered` resumes at the PRE-attempt
-/// state, which is `attempt_snapshot`'s here (the twin gets it free from
-/// its state function), and `Failed` (a `Native` error only) is the verdict.
+/// Deviation: the cited loop accumulates one reason per variant
+/// (`divModAttemptReason`, the ground-constants text) for the decline
+/// message; the port declines with one fixed message, `M_DIVMOD_NO_VARIANT`
+/// (§3.1: a message need not match, and the theorem relates an error by its
+/// kind).
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_loop(
     pers: &PersTier,
@@ -2443,10 +2630,9 @@ pub fn check_div_mod_pin_loop(
     value2: &EIdx,
     variants: &Vec<INatOpPinSet>,
     i: usize,
-    tried: Vec<u32>,
 ) -> Result<(), CheckError> {
     if i >= variants.len() {
-        fail(CheckError::NotImplemented(tried))
+        fail(CheckError::NotImplemented(code_points(&M_DIVMOD_NO_VARIANT)))
     } else {
         match div_mod_pin_guard(pers, vis, st, &variants[i], fe, c) {
             Err(e) => Err(e),
@@ -2454,107 +2640,24 @@ pub fn check_div_mod_pin_loop(
                 Err(e) => Err(e),
                 Ok(g2) => {
                     if g1 && g2 {
-                        check_div_mod_pin_try(pers, vis, st, mode, fe, c, value2, variants, i, tried)
+                        match check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, &variants[i]) {
+                            Err(e) => Err(e),
+                            Ok(ok) => {
+                                if ok {
+                                    Ok(())
+                                } else {
+                                    check_div_mod_pin_loop(
+                                        pers, vis, st, mode, fe, c, value2, variants, i + 1,
+                                    )
+                                }
+                            }
+                        }
                     } else {
-                        check_div_mod_pin_loop(
-                            pers,
-                            vis,
-                            st, mode, fe, c, value2, variants, i + 1, tried,
-                        )
+                        check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1)
                     }
                 }
             },
         }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-32 CheckerOps
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/decl_check.rs_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/decl_check.rs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
-/// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
-/// function** (tasks #97-T2-LOCKSTEP D4, D4b, D4c, #98-FREEZE).  The twin gets
-/// the pre-attempt state free from its state function; here the state is
-/// copied (`attempt_snapshot`, a full `AState` copy) and, on `Recovered`, moved
-/// back (`attempt_restore`); on every other step the attempt's state is kept.
-///
-/// **The copy is small because the store is frozen.**  The attempt runs inside
-/// a declaration's bracket (`check_decl` is reached from the two bracketed
-/// steps only), and opening a bracket freezes the store (task #98-FREEZE): its
-/// persistent tables are the `pers` tier the bracket lends, not the store's, so
-/// the copy is of the scratch tiers, the memos, the caches, the pins and the
-/// flags — and the attempt cannot write the persistent tier, because every
-/// append of a frozen store is a scratch append.  (Task #97-T2-LOCKSTEP D4c
-/// froze the tier HERE, around the copy; with the bracket frozen already that
-/// is gone, and with it `M_REFREEZE` and `thaw_read_tier`.)  Deviation:
-/// `Failed` (a `Native` error only) is returned as that error rather than as
-/// a step, which the twin's caller then `fail`s with — the same outcome one
-/// call earlier.
-#[allow(clippy::too_many_arguments)]
-pub fn check_div_mod_pin_attempt(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    c: &NIdx,
-    value2: &EIdx,
-    ps: &INatOpPinSet,
-) -> Result<OrElseStep, CheckError> {
-    let snapshot: AState = attempt_snapshot(st);
-    let attempt: Result<bool, CheckError> =
-        check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, ps);
-    match or_else_attempt(attempt) {
-        OrElseStep::Matched => Ok(OrElseStep::Matched),
-        OrElseStep::Continued => Ok(OrElseStep::Continued),
-        OrElseStep::Recovered(e) => {
-            attempt_restore(st, snapshot);
-            Ok(OrElseStep::Recovered(e))
-        }
-        OrElseStep::Failed(e) => Err(e),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Checker.lean:377-397 checkDivModPinLoop
-/// con-leche: CHANGED since 8e166ca5 — re-port, re-test, re-prove decl_check::check_div_mod_pin_try_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:600-632 checkDivModPinLoop` —
-/// one variant's attempt and the four-way step it decides
-/// (`check_div_mod_pin_attempt`), then the loop's tail call.
-#[allow(clippy::too_many_arguments)]
-pub fn check_div_mod_pin_try(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    c: &NIdx,
-    value2: &EIdx,
-    variants: &Vec<INatOpPinSet>,
-    i: usize,
-    tried: Vec<u32>,
-) -> Result<(), CheckError> {
-    match check_div_mod_pin_attempt(pers, vis, st, mode, fe, c, value2, &variants[i]) {
-        Err(e) => Err(e),
-        Ok(step) => match step {
-            OrElseStep::Matched => Ok(()),
-            OrElseStep::Continued => {
-                check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1, tried)
-            }
-            OrElseStep::Recovered(e) => check_div_mod_pin_loop(
-                pers,
-                vis,
-                st,
-                mode,
-                fe,
-                c,
-                value2,
-                variants,
-                i + 1,
-                div_mod_attempt_reason(e),
-            ),
-            OrElseStep::Failed(e) => Err(e),
-        },
     }
 }
 
@@ -2621,7 +2724,6 @@ pub fn check_div_mod_pin_at_pre(
         &value2,
         pins,
         0,
-        code_points(&M_DIVMOD_NO_VARIANT),
     );
     match r {
         Err(e) => Err(e),

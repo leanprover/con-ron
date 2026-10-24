@@ -996,7 +996,7 @@ snake case.  Twin files mirror the Rust modules.
 | [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
 | `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
 | `con-ron/src/` | unverified: the binary, `driver`, `pool` |
-| `con-ron-dump/` | unverified: the `con-ron-pins/1` reader and writer, the global allocator |
+| `con-ron-dump/` | unverified: the `con-ron-pins/2` reader and writer, the global allocator |
 
 **Lean** (`proof/ConRon/`)
 

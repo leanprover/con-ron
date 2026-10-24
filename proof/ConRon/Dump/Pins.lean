@@ -1,5 +1,5 @@
 /-
-The `con-ron-pins/1` format, and `con-ron-dump-pins` (DESIGN.md §3.6's
+The `con-ron-pins/2` format, and `con-ron-dump-pins` (DESIGN.md §3.6's
 runtime-data decision, task #31; one file since task #80).
 
     lake exe con-ron-dump-pins [--no-roundtrip] <out.pins>
@@ -45,7 +45,7 @@ namespace ConRon.Dump
 open ConLeche
 
 /-- The version header, the whole first line of a pin dump. -/
-def pinsHeader : String := "con-ron-pins/1"
+def pinsHeader : String := "con-ron-pins/2"
 
 /-! ## Scalars -/
 
@@ -220,11 +220,22 @@ def wExpr (e : Expr) : W Nat := do
 
 /-! ## The payload -/
 
-/-- `NatOpPinSet` (`ConLeche/Kernel/NatOpPinSet.lean:30-49`).  No id: the
+/-- One type pin `(n, ty)`: the name's id and the type's. -/
+def wTypePin (p : Name × Expr) : W (Nat × Nat) := do
+  let n ← wName p.1
+  let t ← wExpr p.2
+  pure (n, t)
+
+/-- A counted list of id pairs, `<k> <a> <b> …`. -/
+def pairList (ps : List (Nat × Nat)) : String :=
+  ps.foldl (fun acc p => acc ++ " " ++ toString p.1 ++ " " ++ toString p.2)
+    (toString ps.length)
+
+/-- `NatOpPinSet` (`ConLeche/Kernel/NatOpPinSet.lean:35-68`).  No id: the
 record *is* the payload and its position in the file is the position in
 `natOpPinSets`, which is the order the install gate tries the variants in.
-The eight pins come first, then the eight counted proof lists, in the field
-order of the structure. -/
+The eight pins come first, then the eight counted proof lists, then the eight
+counted type-pin lists, in the field order of the structure. -/
 def wPinSet (s : NatOpPinSet) : W Unit := do
   let dv ← wExpr s.divPin
   let md ← wExpr s.modPin
@@ -242,13 +253,24 @@ def wPinSet (s : NatOpPinSet) : W Unit := do
   let xop ← s.xorProofs.mapM wExpr
   let slp ← s.shiftLeftProofs.mapM wExpr
   let srp ← s.shiftRightProofs.mapM wExpr
+  let dvt ← s.divTypePins.mapM wTypePin
+  let mdt ← s.modTypePins.mapM wTypePin
+  let gct ← s.gcdTypePins.mapM wTypePin
+  let lat ← s.landTypePins.mapM wTypePin
+  let lot ← s.lorTypePins.mapM wTypePin
+  let xot ← s.xorTypePins.mapM wTypePin
+  let slt ← s.shiftLeftTypePins.mapM wTypePin
+  let srt ← s.shiftRightTypePins.mapM wTypePin
   emit ("S " ++ strField s.toolchain
     ++ " " ++ toString dv ++ " " ++ toString md ++ " " ++ toString gc
     ++ " " ++ toString la ++ " " ++ toString lo ++ " " ++ toString xo
     ++ " " ++ toString sl ++ " " ++ toString sr
     ++ " " ++ idList dvp ++ " " ++ idList mdp ++ " " ++ idList gcp
     ++ " " ++ idList lap ++ " " ++ idList lop ++ " " ++ idList xop
-    ++ " " ++ idList slp ++ " " ++ idList srp)
+    ++ " " ++ idList slp ++ " " ++ idList srp
+    ++ " " ++ pairList dvt ++ " " ++ pairList mdt ++ " " ++ pairList gct
+    ++ " " ++ pairList lat ++ " " ++ pairList lot ++ " " ++ pairList xot
+    ++ " " ++ pairList slt ++ " " ++ pairList srt)
   modify fun st => { st with nS := st.nS + 1 }
 
 /-! ## The writer's entry points -/
@@ -409,6 +431,12 @@ def exprRef : R Expr := do
   if h : i < st.exprs.size then return st.exprs[i]'h
   else rerr ("expr id " ++ toString i ++ " is not defined yet")
 
+/-- One type pin, `<name> <expr>`. -/
+def typePinRef : R (Name × Expr) := do
+  let n ← nameRef
+  let t ← exprRef
+  pure (n, t)
+
 /-- Check that a record's own id is the next one of its kind. -/
 def expectId (want : Nat) (what : String) : R Unit := do
   let got ← natTok
@@ -482,10 +510,20 @@ def parseRecord (kind : String) : R Unit := do
     let xorProofs ← listTok exprRef
     let shiftLeftProofs ← listTok exprRef
     let shiftRightProofs ← listTok exprRef
+    let divTypePins ← listTok typePinRef
+    let modTypePins ← listTok typePinRef
+    let gcdTypePins ← listTok typePinRef
+    let landTypePins ← listTok typePinRef
+    let lorTypePins ← listTok typePinRef
+    let xorTypePins ← listTok typePinRef
+    let shiftLeftTypePins ← listTok typePinRef
+    let shiftRightTypePins ← listTok typePinRef
     let v : NatOpPinSet :=
       { toolchain, divPin, modPin, gcdPin, landPin, lorPin, xorPin,
         shiftLeftPin, shiftRightPin, divProofs, modProofs, gcdProofs,
-        landProofs, lorProofs, xorProofs, shiftLeftProofs, shiftRightProofs }
+        landProofs, lorProofs, xorProofs, shiftLeftProofs, shiftRightProofs,
+        divTypePins, modTypePins, gcdTypePins, landTypePins, lorTypePins,
+        xorTypePins, shiftLeftTypePins, shiftRightTypePins }
     modify fun st => { st with pinSets := st.pinSets.push v }
   else
     rerr ("unknown record kind '" ++ kind ++ "'")
@@ -556,6 +594,11 @@ def pinSetEq (a b : NatOpPinSet) : Bool :=
     && a.lorProofs == b.lorProofs && a.xorProofs == b.xorProofs
     && a.shiftLeftProofs == b.shiftLeftProofs
     && a.shiftRightProofs == b.shiftRightProofs
+    && a.divTypePins == b.divTypePins && a.modTypePins == b.modTypePins
+    && a.gcdTypePins == b.gcdTypePins && a.landTypePins == b.landTypePins
+    && a.lorTypePins == b.lorTypePins && a.xorTypePins == b.xorTypePins
+    && a.shiftLeftTypePins == b.shiftLeftTypePins
+    && a.shiftRightTypePins == b.shiftRightTypePins
 
 /-- The index of the first differing variant, if any. -/
 def firstPinDiff (xs ys : List NatOpPinSet) : Option Nat :=
@@ -577,7 +620,7 @@ end ConRon.Dump
 def usage : String :=
   "usage: con-ron-dump-pins [--no-roundtrip] <out.pins>\n\
    \n\
-   Writes `ConLeche.natOpPinSets` in the con-ron-pins/1 format\n\
+   Writes `ConLeche.natOpPinSets` in the con-ron-pins/2 format\n\
    (proof/ConRon/Dump/FORMAT.md), reads it back and compares.\n\
    \n\
    --no-roundtrip   write the file and stop"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate the embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
+# Regenerate the embedded `con-ron-pins/2` text of con-leche's `natOpPinSets`
 # into `crates/con-ron-core/src/kernel/pins_text.rs` (DESIGN.md §3, task #43).
 #
 #   scripts/gen-pins.sh            rewrite the committed file in place
@@ -68,7 +68,7 @@ cite=$(sed -n 's|^//! con-leche: \(ConLeche/Kernel/NatOpPins\.lean:[0-9-]* _\)$|
   exit 1; }
 emit() {
   cat <<'EOF' | sed "s|@@CITE@@|$cite|"
-//! The embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
+//! The embedded `con-ron-pins/2` text of con-leche's `natOpPinSets`
 //! (DESIGN.md §3, task #43).
 //!
 //! con-leche: @@CITE@@
@@ -103,7 +103,7 @@ emit() {
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
-/// The `con-ron-pins/1` dump of con-leche's `natOpPinSets`, verbatim: 3 `S`
+/// The `con-ron-pins/2` dump of con-leche's `natOpPinSets`, verbatim: 3 `S`
 /// records (one per pinned toolchain), the `N`/`L`/`E` records of the DAG
 /// they share, and the `end <count>` footer.  `kernel::pins_decode::decode`
 /// is the inverse.

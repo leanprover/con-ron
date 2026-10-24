@@ -1,4 +1,4 @@
-//! The Rust writer for `con-ron-pins/1` — a transliteration of the Lean
+//! The Rust writer for `con-ron-pins/2` — a transliteration of the Lean
 //! writer in `proof/ConRon/Dump/Pins.lean`, emission order included.
 //!
 //! It exists to make the reader testable without the Lean side: `dump_pins`
@@ -71,6 +71,18 @@ pub fn escape_string(s: &[u32]) -> String {
 /// record can end in a space).
 pub fn str_field(s: &[u32]) -> String {
     format!("{} {}", s.len(), escape_string(s))
+}
+
+/// A counted id-pair list: the number of pairs, then each pair's two ids.
+fn pair_list(ps: &[(usize, usize)]) -> String {
+    let mut out = ps.len().to_string();
+    for (a, b) in ps {
+        out.push(' ');
+        out.push_str(&a.to_string());
+        out.push(' ');
+        out.push_str(&b.to_string());
+    }
+    out
 }
 
 /// A counted id list: the length, then the ids.
@@ -299,8 +311,9 @@ impl Writer {
 
     /// An `S` record (FORMAT.md §4) has no id: the record *is* the payload.
     /// The eight
-    /// pins are emitted first and the eight proof lists after, in the field
-    /// order of `NatOpPinSet`, which is what `Pins.lean`'s `wPinSet` does.
+    /// pins are emitted first, the eight proof lists after and the eight
+    /// type-pin lists last, in the field order of `NatOpPinSet`, which is what
+    /// `Pins.lean`'s `wPinSet` does.
     fn w_pin_set(&mut self, s: &NatOpPinSet) {
         let dv = self.w_expr(&s.div_pin);
         let md = self.w_expr(&s.mod_pin);
@@ -318,8 +331,16 @@ impl Writer {
         let xop = self.w_expr_list(&s.xor_proofs);
         let slp = self.w_expr_list(&s.shift_left_proofs);
         let srp = self.w_expr_list(&s.shift_right_proofs);
+        let dvt = self.w_type_pins(&s.div_type_pins);
+        let mdt = self.w_type_pins(&s.mod_type_pins);
+        let gct = self.w_type_pins(&s.gcd_type_pins);
+        let lat = self.w_type_pins(&s.land_type_pins);
+        let lot = self.w_type_pins(&s.lor_type_pins);
+        let xot = self.w_type_pins(&s.xor_type_pins);
+        let slt = self.w_type_pins(&s.shift_left_type_pins);
+        let srt = self.w_type_pins(&s.shift_right_type_pins);
         let line = format!(
-            "S {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
+            "S {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",
             str_field(&s.toolchain),
             dv,
             md,
@@ -336,10 +357,30 @@ impl Writer {
             id_list(&lop),
             id_list(&xop),
             id_list(&slp),
-            id_list(&srp)
+            id_list(&srp),
+            pair_list(&dvt),
+            pair_list(&mdt),
+            pair_list(&gct),
+            pair_list(&lat),
+            pair_list(&lot),
+            pair_list(&xot),
+            pair_list(&slt),
+            pair_list(&srt)
         );
         self.emit(&line);
         self.n_s += 1;
+    }
+
+    /// The id pairs of a counted type-pin list, each name before its type
+    /// (`mapM wTypePin`).
+    fn w_type_pins(&mut self, ps: &[(Name, Expr)]) -> Vec<(usize, usize)> {
+        let mut out: Vec<(usize, usize)> = Vec::new();
+        for (n, t) in ps {
+            let ni = self.w_name(n);
+            let ti = self.w_expr(t);
+            out.push((ni, ti));
+        }
+        out
     }
 
     /// The ids of a counted `Expr` list, emitted left to right (`mapM wExpr`).
@@ -357,7 +398,7 @@ impl Writer {
 // ---------------------------------------------------------------------------
 
 /// **The writer** (FORMAT.md).  `dump_pins(&parse_pins(text)?)` is
-/// `text`, byte for byte, for the `con-ron-pins/1` dump `lake exe
+/// `text`, byte for byte, for the `con-ron-pins/2` dump `lake exe
 /// con-ron-dump-pins` produces — which is how the tests exercise the pin
 /// reader without the Lean side, and how they check the core's embedded
 /// `PINS_TEXT` against both.

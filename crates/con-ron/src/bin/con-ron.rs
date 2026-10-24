@@ -69,7 +69,7 @@ use con_ron_core::arena::store::PersTier;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
-// that crate anyway — for the `con-ron-pins/1` reader of `--pins`.  So this
+// that crate anyway — for the `con-ron-pins/2` reader of `--pins`.  So this
 // crate declares none but *chooses*: `crates/con-ron/Cargo.toml` takes
 // that crate with `default-features = false` and forwards `mimalloc` (the
 // default) and `jemalloc`, exactly as `crates/con-ron` does, so the two
@@ -151,7 +151,7 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     stride 1; a stride that is not a decimal numeral, or 0, is
                     a usage error.
   --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-                    `con-ron-pins/1` dump instead of the core's own embedded
+                    `con-ron-pins/2` dump instead of the core's own embedded
                     text (task #43), through the UNVERIFIED reader.  The pins
                     are interned into the persistent tier at startup, before
                     the fold (DESIGN.md section 8.6 P2d).
