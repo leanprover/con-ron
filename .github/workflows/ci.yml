@@ -353,7 +353,10 @@ jobs:
       # `con-ron` on the raw NDJSON of all 348 vendored fixtures.  Green is
       # `differ`, `other` and `timed out` all zero, which is the script's
       # exit code.  `--timeout=60`: nothing has taken anywhere near that
-      # since task #38, so a stall is a regression and not a slow runner.
+      # since task #38, so a stall is a regression and not a slow runner;
+      # the fixtures whose real work is longer (`stack_fuel_offset`'s stack
+      # overflow, `complete_c05b_nest30_pi1000`) carry their own timeout in
+      # the script's `E2E_TIMEOUT` table, which overrides this one.
       - name: scripts/diff-e2e.sh (the end-to-end differential, 348 fixtures)
         shell: nix develop --command bash -euo pipefail {0}
         run: scripts/diff-e2e.sh --timeout=60

@@ -69905,3 +69905,22 @@ one list type.  `Refine2/Tactic/{Lockstep,Prims}.lean` are untouched.
 **Size** (from `e06c8d99`, without `pins_text.rs` and the generated model):
 Rust core +706 −922; twin +223 −187; Theorem 1 (`Bridge/`) +871 −254 in 11
 files; Theorem 2 (`Refine2/`, `Refine/`) +1 203 −928 in 14 files.
+
+### Task #130 — CI: `stack_fuel_offset` gets con-leche's 300 s (2026-10-24, Opus)
+
+CI's `diff-e2e --timeout=60` lane failed twice (runs 39664022937 and
+40095837520, attempt 1) on one fixture: `TIMEOUT e2e/stack_fuel_offset.ndjson
+(after 60s, expected 134)`.  Its expected verdict is the native stack overflow;
+here it takes 18 s wall (9 s user, 5 s sys, the rest the core dump), and
+on a slower runner more than 60 s, so the timeout fires first.  This is
+con-leche's task #357, which gave the fixture 300 s; task #126's sync table
+said "nothing to port (our `diff-e2e --timeout` default already covers it)",
+which was wrong: CI passes `--timeout=60`, and `diff-e2e.sh` applied an
+`E2E_TIMEOUT` entry only when it was *below* `--timeout`.
+
+Fixed in `scripts/diff-e2e.sh`: the entry `[stack_fuel_offset.ndjson]=300`,
+and an entry now is the fixture's timeout whether below or above
+`--timeout`, as in con-leche's `tests/arena.sh`.  This also makes
+`complete_c05b_nest30_pi1000` get its 600 s under CI's `--timeout=60`
+rather than 60 s (con-ron checks it well inside either).  Both lanes locally:
+631/631.

@@ -199,9 +199,13 @@ want_for() {
 }
 
 # Per-fixture timeouts, each with its reason — con-leche's own `E2E_TIMEOUT`
-# table (`tests/arena.sh`), keyed the same way.  Most entries are BELOW
-# `--timeout`; `complete_c05b_nest30_pi1000` is ABOVE the sweep's own
-# default and is capped here only when `--timeout` is raised past it.
+# table (`tests/arena.sh`), keyed the same way and applied the same way: an
+# entry IS that fixture's timeout, below or above `--timeout`, which is the
+# timeout of every fixture the table does not name.
+# stack_fuel_offset: its expected verdict is the native stack overflow (exit
+# 134), reached after ~10 s of CPU here (3000000 knot levels filling the
+# 1 GiB thread stack) plus the core dump; a slower CI runner took over 60 s
+# and timed out first (124), as con-leche's CI did (its task #357).
 # proj_stuck_struct: BELOW the default, on purpose — checks in milliseconds;
 # a regression (a stuck projection's structure argument replaced by its WHNF)
 # is exponential in time AND memory (~8 GB at 60 s), so it fails fast here
@@ -219,6 +223,7 @@ want_for() {
 # does not terminate, run in constant stack — so a 124 there is an agreement,
 # not a TIMEOUT line; 5 s tells it from a stack overflow (exit 134).
 declare -A E2E_TIMEOUT=(
+  [stack_fuel_offset.ndjson]=300
   [whnf_delta_loop.ndjson]=5
   [whnf_core_loop.ndjson]=5
   [proj_stuck_struct.ndjson]=10
@@ -234,7 +239,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
   total=$((total + 1))
   want=$(want_for "$suite" "$label" "$want")
   local out rc to=$TO
-  if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ] && [ "${E2E_TIMEOUT[$label]}" -lt "$to" ]; then
+  if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ]; then
     to=${E2E_TIMEOUT[$label]}
   fi
   out=$(timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
