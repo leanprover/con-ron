@@ -76,7 +76,6 @@ ConLeche/Kernel/Expr.lean ptrDec Identity decided by the pointer test; `expr::pt
 # theorem never reads a message, so messages need not match)
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/Name.lean toString A `Name`'s display string, for messages and the driver's output.
 
 # ---------------------------------------------------------------------------
 # Bridges to the Lean host, and one declaration nothing reads

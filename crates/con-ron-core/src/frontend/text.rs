@@ -3,16 +3,15 @@
 //! con-leche builds its frontend messages with string interpolation
 //! (`s!"… {n} …"`), over Lean `String`s.  The core stores every Lean `String`
 //! as a `Vec<u32>` of code points (DESIGN.md §3.3), and `format!` is outside
-//! the Aeneas subset (§3.4), so the three things the interpolations actually
-//! do — append, render a number, render a `Name` — are three functions here
-//! and every message in `frontend/` is built out of them.
+//! the Aeneas subset (§3.4), so what the interpolations actually do — append,
+//! render a number — is here, and every message in `frontend/` is built out
+//! of it and of `kernel::name::render`/`display_str`, the display rendering
+//! of a name and of a raw input string.
 //!
 //! Nothing in this module is on a *verdict* path: a message decides no exit
 //! code (the differential compares exit codes, `OVERVIEW.md` §10).  It is
 //! here rather than in the unverified crate because the messages travel
 //! inside `CheckError`, which the parse now returns from the verified core.
-
-use crate::kernel::name::{Name, NameKind};
 
 /// con-leche: none — Lean's `s!"{a}{b}"` on two `String`s
 /// Append `b` to `a`.  The accumulator is passed by value and returned
@@ -95,42 +94,6 @@ pub fn cps_starts_with(s: &Vec<u32>, lit: &[u32]) -> bool {
 }
 
 
-/// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
-/// out of the ported checker as driver-only rendering ("the theorem never
-/// reads a message").  The parse's own messages name declarations, so the
-/// rendering has to be here: `anonymous` is `[anonymous]`, and a component is
-/// appended after a dot.
-pub fn name_str(n: &Name) -> Vec<u32> {
-    match &n.0.kind {
-        NameKind::Anonymous => {
-            const A: [u32; 11] = [91, 97, 110, 111, 110, 121, 109, 111, 117, 115, 93];
-            crate::kernel::core_types::code_points(&A)
-        }
-        NameKind::Str(p, s) => match &p.0.kind {
-            NameKind::Anonymous => cat(Vec::new(), s),
-            _ => {
-                const DOT: [u32; 1] = [46];
-                cat3(
-                    name_str(p),
-                    &crate::kernel::core_types::code_points(&DOT),
-                    s,
-                )
-            }
-        },
-        NameKind::Num(p, k) => match &p.0.kind {
-            NameKind::Anonymous => u64_str(*k),
-            _ => {
-                const DOT: [u32; 1] = [46];
-                cat3(
-                    name_str(p),
-                    &crate::kernel::core_types::code_points(&DOT),
-                    &u64_str(*k),
-                )
-            }
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,19 +130,5 @@ mod tests {
         assert!(!cps_starts_with(&cp("a"), &[97, 120]));
         assert!(!cps_starts_with(&cp("decl_1"), &[97, 120]));
         assert!(cps_starts_with(&cp(""), &[]));
-    }
-
-    #[test]
-    fn name_str_is_the_dotted_name() {
-        let a = name::anonymous();
-        assert_eq!(s(&name_str(&a)), "[anonymous]");
-        let nat = name::mk_str(name::anonymous(), cp("Nat"));
-        assert_eq!(s(&name_str(&nat)), "Nat");
-        let succ = name::mk_str(name::dup(&nat), cp("succ"));
-        assert_eq!(s(&name_str(&succ)), "Nat.succ");
-        let idx = name::mk_num(name::dup(&succ), 3);
-        assert_eq!(s(&name_str(&idx)), "Nat.succ.3");
-        let bare = name::mk_num(name::anonymous(), 12);
-        assert_eq!(s(&name_str(&bare)), "12");
     }
 }

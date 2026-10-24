@@ -1,37 +1,29 @@
-//! Rendering a `Name` for a human: the CLI's receipts, the modeller's decline
-//! messages, the trace lines.  No con-leche file of its own.
+//! Rendering for a human: the CLI's receipts, the modeller's decline
+//! messages, the trace lines, the usage errors.  No con-leche file of its own.
 //!
-//! `Name.toString` is on DESIGN.md §3.7's skip list — driver-only rendering,
-//! "the theorem never reads a message" — so the verified core does not port
-//! it, and what the core *does* carry
-//! (`con_ron_core::frontend::text::name_str`) returns the port's `Vec<u32>`
-//! of code points, because that is what a `CheckError` holds.  This crate
-//! writes to a terminal, so it wants a Rust `String`; this is the one place
-//! the two meet.
-//!
-//! Before task #84 this function lived in `crate::frontend::export`, beside
-//! the parser.  The parser is in the verified core now and cannot have it.
+//! The rendering itself is the verified core's port of con-leche's display
+//! rendering (`con_ron_core::kernel::name::render` and `display_str`,
+//! `ConLeche/Kernel/Name.lean`), which escapes every control, format and
+//! separator character an input name or string carries.  It returns the
+//! port's `Vec<u32>` of code points, because that is what a `CheckError`
+//! holds; this crate writes to a terminal, so it wants a Rust `String`, and
+//! this is the one place the two meet.
 
-use con_ron_core::kernel::name::{Name, NameKind};
+use con_ron_core::kernel::name;
+use con_ron_core::kernel::name::Name;
 
-/// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
-/// out of the verified core as driver-only rendering.  `anonymous` is
-/// `[anonymous]`, and a component is appended after a dot.
+/// con-leche: none — `toString n` (`Name.render`) as a Rust `String`
+/// The core's `name::render`, converted.  Every code point it returns is a
+/// Unicode scalar value (`display_unsafe_char` escapes the others).
 pub fn name_str(n: &Name) -> String {
-    match &n.0.kind {
-        NameKind::Anonymous => "[anonymous]".to_string(),
-        NameKind::Str(p, s) => {
-            let tail: String = s.iter().filter_map(|c| char::from_u32(*c)).collect();
-            match &p.0.kind {
-                NameKind::Anonymous => tail,
-                _ => format!("{}.{}", name_str(p), tail),
-            }
-        }
-        NameKind::Num(p, k) => match &p.0.kind {
-            NameKind::Anonymous => format!("{}", k),
-            _ => format!("{}.{}", name_str(p), k),
-        },
-    }
+    from_cps(&name::render(n))
+}
+
+/// con-leche: none — `Display.str s` as a Rust `String`
+/// The core's `name::display_str` of a command-line word: between `"`…`"`,
+/// escaped and capped.
+pub fn display_str(s: &str) -> String {
+    from_cps(&name::display_str(&cps(s)))
 }
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code
@@ -40,28 +32,30 @@ pub fn cps(s: &str) -> Vec<u32> {
     s.chars().map(|c| c as u32).collect()
 }
 
+/// con-leche: none — `cps`'s reverse, a code-point string as a Rust `String`
+fn from_cps(s: &[u32]) -> String {
+    s.iter().filter_map(|c| char::from_u32(*c)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use con_ron_core::kernel::name;
-
-    /// `cps`'s reverse: a code-point string as a Rust `String` (test-only
-    /// since task #105; the driver renders messages through its own path).
-    fn from_cps(s: &[u32]) -> String {
-        s.iter().filter_map(|c| char::from_u32(*c)).collect()
-    }
 
     #[test]
-    fn the_two_renderings_agree() {
+    fn names_render_escaped() {
         let nat = name::mk_str(name::anonymous(), cps("Nat"));
         let succ = name::mk_str(name::dup(&nat), cps("succ"));
         let idx = name::mk_num(name::dup(&succ), 3);
-        for n in [name::anonymous(), nat, succ, idx] {
-            assert_eq!(
-                name_str(&n),
-                from_cps(&con_ron_core::frontend::text::name_str(&n))
-            );
-        }
+        assert_eq!(name_str(&name::anonymous()), "[anonymous]");
+        assert_eq!(name_str(&idx), "Nat.succ.3");
+        let evil = name::mk_str(succ, cps("a\u{1b}[2K\r"));
+        assert_eq!(name_str(&evil), "Nat.succ.\u{ab}a\\u{001B}[2K\\u{000D}\u{bb}");
+    }
+
+    #[test]
+    fn words_render_quoted() {
+        assert_eq!(display_str("x"), "\"x\"");
+        assert_eq!(display_str("\u{1b}"), "\"\\u{001B}\"");
     }
 
     #[test]

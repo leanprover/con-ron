@@ -35,7 +35,7 @@
 //!   the exit code.
 //! * **every message is a `Vec<u32>` of code points** (DESIGN.md §3.3) built
 //!   from a function-local `const M: [u32; N]` and `core_types::code_points`,
-//!   with `text::cat`/`cat3`, `text::name_str` and `text::u64_str` for what
+//!   with `text::cat`/`cat3`, `name::render`, `name::display_str` and `text::u64_str` for what
 //!   con-leche's `s!"…"` interpolates.  `size_error` drops its interpolated
 //!   byte count, as con-ron-core's does and for the same reason.  A `NIdx` in
 //!   a message is READ BACK (`env::read_name`) and then rendered, which is the
@@ -82,6 +82,7 @@ use crate::kernel::core_types::CheckError;
 use crate::kernel::env::{QuotKind, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::level;
+use crate::kernel::name;
 use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
@@ -1095,13 +1096,13 @@ pub fn fields_error(n: &Vec<u32>, f: u64, p: u64, b: u64) -> Vec<u32> {
 
 /// con-leche: none — `s!"{← readName n}"`, the twin's one message idiom
 /// A name handle READ BACK and rendered: `denoteN` (`env::read_name`) then
-/// `text::name_str`.  Every `validate_ind_d` message that names a declaration
+/// `name::render`.  Every `validate_ind_d` message that names a declaration
 /// goes through it, which is what keeps the arena's verdict text the pure
 /// checker's word for word.
 pub fn show_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Vec<u32>, LineErr> {
     match env::read_name(pers, ar, h) {
         Err(e) => fail(e),
-        Ok(n) => Ok(text::name_str(&n)),
+        Ok(n) => Ok(name::render(&n)),
     }
 }
 
@@ -1823,43 +1824,26 @@ pub fn install_ind_d(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::safety_error_refines, then delete this line
-/// `"definition with safety '{s}'"`.
+/// `"definition with safety {Display.str s}"`.
 pub fn safety_error(s: &Vec<u32>) -> Vec<u32> {
-    const A_SAFETY: [u32; 24] = [
+    const A_SAFETY: [u32; 23] = [
         100, 101, 102, 105, 110, 105, 116, 105, 111, 110, 32, 119, 105, 116, 104, 32, 115,
-        97, 102, 101, 116, 121, 32, 39,
+        97, 102, 101, 116, 121, 32,
     ];
-    const B_QUOTE: [u32; 1] = [
-        39,
-    ];
-    text::cat3(
-        core_types::code_points(&A_SAFETY),
-        s,
-        &core_types::code_points(&B_QUOTE),
-    )
+    text::cat(core_types::code_points(&A_SAFETY), &name::display_str(s))
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::quot_kind_error_refines, then delete this line
-/// `"unknown quotient kind '{k}'"`.
+/// `"unknown quotient kind {Display.str k}"`.
 pub fn quot_kind_error(k: &Vec<u32>) -> Vec<u32> {
-    const A_QUOTKIND: [u32; 23] = [
+    const A_QUOTKIND: [u32; 22] = [
         117, 110, 107, 110, 111, 119, 110, 32, 113, 117, 111, 116, 105, 101, 110, 116, 32,
-        107, 105, 110, 100, 32, 39,
+        107, 105, 110, 100, 32,
     ];
-    const B_QUOTE: [u32; 1] = [
-        39,
-    ];
-    text::cat3(
-        core_types::code_points(&A_QUOTKIND),
-        k,
-        &core_types::code_points(&B_QUOTE),
-    )
+    text::cat(core_types::code_points(&A_QUOTKIND), &name::display_str(k))
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::quot_kind_of_refines, then delete this line
 /// The `#QUOT` record's `kind` word, as the kernel's `QuotKind`.
 pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
     const K_TYPE: [u32; 4] = [
@@ -1889,7 +1873,6 @@ pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:479-484 processLineCoreD
 /// con-leche: ConLeche/Frontend/ExportC.lean:418-473 declOfF
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove export_c::process_line_core_d_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:405-455 processLineCoreD`
 /// — the record's own semantics: the declaration kinds, producing
 /// `IDeclaration` records.  Every branch, guard and error string is
@@ -2494,7 +2477,7 @@ mod tests {
     /// `readName`, which is what every `validate_ind_d` message does.
     fn nm(pers: &PersTier, ar: &EStore, h: &NIdx) -> String {
         match env::read_name(pers, ar, h) {
-            Ok(n) => s_of(&text::name_str(&n)),
+            Ok(n) => s_of(&name::render(&n)),
             Err(_) => "<dangling>".to_string(),
         }
     }
@@ -2612,7 +2595,7 @@ mod tests {
         let p = parse(s);
         match &p.r {
             Err((CheckError::Internal(m), 3)) => {
-                assert_eq!(s_of(m), "unknown quotient kind 'nope'")
+                assert_eq!(s_of(m), "unknown quotient kind \"nope\"")
             }
             other => panic!("{}", shown(other)),
         }

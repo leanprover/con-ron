@@ -427,7 +427,7 @@ def processLineCoreD (st : StateD) (d : DeclRec) :
         | .«opaque» => .«opaque»
         | .regular n => .regular n
       return .inl (← pushDecl st (.defnDecl cvp vl h))
-    | s => return .inr (.declined s!"definition with safety '{s}'")
+    | s => return .inr (.declined s!"definition with safety {Display.str s}")
   | .thm cvr value =>
     let cvp ← parseCVD st cvr
     let vl ← getDeclD st value
@@ -447,7 +447,7 @@ def processLineCoreD (st : StateD) (d : DeclRec) :
       | "ctor" => pure QuotKind.ctor
       | "lift" => pure QuotKind.lift
       | "ind" => pure QuotKind.ind
-      | k => fail (.internal s!"unknown quotient kind '{k}'")
+      | k => fail (.internal s!"unknown quotient kind {Display.str k}")
     return .inl (← pushDecl st (.quotDecl qk cv))
   | .ind tys cts rcs =>
     match ← validateIndD st tys cts rcs with

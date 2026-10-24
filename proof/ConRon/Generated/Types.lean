@@ -1273,6 +1273,23 @@ structure arena.inductives.positivity.NestState where
   active : alloc.vec.Vec arena.inductives.positivity.NestKey
   ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
+/-- [con_ron_core::kernel::name::NameComponent]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 585:0-588:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.name.NameComponent where
+| Str : alloc.vec.Vec Std.U32 → kernel.name.NameComponent
+| Num : Std.U64 → kernel.name.NameComponent
+
+/-- [con_ron_core::kernel::name::DisplayAcc]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 347:0-352:1
+    Visibility: public -/
+structure kernel.name.DisplayAcc where
+  out : alloc.vec.Vec Std.U32
+  len : Std.U64
+  dropped : Std.U64
+  full : Bool
+
 /-- [con_ron_core::arena::core::NatEqCtx]
     Source: 'crates/con-ron-core/src/arena/core.rs', lines 2690:0-2699:1
     Visibility: public -/
@@ -1392,7 +1409,7 @@ inductive frontend.types.RecordVerdict where
 | Invalid : alloc.vec.Vec Std.U32 → frontend.types.RecordVerdict
 
 /-- [con_ron_core::frontend::export_c::LineErr]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 103:0-106:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 104:0-107:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.export_c.LineErr where
@@ -1440,7 +1457,7 @@ structure frontend.scan_types.IdTable (T : Type) where
   sparse : ron.hashmap.HashMap Std.U64 T
 
 /-- [con_ron_core::frontend::export_c::StateD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 217:0-222:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 218:0-223:1
     Visibility: public -/
 structure frontend.export_c.StateD where
   names : frontend.scan_types.IdTable arena.handle.NIdx
@@ -1594,7 +1611,7 @@ inductive frontend.scan_types.LineRec where
 | Blank : frontend.scan_types.LineRec
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2031:0-2034:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2018:0-2021:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec arena.env.IDeclaration
@@ -1696,7 +1713,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2297:0-2304:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2284:0-2291:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)

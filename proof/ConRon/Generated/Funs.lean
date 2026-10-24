@@ -54701,8 +54701,902 @@ def kernel.trust_axioms.S_NATIVE : Array Std.U32 7#usize :=
     95#u32, 110#u32, 97#u32, 116#u32, 105#u32, 118#u32, 101#u32
     ]
 
+/-- [con_ron_core::kernel::name::render_from::DOT]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 643:12-643:39 -/
+@[global_simps, irreducible]
+def kernel.name.render_from.DOT : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::kernel::name::display_acc_component::CLOSE]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 564:8-564:38 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_component.CLOSE : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 187#u32 ]
+
+/-- [con_ron_core::kernel::name::display_acc_component::OPEN]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 563:8-563:37 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_component.OPEN : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 171#u32 ]
+
+/-- [con_ron_core::kernel::name::display_in_range]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 220:0-222:1
+    Visibility: public -/
+def kernel.name.display_in_range
+  (v : Std.U32) (lo : Std.U32) (hi : Std.U32) : Result Bool := do
+  if lo <= v
+  then ok (v <= hi)
+  else ok false
+
+/-- [con_ron_core::kernel::name::display_ascii_alpha]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 485:0-493:1
+    Visibility: public -/
+def kernel.name.display_ascii_alpha (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 97#u32 122#u32
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 65#u32 90#u32
+    if b1
+    then ok true
+    else ok false
+
+/-- [con_ron_core::kernel::name::display_subscript_alnum]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 470:0-482:1
+    Visibility: public -/
+def kernel.name.display_subscript_alnum (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 8320#u32 8329#u32
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 8336#u32 8348#u32
+    if b1
+    then ok true
+    else
+      let b2 ← kernel.name.display_in_range v 7522#u32 7530#u32
+      if b2
+      then ok true
+      else if v = 11388#u32
+           then ok true
+           else ok false
+
+/-- [con_ron_core::kernel::name::display_letter_like]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 447:0-467:1
+    Visibility: public -/
+def kernel.name.display_letter_like (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 945#u32 969#u32
+  if b
+  then
+    if v != 955#u32
+    then ok true
+    else
+      let b1 ← kernel.name.display_in_range v 913#u32 937#u32
+      if b1
+      then
+        if v != 928#u32
+        then
+          if v != 931#u32
+          then ok true
+          else
+            let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+            if b2
+            then ok true
+            else
+              let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+              if b3
+              then ok true
+              else
+                let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+                if b4
+                then ok true
+                else
+                  let b5 ←
+                    kernel.name.display_in_range v 119964#u32 120223#u32
+                  if b5
+                  then ok true
+                  else
+                    let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                    if b6
+                    then
+                      if v != 215#u32
+                      then
+                        if v != 247#u32
+                        then ok true
+                        else
+                          let b7 ←
+                            kernel.name.display_in_range v 256#u32 383#u32
+                          if b7
+                          then ok true
+                          else ok false
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+        else
+          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+          if b2
+          then ok true
+          else
+            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+            if b3
+            then ok true
+            else
+              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+              if b4
+              then ok true
+              else
+                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+                if b5
+                then ok true
+                else
+                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                  if b6
+                  then
+                    if v != 215#u32
+                    then
+                      if v != 247#u32
+                      then ok true
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+      else
+        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+        if b2
+        then ok true
+        else
+          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+          if b3
+          then ok true
+          else
+            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+            if b4
+            then ok true
+            else
+              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+              if b5
+              then ok true
+              else
+                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                if b6
+                then
+                  if v != 215#u32
+                  then
+                    if v != 247#u32
+                    then ok true
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+  else
+    let b1 ← kernel.name.display_in_range v 913#u32 937#u32
+    if b1
+    then
+      if v != 928#u32
+      then
+        if v != 931#u32
+        then ok true
+        else
+          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+          if b2
+          then ok true
+          else
+            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+            if b3
+            then ok true
+            else
+              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+              if b4
+              then ok true
+              else
+                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+                if b5
+                then ok true
+                else
+                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                  if b6
+                  then
+                    if v != 215#u32
+                    then
+                      if v != 247#u32
+                      then ok true
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+      else
+        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+        if b2
+        then ok true
+        else
+          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+          if b3
+          then ok true
+          else
+            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+            if b4
+            then ok true
+            else
+              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+              if b5
+              then ok true
+              else
+                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                if b6
+                then
+                  if v != 215#u32
+                  then
+                    if v != 247#u32
+                    then ok true
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+    else
+      let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+      if b2
+      then ok true
+      else
+        let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+        if b3
+        then ok true
+        else
+          let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+          if b4
+          then ok true
+          else
+            let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+            if b5
+            then ok true
+            else
+              let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+              if b6
+              then
+                if v != 215#u32
+                then
+                  if v != 247#u32
+                  then ok true
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+              else
+                let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                if b7
+                then ok true
+                else ok false
+
+/-- [con_ron_core::kernel::name::display_id_rest]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 509:0-529:1
+    Visibility: public -/
+def kernel.name.display_id_rest (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_ascii_alpha v
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 48#u32 57#u32
+    if b1
+    then ok true
+    else
+      if v = 95#u32
+      then ok true
+      else
+        if v = 39#u32
+        then ok true
+        else
+          if v = 33#u32
+          then ok true
+          else
+            if v = 63#u32
+            then ok true
+            else
+              let b2 ← kernel.name.display_letter_like v
+              if b2
+              then ok true
+              else
+                let b3 ← kernel.name.display_subscript_alnum v
+                if b3
+                then ok true
+                else ok false
+
+/-- [con_ron_core::kernel::name::display_id_rest_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 545:0-553:1
+    Visibility: public -/
+def kernel.name.display_id_rest_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) : Result Bool := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok true
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let b ← kernel.name.display_id_rest i2
+    if b
+    then let i3 ← i + 1#usize
+         kernel.name.display_id_rest_from s i3
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_id_first]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 496:0-506:1
+    Visibility: public -/
+def kernel.name.display_id_first (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_ascii_alpha v
+  if b
+  then ok true
+  else
+    if v = 95#u32
+    then ok true
+    else
+      let b1 ← kernel.name.display_letter_like v
+      if b1
+      then ok true
+      else ok false
+
+/-- [con_ron_core::kernel::name::display_id_shaped]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 536:0-542:1
+    Visibility: public -/
+def kernel.name.display_id_shaped
+  (s : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  if i = 0#usize
+  then ok false
+  else
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+        0#usize
+    let b ← kernel.name.display_id_first i1
+    if b
+    then kernel.name.display_id_rest_from s 1#usize
+    else ok false
+
+/-- [con_ron_core::kernel::name::display_acc_escaped_from::BACKSLASHES]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 414:12-414:51 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_escaped_from.BACKSLASHES : Array Std.U32 2#usize :=
+  Array.repeat 2#usize 92#u32
+
+/-- [con_ron_core::kernel::name::display_max_len]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 294:0-296:1
+    Visibility: public -/
+def kernel.name.display_max_len : Result Std.U64 := do
+  ok 512#u64
+
+/-- [con_ron_core::frontend::text::cat]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 23:4-26:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cat_loop
+  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    let out1 ← alloc.vec.Vec.push out i1
+    let i2 ← i + 1#usize
+    frontend.text.cat_loop b out1 n i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cat]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 19:0-28:1
+    Visibility: public -/
+def frontend.text.cat
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let n := alloc.vec.Vec.len b
+  frontend.text.cat_loop b a n 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_piece]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 363:0-375:1
+    Visibility: public -/
+def kernel.name.display_acc_piece
+  (a : kernel.name.DisplayAcc) (p : alloc.vec.Vec Std.U32) (raw : Std.U64) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i := alloc.vec.Vec.len p
+  let n ← lift (UScalar.cast .U64 i)
+  if a.full
+  then let i1 ← a.dropped + raw
+       ok { a with dropped := i1 }
+  else
+    let i1 ← a.len + n
+    let i2 ← kernel.name.display_max_len
+    if i1 > i2
+    then let i3 ← a.dropped + raw
+         ok { a with dropped := i3, full := true }
+    else let v ← frontend.text.cat a.out p
+         ok { a with out := v, len := i1 }
+
+/-- [con_ron_core::kernel::name::display_acc_char]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 379:0-383:1
+    Visibility: public -/
+def kernel.name.display_acc_char
+  (a : kernel.name.DisplayAcc) (c : Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  let p ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) c
+  kernel.name.display_acc_piece a p 1#u64
+
+/-- [con_ron_core::kernel::name::display_hex_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 329:0-342:1
+    Visibility: public -/
+def kernel.name.display_hex_from
+  (v : Std.U32) (k : Std.U32) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if k = 0#u32
+  then ok out
+  else
+    let i ← k - 1#u32
+    let i1 ← 4#u32 * i
+    let i2 ← v >>> i1
+    let d ← lift (i2 &&& 15#u32)
+    let o ←
+      if d < 10#u32
+      then do
+           let i3 ← 48#u32 + d
+           alloc.vec.Vec.push out i3
+      else do
+           let i3 ← 55#u32 + d
+           alloc.vec.Vec.push out i3
+    kernel.name.display_hex_from v i o
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_hex_width]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 313:0-325:1
+    Visibility: public -/
+def kernel.name.display_hex_width (v : Std.U32) : Result Std.U32 := do
+  if v < 65536#u32
+  then ok 4#u32
+  else
+    if v < 1048576#u32
+    then ok 5#u32
+    else
+      if v < 16777216#u32
+      then ok 6#u32
+      else if v < 268435456#u32
+           then ok 7#u32
+           else ok 8#u32
+
+/-- [con_ron_core::kernel::name::display_code_escape::OPEN]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 304:4-304:42 -/
+@[global_simps, irreducible]
+def kernel.name.display_code_escape.OPEN : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 92#u32, 117#u32, 123#u32 ]
+
+/-- [con_ron_core::kernel::name::display_code_escape]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 303:0-309:1
+    Visibility: public -/
+def kernel.name.display_code_escape
+  (c : Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let i ← kernel.name.display_hex_width c
+  let s ← lift (Array.to_slice kernel.name.display_code_escape.OPEN)
+  let v ← kernel.core_types.code_points s
+  let out ← kernel.name.display_hex_from c i v
+  alloc.vec.Vec.push out 125#u32
+
+/-- [con_ron_core::kernel::name::display_unsafe_char]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 232:0-290:1
+    Visibility: public -/
+def kernel.name.display_unsafe_char (v : Std.U32) : Result Bool := do
+  if v < 32#u32
+  then ok true
+  else
+    let b ← kernel.name.display_in_range v 127#u32 160#u32
+    if b
+    then ok true
+    else
+      if v = 173#u32
+      then ok true
+      else
+        let b1 ← kernel.name.display_in_range v 1536#u32 1541#u32
+        if b1
+        then ok true
+        else
+          if v = 1564#u32
+          then ok true
+          else
+            if v = 1757#u32
+            then ok true
+            else
+              if v = 1807#u32
+              then ok true
+              else
+                let b2 ← kernel.name.display_in_range v 2192#u32 2193#u32
+                if b2
+                then ok true
+                else
+                  if v = 2274#u32
+                  then ok true
+                  else
+                    if v = 5760#u32
+                    then ok true
+                    else
+                      if v = 6158#u32
+                      then ok true
+                      else
+                        let b3 ←
+                          kernel.name.display_in_range v 8192#u32 8207#u32
+                        if b3
+                        then ok true
+                        else
+                          let b4 ←
+                            kernel.name.display_in_range v 8232#u32 8239#u32
+                          if b4
+                          then ok true
+                          else
+                            let b5 ←
+                              kernel.name.display_in_range v 8287#u32 8292#u32
+                            if b5
+                            then ok true
+                            else
+                              let b6 ←
+                                kernel.name.display_in_range v 8294#u32
+                                  8303#u32
+                              if b6
+                              then ok true
+                              else
+                                if v = 12288#u32
+                                then ok true
+                                else
+                                  let b7 ←
+                                    kernel.name.display_in_range v 55296#u32
+                                      57343#u32
+                                  if b7
+                                  then ok true
+                                  else
+                                    if v = 65279#u32
+                                    then ok true
+                                    else
+                                      let b8 ←
+                                        kernel.name.display_in_range v
+                                          65529#u32 65531#u32
+                                      if b8
+                                      then ok true
+                                      else
+                                        if v = 69821#u32
+                                        then ok true
+                                        else
+                                          if v = 69837#u32
+                                          then ok true
+                                          else
+                                            let b9 ←
+                                              kernel.name.display_in_range v
+                                                78896#u32 78911#u32
+                                            if b9
+                                            then ok true
+                                            else
+                                              let b10 ←
+                                                kernel.name.display_in_range v
+                                                  113824#u32 113827#u32
+                                              if b10
+                                              then ok true
+                                              else
+                                                let b11 ←
+                                                  kernel.name.display_in_range
+                                                    v 119155#u32 119162#u32
+                                                if b11
+                                                then ok true
+                                                else
+                                                  if v = 917505#u32
+                                                  then ok true
+                                                  else
+                                                    let b12 ←
+                                                      kernel.name.display_in_range
+                                                        v 917536#u32 917631#u32
+                                                    if b12
+                                                    then ok true
+                                                    else
+                                                      if v > 1114111#u32
+                                                      then ok true
+                                                      else ok false
+
+/-- [con_ron_core::kernel::name::display_acc_escaped_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 408:0-423:1
+    Visibility: public -/
+def kernel.name.display_acc_escaped_from
+  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32)
+  (i : Std.Usize) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok a
+  else
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let a1 ←
+      if c = 92#u32
+      then
+        do
+        let s1 ←
+          lift (Array.to_slice
+            kernel.name.display_acc_escaped_from.BACKSLASHES)
+        let v ← kernel.core_types.code_points s1
+        kernel.name.display_acc_piece a v 1#u64
+      else
+        if c = close
+        then
+          do
+          let v ← kernel.name.display_code_escape c
+          kernel.name.display_acc_piece a v 1#u64
+        else
+          do
+          let b ← kernel.name.display_unsafe_char c
+          if b
+          then
+            let v ← kernel.name.display_code_escape c
+            kernel.name.display_acc_piece a v 1#u64
+          else kernel.name.display_acc_char a c
+    let i2 ← i + 1#usize
+    kernel.name.display_acc_escaped_from a1 close s i2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_escaped]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 403:0-405:1
+    Visibility: public -/
+def kernel.name.display_acc_escaped
+  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  kernel.name.display_acc_escaped_from a close s 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_chars_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 392:0-398:1
+    Visibility: public -/
+def kernel.name.display_acc_chars_from
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok a
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let da ← kernel.name.display_acc_char a i2
+    let i3 ← i + 1#usize
+    kernel.name.display_acc_chars_from da s i3
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_chars]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 387:0-389:1
+    Visibility: public -/
+def kernel.name.display_acc_chars
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  kernel.name.display_acc_chars_from a s 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_component]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 559:0-569:1
+    Visibility: public -/
+def kernel.name.display_acc_component
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  let b ← kernel.name.display_id_shaped s
+  if b
+  then kernel.name.display_acc_chars a s
+  else
+    let s1 ← lift (Array.to_slice kernel.name.display_acc_component.OPEN)
+    let v ← kernel.core_types.code_points s1
+    let a1 ← kernel.name.display_acc_piece a v 0#u64
+    let a2 ← kernel.name.display_acc_escaped a1 187#u32 s
+    let s2 ← lift (Array.to_slice kernel.name.display_acc_component.CLOSE)
+    let v1 ← kernel.core_types.code_points s2
+    kernel.name.display_acc_piece a2 v1 0#u64
+
+/-- [con_ron_core::kernel::name::render_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 636:0-652:1
+    Visibility: public -/
+def kernel.name.render_from
+  (cs : alloc.vec.Vec kernel.name.NameComponent) (k : Std.Usize)
+  (a : kernel.name.DisplayAcc) :
+  Result kernel.name.DisplayAcc
+  := do
+  if k = 0#usize
+  then ok a
+  else
+    let i := alloc.vec.Vec.len cs
+    let a1 ←
+      if k = i
+      then ok a
+      else
+        do
+        let s ← lift (Array.to_slice kernel.name.render_from.DOT)
+        let v ← kernel.core_types.code_points s
+        kernel.name.display_acc_piece a v 1#u64
+    let i1 ← k - 1#usize
+    let nc ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.NameComponent) cs i1
+    let a2 ←
+      match nc with
+      | kernel.name.NameComponent.Str s =>
+        kernel.name.display_acc_component a1 s
+      | kernel.name.NameComponent.Num m =>
+        do
+        let v ← kernel.core_k.nat_to_dec m
+        kernel.name.display_acc_chars a1 v
+    kernel.name.render_from cs i1 a2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::render::A]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 621:12-621:86 -/
+@[global_simps, irreducible]
+def kernel.name.render.A : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::kernel::name::component_list]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 595:0-609:1
+    Visibility: public -/
+def kernel.name.component_list
+  (n : kernel.name.Name) (acc : alloc.vec.Vec kernel.name.NameComponent) :
+  Result (alloc.vec.Vec kernel.name.NameComponent)
+  := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => ok acc
+  | kernel.name.NameKind.Str p s =>
+    let v ← kernel.expr.str_copy s
+    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Str v)
+    kernel.name.component_list p acc1
+  | kernel.name.NameKind.Num p k =>
+    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Num k)
+    kernel.name.component_list p acc1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_finish::POST]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 432:8-434:10 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_finish.POST : Array Std.U32 17#usize :=
+  Array.make 17#usize [
+    32#u32, 109#u32, 111#u32, 114#u32, 101#u32, 32#u32, 99#u32, 104#u32,
+    97#u32, 114#u32, 97#u32, 99#u32, 116#u32, 101#u32, 114#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::kernel::name::display_acc_finish::PRE]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 430:8-430:41 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_finish.PRE : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 8230#u32, 91#u32 ]
+
+/-- [con_ron_core::frontend::text::cat3]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 31:0-33:1
+    Visibility: public -/
+def frontend.text.cat3
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
+  (c : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let v ← frontend.text.cat a b
+  frontend.text.cat v c
+
+/-- [con_ron_core::kernel::name::display_acc_finish]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 427:0-444:1
+    Visibility: public -/
+def kernel.name.display_acc_finish
+  (a : kernel.name.DisplayAcc) : Result (alloc.vec.Vec Std.U32) := do
+  if a.full
+  then
+    let s ← lift (Array.to_slice kernel.name.display_acc_finish.PRE)
+    let v ← kernel.core_types.code_points s
+    let v1 ← kernel.core_k.nat_to_dec a.dropped
+    let s1 ← frontend.text.cat3 a.out v v1
+    let s2 ← lift (Array.to_slice kernel.name.display_acc_finish.POST)
+    let v2 ← kernel.core_types.code_points s2
+    frontend.text.cat s1 v2
+  else ok a.out
+
+/-- [con_ron_core::kernel::name::display_acc_empty]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 356:0-358:1
+    Visibility: public -/
+def kernel.name.display_acc_empty : Result kernel.name.DisplayAcc := do
+  ok
+    {
+      out := (alloc.vec.Vec.new Std.U32),
+      len := 0#u64,
+      dropped := 0#u64,
+      full := false
+    }
+
+/-- [con_ron_core::kernel::name::render]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 618:0-630:1
+    Visibility: public -/
+def kernel.name.render
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous =>
+    let s ← lift (Array.to_slice kernel.name.render.A)
+    kernel.core_types.code_points s
+  | kernel.name.NameKind.Str _ _ =>
+    let cs ←
+      kernel.name.component_list n (alloc.vec.Vec.new
+        kernel.name.NameComponent)
+    let k := alloc.vec.Vec.len cs
+    let da ← kernel.name.display_acc_empty
+    let da1 ← kernel.name.render_from cs k da
+    kernel.name.display_acc_finish da1
+  | kernel.name.NameKind.Num _ _ =>
+    let cs ←
+      kernel.name.component_list n (alloc.vec.Vec.new
+        kernel.name.NameComponent)
+    let k := alloc.vec.Vec.len cs
+    let da ← kernel.name.display_acc_empty
+    let da1 ← kernel.name.render_from cs k da
+    kernel.name.display_acc_finish da1
+
 /-- [con_ron_core::frontend::text::cps_starts_with]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 88:4-95:1
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 87:4-94:1
     Visibility: public -/
 @[rust_loop]
 def frontend.text.cps_starts_with_loop
@@ -54723,7 +55617,7 @@ def frontend.text.cps_starts_with_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::text::cps_starts_with]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 82:0-95:1
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 81:0-94:1
     Visibility: public -/
 def frontend.text.cps_starts_with
   (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
@@ -54736,7 +55630,7 @@ def frontend.text.cps_starts_with
     frontend.text.cps_starts_with_loop s lit n 0#usize
 
 /-- [con_ron_core::frontend::text::cps_beq]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 70:4-77:1
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 69:4-76:1
     Visibility: public -/
 @[rust_loop]
 def frontend.text.cps_beq_loop
@@ -54757,7 +55651,7 @@ def frontend.text.cps_beq_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::text::cps_beq]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 64:0-77:1
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 63:0-76:1
     Visibility: public -/
 def frontend.text.cps_beq
   (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
@@ -54769,7 +55663,7 @@ def frontend.text.cps_beq
        frontend.text.cps_beq_loop s lit n 0#usize
 
 /-- [con_ron_core::kernel::trust_axioms::native_axiom_tactic]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 341:0-362:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 342:0-363:1
     Visibility: public -/
 def kernel.trust_axioms.native_axiom_tactic
   (n : kernel.name.Name) : Result (Option (alloc.vec.Vec Std.U32)) := do
@@ -54801,8 +55695,12 @@ def kernel.trust_axioms.native_axiom_tactic
                 lift (Array.to_slice kernel.trust_axioms.S_DECIDE_NATIVE)
               let v ← kernel.core_types.code_points s3
               ok (some v)
-            else let v ← kernel.expr.str_copy tac
-                 ok (some v)
+            else
+              let n1 ← kernel.name.anonymous
+              let v ← kernel.expr.str_copy tac
+              let n2 ← kernel.name.mk_str n1 v
+              let v1 ← kernel.name.render n2
+              ok (some v1)
           else ok none
         else ok none
       | kernel.name.NameKind.Num _ _ => ok none
@@ -54863,169 +55761,14 @@ def kernel.trust_axioms.M_NONSTD_PRE : Array Std.U32 20#usize :=
     111#u32, 109#u32, 32#u32, 40#u32
     ]
 
-/-- [con_ron_core::frontend::text::name_str::DOT#1]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 123:16-123:43 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.DOT_1 : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 46#u32 ]
-
-/-- [con_ron_core::frontend::text::name_str::DOT]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 112:16-112:43 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.DOT : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 46#u32 ]
-
-/-- [con_ron_core::frontend::text::name_str::A]
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 106:12-106:86 -/
-@[global_simps, irreducible]
-def frontend.text.name_str.A : Array Std.U32 11#usize :=
-  Array.make 11#usize [
-    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
-    117#u32, 115#u32, 93#u32
-    ]
-
-/-- [con_ron_core::frontend::text::u64_str]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 47:4-50:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.u64_str_loop0
-  (rev : alloc.vec.Vec Std.U32) (k : Std.U64) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if k > 0#u64
-  then
-    let i ← k % 10#u64
-    let i1 ← lift (UScalar.cast .U32 i)
-    let i2 ← 48#u32 + i1
-    let rev1 ← alloc.vec.Vec.push rev i2
-    let k1 ← k / 10#u64
-    frontend.text.u64_str_loop0 rev1 k1
-  else ok rev
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::u64_str]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 53:4-56:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.u64_str_loop1
-  (rev : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i > 0#usize
-  then
-    let i1 ← i - 1#usize
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) rev
-        i1
-    let out1 ← alloc.vec.Vec.push out i2
-    frontend.text.u64_str_loop1 rev out1 i1
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::u64_str]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 39:0-58:1
-    Visibility: public -/
-def frontend.text.u64_str (n : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
-  if n = 0#u64
-  then alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 48#u32
-  else
-    let rev ← frontend.text.u64_str_loop0 (alloc.vec.Vec.new Std.U32) n
-    let i := alloc.vec.Vec.len rev
-    let out := alloc.vec.Vec.with_capacity Std.U32 i
-    let i1 := alloc.vec.Vec.len rev
-    frontend.text.u64_str_loop1 rev out i1
-
-/-- [con_ron_core::frontend::text::cat]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 24:4-27:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.cat_loop
-  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
-    let out1 ← alloc.vec.Vec.push out i1
-    let i2 ← i + 1#usize
-    frontend.text.cat_loop b out1 n i2
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::cat]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 20:0-29:1
-    Visibility: public -/
-def frontend.text.cat
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let n := alloc.vec.Vec.len b
-  frontend.text.cat_loop b a n 0#usize
-
-/-- [con_ron_core::frontend::text::cat3]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 32:0-34:1
-    Visibility: public -/
-def frontend.text.cat3
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
-  (c : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let v ← frontend.text.cat a b
-  frontend.text.cat v c
-
-/-- [con_ron_core::frontend::text::name_str]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 103:0-132:1
-    Visibility: public -/
-def frontend.text.name_str
-  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
-  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous =>
-    let s ← lift (Array.to_slice frontend.text.name_str.A)
-    kernel.core_types.code_points s
-  | kernel.name.NameKind.Str p s =>
-    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous =>
-      frontend.text.cat (alloc.vec.Vec.new Std.U32) s
-    | kernel.name.NameKind.Str _ _ =>
-      let v ← frontend.text.name_str p
-      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
-      let v1 ← kernel.core_types.code_points s1
-      frontend.text.cat3 v v1 s
-    | kernel.name.NameKind.Num _ _ =>
-      let v ← frontend.text.name_str p
-      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
-      let v1 ← kernel.core_types.code_points s1
-      frontend.text.cat3 v v1 s
-  | kernel.name.NameKind.Num p k =>
-    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous => frontend.text.u64_str k
-    | kernel.name.NameKind.Str _ _ =>
-      let v ← frontend.text.name_str p
-      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
-      let v1 ← kernel.core_types.code_points s
-      let v2 ← frontend.text.u64_str k
-      frontend.text.cat3 v v1 v2
-    | kernel.name.NameKind.Num _ _ =>
-      let v ← frontend.text.name_str p
-      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
-      let v1 ← kernel.core_types.code_points s
-      let v2 ← frontend.text.u64_str k
-      frontend.text.cat3 v v1 v2
-partial_fixpoint
-
 /-- [con_ron_core::kernel::trust_axioms::non_std_axiom_msg]:
-    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 370:0-380:1
+    Source: 'crates/con-ron-core/src/kernel/trust_axioms.rs', lines 371:0-381:1
     Visibility: public -/
 def kernel.trust_axioms.non_std_axiom_msg
   (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
   let s ← lift (Array.to_slice kernel.trust_axioms.M_NONSTD_PRE)
   let v ← kernel.core_types.code_points s
-  let v1 ← frontend.text.name_str n
+  let v1 ← kernel.name.render n
   let head ← frontend.text.cat v v1
   let o ← kernel.trust_axioms.native_axiom_tactic n
   match o with
@@ -64665,7 +65408,7 @@ def arena.store.EStore.find
   | some _ => ok o
 
 /-- [con_ron_core::frontend::export_c::fail]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 111:0-113:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 112:0-114:1
     Visibility: public -/
 def frontend.export_c.fail
   (T : Type) (e : kernel.core_types.CheckError) :
@@ -64674,7 +65417,7 @@ def frontend.export_c.fail
   ok (core.result.Result.Err (frontend.export_c.LineErr.Err e))
 
 /-- [con_ron_core::frontend::export_c::merr]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 117:0-119:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 118:0-120:1
     Visibility: public -/
 def frontend.export_c.merr
   (T : Type) (msg : alloc.vec.Vec Std.U32) :
@@ -64684,7 +65427,7 @@ def frontend.export_c.merr
   ok (core.result.Result.Err (frontend.export_c.LineErr.Err ce))
 
 /-- [con_ron_core::frontend::export_c::declined]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 122:0-124:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 123:0-125:1
     Visibility: public -/
 def frontend.export_c.declined
   (T : Type) (what : alloc.vec.Vec Std.U32) :
@@ -64694,7 +65437,7 @@ def frontend.export_c.declined
     (frontend.types.RecordVerdict.Declined what)))
 
 /-- [con_ron_core::frontend::export_c::invalid]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 127:0-129:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 128:0-130:1
     Visibility: public -/
 def frontend.export_c.invalid
   (T : Type) (what : alloc.vec.Vec Std.U32) :
@@ -64716,7 +65459,7 @@ def frontend.types.record_verdict_to_error
   | frontend.types.RecordVerdict.Invalid what => kernel.core_types.invalid what
 
 /-- [con_ron_core::frontend::export_c::line_err_to_check]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 134:0-139:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 135:0-140:1
     Visibility: public -/
 def frontend.export_c.line_err_to_check
   (e : frontend.export_c.LineErr) (line_no : Std.U64) :
@@ -64729,19 +65472,19 @@ def frontend.export_c.line_err_to_check
     ok (ce, line_no)
 
 /-- [con_ron_core::frontend::export_c::bool_str::F_FALSE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 149:8-151:10 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 150:8-152:10 -/
 @[global_simps, irreducible]
 def frontend.export_c.bool_str.F_FALSE : Array Std.U32 5#usize :=
   Array.make 5#usize [ 102#u32, 97#u32, 108#u32, 115#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::export_c::bool_str::T_TRUE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 144:8-146:10 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 145:8-147:10 -/
 @[global_simps, irreducible]
 def frontend.export_c.bool_str.T_TRUE : Array Std.U32 4#usize :=
   Array.make 4#usize [ 116#u32, 114#u32, 117#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::export_c::bool_str]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 142:0-154:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 143:0-155:1
     Visibility: public -/
 def frontend.export_c.bool_str
   (b : Bool) : Result (alloc.vec.Vec Std.U32) := do
@@ -64754,7 +65497,7 @@ def frontend.export_c.bool_str
     kernel.core_types.code_points s
 
 /-- [con_ron_core::frontend::export_c::sat_sub]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 158:0-164:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 159:0-165:1
     Visibility: public -/
 def frontend.export_c.sat_sub
   (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
@@ -64763,7 +65506,7 @@ def frontend.export_c.sat_sub
   else ok 0#u64
 
 /-- [con_ron_core::frontend::export_c::rel_offset]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 168:0-174:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 169:0-175:1
     Visibility: public -/
 def frontend.export_c.rel_offset
   (off : Std.Usize) (i : Std.Usize) : Result Std.Usize := do
@@ -64777,6 +65520,57 @@ def frontend.export_c.rel_offset
 def kernel.core_types.native
   (m : alloc.vec.Vec Std.U32) : Result kernel.core_types.CheckError := do
   ok (kernel.core_types.CheckError.Native m)
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 46:4-49:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop0
+  (rev : alloc.vec.Vec Std.U32) (k : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if k > 0#u64
+  then
+    let i ← k % 10#u64
+    let i1 ← lift (UScalar.cast .U32 i)
+    let i2 ← 48#u32 + i1
+    let rev1 ← alloc.vec.Vec.push rev i2
+    let k1 ← k / 10#u64
+    frontend.text.u64_str_loop0 rev1 k1
+  else ok rev
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 52:4-55:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop1
+  (rev : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) rev
+        i1
+    let out1 ← alloc.vec.Vec.push out i2
+    frontend.text.u64_str_loop1 rev out1 i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 38:0-57:1
+    Visibility: public -/
+def frontend.text.u64_str (n : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  if n = 0#u64
+  then alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 48#u32
+  else
+    let rev ← frontend.text.u64_str_loop0 (alloc.vec.Vec.new Std.U32) n
+    let i := alloc.vec.Vec.len rev
+    let out := alloc.vec.Vec.with_capacity Std.U32 i
+    let i1 := alloc.vec.Vec.len rev
+    frontend.text.u64_str_loop1 rev out i1
 
 /-- [con_ron_core::frontend::scan_types::scan_err_render::CLOSE]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 244:4-244:33 -/
@@ -65080,7 +65874,7 @@ def frontend.scan_types.scan_err_render
   frontend.text.cat b v3
 
 /-- [con_ron_core::frontend::export_c::scan_err_to_check]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 182:0-187:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 183:0-188:1
     Visibility: public -/
 def frontend.export_c.scan_err_to_check
   (e : frontend.scan_types.ScanErr) : Result kernel.core_types.CheckError := do
@@ -65147,7 +65941,7 @@ def frontend.export_c.scan_err_to_check
     kernel.core_types.native v
 
 /-- [con_ron_core::frontend::export_c::store_fuel]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 198:0-200:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 199:0-201:1
     Visibility: public -/
 def frontend.export_c.store_fuel
   (pers : arena.store.PersTier) (ar : arena.store.EStore) :
@@ -65175,7 +65969,7 @@ def frontend.scan_types.id_table_empty
   ok { dense := (alloc.vec.Vec.new T), sparse := hm }
 
 /-- [con_ron_core::frontend::export_c::state_d_init]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 231:0-246:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 232:0-247:1
     Visibility: public -/
 def frontend.export_c.state_d_init
   (pers : arena.store.PersTier) (ar : arena.store.EStore) :
@@ -65204,7 +65998,7 @@ def frontend.export_c.state_d_init
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::export_c::push_decl]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 258:0-260:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 259:0-261:1
     Visibility: public -/
 def frontend.export_c.push_decl
   (st : frontend.export_c.StateD) (d : arena.env.IDeclaration) :
@@ -65238,7 +66032,7 @@ def frontend.scan_types.id_table_get
       U64.Insts.Con_ron_coreRonHashmapEq2 t.sparse i
 
 /-- [con_ron_core::frontend::export_c::st_name::M_UNDEF_NAME]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 272:12-275:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 273:12-276:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_name.M_UNDEF_NAME : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -65248,7 +66042,7 @@ def frontend.export_c.st_name.M_UNDEF_NAME : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::st_name]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 268:0-282:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 269:0-283:1
     Visibility: public -/
 def frontend.export_c.st_name
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65267,7 +66061,7 @@ def frontend.export_c.st_name
     ok (core.result.Result.Ok n1)
 
 /-- [con_ron_core::frontend::export_c::st_level::M_UNDEF_LEVEL]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 290:12-293:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 291:12-294:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_level.M_UNDEF_LEVEL : Array Std.U32 22#usize :=
   Array.make 22#usize [
@@ -65277,7 +66071,7 @@ def frontend.export_c.st_level.M_UNDEF_LEVEL : Array Std.U32 22#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::st_level]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 286:0-300:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 287:0-301:1
     Visibility: public -/
 def frontend.export_c.st_level
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65296,7 +66090,7 @@ def frontend.export_c.st_level
     ok (core.result.Result.Ok l1)
 
 /-- [con_ron_core::frontend::export_c::st_expr::M_UNDEF_EXPR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 308:12-311:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 309:12-312:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_expr.M_UNDEF_EXPR : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -65306,7 +66100,7 @@ def frontend.export_c.st_expr.M_UNDEF_EXPR : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::st_expr]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 304:0-318:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 305:0-319:1
     Visibility: public -/
 def frontend.export_c.st_expr
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65325,7 +66119,7 @@ def frontend.export_c.st_expr
     ok (core.result.Result.Ok e1)
 
 /-- [con_ron_core::frontend::export_c::st_names]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 327:4-335:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 328:4-336:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.st_names_loop
@@ -65349,7 +66143,7 @@ def frontend.export_c.st_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::st_names]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 323:0-335:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 324:0-336:1
     Visibility: public -/
 def frontend.export_c.st_names
   (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64) :
@@ -65362,7 +66156,7 @@ def frontend.export_c.st_names
   frontend.export_c.st_names_loop st is out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::st_levels]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 342:4-350:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 343:4-351:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.st_levels_loop
@@ -65386,7 +66180,7 @@ def frontend.export_c.st_levels_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::st_levels]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 338:0-350:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 339:0-351:1
     Visibility: public -/
 def frontend.export_c.st_levels
   (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64) :
@@ -65399,7 +66193,7 @@ def frontend.export_c.st_levels
   frontend.export_c.st_levels_loop st is out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::get_decl_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 357:0-359:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 358:0-360:1
     Visibility: public -/
 def frontend.export_c.get_decl_d
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65408,7 +66202,7 @@ def frontend.export_c.get_decl_d
   frontend.export_c.st_expr st i
 
 /-- [con_ron_core::frontend::export_c::rebound_error::B_BOUND]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 374:4-376:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 375:4-377:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rebound_error.B_BOUND : Array Std.U32 17#usize :=
   Array.make 17#usize [
@@ -65418,7 +66212,7 @@ def frontend.export_c.rebound_error.B_BOUND : Array Std.U32 17#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rebound_error::A_IDX]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 371:4-373:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 372:4-374:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rebound_error.A_IDX : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -65426,7 +66220,7 @@ def frontend.export_c.rebound_error.A_IDX : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rebound_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 370:0-383:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 371:0-384:1
     Visibility: public -/
 def frontend.export_c.rebound_error
   (what : Slice Std.U32) (i : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
@@ -65440,13 +66234,13 @@ def frontend.export_c.rebound_error
   frontend.text.cat s1 v3
 
 /-- [con_ron_core::frontend::export_c::st_fresh_name::W_NAME]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 398:12-400:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 399:12-401:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_fresh_name.W_NAME : Array Std.U32 4#usize :=
   Array.make 4#usize [ 110#u32, 97#u32, 109#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::export_c::st_fresh_name]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 395:0-405:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 396:0-406:1
     Visibility: public -/
 def frontend.export_c.st_fresh_name
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65461,13 +66255,13 @@ def frontend.export_c.st_fresh_name
     frontend.export_c.merr Unit v
 
 /-- [con_ron_core::frontend::export_c::st_fresh_level::W_LEVEL]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 412:12-414:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 413:12-415:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_fresh_level.W_LEVEL : Array Std.U32 5#usize :=
   Array.make 5#usize [ 108#u32, 101#u32, 118#u32, 101#u32, 108#u32 ]
 
 /-- [con_ron_core::frontend::export_c::st_fresh_level]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 409:0-419:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 410:0-420:1
     Visibility: public -/
 def frontend.export_c.st_fresh_level
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65482,7 +66276,7 @@ def frontend.export_c.st_fresh_level
     frontend.export_c.merr Unit v
 
 /-- [con_ron_core::frontend::export_c::st_fresh_expr::W_EXPR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 426:12-428:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 427:12-429:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.st_fresh_expr.W_EXPR : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -65491,7 +66285,7 @@ def frontend.export_c.st_fresh_expr.W_EXPR : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::st_fresh_expr]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 423:0-433:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 424:0-434:1
     Visibility: public -/
 def frontend.export_c.st_fresh_expr
   (st : frontend.export_c.StateD) (i : Std.U64) :
@@ -65533,7 +66327,7 @@ def frontend.scan_types.id_table_insert
       ok { t with sparse := hm }
 
 /-- [con_ron_core::frontend::export_c::parse_name_entry_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 445:0-475:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 446:0-476:1
     Visibility: public -/
 def frontend.export_c.parse_name_entry_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -65585,7 +66379,7 @@ def frontend.export_c.parse_name_entry_d
     | core.result.Result.Err e => ok (core.result.Result.Err e, ar, st)
 
 /-- [con_ron_core::frontend::export_c::parse_level_rec_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 508:0-533:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 509:0-534:1
     Visibility: public -/
 def frontend.export_c.parse_level_rec_d
   (st : frontend.export_c.StateD) (r : frontend.scan_types.LevelRec) :
@@ -65626,7 +66420,7 @@ def frontend.export_c.parse_level_rec_d
     | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::export_c::parse_level_entry_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 480:0-502:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 481:0-503:1
     Visibility: public -/
 def frontend.export_c.parse_level_entry_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -65807,7 +66601,7 @@ def frontend.nat_decimal.from_decimal
     else ok none
 
 /-- [con_ron_core::frontend::export_c::parse_expr_rec_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 569:0-668:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 570:0-669:1
     Visibility: public -/
 def frontend.export_c.parse_expr_rec_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -65976,7 +66770,7 @@ def frontend.export_c.parse_expr_rec_d
       ok (r2, ar1)
 
 /-- [con_ron_core::frontend::export_c::parse_expr_entry_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 543:0-561:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 544:0-562:1
     Visibility: public -/
 def frontend.export_c.parse_expr_entry_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -65997,7 +66791,7 @@ def frontend.export_c.parse_expr_entry_d
   | core.result.Result.Err _ => ok (r1, ar, st)
 
 /-- [con_ron_core::frontend::export_c::parse_cv_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 678:0-693:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 679:0-694:1
     Visibility: public -/
 def frontend.export_c.parse_cv_d
   (st : frontend.export_c.StateD) (cv : frontend.scan_types.CVRec) :
@@ -66018,7 +66812,7 @@ def frontend.export_c.parse_cv_d
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::export_c::ind_pi_tele_len::M_FUEL_TELE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 719:4-722:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 720:4-723:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.ind_pi_tele_len.M_FUEL_TELE : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -66029,7 +66823,7 @@ def frontend.export_c.ind_pi_tele_len.M_FUEL_TELE : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::ind_pi_tele_len]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 708:4-718:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 709:4-719:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ind_pi_tele_len_loop
@@ -66065,7 +66859,7 @@ def frontend.export_c.ind_pi_tele_len_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ind_pi_tele_len]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 704:0-724:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 705:0-725:1
     Visibility: public -/
 def frontend.export_c.ind_pi_tele_len
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -66076,7 +66870,7 @@ def frontend.export_c.ind_pi_tele_len
   frontend.export_c.ind_pi_tele_len_loop pers ar 0#u64 cur fuel
 
 /-- [con_ron_core::frontend::export_c::pi_result::M_FUEL_PIRES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 742:4-745:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 743:4-746:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.pi_result.M_FUEL_PIRES : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -66086,7 +66880,7 @@ def frontend.export_c.pi_result.M_FUEL_PIRES : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::pi_result]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 734:4-741:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 735:4-742:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.pi_result_loop
@@ -66120,7 +66914,7 @@ def frontend.export_c.pi_result_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::pi_result]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 731:0-747:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 732:0-748:1
     Visibility: public -/
 def frontend.export_c.pi_result
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -66131,7 +66925,7 @@ def frontend.export_c.pi_result
   frontend.export_c.pi_result_loop pers ar cur fuel
 
 /-- [con_ron_core::frontend::export_c::parse_rule_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 753:0-761:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 754:0-762:1
     Visibility: public -/
 def frontend.export_c.parse_rule_d
   (st : frontend.export_c.StateD) (ru : frontend.scan_types.RuleRec) :
@@ -66149,7 +66943,7 @@ def frontend.export_c.parse_rule_d
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::export_c::parse_rules_d]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 769:4-777:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 770:4-778:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.parse_rules_d_loop
@@ -66175,7 +66969,7 @@ def frontend.export_c.parse_rules_d_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::parse_rules_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 765:0-777:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 766:0-778:1
     Visibility: public -/
 def frontend.export_c.parse_rules_d
   (st : frontend.export_c.StateD)
@@ -66189,7 +66983,7 @@ def frontend.export_c.parse_rules_d
   frontend.export_c.parse_rules_d_loop st rus out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::cv_rec_dup]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 786:4-789:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 787:4-790:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.cv_rec_dup_loop
@@ -66208,7 +67002,7 @@ def frontend.export_c.cv_rec_dup_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::cv_rec_dup]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 782:0-795:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 783:0-796:1
     Visibility: public -/
 def frontend.export_c.cv_rec_dup
   (cv : frontend.scan_types.CVRec) : Result frontend.scan_types.CVRec := do
@@ -66219,7 +67013,7 @@ def frontend.export_c.cv_rec_dup
   ok { cv with level_params := lps1 }
 
 /-- [con_ron_core::frontend::export_c::ind_ctor_rec_dup]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 798:0-807:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 799:0-808:1
     Visibility: public -/
 def frontend.export_c.ind_ctor_rec_dup
   (c : frontend.scan_types.IndCtorRec) :
@@ -66229,7 +67023,7 @@ def frontend.export_c.ind_ctor_rec_dup
   ok { c with cv := c1 }
 
 /-- [con_ron_core::frontend::export_c::any_ty_unsafe]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 818:4-825:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 819:4-826:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.any_ty_unsafe_loop
@@ -66250,7 +67044,7 @@ def frontend.export_c.any_ty_unsafe_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::any_ty_unsafe]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 815:0-825:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 816:0-826:1
     Visibility: public -/
 def frontend.export_c.any_ty_unsafe
   (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) : Result Bool := do
@@ -66258,7 +67052,7 @@ def frontend.export_c.any_ty_unsafe
   frontend.export_c.any_ty_unsafe_loop tys n 0#usize
 
 /-- [con_ron_core::frontend::export_c::any_ty_nested]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 832:4-839:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 833:4-840:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.any_ty_nested_loop
@@ -66279,7 +67073,7 @@ def frontend.export_c.any_ty_nested_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::any_ty_nested]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 829:0-839:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 830:0-840:1
     Visibility: public -/
 def frontend.export_c.any_ty_nested
   (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) : Result Bool := do
@@ -66287,7 +67081,7 @@ def frontend.export_c.any_ty_nested
   frontend.export_c.any_ty_nested_loop tys n 0#usize
 
 /-- [con_ron_core::frontend::export_c::all_num_params]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 846:4-853:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 847:4-854:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.all_num_params_loop
@@ -66309,7 +67103,7 @@ def frontend.export_c.all_num_params_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::all_num_params]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 843:0-853:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 844:0-854:1
     Visibility: public -/
 def frontend.export_c.all_num_params
   (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) (n_pd : Std.U64) :
@@ -66319,7 +67113,7 @@ def frontend.export_c.all_num_params
   frontend.export_c.all_num_params_loop tys n_pd n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ty_names_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 861:4-869:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 862:4-870:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ty_names_of_loop
@@ -66345,7 +67139,7 @@ def frontend.export_c.ty_names_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ty_names_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 857:0-869:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 858:0-870:1
     Visibility: public -/
 def frontend.export_c.ty_names_of
   (st : frontend.export_c.StateD)
@@ -66359,7 +67153,7 @@ def frontend.export_c.ty_names_of
   frontend.export_c.ty_names_of_loop st tys out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ty_types_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 877:4-885:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 878:4-886:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ty_types_of_loop
@@ -66385,7 +67179,7 @@ def frontend.export_c.ty_types_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ty_types_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 873:0-885:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 874:0-886:1
     Visibility: public -/
 def frontend.export_c.ty_types_of
   (st : frontend.export_c.StateD)
@@ -66399,7 +67193,7 @@ def frontend.export_c.ty_types_of
   frontend.export_c.ty_types_of_loop st tys out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::listed_ctors_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 896:4-904:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 897:4-905:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.listed_ctors_of_loop
@@ -66426,7 +67220,7 @@ def frontend.export_c.listed_ctors_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::listed_ctors_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 889:0-904:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 890:0-905:1
     Visibility: public -/
 def frontend.export_c.listed_ctors_of
   (st : frontend.export_c.StateD)
@@ -66440,7 +67234,7 @@ def frontend.export_c.listed_ctors_of
   frontend.export_c.listed_ctors_of_loop st tys out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ctor_names_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 912:4-920:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 913:4-921:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ctor_names_of_loop
@@ -66466,7 +67260,7 @@ def frontend.export_c.ctor_names_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ctor_names_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 908:0-920:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 909:0-921:1
     Visibility: public -/
 def frontend.export_c.ctor_names_of
   (st : frontend.export_c.StateD)
@@ -66480,7 +67274,7 @@ def frontend.export_c.ctor_names_of
   frontend.export_c.ctor_names_of_loop st cts out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::flatten_listed]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 931:8-934:9
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 932:8-935:9
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.flatten_listed_loop0_loop0
@@ -66505,7 +67299,7 @@ def frontend.export_c.flatten_listed_loop0_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::flatten_listed]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 928:4-936:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 929:4-937:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.flatten_listed_loop0
@@ -66527,7 +67321,7 @@ def frontend.export_c.flatten_listed_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::flatten_listed]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 924:0-938:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 925:0-939:1
     Visibility: public -/
 def frontend.export_c.flatten_listed
   (listed : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx)) :
@@ -66553,7 +67347,7 @@ def ron.hashmap2.HashMap2.contains_key
   | some _ => ok true
 
 /-- [con_ron_core::frontend::export_c::names_have_dup]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 951:4-959:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 952:4-960:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.names_have_dup_loop
@@ -66585,7 +67379,7 @@ def frontend.export_c.names_have_dup_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::names_have_dup]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 947:0-959:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 948:0-960:1
     Visibility: public -/
 def frontend.export_c.names_have_dup
   (flat : alloc.vec.Vec arena.handle.NIdx) : Result Bool := do
@@ -66595,7 +67389,7 @@ def frontend.export_c.names_have_dup
   frontend.export_c.names_have_dup_loop flat seen n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ctor_index_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 971:4-974:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 972:4-975:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ctor_index_of_loop
@@ -66621,7 +67415,7 @@ def frontend.export_c.ctor_index_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ctor_index_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 967:0-976:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 968:0-977:1
     Visibility: public -/
 def frontend.export_c.ctor_index_of
   (ns : alloc.vec.Vec arena.handle.NIdx) :
@@ -66633,7 +67427,7 @@ def frontend.export_c.ctor_index_of
   frontend.export_c.ctor_index_of_loop ns m n 0#usize
 
 /-- [con_ron_core::frontend::export_c::no_such_ctor_error::A_NOSUCH]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 981:4-984:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 982:4-985:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.no_such_ctor_error.A_NOSUCH : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -66643,7 +67437,7 @@ def frontend.export_c.no_such_ctor_error.A_NOSUCH : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::no_such_ctor_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 980:0-986:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 981:0-987:1
     Visibility: public -/
 def frontend.export_c.no_such_ctor_error
   (n : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
@@ -66652,7 +67446,7 @@ def frontend.export_c.no_such_ctor_error
   frontend.text.cat v n
 
 /-- [con_ron_core::frontend::export_c::ctor_count_error::C_LISTS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1000:4-1003:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1001:4-1004:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.ctor_count_error.C_LISTS : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -66662,7 +67456,7 @@ def frontend.export_c.ctor_count_error.C_LISTS : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::ctor_count_error::B_LISTS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 996:4-999:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 997:4-1000:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.ctor_count_error.B_LISTS : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -66673,7 +67467,7 @@ def frontend.export_c.ctor_count_error.B_LISTS : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::ctor_count_error::A_LISTS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 992:4-995:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 993:4-996:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.ctor_count_error.A_LISTS : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -66684,7 +67478,7 @@ def frontend.export_c.ctor_count_error.A_LISTS : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::ctor_count_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 991:0-1010:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 992:0-1011:1
     Visibility: public -/
 def frontend.export_c.ctor_count_error
   (a : Std.U64) (b : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
@@ -66700,13 +67494,13 @@ def frontend.export_c.ctor_count_error
   frontend.text.cat3 s2 v3 v4
 
 /-- [con_ron_core::frontend::export_c::cidx_error::E_OF]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1028:4-1030:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1029:4-1031:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.cidx_error.E_OF : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 111#u32, 102#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::export_c::cidx_error::D_ITIS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1024:4-1027:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1025:4-1028:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.cidx_error.D_ITIS : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -66716,13 +67510,13 @@ def frontend.export_c.cidx_error.D_ITIS : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::cidx_error::C_CIDX]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1021:4-1023:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1022:4-1024:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.cidx_error.C_CIDX : Array Std.U32 5#usize :=
   Array.make 5#usize [ 99#u32, 105#u32, 100#u32, 120#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::export_c::cidx_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1018:4-1020:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1019:4-1021:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.cidx_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -66731,7 +67525,7 @@ def frontend.export_c.cidx_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::cidx_error::A_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1015:4-1017:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1016:4-1018:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.cidx_error.A_CTOR : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -66740,7 +67534,7 @@ def frontend.export_c.cidx_error.A_CTOR : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::cidx_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1014:0-1039:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1015:0-1040:1
     Visibility: public -/
 def frontend.export_c.cidx_error
   (n : alloc.vec.Vec Std.U32) (ci : Std.U64) (j : Std.U64)
@@ -66765,7 +67559,7 @@ def frontend.export_c.cidx_error
   frontend.text.cat3 s6 v6 t
 
 /-- [con_ron_core::frontend::export_c::induct_error::D_CTOROF]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1053:4-1056:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1054:4-1057:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.induct_error.D_CTOROF : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -66775,7 +67569,7 @@ def frontend.export_c.induct_error.D_CTOROF : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::induct_error::C_INDUCT]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1050:4-1052:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1051:4-1053:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.induct_error.C_INDUCT : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -66783,7 +67577,7 @@ def frontend.export_c.induct_error.C_INDUCT : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::induct_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1047:4-1049:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1048:4-1050:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.induct_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -66792,7 +67586,7 @@ def frontend.export_c.induct_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::induct_error::A_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1044:4-1046:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1045:4-1047:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.induct_error.A_CTOR : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -66801,7 +67595,7 @@ def frontend.export_c.induct_error.A_CTOR : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::induct_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1043:0-1064:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1044:0-1065:1
     Visibility: public -/
 def frontend.export_c.induct_error
   (n : alloc.vec.Vec Std.U32) (iw : alloc.vec.Vec Std.U32)
@@ -66821,7 +67615,7 @@ def frontend.export_c.induct_error
   frontend.text.cat3 s4 v3 t
 
 /-- [con_ron_core::frontend::export_c::fields_error::E_BINDERS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1083:4-1085:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1084:4-1086:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.fields_error.E_BINDERS : Array Std.U32 8#usize :=
   Array.make 8#usize [
@@ -66829,7 +67623,7 @@ def frontend.export_c.fields_error.E_BINDERS : Array Std.U32 8#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::fields_error::D_PARAMS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1079:4-1082:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1080:4-1083:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.fields_error.D_PARAMS : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -66840,7 +67634,7 @@ def frontend.export_c.fields_error.D_PARAMS : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::fields_error::C_FIELDS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1076:4-1078:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1077:4-1079:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.fields_error.C_FIELDS : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -66849,7 +67643,7 @@ def frontend.export_c.fields_error.C_FIELDS : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::fields_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1073:4-1075:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1074:4-1076:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.fields_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -66858,7 +67652,7 @@ def frontend.export_c.fields_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::fields_error::A_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1070:4-1072:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1071:4-1073:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.fields_error.A_CTOR : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -66867,7 +67661,7 @@ def frontend.export_c.fields_error.A_CTOR : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::fields_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1069:0-1094:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1070:0-1095:1
     Visibility: public -/
 def frontend.export_c.fields_error
   (n : alloc.vec.Vec Std.U32) (f : Std.U64) (p : Std.U64) (b : Std.U64) :
@@ -66892,7 +67686,7 @@ def frontend.export_c.fields_error
   frontend.text.cat3 s6 v6 v7
 
 /-- [con_ron_core::frontend::export_c::show_name]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1101:0-1106:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1102:0-1107:1
     Visibility: public -/
 def frontend.export_c.show_name
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -66902,13 +67696,13 @@ def frontend.export_c.show_name
   let r ← arena.env.read_name pers ar h
   match r with
   | core.result.Result.Ok n =>
-    let v ← frontend.text.name_str n
+    let v ← kernel.name.render n
     ok (core.result.Result.Ok v)
   | core.result.Result.Err e =>
     frontend.export_c.fail (alloc.vec.Vec Std.U32) e
 
 /-- [con_ron_core::frontend::export_c::check_one_ctor]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1111:0-1181:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1112:0-1182:1
     Visibility: public -/
 def frontend.export_c.check_one_ctor
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67060,7 +67854,7 @@ def frontend.export_c.check_one_ctor
         | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::export_c::order_type_ctors]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1203:4-1227:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1204:4-1228:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.order_type_ctors_loop
@@ -67123,7 +67917,7 @@ def frontend.export_c.order_type_ctors_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::order_type_ctors]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1187:0-1227:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1188:0-1228:1
     Visibility: public -/
 def frontend.export_c.order_type_ctors
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67140,7 +67934,7 @@ def frontend.export_c.order_type_ctors
     out n 0#u64 0#usize
 
 /-- [con_ron_core::frontend::export_c::order_block_ctors]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1247:4-1266:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1248:4-1267:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.order_block_ctors_loop
@@ -67175,7 +67969,7 @@ def frontend.export_c.order_block_ctors_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::order_block_ctors]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1233:0-1266:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1234:0-1267:1
     Visibility: public -/
 def frontend.export_c.order_block_ctors
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67192,7 +67986,7 @@ def frontend.export_c.order_block_ctors
     ctor_ix n_pd (alloc.vec.Vec.new frontend.scan_types.IndCtorRec) n 0#usize
 
 /-- [con_ron_core::frontend::export_c::k_expected_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1278:0-1311:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1279:0-1312:1
     Visibility: public -/
 def frontend.export_c.k_expected_of
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67269,7 +68063,7 @@ def frontend.export_c.k_expected_of
           | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
 
 /-- [con_ron_core::frontend::export_c::rec_params_error::C_PARAMS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1322:4-1325:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1323:4-1326:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_params_error.C_PARAMS : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -67280,7 +68074,7 @@ def frontend.export_c.rec_params_error.C_PARAMS : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_params_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1319:4-1321:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1320:4-1322:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_params_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -67289,7 +68083,7 @@ def frontend.export_c.rec_params_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_params_error::A_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1316:4-1318:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1317:4-1319:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_params_error.A_REC : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -67298,7 +68092,7 @@ def frontend.export_c.rec_params_error.A_REC : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_params_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1315:0-1333:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1316:0-1334:1
     Visibility: public -/
 def frontend.export_c.rec_params_error
   (rn : alloc.vec.Vec Std.U32) (a : Std.U64) (b : Std.U64) :
@@ -67318,7 +68112,7 @@ def frontend.export_c.rec_params_error
   frontend.text.cat s4 v4
 
 /-- [con_ron_core::frontend::export_c::rec_motives_error::D_INDTYPES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1348:4-1350:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1349:4-1351:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_motives_error.D_INDTYPES : Array Std.U32 16#usize :=
   Array.make 16#usize [
@@ -67327,7 +68121,7 @@ def frontend.export_c.rec_motives_error.D_INDTYPES : Array Std.U32 16#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_motives_error::C_MOTIVES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1344:4-1347:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1345:4-1348:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_motives_error.C_MOTIVES : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -67337,7 +68131,7 @@ def frontend.export_c.rec_motives_error.C_MOTIVES : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_motives_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1341:4-1343:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1342:4-1344:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_motives_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -67346,7 +68140,7 @@ def frontend.export_c.rec_motives_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_motives_error::A_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1338:4-1340:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1339:4-1341:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_motives_error.A_REC : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -67355,7 +68149,7 @@ def frontend.export_c.rec_motives_error.A_REC : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_motives_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1337:0-1358:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1338:0-1359:1
     Visibility: public -/
 def frontend.export_c.rec_motives_error
   (rn : alloc.vec.Vec Std.U32) (a : Std.U64) (b : Std.U64) :
@@ -67379,7 +68173,7 @@ def frontend.export_c.rec_motives_error
   frontend.text.cat3 s4 v4 v5
 
 /-- [con_ron_core::frontend::export_c::rec_minors_error::D_CTORS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1374:4-1376:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1375:4-1377:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_minors_error.D_CTORS : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -67388,7 +68182,7 @@ def frontend.export_c.rec_minors_error.D_CTORS : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_minors_error::C_MINORS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1370:4-1373:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1371:4-1374:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_minors_error.C_MINORS : Array Std.U32 31#usize :=
   Array.make 31#usize [
@@ -67399,7 +68193,7 @@ def frontend.export_c.rec_minors_error.C_MINORS : Array Std.U32 31#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_minors_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1367:4-1369:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1368:4-1370:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_minors_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -67408,7 +68202,7 @@ def frontend.export_c.rec_minors_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_minors_error::A_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1364:4-1366:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1365:4-1367:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_minors_error.A_REC : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -67417,7 +68211,7 @@ def frontend.export_c.rec_minors_error.A_REC : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_minors_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1363:0-1384:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1364:0-1385:1
     Visibility: public -/
 def frontend.export_c.rec_minors_error
   (rn : alloc.vec.Vec Std.U32) (a : Std.U64) (b : Std.U64) :
@@ -67439,7 +68233,7 @@ def frontend.export_c.rec_minors_error
   frontend.text.cat3 s4 v4 v5
 
 /-- [con_ron_core::frontend::export_c::rec_k_error::E_KLIKE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1404:4-1406:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1405:4-1407:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_k_error.E_KLIKE : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -67447,13 +68241,13 @@ def frontend.export_c.rec_k_error.E_KLIKE : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_k_error::D_NOT]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1401:4-1403:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1402:4-1404:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_k_error.D_NOT : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 110#u32, 111#u32, 116#u32 ]
 
 /-- [con_ron_core::frontend::export_c::rec_k_error::C_GENREC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1396:4-1400:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1397:4-1401:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_k_error.C_GENREC : Array Std.U32 41#usize :=
   Array.make 41#usize [
@@ -67465,7 +68259,7 @@ def frontend.export_c.rec_k_error.C_GENREC : Array Std.U32 41#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_k_error::B_K]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1393:4-1395:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1394:4-1396:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_k_error.B_K : Array Std.U32 15#usize :=
   Array.make 15#usize [
@@ -67474,7 +68268,7 @@ def frontend.export_c.rec_k_error.B_K : Array Std.U32 15#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_k_error::A_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1390:4-1392:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1391:4-1393:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_k_error.A_REC : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -67483,7 +68277,7 @@ def frontend.export_c.rec_k_error.A_REC : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_k_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1389:0-1419:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1390:0-1420:1
     Visibility: public -/
 def frontend.export_c.rec_k_error
   (rn : alloc.vec.Vec Std.U32) (k : Bool) (k_e : Bool) :
@@ -67511,7 +68305,7 @@ def frontend.export_c.rec_k_error
   frontend.text.cat s5 v4
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::F_PARAMS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1439:4-1441:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1440:4-1442:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.F_PARAMS : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -67520,19 +68314,19 @@ def frontend.export_c.rec_indices_error.F_PARAMS : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::E_AT]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1436:4-1438:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1437:4-1439:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.E_AT : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 97#u32, 116#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::D_HAS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1433:4-1435:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1434:4-1436:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.D_HAS : Array Std.U32 5#usize :=
   Array.make 5#usize [ 32#u32, 104#u32, 97#u32, 115#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::C_INDICES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1430:4-1432:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1431:4-1433:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.C_INDICES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -67541,7 +68335,7 @@ def frontend.export_c.rec_indices_error.C_INDICES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::B_DECLARES]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1427:4-1429:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1428:4-1430:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.B_DECLARES : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -67550,7 +68344,7 @@ def frontend.export_c.rec_indices_error.B_DECLARES : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error::A_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1424:4-1426:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1425:4-1427:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.rec_indices_error.A_REC : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -67559,7 +68353,7 @@ def frontend.export_c.rec_indices_error.A_REC : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::rec_indices_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1423:0-1451:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1424:0-1452:1
     Visibility: public -/
 def frontend.export_c.rec_indices_error
   (rn : alloc.vec.Vec Std.U32) (a : Std.U64) (t : alloc.vec.Vec Std.U32)
@@ -67590,7 +68384,7 @@ def frontend.export_c.rec_indices_error
   frontend.text.cat3 s8 v7 v8
 
 /-- [con_ron_core::frontend::export_c::check_rec_indices]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1470:4-1499:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1471:4-1500:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.check_rec_indices_loop
@@ -67649,7 +68443,7 @@ def frontend.export_c.check_rec_indices_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::check_rec_indices]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1457:0-1499:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1458:0-1500:1
     Visibility: public -/
 def frontend.export_c.check_rec_indices
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67663,13 +68457,13 @@ def frontend.export_c.check_rec_indices
     ty_names ty_types n_pd n 0#usize
 
 /-- [con_ron_core::frontend::export_c::check_one_rec::R_REC]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1553:12-1555:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1554:12-1556:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.check_one_rec.R_REC : Array Std.U32 3#usize :=
   Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
 
 /-- [con_ron_core::frontend::export_c::check_one_rec]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1504:0-1564:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1505:0-1565:1
     Visibility: public -/
 def frontend.export_c.check_one_rec
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67761,7 +68555,7 @@ def frontend.export_c.check_one_rec
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::export_c::check_rec_records]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1585:4-1596:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1586:4-1597:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.check_rec_records_loop
@@ -67792,7 +68586,7 @@ def frontend.export_c.check_rec_records_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::check_rec_records]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1570:0-1596:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1571:0-1597:1
     Visibility: public -/
 def frontend.export_c.check_rec_records
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67808,7 +68602,7 @@ def frontend.export_c.check_rec_records
     ty_types n_pd n_types n_ctors k_exp n 0#usize
 
 /-- [con_ron_core::frontend::export_c::validate_ind_d::M_DUP_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1659:8-1664:10 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1660:8-1665:10 -/
 @[global_simps, irreducible]
 def frontend.export_c.validate_ind_d.M_DUP_CTOR : Array Std.U32 55#usize :=
   Array.make 55#usize [
@@ -67822,7 +68616,7 @@ def frontend.export_c.validate_ind_d.M_DUP_CTOR : Array Std.U32 55#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::validate_ind_d::M_NUMPARAMS]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1630:8-1635:10 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1631:8-1636:10 -/
 @[global_simps, irreducible]
 def frontend.export_c.validate_ind_d.M_NUMPARAMS : Array Std.U32 56#usize :=
   Array.make 56#usize [
@@ -67836,7 +68630,7 @@ def frontend.export_c.validate_ind_d.M_NUMPARAMS : Array Std.U32 56#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::validate_ind_d::M_UNSAFE_IND]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1620:8-1623:10 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1621:8-1624:10 -/
 @[global_simps, irreducible]
 def frontend.export_c.validate_ind_d.M_UNSAFE_IND : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -67847,7 +68641,7 @@ def frontend.export_c.validate_ind_d.M_UNSAFE_IND : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::validate_ind_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1610:0-1696:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1611:0-1697:1
     Visibility: public -/
 def frontend.export_c.validate_ind_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -67956,7 +68750,7 @@ def frontend.export_c.validate_ind_d
         frontend.scan_types.IndCtorRec) × Std.U64) v
 
 /-- [con_ron_core::frontend::export_c::ind_block_recs]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1771:4-1789:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1772:4-1790:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ind_block_recs_loop
@@ -67992,7 +68786,7 @@ def frontend.export_c.ind_block_recs_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ind_block_recs]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1763:0-1789:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1764:0-1790:1
     Visibility: public -/
 def frontend.export_c.ind_block_recs
   (st : frontend.export_c.StateD)
@@ -68005,7 +68799,7 @@ def frontend.export_c.ind_block_recs
   frontend.export_c.ind_block_recs_loop st rcs out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ind_block_ctors]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1750:4-1759:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1751:4-1760:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ind_block_ctors_loop
@@ -68034,7 +68828,7 @@ def frontend.export_c.ind_block_ctors_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ind_block_ctors]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1742:0-1759:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1743:0-1760:1
     Visibility: public -/
 def frontend.export_c.ind_block_ctors
   (st : frontend.export_c.StateD)
@@ -68047,7 +68841,7 @@ def frontend.export_c.ind_block_ctors
   frontend.export_c.ind_block_ctors_loop st cts out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ind_block_types]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1730:4-1738:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1731:4-1739:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.ind_block_types_loop
@@ -68076,7 +68870,7 @@ def frontend.export_c.ind_block_types_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::ind_block_types]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1722:0-1738:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1723:0-1739:1
     Visibility: public -/
 def frontend.export_c.ind_block_types
   (st : frontend.export_c.StateD)
@@ -68089,7 +68883,7 @@ def frontend.export_c.ind_block_types
   frontend.export_c.ind_block_types_loop st tys out n 0#usize
 
 /-- [con_ron_core::frontend::export_c::ind_block_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1705:0-1718:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1706:0-1719:1
     Visibility: public -/
 def frontend.export_c.ind_block_of
   (st : frontend.export_c.StateD)
@@ -68111,7 +68905,7 @@ def frontend.export_c.ind_block_of
   | core.result.Result.Err _ => ok r
 
 /-- [con_ron_core::frontend::export_c::install_ind_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1806:0-1819:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1807:0-1820:1
     Visibility: public -/
 def frontend.export_c.install_ind_d
   (st : frontend.export_c.StateD)
@@ -68129,86 +68923,93 @@ def frontend.export_c.install_ind_d
     ok (core.result.Result.Ok (), st1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
-/-- [con_ron_core::frontend::export_c::safety_error::B_QUOTE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1832:4-1834:6 -/
+/-- [con_ron_core::kernel::name::display_str::QUOTE]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 576:4-576:33 -/
 @[global_simps, irreducible]
-def frontend.export_c.safety_error.B_QUOTE : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 39#u32 ]
+def kernel.name.display_str.QUOTE : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 34#u32 ]
+
+/-- [con_ron_core::kernel::name::display_str]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 575:0-581:1
+    Visibility: public -/
+def kernel.name.display_str
+  (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let da ← kernel.name.display_acc_empty
+  let s1 ← lift (Array.to_slice kernel.name.display_str.QUOTE)
+  let v ← kernel.core_types.code_points s1
+  let a1 ← kernel.name.display_acc_piece da v 0#u64
+  let a2 ← kernel.name.display_acc_escaped a1 34#u32 s
+  let s2 ← lift (Array.to_slice kernel.name.display_str.QUOTE)
+  let v1 ← kernel.core_types.code_points s2
+  let a3 ← kernel.name.display_acc_piece a2 v1 0#u64
+  kernel.name.display_acc_finish a3
 
 /-- [con_ron_core::frontend::export_c::safety_error::A_SAFETY]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1828:4-1831:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1829:4-1832:6 -/
 @[global_simps, irreducible]
-def frontend.export_c.safety_error.A_SAFETY : Array Std.U32 24#usize :=
-  Array.make 24#usize [
+def frontend.export_c.safety_error.A_SAFETY : Array Std.U32 23#usize :=
+  Array.make 23#usize [
     100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 105#u32, 116#u32, 105#u32,
     111#u32, 110#u32, 32#u32, 119#u32, 105#u32, 116#u32, 104#u32, 32#u32,
-    115#u32, 97#u32, 102#u32, 101#u32, 116#u32, 121#u32, 32#u32, 39#u32
+    115#u32, 97#u32, 102#u32, 101#u32, 116#u32, 121#u32, 32#u32
     ]
 
 /-- [con_ron_core::frontend::export_c::safety_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1827:0-1840:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1828:0-1834:1
     Visibility: public -/
 def frontend.export_c.safety_error
   (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
   let s1 ← lift (Array.to_slice frontend.export_c.safety_error.A_SAFETY)
   let v ← kernel.core_types.code_points s1
-  let s2 ← lift (Array.to_slice frontend.export_c.safety_error.B_QUOTE)
-  let v1 ← kernel.core_types.code_points s2
-  frontend.text.cat3 v s v1
-
-/-- [con_ron_core::frontend::export_c::quot_kind_error::B_QUOTE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1849:4-1851:6 -/
-@[global_simps, irreducible]
-def frontend.export_c.quot_kind_error.B_QUOTE : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 39#u32 ]
+  let v1 ← kernel.name.display_str s
+  frontend.text.cat v v1
 
 /-- [con_ron_core::frontend::export_c::quot_kind_error::A_QUOTKIND]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1845:4-1848:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1839:4-1842:6 -/
 @[global_simps, irreducible]
-def frontend.export_c.quot_kind_error.A_QUOTKIND : Array Std.U32 23#usize :=
-  Array.make 23#usize [
+def frontend.export_c.quot_kind_error.A_QUOTKIND : Array Std.U32 22#usize :=
+  Array.make 22#usize [
     117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
     113#u32, 117#u32, 111#u32, 116#u32, 105#u32, 101#u32, 110#u32, 116#u32,
-    32#u32, 107#u32, 105#u32, 110#u32, 100#u32, 32#u32, 39#u32
+    32#u32, 107#u32, 105#u32, 110#u32, 100#u32, 32#u32
     ]
 
 /-- [con_ron_core::frontend::export_c::quot_kind_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1844:0-1857:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1838:0-1844:1
     Visibility: public -/
 def frontend.export_c.quot_kind_error
   (k : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
   let s ← lift (Array.to_slice frontend.export_c.quot_kind_error.A_QUOTKIND)
   let v ← kernel.core_types.code_points s
-  let s1 ← lift (Array.to_slice frontend.export_c.quot_kind_error.B_QUOTE)
-  let v1 ← kernel.core_types.code_points s1
-  frontend.text.cat3 v k v1
+  let v1 ← kernel.name.display_str k
+  frontend.text.cat v v1
 
 /-- [con_ron_core::frontend::export_c::quot_kind_of::K_IND]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1871:4-1873:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1858:4-1860:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.quot_kind_of.K_IND : Array Std.U32 3#usize :=
   Array.make 3#usize [ 105#u32, 110#u32, 100#u32 ]
 
 /-- [con_ron_core::frontend::export_c::quot_kind_of::K_LIFT]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1868:4-1870:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1855:4-1857:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.quot_kind_of.K_LIFT : Array Std.U32 4#usize :=
   Array.make 4#usize [ 108#u32, 105#u32, 102#u32, 116#u32 ]
 
 /-- [con_ron_core::frontend::export_c::quot_kind_of::K_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1865:4-1867:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1852:4-1854:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.quot_kind_of.K_CTOR : Array Std.U32 4#usize :=
   Array.make 4#usize [ 99#u32, 116#u32, 111#u32, 114#u32 ]
 
 /-- [con_ron_core::frontend::export_c::quot_kind_of::K_TYPE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1862:4-1864:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1849:4-1851:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.quot_kind_of.K_TYPE : Array Std.U32 4#usize :=
   Array.make 4#usize [ 116#u32, 121#u32, 112#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::export_c::quot_kind_of]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1861:0-1885:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1848:0-1872:1
     Visibility: public -/
 def frontend.export_c.quot_kind_of
   (k : alloc.vec.Vec Std.U32) : Result (Option kernel.env.QuotKind) := do
@@ -68234,7 +69035,7 @@ def frontend.export_c.quot_kind_of
         else ok none
 
 /-- [con_ron_core::frontend::export_c::process_line_core_d::M_UNSAFE_OPAQ]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1960:16-1963:18 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1947:16-1950:18 -/
 @[global_simps, irreducible]
 def frontend.export_c.process_line_core_d.M_UNSAFE_OPAQ
   : Array Std.U32 25#usize :=
@@ -68246,13 +69047,13 @@ def frontend.export_c.process_line_core_d.M_UNSAFE_OPAQ
     ]
 
 /-- [con_ron_core::frontend::export_c::process_line_core_d::S_SAFE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1924:12-1926:14 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1911:12-1913:14 -/
 @[global_simps, irreducible]
 def frontend.export_c.process_line_core_d.S_SAFE : Array Std.U32 4#usize :=
   Array.make 4#usize [ 115#u32, 97#u32, 102#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::export_c::process_line_core_d::M_UNSAFE_AX]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1909:16-1911:18 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1896:16-1898:18 -/
 @[global_simps, irreducible]
 def frontend.export_c.process_line_core_d.M_UNSAFE_AX
   : Array Std.U32 12#usize :=
@@ -68262,7 +69063,7 @@ def frontend.export_c.process_line_core_d.M_UNSAFE_AX
     ]
 
 /-- [con_ron_core::frontend::export_c::process_line_core_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1896:0-1993:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1883:0-1980:1
     Visibility: public -/
 def frontend.export_c.process_line_core_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -68376,7 +69177,7 @@ def frontend.export_c.process_line_core_d
     | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::frontend::export_c::apply_decl_d]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1999:0-2001:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1986:0-1988:1
     Visibility: public -/
 def frontend.export_c.apply_decl_d
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -68387,7 +69188,7 @@ def frontend.export_c.apply_decl_d
   frontend.export_c.process_line_core_d pers ar st d
 
 /-- [con_ron_core::frontend::export_c::apply_line]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2009:0-2018:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1996:0-2005:1
     Visibility: public -/
 def frontend.export_c.apply_line
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -68415,7 +69216,7 @@ def frontend.export_c.apply_line
   | frontend.scan_types.LineRec.Blank => ok (core.result.Result.Ok (), ar, st)
 
 /-- [con_ron_core::frontend::export_c::parse_result_of_state]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2039:0-2041:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2026:0-2028:1
     Visibility: public -/
 def frontend.export_c.parse_result_of_state
   (st : frontend.export_c.StateD) : Result frontend.export_c.ParseResultD := do
@@ -78233,7 +79034,7 @@ def frontend.scan_fast.scan_line_fwd
         | core.result.Result.Err _ => ok r
 
 /-- [con_ron_core::frontend::export_c::apply_final_line]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2049:0-2070:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2036:0-2057:1
     Visibility: public -/
 def frontend.export_c.apply_final_line
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -78283,7 +79084,7 @@ def frontend.scan_fast.newline_from
   frontend.scan_fast.newline_from_loop b i
 
 /-- [con_ron_core::frontend::export_c::feed_chunk::M_NOPROG]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2113:20-2117:22 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2100:20-2104:22 -/
 @[global_simps, irreducible]
 def frontend.export_c.feed_chunk.M_NOPROG : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -78295,7 +79096,7 @@ def frontend.export_c.feed_chunk.M_NOPROG : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::feed_chunk]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2088:4-2129:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2075:4-2116:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.feed_chunk_loop
@@ -78347,7 +79148,7 @@ def frontend.export_c.feed_chunk_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::feed_chunk]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2078:0-2129:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2065:0-2116:1
     Visibility: public -/
 @[reducible]
 def frontend.export_c.feed_chunk
@@ -78361,7 +79162,7 @@ def frontend.export_c.feed_chunk
   frontend.export_c.feed_chunk_loop pers ar st b i line_no
 
 /-- [con_ron_core::frontend::export_c::CHUNK_SIZE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2134:0-2134:46
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2121:0-2121:46
     Visibility: public -/
 @[global_simps, irreducible]
 def frontend.export_c.CHUNK_SIZE : Result Std.Usize := do
@@ -78369,14 +79170,14 @@ def frontend.export_c.CHUNK_SIZE : Result Std.Usize := do
   i * 1024#usize
 
 /-- [con_ron_core::frontend::export_c::USIZE_SIZE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2139:0-2139:50
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2126:0-2126:50
     Visibility: public -/
 @[global_simps, irreducible]
 def frontend.export_c.USIZE_SIZE : Result Std.U128 :=
   1#u128 <<< core.num.Usize.BITS
 
 /-- [con_ron_core::frontend::export_c::size_error::M_SIZE]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2149:4-2152:6 -/
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2136:4-2139:6 -/
 @[global_simps, irreducible]
 def frontend.export_c.size_error.M_SIZE : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -78388,7 +79189,7 @@ def frontend.export_c.size_error.M_SIZE : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::frontend::export_c::size_error]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2148:0-2157:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2135:0-2144:1
     Visibility: public -/
 def frontend.export_c.size_error
   : Result (kernel.core_types.CheckError × Std.U64) := do
@@ -78398,7 +79199,7 @@ def frontend.export_c.size_error
   ok (ce, 0#u64)
 
 /-- [con_ron_core::frontend::export_c::parse_bytes_final]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2180:0-2196:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2167:0-2183:1
     Visibility: public -/
 def frontend.export_c.parse_bytes_final
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -78423,7 +79224,7 @@ def frontend.export_c.parse_bytes_final
     ok (core.result.Result.Ok prd, ar)
 
 /-- [con_ron_core::frontend::export_c::parse_bytes]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2164:0-2176:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2151:0-2163:1
     Visibility: public -/
 def frontend.export_c.parse_bytes
   (pers : arena.store.PersTier) (ar : arena.monad.AState) (b : Slice Std.U8) :
@@ -78452,7 +79253,7 @@ def frontend.export_c.parse_bytes
       ok (core.result.Result.Err (e1, 0#u64), { ar with store := e })
 
 /-- [con_ron_core::frontend::export_c::chunk_step]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2204:0-2231:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2191:0-2218:1
     Visibility: public -/
 def frontend.export_c.chunk_step
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -78496,7 +79297,7 @@ def frontend.export_c.chunk_step
     | core.result.Result.Err e => ok (core.result.Result.Err e, ar1, st1)
 
 /-- [con_ron_core::frontend::export_c::chunk_finish]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2236:0-2251:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2223:0-2238:1
     Visibility: public -/
 def frontend.export_c.chunk_finish
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -78520,7 +79321,7 @@ def frontend.export_c.chunk_finish
     | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::export_c::parse_chunks]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2276:4-2288:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2263:4-2275:1
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.parse_chunks_loop
@@ -78555,7 +79356,7 @@ def frontend.export_c.parse_chunks_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::parse_chunks]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2262:0-2288:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2249:0-2275:1
     Visibility: public -/
 def frontend.export_c.parse_chunks
   (pers : arena.store.PersTier) (ar : arena.monad.AState)
@@ -78573,7 +79374,7 @@ def frontend.export_c.parse_chunks
     ok (core.result.Result.Err (e1, 0#u64), { ar with store := e })
 
 /-- [con_ron_core::frontend::export_c::parse_source]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2327:4-2340:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2314:4-2327:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.parse_source_loop
@@ -78608,7 +79409,7 @@ def frontend.export_c.parse_source_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::parse_source]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2315:0-2341:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2302:0-2328:1
     Visibility: public -/
 def frontend.export_c.parse_source
   {S : Type} (ChunkSourceInst : frontend.export_c.ChunkSource S)
@@ -82276,14 +83077,14 @@ def kernel.level.Level.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::name::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::name::Name}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 215:4-217:5
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 665:4-667:5
     Visibility: public -/
 def kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.name.Name) : Result Std.U64 := do
   kernel.name.hash_data self
 
 /-- Trait implementation: [con_ron_core::kernel::name::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::name::Name}]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 212:0-218:1 -/
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 662:0-668:1 -/
 @[reducible]
 def kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.name.Name := {
@@ -82291,14 +83092,14 @@ def kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::kernel::name::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::name::Name}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 228:4-230:5
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 678:4-680:5
     Visibility: public -/
 def kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.name.Name) (other : kernel.name.Name) : Result Bool := do
   kernel.name.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::name::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::name::Name}]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 225:0-231:1 -/
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 675:0-681:1 -/
 @[reducible]
 def kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.name.Name := {

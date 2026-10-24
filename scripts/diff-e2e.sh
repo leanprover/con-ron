@@ -279,6 +279,36 @@ while read -r exp rel; do
   one e2e "$rel" "$src" "$exp"
 done <"$CL/tests/e2e-expected.txt"
 
+# THE DISPLAY GATE (con-leche task #365, its `tests/arena.sh`).  Names and
+# raw strings from the input are printed through one rendering
+# (`kernel::name::render`/`display_str`, ported from
+# ConLeche/Kernel/Name.lean) that escapes control, format and separator
+# characters, so a stream cannot paint the terminal or start a CI log line
+# (`::error::`).  The render_* fixtures carry such names and such a `safety`
+# field; every line of their output, the `--progress` lines included, must be
+# free of C0/C1 controls, DEL, the bidi controls, the zero-width characters
+# and the BOM, must not start with `::`, and must show the ESC as its escape.
+display_ok=0
+display_total=0
+display_case() { # <fixture>
+  local src="$CL/tests/e2e/$1" out="$WORK/display-$1.out"
+  [ -f "$src" ] || return 0
+  if [ -n "$only" ] && ! printf '%s' "display/$1" | grep -qE "$only"; then return 0; fi
+  display_total=$((display_total + 1))
+  (ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs --progress=1 "$src" >"$out" 2>&1)
+  if LC_ALL=C grep -qP '[\x00-\x09\x0b-\x1f\x7f]|\xc2[\x80-\x9f]|\xe2\x80[\x8b-\x8f\xa8-\xae]|\xe2\x81[\xa0-\xa4\xa6-\xa9]|\xef\xbb\xbf|\xd8\x9c|^::' "$out"; then
+    echo "DISPLAY FAIL $1: raw control/format character or a '::' line in the output"
+  elif ! grep -qF '\u{001B}' "$out"; then
+    echo "DISPLAY FAIL $1: the ESC's escape \\u{001B} is missing from the output"
+  else
+    display_ok=$((display_ok + 1))
+  fi
+  rm -f "$out"
+}
+display_case render_name_axiom.ndjson
+display_case render_name_progress.ndjson
+display_case render_safety.ndjson
+
 t1=$(date +%s)
 
 # `_tmp/diff-e2e.log` is the fixed name CI collects.  Nothing WRITES there
@@ -298,5 +328,7 @@ echo "  agree               $agree"
 echo "  DIFFER              $differ"
 echo "  timed out           $timedout"
 echo "  other errors        $other"
+echo "  display gate        $display_ok/$display_total"
 echo "  $((t1 - t0))s; log: $log"
-[ "$differ" -eq 0 ] && [ "$timedout" -eq 0 ] && [ "$other" -eq 0 ]
+[ "$differ" -eq 0 ] && [ "$timedout" -eq 0 ] && [ "$other" -eq 0 ] \
+  && [ "$display_ok" -eq "$display_total" ]

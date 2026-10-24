@@ -331,12 +331,12 @@ pub const M_NONSTD_END: [u32; 55] = [
 ];
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:203-215 nativeAxiomTactic?
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove trust_axioms::native_axiom_tactic_refines, then delete this line
 /// **The tactic that apparently added an axiom, read off its name.**
 /// `Lean.Meta.nativeEqTrue` (the basis of `native_decide`, `decide +native`
 /// and `bv_decide`) asserts the result of a compiled computation as an axiom
 /// named `<declaration>._native.<tactic>.ax_<i>_<j>`; `decide +native` passes
-/// the tactic name `decide`.  The cited pattern `.str (.str (.str _
+/// the tactic name `decide`.  The tactic component is returned as displayed
+/// (`name::render` of the one-component name), since it is input.  The cited pattern `.str (.str (.str _
 /// "_native") tac) ax` is three nested matches here, and its literal
 /// comparisons are `text::cps_beq` / `text::cps_starts_with`.
 pub fn native_axiom_tactic(n: &Name) -> Option<Vec<u32>> {
@@ -348,7 +348,7 @@ pub fn native_axiom_tactic(n: &Name) -> Option<Vec<u32>> {
                         if text::cps_beq(tac, &S_DECIDE) {
                             Some(core_types::code_points(&S_DECIDE_NATIVE))
                         } else {
-                            Some(expr::str_copy(tac))
+                            Some(name::render(&name::mk_str(name::anonymous(), expr::str_copy(tac))))
                         }
                     } else {
                         None
@@ -367,9 +367,9 @@ pub fn native_axiom_tactic(n: &Name) -> Option<Vec<u32>> {
 /// the compiler-trust family and `sorryAx`**: the axiom's name, and the
 /// tactic that apparently added it when `native_axiom_tactic` recognises one.
 /// The cited `s!` interpolations are `text::cat3` over the code-point
-/// constants above, the name rendered by `text::name_str` (`Name.toString`).
+/// constants above, the name rendered by `name::render` (`Name.render`, `ToString Name`).
 pub fn non_std_axiom_msg(n: &Name) -> Vec<u32> {
-    let head = text::cat(core_types::code_points(&M_NONSTD_PRE), &text::name_str(n));
+    let head = text::cat(core_types::code_points(&M_NONSTD_PRE), &name::render(n));
     match native_axiom_tactic(n) {
         Some(tac) => text::cat3(
             text::cat(head, &core_types::code_points(&M_NONSTD_BY)),
@@ -423,6 +423,12 @@ mod tests {
         assert_eq!(
             s(&non_std_axiom_msg(&name::mk_str(name::anonymous(), cp("myAxiom")))),
             "non-standard axiom (myAxiom); con-leche does not support such axioms at the moment"
+        );
+        // The `_native` tactic component is input too (DisplayTests.lean, task #365).
+        assert_eq!(
+            s(&non_std_axiom_msg(&native_ax("f", "evil\n::error::x", "ax_1"))),
+            "non-standard axiom (f._native.«evil\\u{000A}::error::x».ax_1), apparently added by the \
+             `«evil\\u{000A}::error::x»` tactic; con-leche does not support such axioms at the moment"
         );
     }
 }

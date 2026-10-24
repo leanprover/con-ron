@@ -223,7 +223,6 @@ struct Args {
 }
 
 /// con-leche: Main.lean:330-358 parseArgs
-/// con-leche: CHANGED since 24980d94 — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -284,7 +283,10 @@ fn parse_args(argv: &[String]) -> Args {
                 } else if let Some(v) = s.strip_prefix("--pins=") {
                     a.pins = Some(v.to_string());
                 } else if s.starts_with('-') {
-                    bad(format!("unknown option {}", s), &mut a);
+                    bad(
+                        format!("unknown option {}", con_ron::render::display_str(s)),
+                        &mut a,
+                    );
                 } else {
                     a.files.push(s.to_string());
                 }

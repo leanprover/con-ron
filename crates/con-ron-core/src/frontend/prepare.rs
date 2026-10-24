@@ -312,7 +312,7 @@ mod tests {
             .map(|d| {
                 let ns = i_declaration_names(d);
                 match env::read_name(pers, ar, &ns[0]) {
-                    Ok(n) => crate::frontend::text::name_str(&n)
+                    Ok(n) => crate::kernel::name::render(&n)
                         .iter()
                         .filter_map(|c| char::from_u32(*c))
                         .collect(),
