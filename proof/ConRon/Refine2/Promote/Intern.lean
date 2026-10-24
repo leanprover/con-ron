@@ -55,7 +55,7 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (ExprWF ExprsWF NameWF NamesWF LevelWF LevelsWF
   ConstantValWF ConstantInfoWF ConstantInfosWF RecRuleWF
-  RecRulesWF IndCapsWF ProjTableWF RecRuleFireWF)
+  RecRulesWF IndCapsWF RecRuleFireWF)
 open ConRon.Refine.HashMap2 (Inv RelOn)
 
 /-! ## The memo itself -/
@@ -966,9 +966,9 @@ private theorem intern_expr_list0_ls {pers st lst rm lm} (hrel : AStateRel₀ pe
 
 section decl
 attribute [local simp] absIConstantVal absIRecRuleFire absIRecRule absIIndCaps
-  absIProjTable absIConstantInfo absIDeclaration ConRon.Refine.absConstantVal
+  absIConstantInfo absIDeclaration ConRon.Refine.absConstantVal
   ConRon.Refine.absFire ConRon.Refine.absRecRule ConRon.Refine.absIndCaps
-  ConRon.Refine.absProjTable ConRon.Refine.absConstantInfo
+  ConRon.Refine.absConstantInfo
 
 open Lockstep in
 /-- `intern_cv_go` ⊑ `Frontend.internCV`, in the judgement shape. -/
@@ -1125,169 +1125,6 @@ private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
   exact LS.pure rfl hrel3 hinv3
 
 
-/-! ### The projection table
-
-`intern_proj_table` interns the structure's name, builds the reserved table
-name at the STORE level (`arena::env::proj_table_name`, the twin's
-`projTableName`), and hands the rest to `intern_proj_table_rest` (extraction
-rule 5), whose twin is `internProjTableRest`, `internProjTable` past those two
-handles.  (The old statement of `intern_proj_table_rest_refines` was against
-the WHOLE `internProjTable`, which re-interns the structure name: false at a
-`sn` that is not its handle.) -/
-
-/-- The `"projTable"` component of the reserved table name. -/
-theorem proj_table_s_abs {v : alloc.vec.Vec Std.U32}
-    (h : kernel.core_types.code_points (Array.to_slice arena.env.proj_table_name.S) = ok v) :
-    ConRon.Refine.absString v = "projTable" ∧ ConRon.Refine.StrWF v := by
-  have hv : v.val = [112#u32, 114#u32, 111#u32, 106#u32, 84#u32, 97#u32,
-      98#u32, 108#u32, 101#u32] := by
-    rw [ConRon.Refine.Env.code_points_val h, Array.val_to_slice, arena.env.proj_table_name.S,
-      Array.make_val]
-  refine ⟨?_, ?_⟩
-  · rw [ConRon.Refine.absString, hv]; rfl
-  · intro c hc; rw [hv] at hc; fin_cases hc <;> decide
-
-open Lockstep in
-/-- `arena::env::proj_table_name` ⊑ `projTableName` — two name interns at the
-store level. -/
-theorem proj_table_name_lss {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (sn : arena.handle.NIdx) :
-    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_table_name pers st.store sn) st lst
-      (projTableName (absNIdx sn)) := by
-  intro o s' hrun
-  rw [arena.env.proj_table_name] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [dupId_nidx _ _ hn] at hrun
-  obtain ⟨sl, hsl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  simp only [lift, Result.ok.injEq] at hsl
-  subst hsl
-  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨habs, hswf⟩ := proj_table_s_abs hv
-  obtain ⟨⟨r1, ar1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hok1, herr1, -⟩ :=
-    estore_intern_name_abs (ls := lst.store) hrel.store hinv.store
-      (v := arena.store.NNodeView.Str sn v) hswf h1
-  have hrun1 : (projTableName (absNIdx sn)).run lst
-      = ((internNNode (.str (absNIdx sn) "projTable")) >>= fun s =>
-          internNNode (.num s 0)).run lst := rfl
-  cases r1 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    simp only [Prod.mk.injEq] at ho
-    obtain ⟨rfl, rfl⟩ := ho
-    obtain ⟨hk, hnc⟩ := herr1 e rfl
-    simp only [absNNodeView, habs] at hnc
-    obtain ⟨s, hs⟩ := internNNode_run_of_not_cap (lst := lst) hnc
-    rw [hrun1]
-    exact aErrSim_native_of hk ⟨s, by rw [StateT.run_bind, hs]; rfl⟩
-  | Ok s1 =>
-    obtain ⟨hs1, hrelS, hinvS, hcap1⟩ := hok1 s1 rfl
-    simp only [absNNodeView, habs] at hs1 hrelS hcap1
-    obtain ⟨hok2, herr2, -⟩ :=
-      estore_intern_name_abs (ls := (lst.store.internName (.str (absNIdx sn) "projTable")).1)
-        hrelS hinvS (v := arena.store.NNodeView.Num s1 0#u64) trivial hrun
-    rw [hrun1, run_bind_ok (internNNode_run_of_cap hcap1)]
-    cases o with
-    | Err e =>
-      obtain ⟨hk, hnc⟩ := herr2 e rfl
-      simp only [absNNodeView, hs1] at hnc
-      exact aErrSim_native_of hk (internNNode_run_of_not_cap hnc)
-    | Ok a =>
-      obtain ⟨hs2, hrelS2, hinvS2, hcap2⟩ := hok2 a rfl
-      simp only [absNNodeView, hs1, absU] at hs2 hrelS2 hcap2
-      exact ⟨_, _, internNNode_run_of_cap hcap2, hs2.symm,
-        ⟨hrelS2, hrel.memos, hrel.caches, hrel.pins⟩, ⟨hinvS2, hinv.memos, hinv.caches⟩⟩
-
-open Lockstep in
-theorem LSMI.bindSS {α γ β δ : Type} {pers : arena.store.PersTier}
-    {R₁ : α → β → Prop} {R : γ → δ → Prop}
-    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
-    {st : arena.monad.AState}
-    {k : core.result.Result α kernel.core_types.CheckError × arena.store.EStore →
-      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState ×
-        ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
-    {lst : AState} {x : AM β} {g : β → AM (Frontend.EMemo × δ)}
-    (hf : LSS pers R₁ f st lst x)
-    (he : ∀ e s' o st' mm, k (.Err e, s') = ok (o, st', mm) → o = .Err e)
-    (hk : ∀ a b s' lst1, R₁ a b → AStateRel₀ pers { st with store := s' } lst1 →
-      AStateInv pers { st with store := s' } → LSMI pers R (k (.Ok a, s')) lst1 (g b)) :
-    LSMI pers R (Std.bind f k) lst (x >>= g) := by
-  intro o st' mm hm
-  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  have h1 := hf r s1 hf1
-  cases r with
-  | Err e =>
-    have := he e s1 o st' mm hk1
-    subst this
-    exact errSim_bind h1
-  | Ok a =>
-    obtain ⟨b, lst1, hx1, hR, hrel, hinv⟩ := h1
-    rw [run_bind_ok hx1]
-    exact hk a b s1 lst1 hR hrel hinv o st' mm hk1
-
-/-- The twin's `internProjTable` past the structure name and the table name:
-`intern_proj_table_rest`'s twin. -/
-def internProjTableRest (m : Frontend.EMemo) (t : ConLeche.ProjTable) (sn tn : NIdx) :
-    AM (Frontend.EMemo × IProjTable) := do
-  let lps ← Frontend.internNameList t.levelParams
-  let c ← internName t.ctor
-  let ss ← internLevel t.structSort
-  let (m, bs) ← Frontend.internExprList m t.bodies.toList
-  let gs ← internLevelList t.guards
-  pure (m, ⟨sn, tn, lps, t.numParams, c, t.numFields, ss, bs.toArray, gs, t.off⟩)
-
-theorem internProjTable_rest (m : Frontend.EMemo) (t : ConLeche.ProjTable) :
-    Frontend.internProjTable m t = (do
-      let sn ← internName t.structName
-      let tn ← projTableName sn
-      internProjTableRest m t sn tn) := rfl
-
-open Lockstep in
-private theorem intern_proj_table_rest_ls {pers st lst rm lm} {t : kernel.env.ProjTable}
-    {sn tn : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : EMemoRel rm lm) (hwf : ProjTableWF t) :
-    LSMI pers (fun a b => b = absIProjTable a)
-      (arena.intern.intern_proj_table_rest pers st rm t sn tn) lst
-      (internProjTableRest lm (ConRon.Refine.absProjTable t) (absNIdx sn) (absNIdx tn)) := by
-  obtain ⟨-, hlps, hc, hss, hbs, hgs⟩ := hwf
-  rw [arena.intern.intern_proj_table_rest]
-  simp only [internProjTableRest, ConRon.Refine.absProjTable]
-  refine LSMI.bindS (intern_name_list_ls hrel hinv _ hlps) (by lsm_err) ?_
-  intro a1 b1 st1 lst1 hR1 hrel1 hinv1
-  subst hR1
-  refine LSMI.bindS (intern_name_ls' hrel1 hinv1 _ hc) (by lsm_err) ?_
-  intro a2 b2 st2 lst2 hR2 hrel2 hinv2
-  subst hR2
-  refine LSMI.bindS (intern_level_ls' hrel2 hinv2 _ hss) (by lsm_err) ?_
-  intro a3 b3 st3 lst3 hR3 hrel3 hinv3
-  subst hR3
-  refine LSMI.bindM (intern_expr_list0_ls hrel3 hinv3 hm _ hbs) (by lsm_err) ?_
-  intro a4 b4 s4 st4 m4 lst4 hms4 hR4 hrel4 hinv4
-  subst hR4
-  refine LSMI.bindS (intern_level_list0_ls hrel4 hinv4 _ hgs) (by lsm_err) ?_
-  intro a5 b5 st5 lst5 hR5 hrel5 hinv5
-  subst hR5
-  exact LSMI.pure hms4 rfl hrel5 hinv5
-
-
-open Lockstep in
-private theorem intern_proj_table_ls {pers st lst rm lm} {t : kernel.env.ProjTable}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : EMemoRel rm lm) (hwf : ProjTableWF t) :
-    LSMI pers (fun a b => b = absIProjTable a)
-      (arena.intern.intern_proj_table pers st rm t) lst
-      (Frontend.internProjTable lm (ConRon.Refine.absProjTable t)) := by
-  rw [arena.intern.intern_proj_table, internProjTable_rest]
-  refine LSMI.bindS (intern_name_ls' hrel hinv _ hwf.1) (by lsm_err) ?_
-  intro a1 b1 st1 lst1 hR1 hrel1 hinv1
-  subst hR1
-  refine LSMI.bindSS (proj_table_name_lss hrel1 hinv1 a1) (by lsm_err) ?_
-  intro a2 b2 s2 lst2 hR2 hrel2 hinv2
-  subst hR2
-  exact intern_proj_table_rest_ls hrel2 hinv2 hm hwf
-
-
 /-! ### The stored constant and the declaration -/
 
 open Lockstep in
@@ -1348,12 +1185,6 @@ theorem intern_ci_go_ls {pers st lst rm lm} {c : kernel.env.ConstantInfo}
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
     exact LSMI.pure hms2 rfl hrel2 hinv2
-  | ProjInfo t =>
-    rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSMI.bindM (intern_proj_table_ls hrel hinv hm hwf) (by lsm_err) ?_
-    intro a b s st1 m1 lst1 hms hR hrel1 hinv1
-    subst hR
-    exact LSMI.pure hms rfl hrel1 hinv1
 
 
 /-- `intern_ci` ⊑ `Arena.internCI`. -/

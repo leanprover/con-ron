@@ -140,8 +140,6 @@ recursion and not a cursor. -/
 
 /-! ## The projection table -/
 
-attribute [local lockstep] Lockstep.proj_table_name_ls
-
 open Lockstep in
 /-- `proj_bodies_scoped` ⊑ `checkStructProjTable`'s `scopedOk` `let`, from the
 cursor on. -/
@@ -176,35 +174,36 @@ cursor on. -/
     lockstep
 
 open Lockstep in
-/-- `check_struct_proj_table_names` ⊑ `checkStructProjTable`'s tail. -/
-@[lockstep] theorem check_struct_proj_table_names_ls
+/-- `check_struct_proj_table_push` ⊑ `checkStructProjTable`'s tail: the
+structure stored, its table free, the table pushed. -/
+@[lockstep] theorem check_struct_proj_table_push_ls
     {pers st lst}
     {t c : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64}
     {res_sort : arena.handle.LIdx}
     {guards : alloc.vec.Vec arena.handle.LIdx}
-    {off : Std.U64}
     {bodies : alloc.vec.Vec arena.handle.EIdx}
     {rf lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table_names pers st t c lps n_p n_f res_sort guards off bodies rf) lst
-      (checkStructProjTableNamesSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
-        (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
+    LSR pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table_push t c lps n_p
+        n_f res_sort guards bodies rf) st lst
+      (checkStructProjTablePushSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
+        (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards)
         (absEIdxL bodies).toArray lf) := by
-  rw [arena.inductives.struct_install.check_struct_proj_table_names,
-    checkStructProjTableNamesSpec]
+  apply LSR.of_LS
+  rw [arena.inductives.struct_install.check_struct_proj_table_push,
+    checkStructProjTablePushSpec]
   lockstep
   all_goals
-    (try simp only [absIConstantInfo, absIProjTable] at *)
+    (try simp only [absIProjTable] at *)
     lockstep
 
 open Lockstep in
 /-- `check_struct_proj_table` ⊑ `checkStructProjTable` — stage 5, the
-projection table.  `IProjTable.tableName` is the reserved name the install
-interned, kept rather than recomputed (`Arena/Env.lean`'s one added field). -/
+projection table, pushed after its structure. -/
 @[lockstep] theorem check_struct_proj_table_ls
     {pers st lst}
     {t c : arena.handle.NIdx}
@@ -212,15 +211,14 @@ interned, kept rather than recomputed (`Arena/Env.lean`'s one added field). -/
     {n_p n_f : Std.U64}
     {res_sort : arena.handle.LIdx}
     {guards : alloc.vec.Vec arena.handle.LIdx}
-    {off : Std.U64}
     {cv_ca : arena.env.IConstantVal}
     {rf lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards off cv_ca rf) lst
+    LS pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
       (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
-        (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
+        (absU n_f) (absLIdx res_sort) (absLIdxL guards)
         (absIConstantVal cv_ca) lf) := by
   rw [arena.inductives.struct_install.check_struct_proj_table,
     checkStructProjTable_unfold]

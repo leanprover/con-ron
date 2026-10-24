@@ -22,7 +22,7 @@ every reader that takes `fe` is stated with `(hfe : FindAgree fe lfe)` (and
 `(hwf : FindWF fe)`, because what a lookup hands back is used as a term) and
 against the cited Lean **instantiated at `lfe.find?`**.
 
-Three things shaped the proofs:
+What shaped the proofs:
 
 * `peel_never_pis` is a `u64`-counted recursion under `partial_fixpoint`, whose
   only induction principle is `fixpoint_induct` (admissible motive, no
@@ -31,17 +31,6 @@ Three things shaped the proofs:
   wrapper is the corollary.  Every other reader here is structurally flat --
   one `match` on the head node -- so its proof is a `cases` on the `ExprWF`
   derivation, not an induction.
-* `stored_cv_at` is a *port-invented factorization*: it is the `some ci => if
-  ci.isTowerEntry then none else …` prefix that `headTypePW` and `headProofPW`
-  both open with, pulled out as a probe (task #14's rule).  It has no cited
-  Lean definition of its own, so `storedCVAt` below is that prefix written out
-  once on the con-leche side, and the two head readers rewrite with it.
-* `env::is_tower_entry` and `env::to_constant_val` belong to `kernel::env`
-  (task #46's `Refine/Env.lean`), but `stored_cv_at` cannot be stated without
-  them; they are proved here, locally, and should move.  `to_constant_val`'s
-  refinement is stated on `absConstantVal` rather than on the `ConstantVal`
-  record itself: the port's `ProjInfo` arm *builds* a value where Lean shares
-  one, and the `Vec<Name>` copy of the other arms is equal only up to `.val`.
 -/
 import ConRon.Refine.CoreKBase
 import ConLeche.Kernel.PropRead
@@ -50,10 +39,6 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.PropRead
-
-/-! ## `kernel::env`'s two `ConstantInfo` readers (they belong to task #46) -/
-
-/-! ## `stored_cv_at`, the shared prefix of the two head readers -/
 
 /-! ## `peel_never_pis` and `num_args` -/
 

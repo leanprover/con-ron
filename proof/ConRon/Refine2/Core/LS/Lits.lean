@@ -390,14 +390,14 @@ macro "lockstep_lp" : tactic =>
 
 @[lockstep] theorem string_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.string_ty_ok pers st ci) lst
+    LS pers (fun a b => b = a) (arena.core.string_ty_ok st ci) lst
       (stringTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.string_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, stringTyOk] <;> lockstep
 
 @[lockstep] theorem char_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.char_ty_ok pers st ci) lst
+    LS pers (fun a b => b = a) (arena.core.char_ty_ok st ci) lst
       (charTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.char_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, charTyOk] <;> lockstep

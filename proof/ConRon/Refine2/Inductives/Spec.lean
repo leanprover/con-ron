@@ -215,28 +215,29 @@ def projBodiesScopedSpec (fe : IFEnv) (lps : List NIdx) (nP : Nat) :
     let w4 ← looseBVarsBoundedFast coreWalkFuel (nP + 1) b
     if !w1 && w2 && w3 && w4 then projBodiesScopedSpec fe lps nP bs else pure false
 
-/-- `checkStructProjTable`'s tail: the table's own reserved name must be free,
-and then the table is stored. -/
-def checkStructProjTableNamesSpec (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (resSort : LIdx) (guards : List LIdx) (off : Nat) (bodies : Array EIdx)
+/-- `checkStructProjTable`'s tail: the structure must be stored and its table
+not yet taken, and then the table is pushed. -/
+def checkStructProjTablePushSpec (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
+    (resSort : LIdx) (guards : List LIdx) (bodies : Array EIdx)
     (fe : IFEnv) : AM IFEnv := do
-  let tn ← projTableName T
-  unless (fe.find? tn).isNone do
+  unless (fe.find? T).isSome do
+    fail (.internal "direct structure: projection table before its structure")
+  unless (fe.findTable? T).isNone do
     fail (.invalid "projection table taken")
-  pure (fe.push (.projInfo ⟨T, tn, lps, nP, C, nF, resSort, bodies, guards, off⟩))
+  pure (fe.pushTable ⟨T, lps, nP, C, nF, resSort, bodies, guards⟩)
 
 /-- The owed equation: `checkStructProjTable` IS the bodies, their scoping and
-`checkStructProjTableNamesSpec`. -/
+`checkStructProjTablePushSpec`. -/
 theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (resSort : LIdx) (guards : List LIdx) (off : Nat) (cvCa : IConstantVal)
+    (resSort : LIdx) (guards : List LIdx) (cvCa : IConstantVal)
     (fe : IFEnv) :
-    checkStructProjTable T C lps nP nF resSort guards off cvCa fe = (do
+    checkStructProjTable T C lps nP nF resSort guards cvCa fe = (do
       let bodies ← unwrapOr (← structProjBodies T nP nF cvCa.type)
         (.internal "direct structure: projection bodies")
       let scopedOk ← projBodiesScopedSpec fe lps nP bodies.toList
       unless bodies.size = nF ∧ scopedOk do
         fail (.internal "direct structure: projection body scoping")
-      checkStructProjTableNamesSpec T C lps nP nF resSort guards off bodies fe) := by
+      checkStructProjTablePushSpec T C lps nP nF resSort guards bodies fe) := by
   have hall := list_allM_counted (fun b => do
       let w1 ← hasFvarFast coreWalkFuel b
       let w2 ← allLevelParamsDefined lps b
@@ -245,7 +246,7 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       pure (!w1 && w2 && w3 && w4))
     (projBodiesScopedSpec fe lps nP) rfl
     (by intro a l; twin_reduce [projBodiesScopedSpec])
-  twin_reduce [checkStructProjTable, hall, checkStructProjTableNamesSpec]
+  twin_reduce [checkStructProjTable, hall, checkStructProjTablePushSpec]
 
 /-! # `arena::inductives::sum_install`
 

@@ -298,12 +298,20 @@ site needs.  That finding predicted the clause would be *"Theorem 1's to
 carry"*; it is cheaper than that, because the port's own `IFEnv` maintains it:
 `mk_ifenv` sets the counter to the list's length and `ifenv_push` grows both
 by one.  It belongs here, beside the index's `Inv`, for the same reason the
-index's does. -/
+index's does.
+
+**The table map's two clauses** are the index's first and third at `tbls`:
+its `Inv`, and every slot it stores in range of `env.tables` (`mk_tbls_go`
+stores its cursor, `ifenv_push_table` the length before its `push`,
+`index_promoted_tables` `j - 1` for a cursor `j ≥ 1`). -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
   Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
     rf.visible_below.val ≤ rf.env.consts.val.length ∧
-    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
-      p.2.val < rf.env.consts.val.length
+    (∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
+      p.2.val < rf.env.consts.val.length) ∧
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls ∧
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
+      s.val < rf.env.tables.val.length
 
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
@@ -327,7 +335,7 @@ models as a truncating cast — is the identity at every reachable row, and
 the Rust needs no test it does not already have. -/
 theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
-  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2 n p hp) rf.env.consts.property)
+  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2.1 n p hp) rf.env.consts.property)
 
 /-- **Every position the index stores is IN RANGE of the constant list** —
 task #97-P5-Checker round 3's strengthening of the clause above, and the one
@@ -351,7 +359,17 @@ no Rust test is missing. -/
 theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
       p.2.val < rf.env.consts.val.length :=
-  h.2.2
+  h.2.2.1
+
+/-- The table map's `Inv`. -/
+theorem IFEnvInv.tblInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls := h.2.2.2.1
+
+/-- Every slot the table map stores is in range of `env.tables`. -/
+theorem IFEnvInv.tblRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
+      s.val < rf.env.tables.val.length :=
+  h.2.2.2.2
 
 /-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
 
@@ -407,7 +425,7 @@ theorem i_constant_info_name_abs {c : arena.env.IConstantInfo}
     absNIdx o = (absIConstantInfo c).name := by
   rw [arena.env.i_constant_info_name.eq_def] at h
   cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
-    absIProjTable, dupId_nidx _ _ h]
+    dupId_nidx _ _ h]
 
 /-- **A handle comparison IS the abstraction's.**  `eq2` on an `NIdx` is word
 equality and `absNIdx` is injective, so the port's test and the twin's `==`
@@ -496,11 +514,14 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
   have hvv : v.val = rf.env.consts.val ++ [ci] := ConRon.Refine.vec_push_val hv
   have hc1v : c1.val = rf.visible_below.val + 1 := by
     simpa using ConRon.Refine.Nat.uadd_val hc1
-  have hrf' : rf' = { env := { consts := v }, idx := q.2, visible_below := c1 } :=
+  have hrf' : rf' =
+      { env := { consts := v, tables := rf.env.tables }, idx := q.2, visible_below := c1,
+        tbls := rf.tbls } :=
     (Result.ok_injective h).symm
   subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hinv', ?_, ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys⟩, hinv', ?_, ?_, hfinv.tblInv,
+    hfinv.tblRange⟩
   · -- the constant list
     show (lf.push (absIConstantInfo ci)).env = absIEnv _
     simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
@@ -575,6 +596,95 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
       omega
     · rw [ite_eq_right hm] at hp
       have := hfinv.idxRange m p hp
+      omega
+
+/-- **`ifenv_push_table` ⊑ `IFEnv.pushTable`, relation and invariant
+together** — `ifenv_push_refines` at the table map: the row is written at the
+table list's CURRENT length and the list grows by one, where the twin conses
+and inserts the table itself; every other row's slot was in range already
+(`IFEnvInv.tblRange`), so the append does not move what it reads.  The
+constants, the index and the counter are untouched. -/
+theorem ifenv_push_table_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+    {t : arena.env.IProjTable}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (h : arena.env.ifenv_push_table rf t = ok rf') :
+    IFEnvRel rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
+      rf'.visible_below = rf.visible_below := by
+  rw [arena.env.ifenv_push_table] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := dupId_nidx _ _ hn
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hsv : s.val = rf.env.tables.val.length := by
+    simp only [lift, Result.ok.injEq] at hs
+    subst hs
+    rw [usize_cast_u64_val']
+    simp [alloc.vec.Vec.len]
+  obtain ⟨hinv', -, hupd, -⟩ :=
+    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+      hfinv.tblInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+  have hvv : v.val = rf.env.tables.val ++ [t] := ConRon.Refine.vec_push_val hv
+  have hrf' : rf' =
+      { env := { consts := rf.env.consts, tables := v }, idx := rf.idx,
+        visible_below := rf.visible_below, tbls := q.2 } :=
+    (Result.ok_injective h).symm
+  subst hrf'
+  refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, ?_⟩,
+    ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hinv', ?_⟩, rfl⟩
+  · -- the table list
+    show (lf.pushTable (absIProjTable t)).env = absIEnv _
+    have h := hfe.env
+    simp only [IFEnv.pushTable, absIEnv, hvv, List.map_append, List.reverse_append] at h ⊢
+    rw [h]
+    simp
+  · -- the table map
+    intro m
+    rw [hupd]
+    simp only [IFEnv.pushTable, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
+    by_cases hm : m = t.struct_name
+    · subst hm
+      rw [ite_eq_left rfl, ite_eq_left (by simp [absIProjTable])]
+      simp only [Option.bind, hvv]
+      rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
+      simp
+    · rw [ite_eq_right hm, ite_eq_right (by
+        simp only [absIProjTable, beq_iff_eq]; intro h; exact hm (absNIdx_inj h).symm),
+        ← hfe.tbls m]
+      cases hp : ConRon.Refine.HashMap2.toFun rf.tbls m with
+      | none => rfl
+      | some p =>
+        simp only [Option.bind_some, hvv]
+        rw [List.getElem?_append_left (hfinv.tblRange m p hp)]
+  · -- every row keyed by its slot's structure
+    intro m p hp
+    rw [hupd, Function.update_apply] at hp
+    by_cases hm : m = t.struct_name
+    · subst hm
+      rw [ite_eq_left rfl] at hp
+      obtain rfl : p = s := (Option.some_injective _ hp).symm
+      refine ⟨t, ?_, rfl⟩
+      simp only [hvv, hsv]
+      rw [List.getElem?_append_right (le_refl _), Nat.sub_self]
+      rfl
+    · rw [ite_eq_right hm] at hp
+      obtain ⟨c, hc, hcn⟩ := hfe.tblKeys m p hp
+      refine ⟨c, ?_, hcn⟩
+      rw [hvv, List.getElem?_append_left (hfinv.tblRange m p hp)]
+      exact hc
+  · -- every stored slot still in range
+    intro m p hp
+    rw [hupd, Function.update_apply] at hp
+    show p.val < v.val.length
+    rw [hvv]
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    by_cases hm : m = t.struct_name
+    · subst hm
+      rw [ite_eq_left rfl] at hp
+      obtain rfl : p = s := (Option.some_injective _ hp).symm
+      omega
+    · rw [ite_eq_right hm] at hp
+      have := hfinv.tblRange m p hp
       omega
 
 /-! ## Peeling a twin bind
@@ -680,5 +790,8 @@ attribute [simp] absPendingCheck absPendingCheckL absINatOpPinSet absINatOpPinSe
 
 /-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines
+
+/-- info: 'ConRon.Refine2.ifenv_push_table_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ifenv_push_table_refines
 
 end ConRon.Refine2

@@ -819,7 +819,6 @@ theorem unfoldDefConst_run (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx)
     | indInfo _ _ => rfl
     | ctorInfo _ _ _ => rfl
     | recInfo _ _ _ _ => rfl
-    | projInfo _ => rfl
 
 /-- `unfoldDefAt` at a `const`-tagged head: the one `view` read. -/
 theorem unfoldDefAt_run (fe : IFEnv) (e h : EIdx) (lst : AState)
@@ -1114,13 +1113,6 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | RecInfo cv mi rp rules =>
-            have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
-                = o := Result.ok_injective hrun
-            rw [← ho]
-            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
-            rw [htw2, unfoldDefConst_run, ← hfind]
-            rfl
-          | ProjInfo tbl =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]

@@ -246,7 +246,7 @@ def sectAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         match ← viewLsLen us' with
         | none => failDanglingLs
         | some uslen =>
-        let slots ← towerSlotsAll fe T caps.etaFields
+        let slots := towerSlotsAll fe T caps.etaFields
         if caps.eta = true ∧ caps.etaCtor = c ∧
             reserved.contains T = false ∧ reserved.contains c = false ∧
             targs.length = caps.etaParams ∧
@@ -291,6 +291,14 @@ open ConRon.Refine2.Lockstep.PC1 in
   refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
   dsimp only
   lockstep_core
+  -- glue: the slot test reads the port's copy of the caps (`i_ind_caps_dup`)
+  -- and the twin the stored caps; the copy's `eta_fields` is the original's
+  all_goals
+    obtain ⟨-, -, -, hef, -⟩ := ‹(_ : arena.env.IIndCaps).eta = _ ∧ _›
+    have hts := ‹TwinEq (towerSlotsAll _ _ _) _›
+    rw [← hef] at hts
+    rw [show towerSlotsAll _ _ _ = _ from hts]
+    lockstep_core
 
 /-- `structEtaCertWith` with its second half folded into `sectAt`. -/
 theorem structEtaCertWith_eq (r : CoreFnsA) (fe : IFEnv)

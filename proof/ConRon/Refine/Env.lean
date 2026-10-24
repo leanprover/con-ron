@@ -9,24 +9,12 @@ derived data has to be pinned.  The abstraction functions
 (`absConstantVal`, …, `absEnv`, `absMode`) and the hereditary `*WF` predicates
 (`ConstantValWF`, …, `EnvWF`) live in `ConRon/Refine/Abs.lean`.
 
-Three groups carry real content and the rest are mechanical:
-
-* **the reserved names** — `proj_fn_name`/`proj_table_name` are the port's only
-  string *literals* below the basis, and the refinement has to read them:
-  `core_types::code_points` of `env::PROJ_STR` really is `"proj"`, and every one
-  of its code points is a `Char` (`StrWF`, without which `absString` is not
-  injective);
-* **`abs` is injective on the well-formed records**, which is what makes the
-  whole `*_beq` family *exact* — and the `*_beq` family is what the two
-  pinned-basis guards read (`env.find? eqName == some eqA`,
-  `decide (env.find? natName = some natA)`), so its exactness is load-bearing
-  for the accept direction and not a convenience;
-* **`find`/`find_proj`** — the linear search over `Env.consts`, read from the
-  back because the port stores that list reversed (task #50, `absEnv`), so what
-  is scanned is the cited newest-first order and the newest binding of a name
-  still wins; `= Env.find?`/`Env.findProj?` on the nose, plus the fact
-  a lookup hands its caller a well-formed record (`find_wf`), which is what the
-  knot's induction consumes.
+One group carries real content and the rest are mechanical: **`abs` is
+injective on the well-formed records**, which is what makes the whole `*_beq`
+family *exact* — and the `*_beq` family is what the two pinned-basis guards
+read (`env.find? eqName == some eqA`, `decide (env.find? natName = some
+natA)`), so its exactness is load-bearing for the accept direction and not a
+convenience.
 
 `prop_when::names_beq` and `expr::exprs_beq` get their (missing) top-level
 refinement lemmas here rather than in `Refine/PropWhen.lean` and
@@ -41,7 +29,7 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.Env
 
-/-! ## The reserved names -/
+/-! ## Code points -/
 
 /-- `core_types::code_points` copies a slice of code points into a `Vec`: the
 index recursion, at its accumulator. -/
@@ -283,16 +271,6 @@ theorem ind_caps_dup_refines {c c' : env.IndCaps}
   rw [PropWhen.dup_eq hpw, alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv),
     alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv1)]
 
-/-- `ConLeche/Kernel/Env.lean:411-441` -- `env::proj_table_dup` is the
-identity. -/
-theorem proj_table_dup_refines {t t' : env.ProjTable}
-    (h : env.proj_table_dup t = ok t') : t' = t := by
-  simp only [env.proj_table_dup, bind_eq_ok_iff, name_dup_eq, level_dup_eq,
-    Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨v, hv, es, hes, us, hus, rfl⟩ := h
-  rw [alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv), exprs_copy_refines hes,
-    levels_copy_refines hus]
-
 /-! ## `default_expr` and the per-field view of a table
 
 `ProjTable.entry`'s two `getD`s are out-of-range guards, and the port spells
@@ -382,10 +360,6 @@ theorem constant_info_dup_refines {c c' : env.ConstantInfo}
     simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
     obtain ⟨cv, hcv, rs, hrs, rfl⟩ := h
     rw [constant_val_dup_refines hcv, rec_rules_copy_refines hrs]
-  | ProjInfo tbl =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨t, ht, rfl⟩ := h
-    rw [proj_table_dup_refines ht]
 
 /-! ## The presented declarations -/
 
@@ -397,13 +371,6 @@ admissible motive) but no `partial_correctness` form over `Result`, so the
 recursion is carried by the argument: `eq_def`, and the induction principle of
 the `ExprWF` derivation (task #5's shape; DESIGN.md task #99-PFIX).  The ten kinds' inversion lemmas are
 `ConRon/Refine/Expr.lean`'s `bvar_inv`, `forall_e_inv`, … -/
-
-/-! ## `ConstantInfo`'s accessors
-
-`to_constant_val` and `constant_info_name` reach `env::proj_table_name` on the
-`.ProjInfo` arm, through `proj_table_name_refines` above;
-`constant_info_type` does not (a table's header type is the closed `Sort 1`, so
-the reserved name is not read there). -/
 
 /-! ## The environment -/
 

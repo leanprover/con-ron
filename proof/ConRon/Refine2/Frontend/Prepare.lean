@@ -274,7 +274,7 @@ theorem prelude_key_refines {pers rst lst d o}
 /-- **`prepare::declares` refines `declares`**
 (`Arena/Frontend/Prepare.lean:74-75`).  Pure on both sides: over handles
 `IDeclaration.names` is pure, which is what keeps `findIdx`'s predicate a
-predicate (`Arena/Env.lean`'s `tableName` note). -/
+predicate. -/
 theorem declares_refines {n d v} (h : frontend.prepare.declares n d = ok v) :
     v = declares (absNIdx n) (absIDeclaration d) := by
   rw [frontend.prepare.declares] at h

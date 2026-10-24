@@ -794,148 +794,6 @@ theorem name_nodup_refines {ns : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
   simpa [absNIdxLFrom, absNIdxL] using this
 
 
-/-- `viewN` in `run` form: a read of the name store, the state unchanged. -/
-theorem viewN_run (h : NIdx) (lst : AState) :
-    (viewN h).run lst = match lst.store.ns.view h with
-      | some x => .ok (x, lst)
-      | none => .error (.internal "arena: dangling name handle") := by
-  show (match lst.store.ns.view h with
-        | some v => (pure v : AM _)
-        | none => Arena.fail (.internal "arena: dangling name handle")).run lst = _
-  cases lst.store.ns.view h <;> rfl
-
-/-- The Rust name view as a `SimRE` read, with the view's well-formedness. -/
-theorem view_n_simre {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
-    (hrun : arena.monad.view_n pers st h = ok o) :
-    SimRE absNNodeView lst o (viewN (absNIdx h)) ∧
-      ∀ v, o = .Ok v → NNodeViewWF v := by
-  have hA := view_n_run₀ hrel hinv hrun
-  refine ⟨?_, ?_⟩
-  · cases o with
-    | Err e => exact hA
-    | Ok v =>
-      obtain ⟨lst', hx, -, -⟩ := hA
-      show (viewN (absNIdx h)).run lst = .ok (absNNodeView v, lst)
-      rw [hx]
-      rw [viewN_run] at hx
-      split at hx
-      · cases hx; rfl
-      · cases hx
-  · intro v hv
-    subst hv
-    obtain ⟨_, _, _, ⟨_, hwf⟩, _⟩ := Lockstep.view_n_ls hrel hinv h (.Ok v) hrun
-    exact hwf
-
-/-- A code-point literal, read back. -/
-theorem lit_abs {k : Std.Usize} {M : Std.Array Std.U32 k} {sl : Slice Std.U32}
-    (hs : lift (Std.Array.to_slice M) = ok sl) {v : alloc.vec.Vec Std.U32}
-    (hv : kernel.core_types.code_points sl = ok v) : v.val = M.val := by
-  simp only [lift, Result.ok.injEq] at hs
-  subst hs
-  rw [ConRon.Refine.Env.code_points_val hv, Std.Array.val_to_slice]
-
-/-- `nidx_is_proj_fn_shape` ⊑ `NIdx.isProjFnShape`. -/
-theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.nidx_is_proj_fn_shape pers st n = ok o) :
-    SimRE id lst o (NIdx.isProjFnShape (absNIdx n)) := by
-  rw [arena.checker_base.nidx_is_proj_fn_shape] at hrun
-  obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have htag := nidx_tag_abs ht
-  unfold SimRE
-  rw [NIdx.isProjFnShape, htag]
-  by_cases hnum : t = arena.handle.NTAG_NUM
-  · rw [ite_eq_left hnum] at hrun
-    rw [ite_eq_left (by rw [hnum, ntag_num_abs]; exact beq_self_eq_true _)]
-    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨hV, -⟩ := view_n_simre hrel hinv hr
-    cases r with
-    | Err e =>
-      obtain rfl := (Result.ok_injective hrun).symm
-      rw [am_run_bind']
-      exact AErrSim.bind hV _
-    | Ok nv =>
-      have hV' : (viewN (absNIdx n)).run lst = .ok (absNNodeView nv, lst) := hV
-      rw [Lockstep.run_bind_ok hV']
-      cases nv with
-      | Anonymous => obtain rfl := (Result.ok_injective hrun).symm; rfl
-      | Str _ _ => obtain rfl := (Result.ok_injective hrun).symm; rfl
-      | Num p _ =>
-        simp only [absNNodeView]
-        obtain ⟨t1, ht1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have htag1 := nidx_tag_abs ht1
-        rw [htag1]
-        by_cases hstr : t1 = arena.handle.NTAG_STR
-        · rw [ite_eq_left hstr] at hrun
-          rw [ite_eq_left (by rw [hstr, ntag_str_abs]; exact beq_self_eq_true _)]
-          obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          obtain ⟨hV1, hwf1⟩ := view_n_simre hrel hinv hr1
-          cases r1 with
-          | Err e =>
-            obtain rfl := (Result.ok_injective hrun).symm
-            rw [am_run_bind']
-            exact AErrSim.bind hV1 _
-          | Ok nv1 =>
-            have hV1' : (viewN (absNIdx p)).run lst = .ok (absNNodeView nv1, lst) := hV1
-            rw [Lockstep.run_bind_ok hV1']
-            cases nv1 with
-            | Anonymous => obtain rfl := (Result.ok_injective hrun).symm; rfl
-            | Num _ _ => obtain rfl := (Result.ok_injective hrun).symm; rfl
-            | Str _ sv =>
-              have hswf : ConRon.Refine.StrWF sv := hwf1 _ rfl
-              simp only [absNNodeView]
-              obtain ⟨sl, hsl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-              obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-              have hvv := lit_abs hsl hv
-              rw [arena.checker_base.nidx_is_proj_fn_shape.P, Std.Array.make_val] at hvv
-              have hvwf : ConRon.Refine.StrWF v := by
-                intro c hc; rw [hvv] at hc; fin_cases hc <;> decide
-              have hvabs : ConRon.Refine.absString v = "proj" := by
-                rw [ConRon.Refine.absString, hvv]; rfl
-              obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-              have hbv := ConRon.Refine.Name.str_eq_refines hswf hvwf hb
-              rw [hvabs] at hbv
-              by_cases hbt : b = true
-              · rw [ite_eq_left hbt] at hrun
-                obtain rfl := (Result.ok_injective hrun).symm
-                have : ConRon.Refine.absString sv = "proj" := by simpa [hbt] using hbv
-                show Except.ok _ = Except.ok _
-                simp [this]
-              · rw [ite_eq_right hbt] at hrun
-                obtain ⟨sl2, hsl2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-                obtain ⟨v2, hv2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-                have hvv2 := lit_abs hsl2 hv2
-                rw [arena.checker_base.nidx_is_proj_fn_shape.T, Std.Array.make_val] at hvv2
-                have hvwf2 : ConRon.Refine.StrWF v2 := by
-                  intro c hc; rw [hvv2] at hc; fin_cases hc <;> decide
-                have hvabs2 : ConRon.Refine.absString v2 = "projTable" := by
-                  rw [ConRon.Refine.absString, hvv2]; rfl
-                obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-                have hbv1 := ConRon.Refine.Name.str_eq_refines hswf hvwf2 hb1
-                rw [hvabs2] at hbv1
-                obtain rfl := (Result.ok_injective hrun).symm
-                have hne : ConRon.Refine.absString sv ≠ "proj" := by
-                  intro h; apply hbt; rw [hbv, h]; rfl
-                show Except.ok _ = Except.ok _
-                have h1 : (ConRon.Refine.absString sv == "proj") = false := by simp [hne]
-                simp only [h1, Bool.false_or, hbv1, id]
-                cases h : (ConRon.Refine.absString sv == "projTable") <;> simp_all
-        · rw [ite_eq_right hstr] at hrun
-          rw [ite_eq_right (by
-            rw [ntag_str_abs.symm.trans rfl] at *
-            intro hx
-            exact hstr (absU32_inj (by simpa using hx)))]
-          obtain rfl := (Result.ok_injective hrun).symm
-          rfl
-  · rw [ite_eq_right hnum] at hrun
-    rw [ite_eq_right (by
-      rw [← ntag_num_abs]
-      intro hx
-      exact hnum (absU32_inj (by simpa using hx)))]
-    obtain rfl := (Result.ok_injective hrun).symm
-    rfl
-
 /-! ## `arena::core::consts_resolve` — the plain walk the guard walk's leaves call
 
 No tier had stated `arena::core::consts_resolve` (the Core knot does not call
@@ -1614,7 +1472,8 @@ theorem IFEnvRelI.restrict {rf : arena.env.IFEnv} {lf : IFEnv}
     (h : IFEnvRelI rf lf) {k : Std.U64}
     (hk : k.val ≤ rf.env.consts.val.length) :
     IFEnvRelI { rf with visible_below := k } (lf.restrictTo (absU k)) :=
-  ⟨⟨h.rel.env, h.rel.idx, rfl, h.rel.envWF, h.rel.keys⟩, ⟨h.inv.1, hk, h.inv.2.2⟩⟩
+  ⟨⟨h.rel.env, h.rel.idx, rfl, h.rel.envWF, h.rel.keys, h.rel.tbls, h.rel.tblKeys⟩,
+    ⟨h.inv.1, hk, h.inv.2.2⟩⟩
 
 /-- The side tier's extension for the pin gates' pre-insertion view: a
 restricted index against the restricted twin index, its bound by `omega` over
@@ -1647,19 +1506,22 @@ inductive, from its caps' source. -/
         rf.visible_below.val ≤ r.visible_below.val) :=
   fun _ h => ⟨ifenv_push_refines hfe.rel hfe.inv hwf h, by rw [ifenv_push_vis h]; omega⟩
 
+/-- `ifenv_push_table`: a table pushed, the counter unmoved. -/
+@[lockstep] theorem ifenv_push_table_spec {rf lf} (hfe : IFEnvRelI rf lf)
+    (t : arena.env.IProjTable) :
+    LSP (arena.env.ifenv_push_table rf t)
+      (fun r => IFEnvRelI r (lf.pushTable (absIProjTable t)) ∧
+        rf.visible_below.val ≤ r.visible_below.val) := by
+  intro r h
+  obtain ⟨h1, h2, h3⟩ := ifenv_push_table_refines hfe.rel hfe.inv h
+  exact ⟨⟨h1, h2⟩, by rw [h3]⟩
+
 attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
   Option.map_none
 
 end Lockstep
 
 /-! ## The per-declaration constant check -/
-
-open Lockstep in
-@[lockstep] theorem nidx_is_proj_fn_shape_ls {pers st lst} {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.checker_base.nidx_is_proj_fn_shape pers st n)
-      st lst (NIdx.isProjFnShape (absNIdx n)) :=
-  LSR.ofSimRE hrel hinv fun _ h => nidx_is_proj_fn_shape_refines hrel hinv h
 
 @[lockstep_simp] theorem absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
@@ -2324,9 +2186,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.consts_resolve_aux' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms consts_resolve_aux
-
-/-- info: 'ConRon.Refine2.nidx_is_proj_fn_shape_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms nidx_is_proj_fn_shape_refines
 
 /-- info: 'ConRon.Refine2.name_nodup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms name_nodup_refines

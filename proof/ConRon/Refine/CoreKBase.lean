@@ -120,7 +120,7 @@ theorem str_lit_step {k : Std.Usize} {S : Array Std.U32 k} {L : List Std.U32}
 differently
 
 `CORE_PLAN.md` steps 1 and 2 have landed: the `env`-record abstractions
-(`absConstantVal`, `absConstantInfo`, `absProjEntry`, `absProjTable`,
+(`absConstantVal`, `absConstantInfo`,
 `absRecRule(s)`, `absHint`, `absMode`, `absEnv`) and the hereditary
 well-formedness predicates (`ConstantValWF` ... `ConstantInfoWF`, `EnvWF`) are
 `Refine/Abs.lean`'s, `kernel::env`'s refinements are `Refine/Env.lean`'s and

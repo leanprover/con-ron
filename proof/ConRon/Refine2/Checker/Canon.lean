@@ -66,8 +66,8 @@ The one place the two conjunctions are not in the same ORDER is
 and then the right-hand side) where the twin's record has it fifth, so that
 proof ends in `decide_eq_decide` and `tauto` over the same set of conjuncts.
 
-`i_ind_caps_beq`, `i_proj_table_beq` and `i_constant_info_beq` followed
-(lane Inductives Modeled, slices 2–3), the last two at canonical Rust data.
+`i_ind_caps_beq` and `i_constant_info_beq` followed (lane Inductives
+Modeled, slices 2–3), the last at canonical Rust data.
 -/
 import ConRon.Refine2.Checker.Pins
 import ConRon.Refine.BasisPins
@@ -591,46 +591,6 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   simp only [absNIdxLFrom] at h10
   simpa using h10
 
-/-- `i_proj_table_beq` ⊑ `==` on `IProjTable`. -/
-theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
-    (hrun : arena.canon.i_proj_table_beq t t2 = ok o) :
-    o = decide (absIProjTable t = absIProjTable t2) := by
-  rw [arena.canon.i_proj_table_beq] at hrun
-  simp only [absIProjTable, IProjTable.mk.injEq]
-  obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  refine beq_chain (nidx_eq2_abs_decide hb1) hrun ?_
-  intro o1 h
-  obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  refine beq_chain (nidx_eq2_abs_decide hb2) h ?_
-  intro o2 h
-  obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h3 := nidx_vec_beq_refines hb3
-  simp only [absNIdxLFrom] at h3
-  refine beq_chain (by simpa using h3) h ?_
-  intro o3 h
-  refine beq_chain' absU_iff h ?_
-  intro o4 h
-  obtain ⟨b5, hb5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  refine beq_chain (nidx_eq2_abs_decide hb5) h ?_
-  intro o5 h
-  refine beq_chain' absU_iff h ?_
-  intro o6 h
-  obtain ⟨b7, hb7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  refine beq_chain (lidx_eq2_abs hb7) h ?_
-  intro o7 h
-  obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h8 := eidx_vec_beq_refines hb8
-  simp only [absEIdxLFrom] at h8
-  refine beq_chain (by simpa using h8) h ?_
-  intro o8 h
-  obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h9 := lidx_vec_beq_refines hb9
-  simp only [absLIdxLFrom] at h9
-  refine beq_chain (by simpa using h9) h ?_
-  intro o9 h
-  rw [beq_last h]
-  exact decide_eq_decide.mpr absU_iff
-
 /-- `intern_caps` copies `sort_z` with `prop_when::dup`, the identity. -/
 theorem intern_caps_sort_z {pers st c r st'}
     (h : arena.intern.intern_caps pers st c = ok (.Ok r, st')) : r.sort_z = c.sort_z := by
@@ -768,9 +728,6 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     intro o3 h
     have h4 := i_rec_rules_beq_refines h
     simpa [absIRecRuleLFrom] using h4
-  case ProjInfo.ProjInfo t u =>
-    rw [i_proj_table_beq_refines hrun]
-    simp [absIConstantInfo]
 
 /-- `i_rec_rule_eq_but_rhs` is the twin's `{ r with rhs := default } == { r'
 with rhs := default }` — the record comparison at a common right-hand side,
@@ -908,14 +865,6 @@ open Lockstep in
       (fun b => b = (ConRon.Refine.absHint h == ConRon.Refine.absHint h2)) := by
   intro b hb
   rw [ConRon.Refine.Env.reducibility_hint_beq_refines hb]
-  exact (beq_eq_decide _ _).symm
-
-open Lockstep in
-@[local lockstep] private theorem canon_proj_table_beq_spec (t t2 : arena.env.IProjTable) :
-    LSP (arena.canon.i_proj_table_beq t t2)
-      (fun b => b = (absIProjTable t == absIProjTable t2)) := by
-  intro b hb
-  rw [i_proj_table_beq_refines hb]
   exact (beq_eq_decide _ _).symm
 
 open Lockstep in
