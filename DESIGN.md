@@ -69924,3 +69924,12 @@ and an entry now is the fixture's timeout whether below or above
 `complete_c05b_nest30_pi1000` get its 600 s under CI's `--timeout=60`
 rather than 60 s (con-ron checks it well inside either).  Both lanes locally:
 631/631.
+
+Its wall time was also half core dump: `perf stat` measured 26 s elapsed
+against 13 s of CPU (47 G instructions, mostly `intern_app` and
+`instantiate`, about 15 000 per knot level).  The rest was systemd-coredump
+taking the 1 GiB stack, and keeping it: 150 con-ron dumps in
+`coredumpctl`.  `diff-e2e.sh` now runs each checker under `ulimit -c 0`, so
+the fixture takes 11 s and leaves no dump.  The fixture cannot be shrunk:
+it is con-leche's, and its depth has to exceed the 1 GiB stack both
+checkers give a checking thread.

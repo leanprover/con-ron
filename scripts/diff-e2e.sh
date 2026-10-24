@@ -242,7 +242,11 @@ one() { # one <suite> <label> <stream> <expected-exit>
   if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ]; then
     to=${E2E_TIMEOUT[$label]}
   fi
-  out=$(timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
+  # `ulimit -c 0` (inside the substitution's subshell): an expected abort
+  # (stack_fuel_offset's overflow) would otherwise hand the system's core
+  # handler a 1 GiB stack, which doubles that fixture's wall time and leaves
+  # a dump behind on every run.
+  out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ] && [ "$want" != 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${to}s, expected $want)"
