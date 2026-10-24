@@ -70045,3 +70045,31 @@ at `--jobs=1` and at `--jobs=4`, display gate 9/9 in both.
 **Size** (from master, without the generated model): Rust core +581 −93
 (`kernel/name.rs` +473 with its tests); driver, dump reader, example +125
 −69; twin and Lean tools +22 −13; Theorem 1 and Theorem 2: 0.
+
+### Task #132 — `scripts/palomar-scan.py`: con-ron's verdicts on the Palomar registry (2026-10-24, Opus)
+
+The Palomar registry runs con-ron on every submission whose toolchain
+bundles it.  A first manual pass over its reports (2026-10-02) found two
+submissions con-ron refused where nanoda and Lean's kernel accepted
+(catskillsresearch/qlambda, a reflexive-inductive decline; roos-j/lean-spherical,
+`fuel exhausted: whnf loop`, which became con-leche's `proj_cheap_struct`
+fixture).  `scripts/palomar-scan.py` makes that pass repeatable: it caches
+every run's `mechanical-report` under `_tmp/palomar/`, reads con-ron's verdict
+from either report shape (a `kernels[]` member, whose rejection fails the
+submission; or, since 2026-10-21, a `kernel_attempts[]` entry, whose decline is
+only recorded), and lists every non-accepting run with the other kernels'
+verdicts and the resources used.
+
+First full run: 2 274 runs, con-ron ran in 899, 12 non-accepting, all with
+nanoda and Lean accepting.  New since 2026-10-02:
+
+* google-deepmind/cryptids @ 5c658897 — `fuel exhausted: whnf loop` at
+  `ConjectureMachines.Zf380.boot_cand`, three times (the con-ron of v4.35.0-rc4,
+  then of v4.36.0-rc1 under the new attempt shape).
+* five `capacity` declines: the 1 800 s ceiling, at 2.6–10.5 GB
+  (mmislan/palomar-lienard-limit-cycles, AxiomMath/CollatzPositiveDensity twice,
+  jtraverso/typed-triangle-absorption,
+  jaypantone/2026-10-superpermutation-upper-palomar).
+
+All of these ran a con-ron from before the fuel became unbounded (task #125):
+v4.36.0-rc1 bundles con-ron `cb54c9a4`, v4.35.0-rc4 `dd8d8218`.
