@@ -249,7 +249,7 @@ theorem structProjPs_eq (nP : Nat) :
   congr 1
   funext k
   congr 1
-  omega
+  grind
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:92-93 structProjPs
 The projection types' parameter spine. -/

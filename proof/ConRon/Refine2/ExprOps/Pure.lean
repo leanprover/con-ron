@@ -196,7 +196,7 @@ theorem eidxCopyUpto_toList (xs : Array EIdx) :
 /-- `eidxCopyUpto` over the WHOLE of `xs`. -/
 theorem eidxCopyUpto_all (xs out : Array EIdx) :
     (eidxCopyUpto xs xs.size 0 out).toList = out.toList ++ xs.toList := by
-  rw [eidxCopyUpto_toList xs xs.size xs.size 0 out (by omega)]
+  rw [eidxCopyUpto_toList xs xs.size xs.size 0 out (by grind)]
   simp
 
 /-- **`leafMem` is order blind and append blind**, which is what a membership
@@ -404,7 +404,7 @@ theorem eidx_prefix_beq_refines {args want : alloc.vec.Vec arena.handle.EIdx}
     (h : arena.expr_ops.eidx_prefix_beq args want i = ok r) :
     r = true ↔ ∀ j, i.val ≤ j → j < want.val.length →
       (absEIdxL args)[j]? = (absEIdxL want)[j]? :=
-  eidx_prefix_beq_aux args want want.val.length i r (by omega) h
+  eidx_prefix_beq_aux args want want.val.length i r (by grind) h
 
 /-- The twin's `args.take want.length == want`: the port's length test plus
 the elementwise walk. -/

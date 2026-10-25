@@ -1705,7 +1705,7 @@ theorem hoistKeyLt_total (s : Std.HashMap Nat Nat) {a b : Nat} (h : a ≠ b) :
   have ha := hoistKey_third s a
   have hb := hoistKey_third s b
   rw [hoistKeyLt, hoistKeyLt]
-  omega
+  grind
 
 theorem hoist_le_iff (s : Std.HashMap Nat Nat) (a b : Nat) :
     (!hoistLt s b a) = true ↔ ¬ hoistKeyLt (hoistKey s b) (hoistKey s a) := by
@@ -1716,7 +1716,7 @@ theorem hoist_le_trans (s : Std.HashMap Nat Nat) (a b c : Nat)
     (!hoistLt s c a) = true := by
   rw [hoist_le_iff] at h1 h2 ⊢
   intro hc
-  rcases (by rw [hoistKeyLt] at *; omega : hoistKeyLt (hoistKey s c) (hoistKey s b)
+  rcases (by rw [hoistKeyLt] at *; grind : hoistKeyLt (hoistKey s c) (hoistKey s b)
       ∨ hoistKeyLt (hoistKey s b) (hoistKey s a)) with h | h
   · exact h2 h
   · exact h1 h

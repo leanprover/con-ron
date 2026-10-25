@@ -376,7 +376,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
 
 theorem takeEidx_toList' (xs : Array EIdx) (k : Nat) :
     (takeEidx xs k).toList = xs.toList.take k := by
-  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by grind)]
   simp
 
 @[local lockstep_simp] theorem takeEidx_toList_eq (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :

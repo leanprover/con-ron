@@ -1363,7 +1363,7 @@ theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
 
 theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     TFEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_, rfl⟩
+  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; grind, fun k => ?_, rfl⟩
   simp only [IFEnv.popTemp, IFEnv.push]
   cases hprev : fe.idx[ci.name]? with
   | none =>
@@ -1454,7 +1454,7 @@ theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx
       obtain ⟨i, hi', hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
       obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
       have hiv := ConRon.Refine.Nat.usub_val hi'
-      rw [alloc.vec.Vec.resize, ite_eq_left (by simp [alloc.vec.Vec.length] at *; omega),
+      rw [alloc.vec.Vec.resize, ite_eq_left (by grind),
         Result.ok.injEq] at hv
       subst hv
       simp only [List.resize, alloc.vec.Vec.len] at *

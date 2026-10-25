@@ -33,7 +33,7 @@ theorem denoteN_of_view' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
       ∃ x, denoteN st i = some x := by
   intro n
   induction n with
-  | zero => intro i hn; omega
+  | zero => intro i hn; grind
   | succ n ih =>
     intro i hn hv
     obtain ⟨v, hv'⟩ := Option.isSome_iff_exists.mp hv
@@ -252,7 +252,7 @@ theorem denoteL_of_view' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
       ∃ x, denoteL st i = some x := by
   intro n
   induction n with
-  | zero => intro i hn; omega
+  | zero => intro i hn; grind
   | succ n ih =>
     intro i hn hv
     obtain ⟨v, hv'⟩ := Option.isSome_iff_exists.mp hv

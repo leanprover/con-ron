@@ -111,7 +111,7 @@ theorem pack_val {h b f w : Std.U64} {lp : Bool}
     rw [← hw] <;>
     simp only [wrapping_add_val, wrapping_mul_val, val_2_32, val_2_16, val_two,
       val_zero, val_one] <;>
-    omega
+    grind
 
 /-- The port's roundtrip lemma: the three *observed* fields of a packed word
 are what was packed, whatever the hash field holds.  con-leche's
@@ -124,7 +124,7 @@ theorem pack_bits {h b f w : Std.U64} {lp : Bool}
   have hv := pack_val hb hf hw
   cases lp <;>
     simp only [Bool.false_eq_true, ite_false, ite_true] at hv ⊢ <;>
-    exact ⟨by omega, by omega, by omega⟩
+    exact ⟨by omega, by grind, by grind⟩
 
 /-- The `lpBit`-shaped reading of `pack_bits`'s third component. -/
 theorem lpBit_eq {w : Std.U64} {lp : Bool} (h : w.val % 2 = if lp then 1 else 0) :
