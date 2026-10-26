@@ -149,7 +149,7 @@ private theorem absU32_sub {c i : Std.U8} {v : Std.U32} {k : UInt32}
   apply UInt32.toNat_inj.mp
   have hk : k.toNat < 2 ^ 32 := k.toNat_lt_size
   simp only [absU32_toNat, UInt32.toNat_sub, UInt8.toNat_toUInt32, absByte_toNat, hv]
-  omega
+  grind
 
 /-- **`scan_fast::hex_val` refines `hexVal`** (`ConLeche/Frontend/Scan/Fast.lean:537-541
 hexVal`): the value of a hexadecimal digit, `none` for anything else. -/
@@ -1986,7 +1986,7 @@ private theorem win_enc1 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.leng
     win b k n = String.utf8EncodeChar (Char.ofNat V) ++ win b (k + 1) n := by
   rw [enc_mk1 (Or.inl (by omega)) hV, win_cons hk hn]
   simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
-  exact byte_ofNat (by rw [h0]; omega)
+  exact byte_ofNat (by grind)
 
 /-- A two-byte sequence. -/
 private theorem win_enc2 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
@@ -1997,7 +1997,7 @@ private theorem win_enc2 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.leng
   rw [enc_mk2 (Or.inl (by omega)) hV1 hV2, win_cons (by omega) hn, win_cons (by omega) hn,
     show k + 1 + 1 = k + 2 from rfl]
   simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
-  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega)⟩
+  exact ⟨byte_ofNat (by grind), byte_ofNat (by grind)⟩
 
 /-- A three-byte sequence. -/
 private theorem win_enc3 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
@@ -2010,8 +2010,8 @@ private theorem win_enc3 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.leng
     win_cons (by omega) hn, show k + 1 + 1 = k + 2 from rfl,
     show k + 2 + 1 = k + 3 from rfl]
   simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
-  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega),
-    byte_ofNat (by rw [h2]; omega)⟩
+  exact ⟨byte_ofNat (by grind), byte_ofNat (by grind),
+    byte_ofNat (by grind)⟩
 
 /-- A four-byte sequence. -/
 private theorem win_enc4 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.length)
@@ -2026,8 +2026,8 @@ private theorem win_enc4 {b : Slice Std.U8} {k n V : Nat} (hn : n ≤ b.val.leng
     show k + 1 + 1 = k + 2 from rfl, show k + 2 + 1 = k + 3 from rfl,
     show k + 3 + 1 = k + 4 from rfl]
   simp only [List.cons_append, List.nil_append, List.cons.injEq, and_true]
-  exact ⟨byte_ofNat (by rw [h0]; omega), byte_ofNat (by rw [h1]; omega),
-    byte_ofNat (by rw [h2]; omega), byte_ofNat (by rw [h3]; omega)⟩
+  exact ⟨byte_ofNat (by grind), byte_ofNat (by grind),
+    byte_ofNat (by grind), byte_ofNat (by grind)⟩
 
 /-! ### The port's bit assembly, as arithmetic
 
@@ -2244,7 +2244,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       refine claim_step (v := i6) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
       rw [hk1v]
       exact win_enc2 hn hkn1 (by omega) (by omega)
-        (by rw [hp0, e6]; omega) (by rw [hp1, e6]; omega)
+        (by grind) (by rw [hp1, e6]; omega)
     rw [ite_eq_right hlt224] at h
     have hc0n3 : 224 ≤ c0.val := by scalar_tac
     -- three bytes
@@ -2342,7 +2342,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         have hover' : V.val < 2048 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
-        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; grind)
       rw [ite_eq_right hover] at h
       have hover' : 2048 ≤ V.val := by scalar_tac
       by_cases hsur : 55296#u32 ≤ V
@@ -2355,7 +2355,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
         rw [hk1v]
         exact win_enc3 hn hkn2 (Or.inl (by omega)) (by omega) (by omega)
-          (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
+          (by grind) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
       rw [ite_eq_left hsur] at h
       have hsur' : 55296 ≤ V.val := by scalar_tac
       by_cases hsur2 : V < 57344#u32
@@ -2364,7 +2364,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         have hsur2' : V.val < 57344 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
-        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
+        exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; grind)
       rw [ite_eq_right hsur2] at h
       have hsur2' : 57344 ≤ V.val := by scalar_tac
       obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
@@ -2373,7 +2373,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
       rw [hk1v]
       exact win_enc3 hn hkn2 (Or.inr ⟨by omega, by omega⟩) (by omega) (by omega)
-        (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
+        (by grind) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
     rw [ite_eq_right hlt240] at h
     have hc0n4 : 240 ≤ c0.val := by scalar_tac
     -- four bytes, or a lead byte no character can have
@@ -2512,7 +2512,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       have hover' : V.val < 65536 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
-      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; grind)
     rw [ite_eq_right hover] at h
     have hover' : 65536 ≤ V.val := by scalar_tac
     by_cases hbig : 1114111#u32 < V
@@ -2521,7 +2521,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       have hbig' : 1114111 < V.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
-      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
+      exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; grind)
     rw [ite_eq_right hbig] at h
     have hbig' : V.val ≤ 1114111 := by scalar_tac
     obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
@@ -2530,7 +2530,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
     refine claim_step (v := V) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
     rw [hk1v]
     exact win_enc4 hn hkn3 (by omega) (by omega)
-      (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega)
+      (by grind) (by rw [hp1, eV]; omega)
       (by rw [hp2, eV]; omega) (by rw [hp3, eV]; omega)
 
 /-! ### `utf8_decode`, exact -/

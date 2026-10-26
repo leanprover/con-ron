@@ -70089,6 +70089,93 @@ nanoda and Lean accepting.  New since 2026-10-02:
 All of these ran a con-ron from before the fuel became unbounded (task #125):
 v4.36.0-rc1 bundles con-ron `cb54c9a4`, v4.35.0-rc4 `dd8d8218`.
 
+### Task #134 — omega → grind (2026-10-25, Opus)
+
+**The brief.**  Replace `omega` by `grind` across `proof/ConRon` (outside
+`Generated/`, `Arena/Handle.lean` and the handle arithmetic, which task #133
+is rewriting), deleting the `simp`/`rw`/`have` scaffolding that only fed
+`omega`; gate: no changed module may get slower.
+
+**Method.**  Not a sweep-and-fix: a blanket `sed omega grind` on
+`Refine/HashMap2` took it from 71 G to 222 G instructions with six heartbeat
+timeouts, so every site was *measured* instead.  A throwaway module
+overrode the `omega` elaborator (`@[tactic Lean.Parser.Tactic.omega]`): at
+each execution it ran `grind` under a 20 000-kHB budget, restored the state,
+ran the real `omega`, and logged both heartbeat counts at the source position
+(heartbeats, not milliseconds: they are identical across runs and orders,
+wall time is not).  A second throwaway tactic, `cmp_alt (S) (grind)`, did
+the same for each single-line segment `S` = `rw/simp/have …; omega` against
+a lone `grind`, i.e. measured the scaffolding deletion.  Every file with an
+`omega` was compiled once under each (`lake env lean` with the lakefile's
+options, `maxHeartbeats 0`).  A site was converted iff `grind` succeeded on
+every execution and its summed heartbeats were ≤ `omega`'s (≤ the segment's);
+sites on a line with `try`/`first`/`<|>` were left alone (a failing `grind`
+inside them is paid on every fall-through).
+
+**What the measurement says.**
+
+| executions | grind succeeds | grind ≤ omega | omega (kHB) | grind (kHB) |
+|---|---:|---:|---:|---:|
+| explicit `omega` sites, 2 680 | 2 648 | 80 | 408 366 | 4 998 580 (12.2×) |
+| `lockstep`'s side tier (`Lockstep.lean:1439`), 453 | 453 | 4 | 35 687 | 103 638 (2.9×) |
+| implicit (`decreasing_by`, `xs[i]` bounds), 224 | 224 | 72 | 2 852 | 12 935 |
+| segments `S; omega` vs `grind`, 409 | 281 | 17 | 145 179 | 1 684 090 (11.6×) |
+
+`grind` proves almost everything `omega` proves (99 %; the rest are 26
+timeouts in large contexts and 6 failures), but it costs a median ~10×
+`omega`'s heartbeats and has a floor of ~70 kHB per call where `omega`'s is
+under 20: it internalises every hypothesis in the context (in `HashMap2`,
+`grind simp` alone was 14.7 s), where `omega` only collects the linear
+facts.  The handle lemmas' finding (grind as fast as omega) holds for
+small contexts only; the proofs here mostly have large ones — `Scan/Line`
+66×, `Scan/WF` 54×, `HashMap2` 44×, `Scan/Kit` 24×, `Nat` 9×, `Str` 4.4×,
+`Specs` 2.3× (`grind`/`omega` heartbeats per file).  So the bulk of the
+conversion fails the gate, and only the sites where `grind` is not more
+expensive were converted.
+
+**Result.**  One commit, 55 `omega`s in 17 files (2 334 → 2 279 in code),
+14 of them as segment deletions: Str's `byte_ofNat (by rw [h0]; omega)` →
+`(by grind)` in `win_enc1..4` and its first `(by rw [hp0, eV]; omega)` per
+`decode` arm (`/ 64`, `% 64` bounds, where `omega`'s div/mod elimination is
+the expensive part), `Certs`'s `(by simp; omega)` index bound, `Iota`'s
+`ite_eq_left (by simp [Vec.length] at *; omega)`, `GenRecCheck`'s
+`| zero => intros; omega`.  Proof lines unchanged (50 / 50, every change
+within its line).  Per module (`perf stat -e instructions:u`, one run each,
+`lake env lean` with the options; all others unchanged):
+
+| module | before | after |
+|---|---:|---:|
+| `Refine2/Frontend/Scan/Str` | 466.07 G | 451.19 G |
+| `Refine2/Specs` | 227.28 G | 217.29 G |
+| `Refine/Expr` | 128.22 G | 126.52 G |
+| `Refine2/Core/LS/Iota` | 223.75 G | 222.37 G |
+| `Refine2/Inductives/GenRecCheck` | 372.92 G | 372.09 G |
+| `Refine2/Inductives/RecCheck` | 283.69 G | 283.07 G |
+| `Refine2/Frontend/NatOpGround` | 62.53 G | 62.10 G |
+| ten more (`Nat`, `Certs`, `PrimsC2`, `Pure`, `Prepare`, `Shape`, `Bridge/{GenRec,StructParts,Walk,Weak}`) | 523.58 G | 523.12 G |
+| **the 17** | **2 175.0 G** | **2 144.7 G (−1.4 %)** |
+
+Wall time of the 17 (`lake env lean`, 6 in parallel, critical path `Str`):
+before 126.9 / 120.6 s, after 128.1 / 131.4 s; `Str` alone, three
+alternating runs: before 97.7 / 120.1 / 117.9 s, after 105.5 / 94.6 / 101.0 s
+— within the noise of a shared machine; the instruction counts are the
+measure.
+
+**Where omega stays, and why.**  Everywhere else (2 279 sites): `grind` is
+more expensive there, by the table above.  Not touched at all: `Arena/Handle`,
+and `Arena/{WFProofs,Store,WF,Core,Monad,Main}` (task #133 is editing them;
+`WFProofs` had 21 not-worse sites, a candidate once #133 lands);
+`Refine2/Tactic/Lockstep.lean`'s side tier (no commit: `grind` is 2.9× there and
+the tier is a `first` chain, and its docstring's "No `grind`" stands).
+
+**Reproducer** (`_tmp/corpus/vcgen-grind/grind-usize-pow-numbits.lean`, needs
+the Aeneas library): with a `Vec.len` hypothesis in context, `grind` fails on
+`2 ^ System.Platform.numBits - 1 < 2 ^ UScalarTy.Usize.numBits` although
+`UScalarTy.Usize.numBits = System.Platform.numBits` is among its asserted
+facts (32-bit branch of Aeneas's scalar-bound case split, "ring term with
+unexpected instance"); without the `Vec.len` it passes.  From
+`NatOpGround.lean:709`, where `omega` stays.
+
 ### Task #133 — handle layout: tier bit on top, 2^30 app nodes (2026-10-25, Opus)
 
 **Why.**  The maintainer was told that the `app` cap may start to matter in

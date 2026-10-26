@@ -149,7 +149,7 @@ theorem frontL_append (ps ds : Array IDeclaration) :
   | [], k, j => by simp [frontL]
   | k' :: ks, k, j => by
     simp only [List.cons_append, frontL, List.length_cons, List.cons_inj_right]
-    rw [frontL_append ps ds ks k (j + 1), show j + 1 + ks.length = j + (ks.length + 1) by omega]
+    rw [frontL_append ps ds ks k (j + 1), show j + 1 + ks.length = j + (ks.length + 1) by grind]
 
 theorem preparedFront_push (ps ds : Array IDeclaration) (ks : List Nat) (k : Nat) :
     preparedFront ps ds (ks ++ [k]) =

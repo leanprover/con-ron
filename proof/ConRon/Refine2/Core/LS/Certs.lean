@@ -98,7 +98,7 @@ theorem iota_certs_full_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
         (iotaCertsFullAux (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
           (absEIdx h) (absEIdxArr acc) (absEIdxArr args) (absSz i)) := by
   induction N with
-  | zero => intros; omega
+  | zero => grind
   | succ N ih =>
     intro pers vis st mode lane fu fe lfe depth h acc args i lst hN hx hrel hinv hctx hf
     rw [arena.core.iota_certs_full_aux, iotaCertsFullAux]

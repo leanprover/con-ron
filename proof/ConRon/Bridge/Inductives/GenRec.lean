@@ -2836,7 +2836,7 @@ theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option (Nat �
 port's `ifenv_pop_temp`): the list, the bound and every row as before. -/
 theorem popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     FEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_, rfl⟩
+  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; grind, fun k => ?_, rfl⟩
   simp only [IFEnv.popTemp, IFEnv.push]
   cases hprev : fe.idx[ci.name]? with
   | none =>

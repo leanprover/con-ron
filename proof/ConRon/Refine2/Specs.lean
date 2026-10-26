@@ -4362,8 +4362,8 @@ theorem der_of_app_obs {pers} {rs : arena.store.EStore} {ls : EStore}
   have ebF := ConRon.Refine.Expr.lp_of_data_val hbf
   rw [EStore.derOfApp]
   refine derObsE_pack _ ?_ ?_ ?_ (by omega) (by omega) h
-  · rw [ConLeche.toNat_max]; omega
-  · rw [ConLeche.toNat_max]; omega
+  · rw [ConLeche.toNat_max]; grind
+  · rw [ConLeche.toNat_max]; grind
   · rw [hlF, hlA]
     by_cases hc : bf = true
     · rw [ite_eq_left hc] at hb1
@@ -4462,8 +4462,8 @@ theorem der_of_let_obs {pers} {rs : arena.store.EStore} {ls : EStore}
     · rw [ite_eq_right hc, ite_eq_right (show ¬ (i9.val = 32767) from hc)]
   rw [EStore.derOfLetAt, derOfLet]
   refine derObsE_pack _ ?_ ?_ ?_ hr11 hr16 h
-  · rw [ConLeche.toNat_max, ConLeche.toNat_max, hsp10, hbT, hbV]; omega
-  · rw [ConLeche.toNat_max, ConLeche.toNat_max, hfT, hfV, hfB]; omega
+  · rw [ConLeche.toNat_max, ConLeche.toNat_max, hsp10, hbT, hbV]; grind
+  · rw [ConLeche.toNat_max, ConLeche.toNat_max, hfT, hfV, hfB]; grind
   · rw [hlT, hlV, hlB]
     by_cases hc : bt = true
     · rw [ite_eq_left hc] at hb1
@@ -6377,8 +6377,8 @@ theorem der_of_bind_obs {pers} {rs : arena.store.EStore} {ls : EStore}
     · rw [ite_eq_right hc, ite_eq_right (show ¬ (i6.val = 32767) from hc)]
   rw [EStore.derOfBindAt, derOfBind]
   refine derObsE_pack _ ?_ ?_ ?_ hr8 hr11 h
-  · rw [ConLeche.toNat_max, hsp, hbT]; omega
-  · rw [ConLeche.toNat_max, hfT, hfB]; omega
+  · rw [ConLeche.toNat_max, hsp, hbT]; grind
+  · rw [ConLeche.toNat_max, hfT, hfB]; grind
   · rw [hlT, hlB]
     by_cases hc : bt = true
     · rw [ite_eq_left hc] at hpm1

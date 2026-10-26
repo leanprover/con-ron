@@ -350,9 +350,9 @@ theorem limbsToNat_eq_zero {l : List Std.U64} (hw : LimbsWF l) (h : limbsToNat l
   | nil => rfl
   | cons x r ih =>
     rw [limbsToNat_cons] at h
-    have hr : r = [] := ih (limbsWF_tail hw) (by omega)
+    have hr : r = [] := ih (limbsWF_tail hw) (by grind)
     subst hr
-    exact absurd (hw x (by simp)) (by omega)
+    exact absurd (hw x (by simp)) (by grind)
 
 theorem limbs_inj {l₁ l₂ : List Std.U64} (h₁ : LimbsWF l₁) (h₂ : LimbsWF l₂)
     (h : limbsToNat l₁ = limbsToNat l₂) : l₁ = l₂ := by
@@ -367,8 +367,8 @@ theorem limbs_inj {l₁ l₂ : List Std.U64} (h₁ : LimbsWF l₁) (h₂ : Limbs
       rw [limbsToNat_cons, limbsToNat_cons] at h
       have h64 : (2 : Nat) ^ 64 = 18446744073709551616 := by norm_num
       rw [h64] at h hx hy
-      have hxy : x.val = y.val := by omega
-      have hrt : limbsToNat r = limbsToNat t := by omega
+      have hxy : x.val = y.val := by grind
+      have hrt : limbsToNat r = limbsToNat t := by grind
       rw [ih (limbsWF_tail h₁) (limbsWF_tail h₂) hrt]
       congr 1
       exact Std.UScalar.eq_of_val_eq hxy
@@ -503,7 +503,7 @@ theorem seg_zero_lt (v : List Std.U64) (n : Nat) : seg v 0 n < 2 ^ (64 * n) := b
   simp only [seg, Nat.sub_zero, List.drop_zero]
   refine lt_of_lt_of_le (limbsToNat_lt _) (Nat.pow_le_pow_right (by omega) ?_)
   have : (v.take n).length ≤ n := by simp
-  omega
+  grind
 
 theorem cmp_from_val (a b : alloc.vec.Vec Std.U64) :
     ∀ (d : Nat) (k : Std.Usize) (c : ron.nat.Cmp), k.val ≤ d → ron.nat.cmp_from a b k = ok c →
@@ -943,7 +943,7 @@ theorem seg_zero_mod (v : List Std.U64) (n : Nat) :
     rw [hsplit, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlt]
     rfl
   · rw [seg_full v hn, Nat.mod_eq_of_lt]
-    exact lt_of_lt_of_le (limbsToNat_lt v) (Nat.pow_le_pow_right (by omega) (by omega))
+    exact lt_of_lt_of_le (limbsToNat_lt v) (Nat.pow_le_pow_right (by omega) (by grind))
 
 theorem nat_land_eq (x y : Nat) : Nat.land x y = x &&& y := rfl
 theorem nat_lor_eq (x y : Nat) : Nat.lor x y = x ||| y := rfl
@@ -1152,7 +1152,7 @@ theorem limbsToNat_drop (v : List Std.U64) (s : Nat) :
   rcases Nat.lt_or_ge v.length s with hs | hs
   · rw [List.drop_eq_nil_of_le (le_of_lt hs), Nat.div_eq_of_lt]
     · rfl
-    · exact lt_of_lt_of_le (limbsToNat_lt v) (Nat.pow_le_pow_right (by omega) (by omega))
+    · exact lt_of_lt_of_le (limbsToNat_lt v) (Nat.pow_le_pow_right (by omega) (by grind))
   · have hsplit : limbsToNat v
         = limbsToNat (v.take s) + 2 ^ (64 * s) * limbsToNat (v.drop s) := by
       conv_lhs => rw [← List.take_append_drop s v]
@@ -1606,7 +1606,7 @@ theorem skip_shr_key (a : ron.nat.Nat) (words bits s : Nat)
     have h2 : toNat a / 2 ^ (64 * words + bits) = 0 := by
       refine Nat.div_eq_of_lt (lt_of_lt_of_le (limbsToNat_lt _) ?_)
       refine Nat.pow_le_pow_right (by omega) ?_
-      omega
+      grind
     rw [h1, h2]
     simp
   · have hsw : s = words := by omega

@@ -780,7 +780,7 @@ theorem LS.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β �
 Core regions' `takeEidx_toList'`, which is region-local). -/
 theorem ind_takeEidx_toList (xs : Array EIdx) (k : Nat) :
     (takeEidx xs k).toList = xs.toList.take k := by
-  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by grind)]
   simp
 
 /-- The port's `take_eidx_n` fact (stated by `Tactic/Prims.lean` at arrays)

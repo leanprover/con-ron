@@ -351,7 +351,7 @@ set_option maxHeartbeats 0 in
   · obtain ⟨r0, hr0, rfl⟩ := List.map_eq_singleton_iff.mp hL
     have h1 : rules.val.length = 1 := by simp [hr0]
     have hr0' : absIRecRule r0
-        = absIRecRule (rules.val[(0#usize : Std.Usize).val]'(by simp; omega)) := by
+        = absIRecRule (rules.val[(0#usize : Std.Usize).val]'(by grind)) := by
       simp [hr0]
     rw [hr0']
     show LS _ _ _ _ _

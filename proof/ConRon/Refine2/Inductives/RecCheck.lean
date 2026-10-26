@@ -1474,7 +1474,7 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
     have ha : a.val = m.val + 1 := by scalar_tac
     refine LS.tail (ih a st1 lst1 fe2
       (lf.push (IConstantInfo.recInfo (absRecOut out.val[m.val]).1 (absU mi) (absU rp)
-        (absIRecRuleL rules))) (by omega) ?_ hrel hinv) ?_ (fun _ _ h => h)
+        (absIRecRuleL rules))) (by grind) ?_ hrel hinv) ?_ (fun _ _ h => h)
     · have h1 := hfe2.1
       have e : out.val[i6.val] = out.val[m.val] := by simp only [e6]
       simp only [absIConstantInfo, e] at h1
