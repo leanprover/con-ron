@@ -70372,3 +70372,123 @@ why.**
     Annotating the binder `(c : IConstantVal × Nat)` fixes it.  It also
     retires task #110's `maxHeartbeats 400000`, because the theorem builds at
     the default again: that bump was the same unannotated binder, at the edge.
+
+### Task #135 — clear_except before grind (2026-10-26, Opus)
+
+**The question.**  Task #134 found `grind` and `lia` at 40–66× `omega`'s
+heartbeats in large contexts, because they internalise every hypothesis
+while `omega` only collects linear facts.  `grind` cannot be told which
+hypotheses to use, and core Lean has no `clear * -`.  Does clearing the
+context down to the relevant hypotheses make them competitive?
+
+**The tactic** (written for the experiment, not kept: see the end).  A
+core-only `clear_except h₁ … hₙ` in `ConRon/Tools/ClearExcept.lean` kept the
+named hypotheses and everything they or the target mention, and dropped the
+rest.  It cleared data as well as propositions (a variable nothing kept
+mentions cannot matter, and `grind` asserts only propositions, so a
+Props-only variant would leave the context larger to no effect).  It was one
+backward pass over the context computing the needed set, then one fresh goal
+over the restricted context, rather than a `tryClear` per hypothesis.
+A test file checked what stays.  Its cost was
+negligible: 178 kHB summed over all 1 062 sites below (median 0 kHB).
+
+**Method.**  Same throwaway probe as #134's `lia` table, extended: the
+`omega` elaborator was overridden.  At every execution it ran the real `omega` first,
+collected the free variables of its instantiated proof term (the
+hypotheses and atoms `omega`'s certificate actually uses: the **oracle**,
+"used"), and then, each from the same state and each under a 20 000-kHB
+budget with runtime exceptions caught (`tryCatchRuntimeEx`), timed
+`clear_except <used>; omega`, plain `lia`, plain `grind`, `clear_except
+<used>; lia`, `clear_except <used>; grind`, and the same two after a
+**heuristic** clear that needs no oracle ("heur": keep every proposition
+`omega`'s `addFact` would take a fact from — `=`/`≤`/`<`/`≥`/`>`/`≠`/`∣` over
+`Nat`/`Int`/`Fin n`, `False`, and `¬`/`∧`/`∨`/`↔`/`→`/`∃` with such a part).
+**One correction to #134's method**: `saveState`/`restore` keep
+`Meta.State.cache`, so whichever tactic runs first at a site pays the cache
+misses for the others.  The probe saved and restored the *whole* `Core.State` and
+`Meta.State`, caches included, so every alternative started from the
+identical state.  (Check: re-running `omega` from that state gave the same
+heartbeats to within rounding at 95 % of sites.)  #134's plain-`lia`
+numbers are reproduced (`Scan/Line` 878 882 then, 878 988 now), so the bias
+was small there.  The probe ran with `lake env lean` and the lakefile's options, `maxHeartbeats 0`,
+six files in parallel.  Executions where `omega` itself failed (11 in `Str`,
+inside `first`) are not counted.
+
+**Totals** (kHB summed over all executions, ratio to `omega`, and the number
+of executions at which the alternative succeeded with ≤ `omega`'s
+heartbeats):
+
+| file | exec | hyps (med) | omega | used + omega | lia | used + lia | used + grind | heur + lia | heur + grind |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Refine/HashMap2` | 172 | 35.5 | 16 242 | 10 205 (0.63×) · 168 | 700 734 (43×) · 8 | 9 429 (0.58×) · 133 | 23 367 (1.4×) · 59 | 19 110 (1.2×) · 41 | 52 455 (3.2×) · 12 |
+| `Scan/Line` | 174 | 37 | 16 393 | 14 238 (0.87×) · 174 | 878 988 (54×) · 0 | 22 161 (1.4×) · 0 | 85 828 (5.2×) · 0 | 22 274 (1.4×) · 0 | 86 199 (5.3×) · 0 |
+| `Scan/WF` | 63 | 37 | 5 886 | 5 040 (0.86×) · 63 | 245 573 (42×) · 0 | 7 149 (1.2×) · 8 | 27 346 (4.6×) · 3 | 7 319 (1.2×) · 4 | 27 550 (4.7×) · 3 |
+| `Scan/Str` | 383 | 20 | 82 314 | 50 411 (0.61×) · 381 | 490 793 (6.0×) · 12 | 113 641 (1.4×) · 204 | 179 851 (2.2×) · 95 | 140 010 (1.7×) · 92 | 304 873 (3.7×) · 41 |
+| `Refine/Nat` | 187 | 15 | 20 269 | 15 956 (0.79×) · 178 | 107 722 (5.3×) · 23 | 12 874 (0.64×) · 110 | 43 703 (2.2×) · 53 | 26 874 (1.3×) · 42 | 76 782 (3.8×) · 10 |
+| `Scan/Kit` | 83 | 23 | 6 399 | 5 033 (0.79×) · 81 | 29 580 (4.6×) · 0 | 5 742 (0.90×) · 47 | 13 543 (2.1×) · 4 | 14 457 (2.3×) · 4 | 82 719 (13×) · 0 |
+| **all six** | 1 062 | 31 | 147 503 | 100 883 (0.68×) · 1 045 | 2 453 390 (17×) · 43 | 170 996 (1.16×) · 502 | 373 638 (2.5×) · 214 | 230 044 (1.6×) · 183 | 630 578 (4.3×) · 66 |
+
+Plain `grind`, for the record: 3 271 502 kHB (22×), never ≤ `omega`.
+**Medians of the per-execution ratio** to `omega`:
+
+| file | used + omega | lia | used + lia | used + grind | heur + lia | heur + grind |
+|---|---:|---:|---:|---:|---:|---:|
+| `Refine/HashMap2` | 0.63× | 11.2× | 0.62× | 1.61× | 1.46× | 2.93× |
+| `Scan/Line` | 0.87× | 50.1× | 1.33× | 5.24× | 1.33× | 5.27× |
+| `Scan/WF` | 0.87× | 52.9× | 1.35× | 5.34× | 1.35× | 5.34× |
+| `Scan/Str` | 0.77× | 5.71× | 0.93× | 2.33× | 1.79× | 4.00× |
+| `Refine/Nat` | 0.81× | 4.55× | 0.86× | 2.19× | 1.77× | 3.53× |
+| `Scan/Kit` | 0.84× | 5.04× | 0.81× | 2.07× | 2.20× | 4.45× |
+| **all six** | 0.83× | 8.21× | 1.10× | 2.72× | 1.43× | 4.38× |
+
+Every cleared `lia`/`grind` succeeded wherever plain `lia` did (the six
+failures are `Str`'s, shared by all variants), so neither clear dropped a
+needed fact.
+
+**What it says.**
+
+* **Clearing removes almost all of the gap.**  With the oracle's
+  hypotheses, `lia` goes from 17× to 1.16× `omega` in total, from a median of 8.2×
+  to 1.1×, and is ≤ `omega` at 502 of 1 062 executions.  `grind`
+  goes from 22× to 2.5×.  #134's diagnosis is confirmed: the cost was the
+  context, not the solver.
+* **But clearing helps `omega` just as much.**  `omega` also runs `addFact`
+  (a `whnfR` and an `instantiateMVars`) over every hypothesis, and its
+  auxiliary theorem closes over the context.  `clear_except <used>; omega` is
+  0.68× `omega` and ≤ `omega` at 1 045 sites.  Against that like-for-like
+  baseline, cleared `lia` is 1.69× in total (median 1.41×) and ≤ at 319 of
+  1 062.  In the Aeneas-heavy `Scan/Line` it is never ≤ (`Scan/WF`: 3 of 63): their
+  goals are `Nat` facts over `UScalar.val` atoms, where `lia`'s median is
+  128 kHB against `omega`'s 95.
+* **Cleared `grind` is not competitive anywhere** in bulk (2.5×, median
+  2.7×), so the E-matching and the other solvers cost something on top of the
+  context.
+* **The heuristic clear is not good enough for `lia`.**  Keeping every
+  `omega`-shaped fact leaves the case-splitting disjunctions and the
+  unrelated bounds in: 1.6× in total, ≤ `omega` at 183.  A generic
+  `grind_arith` wrapper (clear to the arithmetic facts, then `lia`) would
+  therefore still be slower than plain `omega` in every file but `Scan/WF`
+  and `Scan/Line`, where it would be 1.2–1.4×.  The names have to be written by hand.
+
+**Conclusion and proposal** (no conversions made; for the maintainer's decision).
+`clear_except h…; lia` is competitive with plain `omega` at about half the
+sites, but only with hand-written hypothesis names, and never cheaper than
+`omega` given the same names.  So there is no cost argument for replacing
+`omega` by `lia` or `grind`.  The options:
+1. **Keep `omega`** (recommended).  The tactic would be a tool for the case
+   where `grind` is needed for something `omega` cannot do (`UInt` bitwise,
+   E-matching over a lemma) in a large context: `clear_except h₁ h₂; grind`
+   takes it from the 40–60× regime to 2–5×.
+2. If `lia` is wanted for uniformity (one arithmetic engine with `grind`),
+   convert only the oracle-≤-`omega` sites with `clear_except <names>; lia`.
+   Each needs its names written in the source (502 sites in these six files, about a
+   1.16× total cost, and longer proof lines).
+3. A cheap `omega` speed-up, independent of `lia`: `clear_except <used>;
+   omega` saves 32 % of `omega`'s heartbeats, i.e. about 47 000 kHB over these
+   six files (the share of their whole elaboration was not measured).  It needs
+   the same hand-written names, so it is probably not worth the churn either.
+
+**Decision.**  Option 1; the maintainer: a tactic nothing uses is not kept.
+The tactic and its test were removed before landing; this section is the
+record, and the tactic is short enough to rewrite from the description above
+if a large-context `grind` ever needs it.
