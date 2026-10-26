@@ -1512,7 +1512,7 @@ attribute [bridge_grind =] eBindView ETag.isBind
 /-- con-leche: none — `capOK` is the program's own capacity branch
 condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
 @[bridge_grind =] theorem EStore.capOK_eq (st : EStore) (v : ENodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
+    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < v.cap) :=
   rfl
 
 /-- con-leche: none — `capOK` of the name store, as an equation. -/

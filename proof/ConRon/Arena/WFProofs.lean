@@ -120,9 +120,9 @@ theorem Idx.tier_eq_tierP {k : IdxKind} {i : Idx k} (h : i.isPersistent = true) 
   rw [h]; rfl
 
 /-- `Idx.ext_of` with the index given as the `Nat` the array reads. -/
-theorem Idx.eq_of_idxNat {k : IdxKind} {i j : Idx k} (ht : i.tag = j.tag)
-    (hr : i.tier = j.tier) (hn : i.idxNat = j.idxNat) : i = j :=
-  Idx.ext_of ht hr (UInt32.toNat_inj.mp hn)
+theorem Idx.eq_of_idxNat {k : IdxKind} {i j : Idx k} (hw : i.isWide = j.isWide)
+    (ht : i.tag = j.tag) (hr : i.tier = j.tier) (hn : i.idxNat = j.idxNat) : i = j :=
+  Idx.ext_of hw ht hr (UInt32.toNat_inj.mp hn)
 /-! ## The fuel disappears: names -/
 
 /-- Any two fuels above the rank give the same readback.  Strong induction on
@@ -1372,13 +1372,27 @@ theorem ETables.get_inv {t t' : ETables} {Q : UInt32 → Nat → ENodeView → P
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hfv _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hso _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hco _) h
-  · rw [eq_of_beq hc]; exact Tbl.map_inv (hap _) h
+  · rw [eq_of_beq ‹(i.tag == ETag.app) = true›]; exact Tbl.map_inv (hap _) h
+  · simp at h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hla _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hfa _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hle _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hli _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hpr _) h
   · simp at h
+
+/-- A handle a tier decodes has the shape its constructor's handles have:
+wide exactly at `app` (DESIGN §8.3).  This is what `get`'s wide test buys. -/
+theorem ETables.get_isWide {t : ETables} {i : EIdx} {v : ENodeView}
+    (h : t.get i = some v) : i.isWide = (v.tagOf == ETag.app) := by
+  simp only [ETables.get] at h
+  tag_cases h
+  all_goals first
+    | (simp at h; done)
+    | (obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
+       first
+         | (rw [hc]; rfl)
+         | (rw [Idx.isWide_eq_false_of_tag_ne (by rw [eq_of_beq hc]; decide)]; rfl))
 
 theorem ETables.get_push_inv {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
     {i : EIdx} {v : ENodeView} (h : (t.push w d tr).1.get i = some v) :
@@ -1408,20 +1422,36 @@ theorem ETables.get_eq_none_of_size {t : ETables} {w : ENodeView} {i : EIdx}
       Tbl.node?_size]
 
 theorem ETables.push_tag {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
-    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (hcap : t.sizeOf w < w.cap) :
     (t.push w d tr).2.tag = w.tagOf := by
-  have hn : ((UInt32.ofNat (t.sizeOf w)).toNat) < Idx.idxCap := by
-    rw [Idx.idxCap] at hcap ⊢; simp; omega
   cases w <;>
-    simp only [ETables.push, ENodeView.tagOf, ETables.sizeOf] at * <;>
-    exact Idx.tag_mk _ _ _ (by decide) htr hn
+    simp only [ETables.push, ENodeView.tagOf, ETag.app] <;>
+    simp only [ETables.sizeOf, ENodeView.cap] at hcap <;>
+    first
+      | with_reducible exact Idx.tag_mkWide_ofNat _ _ hcap
+      | with_reducible exact Idx.tag_mk_ofNat _ _ _ (by decide) hcap
+
+theorem ETables.push_isWide {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
+    (hcap : t.sizeOf w < w.cap) :
+    (t.push w d tr).2.isWide = (w.tagOf == ETag.app) := by
+  cases w <;>
+    simp only [ETables.push, ENodeView.tagOf, ETag.bvar, ETag.fvar, ETag.sort,
+      ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit,
+      ETag.proj] <;>
+    simp only [ETables.sizeOf, ENodeView.cap] at hcap <;>
+    first
+      | (rw [Idx.isWide_mkWide_ofNat _ _ hcap]; rfl)
+      | (rw [Idx.isWide_mk_ofNat _ _ _ (by decide) hcap]; rfl)
 
 theorem ETables.push_idxNat {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
-    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < w.cap) :
     (t.push w d tr).2.idxNat = t.sizeOf w := by
   cases w <;>
-    simp only [ETables.push, ETables.sizeOf] at * <;>
-    exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
+    simp only [ETables.push, ETables.sizeOf] <;>
+    simp only [ETables.sizeOf, ENodeView.cap] at hcap <;>
+    first
+      | with_reducible exact Idx.idxNat_mkWide _ _ htr hcap
+      | with_reducible exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
 
 theorem ETables.find?_push {t : ETables} {w v : ENodeView} {d : UInt64} {tr : UInt32} :
     (t.push w d tr).1.find? v =
@@ -1438,12 +1468,13 @@ theorem ETables.find?_push {t : ETables} {w v : ENodeView} {d : UInt64} {tr : UI
 theorem ETables.sizeOf_push_cases {t : ETables} {w v : ENodeView} {d : UInt64}
     {tr : UInt32} :
     (t.push w d tr).1.sizeOf v = t.sizeOf v ∨
-      ((t.push w d tr).1.sizeOf v = t.sizeOf w + 1 ∧ t.sizeOf v = t.sizeOf w) := by
+      ((t.push w d tr).1.sizeOf v = t.sizeOf w + 1 ∧ t.sizeOf v = t.sizeOf w ∧
+        v.cap = w.cap) := by
   cases w <;> cases v <;>
     simp only [ETables.push, ETables.sizeOf] <;>
     first
       | exact Or.inl trivial
-      | exact Or.inr ⟨Tbl.size_push _ _ _ _, trivial⟩
+      | exact Or.inr ⟨Tbl.size_push _ _ _ _, trivial, rfl⟩
 
 theorem ETables.Sized_push {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
     (hs : t.Sized) : (t.push w d tr).1.Sized := by
@@ -1481,6 +1512,7 @@ theorem ETables.derAt_congr {t t' : ETables} {i : EIdx} {v : ENodeView}
   · exact hso _ (Tbl.lt_of_map h)
   · exact hco _ (Tbl.lt_of_map h)
   · exact hap _ (Tbl.lt_of_map h)
+  · simp at h
   · exact hla _ (Tbl.lt_of_map h)
   · exact hfa _ (Tbl.lt_of_map h)
   · exact hle _ (Tbl.lt_of_map h)
@@ -1499,9 +1531,9 @@ theorem ETables.derAt_push_of_get {t : ETables} {w : ENodeView} {d : UInt64}
 
 theorem ETables.derAt_push_new {t : ETables} {w : ENodeView} {d : UInt64}
     {tr : UInt32} (hs : t.Sized) (htr : tr.toNat < 2)
-    (hcap : t.sizeOf w < Idx.idxCap) :
+    (hcap : t.sizeOf w < w.cap) :
     (t.push w d tr).1.derAt (t.push w d tr).2 = d := by
-  have htag := ETables.push_tag (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  have htag := ETables.push_tag (t := t) (w := w) (d := d) (tr := tr) hcap
   have hix := ETables.push_idxNat (t := t) (w := w) (d := d) (tr := tr) htr hcap
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hs
   cases w <;>
@@ -1553,7 +1585,10 @@ theorem ETables.get_mono {t t' : ETables}
   · rw [ite_eq_left c3] at h ⊢; exact Option.map_mono (hco _) h
   rw [ite_eq_right c3] at h ⊢
   by_cases c4 : (i.tag == ETag.app) = true
-  · rw [ite_eq_left c4] at h ⊢; exact Option.map_mono (hap _) h
+  · rw [ite_eq_left c4] at h ⊢
+    by_cases cw : i.isWide = true
+    · rw [ite_eq_left cw] at h ⊢; exact Option.map_mono (hap _) h
+    · rw [ite_eq_right cw] at h; simp at h
   rw [ite_eq_right c4] at h ⊢
   by_cases c5 : (i.tag == ETag.lam) = true
   · rw [ite_eq_left c5] at h ⊢; exact Option.map_mono (hla _) h
@@ -2570,10 +2605,10 @@ private theorem ofNat_lt_cap {n : Nat} (h : n < Idx.idxCap) :
   rw [Idx.idxCap] at h ⊢; simp; omega
 
 theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt32)
-    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < w.cap) :
     (t.push w d tr).1.get (t.push w d tr).2 = some w ∧
       (t.push w d tr).2.tier = tr := by
-  simp only [ETables.sizeOf] at hcap
+  simp only [ETables.sizeOf, ENodeView.cap] at hcap
   cases w with
   | bvar i =>
     have htg : (ETag.bvar : UInt32).toNat < 16 := by decide
@@ -2608,14 +2643,12 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | app f a =>
-    have htg : (ETag.app : UInt32).toNat < 16 := by decide
-    have hn := ofNat_lt_cap hcap
     refine ⟨?_, ?_⟩
-    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
-        Idx.idxNat_mk _ _ _ htg htr hcap]
+    · simp only [ETables.push, ETables.get, Idx.tag_mkWide_ofNat _ _ hcap,
+        Idx.isWide_mkWide_ofNat _ _ hcap, Idx.idxNat_mkWide _ _ htr hcap]
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
         Tbl.node?_push_new]
-    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+    · simp only [ETables.push, Idx.tier_mkWide_ofNat _ _ htr hcap]
   | lam ty b =>
     have htg : (ETag.lam : UInt32).toNat < 16 := by decide
     have hn := ofNat_lt_cap hcap
@@ -2689,7 +2722,7 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     (hlss : st'.lss = st.lss) (hpers : st'.pers = st.pers)
     (hpush : st.scr.push w (st.derOfView w) Idx.tierS = (tb, inew))
     (hscr : st'.scr = tb)
-    (hcap : st.scr.sizeOf w < Idx.idxCap)
+    (hcap : st.scr.sizeOf w < w.cap)
     (hfp : st.pers.find? w = none) (hfs : st.scr.find? w = none) :
     StoreWF st' ∧ st'.view inew = some w ∧ inew.isPersistent = false := by
   have htr : (Idx.tierS : UInt32).toNat < 2 := by decide
@@ -2701,7 +2734,10 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
   have hnp : inew.isPersistent = false := by
     show (inew.tier == 0) = false
     rw [← hid, (ETables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
-  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi hu
+    rw [ETables.get_isWide hi, hu, ← hid, ETables.push_isWide hcap]
   have hix : inew.idxNat = st.scr.sizeOf w := by
     rw [← hid]; exact ETables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
@@ -2717,13 +2753,13 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedS htr hcap
   have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedS
   have hcounttb : tb.count = st.scr.count + 1 := by rw [← htb]; exact ETables.count_push
-  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+  have hcaptb : ∀ u, tb.sizeOf u ≤ u.cap := by
     intro u
     rw [← htb]
     rcases ETables.sizeOf_push_cases (t := st.scr) (w := w) (v := u)
-      (d := st.derOfView w) (tr := Idx.tierS) with h1 | ⟨h1, _⟩
+      (d := st.derOfView w) (tr := Idx.tierS) with h1 | ⟨h1, _, h3⟩
     · rw [h1]; exact h.capS u
-    · rw [h1]; omega
+    · rw [h1, h3]; omega
   -- the two tiers, as `view` sees them
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
     intro i hp; rw [EStore.view_pers hp, EStore.view_pers hp, hpers]
@@ -2750,7 +2786,7 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
       rw [hviewS i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [EStore.view_scr hp' hon]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
           (h3.trans hix.symm), h4⟩
   -- counts
@@ -2918,6 +2954,24 @@ theorem NTables.get_inv {t t' : NTables} {Q : UInt32 → Nat → NNodeView → P
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hst _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hnu _) h
   · simp at h
+
+/-- A handle this tier decodes is narrow: every constructor's handles here
+are (DESIGN §8.3). -/
+theorem NTables.get_isWide {t : NTables} {i : NIdx} {v : NNodeView}
+    (h : t.get i = some v) : i.isWide = false := by
+  simp only [NTables.get] at h
+  tag_cases h
+  all_goals first
+    | (simp at h; done)
+    | (simpa using hc)
+    | exact Idx.isWide_eq_false_of_tag_ne (by rw [eq_of_beq hc]; decide)
+
+/-- The handle a push makes is narrow. -/
+theorem NTables.push_isWide {t : NTables} {w : NNodeView} {d : UInt64} {tr : UInt32}
+    (hcap : t.sizeOf w < Idx.idxCap) : (t.push w d tr).2.isWide = false := by
+  cases w <;>
+    simp only [NTables.push] <;>
+    exact Idx.isWide_mk_ofNat _ _ _ (by decide) hcap
 
 theorem NTables.get_push_inv {t : NTables} {w : NNodeView} {d : UInt64} {tr : UInt32}
     {i : NIdx} {v : NNodeView} (h : (t.push w d tr).1.get i = some v) :
@@ -3099,6 +3153,9 @@ theorem NStore.wf_push_scr {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
     show (inew.tier == 0) = false
     rw [← hid, (NTables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact NTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [NTables.get_isWide hi, ← hid, NTables.push_isWide hcap]
   have hix : inew.idxNat = st.scr.sizeOf w := by
     rw [← hid]; exact NTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
@@ -3146,7 +3203,7 @@ theorem NStore.wf_push_scr {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
       rw [hviewS i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [NStore.view_scr hp' hon]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
           (h3.trans hix.symm), h4⟩
   have hpc : st'.persCount = st.persCount := by simp only [NStore.persCount, hpers]
@@ -3280,6 +3337,9 @@ theorem NStore.wf_push_pers {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView
     show (inew.tier == 0) = true
     rw [← hid, (NTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact NTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [NTables.get_isWide hi, ← hid, NTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact NTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -3330,7 +3390,7 @@ theorem NStore.wf_push_pers {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView
     · rw [hviewP i hp] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [NStore.view_pers hp]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
@@ -3618,7 +3678,7 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     (hlss : st'.lss = st.lss) (hscr : st'.scr = st.scr)
     (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
     (hpers : st'.pers = tb)
-    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hcap : st.pers.sizeOf w < w.cap)
     (hfp : st.pers.find? w = none) :
     StoreWF st' ∧ st'.view inew = some w ∧ inew.isPersistent = true := by
   have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
@@ -3630,7 +3690,10 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
   have hnp : inew.isPersistent = true := by
     show (inew.tier == 0) = true
     rw [← hid, (ETables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
-  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi hu
+    rw [ETables.get_isWide hi, hu, ← hid, ETables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact ETables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -3646,13 +3709,13 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedP htr hcap
   have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedP
   have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact ETables.count_push
-  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+  have hcaptb : ∀ u, tb.sizeOf u ≤ u.cap := by
     intro u
     rw [← htb]
     rcases ETables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
-      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _, h3⟩
     · rw [h1]; exact h.capP u
-    · rw [h1]; omega
+    · rw [h1, h3]; omega
   -- the sub-stores are untouched, and their scratch tiers are off too
   have hns : st'.ns = st.ns := by simp only [EStore.ns, hlss]
   have hls : st'.ls = st.ls := by simp only [EStore.ls, hlss]
@@ -3703,7 +3766,7 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     · rw [hviewP i hp] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [EStore.view_pers hp]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
@@ -3909,8 +3972,27 @@ theorem LTables.get_inv {t t' : LTables} {Q : UInt32 → Nat → LNodeView → P
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hsu _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hma _) h
   · rw [eq_of_beq hc]; exact Tbl.map_inv (him _) h
-  · rw [eq_of_beq hc]; exact Tbl.map_inv (hpa _) h
   · simp at h
+  · rw [eq_of_beq ‹(i.tag == LTag.param) = true›]; exact Tbl.map_inv (hpa _) h
+  · simp at h
+
+/-- A handle this tier decodes is narrow: every constructor's handles here
+are (DESIGN §8.3). -/
+theorem LTables.get_isWide {t : LTables} {i : LIdx} {v : LNodeView}
+    (h : t.get i = some v) : i.isWide = false := by
+  simp only [LTables.get] at h
+  tag_cases h
+  all_goals first
+    | (simp at h; done)
+    | (simpa using hc)
+    | exact Idx.isWide_eq_false_of_tag_ne (by rw [eq_of_beq hc]; decide)
+
+/-- The handle a push makes is narrow. -/
+theorem LTables.push_isWide {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
+    (hcap : t.sizeOf w < Idx.idxCap) : (t.push w d tr).2.isWide = false := by
+  cases w <;>
+    simp only [LTables.push] <;>
+    exact Idx.isWide_mk_ofNat _ _ _ (by decide) hcap
 
 theorem LTables.get_push_inv {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
     {i : LIdx} {v : LNodeView} (h : (t.push w d tr).1.get i = some v) :
@@ -3949,6 +4031,7 @@ theorem LTables.get_mono {t t' : LTables}
   · exact Option.map_mono (hsu _) h
   · exact Option.map_mono (hma _) h
   · exact Option.map_mono (him _) h
+  · simp at h
   · exact Option.map_mono (hpa _) h
   · simp at h
 
@@ -4003,7 +4086,7 @@ theorem LTables.push_spec (t : LTables) (w : LNodeView) (d : LDer) (tr : UInt32)
     have hn := ofNat_lt_cap hcap
     refine ⟨?_, ?_⟩
     · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
-        Idx.idxNat_mk _ _ _ htg htr hcap]
+        Idx.isWide_mk _ _ _ htg htr hn, Idx.idxNat_mk _ _ _ htg htr hcap]
       simp [LTag.zero, LTag.succ, LTag.max, LTag.imax, LTag.param,
         Tbl.node?_push_new]
     · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
@@ -4072,6 +4155,7 @@ theorem LTables.derAt_congr {t t' : LTables} {i : LIdx} {v : LNodeView}
   · exact hsu _ (Tbl.lt_of_map h)
   · exact hma _ (Tbl.lt_of_map h)
   · exact him _ (Tbl.lt_of_map h)
+  · simp at h
   · exact hpa _ (Tbl.lt_of_map h)
   · simp at h
 
@@ -4124,6 +4208,9 @@ theorem LStore.wf_push_scr {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
     show (inew.tier == 0) = false
     rw [← hid, (LTables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LTables.get_isWide hi, ← hid, LTables.push_isWide hcap]
   have hix : inew.idxNat = st.scr.sizeOf w := by
     rw [← hid]; exact LTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
@@ -4171,7 +4258,7 @@ theorem LStore.wf_push_scr {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
       rw [hviewS i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LStore.view_scr hp' hon]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
           (h3.trans hix.symm), h4⟩
   have hpc : st'.persCount = st.persCount := by simp only [LStore.persCount, hpers]
@@ -4309,6 +4396,9 @@ theorem LStore.wf_push_pers {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView
     show (inew.tier == 0) = true
     rw [← hid, (LTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LTables.get_isWide hi, ← hid, LTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact LTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -4366,7 +4456,7 @@ theorem LStore.wf_push_pers {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView
     · rw [hviewP i hp] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LStore.view_pers hp]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
@@ -4643,6 +4733,24 @@ theorem LsTables.get_inv {t t' : LsTables} {Q : UInt32 → Nat → LsNodeView �
   · rw [eq_of_beq hc]; exact Tbl.map_inv (hli _) h
   · simp at h
 
+/-- A handle this tier decodes is narrow: every constructor's handles here
+are (DESIGN §8.3). -/
+theorem LsTables.get_isWide {t : LsTables} {i : LsIdx} {v : LsNodeView}
+    (h : t.get i = some v) : i.isWide = false := by
+  simp only [LsTables.get] at h
+  tag_cases h
+  all_goals first
+    | (simp at h; done)
+    | (simpa using hc)
+    | exact Idx.isWide_eq_false_of_tag_ne (by rw [eq_of_beq hc]; decide)
+
+/-- The handle a push makes is narrow. -/
+theorem LsTables.push_isWide {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32}
+    (hcap : t.sizeOf w < Idx.idxCap) : (t.push w d tr).2.isWide = false := by
+  cases w <;>
+    simp only [LsTables.push] <;>
+    exact Idx.isWide_mk_ofNat _ _ _ (by decide) hcap
+
 theorem LsTables.get_push_inv {t : LsTables} {w v : LsNodeView} {d : LDer}
     {tr : UInt32} {i : LsIdx} (h : (t.push w d tr).1.get i = some v) :
     t.get i = some v ∨ (i.tag = LsTag.list ∧ i.idxNat = t.sizeOf w ∧ v = w) := by
@@ -4767,6 +4875,9 @@ theorem LsStore.wf_push_scr {st st' : LsStore} {w : LsNodeView}
     show (inew.tier == 0) = false
     rw [← hid, (LsTables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
   have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LsTables.get_isWide hi, ← hid, LsTables.push_isWide hcap]
   have hix : inew.idxNat = st.scr.sizeOf w := by
     rw [← hid]; exact LsTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
@@ -4802,7 +4913,7 @@ theorem LsStore.wf_push_scr {st st' : LsStore} {w : LsNodeView}
       rw [hviewS i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LsStore.view_scr hp' hon]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
           (h3.trans hix.symm), h4⟩
   have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
@@ -4894,6 +5005,9 @@ theorem LsStore.wf_push_pers {st st' : LsStore} {w : LsNodeView}
     show (inew.tier == 0) = true
     rw [← hid, (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LsTables.get_isWide hi, ← hid, LsTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact LsTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -4938,7 +5052,7 @@ theorem LsStore.wf_push_pers {st st' : LsStore} {w : LsNodeView}
     · rw [hviewP i hp] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LsStore.view_pers hp]; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
@@ -5932,7 +6046,7 @@ theorem EStore.empty_wf : StoreWF EStore.empty := by
   refine ⟨fun _ => 0, ?_⟩
   constructor <;> intros <;>
     simp_all [ETables.Sized_empty,
-      ETables.sizeOf_empty, Idx.idxCap, LsStore.empty_wf]
+      ETables.sizeOf_empty, LsStore.empty_wf]
 
 end ConRon.Arena
 
@@ -6050,6 +6164,9 @@ theorem NStore.wf_push_pers' {st st' : NStore} {rk : NIdx → Nat} {w : NNodeVie
     show (inew.tier == 0) = true
     rw [← hid, (NTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact NTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [NTables.get_isWide hi, ← hid, NTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact NTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -6095,7 +6212,7 @@ theorem NStore.wf_push_pers' {st st' : NStore} {rk : NIdx → Nat} {w : NNodeVie
     · rw [hviewP i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [NStore.view_pers hp']; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
@@ -6241,6 +6358,9 @@ theorem LStore.wf_push_pers' {st st' : LStore} {rk : LIdx → Nat} {w : LNodeVie
     show (inew.tier == 0) = true
     rw [← hid, (LTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LTables.get_isWide hi, ← hid, LTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact LTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -6285,7 +6405,7 @@ theorem LStore.wf_push_pers' {st st' : LStore} {rk : LIdx → Nat} {w : LNodeVie
     · rw [hviewP i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LStore.view_pers hp']; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
@@ -6437,6 +6557,9 @@ theorem LsStore.wf_push_pers' {st st' : LsStore} {w : LsNodeView}
     show (inew.tier == 0) = true
     rw [← hid, (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
   have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi _
+    rw [LsTables.get_isWide hi, ← hid, LsTables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact LsTables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -6469,7 +6592,7 @@ theorem LsStore.wf_push_pers' {st st' : LsStore} {w : LsNodeView}
     · rw [hviewP i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [LsStore.view_pers hp']; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
@@ -6558,7 +6681,7 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
     (hlss : st'.lss = st.lss) (hscr : st'.scr = st.scr)
     (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
     (hpers : st'.pers = tb)
-    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hcap : st.pers.sizeOf w < w.cap)
     (hfp : st.pers.find? w = none) :
     StoreWF' st' ∧ st'.view inew = some w ∧ inew.isPersistent = true := by
   have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
@@ -6570,7 +6693,10 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
   have hnp : inew.isPersistent = true := by
     show (inew.tier == 0) = true
     rw [← hid, (ETables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
-  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag hcap
+  have hwide : ∀ i u, tb.get i = some u → u = w → i.isWide = inew.isWide := by
+    intro i u hi hu
+    rw [ETables.get_isWide hi, hu, ← hid, ETables.push_isWide hcap]
   have hix : inew.idxNat = st.pers.sizeOf w := by
     rw [← hid]; exact ETables.push_idxNat htr hcap
   have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
@@ -6587,13 +6713,13 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
     rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedP htr hcap
   have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedP
   have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact ETables.count_push
-  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+  have hcaptb : ∀ u, tb.sizeOf u ≤ u.cap := by
     intro u
     rw [← htb]
     rcases ETables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
-      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _, h3⟩
     · rw [h1]; exact h.capP u
-    · rw [h1]; omega
+    · rw [h1, h3]; omega
   -- the sub-stores are untouched
   have hns : st'.ns = st.ns := by simp only [EStore.ns, hlss]
   have hls : st'.ls = st.ls := by simp only [EStore.ls, hlss]
@@ -6628,7 +6754,7 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
     · rw [hviewP i hp'] at hu
       rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
       · exact Or.inl (by rw [hviewPold i hp']; exact h1)
-      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (hwide i u hu h4) (h2.trans htag.symm)
           ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
           (h3.trans hix.symm), h4⟩
     · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu

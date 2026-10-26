@@ -27,7 +27,7 @@ The clauses, in the order a reader meets them:
 | `fresh` | a scratch cons entry never duplicates a persistent one (DESIGN §8.3's cross-tier canonicity; con-leche's `t_cons_fresh`) |
 | `derExact` | the derived column is `derOfView` of the node — *locally*; the global `derived st i = e.data` is a theorem (`derived_exact`) |
 | `sized` | the derived array is as long as the node array |
-| `cap` | no constructor array exceeds 2^27 entries, so a handle's 27-bit index is injective on it |
+| `cap` | no constructor array exceeds its handle shape's index range (2^30 for `app`, 2^26 for the rest), so the index is injective on it |
 | `scrOff` | the scratch tier is empty while the scratch flag is off |
 | `sync` | the nesting's scratch flags move together (task #97a) |
 
@@ -232,8 +232,8 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
   sizedP : st.pers.Sized
   sizedS : st.scr.Sized
-  capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
-  capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
+  capP : ∀ v, st.pers.sizeOf v ≤ v.cap
+  capS : ∀ v, st.scr.sizeOf v ≤ v.cap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
@@ -459,8 +459,8 @@ structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
   sizedP : st.pers.Sized
   sizedS : st.scr.Sized
-  capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
-  capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
+  capP : ∀ v, st.pers.sizeOf v ≤ v.cap
+  capS : ∀ v, st.scr.sizeOf v ≤ v.cap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 

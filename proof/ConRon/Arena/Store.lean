@@ -338,6 +338,12 @@ inductive ENodeView where
   | proj (n : NIdx) (i : Nat) (e : EIdx)
   deriving DecidableEq, Repr, Inhabited
 
+/-- con-leche: none — the capacity of the constructor array a view lands in:
+`app`'s handles are wide (DESIGN §8.3), every other constructor's narrow. -/
+def ENodeView.cap : ENodeView → Nat
+  | .app _ _ => Idx.wideCap
+  | _ => Idx.idxCap
+
 /-- con-leche: none — one tier of the expression store: ten arrays, ten
 derived columns, ten cons tables. -/
 structure ETables where
@@ -522,13 +528,17 @@ instance : Inhabited LTables := ⟨empty⟩
 def count (t : LTables) : Nat :=
   t.zeros.size + t.succs.size + t.maxs.size + t.imaxs.size + t.params.size
 
-/-- con-leche: none — decode one handle against this tier's arrays. -/
+/-- con-leche: none — decode one handle against this tier's arrays.  The
+`param` arm refuses a WIDE word: one reads tag 4, `LTag.param`'s value, and
+would otherwise decode to the narrow `param` handle with its index
+(DESIGN §8.3). -/
 @[inline] def get (t : LTables) (i : LIdx) : Option LNodeView :=
   if i.tag == LTag.zero then (t.zeros.node? i.idxNat).map fun _ => .zero
   else if i.tag == LTag.succ then (t.succs.node? i.idxNat).map fun r => .succ r.u
   else if i.tag == LTag.max then (t.maxs.node? i.idxNat).map fun r => .max r.u r.v
   else if i.tag == LTag.imax then (t.imaxs.node? i.idxNat).map fun r => .imax r.u r.v
-  else if i.tag == LTag.param then (t.params.node? i.idxNat).map fun r => .param r.n
+  else if i.tag == LTag.param then
+    if i.isWide then none else (t.params.node? i.idxNat).map fun r => .param r.n
   else none
 
 /-- con-leche: none — the derived record of one handle in this tier. -/
@@ -808,13 +818,16 @@ def count (t : ETables) : Nat :=
 
 /-- con-leche: none — decode one handle against this tier's arrays: read the
 tag, index one array, build the view.  There is no node enum in the store
-(DESIGN §8.3). -/
+(DESIGN §8.3).  The `app` arm also asks for the WIDE shape: a narrow word
+with tag field 4 reads the `app` tag too, and without the test it would
+decode to the same node as the wide handle with its index. -/
 @[inline] def get (t : ETables) (i : EIdx) : Option ENodeView :=
   if i.tag == ETag.bvar then (t.bvars.node? i.idxNat).map fun r => .bvar r.i
   else if i.tag == ETag.fvar then (t.fvars.node? i.idxNat).map fun r => .fvar r.idx r.ty
   else if i.tag == ETag.sort then (t.sorts.node? i.idxNat).map fun r => .sort r.u
   else if i.tag == ETag.const then (t.consts.node? i.idxNat).map fun r => .const r.n r.us
-  else if i.tag == ETag.app then (t.apps.node? i.idxNat).map fun r => .app r.f r.a
+  else if i.tag == ETag.app then
+    if i.isWide then (t.apps.node? i.idxNat).map fun r => .app r.f r.a else none
   else if i.tag == ETag.lam then (t.lams.node? i.idxNat).map fun r => .lam r.ty r.body
   else if i.tag == ETag.forallE then
     (t.foralls.node? i.idxNat).map fun r => .forallE r.ty r.body
@@ -836,9 +849,10 @@ and the second dispatch on the same tag (tasks #97-P6-10 and #97-P6-13).
 The exactness lemma the bridge owes for each is `getApp t i = (t.get i).bind
 appParts` and its siblings — a `match` over the same `if` chain. -/
 
-/-- con-leche: none — the `app` projection of `ETables.get`. -/
+/-- con-leche: none — the `app` projection of `ETables.get`, with `get`'s
+wide-shape test. -/
 @[inline] def getApp (t : ETables) (i : EIdx) : Option (EIdx × EIdx) :=
-  (t.apps.node? i.idxNat).map fun r => (r.f, r.a)
+  if i.isWide then (t.apps.node? i.idxNat).map fun r => (r.f, r.a) else none
 
 /-- con-leche: none — the `sort` projection of `ETables.get`. -/
 @[inline] def getSort (t : ETables) (i : EIdx) : Option LIdx :=
@@ -982,7 +996,7 @@ def sizeOf (t : ETables) (v : ENodeView) : Nat :=
     ({ t with consts := tb.push ⟨n, us⟩ d h }, h)
   | .app f a =>
     let tb := t.apps
-    let h : EIdx := Idx.mk ETag.app tier (UInt32.ofNat tb.size)
+    let h : EIdx := Idx.mkWide tier (UInt32.ofNat tb.size)
     let t := { t with apps := Tbl.empty }
     ({ t with apps := tb.push ⟨f, a⟩ d h }, h)
   | .lam ty b =>
@@ -1421,12 +1435,12 @@ so everything that denoted before still denotes (DESIGN §8.3, lesson 6). -/
 def dropScratch (st : EStore) : EStore :=
   { st with lss := st.lss.dropScratch, scr := ETables.empty, scratchOn := false }
 
-/-- con-leche: none — `intern`'s capacity precondition (2^27 nodes per
+/-- con-leche: none — `intern`'s capacity precondition (`v.cap` nodes per
 constructor per tier).  The checker tier (P2c) tests it and raises `Native`;
 the pure store op assumes it, which is what keeps `intern`'s signature
 total. -/
 def capOK (st : EStore) (v : ENodeView) : Prop :=
-  (if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap
+  (if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < v.cap
 
 end EStore
 
@@ -1594,7 +1608,7 @@ def EStore.internPersistent (st : EStore) (v : ENodeView) : EStore × EIdx :=
 /-- con-leche: none — arena infrastructure; the NODE capacity test the Rust's
 `intern_persistent` makes, where it makes it: on a node MISS (audit D3). -/
 def EStore.persCapNode (st : EStore) (v : ENodeView) : Prop :=
-  st.pers.find? v = none → st.pers.sizeOf v < Idx.idxCap
+  st.pers.find? v = none → st.pers.sizeOf v < v.cap
 
 /-! ### The same, through the nesting
 

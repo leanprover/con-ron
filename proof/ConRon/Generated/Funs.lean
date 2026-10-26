@@ -1665,14 +1665,14 @@ def U64.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup Std.U64 := {
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::NIdx}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 413:4-415:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 480:4-482:5
     Visibility: public -/
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.handle.NIdx) : Result arena.handle.NIdx := do
   ok self
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::NumNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 505:4-507:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 514:4-516:5
     Visibility: public -/
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.NumNode) : Result arena.store.NumNode := do
@@ -1680,7 +1680,7 @@ def arena.store.NumNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { self with pre := n }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::NumNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 503:0-508:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 512:0-517:1 -/
 @[reducible]
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.NumNode := {
@@ -1688,7 +1688,7 @@ def arena.store.NumNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::StrNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 497:4-499:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 506:4-508:5
     Visibility: public -/
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.StrNode) : Result arena.store.StrNode := do
@@ -1697,7 +1697,7 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { pre := n, s := v }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::StrNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 495:0-500:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 504:0-509:1 -/
 @[reducible]
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.StrNode := {
@@ -1705,14 +1705,14 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::AnonNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 489:4-491:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 498:4-500:5
     Visibility: public -/
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.AnonNode) : Result arena.store.AnonNode := do
   ok ()
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::AnonNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 487:0-492:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 496:0-501:1 -/
 @[reducible]
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.AnonNode := {
@@ -1720,7 +1720,7 @@ def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::NumNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 477:4-483:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 486:4-492:5
     Visibility: public -/
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.NumNode) (other : arena.store.NumNode) :
@@ -1731,7 +1731,7 @@ def arena.store.NumNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::NumNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 475:0-484:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 484:0-493:1 -/
 @[reducible]
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.NumNode := {
@@ -1771,7 +1771,7 @@ def kernel.name.str_eq
   else kernel.name.str_eq_from a b 0#usize
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::StrNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 465:4-471:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 474:4-480:5
     Visibility: public -/
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.StrNode) (other : arena.store.StrNode) :
@@ -1782,7 +1782,7 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::StrNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 463:0-472:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 472:0-481:1 -/
 @[reducible]
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.StrNode := {
@@ -1790,7 +1790,7 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::AnonNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 457:4-459:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 466:4-468:5
     Visibility: public -/
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.AnonNode) (_other : arena.store.AnonNode) :
@@ -1799,7 +1799,7 @@ def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok true
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::AnonNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 455:0-460:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 464:0-469:1 -/
 @[reducible]
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.AnonNode := {
@@ -1807,14 +1807,14 @@ def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::NIdx}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 343:4-345:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 410:4-412:5
     Visibility: public -/
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.handle.NIdx) : Result Std.U64 := do
   ok (UScalar.cast .U64 self.word)
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::NumNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 449:4-451:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 458:4-460:5
     Visibility: public -/
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.NumNode) : Result Std.U64 := do
@@ -1825,7 +1825,7 @@ def arena.store.NumNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash i1 i2
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::NumNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 447:0-452:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 456:0-461:1 -/
 @[reducible]
 def arena.store.NumNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.NumNode := {
@@ -1833,7 +1833,7 @@ def arena.store.NumNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::StrNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 441:4-443:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 450:4-452:5
     Visibility: public -/
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.StrNode) : Result Std.U64 := do
@@ -1844,7 +1844,7 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash i1 i2
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::StrNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 439:0-444:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 448:0-453:1 -/
 @[reducible]
 def arena.store.StrNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.StrNode := {
@@ -1852,14 +1852,14 @@ def arena.store.StrNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::AnonNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 431:4-433:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 440:4-442:5
     Visibility: public -/
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.AnonNode) : Result Std.U64 := do
   ok 0#u64
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::AnonNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 429:0-434:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 438:0-443:1 -/
 @[reducible]
 def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.AnonNode := {
@@ -1867,7 +1867,7 @@ def arena.store.AnonNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 229:4-235:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 230:4-236:5
     Visibility: public -/
 def arena.store.Tbl.der_at
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -1887,14 +1887,14 @@ def arena.store.Tbl.der_at
     ronhashmapDupInst2.dup2 t
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::arena::store::DerDefault for u64}::der_default]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 165:4-167:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 166:4-168:5
     Visibility: public -/
 def U64.Insts.Con_ron_coreArenaStoreDerDefault.der_default
   : Result Std.U64 := do
   ok 0#u64
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::arena::store::DerDefault for u64}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 163:0-168:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 164:0-169:1 -/
 @[reducible]
 def U64.Insts.Con_ron_coreArenaStoreDerDefault : arena.store.DerDefault Std.U64
   := {
@@ -1902,74 +1902,93 @@ def U64.Insts.Con_ron_coreArenaStoreDerDefault : arena.store.DerDefault Std.U64
 }
 
 /-- [con_ron_core::arena::handle::NTAG_NUM]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 518:0-518:28
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 585:0-585:28
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.NTAG_NUM : Std.U32 := 2#u32
 
 /-- [con_ron_core::arena::handle::NTAG_STR]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 513:0-513:28
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 580:0-580:28
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.NTAG_STR : Std.U32 := 1#u32
 
 /-- [con_ron_core::arena::handle::NTAG_ANONYMOUS]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 508:0-508:34
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 575:0-575:34
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.NTAG_ANONYMOUS : Std.U32 := 0#u32
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::NIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 411:0-416:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 478:0-483:1 -/
 @[reducible]
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.handle.NIdx := {
   dup2 := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2
 }
 
-/-- [con_ron_core::arena::handle::IDX_CAP]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 77:0-77:35
+/-- [con_ron_core::arena::handle::WIDE_CAP]
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 102:0-102:37
     Visibility: public -/
 @[global_simps, irreducible]
-def arena.handle.IDX_CAP : Std.U32 := 134217728#u32
+def arena.handle.WIDE_CAP : Std.U32 := 1073741824#u32
+
+/-- [con_ron_core::arena::handle::word_is_wide]:
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 139:0-141:1
+    Visibility: public -/
+def arena.handle.word_is_wide (w : Std.U32) : Result Bool := do
+  let i ← w / arena.handle.WIDE_CAP
+  let i1 ← i % 2#u32
+  ok (i1 = 1#u32)
+
+/-- [con_ron_core::arena::handle::IDX_CAP]
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 96:0-96:34
+    Visibility: public -/
+@[global_simps, irreducible] def arena.handle.IDX_CAP : Std.U32 := 67108864#u32
 
 /-- [con_ron_core::arena::handle::word_index]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 117:0-119:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 163:0-169:1
     Visibility: public -/
 def arena.handle.word_index (w : Std.U32) : Result Std.U32 := do
-  w % arena.handle.IDX_CAP
+  let b ← arena.handle.word_is_wide w
+  if b
+  then w % arena.handle.WIDE_CAP
+  else w % arena.handle.IDX_CAP
 
 /-- [con_ron_core::arena::handle::word_idx_nat]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 132:0-134:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 182:0-184:1
     Visibility: public -/
 def arena.handle.word_idx_nat (w : Std.U32) : Result Std.Usize := do
   let i ← arena.handle.word_index w
   ok (UScalar.cast .Usize i)
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::idx_nat]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 243:4-245:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 305:4-307:5
     Visibility: public -/
 def arena.handle.NIdx.idx_nat
   (self : arena.handle.NIdx) : Result Std.Usize := do
   arena.handle.word_idx_nat self.word
 
-/-- [con_ron_core::arena::handle::TAG_SPAN]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 82:0-82:36
+/-- [con_ron_core::arena::handle::ETAG_APP]
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 534:0-534:28
     Visibility: public -/
-@[global_simps, irreducible]
-def arena.handle.TAG_SPAN : Std.U32 := 268435456#u32
+@[global_simps, irreducible] def arena.handle.ETAG_APP : Std.U32 := 4#u32
 
 /-- [con_ron_core::arena::handle::word_tag]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 105:0-107:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 146:0-152:1
     Visibility: public -/
 def arena.handle.word_tag (w : Std.U32) : Result Std.U32 := do
-  w / arena.handle.TAG_SPAN
+  let b ← arena.handle.word_is_wide w
+  if b
+  then ok arena.handle.ETAG_APP
+  else let i ← w / arena.handle.IDX_CAP
+       i % 16#u32
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::tag]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 228:4-230:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 290:4-292:5
     Visibility: public -/
 def arena.handle.NIdx.tag (self : arena.handle.NIdx) : Result Std.U32 := do
   arena.handle.word_tag self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1321:4-1331:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1330:4-1340:5
     Visibility: public -/
 def arena.store.NTables.der_at
   (self : arena.store.NTables) (i : arena.handle.NIdx) : Result Std.U64 := do
@@ -2009,7 +2028,7 @@ def arena.store.NTables.der_at
       else ok 0#u64
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1415:4-1421:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1424:4-1430:5 -/
 def arena.store.NStore.pers_der_at
   (self : arena.store.NStore) (pers : arena.store.PersTier)
   (i : arena.handle.NIdx) :
@@ -2019,29 +2038,34 @@ def arena.store.NStore.pers_der_at
   then arena.store.NTables.der_at pers.n i
   else arena.store.NTables.der_at self.pers i
 
+/-- [con_ron_core::arena::handle::TIER_SPAN]
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 107:0-107:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def arena.handle.TIER_SPAN : Std.U32 := 2147483648#u32
+
 /-- [con_ron_core::arena::handle::word_tier]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 111:0-113:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 156:0-158:1
     Visibility: public -/
 def arena.handle.word_tier (w : Std.U32) : Result Std.U32 := do
-  let i ← w / arena.handle.IDX_CAP
-  i % 2#u32
+  w / arena.handle.TIER_SPAN
 
 /-- [con_ron_core::arena::handle::word_is_persistent]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 124:0-126:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 174:0-176:1
     Visibility: public -/
 def arena.handle.word_is_persistent (w : Std.U32) : Result Bool := do
   let i ← arena.handle.word_tier w
   ok (i = 0#u32)
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::is_persistent]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 238:4-240:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 300:4-302:5
     Visibility: public -/
 def arena.handle.NIdx.is_persistent
   (self : arena.handle.NIdx) : Result Bool := do
   arena.handle.word_is_persistent self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::derived]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1503:4-1511:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1512:4-1520:5
     Visibility: public -/
 def arena.store.NStore.derived
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -2057,7 +2081,7 @@ def arena.store.NStore.derived
     else ok 0#u64
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::der_of_view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1519:4-1529:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1528:4-1538:5
     Visibility: public -/
 def arena.store.NStore.der_of_view
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -2078,7 +2102,7 @@ def arena.store.NStore.der_of_view
     kernel.name.mix_hash i1 i2
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::full]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 254:4-256:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 255:4-257:5
     Visibility: public -/
 def arena.store.Tbl.full
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -2093,7 +2117,7 @@ def arena.store.Tbl.full
   ok (i >= i1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1348:4-1354:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1357:4-1363:5
     Visibility: public -/
 def arena.store.NTables.full_of
   (self : arena.store.NTables) (v : arena.store.NNodeView) : Result Bool := do
@@ -2124,7 +2148,7 @@ def arena.store.NTables.full_of
       U64.Insts.Con_ron_coreArenaStoreDerDefault self.nums
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1443:4-1449:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1452:4-1458:5 -/
 def arena.store.NStore.pers_full_of
   (self : arena.store.NStore) (pers : arena.store.PersTier)
   (v : arena.store.NNodeView) :
@@ -2212,7 +2236,7 @@ def ron.hashmap2.HashMap2.get
     else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 260:4-265:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 269:4-274:5
     Visibility: public -/
 def arena.store.Tbl.find
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -2231,7 +2255,7 @@ def arena.store.Tbl.find
               ok (some t)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1335:4-1343:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1344:4-1352:5
     Visibility: public -/
 def arena.store.NTables.find
   (self : arena.store.NTables) (v : arena.store.NNodeView) :
@@ -2268,7 +2292,7 @@ def arena.store.NTables.find
       U64.Insts.Con_ron_coreArenaStoreDerDefault self.nums { pre := n1, n }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1431:4-1437:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1440:4-1446:5 -/
 def arena.store.NStore.pers_find
   (self : arena.store.NStore) (pers : arena.store.PersTier)
   (v : arena.store.NNodeView) :
@@ -2498,7 +2522,7 @@ def ron.hashmap2.HashMap2.insert
   else ok (old, self2)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::push]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 296:4-299:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 305:4-308:5
     Visibility: public -/
 def arena.store.Tbl.push
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -2517,7 +2541,7 @@ def arena.store.Tbl.push
   ok { rows := v, cons := hm }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::size]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 210:4-212:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 211:4-213:5
     Visibility: public -/
 def arena.store.Tbl.size
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -2530,17 +2554,17 @@ def arena.store.Tbl.size
   ok (alloc.vec.Vec.len self.rows)
 
 /-- [con_ron_core::arena::handle::word_mk]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 99:0-101:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 125:0-127:1
     Visibility: public -/
 def arena.handle.word_mk
   (tag : Std.U32) (tier : Std.U32) (idx : Std.U32) : Result Std.U32 := do
-  let i ← tag * arena.handle.TAG_SPAN
-  let i1 ← tier * arena.handle.IDX_CAP
+  let i ← tier * arena.handle.TIER_SPAN
+  let i1 ← tag * arena.handle.IDX_CAP
   let i2 ← i + i1
   i2 + idx
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::pack]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 218:4-220:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 280:4-282:5
     Visibility: public -/
 def arena.handle.NIdx.pack
   (tag : Std.U32) (tier : Std.U32) (idx : Std.U32) :
@@ -2550,7 +2574,7 @@ def arena.handle.NIdx.pack
   ok { word := i }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::push]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1358:4-1376:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1367:4-1385:5
     Visibility: public -/
 def arena.store.NTables.push
   (self : arena.store.NTables) (v : arena.store.NNodeView) (d : Std.U64)
@@ -2625,7 +2649,7 @@ def arena.store.NTables.push
     ok (i2, { self with nums := t })
 
 /-- [con_ron_core::arena::store::M_N_CAP]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 119:0-122:2 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 120:0-123:2 -/
 @[global_simps, irreducible]
 def arena.store.M_N_CAP : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -2637,17 +2661,17 @@ def arena.store.M_N_CAP : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::arena::handle::TIER_S]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 70:0-70:26
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 87:0-87:26
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.TIER_S : Std.U32 := 1#u32
 
 /-- [con_ron_core::arena::handle::TIER_P]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 66:0-66:26
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 83:0-83:26
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.TIER_P : Std.U32 := 0#u32
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::intern_other]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1625:4-1649:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1634:4-1658:5
     Visibility: public -/
 def arena.store.NStore.intern_other
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -2692,7 +2716,7 @@ def arena.store.NStore.intern_other
   | some i => ok (core.result.Result.Ok i, self)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_strs_find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1459:4-1465:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1468:4-1474:5 -/
 def arena.store.NStore.pers_strs_find
   (self : arena.store.NStore) (pers : arena.store.PersTier)
   (node : arena.store.StrNode) :
@@ -2717,7 +2741,7 @@ def arena.store.NStore.pers_strs_find
       U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.strs node
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::intern_str]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1587:4-1619:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1596:4-1628:5
     Visibility: public -/
 def arena.store.NStore.intern_str
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -2819,7 +2843,7 @@ def arena.store.NStore.intern_str
   | some i => ok (core.result.Result.Ok i, self)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::intern]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1553:4-1565:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1562:4-1574:5
     Visibility: public -/
 def arena.store.NStore.intern
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -2840,7 +2864,7 @@ def arena.store.NStore.intern
     arena.store.NStore.intern_other self pers v
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::intern_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2056:4-2058:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2072:4-2074:5
     Visibility: public -/
 def arena.store.LStore.intern_name
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -2852,7 +2876,7 @@ def arena.store.LStore.intern_name
   ok (r, { self with ns := n })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::intern_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2390:4-2392:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2406:4-2408:5
     Visibility: public -/
 def arena.store.LsStore.intern_name
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -2864,7 +2888,7 @@ def arena.store.LsStore.intern_name
   ok (r, { self with ls := l })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4266:4-4268:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4294:4-4296:5
     Visibility: public -/
 def arena.store.EStore.intern_name
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -2991,14 +3015,14 @@ def arena.intern.intern_caps
   | core.result.Result.Err err => ok (core.result.Result.Err err, st1)
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::arena::store::DerDefault for con_ron_core::arena::store::LDer}::der_default]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 701:4-703:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 710:4-712:5
     Visibility: public -/
 def arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default
   : Result arena.store.LDer := do
   ok { hash := 0#u64, has_param := false }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::arena::store::DerDefault for con_ron_core::arena::store::LDer}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 699:0-704:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 708:0-713:1 -/
 @[reducible]
 def arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault :
   arena.store.DerDefault arena.store.LDer := {
@@ -3007,14 +3031,14 @@ def arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LDer}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 692:4-694:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 701:4-703:5
     Visibility: public -/
 def arena.store.LDer.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.LDer) : Result arena.store.LDer := do
   ok self
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LDer}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 690:0-695:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 699:0-704:1 -/
 @[reducible]
 def arena.store.LDer.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.LDer := {
@@ -3022,7 +3046,7 @@ def arena.store.LDer.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ParamNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 663:4-665:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 672:4-674:5
     Visibility: public -/
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.ParamNode) : Result arena.store.ParamNode := do
@@ -3030,7 +3054,7 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { n }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ParamNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 661:0-666:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 670:0-675:1 -/
 @[reducible]
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.ParamNode := {
@@ -3038,14 +3062,14 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::LIdx}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 421:4-423:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 488:4-490:5
     Visibility: public -/
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.handle.LIdx) : Result arena.handle.LIdx := do
   ok self
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BinLNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 655:4-657:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 664:4-666:5
     Visibility: public -/
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.BinLNode) : Result arena.store.BinLNode := do
@@ -3054,7 +3078,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { u := l, v := l1 }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BinLNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 653:0-658:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 662:0-667:1 -/
 @[reducible]
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.BinLNode := {
@@ -3062,7 +3086,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::SuccNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 647:4-649:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 656:4-658:5
     Visibility: public -/
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.SuccNode) : Result arena.store.SuccNode := do
@@ -3070,7 +3094,7 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { u := l }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::SuccNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 645:0-650:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 654:0-659:1 -/
 @[reducible]
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.SuccNode := {
@@ -3078,14 +3102,14 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ZeroNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 639:4-641:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 648:4-650:5
     Visibility: public -/
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.ZeroNode) : Result arena.store.ZeroNode := do
   ok ()
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ZeroNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 637:0-642:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 646:0-651:1 -/
 @[reducible]
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.ZeroNode := {
@@ -3093,7 +3117,7 @@ def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ParamNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 631:4-633:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 640:4-642:5
     Visibility: public -/
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.ParamNode) (other : arena.store.ParamNode) :
@@ -3102,7 +3126,7 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok (self.n.word = other.n.word)
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ParamNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 629:0-634:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 638:0-643:1 -/
 @[reducible]
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.ParamNode := {
@@ -3110,7 +3134,7 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BinLNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 619:4-625:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 628:4-634:5
     Visibility: public -/
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.BinLNode) (other : arena.store.BinLNode) :
@@ -3121,7 +3145,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BinLNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 617:0-626:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 626:0-635:1 -/
 @[reducible]
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.BinLNode := {
@@ -3129,7 +3153,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::SuccNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 611:4-613:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 620:4-622:5
     Visibility: public -/
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.SuccNode) (other : arena.store.SuccNode) :
@@ -3138,7 +3162,7 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok (self.u.word = other.u.word)
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::SuccNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 609:0-614:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 618:0-623:1 -/
 @[reducible]
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.SuccNode := {
@@ -3146,7 +3170,7 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ZeroNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 603:4-605:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 612:4-614:5
     Visibility: public -/
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.ZeroNode) (_other : arena.store.ZeroNode) :
@@ -3155,7 +3179,7 @@ def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok true
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ZeroNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 601:0-606:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 610:0-615:1 -/
 @[reducible]
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.ZeroNode := {
@@ -3163,7 +3187,7 @@ def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ParamNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 595:4-597:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 604:4-606:5
     Visibility: public -/
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.ParamNode) : Result Std.U64 := do
@@ -3172,7 +3196,7 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash 0#u64 i
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ParamNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 593:0-598:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 602:0-607:1 -/
 @[reducible]
 def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.ParamNode := {
@@ -3180,14 +3204,14 @@ def arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::LIdx}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 351:4-353:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 418:4-420:5
     Visibility: public -/
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.handle.LIdx) : Result Std.U64 := do
   ok (UScalar.cast .U64 self.word)
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BinLNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 587:4-589:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 596:4-598:5
     Visibility: public -/
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.BinLNode) : Result Std.U64 := do
@@ -3199,7 +3223,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash i1 i2
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BinLNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 585:0-590:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 594:0-599:1 -/
 @[reducible]
 def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.BinLNode := {
@@ -3207,7 +3231,7 @@ def arena.store.BinLNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::SuccNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 579:4-581:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 588:4-590:5
     Visibility: public -/
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.SuccNode) : Result Std.U64 := do
@@ -3216,7 +3240,7 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash 0#u64 i
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::SuccNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 577:0-582:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 586:0-591:1 -/
 @[reducible]
 def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.SuccNode := {
@@ -3224,14 +3248,14 @@ def arena.store.SuccNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ZeroNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 571:4-573:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 580:4-582:5
     Visibility: public -/
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.ZeroNode) : Result Std.U64 := do
   ok 0#u64
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ZeroNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 569:0-574:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 578:0-583:1 -/
 @[reducible]
 def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.ZeroNode := {
@@ -3239,32 +3263,32 @@ def arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::handle::LTAG_PARAM]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 543:0-543:30
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 610:0-610:30
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LTAG_PARAM : Std.U32 := 4#u32
 
 /-- [con_ron_core::arena::handle::LTAG_IMAX]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 538:0-538:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 605:0-605:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LTAG_IMAX : Std.U32 := 3#u32
 
 /-- [con_ron_core::arena::handle::LTAG_MAX]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 533:0-533:28
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 600:0-600:28
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LTAG_MAX : Std.U32 := 2#u32
 
 /-- [con_ron_core::arena::handle::LTAG_SUCC]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 528:0-528:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 595:0-595:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LTAG_SUCC : Std.U32 := 1#u32
 
 /-- [con_ron_core::arena::handle::LTAG_ZERO]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 523:0-523:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 590:0-590:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LTAG_ZERO : Std.U32 := 0#u32
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::LIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 419:0-424:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 486:0-491:1 -/
 @[reducible]
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.handle.LIdx := {
@@ -3272,20 +3296,20 @@ def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::idx_nat]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 282:4-284:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 349:4-351:5
     Visibility: public -/
 def arena.handle.LIdx.idx_nat
   (self : arena.handle.LIdx) : Result Std.Usize := do
   arena.handle.word_idx_nat self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::tag]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 267:4-269:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 329:4-331:5
     Visibility: public -/
 def arena.handle.LIdx.tag (self : arena.handle.LIdx) : Result Std.U32 := do
   arena.handle.word_tag self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1755:4-1769:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1771:4-1785:5
     Visibility: public -/
 def arena.store.LTables.der_at
   (self : arena.store.LTables) (i : arena.handle.LIdx) :
@@ -3352,7 +3376,7 @@ def arena.store.LTables.der_at
             arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::pers_der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1864:4-1870:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1880:4-1886:5 -/
 def arena.store.LStore.pers_der_at
   (self : arena.store.LStore) (pers : arena.store.PersTier)
   (i : arena.handle.LIdx) :
@@ -3363,14 +3387,14 @@ def arena.store.LStore.pers_der_at
   else arena.store.LTables.der_at self.pers i
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::is_persistent]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 277:4-279:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 344:4-346:5
     Visibility: public -/
 def arena.handle.LIdx.is_persistent
   (self : arena.handle.LIdx) : Result Bool := do
   arena.handle.word_is_persistent self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::derived]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1934:4-1942:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1950:4-1958:5
     Visibility: public -/
 def arena.store.LStore.derived
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -3386,7 +3410,7 @@ def arena.store.LStore.derived
     else arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::der_of_view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1950:4-1977:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1966:4-1993:5
     Visibility: public -/
 def arena.store.LStore.der_of_view
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -3421,7 +3445,7 @@ def arena.store.LStore.der_of_view
     ok { hash := i1, has_param := true }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1785:4-1793:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1801:4-1809:5
     Visibility: public -/
 def arena.store.LTables.full_of
   (self : arena.store.LTables) (v : arena.store.LNodeView) : Result Bool := do
@@ -3468,7 +3492,7 @@ def arena.store.LTables.full_of
       arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault self.params
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::pers_full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1892:4-1898:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1908:4-1914:5 -/
 def arena.store.LStore.pers_full_of
   (self : arena.store.LStore) (pers : arena.store.PersTier)
   (v : arena.store.LNodeView) :
@@ -3479,7 +3503,7 @@ def arena.store.LStore.pers_full_of
   else arena.store.LTables.full_of self.pers v
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1772:4-1780:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1788:4-1796:5
     Visibility: public -/
 def arena.store.LTables.find
   (self : arena.store.LTables) (v : arena.store.LNodeView) :
@@ -3538,7 +3562,7 @@ def arena.store.LTables.find
       { n := n1 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::pers_find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1880:4-1886:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1896:4-1902:5 -/
 def arena.store.LStore.pers_find
   (self : arena.store.LStore) (pers : arena.store.PersTier)
   (v : arena.store.LNodeView) :
@@ -3549,7 +3573,7 @@ def arena.store.LStore.pers_find
   else arena.store.LTables.find self.pers v
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::pack]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 257:4-259:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 319:4-321:5
     Visibility: public -/
 def arena.handle.LIdx.pack
   (tag : Std.U32) (tier : Std.U32) (idx : Std.U32) :
@@ -3559,7 +3583,7 @@ def arena.handle.LIdx.pack
   ok { word := i }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::push]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1796:4-1824:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1812:4-1840:5
     Visibility: public -/
 def arena.store.LTables.push
   (self : arena.store.LTables) (v : arena.store.LNodeView)
@@ -3679,7 +3703,7 @@ def arena.store.LTables.push
     ok (i2, { self with params := t })
 
 /-- [con_ron_core::arena::store::M_L_CAP]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 126:0-129:2 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 127:0-130:2 -/
 @[global_simps, irreducible]
 def arena.store.M_L_CAP : Array Std.U32 37#usize :=
   Array.make 37#usize [
@@ -3691,7 +3715,7 @@ def arena.store.M_L_CAP : Array Std.U32 37#usize :=
     ]
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::intern]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1994:4-2018:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2010:4-2034:5
     Visibility: public -/
 def arena.store.LStore.intern
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -3736,7 +3760,7 @@ def arena.store.LStore.intern
   | some i => ok (core.result.Result.Ok i, self)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::intern_level]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2395:4-2397:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2411:4-2413:5
     Visibility: public -/
 def arena.store.LsStore.intern_level
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -3748,7 +3772,7 @@ def arena.store.LsStore.intern_level
   ok (r, { self with ls := l })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_level]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4272:4-4274:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4300:4-4302:5
     Visibility: public -/
 def arena.store.EStore.intern_level
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -4913,7 +4937,7 @@ def arena.monad.intern_level_list
     arena.handle.LIdx)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::der_of_view_from]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2303:4-2314:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2319:4-2330:5
     Visibility: public -/
 def arena.store.LsStore.der_of_view_from
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -4937,7 +4961,7 @@ def arena.store.LsStore.der_of_view_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::der_of_view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2296:4-2298:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2312:4-2314:5
     Visibility: public -/
 def arena.store.LsStore.der_of_view
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -4947,7 +4971,7 @@ def arena.store.LsStore.der_of_view
   arena.store.LsStore.der_of_view_from self pers v 0#usize
 
 /-- [con_ron_core::arena::store::lidx_vec_dup_from]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 389:0-397:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 398:0-406:1
     Visibility: public -/
 def arena.store.lidx_vec_dup_from
   (us : alloc.vec.Vec arena.handle.LIdx) (i : Std.Usize)
@@ -4968,7 +4992,7 @@ def arena.store.lidx_vec_dup_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::lidx_vec_dup]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 382:0-384:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 391:0-393:1
     Visibility: public -/
 def arena.store.lidx_vec_dup
   (us : alloc.vec.Vec arena.handle.LIdx) :
@@ -4979,7 +5003,7 @@ def arena.store.lidx_vec_dup
   arena.store.lidx_vec_dup_from us 0#usize v
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ListNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 757:4-759:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 766:4-768:5
     Visibility: public -/
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.ListNode) : Result arena.store.ListNode := do
@@ -4987,7 +5011,7 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { us := v }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ListNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 755:0-760:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 764:0-769:1 -/
 @[reducible]
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.ListNode := {
@@ -4995,7 +5019,7 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::lidx_vec_eq_from]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 370:0-378:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 379:0-387:1
     Visibility: public -/
 def arena.store.lidx_vec_eq_from
   (a : alloc.vec.Vec arena.handle.LIdx) (b : alloc.vec.Vec arena.handle.LIdx)
@@ -5019,7 +5043,7 @@ def arena.store.lidx_vec_eq_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::lidx_vec_eq]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 360:0-366:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 369:0-375:1
     Visibility: public -/
 def arena.store.lidx_vec_eq
   (a : alloc.vec.Vec arena.handle.LIdx) (b : alloc.vec.Vec arena.handle.LIdx) :
@@ -5032,7 +5056,7 @@ def arena.store.lidx_vec_eq
   else arena.store.lidx_vec_eq_from a b 0#usize
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ListNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 749:4-751:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 758:4-760:5
     Visibility: public -/
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.ListNode) (other : arena.store.ListNode) :
@@ -5041,7 +5065,7 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   arena.store.lidx_vec_eq self.us other.us
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ListNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 747:0-752:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 756:0-761:1 -/
 @[reducible]
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.ListNode := {
@@ -5049,7 +5073,7 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::lidx_vec_hash_from]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 350:0-356:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 359:0-365:1
     Visibility: public -/
 def arena.store.lidx_vec_hash_from
   (us : alloc.vec.Vec arena.handle.LIdx) (i : Std.Usize) (acc : Std.U64) :
@@ -5069,14 +5093,14 @@ def arena.store.lidx_vec_hash_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::lidx_vec_hash]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 344:0-346:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 353:0-355:1
     Visibility: public -/
 def arena.store.lidx_vec_hash
   (us : alloc.vec.Vec arena.handle.LIdx) : Result Std.U64 := do
   arena.store.lidx_vec_hash_from us 0#usize 7#u64
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ListNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 741:4-743:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 750:4-752:5
     Visibility: public -/
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.ListNode) : Result Std.U64 := do
@@ -5084,7 +5108,7 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash 0#u64 i
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ListNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 739:0-744:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 748:0-753:1 -/
 @[reducible]
 def arena.store.ListNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.ListNode := {
@@ -5092,14 +5116,14 @@ def arena.store.ListNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::LsIdx}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 429:4-431:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 496:4-498:5
     Visibility: public -/
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.handle.LsIdx) : Result arena.handle.LsIdx := do
   ok self
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::LsIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 427:0-432:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 494:0-499:1 -/
 @[reducible]
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.handle.LsIdx := {
@@ -5107,7 +5131,7 @@ def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2133:4-2135:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2149:4-2151:5
     Visibility: public -/
 def arena.store.LsTables.full_of
   (self : arena.store.LsTables) (_v : alloc.vec.Vec arena.handle.LIdx) :
@@ -5122,7 +5146,7 @@ def arena.store.LsTables.full_of
     arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault self.lists
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2210:4-2216:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2226:4-2232:5 -/
 def arena.store.LsStore.pers_full_of
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
   (v : alloc.vec.Vec arena.handle.LIdx) :
@@ -5133,7 +5157,7 @@ def arena.store.LsStore.pers_full_of
   else arena.store.LsTables.full_of self.pers v
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2126:4-2128:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2142:4-2144:5
     Visibility: public -/
 def arena.store.LsTables.find
   (self : arena.store.LsTables) (v : alloc.vec.Vec arena.handle.LIdx) :
@@ -5150,7 +5174,7 @@ def arena.store.LsTables.find
     { us := v1 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2198:4-2204:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2214:4-2220:5 -/
 def arena.store.LsStore.pers_find
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
   (v : alloc.vec.Vec arena.handle.LIdx) :
@@ -5161,12 +5185,12 @@ def arena.store.LsStore.pers_find
   else arena.store.LsTables.find self.pers v
 
 /-- [con_ron_core::arena::handle::LSTAG_LIST]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 548:0-548:30
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 615:0-615:30
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.LSTAG_LIST : Std.U32 := 0#u32
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::pack]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 296:4-298:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 363:4-365:5
     Visibility: public -/
 def arena.handle.LsIdx.pack
   (tag : Std.U32) (tier : Std.U32) (idx : Std.U32) :
@@ -5176,7 +5200,7 @@ def arena.handle.LsIdx.pack
   ok { word := i }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::push]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2138:4-2142:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2154:4-2158:5
     Visibility: public -/
 def arena.store.LsTables.push
   (self : arena.store.LsTables) (v : alloc.vec.Vec arena.handle.LIdx)
@@ -5206,7 +5230,7 @@ def arena.store.LsTables.push
   ok (i2, { lists := t })
 
 /-- [con_ron_core::arena::store::M_LS_CAP]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 133:0-136:2 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 134:0-137:2 -/
 @[global_simps, irreducible]
 def arena.store.M_LS_CAP : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -5217,7 +5241,7 @@ def arena.store.M_LS_CAP : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::intern]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2331:4-2355:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2347:4-2371:5
     Visibility: public -/
 def arena.store.LsStore.intern
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -5262,7 +5286,7 @@ def arena.store.LsStore.intern
   | some i => ok (core.result.Result.Ok i, self)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_levels]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4278:4-4280:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4306:4-4308:5
     Visibility: public -/
 def arena.store.EStore.intern_levels
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -5300,14 +5324,14 @@ def arena.monad.intern_levels
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::EIdx}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 405:4-407:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 472:4-474:5
     Visibility: public -/
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.handle.EIdx) : Result arena.handle.EIdx := do
   ok self
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ProjNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1146:4-1148:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1155:4-1157:5
     Visibility: public -/
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.ProjNode) : Result arena.store.ProjNode := do
@@ -5316,7 +5340,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { self with n, e }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ProjNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1144:0-1149:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1153:0-1158:1 -/
 @[reducible]
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.ProjNode := {
@@ -5324,7 +5348,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LitNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1138:4-1140:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1147:4-1149:5
     Visibility: public -/
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.LitNode) : Result arena.store.LitNode := do
@@ -5332,7 +5356,7 @@ def arena.store.LitNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { l }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LitNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1136:0-1141:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1145:0-1150:1 -/
 @[reducible]
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.LitNode := {
@@ -5340,7 +5364,7 @@ def arena.store.LitNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LetNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1130:4-1132:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1139:4-1141:5
     Visibility: public -/
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.LetNode) : Result arena.store.LetNode := do
@@ -5350,7 +5374,7 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { ty := e, val := e1, body := e2 }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::LetNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1128:0-1133:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1137:0-1142:1 -/
 @[reducible]
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.LetNode := {
@@ -5358,7 +5382,7 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BindNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1118:4-1123:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1127:4-1132:5
     Visibility: public -/
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.BindNode) : Result arena.store.BindNode := do
@@ -5367,7 +5391,7 @@ def arena.store.BindNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { ty := e, body := e1 }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BindNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1116:0-1124:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1125:0-1133:1 -/
 @[reducible]
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.BindNode := {
@@ -5375,7 +5399,7 @@ def arena.store.BindNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::AppNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1110:4-1112:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1119:4-1121:5
     Visibility: public -/
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.AppNode) : Result arena.store.AppNode := do
@@ -5384,7 +5408,7 @@ def arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { f := e, a := e1 }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::AppNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1108:0-1113:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1117:0-1122:1 -/
 @[reducible]
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.AppNode := {
@@ -5392,7 +5416,7 @@ def arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ConstNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1102:4-1104:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1111:4-1113:5
     Visibility: public -/
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.ConstNode) : Result arena.store.ConstNode := do
@@ -5401,7 +5425,7 @@ def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { n, us := li }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::ConstNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1100:0-1105:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1109:0-1114:1 -/
 @[reducible]
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.ConstNode := {
@@ -5409,7 +5433,7 @@ def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::SortNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1094:4-1096:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1103:4-1105:5
     Visibility: public -/
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.SortNode) : Result arena.store.SortNode := do
@@ -5417,7 +5441,7 @@ def arena.store.SortNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { u := l }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::SortNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1092:0-1097:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1101:0-1106:1 -/
 @[reducible]
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.SortNode := {
@@ -5425,7 +5449,7 @@ def arena.store.SortNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::FVarNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1086:4-1088:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1095:4-1097:5
     Visibility: public -/
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.FVarNode) : Result arena.store.FVarNode := do
@@ -5433,7 +5457,7 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapDup.dup2
   ok { self with ty := e }
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::FVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1084:0-1089:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1093:0-1098:1 -/
 @[reducible]
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.FVarNode := {
@@ -5441,14 +5465,14 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BVarNode}::dup2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1078:4-1080:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1087:4-1089:5
     Visibility: public -/
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : arena.store.BVarNode) : Result arena.store.BVarNode := do
   ok self
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1076:0-1081:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1085:0-1090:1 -/
 @[reducible]
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.store.BVarNode := {
@@ -5456,7 +5480,7 @@ def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ProjNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1062:4-1072:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1071:4-1081:5
     Visibility: public -/
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.ProjNode) (other : arena.store.ProjNode) :
@@ -5469,7 +5493,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ProjNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1060:0-1073:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1069:0-1082:1 -/
 @[reducible]
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.ProjNode := {
@@ -5477,7 +5501,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::LitNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1054:4-1056:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1063:4-1065:5
     Visibility: public -/
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.LitNode) (other : arena.store.LitNode) :
@@ -5486,7 +5510,7 @@ def arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   kernel.expr.literal_beq self.l other.l
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::LitNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1052:0-1057:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1061:0-1066:1 -/
 @[reducible]
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.LitNode := {
@@ -5494,7 +5518,7 @@ def arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::LetNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1038:4-1048:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1047:4-1057:5
     Visibility: public -/
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.LetNode) (other : arena.store.LetNode) :
@@ -5508,7 +5532,7 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::LetNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1036:0-1049:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1045:0-1058:1 -/
 @[reducible]
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.LetNode := {
@@ -5516,7 +5540,7 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BindNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1025:4-1031:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1034:4-1040:5
     Visibility: public -/
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.BindNode) (other : arena.store.BindNode) :
@@ -5527,7 +5551,7 @@ def arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BindNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1023:0-1032:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1032:0-1041:1 -/
 @[reducible]
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.BindNode := {
@@ -5535,7 +5559,7 @@ def arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::AppNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1013:4-1019:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1022:4-1028:5
     Visibility: public -/
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.AppNode) (other : arena.store.AppNode) :
@@ -5546,7 +5570,7 @@ def arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::AppNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1011:0-1020:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1020:0-1029:1 -/
 @[reducible]
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.AppNode := {
@@ -5554,7 +5578,7 @@ def arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ConstNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1001:4-1007:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1010:4-1016:5
     Visibility: public -/
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.ConstNode) (other : arena.store.ConstNode) :
@@ -5565,7 +5589,7 @@ def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::ConstNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 999:0-1008:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1008:0-1017:1 -/
 @[reducible]
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.ConstNode := {
@@ -5573,7 +5597,7 @@ def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::SortNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 993:4-995:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1002:4-1004:5
     Visibility: public -/
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.SortNode) (other : arena.store.SortNode) :
@@ -5582,7 +5606,7 @@ def arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok (self.u.word = other.u.word)
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::SortNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 991:0-996:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1000:0-1005:1 -/
 @[reducible]
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.SortNode := {
@@ -5590,7 +5614,7 @@ def arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::FVarNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 981:4-987:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 990:4-996:5
     Visibility: public -/
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.FVarNode) (other : arena.store.FVarNode) :
@@ -5601,7 +5625,7 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::FVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 979:0-988:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 988:0-997:1 -/
 @[reducible]
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.FVarNode := {
@@ -5609,7 +5633,7 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BVarNode}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 973:4-975:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 982:4-984:5
     Visibility: public -/
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.store.BVarNode) (other : arena.store.BVarNode) :
@@ -5618,7 +5642,7 @@ def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapEq2.eq2
   ok (self.i = other.i)
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::store::BVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 971:0-976:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 980:0-985:1 -/
 @[reducible]
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.store.BVarNode := {
@@ -5626,13 +5650,13 @@ def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::store::fold3]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 906:0-908:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 915:0-917:1 -/
 def arena.store.fold3 (ab : Std.U64) (c : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul c 11400714819323198485#u64)
   ok (ab ^^^ i)
 
 /-- [con_ron_core::arena::store::pack2]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 897:0-899:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 906:0-908:1 -/
 def arena.store.pack2 (a : Std.U32) (b : Std.U32) : Result Std.U64 := do
   let i ← lift (UScalar.cast .U64 a)
   let i1 ← lift (UScalar.cast .U64 b)
@@ -5640,7 +5664,7 @@ def arena.store.pack2 (a : Std.U32) (b : Std.U32) : Result Std.U64 := do
   ok (i ||| i2)
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ProjNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 965:4-967:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 974:4-976:5
     Visibility: public -/
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.ProjNode) : Result Std.U64 := do
@@ -5649,7 +5673,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   arena.store.fold3 i i1
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ProjNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 963:0-968:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 972:0-977:1 -/
 @[reducible]
 def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.ProjNode := {
@@ -5695,14 +5719,14 @@ def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
     kernel.name.mix_hash 1#u64 i
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::LitNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 957:4-959:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 966:4-968:5
     Visibility: public -/
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.LitNode) : Result Std.U64 := do
   kernel.expr.literal_hash self.l
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::LitNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 955:0-960:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 964:0-969:1 -/
 @[reducible]
 def arena.store.LitNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.LitNode := {
@@ -5710,14 +5734,14 @@ def arena.store.LitNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::EIdx}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 335:4-337:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 402:4-404:5
     Visibility: public -/
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.handle.EIdx) : Result Std.U64 := do
   ok (UScalar.cast .U64 self.word)
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::LetNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 949:4-951:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 958:4-960:5
     Visibility: public -/
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.LetNode) : Result Std.U64 := do
@@ -5727,7 +5751,7 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   arena.store.fold3 i i1
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::LetNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 947:0-952:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 956:0-961:1 -/
 @[reducible]
 def arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.LetNode := {
@@ -5735,14 +5759,14 @@ def arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BindNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 940:4-942:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 949:4-951:5
     Visibility: public -/
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.BindNode) : Result Std.U64 := do
   arena.store.pack2 self.ty.word self.body.word
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BindNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 935:0-943:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 944:0-952:1 -/
 @[reducible]
 def arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.BindNode := {
@@ -5750,14 +5774,14 @@ def arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::AppNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 929:4-931:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 938:4-940:5
     Visibility: public -/
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.AppNode) : Result Std.U64 := do
   arena.store.pack2 self.f.word self.a.word
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::AppNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 927:0-932:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 936:0-941:1 -/
 @[reducible]
 def arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.AppNode := {
@@ -5765,14 +5789,14 @@ def arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ConstNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 921:4-923:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 930:4-932:5
     Visibility: public -/
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.ConstNode) : Result Std.U64 := do
   arena.store.pack2 self.n.word self.us.word
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::ConstNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 919:0-924:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 928:0-933:1 -/
 @[reducible]
 def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.ConstNode := {
@@ -5780,14 +5804,14 @@ def arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::SortNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 913:4-915:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 922:4-924:5
     Visibility: public -/
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.SortNode) : Result Std.U64 := do
   arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable.hash64 self.u
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::SortNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 911:0-916:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 920:0-925:1 -/
 @[reducible]
 def arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.SortNode := {
@@ -5795,7 +5819,7 @@ def arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::FVarNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 871:4-873:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 880:4-882:5
     Visibility: public -/
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.FVarNode) : Result Std.U64 := do
@@ -5805,7 +5829,7 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   arena.store.fold3 i i1
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::FVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 869:0-874:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 878:0-883:1 -/
 @[reducible]
 def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.FVarNode := {
@@ -5813,14 +5837,14 @@ def arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BVarNode}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 863:4-865:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 872:4-874:5
     Visibility: public -/
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.store.BVarNode) : Result Std.U64 := do
   kernel.name.nat_hash self.i
 
 /-- Trait implementation: [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::store::BVarNode}]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 861:0-866:1 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 870:0-875:1 -/
 @[reducible]
 def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.store.BVarNode := {
@@ -5828,57 +5852,52 @@ def arena.store.BVarNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::handle::ETAG_PROJ]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 492:0-492:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 559:0-559:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_PROJ : Std.U32 := 9#u32
 
 /-- [con_ron_core::arena::handle::ETAG_LIT]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 487:0-487:28
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 554:0-554:28
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_LIT : Std.U32 := 8#u32
 
 /-- [con_ron_core::arena::handle::ETAG_LET_E]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 482:0-482:30
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 549:0-549:30
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_LET_E : Std.U32 := 7#u32
 
 /-- [con_ron_core::arena::handle::ETAG_FORALL_E]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 477:0-477:33
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 544:0-544:33
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_FORALL_E : Std.U32 := 6#u32
 
 /-- [con_ron_core::arena::handle::ETAG_LAM]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 472:0-472:28
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 539:0-539:28
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_LAM : Std.U32 := 5#u32
 
-/-- [con_ron_core::arena::handle::ETAG_APP]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 467:0-467:28
-    Visibility: public -/
-@[global_simps, irreducible] def arena.handle.ETAG_APP : Std.U32 := 4#u32
-
 /-- [con_ron_core::arena::handle::ETAG_CONST]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 462:0-462:30
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 529:0-529:30
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_CONST : Std.U32 := 3#u32
 
 /-- [con_ron_core::arena::handle::ETAG_SORT]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 457:0-457:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 524:0-524:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_SORT : Std.U32 := 2#u32
 
 /-- [con_ron_core::arena::handle::ETAG_FVAR]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 452:0-452:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 519:0-519:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_FVAR : Std.U32 := 1#u32
 
 /-- [con_ron_core::arena::handle::ETAG_BVAR]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 447:0-447:29
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 514:0-514:29
     Visibility: public -/
 @[global_simps, irreducible] def arena.handle.ETAG_BVAR : Std.U32 := 0#u32
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::handle::EIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 403:0-408:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 470:0-475:1 -/
 @[reducible]
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   arena.handle.EIdx := {
@@ -5886,20 +5905,20 @@ def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
 }
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::idx_nat]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 203:4-205:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 265:4-267:5
     Visibility: public -/
 def arena.handle.EIdx.idx_nat
   (self : arena.handle.EIdx) : Result Std.Usize := do
   arena.handle.word_idx_nat self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::tag]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 188:4-190:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 245:4-247:5
     Visibility: public -/
 def arena.handle.EIdx.tag (self : arena.handle.EIdx) : Result Std.U32 := do
   arena.handle.word_tag self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2659:4-2683:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2687:4-2711:5
     Visibility: public -/
 def arena.store.ETables.der_at
   (self : arena.store.ETables) (i : arena.handle.EIdx) : Result Std.U64 := do
@@ -6017,7 +6036,7 @@ def arena.store.ETables.der_at
                     else ok 0#u64
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2989:4-2995:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3017:4-3023:5 -/
 def arena.store.EStore.pers_der_at
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -6028,14 +6047,14 @@ def arena.store.EStore.pers_der_at
   else arena.store.ETables.der_at self.pers i
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::is_persistent]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 198:4-200:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 260:4-262:5
     Visibility: public -/
 def arena.handle.EIdx.is_persistent
   (self : arena.handle.EIdx) : Result Bool := do
   arena.handle.word_is_persistent self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::derived]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3380:4-3388:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3408:4-3416:5
     Visibility: public -/
 def arena.store.EStore.derived
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6051,14 +6070,14 @@ def arena.store.EStore.derived
     else ok 0#u64
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::ns]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3047:4-3049:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3075:4-3077:5
     Visibility: public -/
 def arena.store.EStore.ns
   (self : arena.store.EStore) : Result arena.store.NStore := do
   ok self.lss.ls.ns
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::nder]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3053:4-3055:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3081:4-3083:5
     Visibility: public -/
 def arena.store.EStore.nder
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6069,7 +6088,7 @@ def arena.store.EStore.nder
   arena.store.NStore.derived n pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_proj]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3508:4-3523:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3536:4-3551:5
     Visibility: public -/
 def arena.store.EStore.der_of_proj
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6112,7 +6131,7 @@ def ron.hashmap2.HashMap2.insert_at
     ok { self with num_entries := i, slots := v }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::push_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 286:4-289:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 295:4-298:5
     Visibility: public -/
 def arena.store.Tbl.push_at
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -6158,7 +6177,7 @@ def ron.hashmap2.HashMap2.find_slot
   else ok ((i2, none), self1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::find_slot]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 279:4-281:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 288:4-290:5
     Visibility: public -/
 def arena.store.Tbl.find_slot
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -6174,7 +6193,7 @@ def arena.store.Tbl.find_slot
   ok (p, { self with cons := hm })
 
 /-- [con_ron_core::arena::store::M_E_CAP]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 140:0-143:2 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 141:0-144:2 -/
 @[global_simps, irreducible]
 def arena.store.M_E_CAP : Array Std.U32 36#usize :=
   Array.make 36#usize [
@@ -6186,7 +6205,7 @@ def arena.store.M_E_CAP : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::pack]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 178:4-180:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 228:4-230:5
     Visibility: public -/
 def arena.handle.EIdx.pack
   (tag : Std.U32) (tier : Std.U32) (idx : Std.U32) :
@@ -6196,7 +6215,7 @@ def arena.handle.EIdx.pack
   ok { word := i }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_proj]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4169:4-4216:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4197:4-4244:5
     Visibility: public -/
 def arena.store.EStore.intern_proj
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6349,7 +6368,7 @@ def arena.store.EStore.intern_proj
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e1 })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_lit]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3498:4-3501:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3526:4-3529:5
     Visibility: public -/
 def arena.store.EStore.der_of_lit
   (self : arena.store.EStore) (l : kernel.expr.Literal) : Result Std.U64 := do
@@ -6359,7 +6378,7 @@ def arena.store.EStore.der_of_lit
   kernel.expr.pack_data h 0#u64 0#u64 false
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_lit]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4119:4-4158:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4147:4-4186:5
     Visibility: public -/
 def arena.store.EStore.intern_lit
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6491,7 +6510,7 @@ def arena.store.EStore.intern_lit
   | some hp => ok (core.result.Result.Ok hp, self1)
 
 /-- [con_ron_core::arena::store::der_of_let]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2825:0-2845:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2853:0-2873:1
     Visibility: public -/
 def arena.store.der_of_let
   (dt : Std.U64) (dv : Std.U64) (db : Std.U64) : Result Std.U64 := do
@@ -6526,7 +6545,7 @@ def arena.store.der_of_let
   kernel.expr.pack_data h i11 i16 b1
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_let_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3489:4-3491:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3517:4-3519:5
     Visibility: public -/
 def arena.store.EStore.der_of_let_at
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6539,7 +6558,7 @@ def arena.store.EStore.der_of_let_at
   arena.store.der_of_let i i1 i2
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_let_e]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4057:4-4108:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4085:4-4136:5
     Visibility: public -/
 def arena.store.EStore.intern_let_e
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6700,7 +6719,7 @@ def arena.store.EStore.intern_let_e
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::der_of_bind]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2807:0-2818:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2835:0-2846:1
     Visibility: public -/
 def arena.store.der_of_bind
   (tag : Std.U64) (dt : Std.U64) (db : Std.U64) : Result Std.U64 := do
@@ -6723,7 +6742,7 @@ def arena.store.der_of_bind
   kernel.expr.pack_data h i7 i10 b1
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_bind_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3480:4-3482:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3508:4-3510:5
     Visibility: public -/
 def arena.store.EStore.der_of_bind_at
   (self : arena.store.EStore) (pers : arena.store.PersTier) (tag : Std.U64)
@@ -6735,7 +6754,7 @@ def arena.store.EStore.der_of_bind_at
   arena.store.der_of_bind tag i i1
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_forall_e]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3999:4-4046:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4027:4-4074:5
     Visibility: public -/
 def arena.store.EStore.intern_forall_e
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -6891,7 +6910,7 @@ def arena.store.EStore.intern_forall_e
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_lam]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3940:4-3987:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3968:4-4015:5
     Visibility: public -/
 def arena.store.EStore.intern_lam
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7043,7 +7062,7 @@ def arena.store.EStore.intern_lam
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_app]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3458:4-3471:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3486:4-3499:5
     Visibility: public -/
 def arena.store.EStore.der_of_app
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7069,8 +7088,40 @@ def arena.store.EStore.der_of_app
              else kernel.expr.lp_of_data da
   kernel.expr.pack_data h i6 i9 b1
 
+/-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::full_wide]:
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 263:4-265:5
+    Visibility: public -/
+def arena.store.Tbl.full_wide
+  {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
+  ron.hashmap.Hashable A) (ronhashmapEq2Inst : ron.hashmap.Eq2 A)
+  (ronhashmapDupInst : ron.hashmap.Dup A) (ronhashmapDupInst1 : ron.hashmap.Dup
+  I) (ronhashmapDupInst2 : ron.hashmap.Dup D) (DerDefaultInst :
+  arena.store.DerDefault D) (self : arena.store.Tbl A I D) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len self.rows
+  let i1 ← lift (UScalar.cast .Usize arena.handle.WIDE_CAP)
+  ok (i >= i1)
+
+/-- [con_ron_core::arena::handle::word_mk_wide]:
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 133:0-135:1
+    Visibility: public -/
+def arena.handle.word_mk_wide
+  (tier : Std.U32) (idx : Std.U32) : Result Std.U32 := do
+  let i ← tier * arena.handle.TIER_SPAN
+  let i1 ← i + arena.handle.WIDE_CAP
+  i1 + idx
+
+/-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::pack_wide]:
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 235:4-237:5
+    Visibility: public -/
+def arena.handle.EIdx.pack_wide
+  (tier : Std.U32) (idx : Std.U32) : Result arena.handle.EIdx := do
+  let i ← arena.handle.word_mk_wide tier idx
+  ok { word := i }
+
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_app]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3881:4-3928:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3909:4-3956:5
     Visibility: public -/
 def arena.store.EStore.intern_app
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7135,7 +7186,7 @@ def arena.store.EStore.intern_app
       match o with
       | none =>
         let b ←
-          arena.store.Tbl.full
+          arena.store.Tbl.full_wide
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
@@ -7162,8 +7213,7 @@ def arena.store.EStore.intern_app
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t
           let i2 ← lift (UScalar.cast .U32 i1)
-          let h ←
-            arena.handle.EIdx.pack arena.handle.ETAG_APP arena.handle.TIER_S i2
+          let h ← arena.handle.EIdx.pack_wide arena.handle.TIER_S i2
           let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
           let t1 ←
             arena.store.Tbl.push_at
@@ -7180,7 +7230,7 @@ def arena.store.EStore.intern_app
           { self with pers := e, scr := { self.scr with apps := t } })
     else
       let b ←
-        arena.store.Tbl.full
+        arena.store.Tbl.full_wide
           arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
           arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
@@ -7205,8 +7255,7 @@ def arena.store.EStore.intern_app
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.apps
         let i1 ← lift (UScalar.cast .U32 i)
-        let h ←
-          arena.handle.EIdx.pack arena.handle.ETAG_APP arena.handle.TIER_P i1
+        let h ← arena.handle.EIdx.pack_wide arena.handle.TIER_P i1
         let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
         let t ←
           arena.store.Tbl.push
@@ -7221,20 +7270,20 @@ def arena.store.EStore.intern_app
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::idx_nat]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 321:4-323:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 388:4-390:5
     Visibility: public -/
 def arena.handle.LsIdx.idx_nat
   (self : arena.handle.LsIdx) : Result Std.Usize := do
   arena.handle.word_idx_nat self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::tag]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 306:4-308:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 373:4-375:5
     Visibility: public -/
 def arena.handle.LsIdx.tag (self : arena.handle.LsIdx) : Result Std.U32 := do
   arena.handle.word_tag self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2117:4-2123:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2133:4-2139:5
     Visibility: public -/
 def arena.store.LsTables.der_at
   (self : arena.store.LsTables) (i : arena.handle.LsIdx) :
@@ -7254,7 +7303,7 @@ def arena.store.LsTables.der_at
   else arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_der_at]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2182:4-2188:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2198:4-2204:5 -/
 def arena.store.LsStore.pers_der_at
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
   (i : arena.handle.LsIdx) :
@@ -7265,14 +7314,14 @@ def arena.store.LsStore.pers_der_at
   else arena.store.LsTables.der_at self.pers i
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::is_persistent]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 316:4-318:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 383:4-385:5
     Visibility: public -/
 def arena.handle.LsIdx.is_persistent
   (self : arena.handle.LsIdx) : Result Bool := do
   arena.handle.word_is_persistent self.word
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::derived]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2282:4-2290:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2298:4-2306:5
     Visibility: public -/
 def arena.store.LsStore.derived
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -7288,7 +7337,7 @@ def arena.store.LsStore.derived
     else arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::lsder]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3065:4-3067:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3093:4-3095:5
     Visibility: public -/
 def arena.store.EStore.lsder
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7298,7 +7347,7 @@ def arena.store.EStore.lsder
   arena.store.LsStore.derived self.lss pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_const]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3446:4-3451:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3474:4-3479:5
     Visibility: public -/
 def arena.store.EStore.der_of_const
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7313,7 +7362,7 @@ def arena.store.EStore.der_of_const
   kernel.expr.pack_data h 0#u64 0#u64 dus.has_param
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_const]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3823:4-3870:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3851:4-3898:5
     Visibility: public -/
 def arena.store.EStore.intern_const
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7466,14 +7515,14 @@ def arena.store.EStore.intern_const
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::ls]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3041:4-3043:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3069:4-3071:5
     Visibility: public -/
 def arena.store.EStore.ls
   (self : arena.store.EStore) : Result arena.store.LStore := do
   ok self.lss.ls
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::lder]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3059:4-3061:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3087:4-3089:5
     Visibility: public -/
 def arena.store.EStore.lder
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7484,7 +7533,7 @@ def arena.store.EStore.lder
   arena.store.LStore.derived l pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_sort]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3435:4-3439:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3463:4-3467:5
     Visibility: public -/
 def arena.store.EStore.der_of_sort
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7497,7 +7546,7 @@ def arena.store.EStore.der_of_sort
   kernel.expr.pack_data h 0#u64 0#u64 du.has_param
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_sort]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3757:4-3812:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3785:4-3840:5
     Visibility: public -/
 def arena.store.EStore.intern_sort
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -7648,7 +7697,7 @@ def arena.store.EStore.intern_sort
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_fvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3421:4-3428:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3449:4-3456:5
     Visibility: public -/
 def arena.store.EStore.der_of_fvar
   (self : arena.store.EStore) (pers : arena.store.PersTier) (idx : Std.U64)
@@ -7666,7 +7715,7 @@ def arena.store.EStore.der_of_fvar
   kernel.expr.pack_data h 0#u64 i4 b
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_fvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3691:4-3746:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3719:4-3774:5
     Visibility: public -/
 def arena.store.EStore.intern_fvar
   (self : arena.store.EStore) (pers : arena.store.PersTier) (idx : Std.U64)
@@ -7817,7 +7866,7 @@ def arena.store.EStore.intern_fvar
   | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_bvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3411:4-3414:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3439:4-3442:5
     Visibility: public -/
 def arena.store.EStore.der_of_bvar
   (self : arena.store.EStore) (i : Std.U64) : Result Std.U64 := do
@@ -7828,7 +7877,7 @@ def arena.store.EStore.der_of_bvar
   kernel.expr.pack_data h i3 0#u64 false
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_bvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3641:4-3680:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3669:4-3708:5
     Visibility: public -/
 def arena.store.EStore.intern_bvar
   (self : arena.store.EStore) (pers : arena.store.PersTier) (i : Std.U64) :
@@ -7962,7 +8011,7 @@ def arena.store.EStore.intern_bvar
   | some hp => ok (core.result.Result.Ok hp, self1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3617:4-3630:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3645:4-3658:5
     Visibility: public -/
 def arena.store.EStore.intern
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -9430,14 +9479,14 @@ def kernel.env.reducibility_hint_beq
 def arena.core.CORE_WALK_FUEL : Std.U64 := 4000000000#u64
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::NIdx}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 378:4-380:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 445:4-447:5
     Visibility: public -/
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.handle.NIdx) (other : arena.handle.NIdx) : Result Bool := do
   ok (self.word = other.word)
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::EIdx}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 370:4-372:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 437:4-439:5
     Visibility: public -/
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.handle.EIdx) (other : arena.handle.EIdx) : Result Bool := do
@@ -9500,7 +9549,7 @@ def arena.canon.eidx_vec_beq
 partial_fixpoint
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::LIdx}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 386:4-388:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 453:4-455:5
     Visibility: public -/
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.handle.LIdx) (other : arena.handle.LIdx) : Result Bool := do
@@ -9605,7 +9654,7 @@ def arena.canon.i_rec_rule_eq_but_rhs
   else ok false
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::node]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 218:4-224:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 219:4-225:5
     Visibility: public -/
 def arena.store.Tbl.node
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -9625,7 +9674,7 @@ def arena.store.Tbl.node
     ok (some t)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_bind]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2621:4-2633:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2649:4-2661:5
     Visibility: public -/
 def arena.store.ETables.get_bind
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -9667,7 +9716,7 @@ def arena.store.ETables.get_bind
       ok (some (e, e1))
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_bind]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3210:4-3216:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3238:4-3244:5 -/
 def arena.store.EStore.pers_get_bind
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -9678,7 +9727,7 @@ def arena.store.EStore.pers_get_bind
   else arena.store.ETables.get_bind self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_bind]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3337:4-3345:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3365:4-3373:5
     Visibility: public -/
 def arena.store.EStore.view_bind
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -9694,15 +9743,21 @@ def arena.store.EStore.view_bind
     else ok none
 
 /-- [con_ron_core::arena::handle::e_tag_is_bind]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 501:0-503:1
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 568:0-570:1
     Visibility: public -/
 def arena.handle.e_tag_is_bind (t : Std.U32) : Result Bool := do
   if t = arena.handle.ETAG_LAM
   then ok true
   else ok (t = arena.handle.ETAG_FORALL_E)
 
+/-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::is_wide]:
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 255:4-257:5
+    Visibility: public -/
+def arena.handle.EIdx.is_wide (self : arena.handle.EIdx) : Result Bool := do
+  arena.handle.word_is_wide self.word
+
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2458:4-2504:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2477:4-2527:5
     Visibility: public -/
 def arena.store.ETables.get
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -9780,23 +9835,27 @@ def arena.store.ETables.get
         else
           if i1 = arena.handle.ETAG_APP
           then
-            let i2 ← arena.handle.EIdx.idx_nat i
-            let o ←
-              arena.store.Tbl.node
-                arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
-                arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
-                arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
-                arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
-                U64.Insts.Con_ron_coreRonHashmapDup
-                U64.Insts.Con_ron_coreArenaStoreDerDefault self.apps i2
-            match o with
-            | none => ok none
-            | some r =>
-              let e ←
-                arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.f
-              let e1 ←
-                arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.a
-              ok (some (arena.store.ENodeView.App e e1))
+            let b ← arena.handle.EIdx.is_wide i
+            if b
+            then
+              let i2 ← arena.handle.EIdx.idx_nat i
+              let o ←
+                arena.store.Tbl.node
+                  arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
+                  arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
+                  arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
+                  arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
+                  U64.Insts.Con_ron_coreRonHashmapDup
+                  U64.Insts.Con_ron_coreArenaStoreDerDefault self.apps i2
+              match o with
+              | none => ok none
+              | some r =>
+                let e ←
+                  arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.f
+                let e1 ←
+                  arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.a
+                ok (some (arena.store.ENodeView.App e e1))
+            else ok none
           else
             let b ← arena.handle.e_tag_is_bind i1
             if b
@@ -9868,7 +9927,7 @@ def arena.store.ETables.get
                   else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2972:4-2978:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3000:4-3006:5 -/
 def arena.store.EStore.pers_get
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -9879,7 +9938,7 @@ def arena.store.EStore.pers_get
   else arena.store.ETables.get self.pers i
 
 /-- [con_ron_core::arena::store::e_bind_view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2854:0-2860:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2882:0-2888:1
     Visibility: public -/
 def arena.store.e_bind_view
   (tag : Std.U32) (ty : arena.handle.EIdx) (body : arena.handle.EIdx) :
@@ -9890,7 +9949,7 @@ def arena.store.e_bind_view
   else ok (arena.store.ENodeView.ForallE ty body)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3073:4-3086:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3101:4-3114:5
     Visibility: public -/
 def arena.store.EStore.view
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -9956,14 +10015,14 @@ def arena.monad.view
   | some v => ok (core.result.Result.Ok v)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::ls_s]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3035:4-3037:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3063:4-3065:5
     Visibility: public -/
 def arena.store.EStore.ls_s
   (self : arena.store.EStore) : Result arena.store.LsStore := do
   ok self.lss
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2086:4-2095:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2102:4-2111:5
     Visibility: public -/
 def arena.store.LsTables.get
   (self : arena.store.LsTables) (i : arena.handle.LsIdx) :
@@ -9988,7 +10047,7 @@ def arena.store.LsTables.get
   else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2166:4-2172:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2182:4-2188:5 -/
 def arena.store.LsStore.pers_get
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
   (i : arena.handle.LsIdx) :
@@ -9999,7 +10058,7 @@ def arena.store.LsStore.pers_get
   else arena.store.LsTables.get self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2244:4-2252:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2260:4-2268:5
     Visibility: public -/
 def arena.store.LsStore.view
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -10043,8 +10102,14 @@ def arena.monad.view_ls
       (kernel.core_types.CheckError.Internal v)
   | some v => ok (core.result.Result.Ok v)
 
+/-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::is_wide]:
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 339:4-341:5
+    Visibility: public -/
+def arena.handle.LIdx.is_wide (self : arena.handle.LIdx) : Result Bool := do
+  arena.handle.word_is_wide self.word
+
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1723:4-1752:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1735:4-1768:5
     Visibility: public -/
 def arena.store.LTables.get
   (self : arena.store.LTables) (i : arena.handle.LIdx) :
@@ -10125,26 +10190,30 @@ def arena.store.LTables.get
         else
           if i1 = arena.handle.LTAG_PARAM
           then
-            let i2 ← arena.handle.LIdx.idx_nat i
-            let o ←
-              arena.store.Tbl.node
-                arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable
-                arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2
-                arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup
-                arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup
-                arena.store.LDer.Insts.Con_ron_coreRonHashmapDup
-                arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault
-                self.params i2
-            match o with
-            | none => ok none
-            | some r =>
-              let n ←
-                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.n
-              ok (some (arena.store.LNodeView.Param n))
+            let b ← arena.handle.LIdx.is_wide i
+            if b
+            then ok none
+            else
+              let i2 ← arena.handle.LIdx.idx_nat i
+              let o ←
+                arena.store.Tbl.node
+                  arena.store.ParamNode.Insts.Con_ron_coreRonHashmapHashable
+                  arena.store.ParamNode.Insts.Con_ron_coreRonHashmapEq2
+                  arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup
+                  arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup
+                  arena.store.LDer.Insts.Con_ron_coreRonHashmapDup
+                  arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault
+                  self.params i2
+              match o with
+              | none => ok none
+              | some r =>
+                let n ←
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.n
+                ok (some (arena.store.LNodeView.Param n))
           else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::pers_get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1848:4-1854:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1864:4-1870:5 -/
 def arena.store.LStore.pers_get
   (self : arena.store.LStore) (pers : arena.store.PersTier)
   (i : arena.handle.LIdx) :
@@ -10155,7 +10224,7 @@ def arena.store.LStore.pers_get
   else arena.store.LTables.get self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1920:4-1928:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1936:4-1944:5
     Visibility: public -/
 def arena.store.LStore.view
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -12264,7 +12333,7 @@ def arena.monad.level_list_dup
     kernel.level.Level)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1714:4-1720:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1723:4-1729:5
     Visibility: public -/
 def arena.store.LTables.count
   (self : arena.store.LTables) : Result Std.Usize := do
@@ -12314,14 +12383,14 @@ def arena.store.LTables.count
   i6 + i7
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::scr_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1910:4-1912:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1926:4-1928:5
     Visibility: public -/
 def arena.store.LStore.scr_count
   (self : arena.store.LStore) : Result Std.Usize := do
   arena.store.LTables.count self.scr
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::pers_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1901:4-1907:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1917:4-1923:5
     Visibility: public -/
 def arena.store.LStore.pers_count
   (self : arena.store.LStore) (pers : arena.store.PersTier) :
@@ -12332,7 +12401,7 @@ def arena.store.LStore.pers_count
   else arena.store.LTables.count self.pers
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::node_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1915:4-1917:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1931:4-1933:5
     Visibility: public -/
 def arena.store.LStore.node_count
   (self : arena.store.LStore) (pers : arena.store.PersTier) :
@@ -12373,7 +12442,7 @@ def kernel.level.max
   ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1292:4-1294:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1301:4-1303:5
     Visibility: public -/
 def arena.store.NTables.count
   (self : arena.store.NTables) : Result Std.Usize := do
@@ -12405,14 +12474,14 @@ def arena.store.NTables.count
   i2 + i3
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::scr_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1477:4-1479:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1486:4-1488:5
     Visibility: public -/
 def arena.store.NStore.scr_count
   (self : arena.store.NStore) : Result Std.Usize := do
   arena.store.NTables.count self.scr
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1468:4-1474:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1477:4-1483:5
     Visibility: public -/
 def arena.store.NStore.pers_count
   (self : arena.store.NStore) (pers : arena.store.PersTier) :
@@ -12423,7 +12492,7 @@ def arena.store.NStore.pers_count
   else arena.store.NTables.count self.pers
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::node_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1483:4-1485:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1492:4-1494:5
     Visibility: public -/
 def arena.store.NStore.node_count
   (self : arena.store.NStore) (pers : arena.store.PersTier) :
@@ -12447,7 +12516,7 @@ def kernel.name.mk_num
   ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1299:4-1318:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1308:4-1327:5
     Visibility: public -/
 def arena.store.NTables.get
   (self : arena.store.NTables) (i : arena.handle.NIdx) :
@@ -12507,7 +12576,7 @@ def arena.store.NTables.get
       else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::pers_get]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1399:4-1405:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1408:4-1414:5 -/
 def arena.store.NStore.pers_get
   (self : arena.store.NStore) (pers : arena.store.PersTier)
   (i : arena.handle.NIdx) :
@@ -12518,7 +12587,7 @@ def arena.store.NStore.pers_get
   else arena.store.NTables.get self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1490:4-1498:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1499:4-1507:5
     Visibility: public -/
 def arena.store.NStore.view
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -12698,14 +12767,14 @@ def arena.monad.denote_ls
   | some us => arena.monad.denote_l_list pers st.ls us
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::LsIdx}::eq2]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 394:4-396:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 461:4-463:5
     Visibility: public -/
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : arena.handle.LsIdx) (other : arena.handle.LsIdx) : Result Bool := do
   ok (self.word = other.word)
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::LsIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 392:0-397:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 459:0-464:1 -/
 @[reducible]
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.handle.LsIdx := {
@@ -12713,14 +12782,14 @@ def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::LsIdx}::hash64]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 359:4-361:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 426:4-428:5
     Visibility: public -/
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : arena.handle.LsIdx) : Result Std.U64 := do
   ok (UScalar.cast .U64 self.word)
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::LsIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 357:0-362:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 424:0-429:1 -/
 @[reducible]
 def arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.handle.LsIdx := {
@@ -12778,7 +12847,7 @@ def arena.monad.M_DANGLING_N : Array Std.U32 27#usize :=
     ]
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::NIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 376:0-381:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 443:0-448:1 -/
 @[reducible]
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.handle.NIdx := {
@@ -12786,7 +12855,7 @@ def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::NIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 341:0-346:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 408:0-413:1 -/
 @[reducible]
 def arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.handle.NIdx := {
@@ -12919,7 +12988,7 @@ def arena.monad.view_bind
   arena.store.EStore.view_bind st.store pers h
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_bvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2567:4-2572:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2595:4-2600:5
     Visibility: public -/
 def arena.store.ETables.get_bvar
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -12939,7 +13008,7 @@ def arena.store.ETables.get_bvar
   | some r => ok (some r.i)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_bvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3199:4-3205:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3227:4-3233:5 -/
 def arena.store.EStore.pers_get_bvar
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -12950,7 +13019,7 @@ def arena.store.EStore.pers_get_bvar
   else arena.store.ETables.get_bvar self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_bvar]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3321:4-3329:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3349:4-3357:5
     Visibility: public -/
 def arena.store.EStore.view_bvar
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -13025,7 +13094,7 @@ def arena.prop_read.lam_proj
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_const_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2556:4-2561:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2584:4-2589:5
     Visibility: public -/
 def arena.store.ETables.get_const_name
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -13047,7 +13116,7 @@ def arena.store.ETables.get_const_name
     ok (some n)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_const_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3173:4-3179:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3201:4-3207:5 -/
 def arena.store.EStore.pers_get_const_name
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -13058,7 +13127,7 @@ def arena.store.EStore.pers_get_const_name
   else arena.store.ETables.get_const_name self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_const_name]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3185:4-3193:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3213:4-3221:5
     Visibility: public -/
 def arena.store.EStore.view_const_name
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -13084,30 +13153,34 @@ def arena.monad.view_const_name
   arena.store.EStore.view_const_name st.store pers h
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_app]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2518:4-2523:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2542:4-2551:5
     Visibility: public -/
 def arena.store.ETables.get_app
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
   Result (Option (arena.handle.EIdx × arena.handle.EIdx))
   := do
-  let i1 ← arena.handle.EIdx.idx_nat i
-  let o ←
-    arena.store.Tbl.node
-      arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
-      arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
-      arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
-      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
-      U64.Insts.Con_ron_coreRonHashmapDup
-      U64.Insts.Con_ron_coreArenaStoreDerDefault self.apps i1
-  match o with
-  | none => ok none
-  | some r =>
-    let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.f
-    let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.a
-    ok (some (e, e1))
+  let b ← arena.handle.EIdx.is_wide i
+  if b
+  then
+    let i1 ← arena.handle.EIdx.idx_nat i
+    let o ←
+      arena.store.Tbl.node
+        arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
+        arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
+        arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
+        arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
+        U64.Insts.Con_ron_coreRonHashmapDup
+        U64.Insts.Con_ron_coreArenaStoreDerDefault self.apps i1
+    match o with
+    | none => ok none
+    | some r =>
+      let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.f
+      let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 r.a
+      ok (some (e, e1))
+  else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_app]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3092:4-3098:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3120:4-3126:5 -/
 def arena.store.EStore.pers_get_app
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -13118,7 +13191,7 @@ def arena.store.EStore.pers_get_app
   else arena.store.ETables.get_app self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_app]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3107:4-3115:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3135:4-3143:5
     Visibility: public -/
 def arena.store.EStore.view_app
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -13456,7 +13529,7 @@ def arena.monad.read_level
   | some l1 => ok (core.result.Result.Ok l1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_sort]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2531:4-2536:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2559:4-2564:5
     Visibility: public -/
 def arena.store.ETables.get_sort
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -13478,7 +13551,7 @@ def arena.store.ETables.get_sort
     ok (some l)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_sort]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3121:4-3127:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3149:4-3155:5 -/
 def arena.store.EStore.pers_get_sort
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -13489,7 +13562,7 @@ def arena.store.EStore.pers_get_sort
   else arena.store.ETables.get_sort self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_sort]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3133:4-3141:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3161:4-3169:5
     Visibility: public -/
 def arena.store.EStore.view_sort
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -13566,7 +13639,7 @@ def arena.prop_read.binder_dom
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::get_len]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2105:4-2114:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2121:4-2130:5
     Visibility: public -/
 def arena.store.LsTables.get_len
   (self : arena.store.LsTables) (i : arena.handle.LsIdx) :
@@ -13591,7 +13664,7 @@ def arena.store.LsTables.get_len
   else ok none
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_get_len]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2256:4-2262:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2272:4-2278:5 -/
 def arena.store.LsStore.pers_get_len
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
   (i : arena.handle.LsIdx) :
@@ -13602,7 +13675,7 @@ def arena.store.LsStore.pers_get_len
   else arena.store.LsTables.get_len self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::view_len]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2269:4-2277:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2285:4-2293:5
     Visibility: public -/
 def arena.store.LsStore.view_len
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -13860,13 +13933,13 @@ def arena.env.ifenv_find_table
   else ok none
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::of_word]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 262:4-264:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 324:4-326:5
     Visibility: public -/
 def arena.handle.LIdx.of_word (w : Std.U32) : Result arena.handle.LIdx := do
   ok { word := w }
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::of_word]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 183:4-185:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 240:4-242:5
     Visibility: public -/
 def arena.handle.EIdx.of_word (w : Std.U32) : Result arena.handle.EIdx := do
   ok { word := w }
@@ -14012,7 +14085,7 @@ def arena.prop_read.head_proof_pw
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_let]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2639:4-2644:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2667:4-2672:5
     Visibility: public -/
 def arena.store.ETables.get_let
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -14036,7 +14109,7 @@ def arena.store.ETables.get_let
     ok (some (e, e1, e2))
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_let]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3221:4-3227:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3249:4-3255:5 -/
 def arena.store.EStore.pers_get_let
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -14047,7 +14120,7 @@ def arena.store.EStore.pers_get_let
   else arena.store.ETables.get_let self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_let]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3351:4-3359:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3379:4-3387:5
     Visibility: public -/
 def arena.store.EStore.view_let
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -14302,7 +14375,7 @@ def arena.monad.intern_e_bvar
   ok (r, { st with store := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_lit]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2608:4-2613:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2636:4-2641:5
     Visibility: public -/
 def arena.store.ETables.get_lit
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -14323,7 +14396,7 @@ def arena.store.ETables.get_lit
               ok (some l)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_lit]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3295:4-3301:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3323:4-3329:5 -/
 def arena.store.EStore.pers_get_lit
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -14334,7 +14407,7 @@ def arena.store.EStore.pers_get_lit
   else arena.store.ETables.get_lit self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_lit]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3307:4-3315:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3335:4-3343:5
     Visibility: public -/
 def arena.store.EStore.view_lit
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -14360,7 +14433,7 @@ def arena.monad.view_lit
   arena.store.EStore.view_lit st.store pers h
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_const]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2542:4-2547:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2570:4-2575:5
     Visibility: public -/
 def arena.store.ETables.get_const
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -14383,7 +14456,7 @@ def arena.store.ETables.get_const
     ok (some (n, li))
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_const]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3147:4-3153:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3175:4-3181:5 -/
 def arena.store.EStore.pers_get_const
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -14394,7 +14467,7 @@ def arena.store.EStore.pers_get_const
   else arena.store.ETables.get_const self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_const]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3159:4-3167:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3187:4-3195:5
     Visibility: public -/
 def arena.store.EStore.view_const
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -14606,7 +14679,7 @@ def arena.monad.abs1_get
     ok (some e)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_proj]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2650:4-2655:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2678:4-2683:5
     Visibility: public -/
 def arena.store.ETables.get_proj
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -14629,7 +14702,7 @@ def arena.store.ETables.get_proj
     ok (some (n, r.i, e))
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_proj]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3232:4-3238:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3260:4-3266:5 -/
 def arena.store.EStore.pers_get_proj
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -14640,7 +14713,7 @@ def arena.store.EStore.pers_get_proj
   else arena.store.ETables.get_proj self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_proj]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3365:4-3373:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3393:4-3401:5
     Visibility: public -/
 def arena.store.EStore.view_proj
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -14666,7 +14739,7 @@ def arena.monad.view_proj
   arena.store.EStore.view_proj st.store pers h
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_fvar_idx]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2581:4-2586:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2609:4-2614:5
     Visibility: public -/
 def arena.store.ETables.get_fvar_idx
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -14686,7 +14759,7 @@ def arena.store.ETables.get_fvar_idx
   | some r => ok (some r.idx)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_fvar_idx]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3243:4-3249:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3271:4-3277:5 -/
 def arena.store.EStore.pers_get_fvar_idx
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -14697,7 +14770,7 @@ def arena.store.EStore.pers_get_fvar_idx
   else arena.store.ETables.get_fvar_idx self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_fvar_idx]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3255:4-3263:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3283:4-3291:5
     Visibility: public -/
 def arena.store.EStore.view_fvar_idx
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -14755,7 +14828,7 @@ def arena.monad.fvar_b_clear
   ok { st with memos := { st.memos with fvar_b_c := hm } }
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::EIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 368:0-373:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 435:0-440:1 -/
 @[reducible]
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.handle.EIdx := {
@@ -14763,7 +14836,7 @@ def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::EIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 333:0-338:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 400:0-405:1 -/
 @[reducible]
 def arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.handle.EIdx := {
@@ -17880,7 +17953,7 @@ def kernel.level.is_equiv
                    else ok o
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::arena::handle::LIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 384:0-389:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 451:0-456:1 -/
 @[reducible]
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   arena.handle.LIdx := {
@@ -17888,7 +17961,7 @@ def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- Trait implementation: [con_ron_core::arena::handle::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::arena::handle::LIdx}]
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 349:0-354:1 -/
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 416:0-421:1 -/
 @[reducible]
 def arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable arena.handle.LIdx := {
@@ -35995,7 +36068,7 @@ def arena.inductives.block_parts.rec_names
 partial_fixpoint
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::of_word]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 223:4-225:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 285:4-287:5
     Visibility: public -/
 def arena.handle.NIdx.of_word (w : Std.U32) : Result arena.handle.NIdx := do
   ok { word := w }
@@ -37683,7 +37756,7 @@ def arena.inductives.gen_rec.slot_var
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::get_fvar_ty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2594:4-2599:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2622:4-2627:5
     Visibility: public -/
 def arena.store.ETables.get_fvar_ty
   (self : arena.store.ETables) (i : arena.handle.EIdx) :
@@ -37705,7 +37778,7 @@ def arena.store.ETables.get_fvar_ty
     ok (some e)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_get_fvar_ty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3269:4-3275:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3297:4-3303:5 -/
 def arena.store.EStore.pers_get_fvar_ty
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (i : arena.handle.EIdx) :
@@ -37716,7 +37789,7 @@ def arena.store.EStore.pers_get_fvar_ty
   else arena.store.ETables.get_fvar_ty self.pers i
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::view_fvar_ty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3281:4-3289:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3309:4-3317:5
     Visibility: public -/
 def arena.store.EStore.view_fvar_ty
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -60650,7 +60723,7 @@ def arena.promote.M_FUEL_PROMOTE_N : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::PersTier}::intern_n]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4324:4-4336:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4352:4-4364:5
     Visibility: public -/
 def arena.store.PersTier.intern_n
   (self : arena.store.PersTier) (ns : arena.store.NStore)
@@ -60803,7 +60876,7 @@ def arena.promote.M_FUEL_PROMOTE_L : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::PersTier}::intern_l]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4340:4-4352:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4368:4-4380:5
     Visibility: public -/
 def arena.store.PersTier.intern_l
   (self : arena.store.PersTier) (ls : arena.store.LStore)
@@ -61015,7 +61088,7 @@ def arena.promote.promote_l_list
     (alloc.vec.Vec.new arena.handle.LIdx)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::PersTier}::intern_ls]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4356:4-4368:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4384:4-4396:5
     Visibility: public -/
 def arena.store.PersTier.intern_ls
   (self : arena.store.PersTier) (lss : arena.store.LsStore)
@@ -61097,7 +61170,7 @@ def arena.promote.M_FUEL_PROMOTE_E : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_view]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3548:4-3561:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3576:4-3589:5
     Visibility: public -/
 def arena.store.EStore.der_of_view
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -61124,7 +61197,7 @@ def arena.store.EStore.der_of_view
     arena.store.EStore.der_of_proj self pers s i e
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::push]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2741:4-2794:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2769:4-2822:5
     Visibility: public -/
 def arena.store.ETables.push
   (self : arena.store.ETables) (v : arena.store.ENodeView) (d : Std.U64)
@@ -61226,7 +61299,7 @@ def arena.store.ETables.push
         U64.Insts.Con_ron_coreRonHashmapDup
         U64.Insts.Con_ron_coreArenaStoreDerDefault self.apps
     let i1 ← lift (UScalar.cast .U32 i)
-    let h ← arena.handle.EIdx.pack arena.handle.ETAG_APP tier i1
+    let h ← arena.handle.EIdx.pack_wide tier i1
     let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
     let t ←
       arena.store.Tbl.push
@@ -61347,7 +61420,7 @@ def arena.store.ETables.push
     ok (h, { self with projs := t })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::full_of]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2725:4-2738:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2753:4-2766:5
     Visibility: public -/
 def arena.store.ETables.full_of
   (self : arena.store.ETables) (v : arena.store.ENodeView) : Result Bool := do
@@ -61385,7 +61458,7 @@ def arena.store.ETables.full_of
       U64.Insts.Con_ron_coreRonHashmapDup
       U64.Insts.Con_ron_coreArenaStoreDerDefault self.consts
   | arena.store.ENodeView.App _ _ =>
-    arena.store.Tbl.full
+    arena.store.Tbl.full_wide
       arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
       arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
       arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup
@@ -61434,7 +61507,7 @@ def arena.store.ETables.full_of
       U64.Insts.Con_ron_coreArenaStoreDerDefault self.projs
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2695:4-2720:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2723:4-2748:5
     Visibility: public -/
 def arena.store.ETables.find
   (self : arena.store.ETables) (v : arena.store.ENodeView) :
@@ -61544,7 +61617,7 @@ def arena.store.ETables.find
       { n := n1, i, e := e1 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::PersTier}::intern_e]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4373:4-4385:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4401:4-4413:5
     Visibility: public -/
 def arena.store.PersTier.intern_e
   (self : arena.store.PersTier) (ar : arena.store.EStore)
@@ -62346,7 +62419,7 @@ def arena.promote.PMemo.empty : Result arena.promote.PMemo := do
   ok { e_m := hm, n_m := hm1, l_m := hm2, ls_m := hm3 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::reset]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 328:4-331:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 337:4-340:5
     Visibility: public -/
 def arena.store.Tbl.reset
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -62360,7 +62433,7 @@ def arena.store.Tbl.reset
   ok { rows := (alloc.vec.Vec.new (A × D)), cons := hm }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::reset]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2425:4-2436:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2441:4-2452:5
     Visibility: public -/
 def arena.store.ETables.reset
   (self : arena.store.ETables) : Result arena.store.ETables := do
@@ -62459,7 +62532,7 @@ def arena.store.ETables.reset
     }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::Tbl<A, I, D>}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 204:4-206:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 205:4-207:5
     Visibility: public -/
 def arena.store.Tbl.empty
   {A : Type} {I : Type} {D : Type} (ronhashmapHashableInst :
@@ -62473,7 +62546,7 @@ def arena.store.Tbl.empty
   ok { rows := (alloc.vec.Vec.new (A × D)), cons := hm }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2407:4-2420:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2423:4-2436:5
     Visibility: public -/
 def arena.store.ETables.empty : Result arena.store.ETables := do
   let t ←
@@ -62563,7 +62636,7 @@ def arena.store.ETables.empty : Result arena.store.ETables := do
     }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::reset]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2075:4-2078:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2091:4-2094:5
     Visibility: public -/
 def arena.store.LsTables.reset
   (self : arena.store.LsTables) : Result arena.store.LsTables := do
@@ -62578,7 +62651,7 @@ def arena.store.LsTables.reset
   ok { lists := t }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2068:4-2070:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2084:4-2086:5
     Visibility: public -/
 def arena.store.LsTables.empty : Result arena.store.LsTables := do
   let t ←
@@ -62592,7 +62665,7 @@ def arena.store.LsTables.empty : Result arena.store.LsTables := do
   ok { lists := t }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::freeze]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2363:4-2368:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2379:4-2384:5
     Visibility: public -/
 def arena.store.LsStore.freeze
   (self : arena.store.LsStore) :
@@ -62604,7 +62677,7 @@ def arena.store.LsStore.freeze
   ok (t, { self with pers := lt1, scr := lt2, scratch_on := true })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::reset]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1705:4-1711:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1714:4-1720:5
     Visibility: public -/
 def arena.store.LTables.reset
   (self : arena.store.LTables) : Result arena.store.LTables := do
@@ -62651,7 +62724,7 @@ def arena.store.LTables.reset
   ok { zeros := t, succs := t1, maxs := t2, imaxs := t3, params := t4 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LTables}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1692:4-1700:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1701:4-1709:5
     Visibility: public -/
 def arena.store.LTables.empty : Result arena.store.LTables := do
   let t ←
@@ -62689,7 +62762,7 @@ def arena.store.LTables.empty : Result arena.store.LTables := do
   ok { zeros := t, succs := t1, maxs := t2, imaxs := t2, params := t3 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::freeze]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2026:4-2031:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2042:4-2047:5
     Visibility: public -/
 def arena.store.LStore.freeze
   (self : arena.store.LStore) :
@@ -62701,7 +62774,7 @@ def arena.store.LStore.freeze
   ok (t, { self with pers := l1, scr := l2, scratch_on := true })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::reset]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1284:4-1288:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1293:4-1297:5
     Visibility: public -/
 def arena.store.NTables.reset
   (self : arena.store.NTables) : Result arena.store.NTables := do
@@ -62732,7 +62805,7 @@ def arena.store.NTables.reset
   ok { anons := t, strs := t1, nums := t2 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NTables}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1277:4-1279:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1286:4-1288:5
     Visibility: public -/
 def arena.store.NTables.empty : Result arena.store.NTables := do
   let t ←
@@ -62762,7 +62835,7 @@ def arena.store.NTables.empty : Result arena.store.NTables := do
   ok { anons := t, strs := t1, nums := t2 }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::freeze]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1657:4-1662:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1666:4-1671:5
     Visibility: public -/
 def arena.store.NStore.freeze
   (self : arena.store.NStore) :
@@ -62774,7 +62847,7 @@ def arena.store.NStore.freeze
   ok (t, { pers := n1, scr := n2, scratch_on := true })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::freeze]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4227:4-4235:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4255:4-4263:5
     Visibility: public -/
 def arena.store.EStore.freeze
   (self : arena.store.EStore) :
@@ -62832,7 +62905,7 @@ def arena.core.enter_scratch
   ok (pt, { st with store := e, memos := m })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::thaw]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2375:4-2379:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2391:4-2395:5
     Visibility: public -/
 def arena.store.LsStore.thaw
   (self : arena.store.LsStore) (t : arena.store.LsTables) :
@@ -62842,7 +62915,7 @@ def arena.store.LsStore.thaw
   ok { self with pers := t, scr := lt, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::thaw]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2038:4-2042:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2054:4-2058:5
     Visibility: public -/
 def arena.store.LStore.thaw
   (self : arena.store.LStore) (t : arena.store.LTables) :
@@ -62852,7 +62925,7 @@ def arena.store.LStore.thaw
   ok { self with pers := t, scr := l, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::thaw]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1669:4-1673:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1678:4-1682:5
     Visibility: public -/
 def arena.store.NStore.thaw
   (self : arena.store.NStore) (t : arena.store.NTables) :
@@ -62862,7 +62935,7 @@ def arena.store.NStore.thaw
   ok { pers := t, scr := n, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::thaw]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4243:4-4250:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4271:4-4278:5
     Visibility: public -/
 def arena.store.EStore.thaw
   (self : arena.store.EStore) (tier : arena.store.PersTier) :
@@ -63052,7 +63125,7 @@ def arena.checker.install_fold
 partial_fixpoint
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::clear_scratch]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2385:4-2387:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2401:4-2403:5
     Visibility: public -/
 def arena.store.LsStore.clear_scratch
   (self : arena.store.LsStore) : Result arena.store.LsStore := do
@@ -63060,7 +63133,7 @@ def arena.store.LsStore.clear_scratch
   ok { self with scr := lt }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::clear_scratch]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2048:4-2050:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2064:4-2066:5
     Visibility: public -/
 def arena.store.LStore.clear_scratch
   (self : arena.store.LStore) : Result arena.store.LStore := do
@@ -63068,7 +63141,7 @@ def arena.store.LStore.clear_scratch
   ok { self with scr := l }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::clear_scratch]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1679:4-1681:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1688:4-1690:5
     Visibility: public -/
 def arena.store.NStore.clear_scratch
   (self : arena.store.NStore) : Result arena.store.NStore := do
@@ -63076,7 +63149,7 @@ def arena.store.NStore.clear_scratch
   ok { self with scr := n }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::clear_scratch]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4257:4-4262:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 4285:4-4290:5
     Visibility: public -/
 def arena.store.EStore.clear_scratch
   (self : arena.store.EStore) : Result arena.store.EStore := do
@@ -63458,14 +63531,14 @@ def arena.checker.pins_dup (p : arena.pins.Pins) : Result arena.pins.Pins := do
     }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1383:4-1389:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1392:4-1398:5
     Visibility: public -/
 def arena.store.NStore.empty : Result arena.store.NStore := do
   let n ← arena.store.NTables.empty
   ok { pers := n, scr := n, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1830:4-1837:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1846:4-1853:5
     Visibility: public -/
 def arena.store.LStore.empty : Result arena.store.LStore := do
   let n ← arena.store.NStore.empty
@@ -63473,7 +63546,7 @@ def arena.store.LStore.empty : Result arena.store.LStore := do
   ok { ns := n, pers := l, scr := l, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2148:4-2155:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2164:4-2171:5
     Visibility: public -/
 def arena.store.LsStore.empty : Result arena.store.LsStore := do
   let l ← arena.store.LStore.empty
@@ -63481,7 +63554,7 @@ def arena.store.LsStore.empty : Result arena.store.LsStore := do
   ok { ls := l, pers := lt, scr := lt, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2940:4-2947:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2968:4-2975:5
     Visibility: public -/
 def arena.store.EStore.empty : Result arena.store.EStore := do
   let ls ← arena.store.LsStore.empty
@@ -63489,7 +63562,7 @@ def arena.store.EStore.empty : Result arena.store.EStore := do
   ok { lss := ls, pers := e, scr := e, scratch_on := false }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::empty_frozen]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2956:4-2960:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2984:4-2988:5
     Visibility: public -/
 def arena.store.EStore.empty_frozen : Result arena.store.EStore := do
   let ar ← arena.store.EStore.empty
@@ -63497,7 +63570,7 @@ def arena.store.EStore.empty_frozen : Result arena.store.EStore := do
   ok ar1
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::of_word]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 301:4-303:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 368:4-370:5
     Visibility: public -/
 def arena.handle.LsIdx.of_word (w : Std.U32) : Result arena.handle.LsIdx := do
   ok { word := w }
@@ -64449,25 +64522,25 @@ def arena.env.read_level
   arena.env.read_level_at pers ar i2 h
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::EIdx}::tier]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 193:4-195:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 250:4-252:5
     Visibility: public -/
 def arena.handle.EIdx.tier (self : arena.handle.EIdx) : Result Std.U32 := do
   arena.handle.word_tier self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::NIdx}::tier]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 233:4-235:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 295:4-297:5
     Visibility: public -/
 def arena.handle.NIdx.tier (self : arena.handle.NIdx) : Result Std.U32 := do
   arena.handle.word_tier self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::tier]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 272:4-274:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 334:4-336:5
     Visibility: public -/
 def arena.handle.LIdx.tier (self : arena.handle.LIdx) : Result Std.U32 := do
   arena.handle.word_tier self.word
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::tier]:
-    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 311:4-313:5
+    Source: 'crates/con-ron-core/src/arena/handle.rs', lines 378:4-380:5
     Visibility: public -/
 def arena.handle.LsIdx.tier (self : arena.handle.LsIdx) : Result Std.U32 := do
   arena.handle.word_tier self.word
@@ -65079,7 +65152,7 @@ def arena.pins.intern_reserved_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::PersTier}::empty]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1257:4-1265:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1266:4-1274:5
     Visibility: public -/
 def arena.store.PersTier.empty : Result arena.store.PersTier := do
   let n ← arena.store.NTables.empty
@@ -65089,7 +65162,7 @@ def arena.store.PersTier.empty : Result arena.store.PersTier := do
   ok { frozen := false, n, l, ls := lt, e }
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::NStore}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1534:4-1545:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1543:4-1554:5
     Visibility: public -/
 def arena.store.NStore.find
   (self : arena.store.NStore) (pers : arena.store.PersTier)
@@ -65105,7 +65178,7 @@ def arena.store.NStore.find
   | some _ => ok o
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LStore}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1980:4-1991:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1996:4-2007:5
     Visibility: public -/
 def arena.store.LStore.find
   (self : arena.store.LStore) (pers : arena.store.PersTier)
@@ -65121,7 +65194,7 @@ def arena.store.LStore.find
   | some _ => ok o
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsTables}::count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2081:4-2083:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2097:4-2099:5
     Visibility: public -/
 def arena.store.LsTables.count
   (self : arena.store.LsTables) : Result Std.Usize := do
@@ -65134,7 +65207,7 @@ def arena.store.LsTables.count
     arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault self.lists
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::pers_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2219:4-2225:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2235:4-2241:5
     Visibility: public -/
 def arena.store.LsStore.pers_count
   (self : arena.store.LsStore) (pers : arena.store.PersTier) :
@@ -65145,14 +65218,14 @@ def arena.store.LsStore.pers_count
   else arena.store.LsTables.count self.pers
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::scr_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2228:4-2230:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2244:4-2246:5
     Visibility: public -/
 def arena.store.LsStore.scr_count
   (self : arena.store.LsStore) : Result Std.Usize := do
   arena.store.LsTables.count self.scr
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::node_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2233:4-2235:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2249:4-2251:5
     Visibility: public -/
 def arena.store.LsStore.node_count
   (self : arena.store.LsStore) (pers : arena.store.PersTier) :
@@ -65163,14 +65236,14 @@ def arena.store.LsStore.node_count
   i + i1
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::ns]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2239:4-2241:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2255:4-2257:5
     Visibility: public -/
 def arena.store.LsStore.ns
   (self : arena.store.LsStore) : Result arena.store.NStore := do
   ok self.ls.ns
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::LsStore}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2317:4-2328:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2333:4-2344:5
     Visibility: public -/
 def arena.store.LsStore.find
   (self : arena.store.LsStore) (pers : arena.store.PersTier)
@@ -65186,7 +65259,7 @@ def arena.store.LsStore.find
   | some _ => ok o
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::ETables}::count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2440:4-2451:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2456:4-2467:5
     Visibility: public -/
 def arena.store.ETables.count
   (self : arena.store.ETables) : Result Std.Usize := do
@@ -65281,7 +65354,7 @@ def arena.store.ETables.count
   i16 + i17
 
 /-- [con_ron_core::arena::store::e_view_has_scratch_child]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2882:0-2935:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 2910:0-2963:1
     Visibility: public -/
 def arena.store.e_view_has_scratch_child
   (v : arena.store.ENodeView) : Result Bool := do
@@ -65336,7 +65409,7 @@ def arena.store.e_view_has_scratch_child
     else ok true
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3005:4-3011:5 -/
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3033:4-3039:5 -/
 def arena.store.EStore.pers_find
   (self : arena.store.EStore) (pers : arena.store.PersTier)
   (v : arena.store.ENodeView) :
@@ -65347,7 +65420,7 @@ def arena.store.EStore.pers_find
   else arena.store.ETables.find self.pers v
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3015:4-3021:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3043:4-3049:5
     Visibility: public -/
 def arena.store.EStore.pers_count
   (self : arena.store.EStore) (pers : arena.store.PersTier) :
@@ -65358,14 +65431,14 @@ def arena.store.EStore.pers_count
   else arena.store.ETables.count self.pers
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::scr_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3024:4-3026:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3052:4-3054:5
     Visibility: public -/
 def arena.store.EStore.scr_count
   (self : arena.store.EStore) : Result Std.Usize := do
   arena.store.ETables.count self.scr
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::node_count]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3029:4-3031:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3057:4-3059:5
     Visibility: public -/
 def arena.store.EStore.node_count
   (self : arena.store.EStore) (pers : arena.store.PersTier) :
@@ -65376,7 +65449,7 @@ def arena.store.EStore.node_count
   i + i1
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_find_maybe]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3570:4-3580:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3598:4-3608:5
     Visibility: public -/
 def arena.store.EStore.pers_find_maybe
   (self : arena.store.EStore) (pers : arena.store.PersTier)
@@ -65392,7 +65465,7 @@ def arena.store.EStore.pers_find_maybe
   else arena.store.EStore.pers_find self pers v
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::find]:
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3584:4-3595:5
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 3612:4-3623:5
     Visibility: public -/
 def arena.store.EStore.find
   (self : arena.store.EStore) (pers : arena.store.PersTier)

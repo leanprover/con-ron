@@ -119,31 +119,34 @@
    781            | .Err _ => fail .panic) st) = ok st') :
    782      False := by
 
-== crates/con-ron-core/src/arena/handle.rs#L4-L10
-     4  //! One 32-bit word per handle:
-     5  //!
-     6  //! ```text
-     7  //! bits 31…28   ctor tag   (4 bits, high)
-     8  //! bit  27      tier       (0 = persistent, 1 = scratch)
-     9  //! bits 26…0    index      into THAT CONSTRUCTOR'S array of THAT TIER
-    10  //! ```
+== crates/con-ron-core/src/arena/handle.rs#L4-L13
+     4  //! One 32-bit word per handle, in one of two shapes.  The top bit is the tier
+     5  //! in both; bit 30 says which shape the rest is:
+     6  //!
+     7  //! ```text
+     8  //! wide   (expression `app` only)        narrow (every other node)
+     9  //! bit  31      tier                     bit  31      tier
+    10  //! bit  30      1                        bit  30      0
+    11  //! bits 29…0    index                    bits 29…26   ctor tag   (4 bits)
+    12  //!                                       bits 25…0    index
+    13  //! ```
 
-== crates/con-ron-core/src/arena/store.rs#L1170-L1184
-  1170  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
-  1171  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1172  /// cons tables.
-  1173  pub struct ETables {
-  1174      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1175      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1176      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1177      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1178      pub apps: Tbl<AppNode, EIdx, u64>,
-  1179      pub lams: Tbl<BindNode, EIdx, u64>,
-  1180      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1181      pub lets: Tbl<LetNode, EIdx, u64>,
-  1182      pub lits: Tbl<LitNode, EIdx, u64>,
-  1183      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1184  }
+== crates/con-ron-core/src/arena/store.rs#L1179-L1193
+  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:347-359 ETables
+  1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1181  /// cons tables.
+  1182  pub struct ETables {
+  1183      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1184      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1185      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1186      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1187      pub apps: Tbl<AppNode, EIdx, u64>,
+  1188      pub lams: Tbl<BindNode, EIdx, u64>,
+  1189      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1190      pub lets: Tbl<LetNode, EIdx, u64>,
+  1191      pub lits: Tbl<LitNode, EIdx, u64>,
+  1192      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1193  }
 
 == crates/con-ron/src/bin/con-ron.rs#L87-L209
     87  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -597,215 +600,230 @@
    316      /// answer (task #97c's hazard).
    317      pub pins: Pins,
 
-== crates/con-ron-core/src/arena/handle.rs#L4-L15
-     4  //! One 32-bit word per handle:
-     5  //!
-     6  //! ```text
-     7  //! bits 31…28   ctor tag   (4 bits, high)
-     8  //! bit  27      tier       (0 = persistent, 1 = scratch)
-     9  //! bits 26…0    index      into THAT CONSTRUCTOR'S array of THAT TIER
-    10  //! ```
-    11  //!
-    12  //! so 134 217 728 nodes per constructor per tier, and — the point of putting
-    13  //! the tier *above* the index rather than in the low bit (con-leche's lesson
-    14  //! 6) — a persistent handle's bits never change when the scratch tier comes
-    15  //! and goes.
+== crates/con-ron-core/src/arena/handle.rs#L4-L30
+     4  //! One 32-bit word per handle, in one of two shapes.  The top bit is the tier
+     5  //! in both; bit 30 says which shape the rest is:
+     6  //!
+     7  //! ```text
+     8  //! wide   (expression `app` only)        narrow (every other node)
+     9  //! bit  31      tier                     bit  31      tier
+    10  //! bit  30      1                        bit  30      0
+    11  //! bits 29…0    index                    bits 29…26   ctor tag   (4 bits)
+    12  //!                                       bits 25…0    index
+    13  //! ```
+    14  //!
+    15  //! (tier 0 = persistent, 1 = scratch; the index is into THAT CONSTRUCTOR'S
+    16  //! array of THAT TIER).  The zero word is a narrow handle — tag 0,
+    17  //! persistent, slot 0 — which is the twin's `default : Idx k` and every
+    18  //! `of_word(0)` below: the anonymous name, the level `zero`, a handle that
+    19  //! decodes.  An expression `app` array holds 2^30 = 1 073 741 824 nodes per
+    20  //! tier and every other constructor array 2^26 =
+    21  //! 67 108 864: apps are 85 % of an export's expression nodes, so they are the
+    22  //! array that runs out first, and they get the room.  Only the expression
+    23  //! `app` tag is wide — a level `param` handle is narrow although `LTAG_PARAM`
+    24  //! has `ETAG_APP`'s value — and `word_tag` reads `ETAG_APP` off a word with
+    25  //! bit 30 set, so the tag of a handle is read the same way for all four
+    26  //! kinds.
+    27  //!
+    28  //! The tier is the TOP bit, above both shapes' index, so a persistent
+    29  //! handle's bits never change when the scratch tier comes and goes
+    30  //! (con-leche's lesson 6).
 
-== crates/con-ron-core/src/arena/handle.rs#L136-L163
-   136  // ---------------------------------------------------------------------------
-   137  // The four handle kinds (`Handle.lean:59-75`)
-   138  // ---------------------------------------------------------------------------
-   139  
-   140  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:64-65 EIdx
-   141  /// An expression handle (DESIGN.md §8.3).
-   142  pub struct EIdx {
-   143      pub word: u32,
-   144  }
-   145  
-   146  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:66-67 NIdx
-   147  /// A name handle (DESIGN.md §8.3).
-   148  pub struct NIdx {
-   149      pub word: u32,
-   150  }
-   151  
-   152  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:68-69 LIdx
-   153  /// A level handle (DESIGN.md §8.3).
-   154  pub struct LIdx {
-   155      pub word: u32,
-   156  }
-   157  
-   158  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:70-71 LsIdx
-   159  /// A level-list handle (DESIGN.md §8.3).
-   160  pub struct LsIdx {
-   161      pub word: u32,
-   162  }
-   163  
+== crates/con-ron-core/src/arena/handle.rs#L186-L212
+   186  // ---------------------------------------------------------------------------
+   187  // The four handle kinds (`Handle.lean:78-93`)
+   188  // ---------------------------------------------------------------------------
+   189  
+   190  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-87 EIdx
+   191  /// An expression handle (DESIGN.md §8.3).
+   192  pub struct EIdx {
+   193      pub word: u32,
+   194  }
+   195  
+   196  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:88-89 NIdx
+   197  /// A name handle (DESIGN.md §8.3).
+   198  pub struct NIdx {
+   199      pub word: u32,
+   200  }
+   201  
+   202  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:90-91 LIdx
+   203  /// A level handle (DESIGN.md §8.3).
+   204  pub struct LIdx {
+   205      pub word: u32,
+   206  }
+   207  
+   208  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:92-93 LsIdx
+   209  /// A level-list handle (DESIGN.md §8.3).
+   210  pub struct LsIdx {
+   211      pub word: u32,
+   212  }
 
-== crates/con-ron-core/src/arena/handle.rs#L444-L492
-   444  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   445  /// Lean twin: `proof/ConRon/Arena/Handle.lean:189-191 ETag.bvar` — the `bvar`
-   446  /// constructor, line 316.
-   447  pub const ETAG_BVAR: u32 = 0;
-   448  
-   449  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   450  /// Lean twin: `proof/ConRon/Arena/Handle.lean:192-194 ETag.fvar` — the `fvar`
-   451  /// constructor, line 317.
-   452  pub const ETAG_FVAR: u32 = 1;
-   453  
-   454  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   455  /// Lean twin: `proof/ConRon/Arena/Handle.lean:195-197 ETag.sort` — the `sort`
-   456  /// constructor, line 318.
-   457  pub const ETAG_SORT: u32 = 2;
-   458  
-   459  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   460  /// Lean twin: `proof/ConRon/Arena/Handle.lean:198-200 ETag.const` — the `const`
-   461  /// constructor, line 319.
-   462  pub const ETAG_CONST: u32 = 3;
-   463  
-   464  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   465  /// Lean twin: `proof/ConRon/Arena/Handle.lean:201-203 ETag.app` — the `app`
-   466  /// constructor, line 320.
-   467  pub const ETAG_APP: u32 = 4;
-   468  
-   469  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   470  /// Lean twin: `proof/ConRon/Arena/Handle.lean:204-206 ETag.lam` — the `lam`
-   471  /// constructor, line 321.
-   472  pub const ETAG_LAM: u32 = 5;
-   473  
-   474  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   475  /// Lean twin: `proof/ConRon/Arena/Handle.lean:207-209 ETag.forallE` — the
-   476  /// `forallE` constructor, line 322.
-   477  pub const ETAG_FORALL_E: u32 = 6;
-   478  
-   479  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   480  /// Lean twin: `proof/ConRon/Arena/Handle.lean:210-212 ETag.letE` — the `letE`
-   481  /// constructor, line 323.
-   482  pub const ETAG_LET_E: u32 = 7;
-   483  
-   484  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   485  /// Lean twin: `proof/ConRon/Arena/Handle.lean:213-215 ETag.lit` — the `lit`
-   486  /// constructor, line 324.
-   487  pub const ETAG_LIT: u32 = 8;
-   488  
-   489  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   490  /// Lean twin: `proof/ConRon/Arena/Handle.lean:216-218 ETag.proj` — the `proj`
-   491  /// constructor, line 325.
-   492  pub const ETAG_PROJ: u32 = 9;
+== crates/con-ron-core/src/arena/handle.rs#L511-L559
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:260-262 ETag.bvar` — the `bvar`
+   513  /// constructor, line 316.
+   514  pub const ETAG_BVAR: u32 = 0;
+   515  
+   516  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   517  /// Lean twin: `proof/ConRon/Arena/Handle.lean:263-265 ETag.fvar` — the `fvar`
+   518  /// constructor, line 317.
+   519  pub const ETAG_FVAR: u32 = 1;
+   520  
+   521  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   522  /// Lean twin: `proof/ConRon/Arena/Handle.lean:266-268 ETag.sort` — the `sort`
+   523  /// constructor, line 318.
+   524  pub const ETAG_SORT: u32 = 2;
+   525  
+   526  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   527  /// Lean twin: `proof/ConRon/Arena/Handle.lean:269-271 ETag.const` — the `const`
+   528  /// constructor, line 319.
+   529  pub const ETAG_CONST: u32 = 3;
+   530  
+   531  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   532  /// Lean twin: `proof/ConRon/Arena/Handle.lean:272-274 ETag.app` — the `app`
+   533  /// constructor, line 320.
+   534  pub const ETAG_APP: u32 = 4;
+   535  
+   536  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   537  /// Lean twin: `proof/ConRon/Arena/Handle.lean:275-277 ETag.lam` — the `lam`
+   538  /// constructor, line 321.
+   539  pub const ETAG_LAM: u32 = 5;
+   540  
+   541  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   542  /// Lean twin: `proof/ConRon/Arena/Handle.lean:278-280 ETag.forallE` — the
+   543  /// `forallE` constructor, line 322.
+   544  pub const ETAG_FORALL_E: u32 = 6;
+   545  
+   546  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   547  /// Lean twin: `proof/ConRon/Arena/Handle.lean:281-283 ETag.letE` — the `letE`
+   548  /// constructor, line 323.
+   549  pub const ETAG_LET_E: u32 = 7;
+   550  
+   551  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   552  /// Lean twin: `proof/ConRon/Arena/Handle.lean:284-286 ETag.lit` — the `lit`
+   553  /// constructor, line 324.
+   554  pub const ETAG_LIT: u32 = 8;
+   555  
+   556  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   557  /// Lean twin: `proof/ConRon/Arena/Handle.lean:287-289 ETag.proj` — the `proj`
+   558  /// constructor, line 325.
+   559  pub const ETAG_PROJ: u32 = 9;
 
-== crates/con-ron-core/src/arena/handle.rs#L330-L338
-   330  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
-   331  /// **The word IS the hash**: nanoda's identity hasher (`unique_hasher.rs`),
-   332  /// no mixing at all.
-   333  impl Hashable for EIdx {
-   334      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
-   335      fn hash64(&self) -> u64 {
-   336          self.word as u64
-   337      }
-   338  }
+== crates/con-ron-core/src/arena/handle.rs#L397-L405
+   397  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:108-110 instHashableIdx
+   398  /// **The word IS the hash**: nanoda's identity hasher (`unique_hasher.rs`),
+   399  /// no mixing at all.
+   400  impl Hashable for EIdx {
+   401      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:108-110 instHashableIdx
+   402      fn hash64(&self) -> u64 {
+   403          self.word as u64
+   404      }
+   405  }
 
-== crates/con-ron-core/src/arena/store.rs#L1170-L1184
-  1170  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:341-353 ETables
-  1171  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1172  /// cons tables.
-  1173  pub struct ETables {
-  1174      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1175      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1176      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1177      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1178      pub apps: Tbl<AppNode, EIdx, u64>,
-  1179      pub lams: Tbl<BindNode, EIdx, u64>,
-  1180      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1181      pub lets: Tbl<LetNode, EIdx, u64>,
-  1182      pub lits: Tbl<LitNode, EIdx, u64>,
-  1183      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1184  }
+== crates/con-ron-core/src/arena/store.rs#L1179-L1193
+  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:347-359 ETables
+  1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1181  /// cons tables.
+  1182  pub struct ETables {
+  1183      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1184      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1185      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1186      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1187      pub apps: Tbl<AppNode, EIdx, u64>,
+  1188      pub lams: Tbl<BindNode, EIdx, u64>,
+  1189      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1190      pub lets: Tbl<LetNode, EIdx, u64>,
+  1191      pub lits: Tbl<LitNode, EIdx, u64>,
+  1192      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1193  }
 
-== crates/con-ron-core/src/arena/store.rs#L3596-L3631
-  3596  
-  3597      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:472-492 EStore.intern
-  3598      /// Hash-cons an expression node: probe the persistent cons table, then the
-  3599      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
-  3600      /// The cap test is the Lean's `capOK` turned into the `Native` decline
-  3601      /// §8.3 puts here.
-  3602      ///
-  3603      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
-  3604      /// whole sequence over the `ENodeView`, and each of its four steps
-  3605      /// dispatched on the view's tag again and built the node record again:
-  3606      /// the persistent probe built it (inside `ETables::find`), the scratch
-  3607      /// probe built it a second time, `der_of_view` re-dispatched to compute
-  3608      /// the derived word, and `ETables::push` re-dispatched and built it a
-  3609      /// third time to append it.  So the tag is read once here and the ten per-constructor
-  3610      /// paths below each build their record ONCE and hand the same `&r` to the
-  3611      /// two probes, to the capacity test and to the push — the same clauses in
-  3612      /// the same order, with the dispatch and the two rebuilds gone.
-  3613      ///
-  3614      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
-  3615      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
-  3616      /// each of them `rfl` after the `match`.
-  3617      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
-  3618          match v {
-  3619              ENodeView::BVar(i) => self.intern_bvar(pers, i),
-  3620              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
-  3621              ENodeView::Sort(u) => self.intern_sort(pers, u),
-  3622              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
-  3623              ENodeView::App(f, a) => self.intern_app(pers, f, a),
-  3624              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
-  3625              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
-  3626              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
-  3627              ENodeView::Lit(l) => self.intern_lit(pers, l),
-  3628              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
-  3629          }
-  3630      }
-  3631  
+== crates/con-ron-core/src/arena/store.rs#L3624-L3659
+  3624  
+  3625      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:478-498 EStore.intern
+  3626      /// Hash-cons an expression node: probe the persistent cons table, then the
+  3627      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
+  3628      /// The cap test is the Lean's `capOK` turned into the `Native` decline
+  3629      /// §8.3 puts here.
+  3630      ///
+  3631      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
+  3632      /// whole sequence over the `ENodeView`, and each of its four steps
+  3633      /// dispatched on the view's tag again and built the node record again:
+  3634      /// the persistent probe built it (inside `ETables::find`), the scratch
+  3635      /// probe built it a second time, `der_of_view` re-dispatched to compute
+  3636      /// the derived word, and `ETables::push` re-dispatched and built it a
+  3637      /// third time to append it.  So the tag is read once here and the ten per-constructor
+  3638      /// paths below each build their record ONCE and hand the same `&r` to the
+  3639      /// two probes, to the capacity test and to the push — the same clauses in
+  3640      /// the same order, with the dispatch and the two rebuilds gone.
+  3641      ///
+  3642      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
+  3643      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
+  3644      /// each of them `rfl` after the `match`.
+  3645      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+  3646          match v {
+  3647              ENodeView::BVar(i) => self.intern_bvar(pers, i),
+  3648              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
+  3649              ENodeView::Sort(u) => self.intern_sort(pers, u),
+  3650              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
+  3651              ENodeView::App(f, a) => self.intern_app(pers, f, a),
+  3652              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
+  3653              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
+  3654              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
+  3655              ENodeView::Lit(l) => self.intern_lit(pers, l),
+  3656              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
+  3657          }
+  3658      }
+  3659  
 
-== crates/con-ron-core/src/arena/store.rs#L3881-L3927
-  3881      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
-  3882          let r: AppNode = AppNode { f, a };
-  3883          let sk: bool = if self.scratch_on {
-  3884              if r.f.is_persistent() {
-  3885                  !r.a.is_persistent()
-  3886              } else {
-  3887                  true
-  3888              }
-  3889          } else {
-  3890              false
-  3891          };
-  3892          let hit: Option<EIdx> = if sk {
-  3893              None
-  3894          } else if pers.frozen {
-  3895              pers.e.apps.find(&r)
-  3896          } else {
-  3897              self.pers.apps.find(&r)
-  3898          };
-  3899          match hit {
-  3900              Some(hp) => Ok(hp),
-  3901              None => {
-  3902                  if self.scratch_on {
-  3903                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
-  3904                      match at.1 {
-  3905                          Some(hs) => Ok(hs),
-  3906                          None => {
-  3907                              if self.scr.apps.full() {
-  3908                                  Err(CheckError::Native(code_points(&M_E_CAP)))
-  3909                              } else {
-  3910                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3911                                  let h: EIdx =
-  3912                                      EIdx::pack(ETAG_APP, TIER_S, self.scr.apps.size() as u32);
-  3913                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
-  3914                                  Ok(h)
-  3915                              }
-  3916                          }
-  3917                      }
-  3918                  } else if self.pers.apps.full() {
-  3919                      Err(CheckError::Native(code_points(&M_E_CAP)))
-  3920                  } else {
-  3921                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3922                      let h: EIdx = EIdx::pack(ETAG_APP, TIER_P, self.pers.apps.size() as u32);
-  3923                      self.pers.apps.push(r, d, h.dup2());
-  3924                      Ok(h)
-  3925                  }
-  3926              }
-  3927          }
+== crates/con-ron-core/src/arena/store.rs#L3909-L3956
+  3909      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
+  3910          let r: AppNode = AppNode { f, a };
+  3911          let sk: bool = if self.scratch_on {
+  3912              if r.f.is_persistent() {
+  3913                  !r.a.is_persistent()
+  3914              } else {
+  3915                  true
+  3916              }
+  3917          } else {
+  3918              false
+  3919          };
+  3920          let hit: Option<EIdx> = if sk {
+  3921              None
+  3922          } else if pers.frozen {
+  3923              pers.e.apps.find(&r)
+  3924          } else {
+  3925              self.pers.apps.find(&r)
+  3926          };
+  3927          match hit {
+  3928              Some(hp) => Ok(hp),
+  3929              None => {
+  3930                  if self.scratch_on {
+  3931                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
+  3932                      match at.1 {
+  3933                          Some(hs) => Ok(hs),
+  3934                          None => {
+  3935                              if self.scr.apps.full_wide() {
+  3936                                  Err(CheckError::Native(code_points(&M_E_CAP)))
+  3937                              } else {
+  3938                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3939                                  let h: EIdx =
+  3940                                      EIdx::pack_wide(TIER_S, self.scr.apps.size() as u32);
+  3941                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
+  3942                                  Ok(h)
+  3943                              }
+  3944                          }
+  3945                      }
+  3946                  } else if self.pers.apps.full_wide() {
+  3947                      Err(CheckError::Native(code_points(&M_E_CAP)))
+  3948                  } else {
+  3949                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3950                      let h: EIdx = EIdx::pack_wide(TIER_P, self.pers.apps.size() as u32);
+  3951                      self.pers.apps.push(r, d, h.dup2());
+  3952                      Ok(h)
+  3953                  }
+  3954              }
+  3955          }
+  3956      }
 
 == proof/ConRon/Arena/WFProofs.lean#L1121-L1122
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
@@ -813,7 +831,7 @@
 
 == crates/con-ron-core/src/arena/core.rs#L10283-L10323
  10283  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10284  /// Lean twin: `proof/ConRon/Arena/Core.lean:3674-3680 flushCaches` — **what
+ 10284  /// Lean twin: `proof/ConRon/Arena/Core.lean:3675-3681 flushCaches` — **what
  10285  /// the per-declaration bracket does to the caches**: it drops them whole,
  10286  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
  10287  /// this point.
@@ -831,7 +849,7 @@
  10299  }
  10300  
  10301  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10302  /// Lean twin: `proof/ConRon/Arena/Core.lean:3682-3690 dropScratch` — drop the
+ 10302  /// Lean twin: `proof/ConRon/Arena/Core.lean:3683-3691 dropScratch` — drop the
  10303  /// scratch tier of the store and the cache entries that name it, in one
  10304  /// operation, so the two halves cannot drift apart; and **thaw** the store:
  10305  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -842,7 +860,7 @@
  10310  }
  10311  
  10312  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10313  /// Lean twin: `proof/ConRon/Arena/Core.lean:3692-3699 enterScratch` — turn the
+ 10313  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3700 enterScratch` — turn the
  10314  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
  10315  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
  10316  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -921,17 +939,17 @@
    637          e,
    638      }
 
-== crates/con-ron-core/src/arena/store.rs#L1240-L1249
-  1240  pub struct PersTier {
-  1241      /// This is a frozen store's tier: a store read through it reads its
-  1242      /// persistent tables HERE.  `false` only for the empty stand-in an owned
-  1243      /// store is handed (`PersTier::empty`), which is never read.
-  1244      pub frozen: bool,
-  1245      pub n: NTables,
-  1246      pub l: LTables,
-  1247      pub ls: LsTables,
-  1248      pub e: ETables,
-  1249  }
+== crates/con-ron-core/src/arena/store.rs#L1249-L1258
+  1249  pub struct PersTier {
+  1250      /// This is a frozen store's tier: a store read through it reads its
+  1251      /// persistent tables HERE.  `false` only for the empty stand-in an owned
+  1252      /// store is handed (`PersTier::empty`), which is never read.
+  1253      pub frozen: bool,
+  1254      pub n: NTables,
+  1255      pub l: LTables,
+  1256      pub ls: LsTables,
+  1257      pub e: ETables,
+  1258  }
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L235
    173  /// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
@@ -1142,7 +1160,7 @@
    379  // ---------------------------------------------------------------------------
    380  
    381  /// con-leche: none — the fuel every store walk in this module runs at
-   382  /// Lean twin: `proof/ConRon/Arena/Core.lean:85-87 coreWalkFuel`.  DESIGN.md §8.4
+   382  /// Lean twin: `proof/ConRon/Arena/Core.lean:86-88 coreWalkFuel`.  DESIGN.md §8.4
    383  /// asks for fuel as an explicit `Nat`; the walks below are over the handle
    384  /// DAG, so any bound above the store's node count is unreachable.
 
@@ -1977,7 +1995,7 @@
     27  | `fresh` | a scratch cons entry never duplicates a persistent one (DESIGN §8.3's cross-tier canonicity; con-leche's `t_cons_fresh`) |
     28  | `derExact` | the derived column is `derOfView` of the node — *locally*; the global `derived st i = e.data` is a theorem (`derived_exact`) |
     29  | `sized` | the derived array is as long as the node array |
-    30  | `cap` | no constructor array exceeds 2^27 entries, so a handle's 27-bit index is injective on it |
+    30  | `cap` | no constructor array exceeds its handle shape's index range (2^30 for `app`, 2^26 for the rest), so the index is injective on it |
     31  | `scrOff` | the scratch tier is empty while the scratch flag is off |
     32  | `sync` | the nesting's scratch flags move together (task #97a) |
     33  
@@ -2827,11 +2845,11 @@
    331      (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
    332      ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
 
-== crates/con-ron-core/src/arena/handle.rs#L444-L447
-   444  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   445  /// Lean twin: `proof/ConRon/Arena/Handle.lean:189-191 ETag.bvar` — the `bvar`
-   446  /// constructor, line 316.
-   447  pub const ETAG_BVAR: u32 = 0;
+== crates/con-ron-core/src/arena/handle.rs#L511-L514
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:260-262 ETag.bvar` — the `bvar`
+   513  /// constructor, line 316.
+   514  pub const ETAG_BVAR: u32 = 0;
 
 == scripts/gates.sh#L6-L36
      6  # Runs, in order, and stops at the first failure:

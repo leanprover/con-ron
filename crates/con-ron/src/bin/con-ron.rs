@@ -299,7 +299,7 @@ fn parse_args(argv: &[String]) -> Args {
 
 /// con-leche: none — the three verdict classes of a `CheckError` as the
 /// frontend's callers report them (`con_ron`'s own `FrontendClass`).  The
-/// port's fourth constructor (`CheckError::Native`, the arena's `2^27` handle
+/// port's fourth constructor (`CheckError::Native`, the arena's handle-index
 /// cap among them) is a DECLINE like `notImplemented`: the checker cannot
 /// carry this input, and says so rather than rejecting the stream or claiming
 /// a bug.  Deviation from the Lean twin, which maps `native` to 3; the port

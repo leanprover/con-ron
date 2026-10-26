@@ -31,7 +31,7 @@
 //!   that closes over the state holds it at RC 2 and every insert inside
 //!   copies it).  [`LineErr`]'s message arm carries a whole `CheckError` where
 //!   con-ron-core's carries a `Vec<u32>`: `EStore::intern` declines with
-//!   `Native` at the `2^27` cap (DESIGN.md §8.3) and that kind has to reach
+//!   `Native` at the handle-index cap (DESIGN.md §8.3) and that kind has to reach
 //!   the exit code.
 //! * **every message is a `Vec<u32>` of code points** (DESIGN.md §3.3) built
 //!   from a function-local `const M: [u32; N]` and `core_types::code_points`,

@@ -251,26 +251,32 @@ functions take it as `&mut AState`, together with the shared persistent tier
 ### 4.1 Handles
 
 A term is named by a **handle**: one 32-bit word
-([layout](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L4-L15)).
+([layout](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L4-L30)).
 
 ```text
-bits 31…28   constructor tag
-bit  27      tier            (0 = persistent, 1 = scratch)
-bits 26…0    index           into that constructor's array in that tier
+wide (expression app only)        narrow (every other node)
+bit  31      tier                 bit  31      tier     (0 = persistent, 1 = scratch)
+bit  30      1                    bit  30      0
+bits 29…0    index                bits 29…26   constructor tag
+                                  bits 25…0    index
 ```
 
+The index is into that constructor's array in that tier.
+
 There are four handle types, one per store
-([`EIdx` … `LsIdx`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L136-L163)):
+([`EIdx` … `LsIdx`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L186-L212)):
 expressions, names, levels and level lists (a constant's universe
 arguments).  The expression tags
 follow con-leche's constructor order, from `bvar` = 0 to `proj` = 9
-([the tags](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L444-L492)).
+([the tags](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L511-L559)).
 
 Because the tier bit sits above the index, a persistent handle keeps its
-bits when the scratch tier comes and goes.  An index has 27 bits, so each
-constructor holds at most 2²⁷ nodes per tier; past that, `intern` raises
+bits when the scratch tier comes and goes.  An `app` index has 30 bits and
+every other index 26, so the `app` array holds at most 2³⁰ nodes per tier
+and every other constructor's 2²⁶ (apps are 85 % of an export's expression
+nodes); past that, `intern` raises
 `Native`, and the twin's intern raises its `native` at the same probe miss.  A handle is its own hash
-([`hash64`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L330-L338)),
+([`hash64`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L397-L405)),
 and two handles denote the same term only if they are equal (§4.2), so
 comparing two terms is comparing two words.
 
@@ -278,7 +284,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1170-L1184)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1179-L1193)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -292,10 +298,10 @@ bit.  So "does this term have loose bound variables?" is one array read.
 Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3596-L3631)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3624-L3659)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3881-L3927)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3909-L3956)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -345,7 +351,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  At the phase boundary,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L616-L638)
 moves the four stores' persistent tables out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1240-L1249)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1249-L1258)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -953,7 +959,7 @@ task #114 section.
 **Provenance.**  Every item of the verified crate carries a doc line naming
 the con-leche source it ports, `/// con-leche: <path>:<a>-<b> <declaration>`,
 or `/// con-leche: none — <reason>`
-([an example](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L444-L447)).
+([an example](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L511-L514)).
 `scripts/provenance.py check` verifies that each citation still names that
 declaration at those lines of the pinned con-leche.  Arena items also carry
 a `Lean twin:` line, which `scripts/twin-lines.py check` verifies against

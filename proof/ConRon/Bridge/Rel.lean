@@ -209,11 +209,13 @@ the tag the caller has already tested off the handle word: a projection that
 answers `some fields` at a handle whose tag is that constructor's fixes
 `view`.
 
-The tag hypothesis is not decoration.  `ETables.getApp` reads
-`t.apps.node? i.idxNat` **without** testing the tag (that is the whole point
-of a projection — the caller tested it already), so without `i.tag = ETag.app`
-the conclusion is false: a `lit` handle whose index happens to be in range of
-the `apps` array projects an `app`.  The twins always test first (DESIGN
+The tag hypothesis is not decoration.  A projection reads its array
+**without** testing the tag (that is the whole point of a projection — the
+caller tested it already), so without it the conclusion is false: a `bvar`
+handle whose index happens to be in range of the `sorts` array projects a
+`sort`.  (`ETables.getApp` alone tests something, the handle's wide shape, as
+`get`'s `app` arm does, DESIGN §8.3; a wide handle's tag is `app`, so there
+the hypothesis is implied, and it is kept for the uniform shape.)  The twins always test first (DESIGN
 `### Task #97-P6-13`: "a clause that is one constructor plus a fallthrough tests
 the handle's own tag word BEFORE reading the store"), so the hypothesis is
 always available. -/
@@ -278,10 +280,14 @@ theorem ETables.get_of_getConst {t : ETables} {i : EIdx} {n : NIdx} {us : LsIdx}
 theorem ETables.get_of_getApp {t : ETables} {i : EIdx} {f a : EIdx}
     (htg : i.tag = ETag.app) (h : t.getApp i = some (f, a)) :
     t.get i = some (.app f a) := by
-  simp only [ETables.getApp, Option.map_eq_some_iff, Prod.mk.injEq] at h
-  obtain ⟨r, hr, rfl, rfl⟩ := h
-  simp [ETables.get, htg, hr, ETag.app, ETag.bvar, ETag.fvar, ETag.sort,
-    ETag.const]
+  simp only [ETables.getApp] at h
+  by_cases hw : i.isWide = true
+  · rw [ite_eq_left hw] at h
+    simp only [Option.map_eq_some_iff, Prod.mk.injEq] at h
+    obtain ⟨r, hr, rfl, rfl⟩ := h
+    simp [ETables.get, htg, hw, hr, ETag.app, ETag.bvar, ETag.fvar, ETag.sort,
+      ETag.const]
+  · rw [ite_eq_right hw] at h; simp at h
 
 theorem ETables.get_of_getLet {t : ETables} {i : EIdx} {ty val b : EIdx}
     (htg : i.tag = ETag.letE) (h : t.getLet i = some (ty, val, b)) :

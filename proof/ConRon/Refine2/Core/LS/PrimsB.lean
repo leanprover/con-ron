@@ -421,7 +421,10 @@ theorem etables_get_lit_wf' {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   split at h
   · nonlit_arm
   split at h
-  · nonlit_arm
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · nonlit_arm
+    · have := Result.ok_injective h; simp at this
   obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   split at h
   · have := Result.ok_injective h; simp at this

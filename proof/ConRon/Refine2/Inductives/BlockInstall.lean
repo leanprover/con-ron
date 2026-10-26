@@ -226,9 +226,6 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       show absU fuel = n + 1 from hf, piDomsMentionAny]
     lockstep
 
--- Lean 4.35 (task #110): elaborating the `cursor_induction` motive below
--- needs more than the default 200 000 heartbeats.
-set_option maxHeartbeats 400000 in
 /-- `ctors_mention_any` ⊑ `blockRawRec`'s inner `anyM`, from the cursor on. -/
 @[lockstep] theorem ctors_mention_any_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
@@ -239,7 +236,8 @@ set_option maxHeartbeats 400000 in
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → LSR pers (fun a b => b = a)
       (arena.inductives.block_install.ctors_mention_any pers st names cs i) st lst
-      ((absCtorsLFrom cs i).anyM fun c => piDomsMentionAny (absNIdxL names) coreWalkFuel c.1.type))
+      ((absCtorsLFrom cs i).anyM fun (c : IConstantVal × Nat) =>
+        piDomsMentionAny (absNIdxL names) coreWalkFuel c.1.type))
     ?_ ?_ i () lst hrel
   · intro i _ hn lst hrel
     apply LSR.of_LS

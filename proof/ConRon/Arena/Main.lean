@@ -89,7 +89,7 @@ the accept and has no error to map.  The 1/2 distinction is con-leche's
 and is load-bearing: a reject is a verdict about the input, a decline a
 statement about the checker, and a decline is never "something
 unexpectedly went wrong" — that is 3.  `native` — the arena's own fourth
-kind, raised when §8.3's handle word runs out at 2^27 nodes per constructor
+kind, raised when §8.3's handle word runs out at its index cap per constructor
 per tier — is a 3 for the same reason: it claims nothing about the input. -/
 def CheckError.exitCode : CheckError → UInt32
   | .notImplemented _ => 2

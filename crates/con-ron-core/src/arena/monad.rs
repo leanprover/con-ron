@@ -504,8 +504,8 @@ pub fn derived_e(pers: &PersTier, st: &AState, h: &EIdx) -> u64 {
 ///
 /// **The one place the two modules put the capacity test differently, and
 /// they agree on the outcome.**  The twin's `EStore.intern` is total and
-/// carries the `2^27` cap as `capOK`, a hypothesis of `intern_spec`, so the
-/// twin tests `sizeOf v < Idx.idxCap` *here*, at the monadic wrapper, and
+/// carries the handle-index cap as `capOK`, a hypothesis of `intern_spec`, so the
+/// twin tests `sizeOf v < v.cap` *here*, at the monadic wrapper, and
 /// `throw`s `.native` (DESIGN.md §8.3: "the Rust raises `Native` at the
 /// limit, the Lean `throw`s the same kind").  Task #97-P4a's Rust
 /// `EStore::intern` already *is* that test — it returns
@@ -1237,7 +1237,7 @@ pub fn intern_levels(
 // derived words).  The capacity test is the same one against the persistent
 // array and the error is the same `Native` kind — and, as with `intern_e`,
 // the test sits one layer down here (the twin's `internPersistentE` tests
-// `sizeOf v < Idx.idxCap` at the wrapper; `PersTier::intern_e` already *is*
+// `sizeOf v < v.cap` at the wrapper; `PersTier::intern_e` already *is*
 // that test).  `arena::promote` is the only caller.
 
 /// con-leche: none — arena infrastructure; hash-cons an expression node into the persistent tier

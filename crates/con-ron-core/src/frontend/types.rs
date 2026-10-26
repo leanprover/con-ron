@@ -23,7 +23,7 @@
 //! ([`export_c::LineErr`](super::export_c::LineErr)); the difference from
 //! con-ron-core's is that the message arm carries a whole `CheckError` and not
 //! a `Vec<u32>`, because `EStore::intern` can decline with `Native` at the
-//! `2^27` cap (DESIGN.md §8.3) and that kind must survive to the exit code.
+//! handle-index cap (DESIGN.md §8.3) and that kind must survive to the exit code.
 
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;

@@ -60,7 +60,10 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt)
   split at h
   · vwf_triv
   split at h
-  · vwf_triv
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · vwf_triv
+    · simp at h
   obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   split at h
   · simp at h

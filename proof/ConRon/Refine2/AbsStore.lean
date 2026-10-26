@@ -138,21 +138,51 @@ theorem absLsIdx_inj : Function.Injective absLsIdx := by
 and `%`, so each field reading transfers through `absU32`'s three operation
 lemmas.  Stated forward from `= ok`, as everything here is. -/
 
-theorem word_tag_abs {w t : Std.U32} (h : arena.handle.word_tag w = ok t) :
-    absU32 w / 268435456 = absU32 t := by
-  rw [arena.handle.word_tag, arena.handle.TAG_SPAN] at h
-  have hd := absU32_div h
-  simpa [absU32] using hd
-
-theorem word_tier_abs {w t : Std.U32} (h : arena.handle.word_tier w = ok t) :
-    absU32 w / 134217728 % 2 = absU32 t := by
-  rw [arena.handle.word_tier, arena.handle.IDX_CAP] at h
+/-- `arena::handle::word_is_wide` against `Idx.isWide`. -/
+theorem word_is_wide_abs {k : IdxKind} {w : Std.U32} {b : Bool}
+    (h : arena.handle.word_is_wide w = ok b) :
+    (Idx.ofWord (k := k) (absU32 w)).isWide = b := by
+  rw [arena.handle.word_is_wide, arena.handle.WIDE_CAP] at h
   obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h1 := absU32_div hy
-  have h2 := absU32_mod h
-  rw [← h2, ← h1]
-  simp [absU32]
+  obtain ⟨z, hz, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq] at h
+  have h1 : absU32 w / 1073741824 = absU32 y := absU32_div hy
+  have h2 : absU32 y % 2 = absU32 z := absU32_mod hz
+  rw [Idx.isWide, ← h]
+  show (absU32 w / 1073741824 % 2 == 1) = _
+  rw [h1, h2]
+  by_cases hc : z = 1#u32
+  · subst hc; simp [absU32]
+  · have hne : absU32 z ≠ 1 := by
+      intro hz1
+      exact hc (absU32_inj (by simpa [absU32] using hz1))
+    simp [hc, hne]
 
+/-- `arena::handle::word_tag` against `Idx.tag`: the wide test, then the
+narrow tag field. -/
+theorem word_tag_abs {k : IdxKind} {w t : Std.U32} (h : arena.handle.word_tag w = ok t) :
+    (Idx.ofWord (k := k) (absU32 w)).tag = absU32 t := by
+  rw [arena.handle.word_tag] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [Idx.tag, word_is_wide_abs hb]
+  cases b with
+  | true =>
+    simp only [ite_true, Result.ok.injEq] at h
+    rw [← h, arena.handle.ETAG_APP]; rfl
+  | false =>
+    simp only [Bool.false_eq_true, ite_false] at h ⊢
+    rw [arena.handle.IDX_CAP] at h
+    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h1 : absU32 w / 67108864 = absU32 y := absU32_div hy
+    have h2 : absU32 y % 16 = absU32 t := absU32_mod h
+    show absU32 w / 67108864 % 16 = _
+    rw [h1, h2]
+
+/-- `arena::handle::word_tier` against `Idx.tier`. -/
+theorem word_tier_abs {k : IdxKind} {w t : Std.U32} (h : arena.handle.word_tier w = ok t) :
+    (Idx.ofWord (k := k) (absU32 w)).tier = absU32 t := by
+  rw [arena.handle.word_tier, arena.handle.TIER_SPAN] at h
+  exact absU32_div h
 
 theorem eidx_tag_abs {i : arena.handle.EIdx} {t : Std.U32}
     (h : arena.handle.EIdx.tag i = ok t) : (absEIdx i).tag = absU32 t := by
@@ -169,13 +199,13 @@ theorem lidx_tag_abs {i : arena.handle.LIdx} {t : Std.U32}
   rw [arena.handle.LIdx.tag] at h
   exact word_tag_abs h
 
-theorem word_is_persistent_abs {w : Std.U32} {b : Bool}
+theorem word_is_persistent_abs {k : IdxKind} {w : Std.U32} {b : Bool}
     (h : arena.handle.word_is_persistent w = ok b) :
-    (absU32 w / 134217728 % 2 == 0) = b := by
+    (Idx.ofWord (k := k) (absU32 w)).isPersistent = b := by
   rw [arena.handle.word_is_persistent] at h
   obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   simp only [Result.ok.injEq] at h
-  rw [word_tier_abs hy, ← h]
+  rw [Idx.isPersistent, word_tier_abs hy, ← h]
   by_cases hc : y = 0#u32
   · subst hc; simp [absU32]
   · have hne : absU32 y ≠ 0 := by
@@ -187,8 +217,20 @@ theorem eidx_is_persistent_abs {i : arena.handle.EIdx} {b : Bool}
     (h : arena.handle.EIdx.is_persistent i = ok b) :
     (absEIdx i).isPersistent = b := by
   rw [arena.handle.EIdx.is_persistent] at h
-  have hp := word_is_persistent_abs h
-  simpa [Idx.isPersistent, Idx.tier, absEIdx] using hp
+  exact word_is_persistent_abs h
+
+/-- `EIdx::is_wide` against `Idx.isWide`. -/
+theorem eidx_is_wide_abs {i : arena.handle.EIdx} {b : Bool}
+    (h : arena.handle.EIdx.is_wide i = ok b) : (absEIdx i).isWide = b := by
+  rw [arena.handle.EIdx.is_wide] at h
+  exact word_is_wide_abs h
+
+/-- `LIdx::is_wide` against `Idx.isWide`. -/
+theorem lidx_is_wide_abs {i : arena.handle.LIdx} {b : Bool}
+    (h : arena.handle.LIdx.is_wide i = ok b) : (absLIdx i).isWide = b := by
+  rw [arena.handle.LIdx.is_wide] at h
+  exact word_is_wide_abs h
+
 
 /-! ## The node records
 

@@ -78,9 +78,10 @@ DESIGN §8.4 asks for fuel as an explicit `Nat`.  The walks below are over
 the handle DAG, so any bound above the store's node count is unreachable;
 one top-level `def` (lesson 7: `Nat` literals behind a `def`) keeps the
 Rust a `const u64` and keeps the elaborator from unfolding a literal into
-every comparison.  `4 000 000 000` is above the representable node count
-(2^27 per constructor per tier, ten constructors, two tiers) and below
-`2^63`, so it is one machine word. -/
+every comparison.  `4 000 000 000` is above the representable
+expression-node count (per tier, 2^30 `app` nodes and 2^26 of each of the
+nine other constructors; two tiers: 3 355 443 200) and below `2^63`, so it
+is one machine word. -/
 
 /-- con-leche: none — the fuel every store walk in this module runs at;
 see the section note. -/

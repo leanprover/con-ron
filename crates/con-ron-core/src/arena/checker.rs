@@ -1102,7 +1102,7 @@ mod tests {
     /// every check above runs with: the embedded `con-ron-pins/2` text
     /// (`kernel::pins_text::PINS_TEXT`, 26 721 records) decoded and interned
     /// into the persistent tier.  This is the path `run_pipeline` takes and the
-    /// one thing about it that could fail quietly — the `2^27` handle cap, or a
+    /// one thing about it that could fail quietly — the handle-index cap, or a
     /// fresh-memo walk that does not finish.
     ///
     /// It runs on a 1 GB stack for `pins_decode`'s own reason (it recurses once
