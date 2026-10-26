@@ -2043,12 +2043,27 @@ Rust proof already is today — just with `denote st` where `absExpr` stands.
 
 ### 8.3 The representation
 
-**Handle word** (`EIdx`, `NIdx`, `LIdx`, `LsIdx`): `UInt32` = ctor tag (4
-bits, high) | tier bit | index (27 bits) into THAT CONSTRUCTOR'S array of
-THAT TIER.  `view h` decodes the tag and reads one element of one array;
-there is no node enum in the store.  134 M nodes per constructor per tier
-(Mathlib's persistent tier is ~24 M nodes today); the Rust raises `Native`
-at the limit, the Lean `throw`s the same kind.
+**Handle word** (`EIdx`, `NIdx`, `LIdx`, `LsIdx`; task #133): `UInt32`, one
+word arithmetic for all four kinds, in two shapes.  Bit 31 is the tier (0
+persistent, 1 scratch) in both.  Bit 30 picks the shape: **wide** (bit 30 =
+1) is the expression `app` node only, with bits 29…0 its index; **narrow**
+(bit 30 = 0) is every other node — the nine other expression constructors
+and every name, level and level-list node — with bits 29…26 the 4-bit
+constructor tag (the tag values are con-leche's constructor order, unchanged)
+and bits 25…0 the index.  The index is into THAT CONSTRUCTOR'S array of THAT
+TIER, so `app` arrays hold 2^30 (1 073 741 824) nodes per tier and every other
+array 2^26 (67 108 864): apps are 85 % of an export's expression nodes, so
+they are the table that runs out first.  The tag reader answers `ETag.app`
+for a wide word, so `view h` still decodes "the tag" and reads one element of
+one array; there is no node enum in the store.  The zero word is narrow (tag
+0, persistent, slot 0), which is what keeps the twin's `default : Idx k`
+meaningful — it is the anonymous name handle (`PinsOK.anon`).  The decode
+`(tag, tier, index)` is not injective on all words (a narrow word with tag
+field 4 reads like the wide word with its index), so the two `get` arms that
+could meet the other shape at tag 4 — `ETables.get`'s `app` arm (and
+`getApp`) and `LTables.get`'s `param` arm — test the shape, and `view` stays
+injective.  The Rust raises `Native` at an array's limit (`Tbl::full` /
+`Tbl::full_wide`), the Lean `throw`s the same kind (`n < v.cap`).
 
 **One array per constructor**, uniform fixed-size records:
 
@@ -70073,3 +70088,183 @@ nanoda and Lean accepting.  New since 2026-10-02:
 
 All of these ran a con-ron from before the fuel became unbounded (task #125):
 v4.36.0-rc1 bundles con-ron `cb54c9a4`, v4.35.0-rc4 `dd8d8218`.
+
+### Task #133 — handle layout: tier bit on top, 2^30 app nodes (2026-10-25, Opus)
+
+**Why.**  The maintainer was told that the `app` cap may start to matter in
+practice.  Every constructor array held 2^27 = 134 M nodes per tier.  On
+`Init`, apps are 85 % of the expression nodes and lams about a tenth of the
+apps, so the `app` array reaches any cap long before another table reaches
+one 16 times smaller.  Mathlib's export already holds more than 10^8
+distinct `Expr`s (task #81's measurement), most of them apps.
+
+**Old layout** (all four kinds): bits 31…28 constructor tag, bit 27 tier,
+bits 26…0 index, so 2^27 per constructor per tier.
+
+**New layout** (all four kinds, still one word arithmetic, §8.3 rewritten to
+match):
+
+    wide   (expression `app` only)        narrow (every other node)
+    bit  31      tier                     bit  31      tier
+    bit  30      1                        bit  30      0
+    bits 29…0    index                    bits 29…26   ctor tag (value unchanged)
+                                          bits 25…0    index
+
+Capacities per tier: the `app` array holds 2^30 = 1 073 741 824 (8× the old
+cap), every other array 2^26 = 67 108 864 (half the old cap).  **The
+arithmetic of the brief's ratio, stated plainly:** with lams about a tenth
+of apps, the lam array reaches 2^26 when apps are near 6.7·10^8 ≈ 2^29.3,
+which is before apps reach 2^30.  So the first table to fill is the lam
+array, at about 5× the app count the old layout allowed (2^27), and not 8×,
+if `Init`'s ratio holds at Mathlib scale (not measured here).  The tier is the top bit, so a
+persistent handle's bits still never change when the scratch tier comes and
+goes.  The generic tag reader answers `ETAG_APP` for a wide word.  Only the
+expression `app` is wide: a level `param` (`LTAG_PARAM` = 4 = `ETAG_APP`) is
+narrow, because the wide constructor is a separate function (`word_mk_wide` /
+`EIdx::pack_wide` / `Idx.mkWide`) that only the `app` arms call.  It is not a
+tag test inside `word_mk`.
+
+**Deviation from the brief, approved by the coordinator: bit 30's polarity.**
+The brief said bit 30 = 0 for `app` and 1 for every other node.  The port
+uses the opposite, so that **the zero word stays narrow, with tag 0, persistent
+and slot 0, at all four kinds**.  The zero word is the twin's `default : Idx k` (the
+`deriving Inhabited`) and the Rust's `X::of_word(0)`, and it is load-bearing.
+`IIndCaps.etaCtor` defaults to it, `Frontend.denoteCaps` reads that field
+unconditionally, and Theorem 1's `PinsOK.anon` (`Bridge/StateOK.lean`)
+proves `denoteN default = .anonymous` *because* word 0 is the anonymous name's
+handle.  Under the brief's polarity, word 0 is a wide word: junk at
+`NIdx`/`LIdx`/`LsIdx`, and `app` #0 at `EIdx`.  `InductivesTest` went red on
+it at once: the checker accepted, and the readback returned `none` on every
+capability record of a multi-constructor block.  Flipping keeps every
+property the brief asked for, costs the same, and also makes the narrow word
+the old formula with new weights (`tier·2^31 + tag·2^26 + idx`).
+
+**The decode is not injective on all words, and `get` is where that is
+repaired.**  A narrow word with tag field 4 reads as the `app` tag and as an
+index, exactly as the wide word with that index does.  The old layout's
+decode was a bijection, and `EWFAt`'s injectivity clause (`hinv` in
+`wf_push_*`: a word that views to the new node IS the new handle) was proved
+from it.  Two handles could now denote one node: a narrow-4 `EIdx` would view
+like a wide one, and a wide `LIdx` would read the tag `param`.  So the two
+`get` arms that can meet the other shape at tag 4 test the shape:
+`ETables.get`'s `app` arm (and `getApp`, so that the projection agrees with
+`get` on every word) answers only for a wide word, and `LTables.get`'s
+`param` arm only for a narrow one.  N and Ls need no test, because tag 4 is
+not one of their tags.  `Idx.ext_of` / `Idx.eq_of_idxNat` take the shape as a
+fourth field.  The fact that discharges it is new and local:
+`XTables.get_isWide` (a word a tier decodes has its constructor's shape) and
+`XTables.push_isWide` (the pushed handle has it).  Rust cost: one bit test in
+`get_app`, in `get`'s `app` arm (which LLVM folds with the tag read) and in
+the level `get`'s `param` arm.
+
+**Capacity tests are per constructor.**  The Rust gained `Tbl::full_wide`, at
+`WIDE_CAP`, which `ETables::full_of`'s `App` arm and `intern_app`'s two
+append arms call.  The twin's test is `n < v.cap`, with `ENodeView.cap`:
+`wideCap` at `.app`, `idxCap` otherwise.  It replaces `Idx.idxCap` in
+`internNodeE`, `internPersistentE`, `EStore.capOK`, `persCapNode`,
+`EWFAt.capP/capS` and T2's `ECapAt`.  The binder and the N/L/Ls tests keep
+`Idx.idxCap`, which now means the narrow cap.  `CORE_WALK_FUEL` (4·10^9) is
+still above the representable expression-node count: 2 tiers × (2^30 + 9 ×
+2^26) = 3 355 443 200.
+
+**The roundtrip lemmas are `grind` now, not `simp [UInt32.toNat_*]; omega`**
+(maintainer's instruction, tested on a mock first).  `Handle.lean` has 17
+lemmas where it had 7 (22 while the work was in progress; the dead census
+removed the five nothing used): the `mk` roundtrips (`isWide`/`tag`/`tier`/
+`index`/`idxNat`), the `mkWide` ones the proofs use (`index`/`idxNat`), the
+`UInt32.ofNat n` variants every `push` uses, `eta` (now `if isWide then
+mkWide … else mk …`), `ext_of`, `tier_lt`, `tag_of_isWide` and
+`isWide_eq_false_of_tag_ne`.  Every arithmetic roundtrip is one `grind
+[defs]` over `UInt32`.  `eta` is `simp only [mkWide, mk]` followed by
+`grind`, `idxNat_*` are `index_*` after a `grind` for the `ofNat` bound, and
+the two shape facts are a `simp` and a `cases`.  Measured with `lake env lean -Dprofiler=true` on the final
+17-lemma file: grind 1.39 s cumulative (its `simp` 0.78 s, cutsat 0.27 s),
+about 0.08 s per lemma, plus 1.82 s of kernel type checking.  The old file's
+7 `omega` lemmas took 0.30 s of tactic time and 0.50 s of type checking.  The module
+builds in 2.5 s.  The word functions keep the arithmetic spelling (`*`, `/`,
+`%`, `+`), because grind's linear arithmetic handles division and remainder
+by a literal and not bitwise operators.  No `bv_decide`, so no new axiom.
+
+**Files format: unchanged.**  No artefact stores handle words.  The pins
+format and the embedded prelude/pins text are names and numbers, the dump
+tools read con-leche values, and the cons tables' hashes are of words but
+are computed at run time.  So no format version moves and nothing is
+regenerated.
+
+**Tests.**  `arena::handle::tests` adds four tests.  They round-trip every
+narrow field at the corners (index 0, 1, 2^25, 2^26 − 2, 2^26 − 1), at all
+16 tag values and both tiers.  They round-trip `pack_wide` at 0, 1, 2^26 − 1,
+2^26, 2^27 − 1, 2^27 (the old boundary) and 2^30 − 1, in both tiers.  They
+check that the two shapes never share a word, that a level `param` is narrow,
+and that the tier is the top bit.  `store::tests` adds
+`the_other_shape_at_the_same_index_decodes_to_nothing`: a narrow-4 `EIdx` at
+a real app's index views to `None` (`view` and `view_app`), and so does a
+wide `LIdx` at a real `param`'s index.  A test that actually interns past
+2^27 apps would need about 134 M rows, roughly 5 GB with the cons table, so
+there is none.
+
+**Measurement** (`perf stat -e instructions:u,cycles:u`, `Init`, `con-ron
+--verified --jobs=1`, `scripts/bench-baselines.sh --bin con-ron --export init
+--runs 1`, master `64f80055` against the branch; both accept 57 919
+declarations):
+
+| | instructions:u | cycles:u |
+|---|---:|---:|
+| master | 184 531 953 467 | 163 954 110 779 |
+| #133 | 187 580 763 377 | 166 515 713 924 |
+| Δ | **+1.65 %** | +1.56 % |
+
+That is the price of the two-shape decode: `word_index` and `word_tag`
+branch (or select) on bit 30 where they used to be one mask or shift, and
+`get_app` has its shape test.  `diff-e2e --timeout=60`: 634 agree, 0 differ,
+in both lanes (`--jobs=1` and `--jobs=4`).
+
+**Proof stability: which proofs broke with their mathematics unchanged, and
+why.**
+
+* **Theorem 1 (`Bridge/**`)**: the walks did not move.  Every `sym … =>
+  vcgen … <;> finish` proof went through unchanged, because walks see the
+  layout only through `view` and `capOK`, and `EStore.capOK_eq` (the
+  `@[bridge_grind]` equation) changed its right-hand side to `< v.cap` with
+  nothing else touched.  Two lemmas outside the walks changed:
+  `ETables.get_of_getApp` (`Rel.lean`) because `getApp` has the shape test,
+  and `EStore.internBind_spec` (`StoreBind.lean`), which needs `(eBindView
+  tag ty b).cap = idxCap`.
+* **The twin's own store theory (`Arena/WFProofs.lean`)**: the arm-by-arm
+  `tag_cases` proofs (`get_inv`, `get_mono`, `derAt_congr` at E and L) broke
+  because the `app` / `param` arm has a nested `if` now.  Each got one extra
+  bullet (`simp at h` for the refused shape) and nothing else.  `push_tag` /
+  `push_idxNat` / `push_spec` broke at the `app` arm (`mkWide`), and
+  `wf_push_*` (12 theorems over 4 kinds × 3 brackets) broke at `eq_of_idxNat`'s
+  new shape premise.  That premise is new mathematics, discharged by the new
+  `get_isWide`/`push_isWide`.  One trap: the old `push_tag` closed each arm
+  with `first | exact (wide lemma) | exact (narrow lemma)`, and the failing
+  alternative made `isDefEq` evaluate UInt32 arithmetic into a "maximum
+  recursion depth" that `first` does not catch.  `with_reducible exact`
+  fixes it.
+* **Theorem 2 (`Refine2/**`)**:
+  * The handle-arithmetic abstraction lemmas were restated at the twin's own
+    readers (`word_tag_abs : (Idx.ofWord (absU32 w)).tag = absU32 t` instead
+    of a literal division), so that every caller `eidx_tag_abs` & co. kept its
+    statement.  The same goes for `word_tier_abs`, `word_is_persistent_abs`,
+    `word_idx_nat_val`, `word_mk_abs`, the new `word_is_wide_abs`,
+    `word_mk_wide_abs` and `eidx_pack_wide_abs`, and
+    `tbl_full_wide_{iff,size}`.
+  * The `app` arms of `etables_get_abs`, `etables_get_app_abs`,
+    `ltables_get_abs` (its `param` arm), `estore_intern_app_abs₀` and
+    `etables_push_pers_abs` follow the new code.
+  * `Promote/Prims.lean` and `Core/LS/PrimsB.lean` (positional arm peeling of
+    `ETables.get`) needed one extra peel at the `app` arm.
+  * **Shared core, one theorem:** `Refine2/Tactic/Lockstep.lean`'s
+    `tagView_app` closed with `rfl` and now closes with `cases i.isWide <;>
+    simp`.  It is a separate commit; no tactic alternative was edited.
+  * **`Inductives/BlockInstall.lean`'s `ctors_mention_any_ls` hit a
+    heartbeat timeout with its mathematics unchanged.**  Its `cursor_induction`
+    motive had an unannotated binder, `fun c => piDomsMentionAny … c.1.type`.
+    So `c.1.type` became a postponed metavariable, and solving it ran
+    `isDefEq` through `piDomsMentionAny`'s body.  The body's `e.tag ==
+    ETag.forallE` is now an `if` on `isWide`, and the search diverged (26 766
+    `Div.div` unfoldings at 400 000 heartbeats, still timing out at 800 000).
+    Annotating the binder `(c : IConstantVal × Nat)` fixes it.  It also
+    retires task #110's `maxHeartbeats 400000`, because the theorem builds at
+    the default again: that bump was the same unannotated binder, at the edge.
