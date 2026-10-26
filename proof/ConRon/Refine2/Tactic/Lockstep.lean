@@ -1187,9 +1187,9 @@ theorem tagView_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
     st.view i = (st.viewApp i).map (fun p => ENodeView.app p.1 p.2) := by
   have key : ∀ t : ETables, t.get i = (t.getApp i).map (fun p => ENodeView.app p.1 p.2) := by
     intro t
-    simp only [ETables.get, ETables.getApp, hi, Option.map_map]
+    simp only [ETables.get, ETables.getApp, hi]
     simp (config := {decide := true}) only [ite_false, ite_true]
-    rfl
+    cases i.isWide <;> simp [Option.map_map, Function.comp_def]
   rw [EStore.view, EStore.viewApp]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetApp]; exact key _
