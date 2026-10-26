@@ -70168,6 +70168,23 @@ and `Arena/{WFProofs,Store,WF,Core,Monad,Main}` (task #133 is editing them;
 `Refine2/Tactic/Lockstep.lean`'s side tier (no commit: `grind` is 2.9× there and
 the tier is a `first` chain, and its docstring's "No `grind`" stands).
 
+**`lia` instead of `grind`** (measured afterwards, same method: at every
+`omega` execution `lia`, then `grind`, each under a 20 000-kHB budget and
+rolled back, then `omega`).  `lia` is `grind` with only the linear-integer
+solver and no E-matching, but it still internalises the whole context, so
+it saves little:
+
+| file | executions | omega (kHB) | lia (kHB) | grind (kHB) | lia ≤ omega |
+|---|---:|---:|---:|---:|---:|
+| `Refine/HashMap2` | 165 | 14 364 | 579 034 (40×) | 579 063 (40×) | 8 |
+| `Scan/Line` | 174 | 16 562 | 878 882 (53×) | 1 094 308 (66×) | 0 |
+| `Scan/WF` | 63 | 5 958 | 245 579 (41×) | 321 244 (54×) | 0 |
+| `Scan/Str` | 379 | 54 897 | 410 635 (7.5×) | 717 731 (13×) | 12 |
+
+`lia` failed at 3 executions (`HashMap2`) where `grind` succeeded.  The cost is in
+the shared preprocessing, not in the solvers `lia` switches off, so `lia` is
+no general replacement for `omega` here either.
+
 **Reproducer** (`_tmp/corpus/vcgen-grind/grind-usize-pow-numbits.lean`, needs
 the Aeneas library): with a `Vec.len` hypothesis in context, `grind` fails on
 `2 ^ System.Platform.numBits - 1 < 2 ^ UScalarTy.Usize.numBits` although
