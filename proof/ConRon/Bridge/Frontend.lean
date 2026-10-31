@@ -19,8 +19,10 @@ The modules, in dependency order:
 * `Bridge/Frontend/Chunks.lean` — **the parser's exactness**: `feedChunk`,
   `chunkStep`, `chunkFinish`, `parseBytes`, `parseChunks`;
 * `Bridge/Frontend/Prepare.lean` — the two permuting passes and the prelude;
-* `Bridge/Frontend/Capstone.lean` — **`Arena.no_False_declaration`**, its
-  `_prelude` instance, and `_pipeline` at `Arena/Main.lean`'s one seam;
+* `Bridge/Frontend/Capstone.lean` — **`no_False_theorem_accepted_pure`**,
+  the letter at the pure fold (a stream that declares a theorem of type
+  `False` is never accepted), with `FoldOK_of_start` and the stream lemmas
+  `ConRon/Capstone.lean`'s byte-level capstones are assembled from;
 * `Bridge/Frontend/Axioms.lean` — the trust census.
 
 ## What this tier does NOT contain, and why

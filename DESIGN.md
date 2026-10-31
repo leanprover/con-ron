@@ -70907,10 +70907,35 @@ build` is the arbiter, classic tiers included.
 * `lake build` does not build the `ConRon.Bridge` and `ConRon.Refine2` root
   modules: their libraries say `globs = ["….+"]`, which is the submodules
   only, and `roots` does not add the root back.  Both build when asked
-  (`lake build ConRon.Bridge ConRon.Refine2`).  Not changed here.
+  (`lake build ConRon.Bridge ConRon.Refine2`).  Fixed by task #138.
 * The shared Lake cache had no entry for `07c3e05c`: the first `lake build`
   of this worktree elaborated everything, `Refine2/Core/Eqns.lean` included
   (20 min).
 * `Bridge/Frontend.lean`'s module list still names an
   `Arena.no_False_declaration_pipeline` that no file declares (stale since
-  before #136); left for whoever owns that tier's docs.
+  before #136).  Fixed by task #138.
+
+### Task #138 — the root modules in `lake build`, a stale module list entry, the cache seeded (2026-10-31, Opus)
+
+Task #137's three side findings, closed on master.
+
+* **`proof/lakefile.toml`**: `ConRonBridge` and `ConRonRefine2` say
+  `globs = ["ConRon.Bridge.*"]` / `["ConRon.Refine2.*"]`.  `.+` is the
+  submodules only and `roots` does not add the root back, so `lake build`
+  had never elaborated `ConRon/Bridge.lean` or `ConRon/Refine2.lean`
+  themselves; `.*` is the root and every submodule.  Both roots build
+  unchanged (they are import lists with module docs).  `ConRonTools` keeps
+  `.+`: there is no `ConRon/Tools.lean`.
+* **`Bridge/Frontend.lean`**'s module list named an
+  `Arena.no_False_declaration` with `_prelude` and `_pipeline` variants in
+  `Bridge/Frontend/Capstone.lean`; that file holds
+  `no_False_theorem_accepted_pure`, `FoldOK_of_start` and the stream lemmas,
+  and the byte-level capstones are `ConRon/Capstone.lean`'s.  The entry now
+  says so.
+* **The shared Lake cache** is seeded from the main tree at this commit
+  (`LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build`), after
+  the gates' `lake build`, so a fresh worktree off this commit restores
+  `Refine2/Core/Eqns.lean` instead of spending ~20 min on it.
+
+`scripts/gates.sh`: all 16 steps OK (`lake-build` 1 297 s, a cold build of
+the tip in the main tree: the cache had no entry for #136/#137).

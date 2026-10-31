@@ -85,7 +85,8 @@ roots = ["ConRon.Bridge"]
 # `Arena` functions — and every other module re-uses them, so
 # `Arms/{InferIO,Annotate,Infer}` no longer meet it either.  The `globs` line
 # stays for the sibling shape, not because an import would fail.
-globs = ["ConRon.Bridge.+"]
+# `.*` is the root module and every submodule (`.+` would skip the root).
+globs = ["ConRon.Bridge.*"]
 
 # (The P2s spike of task #97s was a fourth root here, `ConRonArenaSpike` over
 # `ConRon.Arena.Spike`, which priced the proof idioms of §8's two theorems on
@@ -149,7 +150,8 @@ roots = ["ConRon.Refine2"]
 # elaborated by any gate; task #97-P5-Ind round 4 found it by hand.  A
 # `roots`-only library silently drops orphaned modules, and "the tier is
 # green" then means "the tier the root happens to reach is green".
-globs = ["ConRon.Refine2.+"]
+# `.*` is the root module and every submodule (`.+` would skip the root).
+globs = ["ConRon.Refine2.*"]
 
 # **THE COMPOSITION** (DESIGN.md §8.2's last line, task #97-COMPOSE):
 # "Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche".  The one
