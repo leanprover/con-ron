@@ -91,7 +91,7 @@ pub const M_AND_PIN: [u32; 32] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:41-52 checkBasisDecl` —
+/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:42-53 checkBasisDecl` —
 /// **install the pinned (stored) basis block.**  The three records that
 /// install one — the fold's own `basisDecl` kind, a stream block
 /// `basis_pin_hit` recognises and a quotient record `quot_pin_hit` recognises
@@ -119,7 +119,7 @@ pub fn check_basis_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:41-52 checkBasisDecl` — the
+/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:42-53 checkBasisDecl` — the
 /// cited `installBasisDecls fe (← BasisKind.declsA kind)`, past the quotient
 /// gate.  Split off so the gate's two branches are tail calls.
 pub fn check_basis_decl_install(

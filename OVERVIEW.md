@@ -144,16 +144,16 @@ was built with.
 ## 3. What is proved
 
 The two headline theorems are in
-[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L13-L132).
+[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L16-L135).
 They are stated about the Aeneas model of the Rust functions the binary's
 `check_main` calls, one premise per call, in the order it calls them, from
 the binary's own start values.  Both depend on con-leche's three axioms
 (`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
 `sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L887-L903)).
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L890-L906)).
 
 **Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L747-L782)),
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L750-L785)),
 with the implicit arguments left out:
 
 ```lean
@@ -193,7 +193,7 @@ returned `Ok`; the first starts from `startState`, the value of the binary's
 of `check_main`.
 
 **The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L683-L717))
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L686-L720))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -201,7 +201,7 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L531-L535)
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L534-L538)
 says that the environment the Rust accepted (`fe`) is related to a twin
 environment, which denotes the con-leche environment `env`; `env` has a
 model (con-leche's `Model V env`) in every set theory `V`.  The statement
@@ -308,7 +308,7 @@ treats equal handles as equal terms and unequal name handles as unequal
 names.  If two handles could denote the same term, the checker could take a
 branch con-leche would not.  The twin proves the denotation injective on a
 well-formed store
-([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1125-L1126)).
+([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1126-L1127)).
 
 Levels and names are interned the same way, but level *algorithms*
 (`simplify`, `leq`, `isEquiv`) run on ordinary `Level` trees read back from
@@ -630,9 +630,9 @@ Two definitions connect it to con-leche:
 proves that every twin function computes, on denotations, what the
 corresponding con-leche function computes.  The per-declaration statement
 is
-[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L142-L157),
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L143-L158),
 and
-[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L90-L101)
+[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L92-L103)
 lifts it to the whole two-phase fold: the pure fold accepts the denoted
 stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
@@ -654,8 +654,8 @@ statements are instead plain implications over a successful run, like the
 graded ones below.
 
 **Spec grades.**  A twin function's statement has one of two grades
-([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L59-L75),
-[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L56-L73)):
+([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L60-L76),
+[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L59-L76)):
 
 * **pure grade** (`PSpec`), for functions that do not call the type
   checker: invariant `StateOK` (the store is well-formed), frame `PStep`
@@ -670,7 +670,7 @@ A pure step lifts to a core step (`PStep.toCore`), so a core-grade function
 may call a pure-grade one; not the other way.
 
 An example at the pure grade
-([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L122-L168)).
+([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L125-L171)).
 The twin's `structPsAt` interns a list of `bvar` nodes; the theorem says the
 list denotes con-leche's:
 
@@ -689,10 +689,10 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq` and the eager tower's `defeqE`) is one statement indexed by
 fuel and mode,
-[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L114-L131),
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L111-L128),
 proved by induction on the fuel, over every mode at once (the eager slot at a
 mode runs the knot at its eager variant), in
-[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L62-L88).
+[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L67-L93).
 
 ### 7.4 Theorem 2: the Rust refines the twin
 
@@ -706,11 +706,11 @@ and the Rust, which is fixed by making the two programs agree, not by
 adding an invariant.
 
 **The relation.**
-[`AStateRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L350-L364)
+[`AStateRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L351-L365)
 relates the Rust `AState` to the twin's field by field (store, memos,
 caches, pins): the same data, abstracted by functions such as `absEIdx` and,
 for hash maps, by the map they represent.
-[`AStateInv`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L373-L378)
+[`AStateInv`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L374-L379)
 holds the Rust-only invariants, such as each hash map's own well-formedness.
 
 **The statement.**  A state-threading Rust function is specified by
@@ -795,7 +795,7 @@ their lemmas go by induction.  Two recipes cover most of Theorem 2.
 induct on `n`, unfold both sides at `0` and at `m + 1`, and run `lockstep`;
 it finds the induction hypothesis in the context.  Then register the general
 form with `@[lockstep]`
-([`instantiate1_go`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L289-L318)):
+([`instantiate1_go`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L290-L319)):
 
 ```lean
 theorem instantiate1_go_aux (n : Nat) :
@@ -818,7 +818,7 @@ theorem instantiate1_go_aux (n : Nat) :
 **Cursor induction.**  Where the twin recurses on a `List` and the Rust
 walks a `Vec` with an index `i`, induct on `args.length - i`, and relate the
 twin's list to the suffix from `i`
-([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L613-L633)):
+([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L614-L634)):
 
 ```lean
 theorem inst_spine_from_aux (n : Nat) :
@@ -848,7 +848,7 @@ fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
 
 ### 7.6 The composition
 
-[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L13-L132)
+[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L16-L135)
 contains no new mathematics, only glue:
 
 1. **Theorem 2, stage by stage**: each of `h1`…`h5` becomes a twin run from
