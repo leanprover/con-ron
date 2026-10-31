@@ -46,11 +46,8 @@ exactly as `Bridge/Checker`'s arms claim nothing about a `native` decline.
 ## The import rule
 
 `Bridge/Frontend/Capstone.lean` adds **two** imports to the library's rule:
-`ConRon.Arena.Main` (the seam `runPipeline` lives there, and
-`Arena.no_False_declaration_pipeline` is a statement about it) and
-`ConLeche.MainTheorem` (for `ConLeche.jsonWithTheoremFalse` and
-`ConLeche.Frontend.parseChunks_jsonWithTheoremFalse`, which is con-leche's own
-file-level lemma and the one thing this tier may not re-derive).  Both are
+con-leche's `Semantics/Bridge/DeclRun` and `Model/Fold`, for
+`Semantics.declThmRun_of` and `Model.no_proof_of_False_pure`.  Both are
 prebuilt in con-leche's `.lake`, so neither costs elaboration.
 -/
 module

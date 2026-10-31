@@ -8,11 +8,10 @@ public import ConRon.Arena.Main
 # `con-ron-lean`'s entry point
 
 The root of Lake's `con-ron-lean` executable, and nothing else.  It is its own
-module so that `ConRon/Arena/Main.lean` — which Theorem 1's byte-level
-capstone imports for `runPipeline` — declares no top-level `main`: two
-modules that do (`ConRon/Dump/Pins.lean` is the other) cannot sit in one
-import closure, and `ConRon/Capstone.lean` is exactly such a closure (task
-#97-COMPOSE).
+module so that `ConRon/Arena/Main.lean` — which the `ConRon.Arena` root
+imports — declares no top-level `main`: two modules that do
+(`ConRon/Dump/Pins.lean` is the other) cannot sit in one import closure, and
+the root has to stay importable by any closure (task #97-COMPOSE).
 -/
 
 /-- con-leche: Main.lean:430-487 main

@@ -64,3 +64,5 @@ public import ConRon.Arena.Checker
 public import ConRon.Arena.Phased
 public import ConRon.Arena.CheckerTest
 public import ConRon.Arena.Frontend.NatOpGround
+-- the driver: no proof imports it, so the root does, to keep it in `lake build`
+public import ConRon.Arena.Main
