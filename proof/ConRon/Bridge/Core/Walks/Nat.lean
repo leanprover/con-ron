@@ -918,7 +918,7 @@ reduct of a literal. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary reduct
 at the two literal readings (`none` unless both are literals). -/
-@[expose] def binRes (c : ConLeche.Name) : Option Nat → Option Nat → Option Expr
+def binRes (c : ConLeche.Name) : Option Nat → Option Nat → Option Expr
   | some a, some b => ConLeche.natOpResult c a b
   | _, _ => none
 attribute [bridge_grind =] binRes

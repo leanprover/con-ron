@@ -140,7 +140,7 @@ lemmas. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1497-1499 MemoBInv — the generic
 CURSOR-keyed, value-valued memo invariant. -/
-@[expose] def MemoVDOK {α : Type} (f : Nat → Expr → α)
+def MemoVDOK {α : Type} (f : Nat → Expr → α)
     (tbl : Std.HashMap (EIdx × Nat) α) (st : EStore) : Prop :=
   ∀ (k : EIdx × Nat) (v : α), tbl[k]? = some v →
     ∃ e, denoteE st k.1 = some e ∧ v = f k.2 e
@@ -458,7 +458,7 @@ theorem BlackA.mono {st : EStore} {acc acc' : List (Nat × EIdx)} {k : EIdx}
 either black at the accumulator or of strictly greater rank than `c`, i.e.
 an ancestor of the current call.  The rank is quantified inside (template
 rule 6), so this statement has no more parameters than the plain one had. -/
-@[expose] def SeenOK (st : EStore) (acc : List (Nat × EIdx))
+def SeenOK (st : EStore) (acc : List (Nat × EIdx))
     (seen : Std.HashMap EIdx Unit) (c : EIdx) : Prop :=
   ∀ (rk : EIdx → Nat), EWFAt st rk → ∀ (k : EIdx), seen[k]?.isSome = true →
     rk c < rk k ∨ BlackA st acc k
@@ -473,7 +473,7 @@ theorem SeenOK.of_empty {st : EStore} {acc : List (Nat × EIdx)}
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1093-1128 fvarLeavesGoC — **what
 a completed call gives back**: every key of the returned set is black at the
 returned accumulator, or was already a key of the set the call was given. -/
-@[expose] def SeenGrow (st : EStore) (acc' : List (Nat × EIdx))
+def SeenGrow (st : EStore) (acc' : List (Nat × EIdx))
     (seen seen' : Std.HashMap EIdx Unit) : Prop :=
   ∀ (k : EIdx), seen'[k]?.isSome = true →
     BlackA st acc' k ∨ seen[k]?.isSome = true

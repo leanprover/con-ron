@@ -42,7 +42,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:171-172 LooseBVarMemoInv
 The `(handle, cursor)`-keyed memo of `hasLooseBVarB`: every recorded answer is
 the real one at the key's own cursor. -/
-@[expose] def LooseMemoOK (tbl : Std.HashMap (EIdx × Nat) Bool) (st : EStore) : Prop :=
+def LooseMemoOK (tbl : Std.HashMap (EIdx × Nat) Bool) (st : EStore) : Prop :=
   ∀ (k : EIdx × Nat) (r : Bool), tbl[k]? = some r →
     ∃ e, denoteE st k.1 = some e ∧ r = Expr.hasLooseBVarB k.2 e
 

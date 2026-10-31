@@ -683,7 +683,7 @@ theorem natPred?_WScoped {d : Nat} {x p : Expr} (h : x.natPred? = some p)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — a
 literal's predecessor literal, if it is a nonzero `Nat`. -/
-@[expose] def litPred? : Literal → Option Expr
+def litPred? : Literal → Option Expr
   | .natVal n => if n = 0 then none else some (.lit (.natVal (n - 1)))
   | .strVal _ => none
 attribute [local bridge_grind =] litPred?

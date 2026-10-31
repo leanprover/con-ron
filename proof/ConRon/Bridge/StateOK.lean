@@ -83,21 +83,21 @@ speaks of denotations, so the parameter's DENOTATION is enough. -/
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1497-1499 MemoBInv — the generic
 VALUE-valued memo invariant (`bvarBound`, `fvarRange`): the answer is
 representation-free, so the row names no second handle. -/
-@[expose] def MemoVOK {α : Type} (f : Expr → α) (tbl : Std.HashMap EIdx α)
+def MemoVOK {α : Type} (f : Expr → α) (tbl : Std.HashMap EIdx α)
     (st : EStore) : Prop :=
   ∀ (k : EIdx) (v : α), tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ v = f e
 
 /-- con-leche: none — the generic LEVEL-handle memo invariant
 (`instLPLC`, DESIGN `### Task #97-P6-13`). -/
-@[expose] def MemoLOK (f : Level → Level) (tbl : Std.HashMap LIdx LIdx)
+def MemoLOK (f : Level → Level) (tbl : Std.HashMap LIdx LIdx)
     (st : EStore) : Prop :=
   ∀ (k r : LIdx), tbl[k]? = some r →
     ∃ u, denoteL st.ls k = some u ∧ denoteL st.ls r = some (f u)
 
 /-- con-leche: none — the same at a universe-argument LIST handle
 (`instLPLsC`). -/
-@[expose] def MemoLsOK (f : List Level → List Level) (tbl : Std.HashMap LsIdx LsIdx)
+def MemoLsOK (f : List Level → List Level) (tbl : Std.HashMap LsIdx LsIdx)
     (st : EStore) : Prop :=
   ∀ (k r : LsIdx), tbl[k]? = some r →
     ∃ us, denoteLs st.lss k = some us ∧ denoteLs st.lss r = some (f us)

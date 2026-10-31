@@ -58,7 +58,7 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the
 slots `j, j+1, …` for `n` slots, one equation per step. -/
-@[expose] def towerSlotsFrom (env : Env) (Tn : ConLeche.Name) : Nat → Nat → Bool
+def towerSlotsFrom (env : Env) (Tn : ConLeche.Name) : Nat → Nat → Bool
   | 0, _ => true
   | n + 1, j => (env.findProj? Tn j).isSome && towerSlotsFrom env Tn n (j + 1)
 attribute [bridge_grind =] towerSlotsFrom
@@ -133,7 +133,7 @@ theorem towerSlotsAll_spec {s : AState} (T : NIdx) (Tn : ConLeche.Name)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:730-736 etaProjs — the
 projections `j, j+1, …` for `n` slots, one equation per step. -/
-@[expose] def projsFrom (Tn : ConLeche.Name) (y : Expr) : Nat → Nat → List Expr
+def projsFrom (Tn : ConLeche.Name) (y : Expr) : Nat → Nat → List Expr
   | 0, _ => []
   | n + 1, j => .proj Tn j y :: projsFrom Tn y n (j + 1)
 attribute [bridge_grind =] projsFrom

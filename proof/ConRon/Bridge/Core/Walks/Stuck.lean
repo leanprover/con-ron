@@ -779,7 +779,7 @@ grind_pattern [bridge_grind] TyRun.mk =>
 /-- con-leche: ConLeche/Kernel/Core.lean:440-445 structUnitCert — the
 unit-like guard on the first side's whnf'd type, over its head's tag and
 projections and the environment's inductive projections. -/
-@[expose] def unitGuard (env : Env) (w : Expr) : Bool :=
+def unitGuard (env : Env) (w : Expr) : Bool :=
   exprTag w.getAppFn == ETag.const && cInd? (env.find? (exprConstName w.getAppFn)) &&
     (cIndCaps (env.find? (exprConstName w.getAppFn))).unitlike &&
     !(ConLeche.reservedBasisNames.contains (exprConstName w.getAppFn)) &&

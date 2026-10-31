@@ -624,7 +624,7 @@ and an answer relation, and the certifier alone is a `CoreStep`. -/
 `certifyNatEqs` chain is stated with it rather than with a membership shape,
 because the recursion is positional: the arena certifies the `i`-th pair
 against con-leche's `i`-th. -/
-@[expose] def EqPairsDenote (st : EStore) :
+def EqPairsDenote (st : EStore) :
     List (EIdx × EIdx) → List (Expr × Expr) → Prop
   | [], [] => True
   | p :: ps, q :: qs =>

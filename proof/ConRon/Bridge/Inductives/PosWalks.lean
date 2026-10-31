@@ -982,7 +982,7 @@ theorem FvMapRel.ext {st st' : EStore} (hx : Ext st st') {f : Arena.FvMap}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:764-765 ReplaceFVarsMemoInv
 The handle-keyed memo of `replaceFVars fP`. -/
-@[expose] def RFMemoOK (fP : Nat → Option Expr) (tbl : Std.HashMap EIdx EIdx) (st : EStore) :
+def RFMemoOK (fP : Nat → Option Expr) (tbl : Std.HashMap EIdx EIdx) (st : EStore) :
     Prop :=
   ∀ (k v : EIdx), tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ denoteE st v = some (Expr.replaceFVars fP e)

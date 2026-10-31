@@ -53,7 +53,7 @@ reads, so that the walk's answer is ONE equation (`reduceProjCore_eq`). -/
 /-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — the rule on
 the expanded scrutinee `v`: the table entry for `(nm, k)`, the head
 constant's guards, the certificate, the selected field. -/
-@[expose] def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
+def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
     Option Expr :=
   if (env.findProj? nm k).isSome = true ∧ exprTag v.getAppFn = ETag.const ∧
       exprConstName v.getAppFn = (projOf (env.findProj? nm k)).ctor ∧

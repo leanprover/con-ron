@@ -234,7 +234,7 @@ theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — one
 slot's test at the environment's answer (the body of the `all`). -/
-@[expose] def andSlotOk (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+def andSlotOk (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
     Option ProjEntry → Bool
   | some e => e.ctor == cn && e.numParams == nP && e.numFields == 2 && e.fireOk ls
   | none => false
@@ -242,7 +242,7 @@ attribute [bridge_grind =] andSlotOk
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — the
 slots `j, j+1, …` for `n` slots, one equation per step. -/
-@[expose] def andSlotsFrom (env : Env) (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+def andSlotsFrom (env : Env) (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
     Nat → Nat → Bool
   | 0, _ => true
   | n + 1, j => andSlotOk cn nP ls (env.findProj? ConLeche.andName j) &&

@@ -30,7 +30,7 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
 /-- con-leche: none — the intern memo's invariant: every recorded handle
 denotes its key. -/
-@[expose] def EMemoOK (st : EStore) (m : EMemo) : Prop :=
+def EMemoOK (st : EStore) (m : EMemo) : Prop :=
   ∀ e h, m[e]? = some h → denoteE st h = some e
 
 theorem EMemoOK.empty (st : EStore) : EMemoOK st (∅ : EMemo) := by

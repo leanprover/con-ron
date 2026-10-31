@@ -256,13 +256,13 @@ theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK mode env fe
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast — its verdict
 at a datum. -/
-@[expose] def notPW : Option PropWhen → Bool | some pw => !pw.isProp | none => false
+def notPW : Option PropWhen → Bool | some pw => !pw.isProp | none => false
 /-- con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast — its verdict at
 a datum. -/
-@[expose] def isPW : Option PropWhen → Bool | some pw => pw.isProp | none => false
+def isPW : Option PropWhen → Bool | some pw => pw.isProp | none => false
 /-- con-leche: ConLeche/Kernel/PropRead.lean:164-176 headProofPW — the
 projection arm's answer at a datum: never-a-proposition only. -/
-@[expose] def neverOnly : Option PropWhen → Option PropWhen
+def neverOnly : Option PropWhen → Option PropWhen
   | some pw => if pw.isNever then some pw else none
   | none => none
 attribute [bridge_grind =] notPW isPW neverOnly
@@ -324,9 +324,9 @@ theorem lamProj?_eq (k : Nat) (x : Expr) : ConLeche.lamProj? k x =
     ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: none — the arity of a `lamProj?` answer. -/
-@[expose] def lpK : Option (Nat × Nat) → Nat | some (k, _) => k | none => 0
+def lpK : Option (Nat × Nat) → Nat | some (k, _) => k | none => 0
 /-- con-leche: none — the projected index of a `lamProj?` answer. -/
-@[expose] def lpJ : Option (Nat × Nat) → Nat | some (_, j) => j | none => 0
+def lpJ : Option (Nat × Nat) → Nat | some (_, j) => j | none => 0
 attribute [bridge_grind =] lpK lpJ
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — one

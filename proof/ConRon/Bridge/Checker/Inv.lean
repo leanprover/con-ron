@@ -1316,7 +1316,7 @@ theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
 belongs to a stored structure: `TableWF`'s first clause alone, which is what the
 push of a fresh constant reads and what the basis install keeps without
 `EnvWF`. -/
-@[expose] def TablesStored (env : Env) : Prop :=
+def TablesStored (env : Env) : Prop :=
   ∀ pt ∈ env.tables, (env.find? pt.structName).isSome = true
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:161-162 TableWF — off `EnvWF`. -/

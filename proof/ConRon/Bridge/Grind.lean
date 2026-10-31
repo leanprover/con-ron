@@ -1012,7 +1012,7 @@ open Classical in
 /-- con-leche: none — **the level-list handle of a level list**, `denoteLs`'s
 inverse on the lists the store denotes (`idxOfName` at the level-list
 store). -/
-@[expose] noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
+noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
   if h : ∃ n, denoteLs st n = some ls then Classical.choose h else default
 
 /-- con-leche: none — a denoting level-list handle is its list's handle. -/
@@ -1040,12 +1040,12 @@ open Classical in
 /-- con-leche: none — **the expression handle of an expression**, `denoteE`'s
 inverse on the expressions the store denotes (DESIGN §8.3 at the expression
 store, `denoteE_inj`). -/
-@[expose] noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
+noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
   if h : ∃ n, denoteE st n = some e then Classical.choose h else default
 
 /-- con-leche: none — a denoting expression handle is its expression's
 handle. -/
-@[expose] def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
+def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
   | some e => idxOfExpr st e = n
   | none => True
 

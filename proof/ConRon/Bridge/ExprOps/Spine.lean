@@ -141,7 +141,7 @@ reaches `grind`. -/
 def consB (ty : Expr) (p : List Expr × Expr) : List Expr × Expr := (ty :: p.1, p.2)
 
 /-- con-leche: none — the empty peel at a body. -/
-@[expose] def bpNil (x : Expr) : Option (List Expr × Expr) := some ([], x)
+def bpNil (x : Expr) : Option (List Expr × Expr) := some ([], x)
 
 /-- con-leche: none — an optional peel with one more binder in front. -/
 @[expose] def bpCons (x : Expr) (o : Option (List Expr × Expr)) : Option (List Expr × Expr) :=

@@ -776,7 +776,7 @@ theorem ListRel.nil_right {α β : Type} {R : α → β → Prop} {l : List α}
 /-- con-leche: none — the handle record's kind is the pure record's, in the
 disjunctive form `checkValueGroup_bridge` takes (the arena and con-leche each
 have their own `ValueKind`). -/
-@[expose] def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
+def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
   a = .defn ∧ b = .defn ∨ a = .thm ∧ b = .thm ∨ a = .opaque ∧ b = .opaque
 
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean:275-345 checkDecl_of_split_* —
@@ -785,7 +785,7 @@ premises: what phase A ran, at `env`, for record `d`, leaving `vg` and the
 extended environment `env'`.  The halves are pure
 guards (`installHeader`, `installValueGuards`): the fuel `_F` is the check
 half's, carried for `PhaseA`'s shape. -/
-@[expose] def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
+def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
     (vg : ConLeche.ValueGroup) (env' : Env) : Prop :=
   (∃ cv value hint, d = .defnDecl cv value hint ∧
     (ConLeche.natOpNames.contains cv.name ||

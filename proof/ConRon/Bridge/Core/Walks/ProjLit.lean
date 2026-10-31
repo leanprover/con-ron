@@ -61,7 +61,7 @@ grind_pattern [bridge_grind] projOf_eta => o.isSome
 
 /-- con-leche: none — a denoting entry's comparable fields: the constructor
 and level-parameter handles denote the entry's, the counts are shared. -/
-@[expose] def EntryFields (st : EStore) (en : IProjEntry) : Option ProjEntry → Prop
+def EntryFields (st : EStore) (en : IProjEntry) : Option ProjEntry → Prop
   | some p => denoteN st.ns en.ctor = some p.ctor ∧
       Frontend.denoteNList st.ns en.levelParams = some p.levelParams ∧
       p.numParams = en.numParams ∧ p.numFields = en.numFields

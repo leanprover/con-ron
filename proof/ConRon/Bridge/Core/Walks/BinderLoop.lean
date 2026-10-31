@@ -175,7 +175,7 @@ grind_pattern [bridge_grind] StkRel.piR_le => st ≤ st', StkRel (PiR st) l xs
 
 /-- con-leche: ConLeche/Verify/BinderLoop.lean:52-56 inferLamsOut — the
 mirror's rebuild fold, which never fails, as a function. -/
-@[expose] def lamsOutFn (d : Nat) : List Expr → Nat → Expr → Expr
+def lamsOutFn (d : Nat) : List Expr → Nat → Expr → Expr
   | [], _, cur => cur
   | tyo :: rest, j, cur => lamsOutFn d rest (j - 1) (.forallE (tyo.abstractRange d j) cur)
 attribute [bridge_grind =] lamsOutFn
@@ -191,7 +191,7 @@ theorem inferLamsOut_eq (d : Nat) :
 
 /-- con-leche: ConLeche/Verify/BinderLoop.lean:83-85 inferPisOut — the
 mirror's `imax` fold, as a function. -/
-@[expose] def pisOutFn : List Level → Level → Level
+def pisOutFn : List Level → Level → Level
   | [], v => v
   | u :: rest, v => pisOutFn rest (.imax u v)
 attribute [bridge_grind =] pisOutFn
