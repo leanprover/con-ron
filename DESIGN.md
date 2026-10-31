@@ -70678,8 +70678,239 @@ What it says:
   bridge definitions would cut off like a proof edit.  That was not
   measured, because none sits in `StateOK.lean`.
 
-**Follow-ups, not done here.**  Minimise the `public import`s with
-con-leche's plan script.  Prune the bridge's `@[expose]` set: (a) is a
+**Follow-ups, not done here.**  ~~Minimise the `public import`s with
+con-leche's plan script.~~  ~~Prune the bridge's `@[expose]` set: (a) is a
 mention count, so some of the 272 are probably unneeded, and each removal
-costs a downstream rebuild to test.  Ask con-leche to expose `pairFns` and
-`Env.prefixTo`, which would retire two `import all`s.
+costs a downstream rebuild to test.~~  (Both closed by task #137, with `lake
+shake` rather than the plan script: 554 → 495 `public import`s, 272 → 217
+exposed bridge `def`s.)  Ask con-leche to expose `pairFns` and
+`Env.prefixTo`, which would retire two `import all`s (still open).
+
+### Task #137 — lake shake: public imports and the Bridge expose set (2026-10-31, Opus)
+
+**The ask.**  Task #136's two follow-ups: its 553 import edges were all made
+`public import` without minimising, and 272 of the bridge's 431 `def`s got
+`@[expose]`, 194 of them only because another file names them.  Both widen
+the public interface Lake's early cutoff hashes.  Header and visibility
+changes only; no statement changed, and no proof either (no `:= rfl` →
+`:= by rfl` was needed: wherever a hidden body broke a proof, the def stayed
+exposed).
+
+**The tool: `lake shake`** (built into Lake v4.35, `Lake/CLI/Shake.lean`; read
+before use).  What it models, from the source:
+* It reads the built `.olean`s, not the sources (a `lake build --no-build`
+  sanity check runs first; `--force` skips it), and **refuses any closure with
+  a classic file in it** ("only works with `module`s"), so it is pointed at
+  the 178 module files and cannot touch `Generated`, `Refine*` or `Capstone`.
+* A module's needs come in four kinds (public/private × meta/not): the
+  constants in a public declaration's type and in an exposed body are public
+  needs, those in a proof or a hidden body private ones, plus what elaboration
+  records with `recordExtraModUse`.  A `public import X` the module only
+  needs privately is proposed as `remove public import X` + `add import X`
+  — that is the demotion.  Downstream modules are re-analysed against the
+  edited graph in the same run, so the proposal set is one consistent
+  rewrite.
+* `import all` is always kept, `meta import` is its own kind, and a
+  folder-nested import (`ConRon.Arena` importing `ConRon.Arena.X`) is never
+  removed, so the umbrellas need no configuration.  Per-line
+  `-- shake: keep`, header `module -- shake: keep-all` and
+  `-- shake: keep-downstream` are its escape hatches; `--only M` (accepted,
+  though `--help` does not list it) minimises one module.
+* Without `--keep-implied` it relocates every import downward (a minimiser,
+  not an unused-import remover, as con-leche found); this task ran with
+  `--keep-implied` throughout.
+* The four modules that define a top-level `main` (`Arena/Exe`,
+  `Arena/Bench`, `Gen/Main`, `Dump/Pins`) and `Arena/Main` were left out of the
+  joint run and shaken one by one with `--only`; none got a proposal.
+
+**Run 1, over the 173 library modules.**  In-tree (`ConRon.*`, `ConLeche.*`)
+proposals: **158 demotions, 82 removals, 479 additions** (300 plain, 179
+`public`: a narrower re-export replacing a wide one, e.g. `Bridge/Core/Knot`
+dropping `public import ConRon.Bridge.Specs` for `public import
+ConRon.Bridge.Grind` + `import ConRon.Bridge.GrindAttr`).  External (`Std`,
+`Lean`) proposals were **not applied**: 219 additions and 5 removals, nearly
+all `Std.Tactic.BVDecide.Normalize.*`, `Std.Data.DTreeMap.Internal.*` and
+`Std.WP.Triple.SpecLemmas`, i.e. constants a `grind`/`omega` proof term
+mentions.  The noise floor (`--only ConRon.NoSuchModule`) is 14 `add` lines
+of the same kind.  Those edges never change, so they cannot move a cutoff.
+The proposals were applied in place (a demotion rewrites its line, so
+line numbers stay put; a removal deletes its line; additions go after the
+last import).  A second run then proposed nothing in-tree, and still does
+after the expose pass below (`scripts/shake.sh` is OK).
+
+**What shake cannot see, and what broke.**  Every failure, and its fix:
+1. *`#print axioms` and `#guard` store no constant.*  The four `*/Axioms.lean`
+   census files and the five `Arena/*Test.lean` files are marked `module --
+   shake: keep-all (…)`, which keeps their own imports; but they also named
+   lemmas that reached them through a re-export shake had narrowed
+   ("Unknown constant `OptRel.isSome`").  Restored with plain imports of the
+   defining modules: 28 (`Bridge/Axioms` 2, `Checker/Axioms` 6,
+   `Frontend/Axioms` 8, `Inductives/Axioms` 12).  Two proof files carry their
+   own census section: `Core/Arms/Defeq` (+1) and `Core/Induction` (+2), with
+   `-- shake: keep (…)`.
+2. *A `vcgen [-readNamesM_spec]` erasure names a lemma no proof term holds*
+   (`Core/Walks/Proj`: "Unknown constant"): `import ConRon.Bridge.SpecsL --
+   shake: keep`.
+3. *A bare `open ConRon.Arena` needs the namespace to exist*
+   (`Checker/Mono`, whose only Arena import was removed: "unknown namespace",
+   and then every identifier of the same `open` line): `import
+   ConRon.Arena.Handle -- shake: keep`.
+4. *A `grind_pattern` in module B on a lemma of module A is a need of A
+   only.*  `Core/Walks/IotaMajor`'s `finish` stopped closing (no "unknown"
+   anything — the con-leche trap): the lemma `strLitToConstructor_WScoped`
+   lives in `StrCtor`, its `grind_pattern [bridge_grind]` in `ProjLit`, which
+   left the closure.  `import ConRon.Bridge.Core.Walks.ProjLit -- shake: keep`.
+5. *`Gen/Main` was outside the joint run*, so it was not compensated when
+   `Gen/Emit` narrowed `ConLeche.Kernel.BasisA` to `Env`: `public import
+   ConLeche.Kernel.BasisA` (public because `basisTables` is an exposed body).
+   The only public re-export this task added.
+6. *Classic consumers.*  shake does not model them.  A `Refine2` file that
+   imports an Arena module had reached `Arena/WFProofs` through
+   `Arena/Monad`'s `public import` of it, which shake removed (no module needs
+   it there): "Unknown identifier `StoreWF`" in `Refine2/AbsState`, "Unknown
+   constant `EStore.persFindMaybe_of_noskip`" in `Refine2/Specs`.  Fixed in
+   the consumer, never by a re-export: a scratch script listed, per classic
+   file, the in-tree modules that left its import closure and whose declared
+   names the file mentions; that gave 21 imports, and trial removal cut
+   `ConRon/Capstone.lean`'s 9 to 3.  **15 plain imports in 13 classic files**
+   (`Arena.WFProofs` ×10, `Arena.WF`, `Arena.WFSkip`, and in `Capstone`
+   `ConLeche.MainTheorem`, `Bridge.Checker.Pins`, `Bridge.Frontend.Prepare`).
+   A classic file depends on its imports' whole `.olean`s anyway (#136), so
+   these cost no cutoff.
+7. *A module fell out of the default build.*  `Bridge/Frontend/Capstone`
+   imported `ConRon.Arena.Main` (the IO driver) and used nothing from it; with
+   the edge gone, only the `con-ron-lean` exe built it.  The `ConRon.Arena`
+   root now imports it, so `lake build` checks it again.  Two doc paragraphs
+   that described the removed imports (`Bridge/Frontend.lean`'s import rule,
+   `Arena/Exe.lean`'s header) now describe the current ones.
+
+8. *A generated header.*  `Arena/Frontend/PreludeText.lean` is written by
+   `scripts/gen-prelude-lean.py`, which still emitted the `public import
+   ConRon.Arena.Frontend.ExportC` shake had removed; the `gen-prelude-lean`
+   gate caught it, and the generator now writes the trimmed header.
+
+So the edges restored by hand are **2 public** (`Gen/Main`'s, and the
+root's `Arena.Main`) **and 49 plain** (34 in module files: 28 + 3 census, 1
+each for items 2–4; 15 in classic files), against the 158 demotions and 82
+removals shake made.
+
+**The `@[expose]` pass.**  shake has no expose analysis, so the set was
+re-derived from the build:
+* *Search.*  All 272 `@[expose]` dropped, then rounds of `lake build
+  ConRonBridge ConRon.Bridge` (45 rounds, a few seconds to a minute each,
+  since a failure blocks its downstream).  Each round re-exposed, per error:
+  the defs the elaborator names in its note **"The following definitions
+  were not unfolded because their definition is not exposed: X ↦ n"** (39 —
+  exact), else the dropped defs the failing declaration mentions, other
+  files' first (198 — a guess).
+* *Prune.*  Each of the 237 picks then had to earn its place: per file,
+  downstream files first (so a test rebuilds only that file's dependents),
+  drop the file's picks together, and on failure keep what the note names
+  or bisect.  371 trials; 20 of the 198 guesses went, all 39 noted ones
+  stayed.
+* *The error shapes, by count over all trial logs:* `rfl` failed, `introN`
+  failed (a hidden `def … : Prop := ∀ …` cannot be `intro`ed), "Not a
+  definitional equality" (a term-mode `@[bridge_grind =] theorem … := rfl`
+  over a hidden def, in its own file), "Invalid simp theorem `exprBody`:
+  Expected a definition with an exposed body" (`simp [f]` downstream),
+  "Function expected" (applying a hidden `∀`-def), `rcases` "not an
+  inductive datatype" (destructuring a hidden `∃`/`∧`-def), and `finish`
+  failing silently.  #136's (b) and (c) classes (structure fields, term-mode
+  `rfl`, `grind`/`simp` attributes) were all confirmed, not assumed.
+
+**Result: 217 of the 431 bridge `def`s are exposed (272 before), 214
+hidden.**  The 55 newly hidden: `StateOK`'s `MemoOK`, `MemoVOK`, `MemoLOK`,
+`MemoLsOK`; `Grind`'s `DenoteView`, `EIdxAt`, `idxOfExpr`, `idxOfLs`,
+`idxOfName`, `LsIdxAt`, `NameIdx`; `Core/Walks/PropRead`'s `isPW`, `lpJ`,
+`lpK`, `neverOnly`, `notPW`, `projPW`; `Core/Walks/IotaMajor`'s
+`litMajorOp`, `majorToCtorOp`, `RunE`, `Runs`, `scopeOkFn`; and one to three
+each in `Checker/{DeclVal, Inv, Names, Split}`, `Core/Arms/DefeqLazy`,
+`Core/Walks/{BinderLoop, Eta, IotaLeaves, Nat, ProjCore, ProjLit, Spine,
+Stuck}`, `ExprOps/{Guards, Leaves, Spine}`, `Frontend/{Lines, Shared}`,
+`Inductives/{ClassRead, GenRec, PosWalks, StructParts}` — mostly memo
+invariants (`*MemoOK`) and answer functions (`*Fn`, `*Op`) that callers only
+ever reach through a lemma.
+
+**The Arena stays exposed** (con-leche's convention: the twin is the subject
+of the proofs).  Candidates, for the record: of its 1 388 `def`s (tests
+excluded) only 21 are named in no other file — 8 in `ExprOps`, 5 in `Bench`,
+4 in `Main`, 2 in `WFProofs`, 1 each in `CheckDecl` and `Frontend/ExportC` —
+so un-exposing the Arena would buy almost nothing.
+
+**Counts** (the 178 module files):
+
+| | master `07c3e05c` | branch |
+|---|---:|---:|
+| `public import` | 554 | 495 |
+| plain `import` | 5 | 497 |
+| `import all` / `meta import` | 7 / 11 | 7 / 11 |
+| in-tree (`ConRon.*`) edges, public / plain | 464 / 5 | 397 / 457 |
+| Σ over modules of in-tree modules whose interface it depends on (direct imports + their public closure) | 11 240 | 4 575 (−59 %) |
+| Σ over modules of the in-tree transitive import closure | 11 240 | 7 158 (−36 %) |
+| Bridge `@[expose]` | 272 | 217 |
+
+The direct edge count roughly doubles — shake replaces one wide `public
+import` by the few narrow imports a module actually uses — while what a
+module's rebuild depends on falls by 59 %, and 36 % of the transitive closure
+was simply unused (`Bridge/Rel` imported the whole `ConRon.Arena` umbrella).
+
+**Measurements** (`perf stat -e instructions:u,cycles:u`; `LAKE_JOBS=4`;
+`LAKE_CACHE_DIR` an empty scratch directory, so every con-ron module is
+really elaborated; the method and the edits are #136's, the proof-only edits
+written on the same line so nothing moves.  Master is `07c3e05c` in a
+detached scratch worktree, the branch `35f4940d` in another (the commit after it only drops one blank
+line from a generated header).  Target:
+`lake build ConRonArena ConRonBridge`.)
+
+| build | master | branch | |
+|---|---:|---:|---:|
+| cold (no `proof/.lake/build`) | 172 mods, 2.100 T instr | 172, 2.087 T | −0.6 % |
+| no-op | 0, 0.007 T | 0, 0.007 T | |
+| Arena proof-only (`instantiate1Go_zero`) | 1, 0.076 T | 1, 0.076 T | = |
+| Arena def-body (`sizeBArmApp`) | 151, 1.821 T | **138**, 1.689 T | −7 % |
+| Bridge proof-only (`MemoOK.of_empty`) | 1, 0.012 T | 1, 0.012 T | = |
+| Bridge def-body, **`MemoOK` — hidden on the branch** | 107, 1.406 T | **1**, 0.012 T | 115× |
+| Bridge def-body, `EntryCacheOK` (exposed on both) | 107, 1.406 T | **99**, 1.373 T | −2 % |
+
+(Each edit is reverted and rebuilt before the next; the revert builds
+reproduce the edit's numbers within 0.1 %.)
+
+What it says:
+* **The case #136 could not measure is the big one.**  #136's own Bridge
+  def-body edit was to `MemoOK`, which this task found no file unfolds:
+  hidden, its body edit now rebuilds exactly `StateOK` instead of the 107
+  modules downstream of it.  That holds for each of the 214 hidden bridge
+  defs.
+* **A narrower import graph helps exposed edits a little.**  The Arena
+  def-body edit rebuilds 13 fewer modules: four Arena files that imported
+  `ExprOps`'s closure without using it (`Frontend/ExportC`,
+  `Frontend/PreludeText`, `NatOpPinSet`, `StdAxioms`) and the bridge's base
+  (`Rel`, `Grind`, `StateOK`, `StoreBind`, `StoreNested`, `ExprOps`,
+  `Core/Walks/{Spec, Mono}`, `Checker/Mono`), which had reached it through
+  `Bridge/Rel`'s `public import ConRon.Arena`.  The exposed Bridge edit
+  rebuilds 8 fewer (`Promote/{Memo, Pers, Walk, Weak}` among them).
+* **A cold build is unchanged** (−0.6 %): the same 172 modules are
+  elaborated, and the elaboration dominates.
+* Proof-only edits already cut off at one module (#136) and still do.
+
+**Re-running shake.**  `scripts/shake.sh` (report; exit 1 on any in-tree
+proposal) or `scripts/shake.sh --fix` (shake's own `--fix`, noise included:
+keep the in-tree lines of the diff, drop the `Std`/`Lean` ones).  It builds
+the module files first, because `lake build` does not build four of them
+(the exe roots, and `ConRon.Bridge` itself — see below).  Not a gate step:
+it takes ~25 s on a built tree but needs those extra targets built, and a
+proposal is a judgment (apply it, or mark the import `-- shake: keep
+(reason)`), as each blind spot above shows.  After applying anything, `lake
+build` is the arbiter, classic tiers included.
+
+**Findings on the side.**
+* `lake build` does not build the `ConRon.Bridge` and `ConRon.Refine2` root
+  modules: their libraries say `globs = ["….+"]`, which is the submodules
+  only, and `roots` does not add the root back.  Both build when asked
+  (`lake build ConRon.Bridge ConRon.Refine2`).  Not changed here.
+* The shared Lake cache had no entry for `07c3e05c`: the first `lake build`
+  of this worktree elaborated everything, `Refine2/Core/Eqns.lean` included
+  (20 min).
+* `Bridge/Frontend.lean`'s module list still names an
+  `Arena.no_False_declaration_pipeline` that no file declares (stale since
+  before #136); left for whoever owns that tier's docs.
