@@ -33,8 +33,17 @@ a shapeless block, a wrong recursor type.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-import ConRon.Arena.Checker
-import ConLeche.Kernel.CheckDecl
+module
+
+public import ConRon.Arena.Checker
+public import ConLeche.Kernel.CheckDecl
+/- The `#guard`s below are EVALUATED, so the constants they name have to be
+reachable from meta code too; a module needed at both levels is imported
+twice. -/
+meta import ConRon.Arena.Checker
+meta import ConLeche.Kernel.CheckDecl
+
+@[expose] public section
 
 namespace ConRon.Arena.InductivesTest
 

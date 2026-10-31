@@ -9,7 +9,11 @@ binder view its tag spells
 (`Arena/WFProofs.lean`'s `EStore.internBind_eq_intern`), and its spec is
 `EStore.intern_spec` read through that equation.
 -/
-import ConRon.Bridge.Rel
+module
+
+public import ConRon.Bridge.Rel
+
+public section
 
 namespace ConRon.Bridge
 

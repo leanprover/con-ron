@@ -30,10 +30,14 @@ One thing is here for the IMPORT's sake rather than the subject's:
 `instantiate1Fast_specE`, which is `ExprOps/Inst1.lean`'s spec in answer
 shape and is what `etaCert_spec` needs.
 -/
-import ConRon.Bridge.Core.Walks.Owed
-import ConRon.Bridge.Core.Walks.Cached
-import ConRon.Bridge.ExprOps.Spine
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Walks.Owed
+public import ConRon.Bridge.Core.Walks.Cached
+public import ConRon.Bridge.ExprOps.Spine
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -166,7 +170,7 @@ theorem LsLenAt.some {st : LsStore} {i : LsIdx} {us : List Level} (H : LsLenAt s
 grind_pattern [bridge_grind] LsLenAt.some => LsLenAt st i (some us)
 
 /-- con-leche: none — every element of a list is well-scoped at `d`. -/
-def AllWS (d : Nat) (xs : List Expr) : Prop := ∀ x ∈ xs, Expr.WScoped d x
+@[expose] def AllWS (d : Nat) (xs : List Expr) : Prop := ∀ x ∈ xs, Expr.WScoped d x
 
 /-- con-leche: none — a well-scoped term's spine arguments are. -/
 theorem allWS_getAppArgs {d : Nat} {x : Expr} (h : Expr.WScoped d x) : AllWS d x.getAppArgs :=
@@ -175,7 +179,7 @@ grind_pattern [bridge_grind] allWS_getAppArgs => Expr.WScoped d x, Expr.getAppAr
 
 /-- con-leche: none — an optional list denotes and is well-scoped (a callee's
 precondition on a handle list, as one atom). -/
-def OptAllWS (d : Nat) : Option (List Expr) → Prop
+@[expose] def OptAllWS (d : Nat) : Option (List Expr) → Prop
   | some xs => AllWS d xs
   | none => False
 
@@ -185,7 +189,7 @@ def OptAllWS (d : Nat) : Option (List Expr) → Prop
 
 /-- con-leche: none — a constant record's denotation, field by field (the
 length of its level parameters included). -/
-def DenoteCV (st : EStore) (v : IConstantVal) : Option ConstantVal → Prop
+@[expose] def DenoteCV (st : EStore) (v : IConstantVal) : Option ConstantVal → Prop
   | some c => denoteN st.ns v.name = some c.name ∧
       Frontend.denoteNList st.ns v.levelParams = some c.levelParams ∧
       v.levelParams.length = c.levelParams.length ∧ denoteE st v.type = some c.type

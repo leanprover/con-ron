@@ -15,7 +15,11 @@ The arena's own verification, beside the implementation (con-leche's lesson
 * `intern_spec` / `view_spec` / `dropScratch_spec` / `enableScratch_spec` —
   the store operations.
 -/
-import ConRon.Arena.WFSkip
+module
+
+public import ConRon.Arena.WFSkip
+
+@[expose] public section
 
 namespace ConRon.Arena
 

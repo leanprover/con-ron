@@ -5,8 +5,12 @@
 `PMemoOK` (every row of the promotion memo is a promoted pair) and `PFrame`
 (a promotion touches nothing but the store).
 -/
-import ConRon.Bridge.Promote.Pers
-import ConRon.Arena.PromoteExt
+module
+
+public import ConRon.Bridge.Promote.Pers
+public import ConRon.Arena.PromoteExt
+
+public section
 
 namespace ConRon.Bridge
 
@@ -19,23 +23,23 @@ open ConLeche ConRon.Arena
 /-- con-leche: none — arena infrastructure; a promotion memo's expression
 rows are promoted pairs: the answer is persistent and denotes what the key
 denotes. -/
-def PMemoEOK (tbl : Std.HashMap EIdx EIdx) (st : EStore) : Prop :=
+@[expose] def PMemoEOK (tbl : Std.HashMap EIdx EIdx) (st : EStore) : Prop :=
   ∀ h r, tbl[h]? = some r →
     PersE r ∧ ∃ e, denoteE st h = some e ∧ denoteE st r = some e
 
 /-- con-leche: none — arena infrastructure; the same at a NAME handle. -/
-def PMemoNOK (tbl : Std.HashMap NIdx NIdx) (st : EStore) : Prop :=
+@[expose] def PMemoNOK (tbl : Std.HashMap NIdx NIdx) (st : EStore) : Prop :=
   ∀ h r, tbl[h]? = some r →
     PersN r ∧ ∃ x, denoteN st.ns h = some x ∧ denoteN st.ns r = some x
 
 /-- con-leche: none — arena infrastructure; the same at a LEVEL handle. -/
-def PMemoLOK (tbl : Std.HashMap LIdx LIdx) (st : EStore) : Prop :=
+@[expose] def PMemoLOK (tbl : Std.HashMap LIdx LIdx) (st : EStore) : Prop :=
   ∀ h r, tbl[h]? = some r →
     PersL r ∧ ∃ u, denoteL st.ls h = some u ∧ denoteL st.ls r = some u
 
 /-- con-leche: none — arena infrastructure; the same at a universe-argument
 LIST handle. -/
-def PMemoLsOK (tbl : Std.HashMap LsIdx LsIdx) (st : EStore) : Prop :=
+@[expose] def PMemoLsOK (tbl : Std.HashMap LsIdx LsIdx) (st : EStore) : Prop :=
   ∀ h r, tbl[h]? = some r →
     PersLs r ∧ ∃ us, denoteLs st.lss h = some us ∧ denoteLs st.lss r = some us
 

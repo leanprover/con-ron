@@ -29,9 +29,13 @@ step's `CoreStep`/`Ext` by `denoteFEnv_pext` and `PersPins.mono`; that
 bookkeeping is `FoldOK.step` (`Bridge/Checker/Inv.lean`) and `FoldOK.ofCore`
 below.
 -/
-import ConRon.Bridge.Checker.DivMod
-import ConRon.Bridge.Checker.Basis
-import ConRon.Bridge.Checker.DeclWF
+module
+
+public import ConRon.Bridge.Checker.DivMod
+public import ConRon.Bridge.Checker.Basis
+public import ConRon.Bridge.Checker.DeclWF
+
+public section
 
 open ConLeche ConRon.Arena
 

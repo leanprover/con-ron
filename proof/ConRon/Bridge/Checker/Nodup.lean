@@ -21,13 +21,17 @@ guard the checker ran:
 The statements and the proofs are pure: con-leche's checker, and the
 basis install's table lemma from `Bridge/Checker/DeclWF.lean`.
 -/
-import ConLeche.Semantics.Bridge.Sound
-import ConLeche.Verify.Extend.Inversions
-import ConLeche.Verify.EnvBound
-import ConLeche.Verify.EnvWF
-import ConLeche.Verify.ExceptBind
-import ConLeche.Verify.Inductives.GenRecRun
-import ConRon.Bridge.Checker.DeclWF
+module
+
+public import ConLeche.Semantics.Bridge.Sound
+public import ConLeche.Verify.Extend.Inversions
+public import ConLeche.Verify.EnvBound
+public import ConLeche.Verify.EnvWF
+public import ConLeche.Verify.ExceptBind
+public import ConLeche.Verify.Inductives.GenRecRun
+public import ConRon.Bridge.Checker.DeclWF
+
+public section
 
 namespace ConRon.Bridge
 
@@ -409,7 +413,7 @@ checker. -/
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean:45-49 PushChain (the
 table clause) — `e'`'s tables are `e`'s with tables of structures `e` does not
 store in front. -/
-def TblExt (e e' : Env) : Prop :=
+@[expose] def TblExt (e e' : Env) : Prop :=
   ∃ newQ, e'.tables = newQ ++ e.tables ∧ ∀ t ∈ newQ, e.find? t.structName = none
 
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain.find?_none —

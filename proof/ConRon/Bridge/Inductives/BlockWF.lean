@@ -12,12 +12,20 @@ Upstream proves the same chain only through the cached driver
 PURE runs directly, with the same ingredients: `direct_block_inds_wf`,
 `direct_block_ctors_wf`, `genRecCheck_recsWF`, `direct_table_wf`.
 -/
-import ConLeche.Verify.Inductives.BlockWF
-import ConLeche.Verify.Inductives.DirectInv
-import ConLeche.Verify.Cached.GenRecC
-import ConLeche.Verify.BridgeDecl
-import ConLeche.Semantics.Bridge.Sound
-import ConLeche.Kernel.CheckDecl
+module
+
+public import ConLeche.Verify.Inductives.BlockWF
+public import ConLeche.Verify.Inductives.DirectInv
+public import ConLeche.Verify.Cached.GenRecC
+public import ConLeche.Verify.BridgeDecl
+public import ConLeche.Semantics.Bridge.Sound
+public import ConLeche.Kernel.CheckDecl
+-- `blockNestCtx_inv`: con-leche's `Verify/Inductives/BlockWF` imports it privately
+import ConLeche.Verify.Inductives.PositivityInv
+-- `Verify.openPisAtFvars_length`: likewise, from `Verify/Denote/IndFrame`
+import ConLeche.Verify.Denote.IndFrame
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

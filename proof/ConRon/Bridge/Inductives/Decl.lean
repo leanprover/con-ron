@@ -29,7 +29,11 @@ about a different program.
 clause for clause, so
 `indSpec_of_bridge` is a record projection of `checkIndRoute_bridge`.
 -/
-import ConRon.Bridge.Inductives.BlockTail
+module
+
+public import ConRon.Bridge.Inductives.BlockTail
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

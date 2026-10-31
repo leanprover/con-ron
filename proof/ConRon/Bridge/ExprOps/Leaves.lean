@@ -83,8 +83,12 @@ weakening: `leafGuard`, the one consumer, uses the list only as a membership
 base (`leafMem`), and `Guards.lean`'s `leavesSubSpec_congr` is what makes
 that formally so.
 -/
-import ConRon.Bridge.Specs
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 
@@ -98,7 +102,7 @@ open scoped Lean.Order
 /-! ## 1. The leaf list's denotation -/
 
 /-- con-leche: none — a list of `fvar` leaves denotes, pointwise. -/
-def denoteLeaves (st : EStore) : List (Nat × EIdx) → Option (List (Nat × Expr))
+@[expose] def denoteLeaves (st : EStore) : List (Nat × EIdx) → Option (List (Nat × Expr))
   | [] => some []
   | (i, t) :: rest =>
     match denoteE st t, denoteLeaves st rest with
@@ -134,7 +138,7 @@ lemmas. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1497-1499 MemoBInv — the generic
 CURSOR-keyed, value-valued memo invariant. -/
-def MemoVDOK {α : Type} (f : Nat → Expr → α)
+@[expose] def MemoVDOK {α : Type} (f : Nat → Expr → α)
     (tbl : Std.HashMap (EIdx × Nat) α) (st : EStore) : Prop :=
   ∀ (k : EIdx × Nat) (v : α), tbl[k]? = some v →
     ∃ e, denoteE st k.1 = some e ∧ v = f k.2 e
@@ -452,7 +456,7 @@ theorem BlackA.mono {st : EStore} {acc acc' : List (Nat × EIdx)} {k : EIdx}
 either black at the accumulator or of strictly greater rank than `c`, i.e.
 an ancestor of the current call.  The rank is quantified inside (template
 rule 6), so this statement has no more parameters than the plain one had. -/
-def SeenOK (st : EStore) (acc : List (Nat × EIdx))
+@[expose] def SeenOK (st : EStore) (acc : List (Nat × EIdx))
     (seen : Std.HashMap EIdx Unit) (c : EIdx) : Prop :=
   ∀ (rk : EIdx → Nat), EWFAt st rk → ∀ (k : EIdx), seen[k]?.isSome = true →
     rk c < rk k ∨ BlackA st acc k
@@ -467,7 +471,7 @@ theorem SeenOK.of_empty {st : EStore} {acc : List (Nat × EIdx)}
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1093-1128 fvarLeavesGoC — **what
 a completed call gives back**: every key of the returned set is black at the
 returned accumulator, or was already a key of the set the call was given. -/
-def SeenGrow (st : EStore) (acc' : List (Nat × EIdx))
+@[expose] def SeenGrow (st : EStore) (acc' : List (Nat × EIdx))
     (seen seen' : Std.HashMap EIdx Unit) : Prop :=
   ∀ (k : EIdx), seen'[k]?.isSome = true →
     BlackA st acc' k ∨ seen[k]?.isSome = true
@@ -548,7 +552,7 @@ walk's ANSWER relation: the result list has exactly the members of the
 accumulator plus the subject's leaves.  Membership and not list equality,
 because the `seen` set collects a shared subterm's leaves once where
 `Expr.fvarLeaves` re-concatenates them per occurrence. -/
-def LeavesEq (st : EStore) (acc : List (Nat × EIdx)) (c : EIdx)
+@[expose] def LeavesEq (st : EStore) (acc : List (Nat × EIdx)) (c : EIdx)
     (res : List (Nat × EIdx)) : Prop :=
   ∀ e ea r, denoteE st c = some e → denoteLeaves st acc = some ea →
     denoteLeaves st res = some r →

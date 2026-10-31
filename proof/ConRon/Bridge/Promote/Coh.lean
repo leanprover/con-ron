@@ -23,7 +23,11 @@ precondition is trivial.
 `promoteNewConsts_cohX` (and the tables' half, `promoteNewTables_spec`, needs
 no distinctness: the table map's re-index inserts oldest first).
 -/
-import ConRon.Bridge.Promote.Exact
+module
+
+public import ConRon.Bridge.Promote.Exact
+
+public section
 
 namespace ConRon.Bridge
 
@@ -116,7 +120,7 @@ theorem eraseInstalled_getElem?_eq (n : NIdx) : ∀ (cs : List IConstantInfo)
 /-- con-leche: none — arena infrastructure; the constants' names denote
 pairwise DIFFERENT names.  `promoteNew_cohX`'s one added precondition, at
 the step's constants. -/
-def NamesDistinct (st : EStore) (cs : List IConstantInfo) : Prop :=
+@[expose] def NamesDistinct (st : EStore) (cs : List IConstantInfo) : Prop :=
   cs.Pairwise fun a b => ∃ x y, denoteN st.ns a.name = some x ∧
     denoteN st.ns b.name = some y ∧ x ≠ y
 

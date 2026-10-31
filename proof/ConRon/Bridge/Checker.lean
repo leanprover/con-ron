@@ -37,20 +37,24 @@ In dependency order:
   `Arena.installThenCheck_bridge`, the binary's own fold;
 * `Bridge/Checker/Axioms.lean` — the trust census.
 -/
-import ConRon.Bridge.Checker.Inv
-import ConRon.Bridge.Checker.Names
-import ConRon.Bridge.Checker.Hyp
-import ConRon.Bridge.Checker.Decl
-import ConRon.Bridge.Checker.Arms
-import ConRon.Bridge.Checker.Mono
-import ConRon.Bridge.Checker.Fold
-import ConRon.Bridge.Checker.Base
-import ConRon.Bridge.Checker.Canon
-import ConRon.Bridge.Checker.Basis
-import ConRon.Bridge.Checker.Pins
-import ConRon.Bridge.Checker.DeclVal
-import ConRon.Bridge.Checker.DivMod
-import ConRon.Bridge.Checker.DeclWF
-import ConRon.Bridge.Checker.Nodup
-import ConRon.Bridge.Checker.Split
-import ConRon.Bridge.Checker.Axioms
+module
+
+public import ConRon.Bridge.Checker.Inv
+public import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Checker.Hyp
+public import ConRon.Bridge.Checker.Decl
+public import ConRon.Bridge.Checker.Arms
+public import ConRon.Bridge.Checker.Mono
+public import ConRon.Bridge.Checker.Fold
+public import ConRon.Bridge.Checker.Base
+public import ConRon.Bridge.Checker.Canon
+public import ConRon.Bridge.Checker.Basis
+public import ConRon.Bridge.Checker.Pins
+public import ConRon.Bridge.Checker.DeclVal
+public import ConRon.Bridge.Checker.DivMod
+public import ConRon.Bridge.Checker.DeclWF
+public import ConRon.Bridge.Checker.Nodup
+public import ConRon.Bridge.Checker.Split
+public import ConRon.Bridge.Checker.Axioms
+
+public section

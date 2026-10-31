@@ -83,7 +83,7 @@ pub fn seen_has(seen: &HashMap<EIdx, bool>, e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:46-70 usedConstsGo`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:53-77 usedConstsGo`
 /// — the constants an expression DAG references, each node visited once.
 pub fn used_consts_go(
     pers: &PersTier,
@@ -104,7 +104,7 @@ pub fn used_consts_go(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:46-70 usedConstsGo`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:53-77 usedConstsGo`
 /// — the arms, past the visited test.
 pub fn used_consts_node(
     pers: &PersTier,
@@ -157,7 +157,7 @@ pub fn used_consts_two(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:72-82 usedConstsRules`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:79-89 usedConstsRules`
 /// — a recursor's rules, folded over ONE visited set.
 pub fn used_consts_rules(
     pers: &PersTier,
@@ -182,7 +182,7 @@ pub fn used_consts_rules(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:84-95 usedConstsBlock`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:91-102 usedConstsBlock`
 /// — an inductive block's members, folded over ONE visited set: the type of
 /// each member and, for a recursor, every rule's right-hand side.
 pub fn used_consts_block(
@@ -221,7 +221,7 @@ pub fn used_consts_block(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:97-106
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:104-113
 /// IDeclaration.usedConsts` — the constants a parsed record references (types,
 /// values, recursor rule right-hand sides; a basis block references nothing the
 /// stream declares).
@@ -249,7 +249,7 @@ pub fn decl_used_consts(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:97-106
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:104-113
 /// IDeclaration.usedConsts` — the three value kinds' clause, which the twin
 /// spells once with an `|` pattern: the type and the value, at one visited set.
 pub fn decl_used_consts_value(
@@ -266,7 +266,7 @@ pub fn decl_used_consts_value(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:108-116
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:115-123
 /// isNatOpRecord` — the pinned `Nat` operation records whose ground the pass
 /// serves: the pin-certified WF operations and the structural ones.
 pub fn is_nat_op_record(
@@ -310,7 +310,7 @@ pub fn nidx_contains(ns: &Vec<NIdx>, n: &NIdx) -> bool {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:129-138 nameIndex`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:136-145 nameIndex`
 /// — name ↦ the index of the record declaring it; the FIRST record declaring a
 /// name wins (a duplicate is rejected by the fold anyway).
 pub fn hoist_name_index(ds: &Vec<IDeclaration>) -> HashMap<NIdx, u64> {
@@ -354,7 +354,7 @@ pub fn target_done(target: &HashMap<u64, u64>, k: u64, i: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:189-197 hoistClosure.pushOne` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:196-204 hoistClosure.pushOne` —
 /// the twin's inner `for n in ds[k]!.usedConsts` loop: the references of the
 /// record just targeted that lie after `i` go on the worklist.
 pub fn hoist_push_deps(
@@ -386,7 +386,7 @@ pub fn hoist_push_deps(
 }
 
 /// con-leche: none — `Array.push` on the index worklist of `hoistTargets`
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:189-197 hoistClosure.pushOne` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:196-204 hoistClosure.pushOne` —
 /// a worklist push.  `Vec::pop` is not in the Aeneas subset, so the walk
 /// carries its own top-of-stack index and overwrites the slot at it — a
 /// `Vec::push` only when the stack has never been that deep.  The vector and
@@ -403,7 +403,7 @@ pub fn stack_push_u64(stack: Vec<u64>, sp: usize, x: u64) -> (Vec<u64>, usize) {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:155-197
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:162-204
 /// hoistClosure` — the worklist: the closure of the ground record `j` within
 /// the records after `i`, each reached record marked as having to precede `i`.
 /// This loop is unfuelled.  The twin's fuel counts MARKING pops only (at most
@@ -442,7 +442,7 @@ pub fn hoist_close(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:298-311 hoistTargetsGo.hoistDeps`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:305-318 hoistTargetsGo.hoistDeps`
 /// — the twin's inner `for g in natOpDeps c` loop of one operation record at
 /// index `i`: each ground declared LATER carries its closure with it.
 pub fn hoist_targets_at(
@@ -481,7 +481,7 @@ pub fn hoist_targets_at(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:313-318
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:320-325
 /// hoistTargets` — **which records must move, and how far**: the map from a
 /// record's index to the earliest pinned-operation index it must precede.
 /// Empty — and then the hoist is the identity — on every stream whose ground
@@ -519,7 +519,7 @@ pub fn hoist_targets(
 
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:359-364 applyHoist`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist`
 /// — the moved records' indices, increasing.
 pub fn hoist_moved_idxs(n: usize, target: &HashMap<u64, u64>) -> Vec<u64> {
     let mut out: Vec<u64> = Vec::new();
@@ -544,7 +544,7 @@ pub fn target_is(target: &HashMap<u64, u64>, k: u64, t: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:359-364 applyHoist` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist` —
 /// the twin's `(List.range ds.size).mergeSort (hoistLt …)`, as the module
 /// note's bucket pass: at each position `t`, first the moved records targeted
 /// at `t` (increasing original index, which is dependency order), then the
@@ -571,7 +571,7 @@ pub fn hoist_order(n: usize, target: &HashMap<u64, u64>, moved: &Vec<u64>) -> Ve
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:350-357 reorder` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:357-364 reorder` —
 /// the records in the sorted order, one COPY per record (the module note's
 /// third deviation).
 pub fn hoist_reorder(ds: &Vec<IDeclaration>, order: &Vec<u64>) -> Vec<IDeclaration> {
@@ -586,7 +586,7 @@ pub fn hoist_reorder(ds: &Vec<IDeclaration>, order: &Vec<u64>) -> Vec<IDeclarati
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:340-348 movedNames`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:347-355 movedNames`
 /// — the names of the records that moved, in index order: the driver's receipt.
 pub fn hoist_moved_names(ds: &Vec<IDeclaration>, moved: &Vec<u64>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::new();
@@ -606,7 +606,7 @@ pub fn hoist_moved_names(ds: &Vec<IDeclaration>, moved: &Vec<u64>) -> Vec<NIdx> 
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:359-364 applyHoist`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist`
 /// — **the reorder**: the sorted record array and the names of the records
 /// moved.
 pub fn apply_hoist(
@@ -621,7 +621,7 @@ pub fn apply_hoist(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-373
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:373-380
 /// hoistNatOpGround` — **the hoist.**  Returns the reordered records and the
 /// names of the records moved (empty, and the array untouched and uncopied,
 /// when no operation's ground is declared after it).

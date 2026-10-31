@@ -21,7 +21,11 @@ monotonicity lemmas.  The twin's three rescue blocks are named programs
 two literal matches run on equations one constructor deep
 (`litMajorToCtor_split`, `isStrLit_split`).
 -/
-import ConRon.Bridge.Core.Walks.IotaLeaves
+module
+
+public import ConRon.Bridge.Core.Walks.IotaLeaves
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -46,15 +50,15 @@ denoting subject) is `SlotRes` at the answer's denotation term, a walk's
 `SimEOp` is `OutE` there — no `∃` reaches `grind`. -/
 
 /-- a fuelled pure run reaches `v` at some fuel -/
-def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
+@[expose] def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
 
 /-- a knot slot's pure run at a subject reaches `v` -/
-def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
+@[expose] def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
   ∃ F, op F d e = .ok v
 
 /-- a knot slot's result at the answer's denotation: well scoped, and the
 pure run's value -/
-def SlotRes (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e : Expr) : Option Expr → Prop
+@[expose] def SlotRes (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e : Expr) : Option Expr → Prop
   | some v => Expr.WScoped d v ∧ RunE op d e v
   | none => False
 
@@ -77,7 +81,7 @@ denotation term. -/
   unfold SimE; cases denoteE st r <;> simp [SlotRes, RunE]
 
 /-- a walk's answer at its result denotation -/
-def OutE (P : Nat → CheckM Expr) (d : Nat) : Option Expr → Prop
+@[expose] def OutE (P : Nat → CheckM Expr) (d : Nat) : Option Expr → Prop
   | some v => Expr.WScoped d v ∧ Runs P v
   | none => False
 
@@ -99,11 +103,11 @@ grind_pattern [bridge_grind] OutE.isSome => OutE P d o
   unfold SimEOp; cases h : denoteE st r <;> simp [OutE, Runs]
 
 /-- the fabricated spine's scope check -/
-def scopeOkFn (d : Nat) (ef em : Expr) : Bool :=
+@[expose] def scopeOkFn (d : Nat) (ef em : Expr) : Bool :=
   ef.wscopedB d && ef.looseBVarsBounded 0 && ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)
 
 /-- con-leche: none — `fabScopeOk`'s answer at two optional subjects. -/
-def ScopeAns (d : Nat) (r : Bool) : Option Expr → Option Expr → Prop
+@[expose] def ScopeAns (d : Nat) (r : Bool) : Option Expr → Option Expr → Prop
   | some ef, some em => r = scopeOkFn d ef em
   | _, _ => True
 
@@ -170,7 +174,7 @@ split into the three branches — each a copy of the con-leche text that
 drift. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the K branch. -/
-def mtcK (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+@[expose] def mtcK (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
     (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
     CheckM Expr :=
   (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
@@ -196,7 +200,7 @@ def mtcK (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the η branch
 (no certificate on the fabricated spine, con-leche's task #342 L11b). -/
-def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvT : ConstantVal)
+@[expose] def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvT : ConstantVal)
     (caps : IndCaps) (T : ConLeche.Name) (major : Expr) : CheckM Expr :=
   (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
   (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
@@ -219,7 +223,7 @@ def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvT : ConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the pinned
 `And` branch. -/
-def mtcAnd (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+@[expose] def mtcAnd (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
     (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
     CheckM Expr :=
   (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
@@ -395,7 +399,7 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
 /-! ## `majorToCtor`: the arena's three rescue blocks as named programs -/
 
 /-- the twin's K rescue block (`majorToCtor`'s `rl.k` arm) -/
-def majorKA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
+@[expose] def majorKA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
     (cvj : IConstantVal) (cnP : Nat) (T : NIdx) (major : EIdx) : AM EIdx := do
   let tmaj ← r.whnf depth (← r.inferIO depth major)
   let hh ← getAppFn coreWalkFuel tmaj
@@ -422,7 +426,7 @@ def majorKA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : I
   else pure major
 
 /-- the twin's η rescue block (`majorToCtor`'s `rl.eta` arm) -/
-def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
+@[expose] def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
     (T : NIdx) (major : EIdx) : AM EIdx := do
   let tmaj ← r.whnf depth (← r.inferIO depth major)
   let hh ← getAppFn coreWalkFuel tmaj
@@ -450,7 +454,7 @@ def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (ca
   else pure major
 
 /-- the twin's `And` rescue block (`majorToCtor`'s pinned-`And` arm) -/
-def majorAndA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
+@[expose] def majorAndA (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (rl : IRecRule)
     (cvj : IConstantVal) (cnP : Nat) (T : NIdx) (major : EIdx) : AM EIdx := do
   let tmaj ← r.whnf depth (← r.inferIO depth major)
   let hh ← getAppFn coreWalkFuel tmaj
@@ -508,7 +512,7 @@ theorem majorToCtor_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : 
 /-! ## The K rescue -/
 
 /-- `mtcK` past its two knot calls, as a function of the head-normalised type -/
-def mtcKT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+@[expose] def mtcKT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
     (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major tmaj : Expr) :
     CheckM Expr :=
   match tmaj.getAppFn with
@@ -746,7 +750,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the η branch past its two
 knot calls. -/
-def mtcEtaT (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps) (T : ConLeche.Name)
+@[expose] def mtcEtaT (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps) (T : ConLeche.Name)
     (major tmaj : Expr) : CheckM Expr :=
   match tmaj.getAppFn with
   | .const T' ust =>
@@ -880,7 +884,7 @@ grind_pattern [bridge_grind] mtcEta_fab =>
     RunE (ConLeche.whnf mode env) d tm tmaj
 
 /-- `capsNeverZero`'s answer at optional subjects -/
-def CapsNZ (r : Bool) : Option (List ConLeche.Name) → Option (List Level) → Option IndCaps → Prop
+@[expose] def CapsNZ (r : Bool) : Option (List ConLeche.Name) → Option (List Level) → Option IndCaps → Prop
   | some ks, some vs, some c => r = ConLeche.capsNeverZero ks vs c
   | _, _, _ => True
 
@@ -957,7 +961,7 @@ theorem majorEta_spec {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the `And` branch past its
 two knot calls. -/
-def mtcAndT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+@[expose] def mtcAndT (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
     (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major tmaj : Expr) :
     CheckM Expr :=
   match tmaj.getAppFn with
@@ -1167,7 +1171,7 @@ grind_pattern [bridge_grind] mtcAnd_pi =>
     PIrrelE mode env d (andFab rl T x tmaj) x b6
 
 /-- `andRescueSlots`'s answer at the level list's denotation -/
-def AndSlotsAns (env : Env) (cn : ConLeche.Name) (nP : Nat) (r : Bool) :
+@[expose] def AndSlotsAns (env : Env) (cn : ConLeche.Name) (nP : Nat) (r : Bool) :
     Option (List Level) → Prop
   | some ls => r = ConLeche.andRescueSlots env cn nP ls
   | none => True
@@ -1243,7 +1247,7 @@ theorem litMajorToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
   · rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — as a fuelled run. -/
-def litMajorOp (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) : Nat → CheckM Expr :=
+@[expose] def litMajorOp (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) : Nat → CheckM Expr :=
   fun F => ConLeche.litMajorToCtorFueled mode env F d x
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — every major but a
@@ -1304,7 +1308,7 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-! ## `majorToCtor`'s pure side -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — as a fuelled run. -/
-def majorToCtorOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name)
+@[expose] def majorToCtorOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name)
     (rules : List RecRule) (x : Expr) : Nat → CheckM Expr :=
   fun F => ConLeche.majorToCtorFueled mode env F d cn rules x
 
@@ -1533,7 +1537,7 @@ theorem isStrLit_spec (s₀ : AState) (h : EIdx) (x : Expr)
 /-! ## `prepareMajor` -/
 
 /-- `majorToCtor`'s answer at an optional subject -/
-def MtcAns (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+@[expose] def MtcAns (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
     (st : EStore) (r : EIdx) : Option Expr → Prop
   | some x => SimEOp (majorToCtorOp mode env d cn rules x) d st r
   | none => True
@@ -1564,7 +1568,7 @@ theorem majorToCtor_specS {fuel : Nat} (hμ : mode.verifiedChecks = true)
     exact majorToCtor_spec hμ hsim s₀ d c rules major cn rules' x hok hr hd hw
 
 /-- `litMajorToCtor`'s answer at an optional subject -/
-def LitAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
+@[expose] def LitAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
     Option Expr → Prop
   | some x => SimEOp (litMajorOp mode env d x) d st r
   | none => True
@@ -1599,7 +1603,7 @@ theorem isCtorApp_specS (s₀ : AState) (a : EIdx) (hok : CheckOK mode env fe s�
   exact isCtorApp_spec s₀ a x hok hx
 
 /-- con-leche: ConLeche/Kernel/Core.lean:751-834 prepareMajor — as a fuelled run. -/
-def prepOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
+@[expose] def prepOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name) (rules : List RecRule)
     (x : Expr) : Nat → CheckM Expr :=
   fun F => ConLeche.prepareMajorFueled mode env F d cn rules x
 

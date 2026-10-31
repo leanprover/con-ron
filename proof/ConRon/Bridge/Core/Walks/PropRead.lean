@@ -49,9 +49,13 @@ meet the same `grind` limitation (`_tmp/corpus/vcgen-grind/
 nested-ctor-fallthrough-hyp.lean`) and the same workaround: `vcgen` runs on
 the twin with the nested pattern as a `Bool` test (`substPWAt_split`).
 -/
-import ConRon.Bridge.Core.Walks.Nat
-import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Walks.Nat
+public import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -194,7 +198,7 @@ theorem entryAt (st : EStore) (en : IProjEntry) : EntryAt st en (denoteProjEntry
 grind_pattern [bridge_grind] entryAt => denoteProjEntry st en
 
 /-- con-leche: none — a projection entry, or a default. -/
-def projOf : Option ProjEntry → ProjEntry | some p => p | none => default
+@[expose] def projOf : Option ProjEntry → ProjEntry | some p => p | none => default
 
 /-- con-leche: none — the index's projection-table answer against the
 environment's: found together, and a found entry's body denotes. -/
@@ -243,13 +247,13 @@ theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK mode env fe
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast — its verdict
 at a datum. -/
-def notPW : Option PropWhen → Bool | some pw => !pw.isProp | none => false
+@[expose] def notPW : Option PropWhen → Bool | some pw => !pw.isProp | none => false
 /-- con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast — its verdict at
 a datum. -/
-def isPW : Option PropWhen → Bool | some pw => pw.isProp | none => false
+@[expose] def isPW : Option PropWhen → Bool | some pw => pw.isProp | none => false
 /-- con-leche: ConLeche/Kernel/PropRead.lean:164-176 headProofPW — the
 projection arm's answer at a datum: never-a-proposition only. -/
-def neverOnly : Option PropWhen → Option PropWhen
+@[expose] def neverOnly : Option PropWhen → Option PropWhen
   | some pw => if pw.isNever then some pw else none
   | none => none
 attribute [bridge_grind =] notPW isPW neverOnly
@@ -311,9 +315,9 @@ theorem lamProj?_eq (k : Nat) (x : Expr) : ConLeche.lamProj? k x =
     ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
 
 /-- con-leche: none — the arity of a `lamProj?` answer. -/
-def lpK : Option (Nat × Nat) → Nat | some (k, _) => k | none => 0
+@[expose] def lpK : Option (Nat × Nat) → Nat | some (k, _) => k | none => 0
 /-- con-leche: none — the projected index of a `lamProj?` answer. -/
-def lpJ : Option (Nat × Nat) → Nat | some (_, j) => j | none => 0
+@[expose] def lpJ : Option (Nat × Nat) → Nat | some (_, j) => j | none => 0
 attribute [bridge_grind =] lpK lpJ
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — one
@@ -435,7 +439,7 @@ theorem headProofPW_proj {S : ConLeche.Name} {i : Nat} {e : Expr} :
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:164-176 headProofPW — the
 projection arm at the projection entry. -/
-def projPW (f : ConLeche.Name → Option ConstantInfo) : Option ProjEntry → Option PropWhen
+@[expose] def projPW (f : ConLeche.Name → Option ConstantInfo) : Option ProjEntry → Option PropWhen
   | some p => neverOnly (ConLeche.typeSortPW f p.body)
   | none => none
 attribute [bridge_grind =] projPW

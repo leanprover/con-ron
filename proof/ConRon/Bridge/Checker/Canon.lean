@@ -22,7 +22,11 @@ answer is con-leche's provided the interned handles denote those values — an
 instance of `Bridge/StoreNested.lean`'s `EStore.internName` spec and of
 `denoteN`'s injectivity, once each.
 -/
-import ConRon.Bridge.Checker.Hyp
+module
+
+public import ConRon.Bridge.Checker.Hyp
+
+public section
 
 open ConLeche ConRon.Arena
 

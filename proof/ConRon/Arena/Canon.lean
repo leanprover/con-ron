@@ -37,7 +37,11 @@ comparison, because each comparison tests the two parameter lists for equal
 LENGTH before it looks at a term, and `canonNames` depends on the length
 alone.
 -/
-import ConRon.Arena.Core
+module
+
+public import ConRon.Arena.Core
+
+@[expose] public section
 
 namespace ConRon.Arena
 

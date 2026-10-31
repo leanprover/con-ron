@@ -29,7 +29,11 @@ syntactically, checking nothing.  The Rust twin is
   `classReadSlots` is `classReadSlot` and `recs.mapM` of `classRead` is
   `classReadRecCls`, the Rust's own split.
 -/
-import ConRon.Arena.Inductives.BlockParts
+module
+
+public import ConRon.Arena.Inductives.BlockParts
+
+@[expose] public section
 
 namespace ConRon.Arena
 

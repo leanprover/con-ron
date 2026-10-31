@@ -61,9 +61,13 @@ The last row refines con-leche functions that are not in `CheckM` at all
 `Expr.isBoolTrue e : Bool`), so there is no `∃ F` and no fuel bookkeeping:
 the conclusion is an equation between the arena's answer and con-leche's.
 -/
-import ConRon.Bridge.Core.Walks.Spec
-import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Walks.Spec
+public import ConRon.Bridge.Core.Walks.Mono
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -242,7 +246,7 @@ statements are the same propositions (`defEqListOp` unfolds to the `fun`). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — con-leche's
 walk at a pair of argument lists, as a fuelled run (an atom for `grind`). -/
-def defEqListOp (mode : CheckMode) (env : Env) (d : Nat) (xs ys : List Expr) :
+@[expose] def defEqListOp (mode : CheckMode) (env : Env) (d : Nat) (xs ys : List Expr) :
     Nat → CheckM Bool :=
   fun F => ConLeche.defEqListFueled mode env F d xs ys
 

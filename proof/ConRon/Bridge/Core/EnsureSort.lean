@@ -20,7 +20,11 @@ import closure does not grow by the six `Arms/` modules a second time.  It
 takes `KnotSpec` as a HYPOTHESIS, so it needs `Core/Knot.lean` and nothing
 else — the same discipline `Bridge/Core/Arms/*.lean` follow.
 -/
-import ConRon.Bridge.Core.Knot
+module
+
+public import ConRon.Bridge.Core.Knot
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -43,7 +47,7 @@ relation for its hypothesis; the two are the same definition, so its
 
 /-- con-leche: ConLeche/Verify/SimI.lean:254 RelL — the level-valued answer
 relation of a core entry point. -/
-def SimL (op : Nat → Nat → Expr → CheckM Level) (d : Nat) (e : Expr)
+@[expose] def SimL (op : Nat → Nat → Expr → CheckM Level) (d : Nat) (e : Expr)
     (st' : EStore) (r : LIdx) : Prop :=
   ∃ u, denoteL st'.ls r = some u ∧ ∃ F, op F d e = .ok u
 

@@ -32,9 +32,13 @@ It adds no store lemma of its own; what it adds is
 imports nothing from it); the two are the same constructors and P2d merges
 them when the driver is wired to the checker.
 -/
-import ConRon.Arena.WFProofs
-import ConRon.Arena.CoreState
-import ConLeche.Kernel.Level
+module
+
+public import ConRon.Arena.WFProofs
+public import ConRon.Arena.CoreState
+public import ConLeche.Kernel.Level
+
+@[expose] public section
 
 namespace ConRon.Arena
 

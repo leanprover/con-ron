@@ -39,7 +39,11 @@ lives there (`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
 `promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
 `promoteBracket_close`.
 -/
-import ConRon.Bridge.Promote.WalkDecl
+module
+
+public import ConRon.Bridge.Promote.WalkDecl
+
+public section
 
 namespace ConRon.Bridge
 
@@ -90,7 +94,7 @@ a word `dropScratch` is about to hand back to the next declaration. -/
 
 /-- con-leche: none — arena infrastructure; the denotation of an environment
 INDEX: its constant list and its table list, read back.  §8.2's `denoteEnv`. -/
-def denoteIEnv (st : EStore) (e : IEnv) : Option Env :=
+@[expose] def denoteIEnv (st : EStore) (e : IEnv) : Option Env :=
   match Frontend.denoteCIList st e.consts, Frontend.denoteProjTableList st e.tables with
   | some cs, some ts => some ⟨cs, ts⟩
   | _, _ => none
@@ -114,7 +118,7 @@ theorem denoteIEnv_some {st : EStore} {e : IEnv} {env : Env} :
 /-- con-leche: none — arena infrastructure; the denotation of the indexed
 environment is the denotation of its list (the index is a cache of the list,
 DESIGN §8.3 lesson 13). -/
-def denoteFEnv (st : EStore) (fe : IFEnv) : Option Env := denoteIEnv st fe.env
+@[expose] def denoteFEnv (st : EStore) (fe : IFEnv) : Option Env := denoteIEnv st fe.env
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
 build ends at is the list's length. -/
@@ -138,7 +142,7 @@ includes their bucket layout: `promoteNew` inserts newest-first where
 `mkIFEnv` inserts oldest-first, so the two differ under a bucket collision and
 the promotion could not meet it.  Every consumer reads only the counter and
 the lookups, which is what this says. -/
-def IFEnvCoh (fe : IFEnv) : Prop :=
+@[expose] def IFEnvCoh (fe : IFEnv) : Prop :=
   fe.visibleBelow = fe.env.consts.length ∧
     (∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?) ∧
     ∀ n : NIdx, fe.tbls[n]? = (mkIFEnvTblsGo fe.env.tables)[n]?
@@ -213,7 +217,7 @@ so the old list is a suffix of the new one.  `Arena/Promote.lean`'s
 environment by `IFEnv.push` alone […] so the `k` newest entries of
 `fe.env.consts` are exactly the step's"), and it is what makes the promotion's
 `k` mean what the fold thinks it means. -/
-def Pushed (fe0 fe : IFEnv) : Prop :=
+@[expose] def Pushed (fe0 fe : IFEnv) : Prop :=
   ∃ new, fe.env.consts = new ++ fe0.env.consts
 
 theorem Pushed.refl (fe : IFEnv) : Pushed fe fe := ⟨[], rfl⟩
@@ -234,7 +238,7 @@ theorem Pushed.pushTable (fe : IFEnv) (t : IProjTable) : Pushed fe (fe.pushTable
 /-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the step only
 pushed TABLES onto the table list**: the table half of `Pushed`, what makes
 the promotion's `kt` mean the step's tables. -/
-def TPushed (fe0 fe : IFEnv) : Prop :=
+@[expose] def TPushed (fe0 fe : IFEnv) : Prop :=
   ∃ new, fe.env.tables = new ++ fe0.env.tables
 
 theorem TPushed.refl (fe : IFEnv) : TPushed fe fe := ⟨[], rfl⟩

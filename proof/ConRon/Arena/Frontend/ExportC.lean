@@ -61,10 +61,14 @@ this twin reads: the same computation under the twin's own names
 index errors are `fail (.internal …)` with con-leche's own text and no line
 number; a scan error and a record verdict keep theirs, since those are values.
 -/
-import ConRon.Arena.Frontend.Types
-import ConRon.Arena.ExprOps
-import ConLeche.Frontend.Scan.Fast
-import ConLeche.Kernel.Level
+module
+
+public import ConRon.Arena.Frontend.Types
+public import ConRon.Arena.ExprOps
+public import ConLeche.Frontend.Scan.Fast
+public import ConLeche.Kernel.Level
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

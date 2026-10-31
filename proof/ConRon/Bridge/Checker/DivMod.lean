@@ -8,7 +8,11 @@ four-walk pin guard (`pinGuardWalk_run`) that the compiler-trust gate
 uses too; `Bridge/Checker/Arms.lean`'s `defn` arm consumes
 `checkDivModPin_bridge` from here.
 -/
-import ConRon.Bridge.Checker.TypePins
+module
+
+public import ConRon.Bridge.Checker.TypePins
+
+public section
 
 open ConLeche ConRon.Arena
 

@@ -19,7 +19,11 @@ pin) with an exact answer.  The memo invariants are con-leche's
 
 The module imports `Bridge/Inductives/Run.lean` only.
 -/
-import ConRon.Bridge.Inductives.Run
+module
+
+public import ConRon.Bridge.Inductives.Run
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -949,7 +953,7 @@ instantiation con-leche writes:
 
 The lookup `fnd` a `holeImg` context denotes at is existential: `nestHoleImg`
 reads no environment. -/
-def FvMapRel (st : EStore) : Arena.FvMap → (Nat → Option Expr) → Prop
+@[expose] def FvMapRel (st : EStore) : Arena.FvMap → (Nat → Option Expr) → Prop
   | .holeImg ctx prog n, fP => ∃ fnd ctxP progP, dCtx st fnd ctx = some ctxP ∧
       dProg st (prog.take n) = some progP ∧ n ≤ prog.length ∧
       fP = ConLeche.nestHoleImg ctxP progP
@@ -975,7 +979,7 @@ theorem FvMapRel.ext {st st' : EStore} (hx : Ext st st') {f : Arena.FvMap}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:764-765 ReplaceFVarsMemoInv
 The handle-keyed memo of `replaceFVars fP`. -/
-def RFMemoOK (fP : Nat → Option Expr) (tbl : Std.HashMap EIdx EIdx) (st : EStore) :
+@[expose] def RFMemoOK (fP : Nat → Option Expr) (tbl : Std.HashMap EIdx EIdx) (st : EStore) :
     Prop :=
   ∀ (k v : EIdx), tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ denoteE st v = some (Expr.replaceFVars fP e)

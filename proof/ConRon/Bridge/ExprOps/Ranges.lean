@@ -61,7 +61,11 @@ projection.  The `fvarRange` side is deliberately left narrow — nothing asks;
 widen the other tables the same way, one statement at a time, when a
 consumer needs one.
 -/
-import ConRon.Bridge.Specs
+module
+
+public import ConRon.Bridge.Specs
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 

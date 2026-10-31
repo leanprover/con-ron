@@ -23,7 +23,11 @@ the installs, then all the checks); `Arena/Checker.lean` mirrors that fold as
 `installThenCheck`, and there the bracket is per record, which is what DESIGN
 §8.3's "scratch = one declaration's check" asks for.
 -/
-import ConRon.Arena.CheckerBase
+module
+
+public import ConRon.Arena.CheckerBase
+
+@[expose] public section
 
 namespace ConRon.Arena
 

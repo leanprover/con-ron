@@ -45,7 +45,11 @@ rules (`tgtStoredRules`, `consBlockRecsTF`) with the container bit
   `targetCtorAt`, `targetPiDomsWith`, `eraseFVarTys`, `targetCanonParams`,
   `auxRuleFireR` and `tgtStoredRules` are `AM` functions.
 -/
-import ConRon.Arena.Inductives.BlockInstall
+module
+
+public import ConRon.Arena.Inductives.BlockInstall
+
+@[expose] public section
 
 namespace ConRon.Arena
 

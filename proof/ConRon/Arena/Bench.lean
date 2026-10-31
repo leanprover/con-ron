@@ -32,7 +32,11 @@ their memo before and after, so the numbers are per-call and comparable.
 This module is NOT part of `lean_lib ConRonArena` (it is an executable root),
 and it is the only file under `Arena/` that does `IO`.
 -/
-import ConRon.Arena.ExprOps
+module
+
+public import ConRon.Arena.ExprOps
+
+@[expose] public section
 
 namespace ConRon.Arena.Bench
 

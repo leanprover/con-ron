@@ -35,8 +35,12 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
 * **`piDomsMentionAny` recurses on a handle, so it carries a fuel**
   (`coreWalkFuel`): con-leche's is structural on the term.
 -/
-import ConRon.Arena.Inductives.BlockRec
-import ConRon.Arena.Inductives.SumInstall
+module
+
+public import ConRon.Arena.Inductives.BlockRec
+public import ConRon.Arena.Inductives.SumInstall
+
+@[expose] public section
 
 namespace ConRon.Arena
 

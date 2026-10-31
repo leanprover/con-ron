@@ -62,7 +62,11 @@ outright.  Lesson 7's codegen concern (`2 * p` is
 `lean_nat_mul` with an overflow check) is about `Nat`; `UInt32.mul`/`div`
 are machine ops with a constant operand.
 -/
-import Std.Data.HashMap
+module
+
+public import Std.Data.HashMap
+
+@[expose] public section
 
 namespace ConRon.Arena
 

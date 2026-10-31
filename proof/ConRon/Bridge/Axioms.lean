@@ -14,11 +14,15 @@ of this repository carries.
 It prints, not asserts: the gate is reading the output, and a `sorryAx` in any
 line is a failure of the task rather than of the build.
 -/
-import ConRon.Bridge.Specs
-import ConRon.Bridge.SpecsL
-import ConRon.Bridge.ExprOps.Inst1
-import ConRon.Bridge.ExprOps.Leaves
-import ConRon.Bridge.ExprOps.Guards
+module
+
+public import ConRon.Bridge.Specs
+public import ConRon.Bridge.SpecsL
+public import ConRon.Bridge.ExprOps.Inst1
+public import ConRon.Bridge.ExprOps.Leaves
+public import ConRon.Bridge.ExprOps.Guards
+
+public section
 
 namespace ConRon.Bridge
 

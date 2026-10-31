@@ -15,11 +15,15 @@ between two flushes the state is only known to READ the index right
 (`ReadOK`), and the stage lemmas that call the knot take `CheckOK` at the index
 they run at.
 -/
-import ConRon.Bridge.Inductives.BlockInstall
-import ConRon.Bridge.Inductives.RecCheck
-import ConRon.Bridge.Inductives.GenRec
-import ConRon.Bridge.Inductives.BlockWF
-import ConLeche.Verify.Inductives.PositivityInv
+module
+
+public import ConRon.Bridge.Inductives.BlockInstall
+public import ConRon.Bridge.Inductives.RecCheck
+public import ConRon.Bridge.Inductives.GenRec
+public import ConRon.Bridge.Inductives.BlockWF
+public import ConLeche.Verify.Inductives.PositivityInv
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

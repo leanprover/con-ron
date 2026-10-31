@@ -34,14 +34,18 @@ a twin SUCCESS is what each success lemma is the licence for.
 3. `env : Env` is `fe : IFEnv` throughout (DESIGN, task #97c, deviation 1),
    which `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.Core.Walks.Frame
-import ConRon.Bridge.Core.Walks.StrLit
-import ConRon.Bridge.Core.Walks.InferSpine
-import ConRon.Bridge.Core.Walks.BinderLoop
-import ConRon.Bridge.Core.EnsureSort
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.Core.Walks.Frame
+public import ConRon.Bridge.Core.Walks.StrLit
+public import ConRon.Bridge.Core.Walks.InferSpine
+public import ConRon.Bridge.Core.Walks.BinderLoop
+public import ConRon.Bridge.Core.EnsureSort
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 

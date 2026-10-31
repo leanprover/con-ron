@@ -27,7 +27,11 @@ k.decls` at con-leche's `Basis.lean:71` reads `decls`, and `checkBasisDecl`
 installs `declsA`) and the arena must keep the two apart exactly as
 con-leche does.
 -/
-import ConRon.Arena.TrustAxioms
+module
+
+public import ConRon.Arena.TrustAxioms
+
+@[expose] public section
 
 namespace ConRon.Arena
 

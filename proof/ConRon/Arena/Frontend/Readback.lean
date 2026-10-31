@@ -35,7 +35,11 @@ is threaded explicitly rather than put in `AState`, because it lives for one
 block and `Memos` is DESIGN §8.4's per-call record.
 
 -/
-import ConRon.Arena.Env
+module
+
+public import ConRon.Arena.Env
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

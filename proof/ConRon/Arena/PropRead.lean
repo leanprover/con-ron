@@ -32,9 +32,13 @@ all shared with `Arena/Core.lean`.**
    (DESIGN §8.7: (B) imports the representation-free types), so
    `PropWhen.isProp` needs no twin at all.
 -/
-import ConRon.Arena.Env
-import ConRon.Arena.ExprOps
-import ConLeche.Kernel.PropRead
+module
+
+public import ConRon.Arena.Env
+public import ConRon.Arena.ExprOps
+public import ConLeche.Kernel.PropRead
+
+@[expose] public section
 
 namespace ConRon.Arena
 

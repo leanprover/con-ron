@@ -43,7 +43,11 @@ here):
   `AState`, and `structProjGuards`' one shared memo across `nF` calls is
   con-leche's own task #236 arrangement, unchanged.
 -/
-import ConRon.Arena.Core
+module
+
+public import ConRon.Arena.Core
+
+@[expose] public section
 
 namespace ConRon.Arena
 

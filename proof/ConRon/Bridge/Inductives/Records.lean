@@ -18,10 +18,14 @@ some fuel" composes through `bind` with no per-function monotonicity lemma.
 Nothing here reads an `AState`: the module imports the representation half
 of the foundation only (`Bridge/Rel.lean`).
 -/
-import ConRon.Bridge.Rel
-import ConRon.Arena.Inductives.BlockTail
-import ConLeche.Verify.BridgeDecl
-import ConLeche.Verify.Inductives.NestScope
+module
+
+public import ConRon.Bridge.Rel
+public import ConRon.Arena.Inductives.BlockTail
+public import ConLeche.Verify.BridgeDecl
+public import ConLeche.Verify.Inductives.NestScope
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -34,7 +38,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:39 bridgeRel — **the pure side
 succeeds with `v` at some fuel**.  At a `FueledM` computation this is
 monotone in the fuel, which is what makes it compose. -/
-def FOk {α : Type} (p : FueledM α) (v : α) : Prop := ∃ F, p.val F = .ok v
+@[expose] def FOk {α : Type} (p : FueledM α) (v : α) : Prop := ∃ F, p.val F = .ok v
 
 theorem FOk.pure {α : Type} (a : α) : FOk (Pure.pure a : FueledM α) a := ⟨0, rfl⟩
 
@@ -249,7 +253,7 @@ theorem mapM_option_nil_inv {α β : Type} {f : α → Option β} {ys : List β}
 
 /-- con-leche: none — a denotation is TRANSPORTED along `Ext` when every
 answer it gives at the smaller store it gives at the larger. -/
-def DExt {α β : Type} (d : EStore → α → Option β) : Prop :=
+@[expose] def DExt {α β : Type} (d : EStore → α → Option β) : Prop :=
   ∀ {st st' : EStore}, Ext st st' → ∀ x y, d st x = some y → d st' x = some y
 
 theorem DExt.list {α β : Type} {d : EStore → α → Option β} (h : DExt d) :
@@ -272,27 +276,27 @@ theorem option_bind_ext {α β : Type} {o o' : Option α} {f : α → Option β}
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:66 MemberShape
 (`ctors`) — a constructor with its field count. -/
-def dCtor (st : EStore) (c : IConstantVal × Nat) : Option (ConstantVal × Nat) :=
+@[expose] def dCtor (st : EStore) (c : IConstantVal × Nat) : Option (ConstantVal × Nat) :=
   (Frontend.denoteCV st c.1).map (·, c.2)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:66 MemberShape. -/
-def dCtors (st : EStore) (cs : List (IConstantVal × Nat)) :
+@[expose] def dCtors (st : EStore) (cs : List (IConstantVal × Nat)) :
     Option (List (ConstantVal × Nat)) := cs.mapM (dCtor st)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:58-69 MemberShape. -/
-def dMember (st : EStore) (m : Arena.MemberShape) : Option ConLeche.MemberShape := do
+@[expose] def dMember (st : EStore) (m : Arena.MemberShape) : Option ConLeche.MemberShape := do
   let cvT ← Frontend.denoteCV st m.cvT
   let cs ← dCtors st m.ctors
   pure ⟨cvT, m.nIdx, cs⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape. -/
-def dRec (st : EStore) (r : Arena.RecShape) : Option ConLeche.RecShape := do
+@[expose] def dRec (st : EStore) (r : Arena.RecShape) : Option ConLeche.RecShape := do
   let cvR ← Frontend.denoteCV st r.cvR
   let rhss ← Frontend.denoteEList st r.rhss
   pure ⟨cvR, r.rP, r.mI, r.tgt, rhss⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:98-121 BlockShape. -/
-def dShape (st : EStore) (p : Arena.BlockShape) : Option ConLeche.BlockShape := do
+@[expose] def dShape (st : EStore) (p : Arena.BlockShape) : Option ConLeche.BlockShape := do
   let members ← p.members.mapM (dMember st)
   let recs ← p.recs.mapM (dRec st)
   let elim ← denoteN st.ns p.elim
@@ -300,7 +304,7 @@ def dShape (st : EStore) (p : Arena.BlockShape) : Option ConLeche.BlockShape := 
   pure ⟨members, recs, p.nP, elim, s, p.large, p.isProp⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:198-201 BlockParts. -/
-def dParts (st : EStore) (p : Arena.BlockParts) : Option ConLeche.BlockParts :=
+@[expose] def dParts (st : EStore) (p : Arena.BlockParts) : Option ConLeche.BlockParts :=
   (dShape st p.shape).map fun q => ⟨q⟩
 
 theorem dCtor_ext : DExt dCtor := by
@@ -364,7 +368,7 @@ theorem dParts_ext : DExt dParts := by
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:598-608 NestFieldKind
 — the twin's copy of the inductive, read as con-leche's. -/
-def kindOf : Arena.NestFieldKind → ConLeche.NestFieldKind
+@[expose] def kindOf : Arena.NestFieldKind → ConLeche.NestFieldKind
   | .ordinary => .ordinary
   | .recursive t => .recursive t
   | .reflexive t => .reflexive t
@@ -376,18 +380,18 @@ theorem kindOf_flat (k : Arena.NestFieldKind) :
   cases k <;> rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:521-528 NestKey. -/
-def dKey (st : EStore) (k : Arena.NestKey) : Option ConLeche.NestKey := do
+@[expose] def dKey (st : EStore) (k : Arena.NestKey) : Option ConLeche.NestKey := do
   let c ← denoteN st.ns k.cname
   let us ← denoteLs st.lss k.lvls
   let ds ← Frontend.denoteEList st k.ds
   pure ⟨c, us, ds⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:530-536 NestHole. -/
-def dHole (st : EStore) (h : Arena.NestHole) : Option ConLeche.NestHole :=
+@[expose] def dHole (st : EStore) (h : Arena.NestHole) : Option ConLeche.NestHole :=
   (dKey st h.key).map fun k => ⟨k, h.base⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:621-641 NestCtorNf. -/
-def dCtorNf (st : EStore) (n : Arena.NestCtorNf) : Option ConLeche.NestCtorNf := do
+@[expose] def dCtorNf (st : EStore) (n : Arena.NestCtorNf) : Option ConLeche.NestCtorNf := do
   let c ← denoteN st.ns n.ctor
   let us ← denoteLs st.lss n.lvls
   let ds ← Frontend.denoteEList st n.ds
@@ -395,7 +399,7 @@ def dCtorNf (st : EStore) (n : Arena.NestCtorNf) : Option ConLeche.NestCtorNf :=
   pure ⟨c, us, ds, ty⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:656-668 NestState. -/
-def dState (st : EStore) (ns : Arena.NestState) : Option ConLeche.NestState := do
+@[expose] def dState (st : EStore) (ns : Arena.NestState) : Option ConLeche.NestState := do
   let keys ← ns.keys.toList.mapM (dKey st)
   let active ← ns.active.mapM (dKey st)
   let nfs ← ns.ctorNfs.toList.mapM (dCtorNf st)
@@ -405,13 +409,13 @@ def dState (st : EStore) (ns : Arena.NestState) : Option ConLeche.NestState := d
 (`prog`) — **the frame stack, reversed**: the twin's is outermost first,
 con-leche's innermost first (`Arena/Inductives/Positivity.lean`'s module
 note). -/
-def dProg (st : EStore) (prog : List Arena.NestHole) : Option (List ConLeche.NestHole) :=
+@[expose] def dProg (st : EStore) (prog : List Arena.NestHole) : Option (List ConLeche.NestHole) :=
   (prog.mapM (dHole st)).map List.reverse
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:643-654 NestCtx — the
 twin's record at the lookup `find?` (the environment every reader takes beside
 it), its interned level list denoting `lps.map .param`. -/
-def dCtx (st : EStore) (find? : ConLeche.Name → Option ConstantInfo)
+@[expose] def dCtx (st : EStore) (find? : ConLeche.Name → Option ConstantInfo)
     (c : Arena.NestCtx) : Option ConLeche.NestCtx := do
   let names ← Frontend.denoteNList st.ns c.names
   let lps ← Frontend.denoteNList st.ns c.lps

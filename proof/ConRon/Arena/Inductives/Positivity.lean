@@ -86,8 +86,12 @@ continuations are inline in the twin they are "part of".  Definitions that the
 twins' mutual recursion needs earlier (`nestKeyMap`, the frame's helpers ahead
 of the `nestPos` block, `nestCtorNf`) are moved up.
 -/
-import ConRon.Arena.Inductives.FieldTele
-import ConRon.Arena.CheckerBase
+module
+
+public import ConRon.Arena.Inductives.FieldTele
+public import ConRon.Arena.CheckerBase
+
+@[expose] public section
 
 namespace ConRon.Arena
 

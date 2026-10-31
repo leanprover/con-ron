@@ -36,49 +36,49 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:49-50 trueName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:25-26 trueName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:29-30 trueName`.
 pub fn true_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_true(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:52-53 trueIntroName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:27-28 trueIntroName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:31-32 trueIntroName`.
 pub fn true_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_true_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:55-56 trustCompilerName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:29-30 trustCompilerName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:33-34 trustCompilerName`.
 pub fn trust_compiler_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_trust_compiler(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:58-59 reduceNatName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:31-32 reduceNatName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:35-36 reduceNatName`.
 pub fn reduce_nat_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_reduce_nat(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:61-62 reduceBoolName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:33-34 reduceBoolName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:37-38 reduceBoolName`.
 pub fn reduce_bool_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_reduce_bool(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:64-65 ofReduceNatName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:35-36 ofReduceNatName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:39-40 ofReduceNatName`.
 pub fn of_reduce_nat_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_of_reduce_nat(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:67-68 ofReduceBoolName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:37-38 ofReduceBoolName`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:41-42 ofReduceBoolName`.
 pub fn of_reduce_bool_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_of_reduce_bool(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:70-71 reduceOpNames
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:40-45 reduceOpNames` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:44-49 reduceOpNames` — the
 /// reduce operations pinned at their `opaque` install.  A `Vec` literal needs
 /// its pushes (§3.4 has no `vec!`).
 pub fn reduce_op_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
@@ -97,7 +97,7 @@ pub fn reduce_op_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:73-75 ofReduceOp
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:47-52 ofReduceOp` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:51-56 ofReduceOp` — the
 /// reduce operation an `ofReduce*` axiom speaks about.  con-leche's
 /// `if n = ofReduceNatName` is a handle comparison here.
 pub fn of_reduce_op(st: &mut AState, n: &NIdx) -> Result<NIdx, CheckError> {
@@ -118,31 +118,31 @@ pub fn of_reduce_op(st: &mut AState, n: &NIdx) -> Result<NIdx, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:83-84 trueCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:56-57 trueCvA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:60-61 trueCvA`.
 pub fn true_cv_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::true_cv_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:86-87 trueIntroCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:58-59 trueIntroCvA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:62-63 trueIntroCvA`.
 pub fn true_intro_cv_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::true_intro_cv_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:89-90 trustCompilerA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:60-61 trustCompilerA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:64-65 trustCompilerA`.
 pub fn trust_compiler_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::trust_compiler_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:92-93 boolCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:62-63 boolCvA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:66-67 boolCvA`.
 pub fn bool_cv_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::bool_cv_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:95-97 reduceElemName
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:65-69 reduceElemName` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:69-73 reduceElemName` — the
 /// element inductive of a reduce operation.
 pub fn reduce_elem_name(st: &mut AState, c: &NIdx) -> Result<NIdx, CheckError> {
     match reduce_nat_name(st) {
@@ -158,7 +158,7 @@ pub fn reduce_elem_name(st: &mut AState, c: &NIdx) -> Result<NIdx, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:99-101 reduceElemTy
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:71-74 reduceElemTy` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:75-78 reduceElemTy` — the
 /// element type of a reduce operation, as the pinned constant.
 pub fn reduce_elem_ty(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {
     match reduce_elem_name(st, c) {
@@ -168,32 +168,32 @@ pub fn reduce_elem_ty(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:119-120 reduceNatCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:76-78 reduceNatCvA` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:80-82 reduceNatCvA` — the
 /// pinned type of `Lean.reduceNat`.
 pub fn reduce_nat_cv_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::reduce_nat_cv_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:122-123 reduceBoolCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:79-80 reduceBoolCvA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:83-84 reduceBoolCvA`.
 pub fn reduce_bool_cv_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::reduce_bool_cv_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:125-126 ofReduceNatA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:81-82 ofReduceNatA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:85-86 ofReduceNatA`.
 pub fn of_reduce_nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::of_reduce_nat_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:128-129 ofReduceBoolA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:83-84 ofReduceBoolA`.
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:87-88 ofReduceBoolA`.
 pub fn of_reduce_bool_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &ctrust::of_reduce_bool_a())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:131-133 reduceOpCvA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:86-90 reduceOpCvA` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:90-94 reduceOpCvA` — the
 /// pinned type of a reduce operation.
 pub fn reduce_op_cv_a(
     pers: &PersTier,
@@ -213,7 +213,7 @@ pub fn reduce_op_cv_a(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:135-137 ofReducePinA
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:92-96 ofReducePinA` — the
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:96-100 ofReducePinA` — the
 /// pin an `ofReduce*` axiom is matched against.
 pub fn of_reduce_pin_a(
     pers: &PersTier,
@@ -237,21 +237,21 @@ pub fn of_reduce_pin_a(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustPins.lean:42-43 reduceBoolDeclPin
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:100-102 reduceBoolDeclPin` —
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:104-106 reduceBoolDeclPin` —
 /// `Lean.reduceBool`'s pinned value, `fun (b : Bool) => b`.
 pub fn reduce_bool_decl_pin(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
     intern_expr(pers, st, &trust_pins::reduce_bool_decl_pin())
 }
 
 /// con-leche: ConLeche/Kernel/TrustPins.lean:45-46 reduceNatDeclPin
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:104-106 reduceNatDeclPin` —
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:108-110 reduceNatDeclPin` —
 /// `Lean.reduceNat`'s pinned value, `fun (n : Nat) => n`.
 pub fn reduce_nat_decl_pin(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
     intern_expr(pers, st, &trust_pins::reduce_nat_decl_pin())
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:185-190 reduceDeclPin
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:108-112 reduceDeclPin` —
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:112-116 reduceDeclPin` —
 /// the pinned defining expression of a reduce operation.
 pub fn reduce_decl_pin(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {
     match reduce_nat_name(st) {
@@ -267,7 +267,7 @@ pub fn reduce_decl_pin(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EId
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:198-201 reduceCertVar
-/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:114-117 reduceCertVar` —
+/// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:118-121 reduceCertVar` —
 /// the identity certificate's variable: `fvar 0` at the element type.
 pub fn reduce_cert_var(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {
     match reduce_elem_ty(pers, st, c) {

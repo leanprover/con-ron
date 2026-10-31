@@ -27,14 +27,18 @@ vcgen […] <;> finish` (the folds against con-leche's mirror as functions,
 recursive call); the peel and leaf walks are staged over the twin's program
 order.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Frame
-import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.ExprOps.Subst
-import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.ExprOps.Walks
-import ConRon.Bridge.Core.Walks.FvarB
-import ConLeche.Verify.BinderLoop
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.Frame
+public import ConRon.Bridge.ExprOps.Owed
+public import ConRon.Bridge.ExprOps.Subst
+public import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.ExprOps.Walks
+public import ConRon.Bridge.Core.Walks.FvarB
+public import ConLeche.Verify.BinderLoop
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -168,7 +172,7 @@ grind_pattern [bridge_grind] StkRel.piR_le => st ≤ st', StkRel (PiR st) l xs
 
 /-- con-leche: ConLeche/Verify/BinderLoop.lean:52-56 inferLamsOut — the
 mirror's rebuild fold, which never fails, as a function. -/
-def lamsOutFn (d : Nat) : List Expr → Nat → Expr → Expr
+@[expose] def lamsOutFn (d : Nat) : List Expr → Nat → Expr → Expr
   | [], _, cur => cur
   | tyo :: rest, j, cur => lamsOutFn d rest (j - 1) (.forallE (tyo.abstractRange d j) cur)
 attribute [bridge_grind =] lamsOutFn
@@ -184,7 +188,7 @@ theorem inferLamsOut_eq (d : Nat) :
 
 /-- con-leche: ConLeche/Verify/BinderLoop.lean:83-85 inferPisOut — the
 mirror's `imax` fold, as a function. -/
-def pisOutFn : List Level → Level → Level
+@[expose] def pisOutFn : List Level → Level → Level
   | [], v => v
   | u :: rest, v => pisOutFn rest (.imax u v)
 attribute [bridge_grind =] pisOutFn

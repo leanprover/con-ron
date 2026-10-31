@@ -79,10 +79,14 @@ The obvious shapes are not provable, for these reasons:
    two sibling-table equations are its projections — and **one lemma in `instLPFast_spec`'s closer list**
    (`ReadNCacheOK.mono`).
 -/
-import ConRon.Bridge.ExprOps.Abs
-import ConRon.Bridge.ExprOps.MemoSpecs
-import ConRon.Bridge.ExprOps.InstLP
-import ConRon.Bridge.SpecsL
+module
+
+public import ConRon.Bridge.ExprOps.Abs
+public import ConRon.Bridge.ExprOps.MemoSpecs
+public import ConRon.Bridge.ExprOps.InstLP
+public import ConRon.Bridge.SpecsL
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 
@@ -194,7 +198,7 @@ cursor first, which makes `instLPFn ks us` the memo invariant's function and
 
 /-- con-leche: ConLeche/Kernel/Level.lean:234-249 Expr.instantiateLevelParams —
 with the memo key's (unused) cursor first. -/
-def instLPFn (ks : List ConLeche.Name) (us : List Level) (_c : Nat) (e : Expr) : Expr :=
+@[expose] def instLPFn (ks : List ConLeche.Name) (us : List Level) (_c : Nat) (e : Expr) : Expr :=
   e.instantiateLevelParams ks us
 
 section

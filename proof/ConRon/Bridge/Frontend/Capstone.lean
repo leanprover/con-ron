@@ -52,10 +52,18 @@ of them):
 The inductive installer (`Arena/Inductives/**`, the uniform route) needs no
 premise of its own: `hind` alone covers it.
 -/
-import ConRon.Bridge.Frontend.Prepare
-import ConRon.Bridge.Checker
-import ConRon.Arena.Main
-import ConLeche.MainTheorem
+module
+
+public import ConRon.Bridge.Frontend.Prepare
+public import ConRon.Bridge.Checker
+public import ConRon.Arena.Main
+public import ConLeche.MainTheorem
+-- `Semantics.declThmRun_of` and `Model.no_proof_of_False_pure`, which
+-- `ConLeche.MainTheorem` imports privately
+import ConLeche.Semantics.Bridge.DeclRun
+import ConLeche.Model.Fold
+
+public section
 
 namespace ConRon.Bridge.Frontend
 

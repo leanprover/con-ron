@@ -30,8 +30,12 @@ The two equality short-circuits (`a == b` at the residuals, `da == db` at the
 domains) are `isDefEqCore_refl`: at equal terms the chain's own syntactic
 fast path answers `true` at every fuel that answers at all.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.StrCtor
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.StrCtor
+
+public section
 
 namespace ConRon.Bridge.Core
 

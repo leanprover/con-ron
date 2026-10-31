@@ -24,7 +24,11 @@ collapsed declaration, and the twin keeps the UNSUFFIXED name — as
 * `divModCertsGuard`'s `(… .zip …).all (fun p => …)` is an explicit
   two-list recursion.
 -/
-import ConRon.Arena.CheckerSplit
+module
+
+public import ConRon.Arena.CheckerSplit
+
+@[expose] public section
 
 namespace ConRon.Arena
 

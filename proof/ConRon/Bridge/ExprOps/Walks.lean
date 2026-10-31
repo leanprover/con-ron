@@ -18,8 +18,12 @@ extractions, and declines by `lamPair?_none_left`/`_right`, both
 `grind_pattern … where guard` so that they fire only at the denotation
 `lamPair?` is applied to.
 -/
-import ConRon.Bridge.Specs
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 

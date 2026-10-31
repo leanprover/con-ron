@@ -11,54 +11,56 @@ lesson 27, `_tmp/t97/conleche-arena-history.md` §6.27): `WF.lean` and
 `WFProofs.lean` import `Handle`/`Store`/`Denote` and nothing else — in
 particular nothing from `ConRon.Refine`.
 -/
-import ConRon.Arena.Handle
-import ConRon.Arena.Store
-import ConRon.Arena.Denote
-import ConRon.Arena.WF
-import ConRon.Arena.WFSkip
-import ConRon.Arena.WFProofs
-import ConRon.Arena.StoreTest
-import ConRon.Arena.Monad
-import ConRon.Arena.ExprOps
-import ConRon.Arena.ExprOpsTest
-import ConRon.Arena.Env
-import ConRon.Arena.Frontend.Types
-import ConRon.Arena.Frontend.Readback
-import ConRon.Arena.Frontend.ExportC
-import ConRon.Arena.Frontend.Prepare
-import ConRon.Arena.Frontend.PreludeText
-import ConRon.Arena.Frontend.Prelude
-import ConRon.Arena.PropRead
-import ConRon.Arena.Core
-import ConRon.Arena.CoreIO
-import ConRon.Arena.CoreTest
-import ConRon.Arena.Intern
-import ConRon.Arena.Canon
-import ConRon.Arena.StdAxioms
-import ConRon.Arena.TrustAxioms
-import ConRon.Arena.Basis
-import ConRon.Arena.NatOpPinSet
-import ConRon.Arena.CheckerBase
-import ConRon.Arena.CheckerSplit
-import ConRon.Arena.Promote
-import ConRon.Arena.PersistentRun
-import ConRon.Arena.PromoteExt
-import ConRon.Arena.DeclCheck
-import ConRon.Arena.Inductives.StructParts
-import ConRon.Arena.Inductives.StructInstall
-import ConRon.Arena.Inductives.SumInstall
-import ConRon.Arena.Inductives.FieldTele
-import ConRon.Arena.Inductives.Positivity
-import ConRon.Arena.Inductives.BlockParts
-import ConRon.Arena.Inductives.BlockRec
-import ConRon.Arena.Inductives.ClassRead
-import ConRon.Arena.Inductives.BlockInstall
-import ConRon.Arena.Inductives.RecCheck
-import ConRon.Arena.Inductives.GenRec
-import ConRon.Arena.Inductives.BlockTail
-import ConRon.Arena.CheckDecl
-import ConRon.Arena.InductivesTest
-import ConRon.Arena.Checker
-import ConRon.Arena.Phased
-import ConRon.Arena.CheckerTest
-import ConRon.Arena.Frontend.NatOpGround
+module
+
+public import ConRon.Arena.Handle
+public import ConRon.Arena.Store
+public import ConRon.Arena.Denote
+public import ConRon.Arena.WF
+public import ConRon.Arena.WFSkip
+public import ConRon.Arena.WFProofs
+public import ConRon.Arena.StoreTest
+public import ConRon.Arena.Monad
+public import ConRon.Arena.ExprOps
+public import ConRon.Arena.ExprOpsTest
+public import ConRon.Arena.Env
+public import ConRon.Arena.Frontend.Types
+public import ConRon.Arena.Frontend.Readback
+public import ConRon.Arena.Frontend.ExportC
+public import ConRon.Arena.Frontend.Prepare
+public import ConRon.Arena.Frontend.PreludeText
+public import ConRon.Arena.Frontend.Prelude
+public import ConRon.Arena.PropRead
+public import ConRon.Arena.Core
+public import ConRon.Arena.CoreIO
+public import ConRon.Arena.CoreTest
+public import ConRon.Arena.Intern
+public import ConRon.Arena.Canon
+public import ConRon.Arena.StdAxioms
+public import ConRon.Arena.TrustAxioms
+public import ConRon.Arena.Basis
+public import ConRon.Arena.NatOpPinSet
+public import ConRon.Arena.CheckerBase
+public import ConRon.Arena.CheckerSplit
+public import ConRon.Arena.Promote
+public import ConRon.Arena.PersistentRun
+public import ConRon.Arena.PromoteExt
+public import ConRon.Arena.DeclCheck
+public import ConRon.Arena.Inductives.StructParts
+public import ConRon.Arena.Inductives.StructInstall
+public import ConRon.Arena.Inductives.SumInstall
+public import ConRon.Arena.Inductives.FieldTele
+public import ConRon.Arena.Inductives.Positivity
+public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Inductives.BlockRec
+public import ConRon.Arena.Inductives.ClassRead
+public import ConRon.Arena.Inductives.BlockInstall
+public import ConRon.Arena.Inductives.RecCheck
+public import ConRon.Arena.Inductives.GenRec
+public import ConRon.Arena.Inductives.BlockTail
+public import ConRon.Arena.CheckDecl
+public import ConRon.Arena.InductivesTest
+public import ConRon.Arena.Checker
+public import ConRon.Arena.Phased
+public import ConRon.Arena.CheckerTest
+public import ConRon.Arena.Frontend.NatOpGround

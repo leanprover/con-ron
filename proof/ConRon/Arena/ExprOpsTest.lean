@@ -24,8 +24,17 @@ DESIGN.md §8.4's "correctness before proofs": (B) must agree with con-leche
 before a bridge lemma is written.  This is that check at module scope; the
 whole-checker one is P2f's `scripts/diff-e2e.sh --bin=`.
 -/
-import ConRon.Arena.ExprOps
-import ConLeche.Kernel.ExprOps
+module
+
+public import ConRon.Arena.ExprOps
+public import ConLeche.Kernel.ExprOps
+/- The `#guard`s below are EVALUATED, so the constants they name have to be
+reachable from meta code too; a module needed at both levels is imported
+twice. -/
+meta import ConRon.Arena.ExprOps
+meta import ConLeche.Kernel.ExprOps
+
+@[expose] public section
 
 namespace ConRon.Arena
 

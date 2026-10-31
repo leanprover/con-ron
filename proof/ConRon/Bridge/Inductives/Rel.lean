@@ -30,15 +30,22 @@ FRAME is pure (`lvlEq?_pstep`); but its ANSWER is the verdict only under
 `LvlEqCacheOK`, which `StateOK` does not carry, so a twin whose answer
 contains the verdict (`BlockShape.withSort`'s `isProp`) is `CSpec`.
 -/
-import ConRon.Bridge.Inductives.Run
-import ConRon.Bridge.Checker.Hyp
-import ConRon.Bridge.Checker.Names
-import ConRon.Bridge.Core.Walks.Cached
-import ConRon.Bridge.ExprOps.Spine
-import ConRon.Bridge.ExprOps.Ranges
-import ConRon.Bridge.ExprOps.Subst
-import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.ExprOps.Spine
+module
+
+public import ConRon.Bridge.Inductives.Run
+public import ConRon.Bridge.Checker.Hyp
+public import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Core.Walks.Cached
+public import ConRon.Bridge.ExprOps.Spine
+public import ConRon.Bridge.ExprOps.Ranges
+public import ConRon.Bridge.ExprOps.Subst
+public import ConRon.Bridge.ExprOps.Owed
+public import ConRon.Bridge.ExprOps.Spine
+/- `simp only [List.allM]`/`[List.anyM]` unfold the toolchain's monadic list
+folds, whose bodies `Init.Data.List.Control` does not expose. -/
+import all Init.Data.List.Control
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -60,7 +67,7 @@ theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
 statement**: the same at a function that calls the knot, so the invariant is
 `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
 inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
-def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
+@[expose] def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
   ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
     c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
@@ -71,7 +78,7 @@ answer is related by `R` to SOME value the pure side, run at the monotone
 fueled operations `fueledOpsM μ`, produces at some fuel (`FOk`,
 `Bridge/Inductives/Records.lean`).  Composing two such runs needs no
 monotonicity lemma of the composed functions: `FOk.bind` takes the maximum. -/
-def CSpecF (μ : CheckMode) (env : Env) (fe : IFEnv) {α β : Type}
+@[expose] def CSpecF (μ : CheckMode) (env : Env) (fe : IFEnv) {α β : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → β → Prop) (p : FueledM β) : Prop :=
   CSpec μ env fe P c (fun st r => ∃ v, R st r v ∧ FOk p v)
 
@@ -144,7 +151,7 @@ index spec as a predicate on the STORE (it reads nothing else), so a
 `CSpec`'s store precondition can name it at an index OTHER than the one the
 caches serve (the iota family reads `fe'`'s lookups and runs its knot calls
 at `feSelf`). -/
-def IFEnvOKS (env : Env) (fe : IFEnv) (st : EStore) : Prop :=
+@[expose] def IFEnvOKS (env : Env) (fe : IFEnv) (st : EStore) : Prop :=
   ∀ s : AState, s.store = st → IFEnvOK env fe s
 
 theorem _root_.ConRon.Bridge.IFEnvOK.toS {env : Env} {fe : IFEnv} {s : AState} (h : IFEnvOK env fe s) :
@@ -479,7 +486,7 @@ theorem denoteLList_length {st : LStore} :
 owes about projection tables**: it only pushed onto the table list
 (`TPushed`, what makes the promotion's `kt` the install's tables), and every
 table of the new list is an old one or well shaped. -/
-def ProjOut (fe fe' : IFEnv) : Prop :=
+@[expose] def ProjOut (fe fe' : IFEnv) : Prop :=
   TPushed fe fe' ∧ ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
 
 /-- con-leche: none — an install that changes nothing owes nothing. -/
@@ -711,7 +718,7 @@ induction; the answer is a pointwise relation `ListRel`, which
 
 /-- con-leche: none — a relation lifted pointwise to two lists of the same
 length. -/
-def ListRel {β γ : Type} (R : EStore → β → γ → Prop) (st : EStore) :
+@[expose] def ListRel {β γ : Type} (R : EStore → β → γ → Prop) (st : EStore) :
     List β → List γ → Prop
   | [], [] => True
   | b :: bs, c :: cs => R st b c ∧ ListRel R st bs cs
@@ -1061,7 +1068,7 @@ binder-at-a-time `openPisAtFvars` that con-leche's callers read. -/
 
 /-- con-leche: none — the denotation of an opener's answer: `none` is
 `none`, a `some` denotes when its free variables and its residual do. -/
-def denoteOpen (st : EStore) :
+@[expose] def denoteOpen (st : EStore) :
     Option (List EIdx × EIdx) → Option (Option (List Expr × Expr))
   | none => some none
   | some (fvs, e) =>

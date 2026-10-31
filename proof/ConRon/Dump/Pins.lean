@@ -36,9 +36,13 @@ kept.  The record grammar below the payload is what the two formats shared.
 
 Nothing here is a theorem: this is a test and porting tool.
 -/
-import ConLeche.Cached.ExprNodes
-import ConLeche.Kernel.NatOpPinSet
-import ConLeche.Kernel.NatOpPins
+module
+
+public import ConLeche.Cached.ExprNodes
+public import ConLeche.Kernel.NatOpPinSet
+public import ConLeche.Kernel.NatOpPins
+
+@[expose] public section
 
 namespace ConRon.Dump
 

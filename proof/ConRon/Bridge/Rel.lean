@@ -27,9 +27,13 @@ The groups, in order:
    `MapRel`;
 6. `ViewOK` — `intern`'s precondition, one lemma per node shape.
 -/
-import ConRon.Arena
-import ConLeche.Kernel.ExprOps
-import Std.WP
+module
+
+public import ConRon.Arena
+public import ConLeche.Kernel.ExprOps
+public import Std.WP
+
+public section
 
 namespace ConRon.Bridge
 
@@ -794,7 +798,7 @@ hypothesis between the two sides.
 of one projection-table entry**: the six handle fields denote, the three
 scalar fields (`idx`, `numParams`, `numFields`) are shared by the two tiers and
 are copied.  `Frontend.denoteProjTable`'s shape exactly. -/
-def denoteProjEntry (st : EStore) (e : IProjEntry) : Option ProjEntry :=
+@[expose] def denoteProjEntry (st : EStore) (e : IProjEntry) : Option ProjEntry :=
   match denoteN st.ns e.structName, Frontend.denoteNList st.ns e.levelParams,
         denoteN st.ns e.ctor with
   | some sn, some lps, some c =>
@@ -1097,42 +1101,42 @@ Written as a bare `∀ e, denoteE st c = some e → …` at every call site it w
 cost the automation dearly: a `∀`-hypothesis has no head symbol, so `grind`
 cannot ematch on it and every use has to be supplied by hand.  Behind a `def`
 it has one, and `Bridge/Grind.lean`'s `relE_eq_mapRel` reads it as `MapRel`. -/
-def RelE (f : Expr → Expr) (st : EStore) (c : EIdx) (st' : EStore) (r : EIdx) :
+@[expose] def RelE (f : Expr → Expr) (st : EStore) (c : EIdx) (st' : EStore) (r : EIdx) :
     Prop :=
   ∀ e, denoteE st c = some e → denoteE st' r = some (f e)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:252 RelV — the answer relation at a
 representation-free result. -/
-def RelV {α : Type} (f : Expr → α) (st : EStore) (c : EIdx) (x : α) : Prop :=
+@[expose] def RelV {α : Type} (f : Expr → α) (st : EStore) (c : EIdx) (x : α) : Prop :=
   ∀ e, denoteE st c = some e → x = f e
 
 /-- con-leche: none — the denotation of an OPTIONAL handle, so that `RelEO`
 has `RelE`'s shape exactly. -/
-def denoteEO (st : EStore) : Option EIdx → Option (Option Expr)
+@[expose] def denoteEO (st : EStore) : Option EIdx → Option (Option Expr)
   | none => some none
   | some j => (denoteE st j).map some
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation at an
 `Option` result. -/
-def RelEO (f : Expr → Option Expr) (st : EStore) (c : EIdx) (st' : EStore)
+@[expose] def RelEO (f : Expr → Option Expr) (st : EStore) (c : EIdx) (st' : EStore)
     (r : Option EIdx) : Prop :=
   ∀ e, denoteE st c = some e → denoteEO st' r = some (f e)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation at a
 LIST result. -/
-def RelEL (f : Expr → List Expr) (st : EStore) (c : EIdx) (st' : EStore)
+@[expose] def RelEL (f : Expr → List Expr) (st : EStore) (c : EIdx) (st' : EStore)
     (rs : List EIdx) : Prop :=
   ∀ e, denoteE st c = some e → Frontend.denoteEList st' rs = some (f e)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:254 RelL — the answer relation whose
 SUBJECT is a level handle and whose answer is one too (`substLMemoAt`). -/
-def RelL (f : Level → Level) (st : EStore) (c : LIdx) (st' : EStore) (r : LIdx) :
+@[expose] def RelL (f : Level → Level) (st : EStore) (c : LIdx) (st' : EStore) (r : LIdx) :
     Prop :=
   ∀ u, denoteL st.ls c = some u → denoteL st'.ls r = some (f u)
 
 /-- con-leche: none — the same at an interned universe-argument LIST
 (`substLsMemoAt`). -/
-def RelLs (f : List Level → List Level) (st : EStore) (c : LsIdx) (st' : EStore)
+@[expose] def RelLs (f : List Level → List Level) (st : EStore) (c : LsIdx) (st' : EStore)
     (r : LsIdx) : Prop :=
   ∀ us, denoteLs st.lss c = some us → denoteLs st'.lss r = some (f us)
 

@@ -77,7 +77,11 @@ The wrapping is byte-exact: the concatenation of the chunks is the ndjson
 file, byte for byte, including its final newline, so the parse of it is the
 parse con-leche does on that file.
 -/
-import ConRon.Arena.Frontend.ExportC
+module
+
+public import ConRon.Arena.Frontend.ExportC
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

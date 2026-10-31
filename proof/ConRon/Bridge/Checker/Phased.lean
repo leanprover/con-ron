@@ -17,8 +17,12 @@ one change of letter is the state the environment denotes in — the PHASE-A
 state `s'` the driver's fold returns, where `installThenCheck_bridge` names
 the state phase B ended in.
 -/
-import ConRon.Bridge.Checker.Split
-import ConRon.Arena.Pooled
+module
+
+public import ConRon.Bridge.Checker.Split
+public import ConRon.Arena.Pooled
+
+public section
 
 open ConLeche ConRon.Arena
 

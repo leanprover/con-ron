@@ -17,8 +17,12 @@ slot 0 (`towerSlotsAll_eq`, `etaProjs_eq`).  Every proof is `sym only
 [bridge_grind, …] => vcgen […] <;> finish`, the recursion's induction
 hypothesis in the `vcgen` list.
 -/
-import ConRon.Bridge.Core.Walks.StrCtor
-import ConRon.Bridge.Core.Walks.StrLit
+module
+
+public import ConRon.Bridge.Core.Walks.StrCtor
+public import ConRon.Bridge.Core.Walks.StrLit
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -49,7 +53,7 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the
 slots `j, j+1, …` for `n` slots, one equation per step. -/
-def towerSlotsFrom (env : Env) (Tn : ConLeche.Name) : Nat → Nat → Bool
+@[expose] def towerSlotsFrom (env : Env) (Tn : ConLeche.Name) : Nat → Nat → Bool
   | 0, _ => true
   | n + 1, j => (env.findProj? Tn j).isSome && towerSlotsFrom env Tn n (j + 1)
 attribute [bridge_grind =] towerSlotsFrom
@@ -124,7 +128,7 @@ theorem towerSlotsAll_spec {s : AState} (T : NIdx) (Tn : ConLeche.Name)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:730-736 etaProjs — the
 projections `j, j+1, …` for `n` slots, one equation per step. -/
-def projsFrom (Tn : ConLeche.Name) (y : Expr) : Nat → Nat → List Expr
+@[expose] def projsFrom (Tn : ConLeche.Name) (y : Expr) : Nat → Nat → List Expr
   | 0, _ => []
   | n + 1, j => .proj Tn j y :: projsFrom Tn y n (j + 1)
 attribute [bridge_grind =] projsFrom

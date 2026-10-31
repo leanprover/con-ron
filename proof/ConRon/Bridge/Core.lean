@@ -53,4 +53,8 @@ bodies, the six `…Body_spec` walks and the batched-clause carries under them,
 walks — see DESIGN §8's `### Task #97-P3-Core`, `### Task #97-P3-CoreWalks`
 and `### Task #97-P3-Core-2` for the tables.
 -/
-import ConRon.Bridge.Core.Knot
+module
+
+public import ConRon.Bridge.Core.Knot
+
+public section

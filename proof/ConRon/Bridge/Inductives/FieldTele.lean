@@ -13,8 +13,12 @@ the knot.
 `piBinders_run` is the reader's read-only run form (over the tag-first
 `viewBind` twin); `piBinders_spec` is its `PSpec`.
 -/
-import ConRon.Bridge.Inductives.Rel
-import ConRon.Bridge.Inductives.PosWalks
+module
+
+public import ConRon.Bridge.Inductives.Rel
+public import ConRon.Bridge.Inductives.PosWalks
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

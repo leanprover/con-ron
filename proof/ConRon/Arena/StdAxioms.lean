@@ -19,9 +19,13 @@ Two deviations, each of them one of DESIGN §8's own rules:
    the arena has ONE environment type, the index (`Arena/Core.lean`'s
    deviation 1), so con-leche's `Env`/`FEnv` pairs collapse.
 -/
-import ConRon.Arena.Canon
-import ConRon.Arena.Intern
-import ConLeche.Kernel.StdAxioms
+module
+
+public import ConRon.Arena.Canon
+public import ConRon.Arena.Intern
+public import ConLeche.Kernel.StdAxioms
+
+@[expose] public section
 
 namespace ConRon.Arena
 

@@ -30,9 +30,19 @@ the e2e corpus.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-import ConRon.Arena.Checker
-import ConLeche.Kernel.CheckDecl
-import ConLeche.Kernel.CheckerSplit
+module
+
+public import ConRon.Arena.Checker
+public import ConLeche.Kernel.CheckDecl
+public import ConLeche.Kernel.CheckerSplit
+/- The `#guard`s below are EVALUATED, so the constants they name have to be
+reachable from meta code too; a module needed at both levels is imported
+twice. -/
+meta import ConRon.Arena.Checker
+meta import ConLeche.Kernel.CheckDecl
+meta import ConLeche.Kernel.CheckerSplit
+
+@[expose] public section
 
 namespace ConRon.Arena
 

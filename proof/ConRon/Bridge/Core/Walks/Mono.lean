@@ -55,8 +55,16 @@ imports `ConLeche.Verify.Mono` and nothing of `ConRon.Arena`.  That is why it
 is the cheapest module of the tier and why nothing in it can break when the
 twin moves.
 -/
-import ConRon.Bridge.Core.Walks.Spec
-import ConLeche.Verify.Mono
+module
+
+public import ConRon.Bridge.Core.Walks.Spec
+public import ConLeche.Verify.Mono
+/- `fst_tac`/`snd_tac` close the projection equations by `rfl` through
+`pairFns`'s body, which con-leche's `Verify/PairM` (a plain `public section`)
+does not expose; `import all` makes it visible to these proofs. -/
+import all ConLeche.Verify.PairM
+
+public section
 
 namespace ConRon.Bridge.Core
 

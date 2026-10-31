@@ -23,10 +23,14 @@ dropScratch`, and the memo invariant.  This is that tier.
   extensional definition the promotion can meet (DESIGN
   `### Task #97-P3-Promote`).
 -/
-import ConRon.Bridge.Promote.Pers
-import ConRon.Bridge.Promote.Weak
-import ConRon.Bridge.Promote.Memo
-import ConRon.Bridge.Promote.Walk
-import ConRon.Bridge.Promote.WalkDecl
-import ConRon.Bridge.Promote.Exact
-import ConRon.Bridge.Promote.Coh
+module
+
+public import ConRon.Bridge.Promote.Pers
+public import ConRon.Bridge.Promote.Weak
+public import ConRon.Bridge.Promote.Memo
+public import ConRon.Bridge.Promote.Walk
+public import ConRon.Bridge.Promote.WalkDecl
+public import ConRon.Bridge.Promote.Exact
+public import ConRon.Bridge.Promote.Coh
+
+public section

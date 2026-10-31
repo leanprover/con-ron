@@ -87,3 +87,5 @@ entries is a clause of OUR environment invariant (`Bridge/StateOK.lean`'s
 which is the wrong side of a B ⇒ A simulation to take an invariant from;
 `findProj?_spec` reads it off `hok.ienv.proj`.
 -/
+
+module

@@ -31,8 +31,12 @@ same deviation `crates/con-ron-core/src/frontend/prelude.rs` records for the
 Rust port, for the same reason.
 
 -/
-import ConRon.Arena.Frontend.Prepare
-import ConRon.Arena.Frontend.PreludeText
+module
+
+public import ConRon.Arena.Frontend.Prepare
+public import ConRon.Arena.Frontend.PreludeText
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

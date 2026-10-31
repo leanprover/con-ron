@@ -19,7 +19,11 @@ Every name here is primed and lives in `ConRon.Bridge`: the strong lemmas are
 `ConRon.Arena.EWFAt'.rank_lt`, so a `ConRon.Arena`-namespaced copy here would
 clash in any environment importing both tiers (the capstone's).
 -/
-import ConRon.Bridge.Promote.Pers
+module
+
+public import ConRon.Bridge.Promote.Pers
+
+public section
 
 namespace ConRon.Bridge
 

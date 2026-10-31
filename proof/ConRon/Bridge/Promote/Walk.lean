@@ -17,8 +17,12 @@ records is a promoted pair whether or not the caller cared.
 `Ext` and the frame are not re-proved: `Arena/PromoteExt.lean`'s `AExtOf`
 gives them for every run, unconditionally.
 -/
-import ConRon.Bridge.Promote.Memo
-import ConRon.Bridge.Promote.Weak
+module
+
+public import ConRon.Bridge.Promote.Memo
+public import ConRon.Bridge.Promote.Weak
+
+public section
 
 namespace ConRon.Bridge
 

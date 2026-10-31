@@ -18,8 +18,12 @@ constant check and the strategy-independent helpers the install paths share.
    Aeneas must translate.  So every body below calls `Arena/Core.lean`'s
    fueled entry points directly.
 -/
-import ConRon.Arena.NatOpPinSet
-import ConRon.Arena.Inductives.StructParts
+module
+
+public import ConRon.Arena.NatOpPinSet
+public import ConRon.Arena.Inductives.StructParts
+
+@[expose] public section
 
 namespace ConRon.Arena
 

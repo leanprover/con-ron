@@ -38,7 +38,11 @@ startup: after it every pin node is in the persistent cons table, so a later
 and hands back the persistent handle (DESIGN §8.3: "`intern` probes the
 persistent table, then the scratch one").
 -/
-import ConRon.Arena.Frontend.Readback
+module
+
+public import ConRon.Arena.Frontend.Readback
+
+@[expose] public section
 
 namespace ConRon.Arena
 

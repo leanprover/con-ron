@@ -53,10 +53,14 @@ exactly as `Bridge/Checker`'s arms claim nothing about a `native` decline.
 file-level lemma and the one thing this tier may not re-derive).  Both are
 prebuilt in con-leche's `.lake`, so neither costs elaboration.
 -/
-import ConRon.Bridge.Frontend.Rel
-import ConRon.Bridge.Frontend.Shared
-import ConRon.Bridge.Frontend.Lines
-import ConRon.Bridge.Frontend.Chunks
-import ConRon.Bridge.Frontend.Prepare
-import ConRon.Bridge.Frontend.Capstone
-import ConRon.Bridge.Frontend.Axioms
+module
+
+public import ConRon.Bridge.Frontend.Rel
+public import ConRon.Bridge.Frontend.Shared
+public import ConRon.Bridge.Frontend.Lines
+public import ConRon.Bridge.Frontend.Chunks
+public import ConRon.Bridge.Frontend.Prepare
+public import ConRon.Bridge.Frontend.Capstone
+public import ConRon.Bridge.Frontend.Axioms
+
+public section

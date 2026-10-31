@@ -49,12 +49,16 @@ environment clause at all — they are the cheapest statements of the tier and
 the most expensive proofs, because the certificates they check are pinned
 terms the core must run on.
 -/
-import ConRon.Bridge.Checker.Base
-import ConRon.Bridge.Checker.Decl
-import ConRon.Bridge.Checker.Basis
-import ConRon.Bridge.Core.Walks.Cached
-import ConLeche.Verify.CheckerSplit
-import ConLeche.Verify.Extend.Inversions
+module
+
+public import ConRon.Bridge.Checker.Base
+public import ConRon.Bridge.Checker.Decl
+public import ConRon.Bridge.Checker.Basis
+public import ConRon.Bridge.Core.Walks.Cached
+public import ConLeche.Verify.CheckerSplit
+public import ConLeche.Verify.Extend.Inversions
+
+public section
 
 open ConLeche ConRon.Arena
 
@@ -614,7 +618,7 @@ and an answer relation, and the certifier alone is a `CoreStep`. -/
 `certifyNatEqs` chain is stated with it rather than with a membership shape,
 because the recursion is positional: the arena certifies the `i`-th pair
 against con-leche's `i`-th. -/
-def EqPairsDenote (st : EStore) :
+@[expose] def EqPairsDenote (st : EStore) :
     List (EIdx × EIdx) → List (Expr × Expr) → Prop
   | [], [] => True
   | p :: ps, q :: qs =>

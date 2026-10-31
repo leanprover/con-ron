@@ -86,7 +86,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:22-37 checkStructDomsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
 /// `j`-th expected domain, at frame `off + j`.  Walks from the last binder to
@@ -151,7 +151,7 @@ pub fn check_struct_doms_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
 /// table per structure, in the environment's table component: the fields'
 /// result-type bodies read off the stored constructor type by substitution
@@ -190,7 +190,7 @@ pub fn check_struct_proj_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
@@ -235,7 +235,7 @@ pub fn proj_bodies_scoped(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-65 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the table follows its structure, installed by the same block: the
 /// structure must be stored (an internal error otherwise), its table not yet
 /// taken, and then the table is installed.

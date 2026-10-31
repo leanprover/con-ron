@@ -5,7 +5,11 @@
 `initialize`, so it is usable only in modules that import this one; the
 lemmas themselves are in `Bridge/Grind.lean` and next to the walks.
 -/
-import Lean
+module
+
+public import Lean
+
+public section
 
 /-- The bridge's `grind` vocabulary: the store order, the
 transports, the answer atoms' equations and the walks' arm lemmas.  A

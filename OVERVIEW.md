@@ -308,7 +308,7 @@ treats equal handles as equal terms and unequal name handles as unequal
 names.  If two handles could denote the same term, the checker could take a
 branch con-leche would not.  The twin proves the denotation injective on a
 well-formed store
-([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1121-L1122)).
+([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1125-L1126)).
 
 Levels and names are interned the same way, but level *algorithms*
 (`simplify`, `leq`, `isEquiv`) run on ordinary `Level` trees read back from
@@ -611,7 +611,7 @@ it uses no `IO` and no `partial`, and fuel is an explicit `Nat`.
 Two definitions connect it to con-leche:
 
 * **Denotation.**
-  [`denoteE`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L181-L204)
+  [`denoteE`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L185-L208)
   reads a handle back into con-leche's `Expr`, and returns `none` on a
   dangling handle.
 * **Well-formedness.**
@@ -621,7 +621,7 @@ Two definitions connect it to con-leche:
   exact, no scratch entry duplicates a persistent one, and persistent nodes
   have persistent children.  From it follow the injectivity of `denoteE`
   and extension,
-  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L270-L274):
+  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L274-L278):
   every handle that denoted a term still denotes the same term later.
 
 ### 7.3 Theorem 1: the twin refines con-leche
@@ -630,9 +630,9 @@ Two definitions connect it to con-leche:
 proves that every twin function computes, on denotations, what the
 corresponding con-leche function computes.  The per-declaration statement
 is
-[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L138-L153),
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L142-L157),
 and
-[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L86-L97)
+[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L90-L101)
 lifts it to the whole two-phase fold: the pure fold accepts the denoted
 stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
@@ -654,8 +654,8 @@ statements are instead plain implications over a successful run, like the
 graded ones below.
 
 **Spec grades.**  A twin function's statement has one of two grades
-([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L55-L71),
-[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66)):
+([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L59-L75),
+[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L56-L73)):
 
 * **pure grade** (`PSpec`), for functions that do not call the type
   checker: invariant `StateOK` (the store is well-formed), frame `PStep`
@@ -670,7 +670,7 @@ A pure step lifts to a core step (`PStep.toCore`), so a core-grade function
 may call a pure-grade one; not the other way.
 
 An example at the pure grade
-([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L118-L164)).
+([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L122-L168)).
 The twin's `structPsAt` interns a list of `bvar` nodes; the theorem says the
 list denotes con-leche's:
 
@@ -689,10 +689,10 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq` and the eager tower's `defeqE`) is one statement indexed by
 fuel and mode,
-[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L110-L127),
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L114-L131),
 proved by induction on the fuel, over every mode at once (the eager slot at a
 mode runs the knot at its eager variant), in
-[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L58-L84).
+[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L62-L88).
 
 ### 7.4 Theorem 2: the Rust refines the twin
 

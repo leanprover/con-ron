@@ -19,9 +19,16 @@ they are `CSpec`, the old `withSort_spec`/`nativeShape?_spec` argument.
 **`blockParts?_spec` is TWO-SIDED** (`ROp`): the dispatch between
 `checkBlock` and `checkShapeless` reads it and nothing else.
 -/
-import ConRon.Bridge.Inductives.StructParts
-import ConRon.Bridge.Inductives.PosWalks
-import ConRon.Bridge.Inductives.FieldTele
+module
+
+public import ConRon.Bridge.Inductives.StructParts
+public import ConRon.Bridge.Inductives.PosWalks
+public import ConRon.Bridge.Inductives.FieldTele
+/- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
+`List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
+import all Init.Data.List.Control
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -388,7 +395,7 @@ theorem blockSplitCtors_spec (st : EStore) :
 
 /-- con-leche: none — the split's answer denotes: the formers, the
 constructors with their two counts, the recursors' four-tuples. -/
-def RSplit (q : List ConstantVal × List (ConstantVal × Nat × Nat) ×
+@[expose] def RSplit (q : List ConstantVal × List (ConstantVal × Nat × Nat) ×
       List (ConstantVal × Nat × Nat × List RecRule)) (st : EStore)
     (r : List IConstantVal × List (IConstantVal × Nat × Nat) ×
       List (IConstantVal × Nat × Nat × List IRecRule)) : Prop :=
@@ -552,7 +559,7 @@ def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat ×
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
 — con-leche's `match` on the whole pair re-read as a match on the residual,
 which is what the twin's `view` dispatch decides. -/
-theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat × Nat)) :
+private theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat × Nat)) :
     ConLeche.blockCounts? nPd k nC nR cvTP r =
       (match (cvTP.type.piBinders).2 with
        | .sort _ =>

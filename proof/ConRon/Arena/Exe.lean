@@ -1,4 +1,8 @@
-import ConRon.Arena.Main
+module
+
+public import ConRon.Arena.Main
+
+@[expose] public section
 
 /-!
 # `con-ron-lean`'s entry point

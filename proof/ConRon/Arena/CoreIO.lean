@@ -21,7 +21,11 @@ not an executed core), and so is this one: adding a table here would give
 the io grade two of them and break DESIGN §8.3's lesson 9 ("a hit in one
 grade never serves another") in the other direction.
 -/
-import ConRon.Arena.Core
+module
+
+public import ConRon.Arena.Core
+
+@[expose] public section
 
 namespace ConRon.Arena
 

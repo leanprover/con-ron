@@ -32,8 +32,12 @@ and `declares` are pure, exactly as con-leche's are, because
 `IDeclaration.names` is.
 Nothing in this module reads or writes a term.
 -/
-import ConRon.Arena.Frontend.ExportC
-import ConRon.Arena.Frontend.NatOpGround
+module
+
+public import ConRon.Arena.Frontend.ExportC
+public import ConRon.Arena.Frontend.NatOpGround
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

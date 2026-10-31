@@ -15,13 +15,17 @@ so that the three can build in parallel:
 | exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit` |
 | monotonicity | `…F_mono` for the helpers of the defeq block the specs merge at (`Walks/Mono.lean`'s shape) |
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.PropRead
-import ConRon.Bridge.Core.Walks.Stuck
-import ConRon.Bridge.Core.Walks.ProjLit
-import ConRon.Bridge.Core.Walks.Guards
-import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.ExprOps.Ranges
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.PropRead
+public import ConRon.Bridge.Core.Walks.Stuck
+public import ConRon.Bridge.Core.Walks.ProjLit
+public import ConRon.Bridge.Core.Walks.Guards
+public import ConRon.Bridge.Core.Walks.Mono
+public import ConRon.Bridge.ExprOps.Ranges
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -45,7 +49,7 @@ lemma (§6). -/
 on.  The fuel-monotone facts of the pure tier are exactly the ones that can
 be put in this form, and two of them combine with no arithmetic at the use
 site. -/
-def Ev (p : Nat → Prop) : Prop := ∃ F₀, ∀ F, F₀ ≤ F → p F
+@[expose] def Ev (p : Nat → Prop) : Prop := ∃ F₀, ∀ F, F₀ ≤ F → p F
 
 /-- con-leche: none — `Ev` is closed under conjunction. -/
 theorem Ev.and {p q : Nat → Prop} (hp : Ev p) (hq : Ev q) :
@@ -86,7 +90,7 @@ theorem Ev.finish {P G : Nat → Prop} (hG : Ev (fun F => P F → G F))
 /-- con-leche: none — the frame-and-verdict postcondition every stage of the
 step ends in: the state invariant, the store only grown and the pins
 untouched since `s₀`, and the pure goal `G` at some fuel. -/
-def DqPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState)
+@[expose] def DqPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState)
     (G : Nat → Bool → Prop) (r : Bool) (s' : AState) : Prop :=
   CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
     ∃ F, G F r

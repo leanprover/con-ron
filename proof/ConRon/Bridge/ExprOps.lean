@@ -25,7 +25,11 @@ dispatching walk).  Read it before any of the others.
 * `ExprOps/Spine.lean` — the spine and telescope operations, most of which
   take neither fuel nor a memo.
 -/
-import ConRon.Bridge.Specs
+module
+
+public import ConRon.Bridge.Specs
+
+public section
 
 /-! **This module imports none of them.**  Two modules of the tier cannot sit
 in one import closure (see `lakefile.toml`'s `ConRonBridge` entry), so the

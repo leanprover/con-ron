@@ -15,7 +15,11 @@ names neither, which is what makes "two named hypotheses" a checkable claim
 rather than an editorial one (`Bridge/Checker/Axioms.lean` makes the same
 point about its two).  The capstones are printed in the last sections below.
 -/
-import ConRon.Bridge.Frontend.Capstone
+module
+
+public import ConRon.Bridge.Frontend.Capstone
+
+public section
 
 namespace ConRon.Bridge.Frontend
 

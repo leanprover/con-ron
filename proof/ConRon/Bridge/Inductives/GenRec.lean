@@ -37,16 +37,23 @@ The headlines are `genRecCheck_spec` (at the constructors' environment) and
 `checkBlockClasses_spec` (at the formers'); `classSeeds_spec` is the pass's
 seeds.
 -/
-import ConRon.Arena.Inductives.GenRec
-import ConRon.Bridge.Inductives.RecCheck
-import ConRon.Bridge.Inductives.ClassRead
-import ConRon.Bridge.Inductives.FieldTele
-import ConRon.Bridge.Inductives.Positivity
-import ConRon.Bridge.Inductives.BlockRec
-import ConLeche.Verify.Cached.GenRecC
-import ConLeche.Verify.Inductives.GenRecRun
-import ConLeche.Verify.Extend.Inversions
-import ConLeche.Verify.Cached.BlockRunC
+module
+
+public import ConRon.Arena.Inductives.GenRec
+public import ConRon.Bridge.Inductives.RecCheck
+public import ConRon.Bridge.Inductives.ClassRead
+public import ConRon.Bridge.Inductives.FieldTele
+public import ConRon.Bridge.Inductives.Positivity
+public import ConRon.Bridge.Inductives.BlockRec
+public import ConLeche.Verify.Cached.GenRecC
+public import ConLeche.Verify.Inductives.GenRecRun
+public import ConLeche.Verify.Extend.Inversions
+public import ConLeche.Verify.Cached.BlockRunC
+/- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
+`List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
+import all Init.Data.List.Control
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -738,7 +745,7 @@ def isMotiveP : ConLeche.ClassSlot → Bool
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:168-177 ClassGen.prefixBinders
 (one slot) — the body of con-leche's `mapM` over the slots, at slot `sl` and
 position `s`. -/
-def slotP (gP : ConLeche.ClassGen) (sl : ConLeche.ClassSlot) (s : Nat) : Option Expr :=
+@[expose] def slotP (gP : ConLeche.ClassGen) (sl : ConLeche.ClassSlot) (s : Nat) : Option Expr :=
   match sl with
   | .motive _ =>
     gP.motiveTy ((List.range s).filter fun s' => isMotiveP (gP.slots.getD s' default)).length
@@ -2806,7 +2813,7 @@ namespace GR
 
 /-- con-leche: none — two indexes that answer alike: the same list, the same
 bound, the same row at every key, the same table map. -/
-def FEq (a b : IFEnv) : Prop :=
+@[expose] def FEq (a b : IFEnv) : Prop :=
   a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ (∀ n : NIdx, a.idx[n]? = b.idx[n]?) ∧
     a.tbls = b.tbls
 
@@ -3461,7 +3468,7 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
 
 /-- con-leche: none — a seed (a positivity key with its parameter count),
 denoted. -/
-def dSeed (st : EStore) (q : Arena.NestKey × Nat) : Option (ConLeche.NestKey × Nat) :=
+@[expose] def dSeed (st : EStore) (q : Arena.NestKey × Nat) : Option (ConLeche.NestKey × Nat) :=
   (dKey st q.1).map (·, q.2)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:494-499 classSeeds — **the

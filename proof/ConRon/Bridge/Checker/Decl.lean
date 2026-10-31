@@ -57,7 +57,11 @@ arm needs:
 Every one of them bottoms out in `checkConstantVal_bridge`
 (`Bridge/Checker/Base.lean`), which bottoms out in `KnotSpec`.
 -/
-import ConRon.Bridge.Checker.Hyp
+module
+
+public import ConRon.Bridge.Checker.Hyp
+
+public section
 
 namespace ConRon.Bridge
 
@@ -69,7 +73,7 @@ open ConLeche ConRon.Arena
 
 /-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:35-68 NatOpPinSet — an
 interned type-pin list denotes con-leche's, pair by pair and in order. -/
-def TypePinsDenote (st : EStore) :
+@[expose] def TypePinsDenote (st : EStore) :
     List (NIdx × EIdx) → List (ConLeche.Name × Expr) → Prop
   | [], [] => True
   | p :: ps, q :: qs =>
@@ -123,7 +127,7 @@ structure PinSetDenote (st : EStore) (p : INatOpPinSet) (q : NatOpPinSet) :
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the interned pin LIST
 denotes con-leche's, variant by variant and in order (the order is the order
 the install gate tries them, so it is part of the statement). -/
-def PinsDenote (st : EStore) : List INatOpPinSet → List NatOpPinSet → Prop
+@[expose] def PinsDenote (st : EStore) : List INatOpPinSet → List NatOpPinSet → Prop
   | [], [] => True
   | p :: ps, q :: qs => PinSetDenote st p q ∧ PinsDenote st ps qs
   | _, _ => False

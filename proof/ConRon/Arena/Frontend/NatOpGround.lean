@@ -34,7 +34,14 @@ P2c/P2d.  This module is the real thing, and `Prepare.lean` now calls it.
   order: `init-full`, Mathlib), so it costs one name-index build and nothing
   else there.
 -/
-import ConRon.Arena.Core
+module
+
+public import ConRon.Arena.Core
+-- `Std.HashSet` reaches this file only through a `meta import` upstream,
+-- which a `module` does not see at run time.
+public import Std.Data.HashSet.Basic
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

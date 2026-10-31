@@ -46,13 +46,17 @@ answer the body computed at SOME earlier fuel, and re-deriving it at the
 query's fuel is exactly what `CacheOK`'s depth-universal `∃ F, ∀ d` clause
 (`Bridge/StateOK.lean`) exists to avoid.
 -/
-import ConRon.Bridge.Specs
-import ConLeche.Verify.Knot
-import ConLeche.Verify.Deep
-import ConLeche.Verify.InferLemmas
-import ConLeche.Verify.InferLeaves
-import ConLeche.Verify.InferIOLeaves
-import ConLeche.Verify.Abstract
+module
+
+public import ConRon.Bridge.Specs
+public import ConLeche.Verify.Knot
+public import ConLeche.Verify.Deep
+public import ConLeche.Verify.InferLemmas
+public import ConLeche.Verify.InferLeaves
+public import ConLeche.Verify.InferIOLeaves
+public import ConLeche.Verify.Abstract
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -78,14 +82,14 @@ The `WScoped d v` conjunct is not decoration: the memo insert
 (`Bridge/Core/Memo.lean`) needs it to restate the run in `CacheOK`'s
 depth-universal form, and every caller that feeds an answer back into another
 slot needs it as that call's precondition. -/
-def SimE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e : Expr)
+@[expose] def SimE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e : Expr)
     (st' : EStore) (r : EIdx) : Prop :=
   ∃ v, denoteE st' r = some v ∧ Expr.WScoped d v ∧ ∃ F, op F d e = .ok v
 
 /-- con-leche: ConLeche/Verify/SimI.lean:252 RelV — the `Bool`-valued answer
 relation, for the `defeq` slot.  No store and no scope check: the answer names
 no handle. -/
-def SimV (op : Nat → Nat → Expr → Expr → CheckM Bool) (d : Nat)
+@[expose] def SimV (op : Nat → Nat → Expr → Expr → CheckM Bool) (d : Nat)
     (a b : Expr) (x : Bool) : Prop :=
   ∃ F, op F d a b = .ok x
 
@@ -196,7 +200,7 @@ in scope), the answer a named predicate on that term (`SlotAns`, or
 
 /-- con-leche: none — a precondition on an optional subject: it denotes, in
 scope at `d`. -/
-def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none => False
+@[expose] def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none => False
 
 /-- con-leche: none — `DenWS` at a denoting subject. -/
 @[bridge_grind =] theorem DenWS.some_eq (d : Nat) (e : Expr) :
@@ -213,7 +217,7 @@ theorem DenWS.isSome {d : Nat} {o : Option Expr} (h : DenWS d o) : o.isSome = tr
 
 /-- con-leche: none — a knot slot's answer about an optional subject: at a
 denoting subject `e`, the slot's `SimE` at `e`. -/
-def SlotAns (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (st : EStore) (r : EIdx) :
+@[expose] def SlotAns (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (st : EStore) (r : EIdx) :
     Option Expr → Prop
   | some e => SimE op d e st r
   | none => True
@@ -302,7 +306,7 @@ The pure comparand is the fueled ENTRY (`ConLeche.whnfCore mode env (F + 1)`)
 rather than con-leche's body applied to `fueledFns`, because
 `Verify/Knot.lean`'s `whnfCore_succ` identifies the two and the entry is what
 `CacheOK` is stated at. -/
-def BodySpec (mode : CheckMode) (env : Env) (fe : IFEnv)
+@[expose] def BodySpec (mode : CheckMode) (env : Env) (fe : IFEnv)
     (body : Nat → EIdx → AM EIdx) (op : Nat → Nat → Expr → CheckM Expr) :
     Prop :=
   ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
@@ -315,7 +319,7 @@ def BodySpec (mode : CheckMode) (env : Env) (fe : IFEnv)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean defeqBodyC_sim — the same
 at the `Bool`-valued body, which takes two subjects. -/
-def BodySpecV (mode : CheckMode) (env : Env) (fe : IFEnv)
+@[expose] def BodySpecV (mode : CheckMode) (env : Env) (fe : IFEnv)
     (body : Nat → EIdx → EIdx → AM Bool)
     (op : Nat → Nat → Expr → Expr → CheckM Bool) : Prop :=
   ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),

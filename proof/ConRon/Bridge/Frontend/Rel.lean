@@ -60,8 +60,12 @@ tier.  Importing the whole checker tier here would put
 to read it; as it is, `Bridge/Checker/Pins.lean` imports `Shared.lean`, and
 only `Bridge/Frontend/Capstone.lean` imports the checker tier whole.
 -/
-import ConRon.Bridge.Checker.Inv
-import ConLeche.Frontend.ExportC
+module
+
+public import ConRon.Bridge.Checker.Inv
+public import ConLeche.Frontend.ExportC
+
+public section
 
 namespace ConRon.Bridge.Frontend
 
@@ -210,7 +214,7 @@ implications and not equations. -/
 /-- con-leche: none — a relation lifted to `Option`: `none` relates to `none`
 and nothing else.  The three stream-index tables are partial maps and this is
 what "the same map, up to the denotation" means at one index. -/
-def OptRel {α : Type u} {β : Type v} (R : α → β → Prop) : Option α → Option β → Prop
+@[expose] def OptRel {α : Type u} {β : Type v} (R : α → β → Prop) : Option α → Option β → Prop
   | none, none => True
   | some a, some b => R a b
   | _, _ => False
@@ -257,7 +261,7 @@ stream-index tables are the same map, up to the denotation**: at every index
 either both are unbound or both are bound and the handle denotes the value.
 con-leche's three `get?` laws are the only facts any proof reads of a table,
 so they are the only facts this needs. -/
-def IdTableRel {α : Type} {β : Type} (R : α → β → Prop)
+@[expose] def IdTableRel {α : Type} {β : Type} (R : α → β → Prop)
     (t : ConLeche.Frontend.IdTable α) (u : ConLeche.Frontend.IdTable β) : Prop :=
   ∀ i, OptRel R (t.get? i) (u.get? i)
 
@@ -301,7 +305,7 @@ theorem IdTableRel.insert {α β : Type} {R : α → β → Prop}
 
 /-- con-leche: none — `Bridge/Checker/Inv.lean`'s `denoteDecls` at an `Array`,
 which is the shape `StateD.decls` and `ParseResultD.decls` are in. -/
-def denoteDeclArray (st : EStore) (ds : Array IDeclaration) :
+@[expose] def denoteDeclArray (st : EStore) (ds : Array IDeclaration) :
     Option (Array ConLeche.Declaration) :=
   (denoteDecls st ds.toList).map List.toArray
 
@@ -973,7 +977,7 @@ that the induction has one invariant rather than two. -/
 /-- con-leche: none — every declaration record the parse state holds is
 persistent (`Bridge/Promote/Pers.lean`'s `PersDecl`).  This is the clause
 `Arena.installThenCheck_bridge` names `hpd`. -/
-def PersDecls (ds : Array IDeclaration) : Prop := ∀ d ∈ ds, PersDecl d
+@[expose] def PersDecls (ds : Array IDeclaration) : Prop := ∀ d ∈ ds, PersDecl d
 
 /-- con-leche: none — the parse state's handles are persistent.  Free (the
 parse runs with the scratch tier closed) and stated because the fold's first
@@ -985,7 +989,7 @@ structure PersStateD (sd : StateD) : Prop where
   decls : PersDecls sd.decls
 
 /-- con-leche: none — the parse result's declarations are persistent. -/
-def PersParseResult (r : ParseResultD) : Prop := PersDecls r.decls
+@[expose] def PersParseResult (r : ParseResultD) : Prop := PersDecls r.decls
 
 theorem PersParseResult.ofState {sd : StateD} (h : PersStateD sd) :
     PersParseResult (ParseResultD.ofState sd) := h.decls

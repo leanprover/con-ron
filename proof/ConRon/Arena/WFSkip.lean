@@ -15,7 +15,11 @@ probe IS the unconditional one:
 plus three unconditional rewrites (scratch tier off, persistent probe
 `none`, persistent probe `some`) for proofs that carry no `StoreWF`.
 -/
-import ConRon.Arena.WF
+module
+
+public import ConRon.Arena.WF
+
+@[expose] public section
 
 namespace ConRon.Arena
 

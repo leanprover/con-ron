@@ -49,11 +49,15 @@ owes is an instance of `intern_spec`:
 
     pinsOK st → st.pins.names[PIN_NAT] = (internName st natName).1
 -/
-import ConRon.Arena.Monad
-import ConLeche.Kernel.Basis.Names
-import ConLeche.Kernel.Basis.And
-import ConLeche.Kernel.StdAxioms
-import ConLeche.Kernel.TrustAxioms
+module
+
+public import ConRon.Arena.Monad
+public import ConLeche.Kernel.Basis.Names
+public import ConLeche.Kernel.Basis.And
+public import ConLeche.Kernel.StdAxioms
+public import ConLeche.Kernel.TrustAxioms
+
+@[expose] public section
 
 namespace ConRon.Arena
 

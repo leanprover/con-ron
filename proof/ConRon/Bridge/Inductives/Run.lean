@@ -11,9 +11,13 @@ pure-grade twins of the uniform route — the positivity walk's memoised
 occurrence tests, the recogniser — build on this alone; `Rel.lean` imports it
 and adds the core-grade shapes.
 -/
-import ConRon.Bridge.Inductives.Records
-import ConRon.Bridge.Specs
-import ConRon.Bridge.Promote.Pers
+module
+
+public import ConRon.Bridge.Inductives.Records
+public import ConRon.Bridge.Specs
+public import ConRon.Bridge.Promote.Pers
+
+public section
 
 namespace ConRon.Bridge.Inductives
 
@@ -65,7 +69,7 @@ and Theorem 1 claims nothing then — which is why the hypothesis is
 than verification conditions, and the checker tier that consumes `IndSpec`
 (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
 inversion). -/
-def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+@[expose] def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
     PStep s₀ s' ∧ R s'.store r
@@ -87,7 +91,7 @@ this is the only shape that carries it while keeping `PStep`: the twin is
 still pure — it interns and reads, it calls no knot — so dropping to `CSpec`
 (the other statement that has `PinsOK`, through `CheckOK`) would give away the
 cache-frame conjunct for nothing. -/
-def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+@[expose] def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
     c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
@@ -97,7 +101,7 @@ that reads a level back through the CACHED `readLevelM` answers the denotation
 only under `ReadLCacheOK`, which `StateOK` does not carry.  This grade asks for
 that one table and nothing else; the core grade's `CheckOK` carries it
 (`CheckOK.caches.readL`). -/
-def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+@[expose] def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → ReadLCacheOK s₀.caches.readLC s₀.store →
     P s₀.store → c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
@@ -113,7 +117,7 @@ relation rather than a one-sided implication. -/
 
 /-- con-leche: none — an answer relation lifted through `Option`, both
 directions. -/
-def ROp {α β : Type} (R : β → EStore → α → Prop) (x : Option β) :
+@[expose] def ROp {α β : Type} (R : β → EStore → α → Prop) (x : Option β) :
     EStore → Option α → Prop
   | _, none => x = none
   | st, some a => ∃ b, x = some b ∧ R b st a
@@ -151,7 +155,7 @@ abbrev RV {α : Type} (x : α) : EStore → α → Prop := fun _ r => r = x
 Nat × Nat)` is what the recogniser's `blockSplitCtors` answers. -/
 
 /-- con-leche: none — the shape record's constructor list denotes. -/
-def denoteCtors (st : EStore) :
+@[expose] def denoteCtors (st : EStore) :
     List (IConstantVal × Nat) → Option (List (ConstantVal × Nat))
   | [] => some []
   | (cv, n) :: cs =>
@@ -160,7 +164,7 @@ def denoteCtors (st : EStore) :
     | _, _ => none
 
 /-- con-leche: none — `blockSplitCtors`' constructor list denotes. -/
-def denoteCtors3 (st : EStore) :
+@[expose] def denoteCtors3 (st : EStore) :
     List (IConstantVal × Nat × Nat) → Option (List (ConstantVal × Nat × Nat))
   | [] => some []
   | (cv, a, b) :: cs =>
@@ -190,7 +194,7 @@ theorem denoteCtors_ext {st st' : EStore} (hx : Ext st st') :
 
 /-- con-leche: none — a list of level LISTS denotes: the fields' sorts, one
 list per constructor (`checkSumCtors`' second answer). -/
-def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
+@[expose] def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
   | [] => some []
   | l :: ls =>
     match denoteLList st.ls l, denoteLLists st ls with

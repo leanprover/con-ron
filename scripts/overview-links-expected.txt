@@ -132,7 +132,7 @@
     13  //! ```
 
 == crates/con-ron-core/src/arena/store.rs#L1179-L1193
-  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:347-359 ETables
+  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
   1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
   1181  /// cons tables.
   1182  pub struct ETables {
@@ -578,7 +578,7 @@
 == crates/con-ron-core/src/arena/monad.rs#L295-L317
    295  
    296  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-   297  /// Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` — the checker
+   297  /// Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` — the checker
    298  /// state of (C): the arena, the per-call memo tables and — since task
    299  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
    300  /// grades, `defeq`, the level verdicts, the instantiated constants).
@@ -634,25 +634,25 @@
    187  // The four handle kinds (`Handle.lean:78-93`)
    188  // ---------------------------------------------------------------------------
    189  
-   190  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-87 EIdx
+   190  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:90-91 EIdx
    191  /// An expression handle (DESIGN.md §8.3).
    192  pub struct EIdx {
    193      pub word: u32,
    194  }
    195  
-   196  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:88-89 NIdx
+   196  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:92-93 NIdx
    197  /// A name handle (DESIGN.md §8.3).
    198  pub struct NIdx {
    199      pub word: u32,
    200  }
    201  
-   202  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:90-91 LIdx
+   202  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:94-95 LIdx
    203  /// A level handle (DESIGN.md §8.3).
    204  pub struct LIdx {
    205      pub word: u32,
    206  }
    207  
-   208  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:92-93 LsIdx
+   208  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:96-97 LsIdx
    209  /// A level-list handle (DESIGN.md §8.3).
    210  pub struct LsIdx {
    211      pub word: u32,
@@ -660,68 +660,68 @@
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L559
    511  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:260-262 ETag.bvar` — the `bvar`
+   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 316.
    514  pub const ETAG_BVAR: u32 = 0;
    515  
    516  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   517  /// Lean twin: `proof/ConRon/Arena/Handle.lean:263-265 ETag.fvar` — the `fvar`
+   517  /// Lean twin: `proof/ConRon/Arena/Handle.lean:267-269 ETag.fvar` — the `fvar`
    518  /// constructor, line 317.
    519  pub const ETAG_FVAR: u32 = 1;
    520  
    521  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   522  /// Lean twin: `proof/ConRon/Arena/Handle.lean:266-268 ETag.sort` — the `sort`
+   522  /// Lean twin: `proof/ConRon/Arena/Handle.lean:270-272 ETag.sort` — the `sort`
    523  /// constructor, line 318.
    524  pub const ETAG_SORT: u32 = 2;
    525  
    526  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   527  /// Lean twin: `proof/ConRon/Arena/Handle.lean:269-271 ETag.const` — the `const`
+   527  /// Lean twin: `proof/ConRon/Arena/Handle.lean:273-275 ETag.const` — the `const`
    528  /// constructor, line 319.
    529  pub const ETAG_CONST: u32 = 3;
    530  
    531  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   532  /// Lean twin: `proof/ConRon/Arena/Handle.lean:272-274 ETag.app` — the `app`
+   532  /// Lean twin: `proof/ConRon/Arena/Handle.lean:276-278 ETag.app` — the `app`
    533  /// constructor, line 320.
    534  pub const ETAG_APP: u32 = 4;
    535  
    536  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   537  /// Lean twin: `proof/ConRon/Arena/Handle.lean:275-277 ETag.lam` — the `lam`
+   537  /// Lean twin: `proof/ConRon/Arena/Handle.lean:279-281 ETag.lam` — the `lam`
    538  /// constructor, line 321.
    539  pub const ETAG_LAM: u32 = 5;
    540  
    541  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   542  /// Lean twin: `proof/ConRon/Arena/Handle.lean:278-280 ETag.forallE` — the
+   542  /// Lean twin: `proof/ConRon/Arena/Handle.lean:282-284 ETag.forallE` — the
    543  /// `forallE` constructor, line 322.
    544  pub const ETAG_FORALL_E: u32 = 6;
    545  
    546  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   547  /// Lean twin: `proof/ConRon/Arena/Handle.lean:281-283 ETag.letE` — the `letE`
+   547  /// Lean twin: `proof/ConRon/Arena/Handle.lean:285-287 ETag.letE` — the `letE`
    548  /// constructor, line 323.
    549  pub const ETAG_LET_E: u32 = 7;
    550  
    551  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   552  /// Lean twin: `proof/ConRon/Arena/Handle.lean:284-286 ETag.lit` — the `lit`
+   552  /// Lean twin: `proof/ConRon/Arena/Handle.lean:288-290 ETag.lit` — the `lit`
    553  /// constructor, line 324.
    554  pub const ETAG_LIT: u32 = 8;
    555  
    556  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   557  /// Lean twin: `proof/ConRon/Arena/Handle.lean:287-289 ETag.proj` — the `proj`
+   557  /// Lean twin: `proof/ConRon/Arena/Handle.lean:291-293 ETag.proj` — the `proj`
    558  /// constructor, line 325.
    559  pub const ETAG_PROJ: u32 = 9;
 
 == crates/con-ron-core/src/arena/handle.rs#L397-L405
-   397  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:108-110 instHashableIdx
+   397  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-114 instHashableIdx
    398  /// **The word IS the hash**: nanoda's identity hasher (`unique_hasher.rs`),
    399  /// no mixing at all.
    400  impl Hashable for EIdx {
-   401      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:108-110 instHashableIdx
+   401      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-114 instHashableIdx
    402      fn hash64(&self) -> u64 {
    403          self.word as u64
    404      }
    405  }
 
 == crates/con-ron-core/src/arena/store.rs#L1179-L1193
-  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:347-359 ETables
+  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
   1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
   1181  /// cons tables.
   1182  pub struct ETables {
@@ -739,7 +739,7 @@
 
 == crates/con-ron-core/src/arena/store.rs#L3624-L3659
   3624  
-  3625      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:478-498 EStore.intern
+  3625      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:482-502 EStore.intern
   3626      /// Hash-cons an expression node: probe the persistent cons table, then the
   3627      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
   3628      /// The cap test is the Lean's `capOK` turned into the `Native` decline
@@ -825,13 +825,13 @@
   3955          }
   3956      }
 
-== proof/ConRon/Arena/WFProofs.lean#L1121-L1122
-  1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
-  1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
+== proof/ConRon/Arena/WFProofs.lean#L1125-L1126
+  1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
+  1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
 == crates/con-ron-core/src/arena/core.rs#L10283-L10323
  10283  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10284  /// Lean twin: `proof/ConRon/Arena/Core.lean:3675-3681 flushCaches` — **what
+ 10284  /// Lean twin: `proof/ConRon/Arena/Core.lean:3679-3685 flushCaches` — **what
  10285  /// the per-declaration bracket does to the caches**: it drops them whole,
  10286  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
  10287  /// this point.
@@ -849,7 +849,7 @@
  10299  }
  10300  
  10301  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10302  /// Lean twin: `proof/ConRon/Arena/Core.lean:3683-3691 dropScratch` — drop the
+ 10302  /// Lean twin: `proof/ConRon/Arena/Core.lean:3687-3695 dropScratch` — drop the
  10303  /// scratch tier of the store and the cache entries that name it, in one
  10304  /// operation, so the two halves cannot drift apart; and **thaw** the store:
  10305  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -860,7 +860,7 @@
  10310  }
  10311  
  10312  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10313  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3700 enterScratch` — turn the
+ 10313  /// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3704 enterScratch` — turn the
  10314  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
  10315  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
  10316  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -953,7 +953,7 @@
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L235
    173  /// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
-   174  /// Lean twin: `proof/ConRon/Arena/Monad.lean:60-104 Memos` — the memo tables of
+   174  /// Lean twin: `proof/ConRon/Arena/Monad.lean:64-108 Memos` — the memo tables of
    175  /// the `ExprOps` twins, in one record.
    176  ///
    177  /// con-leche threads each memo as an explicit argument-and-result pair
@@ -1085,7 +1085,7 @@
 
 == crates/con-ron-core/src/arena/core_state.rs#L315-L377
    315  /// con-leche: ConLeche/Cached/StateC.lean:113-150 CState
-   316  /// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-128 Caches` — the
+   316  /// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-132 Caches` — the
    317  /// per-declaration caches of the arena checker, in one record beside
    318  /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
    319  /// the per-call clear and the per-declaration drop are different operations
@@ -1150,7 +1150,7 @@
 
 == crates/con-ron-core/src/arena/core.rs#L371-L384
    371  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-   372  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
+   372  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
    373  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
    374  /// unmemoized; every other slot is the full knot's.
    375  pub const LANE_IO: u32 = 2;
@@ -1160,7 +1160,7 @@
    379  // ---------------------------------------------------------------------------
    380  
    381  /// con-leche: none — the fuel every store walk in this module runs at
-   382  /// Lean twin: `proof/ConRon/Arena/Core.lean:86-88 coreWalkFuel`.  DESIGN.md §8.4
+   382  /// Lean twin: `proof/ConRon/Arena/Core.lean:90-92 coreWalkFuel`.  DESIGN.md §8.4
    383  /// asks for fuel as an explicit `Nat`; the walks below are over the handle
    384  /// DAG, so any bound above the store's node count is unreachable.
 
@@ -1455,7 +1455,7 @@
     56  //! the export also carries hands the export's parse the very same handle.
     57  //! What changes is only WHEN the intern happens, and how many times.
     58  //!
-    59  //! Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` (DESIGN.md §8.6's
+    59  //! Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` (DESIGN.md §8.6's
     60  //! twin ledger, task #97-P6-4a) — `AState` gains a `pins : Pins` field and
 
 == crates/con-ron-core/src/frontend/prepare.rs#L1-L50
@@ -1517,7 +1517,7 @@
    688  
    689  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
    690  /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-   691  /// Lean twin: `proof/ConRon/Arena/Checker.lean:312-342 internAllPins` — **the
+   691  /// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — **the
    692  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
    693  /// a stream record against, interned into the tier that is live at the call —
    694  /// which, at the driver's call, is the persistent one.
@@ -1677,7 +1677,7 @@
 
 == crates/con-ron-core/src/arena/checker.rs#L184-L240
    184  /// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
-   185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:153-210 installStep` — **phase
+   185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — **phase
    186  /// A's step, bracketed**; `i` is the fold position the record is tagged with.
    187  ///
    188  /// **The bracket** (DESIGN.md §8.3, "Phase A runs in the scratch tier too,
@@ -1862,7 +1862,7 @@
 
 == crates/con-ron-core/src/arena/checker.rs#L670-L683
    670  /// con-leche: ConLeche/Driver/CheckPool.lean:180-196 checkWorker
-   671  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
+   671  /// Lean twin: `proof/ConRon/Arena/Phased.lean:33-40 AState.worker` — the twin's
    672  /// phase-B worker reads the persistent tier where it is.
    673  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
    674  /// moved here by task #97-P5-Driver): the empty store, FROZEN
@@ -1939,31 +1939,31 @@
     22  [profile.release]
     23  overflow-checks = true
 
-== proof/ConRon/Arena/Denote.lean#L181-L204
-   181  /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the fuel-indexed
-   182  readback of an expression handle. -/
-   183  def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
-   184    | 0, _ => none
-   185    | f + 1, i =>
-   186      (st.view i).bind fun v =>
-   187        match v with
-   188        | .bvar k => some (.bvar k)
-   189        | .fvar k ty => (denoteEAux st f ty).map (Expr.fvar k)
-   190        | .sort u => (denoteL st.ls u).map Expr.sort
-   191        | .const n us => opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us)
-   192        | .app g a => opt2 Expr.app (denoteEAux st f g) (denoteEAux st f a)
-   193        | .lam ty b => opt2 Expr.lam (denoteEAux st f ty) (denoteEAux st f b)
-   194        | .forallE ty b => opt2 Expr.forallE (denoteEAux st f ty) (denoteEAux st f b)
-   195        | .letE ty w b =>
-   196          opt3 Expr.letE (denoteEAux st f ty) (denoteEAux st f w) (denoteEAux st f b)
-   197        | .lit l => some (.lit l)
-   198        | .proj n k e =>
-   199          opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
-   200  
-   201  /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the readback of an
-   202  expression handle, at the store's own node count as fuel. -/
-   203  def denoteE (st : EStore) (i : EIdx) : Option Expr :=
-   204    denoteEAux st (st.nodeCount + 1) i
+== proof/ConRon/Arena/Denote.lean#L185-L208
+   185  /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the fuel-indexed
+   186  readback of an expression handle. -/
+   187  def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
+   188    | 0, _ => none
+   189    | f + 1, i =>
+   190      (st.view i).bind fun v =>
+   191        match v with
+   192        | .bvar k => some (.bvar k)
+   193        | .fvar k ty => (denoteEAux st f ty).map (Expr.fvar k)
+   194        | .sort u => (denoteL st.ls u).map Expr.sort
+   195        | .const n us => opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us)
+   196        | .app g a => opt2 Expr.app (denoteEAux st f g) (denoteEAux st f a)
+   197        | .lam ty b => opt2 Expr.lam (denoteEAux st f ty) (denoteEAux st f b)
+   198        | .forallE ty b => opt2 Expr.forallE (denoteEAux st f ty) (denoteEAux st f b)
+   199        | .letE ty w b =>
+   200          opt3 Expr.letE (denoteEAux st f ty) (denoteEAux st f w) (denoteEAux st f b)
+   201        | .lit l => some (.lit l)
+   202        | .proj n k e =>
+   203          opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
+   204  
+   205  /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the readback of an
+   206  expression handle, at the store's own node count as fuel. -/
+   207  def denoteE (st : EStore) (i : EIdx) : Option Expr :=
+   208    denoteEAux st (st.nodeCount + 1) i
 
 == proof/ConRon/Arena/WF.lean#L1-L39
      1  /-
@@ -2006,44 +2006,44 @@
     38  a valid child of a node appended to the persistent tier is persistent already.
     39  -/
 
-== proof/ConRon/Arena/Denote.lean#L270-L274
-   270  /-- con-leche: none — extension of the whole arena (DESIGN §8.3; con-leche's
-   271  `Ext`, `Verify/SimI.lean:244`, is the same conjunct of `SimAt`). -/
-   272  structure Ext (st st' : EStore) : Prop where
-   273    lss : LsExt st.lss st'.lss
-   274    expr : ∀ i e, denoteE st i = some e → denoteE st' i = some e
+== proof/ConRon/Arena/Denote.lean#L274-L278
+   274  /-- con-leche: none — extension of the whole arena (DESIGN §8.3; con-leche's
+   275  `Ext`, `Verify/SimI.lean:244`, is the same conjunct of `SimAt`). -/
+   276  structure Ext (st st' : EStore) : Prop where
+   277    lss : LsExt st.lss st'.lss
+   278    expr : ∀ i e, denoteE st i = some e → denoteE st' i = some e
 
-== proof/ConRon/Bridge/Checker/Fold.lean#L138-L153
-   138  /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
-   139  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
-   140  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
-   141  `Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
-   142  (all proved: the tier is `sorry`-free).
-   143  
-   144  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
-   145  `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
-   146  total extension holds here and weakens one level up. -/
-   147  theorem Arena.checkDecl_bridge {μ : CheckMode}
-   148      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-   149      {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-   150      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-   151      (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-   152      (hd : Frontend.denoteDecl s.store pd = some d)
-   153      (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
+== proof/ConRon/Bridge/Checker/Fold.lean#L142-L157
+   142  /-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+   143  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
+   144  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
+   145  `Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
+   146  (all proved: the tier is `sorry`-free).
+   147  
+   148  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
+   149  `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
+   150  total extension holds here and weakens one level up. -/
+   151  theorem Arena.checkDecl_bridge {μ : CheckMode}
+   152      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
+   153      {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
+   154      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+   155      (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+   156      (hd : Frontend.denoteDecl s.store pd = some d)
+   157      (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
 
-== proof/ConRon/Bridge/Checker/Phased.lean#L86-L97
-    86  theorem Arena.pooledAccepts_bridge {μ : CheckMode}
-    87      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
-    88      {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
-    89      {s s' : AState}
-    90      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    91      (hpp : PersPinSets pins)
-    92      (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
-    93      (hpins : PinsDenote s.store pins pinsP)
-    94      (hpd : ∀ x ∈ ds.toList, PersDecl x)
-    95      (hden : denoteDecls s.store ds.toList = some dsP)
-    96      (hrun : Arena.PooledAccepts μ pins ds s fe' s') :
-    97      ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
+== proof/ConRon/Bridge/Checker/Phased.lean#L90-L101
+    90  theorem Arena.pooledAccepts_bridge {μ : CheckMode}
+    91      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
+    92      {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
+    93      {s s' : AState}
+    94      (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    95      (hpp : PersPinSets pins)
+    96      (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
+    97      (hpins : PinsDenote s.store pins pinsP)
+    98      (hpd : ∀ x ∈ ds.toList, PersDecl x)
+    99      (hden : denoteDecls s.store ds.toList = some dsP)
+   100      (hrun : Arena.PooledAccepts μ pins ds s fe' s') :
+   101      ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
 
 == proof/ConRon/Bridge/Specs.lean#L1-L31
      1  /-
@@ -2078,142 +2078,142 @@
     30     through it, so one spec covers them all and the Rust has one function to
     31     match.
 
-== proof/ConRon/Bridge/Inductives/Run.lean#L55-L71
-    55  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
-    56  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
-    57  answer related to the pure side's by `R`, having only grown the arena.
-    58  
-    59  Partial correctness, as everywhere in this library: a (B) function may fail
-    60  and Theorem 1 claims nothing then — which is why the hypothesis is
-    61  `c s0 = .ok (r, s')` and not an unconditional equation.
+== proof/ConRon/Bridge/Inductives/Run.lean#L59-L75
+    59  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
+    60  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
+    61  answer related to the pure side's by `R`, having only grown the arena.
     62  
-    63  **RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
-    64  §1): this tier's work is composition, inversion and list induction rather
-    65  than verification conditions, and the checker tier that consumes `IndSpec`
-    66  (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
-    67  inversion). -/
-    68  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
-    69      Prop :=
-    70    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
-    71      PStep s₀ s' ∧ R s'.store r
+    63  Partial correctness, as everywhere in this library: a (B) function may fail
+    64  and Theorem 1 claims nothing then — which is why the hypothesis is
+    65  `c s0 = .ok (r, s')` and not an unconditional equation.
+    66  
+    67  **RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
+    68  §1): this tier's work is composition, inversion and list induction rather
+    69  than verification conditions, and the checker tier that consumes `IndSpec`
+    70  (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
+    71  inversion). -/
+    72  @[expose] def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    73      Prop :=
+    74    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
+    75      PStep s₀ s' ∧ R s'.store r
 
-== proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66
-    49  /-! ## The core grade -/
-    50  
-    51  /-- con-leche: none — **the bridge between the two grades**: a pure step
-    52  preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
-    53  `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
-    54  and keep its own hypothesis. -/
-    55  theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    56      (h : PStep s s') (hc : CheckOK μ env fe s) : CoreStep μ env fe s s' :=
-    57    ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
-    58  
-    59  /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
-    60  statement**: the same at a function that calls the knot, so the invariant is
-    61  `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
-    62  inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
-    63  def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
-    64      (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
-    65    ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
-    66      c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
+== proof/ConRon/Bridge/Inductives/Rel.lean#L56-L73
+    56  /-! ## The core grade -/
+    57  
+    58  /-- con-leche: none — **the bridge between the two grades**: a pure step
+    59  preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
+    60  `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
+    61  and keep its own hypothesis. -/
+    62  theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    63      (h : PStep s s') (hc : CheckOK μ env fe s) : CoreStep μ env fe s s' :=
+    64    ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
+    65  
+    66  /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
+    67  statement**: the same at a function that calls the knot, so the invariant is
+    68  `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
+    69  inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
+    70  @[expose] def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
+    71      (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
+    72    ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
+    73      c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
 
-== proof/ConRon/Bridge/Inductives/StructParts.lean#L118-L164
-   118  /-! ## The spines -/
-   119  
-   120  /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
-   121  The parameter variables as seen from under `o` extra binders.
-   122  
-   123  **Proof:** a `Nat` recursion over
-   124  `internBVarE_run` with the cursor `k` generalised.  The pure side is a
-   125  `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
-   126  the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
-   127  theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
-   128      {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
-   129      PStep s s' ∧ Frontend.denoteEList s'.store r
-   130        = some ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + j))) := by
-   131    intro n
-   132    induction n with
-   133    | zero =>
-   134      intro k s s' r hok hrun
-   135      simp only [Arena.structPsAt.go] at hrun
-   136      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-   137      exact ⟨PStep.refl hok, rfl⟩
-   138    | succ n ih =>
-   139      intro k s s' r hok hrun
-   140      simp only [Arena.structPsAt.go] at hrun
-   141      obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
-   142      obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
-   143      obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
-   144      obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
-   145      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-   146      refine ⟨hstep1.trans hstep2, ?_⟩
-   147      have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
-   148          = Expr.bvar (o + nP - 1 - k) ::
-   149            ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + 1 + j))) := by
-   150        rw [List.range_succ_eq_map, List.map_cons, List.map_map]
-   151        congr 1
-   152        refine List.map_congr_left (fun j _ => ?_)
-   153        simp only [Function.comp_apply]
-   154        congr 1
-   155        omega
-   156      rw [hkey]
-   157      simp only [Frontend.denoteEList, denote_ext hb hstep2.ext, hrest]
-   158  
-   159  theorem structPsAt_spec (o nP : Nat) :
-   160      PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
-   161    intro s₀ s' r hok _ hrun
-   162    obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
-   163    refine ⟨hstep, ?_⟩
-   164    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
+== proof/ConRon/Bridge/Inductives/StructParts.lean#L122-L168
+   122  /-! ## The spines -/
+   123  
+   124  /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
+   125  The parameter variables as seen from under `o` extra binders.
+   126  
+   127  **Proof:** a `Nat` recursion over
+   128  `internBVarE_run` with the cursor `k` generalised.  The pure side is a
+   129  `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
+   130  the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
+   131  theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
+   132      {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
+   133      PStep s s' ∧ Frontend.denoteEList s'.store r
+   134        = some ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + j))) := by
+   135    intro n
+   136    induction n with
+   137    | zero =>
+   138      intro k s s' r hok hrun
+   139      simp only [Arena.structPsAt.go] at hrun
+   140      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+   141      exact ⟨PStep.refl hok, rfl⟩
+   142    | succ n ih =>
+   143      intro k s s' r hok hrun
+   144      simp only [Arena.structPsAt.go] at hrun
+   145      obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
+   146      obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
+   147      obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
+   148      obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
+   149      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+   150      refine ⟨hstep1.trans hstep2, ?_⟩
+   151      have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
+   152          = Expr.bvar (o + nP - 1 - k) ::
+   153            ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + 1 + j))) := by
+   154        rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+   155        congr 1
+   156        refine List.map_congr_left (fun j _ => ?_)
+   157        simp only [Function.comp_apply]
+   158        congr 1
+   159        omega
+   160      rw [hkey]
+   161      simp only [Frontend.denoteEList, denote_ext hb hstep2.ext, hrest]
+   162  
+   163  theorem structPsAt_spec (o nP : Nat) :
+   164      PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
+   165    intro s₀ s' r hok _ hrun
+   166    obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
+   167    refine ⟨hstep, ?_⟩
+   168    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
-== proof/ConRon/Bridge/Core/Knot.lean#L110-L127
-   110  rule 8 — "the record of knot hypotheses costs nothing"). -/
-   111  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
-   112      Prop where
-   113    /-- Head normalization without delta, in either mode (`c` is the official
-   114    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
-   115    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   116      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   117      Expr.WScoped d e →
-   118      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnfCore c d i
-   119      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   120          s'.pins = s₀.pins ∧
-   121          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄
-   122    /-- The full reduction loop. -/
-   123    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   124      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   125      Expr.WScoped d e →
-   126      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
-   127      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+== proof/ConRon/Bridge/Core/Knot.lean#L114-L131
+   114  rule 8 — "the record of knot hypotheses costs nothing"). -/
+   115  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
+   116      Prop where
+   117    /-- Head normalization without delta, in either mode (`c` is the official
+   118    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+   119    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   120      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   121      Expr.WScoped d e →
+   122      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnfCore c d i
+   123      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   124          s'.pins = s₀.pins ∧
+   125          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄
+   126    /-- The full reduction loop. -/
+   127    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   128      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   129      Expr.WScoped d e →
+   130      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
+   131      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
 
-== proof/ConRon/Bridge/Core/Induction.lean#L58-L84
-    58  theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
-    59      ∀ f {mode : CheckMode}, mode.verifiedChecks = true → KnotSpec mode env fe f
-    60    | 0, mode, _ => knotSpec_zero mode env fe
-    61    | f + 1, mode, hμ =>
-    62      have hμE : mode.toEager.verifiedChecks = true := by
-    63        rw [CheckMode.verifiedChecks_toEager]; exact hμ
-    64      { whnfCore := fun {c} s₀ d i e hok hden hw =>
-    65          memoWhnfCore_step henv
-    66            (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv f hμ) c) (c := c)
-    67            s₀ d i e hok hden hw
-    68        whnf := fun s₀ d i e hok hden hw =>
-    69          memoWhnf_step henv
-    70            (whnfBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
-    71        infer := fun s₀ d i e hok hden hw =>
-    72          memoInfer_step henv
-    73            (inferBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
-    74        defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
-    75          memoDefeq_step henv
-    76            (defeqBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i j a b hok hda
-    77            hdb hwa hwb
-    78        defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
-    79          memoDefeqE_step henv
-    80            (defeqBody_spec henv hμE (knot_spec_all henv f hμE)) s₀ d i j a b hok hda
+== proof/ConRon/Bridge/Core/Induction.lean#L62-L88
+    62  theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
+    63      ∀ f {mode : CheckMode}, mode.verifiedChecks = true → KnotSpec mode env fe f
+    64    | 0, mode, _ => knotSpec_zero mode env fe
+    65    | f + 1, mode, hμ =>
+    66      have hμE : mode.toEager.verifiedChecks = true := by
+    67        rw [CheckMode.verifiedChecks_toEager]; exact hμ
+    68      { whnfCore := fun {c} s₀ d i e hok hden hw =>
+    69          memoWhnfCore_step henv
+    70            (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv f hμ) c) (c := c)
+    71            s₀ d i e hok hden hw
+    72        whnf := fun s₀ d i e hok hden hw =>
+    73          memoWhnf_step henv
+    74            (whnfBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
+    75        infer := fun s₀ d i e hok hden hw =>
+    76          memoInfer_step henv
+    77            (inferBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw
+    78        defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
+    79          memoDefeq_step henv
+    80            (defeqBody_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i j a b hok hda
     81            hdb hwa hwb
-    82        inferIO := fun s₀ d i e hok hden hw =>
-    83          memoInferIO_step henv
-    84            (inferBodyIO_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw }
+    82        defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
+    83          memoDefeqE_step henv
+    84            (defeqBody_spec henv hμE (knot_spec_all henv f hμE)) s₀ d i j a b hok hda
+    85            hdb hwa hwb
+    86        inferIO := fun s₀ d i e hok hden hw =>
+    87          memoInferIO_step henv
+    88            (inferBodyIO_spec henv hμ (knot_spec_all henv f hμ)) s₀ d i e hok hden hw }
 
 == proof/ConRon/Refine2/AbsState.lean#L350-L364
    350    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
@@ -2847,7 +2847,7 @@
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L514
    511  /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:260-262 ETag.bvar` — the `bvar`
+   512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 316.
    514  pub const ETAG_BVAR: u32 = 0;
 

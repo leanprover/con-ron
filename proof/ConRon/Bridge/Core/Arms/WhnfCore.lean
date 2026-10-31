@@ -21,12 +21,16 @@ batched spine (`Walks/BetaSpine.lean`'s `whnfApp_carry`); `.proj` is the
 scrutinee's reduction then `reduceProjCore` (fired field `.cont`, stuck node
 `.done`); `.letE` is ζ (`.cont`, con-leche's task #342 S0); `.bvar` throws.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Owed
-import ConRon.Bridge.Core.Walks.Iota
-import ConRon.Bridge.Core.Walks.ProjCore
-import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.Core.Walks.BetaSpine
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.Owed
+public import ConRon.Bridge.Core.Walks.Iota
+public import ConRon.Bridge.Core.Walks.ProjCore
+public import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.Core.Walks.BetaSpine
+
+public section
 
 namespace ConRon.Bridge.Core
 

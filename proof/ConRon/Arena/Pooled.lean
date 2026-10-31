@@ -1,4 +1,8 @@
-import ConRon.Arena.Phased
+module
+
+public import ConRon.Arena.Phased
+
+@[expose] public section
 
 /-!
 # `ConRon.Arena.Pooled` — phase B as the binary's pool runs it

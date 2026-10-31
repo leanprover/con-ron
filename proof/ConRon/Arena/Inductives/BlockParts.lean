@@ -27,7 +27,11 @@ The Rust twin is `arena::inductives::block_parts`.
   constructors' — which is the cited conjunction reassociated (all four are
   pure).
 -/
-import ConRon.Arena.Inductives.Positivity
+module
+
+public import ConRon.Arena.Inductives.Positivity
+
+@[expose] public section
 
 namespace ConRon.Arena
 

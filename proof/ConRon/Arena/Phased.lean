@@ -1,4 +1,8 @@
-import ConRon.Arena.Checker
+module
+
+public import ConRon.Arena.Checker
+
+@[expose] public section
 
 /-!
 # `ConRon.Arena.Phased` — the declaration fold as the binary's driver runs it

@@ -35,10 +35,14 @@ statements take `hμ : mode.verifiedChecks = true`, which every body theorem
 of this tier has in hand (`certs_of_verifiedChecks`, con-leche's
 `Verify/BetaGate.lean:126`).
 -/
-import ConRon.Bridge.Core.Walks.PropRead
-import ConRon.Bridge.Core.Walks.Reserved
-import ConRon.Bridge.Core.Walks.Eta
-import ConRon.Bridge.ExprOps.Walks
+module
+
+public import ConRon.Bridge.Core.Walks.PropRead
+public import ConRon.Bridge.Core.Walks.Reserved
+public import ConRon.Bridge.Core.Walks.Eta
+public import ConRon.Bridge.ExprOps.Walks
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -73,7 +77,7 @@ def UnitCertE (mode : CheckMode) (env : Env) (d : Nat) (x y : Expr) (r : Bool) :
   SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:298-312 proofIrrel — its answer. -/
-def PIrrelE (mode : CheckMode) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
+@[expose] def PIrrelE (mode : CheckMode) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
   SimBOp (fun F => ConLeche.proofIrrelFueled mode env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — its answer. -/
@@ -765,7 +769,7 @@ grind_pattern [bridge_grind] TyRun.mk =>
 /-- con-leche: ConLeche/Kernel/Core.lean:440-445 structUnitCert — the
 unit-like guard on the first side's whnf'd type, over its head's tag and
 projections and the environment's inductive projections. -/
-def unitGuard (env : Env) (w : Expr) : Bool :=
+@[expose] def unitGuard (env : Env) (w : Expr) : Bool :=
   exprTag w.getAppFn == ETag.const && cInd? (env.find? (exprConstName w.getAppFn)) &&
     (cIndCaps (env.find? (exprConstName w.getAppFn))).unitlike &&
     !(ConLeche.reservedBasisNames.contains (exprConstName w.getAppFn)) &&

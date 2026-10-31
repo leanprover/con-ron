@@ -32,8 +32,12 @@ The rank still exists — it is `StoreWF`'s `rank` field, with children below
 parents and every rank below the tier's node count — and it is what proves the
 fuel sufficient.
 -/
-import ConRon.Arena.Store
-import ConLeche.Kernel.Expr
+module
+
+public import ConRon.Arena.Store
+public import ConLeche.Kernel.Expr
+
+@[expose] public section
 
 namespace ConRon.Arena
 

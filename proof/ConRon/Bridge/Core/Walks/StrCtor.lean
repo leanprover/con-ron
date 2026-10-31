@@ -14,7 +14,11 @@ The recursion is `sym only [bridge_grind, …] => vcgen [strLitConsSpine, ih,
 internE_specC] <;> finish` per list cell (`strSpineE_nil`/`_cons`); the
 walk itself is staged over its sixteen calls.
 -/
-import ConRon.Bridge.Core.Walks.Nat
+module
+
+public import ConRon.Bridge.Core.Walks.Nat
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -41,7 +45,7 @@ theorem internE_ok_spec (s₀ : AState) (w : ENodeView)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor — the
 `List.cons` spine, as the `foldr` con-leche writes: each character becomes
 `List.cons Char (Char.ofNat (lit c))` in front of the rest. -/
-def strSpineE (cx ox nx : Expr) (cs : List Char) : Expr :=
+@[expose] def strSpineE (cx ox nx : Expr) (cs : List Char) : Expr :=
   cs.foldr (fun c e => .app (.app cx (.app ox (.lit (.natVal c.toNat)))) e) nx
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor — the

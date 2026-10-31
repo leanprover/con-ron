@@ -28,7 +28,11 @@ layer (`PersCV`, `PersCI`, `PersDecl`, `PersVG`, `PersIFEnv`, `PersPins`).  A
 about any store — which is what lets `Arena/Promote.lean`'s theorems establish
 it and the fold consume it without either mentioning the other's store.
 -/
-import ConRon.Bridge.StateOK
+module
+
+public import ConRon.Bridge.StateOK
+
+public section
 
 namespace ConRon.Bridge
 
@@ -72,7 +76,7 @@ ending in `fail`, and what the bridge needs to know about it is exactly this.
 
 Reading a front door backwards is then one lemma per guard: an accepting run
 took the branch that is not `Never`. -/
-def AM.Never {α : Type} (x : AM α) : Prop :=
+@[expose] def AM.Never {α : Type} (x : AM α) : Prop :=
   ∀ (s : AState) (a : α) (s' : AState), x s ≠ .ok (a, s')
 
 theorem AM.Never.fail {α : Type} (e : Arena.CheckError) :
@@ -162,7 +166,7 @@ theorem AM.pure_bind_ok {α β : Type} {a : α} {g : α → AM β} {s s' : AStat
 /-! ## The persistent extension -/
 
 /-- con-leche: none — `NExt` restricted to persistent handles. -/
-def PNExt (st st' : NStore) : Prop :=
+@[expose] def PNExt (st st' : NStore) : Prop :=
   ∀ i n, i.isPersistent = true → denoteN st i = some n → denoteN st' i = some n
 
 /-- con-leche: none — `LExt` restricted to persistent handles. -/
@@ -402,11 +406,11 @@ abbrev PersLs (l : LsIdx) : Prop := l.isPersistent = true
 abbrev PersE (e : EIdx) : Prop := e.isPersistent = true
 
 /-- con-leche: none — every handle of a name list is persistent. -/
-def PersNList (ns : List NIdx) : Prop := ∀ n ∈ ns, PersN n
+@[expose] def PersNList (ns : List NIdx) : Prop := ∀ n ∈ ns, PersN n
 /-- con-leche: none — every handle of an expression list is persistent. -/
-def PersEList (es : List EIdx) : Prop := ∀ e ∈ es, PersE e
+@[expose] def PersEList (es : List EIdx) : Prop := ∀ e ∈ es, PersE e
 /-- con-leche: none — every handle of a level list is persistent. -/
-def PersLList (us : List LIdx) : Prop := ∀ u ∈ us, PersL u
+@[expose] def PersLList (us : List LIdx) : Prop := ∀ u ∈ us, PersL u
 
 /-- con-leche: none — a stored constant's header is persistent, field by
 field (`Arena/Env.lean`'s `IConstantVal`). -/
@@ -416,7 +420,7 @@ structure PersCV (cv : IConstantVal) : Prop where
   type : PersE cv.type
 
 /-- con-leche: none — a recursor rule's firing mode is persistent. -/
-def PersFire : IRecRuleFire → Prop
+@[expose] def PersFire : IRecRuleFire → Prop
   | .plain => True
   | .nested lvls pins => PersLList lvls ∧ PersEList pins
 
@@ -427,7 +431,7 @@ structure PersRule (rl : IRecRule) : Prop where
   rhs : PersE rl.rhs
 
 /-- con-leche: none — every rule of the list is persistent. -/
-def PersRules (rs : List IRecRule) : Prop := ∀ r ∈ rs, PersRule r
+@[expose] def PersRules (rs : List IRecRule) : Prop := ∀ r ∈ rs, PersRule r
 
 /-- con-leche: none — an inductive's capabilities record is persistent, field
 by field: its handle fields are the eta constructor's name and the two name
@@ -449,7 +453,7 @@ structure PersProjTable (t : IProjTable) : Prop where
 /-- con-leche: none — **a stored constant is persistent**: the clause
 `dropScratch` needs of the environment, and what `Arena/Promote.lean`'s
 `promoteCI` delivers. -/
-def PersCI : IConstantInfo → Prop
+@[expose] def PersCI : IConstantInfo → Prop
   | .axiomInfo v => PersCV v
   | .defnInfo v e _ => PersCV v ∧ PersE e
   | .thmInfo v => PersCV v
@@ -458,10 +462,10 @@ def PersCI : IConstantInfo → Prop
   | .recInfo v _ _ rs => PersCV v ∧ PersRules rs
 
 /-- con-leche: none — every member of a block is persistent. -/
-def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
+@[expose] def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
 
 /-- con-leche: none — every constant of the environment is persistent. -/
-def PersIEnv (e : IEnv) : Prop := PersCIList e.consts
+@[expose] def PersIEnv (e : IEnv) : Prop := PersCIList e.consts
 
 /-- con-leche: none — **the environment index is persistent**: both its lists
 and the rows of both its maps.  The rows matter as much as the lists —
@@ -520,7 +524,7 @@ theorem PersIFEnv.rawTable {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
 
 /-- con-leche: none — a declaration record is persistent (the parse builds
 them in the persistent tier, so this is the frontend tier's postcondition). -/
-def PersDecl : IDeclaration → Prop
+@[expose] def PersDecl : IDeclaration → Prop
   | .axiomDecl v => PersCV v
   | .defnDecl v e _ => PersCV v ∧ PersE e
   | .thmDecl v e => PersCV v ∧ PersE e
@@ -538,7 +542,7 @@ structure PersVG (g : Arena.ValueGroup) : Prop where
 
 /-- con-leche: none — a type-pin list is persistent: every name and every
 type handle. -/
-def PersTypePins (ps : List (NIdx × EIdx)) : Prop := ∀ p ∈ ps, PersN p.1 ∧ PersE p.2
+@[expose] def PersTypePins (ps : List (NIdx × EIdx)) : Prop := ∀ p ∈ ps, PersN p.1 ∧ PersE p.2
 
 /-- con-leche: none — a `Nat`-operation pin variant is persistent
 (`internAllPins` runs before the parse, with the scratch tier closed). -/
@@ -553,7 +557,7 @@ structure PersPinSet (p : INatOpPinSet) : Prop where
     p.shiftRightTypePins)
 
 /-- con-leche: none — every pin variant is persistent. -/
-def PersPinSets (ps : List INatOpPinSet) : Prop := ∀ p ∈ ps, PersPinSet p
+@[expose] def PersPinSets (ps : List INatOpPinSet) : Prop := ∀ p ∈ ps, PersPinSet p
 
 /-- con-leche: none — **the pin TABLE is persistent**, which is what makes
 `PinsOK` survive `dropScratch`.  It is free: the driver runs

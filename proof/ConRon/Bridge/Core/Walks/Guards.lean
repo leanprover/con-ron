@@ -24,8 +24,12 @@ the pin handle denotes what it is named for.  `pinNames_boolTrue` below is
 the one-line bridge from `Bridge/Specs.lean`'s quantified `pinAt_spec` to the
 named slot.
 -/
-import ConRon.Bridge.Core.Walks.Spec
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Walks.Spec
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 

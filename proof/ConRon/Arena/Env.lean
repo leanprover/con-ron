@@ -38,8 +38,12 @@ or any of the guard twins that read them (`natLitSupportedF` and its
 siblings): those are P2c's, and they read constants this module has no twin
 of yet.
 -/
-import ConRon.Arena.Monad
-import ConLeche.Kernel.Env
+module
+
+public import ConRon.Arena.Monad
+public import ConLeche.Kernel.Env
+
+@[expose] public section
 
 namespace ConRon.Arena
 

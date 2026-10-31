@@ -6,7 +6,11 @@ which must print `[propext, Classical.choice, Quot.sound]` and nothing else:
 no `sorryAx`.  `CoreSpec` never prints — it is a hypothesis of the statements,
 as everywhere else in this library.
 -/
-import ConRon.Bridge.Inductives.Decl
+module
+
+public import ConRon.Bridge.Inductives.Decl
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

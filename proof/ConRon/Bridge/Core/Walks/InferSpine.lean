@@ -17,10 +17,14 @@ The invariant is con-leche's: the pending telescope `ty` under the push-order
 accumulator `acc` denotes `tyx` under `ws`, and `tyx.instantiateList ws` is
 well-scoped.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Proj
-import ConRon.Bridge.Core.Walks.Guards
-import ConLeche.Verify.BetaSpine
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.Core.Walks.Guards
+public import ConLeche.Verify.BetaSpine
+
+public section
 
 namespace ConRon.Bridge.Core
 

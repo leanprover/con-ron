@@ -22,10 +22,14 @@ holds; its rule `iotaRecAt_spec` (`Walks/Iota.lean`, see §2) is the
 `iotaRec` tower's own entry point, which `iotaRec_spec` (`Walks/Owed.lean`)
 is `getAppFn`/`getAppArgs` over.
 -/
-import ConRon.Bridge.Core.Walks.PropRead
-import ConRon.Bridge.Core.Walks.StrCtor
-import ConLeche.Verify.BetaSpine
-import ConRon.Bridge.Core.Walks.Iota
+module
+
+public import ConRon.Bridge.Core.Walks.PropRead
+public import ConRon.Bridge.Core.Walks.StrCtor
+public import ConLeche.Verify.BetaSpine
+public import ConRon.Bridge.Core.Walks.Iota
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -67,7 +71,7 @@ theorem denoteEList_ext' {st st' : EStore} (hx : Ext st st') {rs : List EIdx}
 answer of the arena's one-walk spine read: the head, the argument vector,
 and the spine's own `.app` nodes, node `j` denoting the prefix applied to
 `j + 1` arguments. -/
-def SpineOK (st : EStore) (E : Expr) (r : EIdx × Array EIdx × Array EIdx) :
+@[expose] def SpineOK (st : EStore) (E : Expr) (r : EIdx × Array EIdx × Array EIdx) :
     Prop :=
   denoteE st r.1 = some E.getAppFn ∧
   Frontend.denoteEList st r.2.1.toList = some E.getAppArgs ∧
@@ -358,18 +362,18 @@ first, then `whnfApp`, which calls `betaPeel` at a λ head.  The answer is a
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:197 WhnfStep — the readback of
 a twin step outcome. -/
-def denoteStep (st : EStore) : ConRon.Arena.WhnfStep → Option ConLeche.WhnfStep
+@[expose] def denoteStep (st : EStore) : ConRon.Arena.WhnfStep → Option ConLeche.WhnfStep
   | .done h => (denoteE st h).map .done
   | .cont h => (denoteE st h).map .cont
 
 /-- con-leche: none — a step outcome whose term is well scoped at `d`. -/
-def StepWS (d : Nat) : ConLeche.WhnfStep → Prop
+@[expose] def StepWS (d : Nat) : ConLeche.WhnfStep → Prop
   | .done e => Expr.WScoped d e
   | .cont e => Expr.WScoped d e
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:202 whnfAppW — the carry's
 postcondition at a step-returning walk whose pure side is `P`. -/
-def StepPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
+@[expose] def StepPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
     (P : Nat → CheckM ConLeche.WhnfStep) (r : ConRon.Arena.WhnfStep) (s' : AState) :
     Prop :=
   CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
@@ -383,7 +387,7 @@ def ArgsCtx (d : Nat) (args : Array EIdx) (xs : List Expr) (st : EStore) : Prop 
 /-- con-leche: none — the fixed data of one batched spine walk, at a store:
 the argument vector denotes `xs` (each well-scoped) and node `j` denotes the
 original head applied to the first `j + 1` arguments. -/
-def SpineCtx (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr)
+@[expose] def SpineCtx (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr)
     (st : EStore) : Prop :=
   Frontend.denoteEList st args.toList = some xs ∧ (∀ x ∈ xs, Expr.WScoped d x) ∧
   nodes.size = args.size ∧

@@ -25,9 +25,13 @@ the `k` the fold's promotion computes is the block's length.  That is the only
 place in the checker where a step installs more than one constant outside the
 inductive route, and the fold's counter arithmetic has to survive it.
 -/
-import ConRon.Bridge.Checker.Canon
-import ConRon.Bridge.Checker.Names
-import ConRon.Bridge.Frontend.Shared
+module
+
+public import ConRon.Bridge.Checker.Canon
+public import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Frontend.Shared
+
+public section
 
 open ConLeche ConRon.Arena
 
@@ -453,7 +457,7 @@ its own `do`-block read top to bottom, and con-leche's `&&`-chain is the `b`. -/
 
 /-- con-leche: none — every success of `m` at `s` is a scratch-agnostic step
 answering `b`. -/
-def RunsB (m : AM Bool) (s : AState) (b : Bool) : Prop :=
+@[expose] def RunsB (m : AM Bool) (s : AState) (b : Bool) : Prop :=
   ∀ (r : Bool) (s' : AState), m s = .ok (r, s') → Frontend.IStepS s s' ∧ r = b
 
 theorem RunsB.ret {s : AState} (hok : StateOK s) {b : Bool} :
@@ -533,7 +537,7 @@ theorem RunsB.guard {c D B : Bool} {Y : AM Bool} {s : AState}
 
 /-- con-leche: none — the index answers what the environment answers, as one
 disjunction a `match` on both sides can be read off. -/
-def FindRel (st : EStore) (x : Option IConstantInfo) (y : Option ConstantInfo) :
+@[expose] def FindRel (st : EStore) (x : Option IConstantInfo) (y : Option ConstantInfo) :
     Prop :=
   (x = none ∧ y = none) ∨
     ∃ ci c, x = some ci ∧ y = some c ∧ Frontend.denoteCI st ci = some c

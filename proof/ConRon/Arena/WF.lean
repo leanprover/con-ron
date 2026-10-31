@@ -37,7 +37,11 @@ into a tier that is about to vanish.  It needs no hypothesis at `intern`,
 because `scrOff` makes a scratch handle undecodable while the flag is off, so
 a valid child of a node appended to the persistent tier is persistent already.
 -/
-import ConRon.Arena.Denote
+module
+
+public import ConRon.Arena.Denote
+
+@[expose] public section
 
 namespace ConRon.Arena
 

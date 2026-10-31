@@ -7,7 +7,11 @@ result sort back through the CACHED `readLevelM`, whose answer is the
 denotation only under `ReadLCacheOK`: the statement is at `PSpecL` (that one
 table and nothing else), with the core-grade corollary beside it.
 -/
-import ConRon.Bridge.Inductives.BlockParts
+module
+
+public import ConRon.Bridge.Inductives.BlockParts
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

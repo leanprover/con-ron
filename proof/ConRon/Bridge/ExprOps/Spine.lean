@@ -49,7 +49,11 @@ Everything else reuses `Rel.lean`: `RelE` for `getAppFn`, `piResult` and
 **Nothing in this file is unproved.**  `#print axioms` at the end reports
 `[propext, Classical.choice, Quot.sound]` for every twin.
 -/
-import ConRon.Bridge.ExprOps.Inst1
+module
+
+public import ConRon.Bridge.ExprOps.Inst1
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 
@@ -70,7 +74,7 @@ locally. -/
 
 /-- con-leche: none — the denotation of a BINDER list: the domains, handle by
 handle (a binder carries its type and nothing else). -/
-def denoteBL (st : EStore) : List EIdx → Option (List Expr)
+@[expose] def denoteBL (st : EStore) : List EIdx → Option (List Expr)
   | [] => some []
   | t :: bs =>
     match denoteE st t, denoteBL st bs with
@@ -78,7 +82,7 @@ def denoteBL (st : EStore) : List EIdx → Option (List Expr)
     | _, _ => none
 
 /-- con-leche: none — the denotation of `stripLams`' result shape. -/
-def denoteBP (st : EStore) : Option (List EIdx × EIdx) →
+@[expose] def denoteBP (st : EStore) : Option (List EIdx × EIdx) →
     Option (Option (List Expr × Expr))
   | none => some none
   | some (bs, e) =>
@@ -88,7 +92,7 @@ def denoteBP (st : EStore) : Option (List EIdx × EIdx) →
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation at
 `stripLams`/`stripPis`' result shape. -/
-def RelBP (f : Expr → Option (List Expr × Expr))
+@[expose] def RelBP (f : Expr → Option (List Expr × Expr))
     (st : EStore) (c : EIdx) (st' : EStore)
     (r : Option (List EIdx × EIdx)) : Prop :=
   ∀ e, denoteE st c = some e → denoteBP st' r = some (f e)
@@ -99,7 +103,7 @@ The list is quantified inside the relation, as `RelE` quantifies the first
 subject: a recursion that carries the list forward cannot take its
 denotation as a named `List Expr` in the precondition (the recursive call's
 side goal would carry a metavariable). -/
-def RelEA (F : Expr → List Expr → Expr) (st : EStore) (c : EIdx)
+@[expose] def RelEA (F : Expr → List Expr → Expr) (st : EStore) (c : EIdx)
     (args : List EIdx) (st' : EStore) (r : EIdx) : Prop :=
   ∀ e es, denoteE st c = some e → Frontend.denoteEList st args = some es →
     denoteE st' r = some (F e es)
@@ -133,10 +137,10 @@ reaches `grind`. -/
 def consB (ty : Expr) (p : List Expr × Expr) : List Expr × Expr := (ty :: p.1, p.2)
 
 /-- con-leche: none — the empty peel at a body. -/
-def bpNil (x : Expr) : Option (List Expr × Expr) := some ([], x)
+@[expose] def bpNil (x : Expr) : Option (List Expr × Expr) := some ([], x)
 
 /-- con-leche: none — an optional peel with one more binder in front. -/
-def bpCons (x : Expr) (o : Option (List Expr × Expr)) : Option (List Expr × Expr) :=
+@[expose] def bpCons (x : Expr) (o : Option (List Expr × Expr)) : Option (List Expr × Expr) :=
   o.map (consB x)
 
 /-- con-leche: none — the failed peel denotes `none`. -/

@@ -24,9 +24,13 @@ inductive route).
 * **The fold steps are bracketed** (`checkDeclStep`), as
   `Arena/Checker.lean`'s module note explains.
 -/
-import ConRon.Arena.Inductives.BlockTail
-import ConRon.Arena.DeclCheck
-import ConRon.Arena.Promote
+module
+
+public import ConRon.Arena.Inductives.BlockTail
+public import ConRon.Arena.DeclCheck
+public import ConRon.Arena.Promote
+
+@[expose] public section
 
 namespace ConRon.Arena
 

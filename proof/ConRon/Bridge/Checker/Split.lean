@@ -53,10 +53,17 @@ It states the five bridge theorems of `Arena/CheckerSplit.lean` and
 punchline lands on con-leche's pure `checkDeclsPure` itself, and the model is
 `ConRon/Capstone.lean`'s (through `Bridge/Checker/Phased.lean`'s pooled fold).
 -/
-import ConRon.Bridge.Checker.Fold
-import ConLeche.Verify.EnvBound
-import ConRon.Bridge.Checker.Nodup
-import ConRon.Bridge.Promote.Coh
+module
+
+public import ConRon.Bridge.Checker.Fold
+public import ConLeche.Verify.EnvBound
+public import ConRon.Bridge.Checker.Nodup
+public import ConRon.Bridge.Promote.Coh
+/- `simp [Env.prefixTo]` unfolds con-leche's prefix view, which
+`Verify/EnvBound` (a plain `public section`) does not expose. -/
+import all ConLeche.Verify.EnvBound
+
+public section
 
 open ConLeche ConRon.Arena
 
@@ -755,7 +762,7 @@ theorem ListRel.nil_right {α β : Type} {R : α → β → Prop} {l : List α}
 /-- con-leche: none — the handle record's kind is the pure record's, in the
 disjunctive form `checkValueGroup_bridge` takes (the arena and con-leche each
 have their own `ValueKind`). -/
-def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
+@[expose] def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
   a = .defn ∧ b = .defn ∨ a = .thm ∧ b = .thm ∨ a = .opaque ∧ b = .opaque
 
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean:275-345 checkDecl_of_split_* —
@@ -764,7 +771,7 @@ premises: what phase A ran, at `env`, for record `d`, leaving `vg` and the
 extended environment `env'`.  The halves are pure
 guards (`installHeader`, `installValueGuards`): the fuel `_F` is the check
 half's, carried for `PhaseA`'s shape. -/
-def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
+@[expose] def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
     (vg : ConLeche.ValueGroup) (env' : Env) : Prop :=
   (∃ cv value hint, d = .defnDecl cv value hint ∧
     (ConLeche.natOpNames.contains cv.name ||

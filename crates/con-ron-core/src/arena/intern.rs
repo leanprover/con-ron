@@ -66,19 +66,19 @@ use crate::ron::hashmap::{Dup};
 use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::arena::store::PersTier;
 
-/// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:188-192 EMemo
+/// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:192-196 EMemo
 /// The memo of the interning walk: a transient `Expr` node to the handle it
 /// was interned at.  Keyed on the VALUE (`expr::data`'s hash and
 /// `expr::beq`), which is what makes a shared subterm cost one probe.
 pub type EMemo = HashMap<Expr, EIdx>;
 
-/// con-leche: none — a fresh memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:188-192 EMemo
+/// con-leche: none — a fresh memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:192-196 EMemo
 /// The `∅` every `Intern.lean` entry point starts from.
 pub fn memo_empty() -> EMemo {
     HashMap::new()
 }
 
-/// con-leche: none — probe the interning memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:194-256 internExprGo
+/// con-leche: none — probe the interning memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
 /// The `m[e]?` of the walk, as its own function: a `HashMap::get` match that
 /// produces a value is never inlined (task #97-P4c's extraction rule 5).
 pub fn memo_get(m: &EMemo, e: &Expr) -> Option<EIdx> {
@@ -88,7 +88,7 @@ pub fn memo_get(m: &EMemo, e: &Expr) -> Option<EIdx> {
     }
 }
 
-/// con-leche: none — intern a transient expression DAG; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:194-256 internExprGo
+/// con-leche: none — intern a transient expression DAG; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
 /// **The interning walk.**  The four leaf arms intern directly (they are
 /// `O(1)` and a memo row would cost more than it saves — the twin's own
 /// arrangement); every other arm probes the memo first and records its answer.
@@ -128,7 +128,7 @@ pub fn intern_expr_go(
     }
 }
 
-/// con-leche: none — the non-leaf arms of the interning walk; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:194-256 internExprGo
+/// con-leche: none — the non-leaf arms of the interning walk; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
 /// The six memoized arms, past the probe.  Split off so that the probe's
 /// `match` ends before the state is taken mutably again (extraction rule 5).
 pub fn intern_expr_node(
@@ -185,13 +185,13 @@ pub fn intern_expr_node(
 }
 
 /// con-leche: none — intern a transient term at a fresh memo
-/// Lean twin: `proof/ConRon/Arena/Intern.lean:47-48 internExpr`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:51-52 internExpr`.
 pub fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> Result<EIdx, CheckError> {
     let mut m: EMemo = memo_empty();
     intern_expr_go(pers, st, &mut m, e)
 }
 
-/// con-leche: none — intern a list of transient terms; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:262-268 internExprList
+/// con-leche: none — intern a list of transient terms; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:266-272 internExprList
 /// The `List` recursion of the twin, as a cursor over the `Vec` (DESIGN.md
 /// §3.4's standing rule).
 pub fn intern_expr_list_go(
@@ -217,7 +217,7 @@ pub fn intern_expr_list_go(
 }
 
 /// con-leche: none — intern a list of transient terms at a fresh memo
-/// Lean twin: `proof/ConRon/Arena/Intern.lean:50-52 internExprList`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:54-56 internExprList`.
 pub fn intern_expr_list(
     pers: &PersTier,
     st: &mut AState,
@@ -227,7 +227,7 @@ pub fn intern_expr_list(
     intern_expr_list_go(pers, st, &mut m, es, 0, Vec::new())
 }
 
-/// con-leche: none — intern a list of transient names; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:270-276 internNameList
+/// con-leche: none — intern a list of transient names; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:274-280 internNameList
 /// The cursor recursion; names carry no memo (a name is a small value and its
 /// cons table is the memo).
 pub fn intern_name_list_go(
@@ -252,7 +252,7 @@ pub fn intern_name_list_go(
 }
 
 /// con-leche: none — intern a list of transient names
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:270-276 internNameList`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:274-280 internNameList`.
 pub fn intern_name_list(
     pers: &PersTier,
     st: &mut AState,
@@ -261,7 +261,7 @@ pub fn intern_name_list(
     intern_name_list_go(pers, st, ns, 0, Vec::new())
 }
 
-/// con-leche: none — intern a list of transient levels; Lean twin: proof/ConRon/Arena/Monad.lean:525-531 internLevelList
+/// con-leche: none — intern a list of transient levels; Lean twin: proof/ConRon/Arena/Monad.lean:529-535 internLevelList
 /// The level-list cursor, for a nested rule's stored levels.
 /// `arena::monad::intern_level_list` is the same walk; this one is here so
 /// that `intern_fire` reads like the twin's clause.
@@ -286,7 +286,7 @@ pub fn intern_level_list_go(
     }
 }
 
-/// con-leche: none — intern a `ConstantVal`; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:278-283 internCV
+/// con-leche: none — intern a `ConstantVal`; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:282-287 internCV
 /// The memoized form, for a block whose members share subterms.
 pub fn intern_cv_go(
     pers: &PersTier,
@@ -307,7 +307,7 @@ pub fn intern_cv_go(
 }
 
 /// con-leche: none — intern a transient `ConstantVal` at a fresh memo
-/// Lean twin: `proof/ConRon/Arena/Intern.lean:54-56 internCV`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:58-60 internCV`.
 pub fn intern_cv(
     pers: &PersTier,
     st: &mut AState,
@@ -318,7 +318,7 @@ pub fn intern_cv(
 }
 
 /// con-leche: none — intern a recursor rule's firing mode
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:285-291 internFire`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:289-295 internFire`.
 pub fn intern_fire(
     pers: &PersTier,
     st: &mut AState,
@@ -338,7 +338,7 @@ pub fn intern_fire(
 }
 
 /// con-leche: none — intern one recursor rule
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:293-298 internRule`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:297-302 internRule`.
 pub fn intern_rule(
     pers: &PersTier,
     st: &mut AState,
@@ -366,7 +366,7 @@ pub fn intern_rule(
 }
 
 /// con-leche: none — intern a rule list
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:300-306 internRules`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:304-310 internRules`.
 pub fn intern_rules(
     pers: &PersTier,
     st: &mut AState,
@@ -390,7 +390,7 @@ pub fn intern_rules(
 }
 
 /// con-leche: none — intern an inductive's capabilities
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:308-314 internCaps`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:312-318 internCaps`.
 pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError> {
     match intern_name(pers, st, &c.eta_ctor) {
         Err(err) => Err(err),
@@ -417,7 +417,7 @@ pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IInd
 }
 
 /// con-leche: none — intern a stored constant
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:316-338 internCI`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:320-342 internCI`.
 pub fn intern_ci_go(
     pers: &PersTier,
     st: &mut AState,
@@ -462,7 +462,7 @@ pub fn intern_ci_go(
 }
 
 /// con-leche: none — intern a transient `ConstantInfo` at a fresh memo
-/// Lean twin: `proof/ConRon/Arena/Intern.lean:58-60 internCI`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:62-64 internCI`.
 pub fn intern_ci(
     pers: &PersTier,
     st: &mut AState,
@@ -473,7 +473,7 @@ pub fn intern_ci(
 }
 
 /// con-leche: none — intern a block's constants
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:340-346 internCIList`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:344-350 internCIList`.
 pub fn intern_ci_list_go(
     pers: &PersTier,
     st: &mut AState,
@@ -497,7 +497,7 @@ pub fn intern_ci_list_go(
 }
 
 /// con-leche: none — intern a block of transient `ConstantInfo`s at ONE memo
-/// Lean twin: `proof/ConRon/Arena/Intern.lean:62-65 internCIList` — one memo,
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:66-69 internCIList` — one memo,
 /// so that the sharing between a block's members survives.
 pub fn intern_ci_list(
     pers: &PersTier,

@@ -13,7 +13,11 @@ carries each of this module's two functions twice — once over `Env`
 `checkStructDomsAtFA` a third time over `Array`.  The arena has ONE
 environment type, the index, so the twin is one function citing all of them.
 -/
-import ConRon.Arena.CheckerBase
+module
+
+public import ConRon.Arena.CheckerBase
+
+@[expose] public section
 
 namespace ConRon.Arena
 

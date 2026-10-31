@@ -22,13 +22,17 @@ statement as a `CSpecF` against con-leche's `FueledM` function (task #105).
   statement compares it at `find? := env.find?`, which is what `IFEnvOK`'s
   `hit`/`cover` pair says the index is.
 -/
-import ConRon.Bridge.Inductives.StructInstall
-import ConLeche.Verify.FastOps
-import ConRon.Bridge.Checker.Base
-import ConLeche.Verify.BridgeWfImp
-import ConLeche.Verify.Inductives.DirectInv
-import ConLeche.Verify.Cached.BlockRunC
-import ConRon.Bridge.Inductives.FieldTele
+module
+
+public import ConRon.Bridge.Inductives.StructInstall
+public import ConLeche.Verify.FastOps
+public import ConRon.Bridge.Checker.Base
+public import ConLeche.Verify.BridgeWfImp
+public import ConLeche.Verify.Inductives.DirectInv
+public import ConLeche.Verify.Cached.BlockRunC
+public import ConRon.Bridge.Inductives.FieldTele
+
+public section
 
 namespace ConRon.Bridge.Inductives
 

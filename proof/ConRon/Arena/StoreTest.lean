@@ -10,7 +10,15 @@ or a tag constant that collides.
 Everything here is kernel-reduced, so it is a claim the build checks, not an
 `#eval` print.
 -/
-import ConRon.Arena.Denote
+module
+
+public import ConRon.Arena.Denote
+/- The `#guard`s below are EVALUATED, so the constants they name have to be
+reachable from meta code too; a module needed at both levels is imported
+twice. -/
+meta import ConRon.Arena.Denote
+
+@[expose] public section
 
 namespace ConRon.Arena
 

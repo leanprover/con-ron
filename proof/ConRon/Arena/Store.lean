@@ -43,8 +43,12 @@ Every mutation detaches first — `let tb := t.f; let t := { t with f := .empty 
 reason.  Functions that hand out a whole table are `@[noinline]` (lesson 15).
 No `for`, no `mut`, no `Nat` multiply (lessons 16, 7).
 -/
-import ConRon.Arena.Handle
-import ConLeche.Kernel.Expr
+module
+
+public import ConRon.Arena.Handle
+public import ConLeche.Kernel.Expr
+
+@[expose] public section
 
 namespace ConRon.Arena
 

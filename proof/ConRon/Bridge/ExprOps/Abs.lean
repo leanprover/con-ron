@@ -81,7 +81,11 @@ Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish`.  What
   the answer as PRECONDITIONS, so that its post is a plain conjunction.
 
 -/
-import ConRon.Bridge.ExprOps.MemoSpecs
+module
+
+public import ConRon.Bridge.ExprOps.MemoSpecs
+
+public section
 
 namespace ConRon.Bridge.ExprOps
 
@@ -132,11 +136,11 @@ only the dispatcher needs and passes to `sym` itself. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — `abstract1`
 with the cursor first, as the memo table keys it. -/
-def abs1Fn (d k : Nat) (e : Expr) : Expr := e.abstract1 d k
+@[expose] def abs1Fn (d k : Nat) (e : Expr) : Expr := e.abstract1 d k
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:686-703 abstractRange —
 `abstractRange` with the cursor first, as the memo table keys it. -/
-def absRangeFn (d k c : Nat) (e : Expr) : Expr := e.abstractRange d k c
+@[expose] def absRangeFn (d k c : Nat) (e : Expr) : Expr := e.abstractRange d k c
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:665 abstract1 — the `app` clause. -/
 @[bridge_grind =] theorem abs1Fn_app (d k : Nat) (f a : Expr) :

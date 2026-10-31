@@ -27,11 +27,15 @@ three exits are `grind` lemmas whose every variable occurs in a pattern
 its subject's denotation (`Bridge/Grind.lean` §3), as do the two callees it
 reads that way (`reduceNat_specA`, `unfoldDefinition_specA`).
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Owed
-import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.Core.Walks.Nat
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Walks.Owed
+public import ConRon.Bridge.Core.Walks.Mono
+public import ConRon.Bridge.Core.Walks.Nat
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 

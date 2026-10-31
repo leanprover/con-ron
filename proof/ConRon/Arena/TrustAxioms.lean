@@ -13,8 +13,12 @@ values interned (`Arena/Intern.lean`), and the four environment PREDICATES —
 `reducePinGuard` — are `Arena/DeclCheck.lean`'s `…F` twins, which cite both
 halves of con-leche's `Env`/`FEnv` pair.
 -/
-import ConRon.Arena.StdAxioms
-import ConLeche.Kernel.TrustAxioms
+module
+
+public import ConRon.Arena.StdAxioms
+public import ConLeche.Kernel.TrustAxioms
+
+@[expose] public section
 
 namespace ConRon.Arena
 

@@ -35,8 +35,12 @@ survives the next `dropScratch`:
   theorem is stated AT a well-formed environment, so the fold has to carry
   one.
 -/
-import ConRon.Bridge.Promote.Exact
-import ConLeche.Verify.EnvWF
+module
+
+public import ConRon.Bridge.Promote.Exact
+public import ConLeche.Verify.EnvWF
+
+public section
 
 namespace ConRon.Bridge
 
@@ -465,7 +469,7 @@ frontend tier will state against this definition. -/
 
 /-- con-leche: none — the denotation of a declaration STREAM, record by
 record.  DESIGN §8.2's `denoteDecls`. -/
-def denoteDecls (st : EStore) : List IDeclaration → Option (List Declaration)
+@[expose] def denoteDecls (st : EStore) : List IDeclaration → Option (List Declaration)
   | [] => some []
   | d :: ds =>
     match Frontend.denoteDecl st d, denoteDecls st ds with
@@ -1311,7 +1315,7 @@ theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
 belongs to a stored structure: `TableWF`'s first clause alone, which is what the
 push of a fresh constant reads and what the basis install keeps without
 `EnvWF`. -/
-def TablesStored (env : Env) : Prop :=
+@[expose] def TablesStored (env : Env) : Prop :=
   ∀ pt ∈ env.tables, (env.find? pt.structName).isSome = true
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:161-162 TableWF — off `EnvWF`. -/

@@ -14,7 +14,11 @@ it: the shape fields `IProjTableOK` reads are unchanged, and the structure's
 name handle — the table map's key — denotes what it denoted.  That is what
 carries `IProjTableOK` across the promotion (`IProjTableOK.promoted`).
 -/
-import ConRon.Bridge.Promote.Walk
+module
+
+public import ConRon.Bridge.Promote.Walk
+
+public section
 
 namespace ConRon.Bridge
 
@@ -439,7 +443,7 @@ theorem promoteProjTable_step {m m' : PMemo} {fuel : Nat} {t t' : IProjTable}
 
 /-- con-leche: none — arena infrastructure; `IConstantInfo.name`'s handle
 denotes what it denoted: the header's name. -/
-def CINameKept (st st' : EStore) (ci ci' : IConstantInfo) : Prop :=
+@[expose] def CINameKept (st st' : EStore) (ci ci' : IConstantInfo) : Prop :=
   NameKept st st' ci.name ci'.name
 
 /-- con-leche: none — arena infrastructure; `CINameKept` entry by entry. -/

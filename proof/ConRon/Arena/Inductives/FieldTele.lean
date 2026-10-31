@@ -10,7 +10,11 @@ The rest of con-leche's module — `RecFieldKind`, `recIdxOf`, `Expr.mkPisOf`,
 it has neither a Rust nor a twin counterpart (`scripts/provenance-skip.txt`
 names each).  The Rust twin is `arena::inductives::field_tele`.
 -/
-import ConRon.Arena.Monad
+module
+
+public import ConRon.Arena.Monad
+
+@[expose] public section
 
 namespace ConRon.Arena
 

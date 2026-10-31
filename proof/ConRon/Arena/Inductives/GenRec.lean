@@ -34,8 +34,12 @@ compared with the stream's (`classRecTyOk`), and the generated rules installed
   does: `exprGetD` (`.bvar 0` for a term), `targetMajorAt` (RecCheck's
   `targetMajorDefault` for a class).  The stage never forms such an index.
 -/
-import ConRon.Arena.Inductives.RecCheck
-import ConRon.Arena.Inductives.ClassRead
+module
+
+public import ConRon.Arena.Inductives.RecCheck
+public import ConRon.Arena.Inductives.ClassRead
+
+@[expose] public section
 
 namespace ConRon.Arena
 

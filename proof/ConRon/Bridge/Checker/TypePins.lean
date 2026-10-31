@@ -21,9 +21,13 @@ answer is `SimBOp (typePinsOp …)`: con-leche's `checkTypePins` at some fuel,
 with one `SimBOp` lemma per clause (`typePins_nil_sim`, `typePins_cons_true_sim`,
 `typePins_cons_false_sim`), the fuels merged by `checkTypePins_mono`.
 -/
-import ConRon.Bridge.Checker.DeclVal
-import ConRon.Bridge.Core.Walks.IotaLeaves
-import ConRon.Bridge.Core.Walks.Nat
+module
+
+public import ConRon.Bridge.Checker.DeclVal
+public import ConRon.Bridge.Core.Walks.IotaLeaves
+public import ConRon.Bridge.Core.Walks.Nat
+
+public section
 
 open ConLeche ConRon.Arena Std.WP
 
@@ -72,7 +76,7 @@ theorem typePinsGuardP_eq (env : Env) (tps : List (ConLeche.Name × Expr)) :
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:332-340 checkTypePins — the
 comparison loop as a fueled family (`SimBOp`'s argument). -/
-def typePinsOp (μ : CheckMode) (env : Env) (tps : List (ConLeche.Name × Expr)) :
+@[expose] def typePinsOp (μ : CheckMode) (env : Env) (tps : List (ConLeche.Name × Expr)) :
     Nat → CheckM Bool :=
   fun F => ConLeche.checkTypePins (ConLeche.fueledOps μ F) env tps
 

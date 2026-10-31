@@ -60,8 +60,12 @@ own and a `where` clause has no name to cite"
 respelled at the top level with `parseChunks_eq` as its `rfl` equation, so
 that the fold has a name to cite.
 -/
-import ConRon.Bridge.Frontend.Lines
-import ConLeche.Frontend.Scan.Equiv
+module
+
+public import ConRon.Bridge.Frontend.Lines
+public import ConLeche.Frontend.Scan.Equiv
+
+public section
 
 namespace ConRon.Bridge.Frontend
 

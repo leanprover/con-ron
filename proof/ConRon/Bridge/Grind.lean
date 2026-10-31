@@ -99,8 +99,12 @@ a walk module adds only what is about its own walk.
    lookup it did not match (`iDefnHint_cases`).  A capability record's
    denotation keeps its scalar fields (`CapsFields`).
 -/
-import ConRon.Bridge.StateOK
-import ConRon.Bridge.GrindAttr
+module
+
+public import ConRon.Bridge.StateOK
+public import ConRon.Bridge.GrindAttr
+
+public section
 
 namespace ConRon.Bridge
 
@@ -254,7 +258,7 @@ with a `some` of a named term, so that the `some` equations fire. -/
 shape of a spec whose subject's denotation is not a parameter (the
 spelling `∀ e, o = some e → P e`, behind a head symbol).  `o` is a `denoteE st i`
 (or a `st.view i`, for the facts a view carries). -/
-def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some e → P e
+@[expose] def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some e → P e
 
 /-- con-leche: none — `Ans` at a denoting subject. -/
 @[bridge_grind =] theorem Ans.some_eq {α : Type} (P : α → Prop) (e : α) :
@@ -264,7 +268,7 @@ def Ans {α : Type} (P : α → Prop) (o : Option α) : Prop := ∀ e, o = some 
 /-- con-leche: none — **an answer relation at an optional subject**: whatever
 the subject `o` denotes, the answer `o'` denotes its image under `g` (the
 named-predicate form of `Ans (fun e => o' = some (g e))`). -/
-def MapRel {α β : Type} (g : α → β) : Option α → Option β → Prop
+@[expose] def MapRel {α β : Type} (g : α → β) : Option α → Option β → Prop
   | some a, o => o = some (g a)
   | none, _ => True
 
@@ -276,7 +280,7 @@ polarities: a `MapRel` goal too). -/
 /-- con-leche: none — **an answer relation at two optional subjects**: whatever
 the subjects `oa`, `ob` denote, the answer `o` denotes their image under `g`
 (`MapRel` with a second subject). -/
-def MapRel2 {α β γ : Type} (g : α → β → γ) : Option α → Option β → Option γ → Prop
+@[expose] def MapRel2 {α β γ : Type} (g : α → β → γ) : Option α → Option β → Option γ → Prop
   | some a, some b, o => o = some (g a b)
   | _, _, _ => True
 
@@ -323,7 +327,7 @@ theorem forall_eq_mapRel {α β : Type} (g : α → β) (o : Option α) (o' : Op
 
 /-- con-leche: none — `RelV`'s answer at an optional subject (a VALUE, not a
 denotation). -/
-def MapRelV {α : Type} (g : Expr → α) : Option Expr → α → Prop
+@[expose] def MapRelV {α : Type} (g : Expr → α) : Option Expr → α → Prop
   | some e, x => x = g e
   | none, _ => True
 
@@ -364,7 +368,7 @@ on their denotations (`PairAns`, `TripleAns`), with its equation at `some`
 /-- con-leche: none — a `Bool` answer about two optional subjects, as a named
 predicate `P` on their denotations (`P` a partial application, never a
 `fun`). -/
-def PairAns (P : Expr → Expr → Bool → Prop) : Option Expr → Option Expr → Bool → Prop
+@[expose] def PairAns (P : Expr → Expr → Bool → Prop) : Option Expr → Option Expr → Bool → Prop
   | some x, some y, r => P x y r
   | _, _, _ => True
 
@@ -374,7 +378,7 @@ def PairAns (P : Expr → Expr → Bool → Prop) : Option Expr → Option Expr 
 
 /-- con-leche: none — a `Bool` answer about three optional subjects, as a
 named predicate on their denotations. -/
-def TripleAns (P : Expr → Expr → Expr → Bool → Prop) :
+@[expose] def TripleAns (P : Expr → Expr → Expr → Bool → Prop) :
     Option Expr → Option Expr → Option Expr → Bool → Prop
   | some x, some y, some w, r => P x y w r
   | _, _, _, _ => True
@@ -625,7 +629,7 @@ theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
         simp only [List.contains_cons, hhead, ih ys has n x hx]
 
 /-- con-leche: none — a name-list membership test at optional denotations. -/
-def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
+@[expose] def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
   | some xs, some x => xs.contains x
   | _, _ => false
 
@@ -795,7 +799,7 @@ grind_pattern [bridge_grind] MemoLsOK.of_empty => MemoLsOK f tbl st where
 
 /-- con-leche: none — **the constructor tag of a denotation**: the four tag
 bits of a handle are the tag of the expression it denotes. -/
-def exprTag : Expr → UInt32
+@[expose] def exprTag : Expr → UInt32
   | .bvar _ => ETag.bvar
   | .fvar _ _ => ETag.fvar
   | .sort _ => ETag.sort
@@ -831,46 +835,46 @@ a default, off their constructor): what a view's children denote, without a
 fresh variable. -/
 
 /-- con-leche: none — the function of an application. -/
-def exprFn : Expr → Expr | .app f _ => f | e => e
+@[expose] def exprFn : Expr → Expr | .app f _ => f | e => e
 /-- con-leche: none — the argument of an application. -/
-def exprArg : Expr → Expr | .app _ a => a | e => e
+@[expose] def exprArg : Expr → Expr | .app _ a => a | e => e
 /-- con-leche: none — the name of a constant. -/
-def exprConstName : Expr → ConLeche.Name | .const n _ => n | _ => .anonymous
+@[expose] def exprConstName : Expr → ConLeche.Name | .const n _ => n | _ => .anonymous
 /-- con-leche: none — the universe arguments of a constant. -/
-def exprConstLevels : Expr → List Level | .const _ us => us | _ => []
+@[expose] def exprConstLevels : Expr → List Level | .const _ us => us | _ => []
 /-- con-leche: none — the index of a bound variable. -/
-def exprBVar : Expr → Nat | .bvar i => i | _ => 0
+@[expose] def exprBVar : Expr → Nat | .bvar i => i | _ => 0
 /-- con-leche: none — the index of a free variable. -/
 def exprFVarIdx : Expr → Nat | .fvar k _ => k | _ => 0
 /-- con-leche: none — the type of a free variable. -/
-def exprFVarType : Expr → Expr | .fvar _ t => t | e => e
+@[expose] def exprFVarType : Expr → Expr | .fvar _ t => t | e => e
 /-- con-leche: none — the level of a sort. -/
-def exprSort : Expr → Level | .sort u => u | _ => .zero
+@[expose] def exprSort : Expr → Level | .sort u => u | _ => .zero
 /-- con-leche: none — the binder type of a `lam`/`forallE`/`letE`. -/
-def exprBinderType : Expr → Expr
+@[expose] def exprBinderType : Expr → Expr
   | .lam t _ => t | .forallE t _ => t | .letE t _ _ => t | e => e
 /-- con-leche: none — the body of a `lam`/`forallE`/`letE`. -/
-def exprBody : Expr → Expr
+@[expose] def exprBody : Expr → Expr
   | .lam _ b => b | .forallE _ b => b | .letE _ _ b => b | e => e
 /-- con-leche: none — the value of a `letE`. -/
 def exprLetVal : Expr → Expr | .letE _ v _ => v | e => e
 /-- con-leche: none — the literal of a `lit`. -/
-def exprLit : Expr → Literal | .lit l => l | _ => .natVal 0
+@[expose] def exprLit : Expr → Literal | .lit l => l | _ => .natVal 0
 /-- con-leche: none — the structure name of a projection. -/
-def exprProjName : Expr → ConLeche.Name | .proj n _ _ => n | _ => .anonymous
+@[expose] def exprProjName : Expr → ConLeche.Name | .proj n _ _ => n | _ => .anonymous
 /-- con-leche: none — the field index of a projection. -/
-def exprProjIdx : Expr → Nat | .proj _ i _ => i | _ => 0
+@[expose] def exprProjIdx : Expr → Nat | .proj _ i _ => i | _ => 0
 /-- con-leche: none — the projected structure. -/
 def exprProjStruct : Expr → Expr | .proj _ _ s => s | e => e
 
 /-! A literal's two readings, and `Expr.isStrLit` over them. -/
 
 /-- con-leche: none — a literal's `Nat`, if it is one. -/
-def litNat? : Literal → Option Nat | .natVal n => some n | .strVal _ => none
+@[expose] def litNat? : Literal → Option Nat | .natVal n => some n | .strVal _ => none
 attribute [bridge_grind =] litNat?
 
 /-- con-leche: none — a literal's string, if it is one. -/
-def litStr? : Literal → Option String | .strVal s => some s | .natVal _ => none
+@[expose] def litStr? : Literal → Option String | .strVal s => some s | .natVal _ => none
 attribute [bridge_grind =] litStr?
 
 /-- con-leche: ConLeche/Kernel/Core.lean:687-691 Expr.isStrLit — as one equation over
@@ -958,7 +962,7 @@ open Classical in
 the names the store denotes (DESIGN §8.3's "index equality IS structural
 equality" as a function): with it, two handles are equal iff their names are
 by congruence closure alone. -/
-noncomputable def idxOfName (st : NStore) (nm : ConLeche.Name) : NIdx :=
+@[expose] noncomputable def idxOfName (st : NStore) (nm : ConLeche.Name) : NIdx :=
   if h : ∃ n, denoteN st n = some nm then Classical.choose h else default
 
 /-- con-leche: none — `idxOfName` inverts `denoteN` (its injectivity). -/
@@ -989,7 +993,7 @@ list (`Core/Walks/{Nat,StrLit}.lean`) register them locally, with
 /-- con-leche: none — **the name handle of a denoted name** at the name
 store, keyed by the denotation term (`idxOfName_eq` as a fact): with it, a
 handle test against a pin is the name test by congruence closure. -/
-def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
+@[expose] def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
   | some nm => idxOfName st nm = n
   | none => True
 
@@ -1008,11 +1012,11 @@ open Classical in
 /-- con-leche: none — **the level-list handle of a level list**, `denoteLs`'s
 inverse on the lists the store denotes (`idxOfName` at the level-list
 store). -/
-noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
+@[expose] noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
   if h : ∃ n, denoteLs st n = some ls then Classical.choose h else default
 
 /-- con-leche: none — a denoting level-list handle is its list's handle. -/
-def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
+@[expose] def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
   | some ls => idxOfLs st ls = n
   | none => True
 
@@ -1036,12 +1040,12 @@ open Classical in
 /-- con-leche: none — **the expression handle of an expression**, `denoteE`'s
 inverse on the expressions the store denotes (DESIGN §8.3 at the expression
 store, `denoteE_inj`). -/
-noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
+@[expose] noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
   if h : ∃ n, denoteE st n = some e then Classical.choose h else default
 
 /-- con-leche: none — a denoting expression handle is its expression's
 handle. -/
-def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
+@[expose] def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
   | some e => idxOfExpr st e = n
   | none => True
 
@@ -1064,7 +1068,7 @@ handle (view `ov`, denotation `oe`), each child of the view denotes the
 matching projection.  `denote_view` states it of every handle whose view and
 denotation the walk reads; the extraction lemmas below fire once the view's
 constructor is known. -/
-def DenoteView (st : EStore) : Option ENodeView → Option Expr → Prop
+@[expose] def DenoteView (st : EStore) : Option ENodeView → Option Expr → Prop
   | some v, some e => match v with
     | .bvar i => exprBVar e = i
     | .fvar k ty => exprFVarIdx e = k ∧ denoteE st ty = some (exprFVarType e)
@@ -1251,7 +1255,7 @@ def nodeBinderType : ENodeView → EIdx | .forallE t _ => t | .lam t _ => t | _ 
 /-- con-leche: none — the body handle of a `forallE`/`lam` view. -/
 def nodeBody : ENodeView → EIdx | .forallE _ b => b | .lam _ b => b | _ => default
 /-- con-leche: none — the literal of a `lit` view. -/
-def nodeLit : ENodeView → Literal | .lit l => l | _ => .natVal 0
+@[expose] def nodeLit : ENodeView → Literal | .lit l => l | _ => .natVal 0
 /-- con-leche: none — the handle of an `fvar` view's type. -/
 def nodeFVarType : ENodeView → EIdx | .fvar _ t => t | _ => default
 /-- con-leche: none — the index of an `fvar` view. -/
@@ -1534,7 +1538,7 @@ attribute [bridge_grind =] denoteLView
 
 /-- con-leche: none — a projection node's denotation at its two children's
 (the arm of `denoteEView` that would otherwise reach `grind` as a `fun`). -/
-def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
+@[expose] def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
   | some nm, some x => some (.proj nm i x)
   | _, _ => none
 
@@ -1594,23 +1598,23 @@ handles that denote. -/
 /-! ## 8. The environment index as equations -/
 
 /-- con-leche: none — is a stored lookup a definition. -/
-def iDefn? : Option IConstantInfo → Bool | some (.defnInfo _ _ _) => true | _ => false
+@[expose] def iDefn? : Option IConstantInfo → Bool | some (.defnInfo _ _ _) => true | _ => false
 /-- con-leche: none — a stored definition's record (a default elsewhere). -/
-def iDefnVal : Option IConstantInfo → IConstantVal | some (.defnInfo v _ _) => v | _ => default
+@[expose] def iDefnVal : Option IConstantInfo → IConstantVal | some (.defnInfo v _ _) => v | _ => default
 /-- con-leche: none — a stored definition's value handle. -/
-def iDefnValue : Option IConstantInfo → EIdx | some (.defnInfo _ e _) => e | _ => default
+@[expose] def iDefnValue : Option IConstantInfo → EIdx | some (.defnInfo _ e _) => e | _ => default
 /-- con-leche: none — a stored definition's hint (`opaque` elsewhere, as
 con-leche's `headHint` reads it). -/
 def iDefnHint : Option IConstantInfo → ReducibilityHint
   | some (.defnInfo _ _ h) => h | _ => .opaque
 /-- con-leche: none — is an environment lookup a definition. -/
-def cDefn? : Option ConstantInfo → Bool | some (.defnInfo _ _ _) => true | _ => false
+@[expose] def cDefn? : Option ConstantInfo → Bool | some (.defnInfo _ _ _) => true | _ => false
 /-- con-leche: none — a definition's record. -/
-def cDefnVal : Option ConstantInfo → ConstantVal | some (.defnInfo v _ _) => v | _ => default
+@[expose] def cDefnVal : Option ConstantInfo → ConstantVal | some (.defnInfo v _ _) => v | _ => default
 /-- con-leche: none — a definition's value. -/
-def cDefnValue : Option ConstantInfo → Expr | some (.defnInfo _ e _) => e | _ => .bvar 0
+@[expose] def cDefnValue : Option ConstantInfo → Expr | some (.defnInfo _ e _) => e | _ => .bvar 0
 /-- con-leche: none — a definition's hint (`opaque` elsewhere). -/
-def cDefnHint : Option ConstantInfo → ReducibilityHint
+@[expose] def cDefnHint : Option ConstantInfo → ReducibilityHint
   | some (.defnInfo _ _ h) => h | _ => .opaque
 
 /-- con-leche: none — `iDefn?` at a definition. -/
@@ -1643,27 +1647,27 @@ grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 /-! The same projections at the inductives and constructors. -/
 
 /-- con-leche: none — is a stored lookup an inductive. -/
-def iInd? : Option IConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+@[expose] def iInd? : Option IConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
 /-- con-leche: none — a stored inductive's record. -/
-def iIndVal : Option IConstantInfo → IConstantVal | some (.indInfo v _) => v | _ => default
+@[expose] def iIndVal : Option IConstantInfo → IConstantVal | some (.indInfo v _) => v | _ => default
 /-- con-leche: none — a stored inductive's capabilities. -/
 def iIndCaps : Option IConstantInfo → IIndCaps | some (.indInfo _ c) => c | _ => default
 /-- con-leche: none — is a stored lookup a constructor. -/
-def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+@[expose] def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
 /-- con-leche: none — a stored constructor's record. -/
-def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
+@[expose] def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
 /-- con-leche: none — a stored constructor's parameter count. -/
 def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
 /-- con-leche: none — a stored constructor's field count. -/
 def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
 /-- con-leche: none — is an environment lookup an inductive. -/
-def cInd? : Option ConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+@[expose] def cInd? : Option ConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
 /-- con-leche: none — an inductive's record. -/
-def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _ => default
+@[expose] def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _ => default
 /-- con-leche: none — is an environment lookup a constructor. -/
-def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+@[expose] def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
 /-- con-leche: none — a constructor's record. -/
-def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
+@[expose] def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
 
 /-! The projections at their own constructor, one equation each (as `iDefn?_defn`):
 the definitions' wildcard arms would reach `grind` as conditional equations it
@@ -1694,20 +1698,20 @@ grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 (`Core/Walks/PropRead.lean`'s readers). -/
 
 /-- con-leche: none — a stored lookup's record. -/
-def iValP : Option IConstantInfo → IConstantVal | some ci => ci.toConstantVal | none => default
+@[expose] def iValP : Option IConstantInfo → IConstantVal | some ci => ci.toConstantVal | none => default
 /-- con-leche: none — an environment lookup's record. -/
-def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
+@[expose] def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
 attribute [bridge_grind =] iValP
 
 /-! The projections at the inductives' capabilities, the constructors' counts
 and the recursors. -/
 
 /-- con-leche: none — an environment inductive's capabilities. -/
-def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
+@[expose] def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
 /-- con-leche: none — an environment constructor's parameter count. -/
-def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+@[expose] def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
 /-- con-leche: none — an environment constructor's field count. -/
-def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+@[expose] def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
@@ -1745,7 +1749,7 @@ recursor, on a definition's hint, a constructor's counts and a recursor's
 indices, and the stored records denote the environment's (a definition's
 record and value, a constructor's record, an inductive's record, level
 parameters and capabilities, a recursor's record and rules, any record). -/
-def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
+@[expose] def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
   cDefn? oc = iDefn? oi ∧ cDefnHint oc = iDefnHint oi ∧
   (iDefn? oi = true →
     Frontend.denoteCV st (iDefnVal oi) = some (cDefnVal oc) ∧
@@ -1767,7 +1771,7 @@ def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
 handle `c` denoting `nm`**: `IndexCI` between the two lookups. -/
-def IndexAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
+@[expose] def IndexAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
   | some nm => IndexCI st (fe.find? c) (env.find? nm)
   | none => True
 

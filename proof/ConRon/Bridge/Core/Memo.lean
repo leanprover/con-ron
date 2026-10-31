@@ -54,8 +54,12 @@ tactic, no addressing of a condition.
 The tables have no size cap (con-leche's `memoEI` has none): a setter is a
 plain insert.
 -/
-import ConRon.Bridge.Core.Knot
-import ConRon.Bridge.Grind
+module
+
+public import ConRon.Bridge.Core.Knot
+public import ConRon.Bridge.Grind
+
+public section
 
 namespace ConRon.Bridge.Core
 

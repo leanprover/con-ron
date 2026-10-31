@@ -19,8 +19,12 @@ The walk's callees: `projLitToCtor_spec`, `projAnsAt`,
 `getAppFn_spec`, the head's `view`, `getAppArgs_spec`, `viewLsLen`,
 `IProjEntry.fireOk_specA`, `internE (.bvar 0)`, `projCertAt_specA`.
 -/
-import ConRon.Bridge.Core.Walks.ProjLit
-import ConLeche.Verify.BetaSpine
+module
+
+public import ConRon.Bridge.Core.Walks.ProjLit
+public import ConLeche.Verify.BetaSpine
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -42,7 +46,7 @@ reads, so that the walk's answer is ONE equation (`reduceProjCore_eq`). -/
 /-- con-leche: ConLeche/Kernel/Core.lean:905-925 reduceProjCore — the rule on
 the expanded scrutinee `v`: the table entry for `(nm, k)`, the head
 constant's guards, the certificate, the selected field. -/
-def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
+@[expose] def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
     Option Expr :=
   if (env.findProj? nm k).isSome = true ∧ exprTag v.getAppFn = ETag.const ∧
       exprConstName v.getAppFn = (projOf (env.findProj? nm k)).ctor ∧
@@ -140,7 +144,7 @@ grind_pattern [bridge_grind] ProjCoreAns.of_lit =>
 
 /-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — the
 certificate at optional subjects (one equation at `some`). -/
-def projCertAtO (env : Env) (verified : Bool) : Option Name → Option (List Expr) → Bool
+@[expose] def projCertAtO (env : Env) (verified : Bool) : Option Name → Option (List Expr) → Bool
   | some cn, some xs => ConLeche.projCertAt env verified cn xs
   | _, _ => false
 

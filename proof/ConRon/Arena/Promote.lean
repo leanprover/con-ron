@@ -47,7 +47,11 @@ keeps, and the phase-A record phase B will check.
 induction on the recursion below, with `EStore.internPersistent`'s `consP` and
 `derExact` at each node.
 -/
-import ConRon.Arena.CheckerSplit
+module
+
+public import ConRon.Arena.CheckerSplit
+
+@[expose] public section
 
 namespace ConRon.Arena
 

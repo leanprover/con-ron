@@ -25,8 +25,12 @@ rules.  The Rust twin is `arena::inductives::sum_install`.
 * **The fields' sorts are `List LIdx`** — `Arena/Inductives/StructParts.lean`'s
   note.
 -/
-import ConRon.Arena.Inductives.StructInstall
-import ConRon.Arena.Inductives.Positivity
+module
+
+public import ConRon.Arena.Inductives.StructInstall
+public import ConRon.Arena.Inductives.Positivity
+
+@[expose] public section
 
 namespace ConRon.Arena
 

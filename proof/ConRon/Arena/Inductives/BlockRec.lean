@@ -12,7 +12,11 @@ first (`readLevelM`) and the guard is an `AM` function; the cited `||`
 short-circuits after that read, which is the only part that touches the
 store.
 -/
-import ConRon.Arena.Inductives.BlockParts
+module
+
+public import ConRon.Arena.Inductives.BlockParts
+
+@[expose] public section
 
 namespace ConRon.Arena
 

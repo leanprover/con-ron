@@ -10,7 +10,11 @@ run off once, for both theorems: `Bridge/Promote/Walk.lean` (Theorem 1) and
 wrapper.  It imports nothing but `Monad.lean` so that `Refine2` can import it
 without reaching `Bridge`.
 -/
-import ConRon.Arena.Monad
+module
+
+public import ConRon.Arena.Monad
+
+@[expose] public section
 
 namespace ConRon.Arena
 

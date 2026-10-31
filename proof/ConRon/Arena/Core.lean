@@ -64,9 +64,13 @@ ordered pair with the verdict, the two level-verdict tables, and the three
 lazy instantiated-constant tables that replace every
 `cv.type.instantiateLevelParams cv.levelParams us` in the checker.
 -/
-import ConRon.Arena.PropRead
-import ConRon.Arena.Pins
-import ConLeche.Kernel.Basis.Names
+module
+
+public import ConRon.Arena.PropRead
+public import ConRon.Arena.Pins
+public import ConLeche.Kernel.Basis.Names
+
+@[expose] public section
 
 namespace ConRon.Arena
 

@@ -35,22 +35,26 @@ core-grade statement's pure side is the monad-generic con-leche function at
 `fueledOpsM μ`, related through `FOk`; the tier's final `FOk` becomes
 `IndSpec`'s `∃ F` by `checkDecl_datF`.
 -/
-import ConRon.Bridge.Inductives.Records
-import ConRon.Bridge.Inductives.Run
-import ConRon.Bridge.Inductives.Rel
-import ConRon.Bridge.Inductives.BlockWF
-import ConRon.Bridge.Inductives.PosWalks
-import ConRon.Bridge.Inductives.StructParts
-import ConRon.Bridge.Inductives.StructInstall
-import ConRon.Bridge.Inductives.FieldTele
-import ConRon.Bridge.Inductives.SumInstall
-import ConRon.Bridge.Inductives.Positivity
-import ConRon.Bridge.Inductives.BlockParts
-import ConRon.Bridge.Inductives.BlockRec
-import ConRon.Bridge.Inductives.BlockInstall
-import ConRon.Bridge.Inductives.ClassRead
-import ConRon.Bridge.Inductives.RecCheck
-import ConRon.Bridge.Inductives.GenRec
-import ConRon.Bridge.Inductives.BlockTail
-import ConRon.Bridge.Inductives.Decl
-import ConRon.Bridge.Inductives.Axioms
+module
+
+public import ConRon.Bridge.Inductives.Records
+public import ConRon.Bridge.Inductives.Run
+public import ConRon.Bridge.Inductives.Rel
+public import ConRon.Bridge.Inductives.BlockWF
+public import ConRon.Bridge.Inductives.PosWalks
+public import ConRon.Bridge.Inductives.StructParts
+public import ConRon.Bridge.Inductives.StructInstall
+public import ConRon.Bridge.Inductives.FieldTele
+public import ConRon.Bridge.Inductives.SumInstall
+public import ConRon.Bridge.Inductives.Positivity
+public import ConRon.Bridge.Inductives.BlockParts
+public import ConRon.Bridge.Inductives.BlockRec
+public import ConRon.Bridge.Inductives.BlockInstall
+public import ConRon.Bridge.Inductives.ClassRead
+public import ConRon.Bridge.Inductives.RecCheck
+public import ConRon.Bridge.Inductives.GenRec
+public import ConRon.Bridge.Inductives.BlockTail
+public import ConRon.Bridge.Inductives.Decl
+public import ConRon.Bridge.Inductives.Axioms
+
+public section

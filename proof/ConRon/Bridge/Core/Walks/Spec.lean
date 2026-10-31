@@ -34,7 +34,11 @@ is fed back into a knot slot: `unfoldDefinition`'s reduct is (`whnfStep`
 hands it to `whnfLoop`, which calls `whnfCore`), `headHint`'s hint is
 not.  So `SimEOp` and `SimOOp` carry it and `SimBOp` does not.
 -/
-import ConRon.Bridge.Core.Knot
+module
+
+public import ConRon.Bridge.Core.Knot
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -49,7 +53,7 @@ open scoped Lean.Order
 answer**: the answer handle denotes a well-scoped `v` that the pure call
 produces at some fuel.  `Bridge/Core/Knot.lean`'s `SimE` is this at
 `fun F => op F d e`. -/
-def SimEOp (P : Nat → CheckM Expr) (d : Nat) (st' : EStore) (r : EIdx) :
+@[expose] def SimEOp (P : Nat → CheckM Expr) (d : Nat) (st' : EStore) (r : EIdx) :
     Prop :=
   ∃ v, denoteE st' r = some v ∧ Expr.WScoped d v ∧ ∃ F, P F = .ok v
 
@@ -57,7 +61,7 @@ def SimEOp (P : Nat → CheckM Expr) (d : Nat) (st' : EStore) (r : EIdx) :
 answer** (`unfoldDefinition`, `reduceNat`, `iotaRec`): `none` denotes `none`,
 and a `some` denotes the pure call's own `some`.  `denoteEO`
 (`Bridge/Rel.lean`) is what makes the two shapes literally the same. -/
-def SimOOp (P : Nat → CheckM (Option Expr)) (d : Nat) (st' : EStore)
+@[expose] def SimOOp (P : Nat → CheckM (Option Expr)) (d : Nat) (st' : EStore)
     (r : Option EIdx) : Prop :=
   ∃ v, denoteEO st' r = some v ∧ (∀ x, v = some x → Expr.WScoped d x) ∧
     ∃ F, P F = .ok v
@@ -65,6 +69,6 @@ def SimOOp (P : Nat → CheckM (Option Expr)) (d : Nat) (st' : EStore)
 /-- con-leche: ConLeche/Verify/SimI.lean:252 RelV — **the `Bool`-valued
 answer**, which names no handle and therefore needs no target store.
 `Bridge/Core/Knot.lean`'s `SimV` is this at `fun F => op F d a b`. -/
-def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
+@[expose] def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
 
 end ConRon.Bridge.Core

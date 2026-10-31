@@ -26,9 +26,19 @@ there is only one.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-import ConRon.Arena.CoreIO
-import ConLeche.Kernel.TypeChecker
-import ConLeche.Kernel.CoreIO
+module
+
+public import ConRon.Arena.CoreIO
+public import ConLeche.Kernel.TypeChecker
+public import ConLeche.Kernel.CoreIO
+/- The `#guard`s below are EVALUATED, so the constants they name have to be
+reachable from meta code too; a module needed at both levels is imported
+twice. -/
+meta import ConRon.Arena.CoreIO
+meta import ConLeche.Kernel.TypeChecker
+meta import ConLeche.Kernel.CoreIO
+
+@[expose] public section
 
 namespace ConRon.Arena
 

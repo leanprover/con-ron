@@ -71,16 +71,18 @@ the capstone is its own library, `ConRonCapstone`), and both are in `lakefile.to
 `defaultTargets`, so a plain `lake build` — `scripts/gates.sh`'s
 `lake-build` step — elaborates the whole tier.  The tier is `sorry`-free.
 -/
-import ConRon.Bridge.Rel
-import ConRon.Bridge.StateOK
-import ConRon.Bridge.StoreNested
-import ConRon.Bridge.StoreBind
-import ConRon.Bridge.Specs
-import ConRon.Bridge.SpecsL
-import ConRon.Bridge.ExprOps
-import ConRon.Bridge.Core
-import ConRon.Bridge.Promote
-import ConRon.Bridge.Checker
-import ConRon.Bridge.Inductives
-import ConRon.Bridge.Frontend
-import ConRon.Bridge.Axioms
+module
+
+public import ConRon.Bridge.Rel
+public import ConRon.Bridge.StateOK
+public import ConRon.Bridge.StoreNested
+public import ConRon.Bridge.StoreBind
+public import ConRon.Bridge.Specs
+public import ConRon.Bridge.SpecsL
+public import ConRon.Bridge.ExprOps
+public import ConRon.Bridge.Core
+public import ConRon.Bridge.Promote
+public import ConRon.Bridge.Checker
+public import ConRon.Bridge.Inductives
+public import ConRon.Bridge.Frontend
+public import ConRon.Bridge.Axioms

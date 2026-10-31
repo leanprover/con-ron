@@ -42,8 +42,12 @@ This module imports `Arena/Handle.lean` and NOTHING else, so that
 record is data over handles, and every operation on it that needs the
 monad lives in `Arena/Core.lean` beside the knot that probes it.
 -/
-import ConRon.Arena.Handle
-import ConLeche.Kernel.Expr
+module
+
+public import ConRon.Arena.Handle
+public import ConLeche.Kernel.Expr
+
+@[expose] public section
 
 namespace ConRon.Arena
 

@@ -23,9 +23,13 @@ whose identification is `Arms/DefeqPeel.lean`'s `defeqBinders_spec`; the λ
 arm is con-leche's own λ-telescope congruence `defeqLams` (task #342), whose
 twin is proved here (`defeqLamsInner_spec`, `defeqLams_spec`).
 -/
-import ConRon.Bridge.Core.Arms.DefeqBase
-import ConRon.Bridge.Core.Arms.DefeqPeel
-import ConRon.Bridge.ExprOps.Walks
+module
+
+public import ConRon.Bridge.Core.Arms.DefeqBase
+public import ConRon.Bridge.Core.Arms.DefeqPeel
+public import ConRon.Bridge.ExprOps.Walks
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -672,7 +676,7 @@ theorem natPred?_WScoped {d : Nat} {x p : Expr} (h : x.natPred? = some p)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — a
 literal's predecessor literal, if it is a nonzero `Nat`. -/
-def litPred? : Literal → Option Expr
+@[expose] def litPred? : Literal → Option Expr
   | .natVal n => if n = 0 then none else some (.lit (.natVal (n - 1)))
   | .strVal _ => none
 attribute [local bridge_grind =] litPred?
@@ -910,7 +914,7 @@ end ProjHeads
 /-- con-leche: ConLeche/Kernel/Core.lean:1565-1572 DeltaStep — **the answer
 relation of a lazy-delta step**: the same outcome, and at `cont` the two
 handles denote the two terms, both well scoped. -/
-def DSRel (st : EStore) (d : Nat) : DeltaStepA → DeltaStep → Prop
+@[expose] def DSRel (st : EStore) (d : Nat) : DeltaStepA → DeltaStep → Prop
   | .cont a b, .cont x y => denoteE st a = some x ∧ denoteE st b = some y ∧
       Expr.WScoped d x ∧ Expr.WScoped d y
   | .eq, .eq => True
@@ -965,7 +969,7 @@ end Step
 /-- con-leche: none — **the postcondition of a lazy-delta step's stages**: the
 frame, and an outcome related to the pure goal's answer `P F`, which holds
 eventually. -/
-def DSPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState) (d : Nat)
+@[expose] def DSPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState) (d : Nat)
     (P : Nat → CheckM DeltaStep) (o : DeltaStepA) (s' : AState) : Prop :=
   CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
     ∃ v, DSRel s'.store d o v ∧ Ev (fun F => P F = .ok v)
@@ -1307,7 +1311,7 @@ theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
 /-- con-leche: ConLeche/Kernel/Core.lean:1644-1649 LazyRes — **the answer
 relation of the loop**: the same verdict, or the pair it got stuck on,
 denoted and well scoped. -/
-def LRRel (st : EStore) (d : Nat) : LazyResA → LazyRes → Prop
+@[expose] def LRRel (st : EStore) (d : Nat) : LazyResA → LazyRes → Prop
   | .verdict v, .verdict w => v = w
   | .unknown a b, .unknown x y => denoteE st a = some x ∧ denoteE st b = some y ∧
       Expr.WScoped d x ∧ Expr.WScoped d y

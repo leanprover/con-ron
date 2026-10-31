@@ -22,7 +22,11 @@ Nothing here is a theorem: this is a porting tool, like `ConRon/Dump/*`.
 `ConRon/Gen/Main.lean` is the `con-ron-gen-tables` executable that writes
 the file.
 -/
-import ConLeche.Kernel.BasisA
+module
+
+public import ConLeche.Kernel.BasisA
+
+@[expose] public section
 
 namespace ConRon.Gen
 

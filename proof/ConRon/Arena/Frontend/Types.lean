@@ -27,7 +27,11 @@ level up in any case.  The chunk drivers below still carry con-leche's
 than exceptions — a scan error and a record verdict — and `runPipeline`
 folds the line into those messages before returning.
 -/
-import ConRon.Arena.Env
+module
+
+public import ConRon.Arena.Env
+
+@[expose] public section
 
 namespace ConRon.Arena.Frontend
 

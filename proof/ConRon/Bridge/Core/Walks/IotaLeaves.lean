@@ -13,10 +13,14 @@ equation over tags and projections (`isCtorApp_eq`, `litToCtorIfNat_eq`,
 `∀`-shaped posts restated as named answers (`leafGuard_specA`,
 `projAnsAt`, `IProjEntry.fireOk_specA`).
 -/
-import ConRon.Bridge.Core.Walks.Stuck
-import ConRon.Bridge.Core.Walks.ProjLit
-import ConRon.Bridge.ExprOps.Guards
-import ConRon.Bridge.ExprOps.Ranges
+module
+
+public import ConRon.Bridge.Core.Walks.Stuck
+public import ConRon.Bridge.Core.Walks.ProjLit
+public import ConRon.Bridge.ExprOps.Guards
+public import ConRon.Bridge.ExprOps.Ranges
+
+public section
 
 namespace ConRon.Bridge.Core
 
@@ -148,7 +152,7 @@ theorem looseBVarsBoundedFast_specC (fuel k : Nat) (s₀ : AState) (e : EIdx)
 
 /-- con-leche: none — the leaf guard's answer at the base's denotation (a
 named predicate on the denotation term). -/
-def LeafAns (st : EStore) (fab : EIdx) (r : Bool) : Option Expr → Prop
+@[expose] def LeafAns (st : EStore) (fab : EIdx) (r : Bool) : Option Expr → Prop
   | some eb => RelV (ExprOps.leavesSubSpec (Expr.fvarLeaves eb)) st fab r
   | none => True
 
@@ -222,7 +226,7 @@ theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — one
 slot's test at the environment's answer (the body of the `all`). -/
-def andSlotOk (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+@[expose] def andSlotOk (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
     Option ProjEntry → Bool
   | some e => e.ctor == cn && e.numParams == nP && e.numFields == 2 && e.fireOk ls
   | none => false
@@ -230,7 +234,7 @@ attribute [bridge_grind =] andSlotOk
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — the
 slots `j, j+1, …` for `n` slots, one equation per step. -/
-def andSlotsFrom (env : Env) (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
+@[expose] def andSlotsFrom (env : Env) (cn : ConLeche.Name) (nP : Nat) (ls : List Level) :
     Nat → Nat → Bool
   | 0, _ => true
   | n + 1, j => andSlotOk cn nP ls (env.findProj? ConLeche.andName j) &&

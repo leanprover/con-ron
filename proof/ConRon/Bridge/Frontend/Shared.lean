@@ -10,9 +10,13 @@ structural recursion, with the `EMemo` invariant
 (`EMemoOK st m : ∀ e h, m[e]? = some h → denoteE st h = some e`) carried
 along.
 -/
-import ConRon.Bridge.Frontend.Rel
-import ConRon.Bridge.SpecsL
-import ConRon.Arena.Frontend.Readback
+module
+
+public import ConRon.Bridge.Frontend.Rel
+public import ConRon.Bridge.SpecsL
+public import ConRon.Arena.Frontend.Readback
+
+public section
 
 namespace ConRon.Bridge.Frontend
 
@@ -24,7 +28,7 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
 /-- con-leche: none — the intern memo's invariant: every recorded handle
 denotes its key. -/
-def EMemoOK (st : EStore) (m : EMemo) : Prop :=
+@[expose] def EMemoOK (st : EStore) (m : EMemo) : Prop :=
   ∀ e h, m[e]? = some h → denoteE st h = some e
 
 theorem EMemoOK.empty (st : EStore) : EMemoOK st (∅ : EMemo) := by

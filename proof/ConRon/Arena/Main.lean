@@ -1,5 +1,9 @@
-import ConRon.Arena.Frontend.Prelude
-import ConRon.Arena.Checker
+module
+
+public import ConRon.Arena.Frontend.Prelude
+public import ConRon.Arena.Checker
+
+@[expose] public section
 
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)

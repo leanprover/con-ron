@@ -37,9 +37,13 @@ The frontend tier's bottom (`Bridge/Frontend/Shared.lean`) sits below the
 checker tier: from it, `Bridge/Frontend/Rel.lean` imports only
 `Bridge/Checker/Inv.lean`, not `Bridge/Checker.lean` whole.
 -/
-import ConRon.Bridge.Checker.Decl
-import ConRon.Bridge.Frontend.Shared
-import ConRon.Bridge.Checker.DeclVal
+module
+
+public import ConRon.Bridge.Checker.Decl
+public import ConRon.Bridge.Frontend.Shared
+public import ConRon.Bridge.Checker.DeclVal
+
+public section
 
 open ConLeche ConRon.Arena
 

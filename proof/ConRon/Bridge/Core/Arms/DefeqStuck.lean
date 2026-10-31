@@ -23,7 +23,11 @@ Each arm is stated against an arbitrary pure goal `G` that follows
 eventually from con-leche's `defeqStuck` at the arm's pair (`DqPost`,
 `Arms/DefeqBase.lean`).
 -/
-import ConRon.Bridge.Core.Arms.DefeqBase
+module
+
+public import ConRon.Bridge.Core.Arms.DefeqBase
+
+public section
 
 namespace ConRon.Bridge.Core
 

@@ -30,11 +30,15 @@ hypothesis.  `checkFuel` is con-leche's own number
 sides' fuel constants are literally equal — but nothing here depends on that:
 the statement is at an arbitrary `f`.
 -/
-import ConRon.Bridge.Core.Arms.WhnfCore
-import ConRon.Bridge.Core.Arms.Whnf
-import ConRon.Bridge.Core.Arms.Infer
-import ConRon.Bridge.Core.Arms.InferIO
-import ConRon.Bridge.Core.Arms.Defeq
+module
+
+public import ConRon.Bridge.Core.Arms.WhnfCore
+public import ConRon.Bridge.Core.Arms.Whnf
+public import ConRon.Bridge.Core.Arms.Infer
+public import ConRon.Bridge.Core.Arms.InferIO
+public import ConRon.Bridge.Core.Arms.Defeq
+
+public section
 
 namespace ConRon.Bridge.Core
 

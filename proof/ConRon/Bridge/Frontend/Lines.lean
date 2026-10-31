@@ -27,7 +27,11 @@ never touches the pin table — which is what makes `PersStateD` free and what
 makes the fold theorems' `FoldOK` (`Arena.installThenCheck_bridge`'s `hok`)
 reachable at the post-parse state.
 -/
-import ConRon.Bridge.Frontend.Shared
+module
+
+public import ConRon.Bridge.Frontend.Shared
+
+public section
 
 namespace ConRon.Bridge.Frontend
 
@@ -52,7 +56,7 @@ def VerdictRel : RecordVerdict → ConLeche.Frontend.RecordVerdict → Prop
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:629 processLineCoreD — the
 `StateD ⊕ RecordVerdict` the record's semantics returns, related. -/
-def SumRel (st : EStore) : StateD ⊕ RecordVerdict →
+@[expose] def SumRel (st : EStore) : StateD ⊕ RecordVerdict →
     ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict → Prop
   | .inl sd, .inl sc => StateDRel st sd sc
   | .inr v, .inr w => VerdictRel v w
@@ -959,7 +963,7 @@ slot: nothing, or an `.invalid` verdict, on each side.  Every `return` inside
 the two loops is an `.invalid`, and this is what lets the two answers be
 related without the verdict strings (which name handles on one side and names
 on the other). -/
-def VInv (o : Option (RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)))
+@[expose] def VInv (o : Option (RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)))
     (p : Option (ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat))) :
     Prop :=
   (∀ x, o = some x → ∃ m, x = .inl (.invalid m)) ∧

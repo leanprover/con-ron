@@ -23,13 +23,17 @@ named hypotheses" a checkable claim rather than a prose one.
 
 **The seven arms are printed in group 2**, beside the theorem they make up.
 -/
-import ConRon.Bridge.Checker.Fold
-import ConRon.Bridge.Checker.Base
-import ConRon.Bridge.Checker.Basis
-import ConRon.Bridge.Checker.Pins
-import ConRon.Bridge.Checker.Split
-import ConRon.Bridge.Checker.DivMod
-import ConRon.Bridge.Checker.Arms
+module
+
+public import ConRon.Bridge.Checker.Fold
+public import ConRon.Bridge.Checker.Base
+public import ConRon.Bridge.Checker.Basis
+public import ConRon.Bridge.Checker.Pins
+public import ConRon.Bridge.Checker.Split
+public import ConRon.Bridge.Checker.DivMod
+public import ConRon.Bridge.Checker.Arms
+
+public section
 
 namespace ConRon.Bridge
 

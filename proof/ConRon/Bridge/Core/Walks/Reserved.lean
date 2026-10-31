@@ -15,8 +15,12 @@ These belong below both tiers (they mention nothing but `Bridge/Specs.lean`'s
 pin/intern triples and `StateOK.lean`'s `denoteNL`); in a module both can
 import, this file would shrink to nothing.
 -/
-import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Promote.Pers
+module
+
+public import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Promote.Pers
+
+public section
 
 open ConLeche ConRon.Arena
 
