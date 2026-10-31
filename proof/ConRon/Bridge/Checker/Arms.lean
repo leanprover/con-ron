@@ -31,9 +31,16 @@ below.
 -/
 module
 
-public import ConRon.Bridge.Checker.DivMod
-public import ConRon.Bridge.Checker.Basis
-public import ConRon.Bridge.Checker.DeclWF
+import ConRon.Bridge.Checker.DivMod
+import ConRon.Bridge.Checker.DeclWF
+import ConRon.Bridge.Checker.DeclVal
+import ConLeche.Verify.Extend.Inversions
+public import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Promote.WalkDecl
 
 public section
 

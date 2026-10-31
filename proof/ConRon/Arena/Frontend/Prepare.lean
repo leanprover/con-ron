@@ -34,7 +34,6 @@ Nothing in this module reads or writes a term.
 -/
 module
 
-public import ConRon.Arena.Frontend.ExportC
 public import ConRon.Arena.Frontend.NatOpGround
 
 @[expose] public section

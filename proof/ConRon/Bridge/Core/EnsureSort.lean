@@ -23,6 +23,9 @@ else — the same discipline `Bridge/Core/Arms/*.lean` follow.
 module
 
 public import ConRon.Bridge.Core.Knot
+import ConLeche.Verify.Knot
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

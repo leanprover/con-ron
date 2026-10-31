@@ -17,6 +17,7 @@ carries `IProjTableOK` across the promotion (`IProjTableOK.promoted`).
 module
 
 public import ConRon.Bridge.Promote.Walk
+public import ConRon.Bridge.StateOK
 
 public section
 

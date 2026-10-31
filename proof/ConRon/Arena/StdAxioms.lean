@@ -21,9 +21,9 @@ Two deviations, each of them one of DESIGN §8's own rules:
 -/
 module
 
-public import ConRon.Arena.Canon
 public import ConRon.Arena.Intern
 public import ConLeche.Kernel.StdAxioms
+public import ConRon.Arena.Pins
 
 @[expose] public section
 

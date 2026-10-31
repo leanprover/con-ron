@@ -41,9 +41,16 @@ literal arm one constructor deep.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Spine
-public import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Proj
 public import ConRon.Bridge.Grind
+public import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Knot
+import ConLeche.Verify.Mono
+public import ConLeche.Verify.Knot
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

@@ -22,6 +22,7 @@ clash in any environment importing both tiers (the capstone's).
 module
 
 public import ConRon.Bridge.Promote.Pers
+import ConRon.Arena.WFProofs
 
 public section
 

@@ -43,6 +43,7 @@ module
 
 public import ConRon.Bridge.Rel
 public import ConLeche.Kernel.TypeChecker
+public import ConRon.Arena.Pins
 
 public section
 

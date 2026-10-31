@@ -13,9 +13,12 @@ constructor deep (`projLitToCtor_split`).
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.StrLit
-public import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.StrCtor
 public import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

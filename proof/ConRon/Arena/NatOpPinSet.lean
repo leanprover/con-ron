@@ -17,8 +17,8 @@ the pins are data the checker reads, not a seam.
 -/
 module
 
-public import ConRon.Arena.Basis
-public import ConLeche.Kernel.NatOpPins
+public import ConLeche.Kernel.NatOpPinSet
+public import ConRon.Arena.Intern
 
 @[expose] public section
 

@@ -85,8 +85,10 @@ that formally so.
 -/
 module
 
-public import ConRon.Bridge.Specs
-public import ConRon.Bridge.Grind
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+public import ConRon.Bridge.StateOK
+public import ConRon.Arena.ExprOps
 
 public section
 

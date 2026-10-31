@@ -17,10 +17,9 @@ invariant and its own fuel induction, in `Bridge/ExprOps/Walks.lean`'s shape.
 module
 
 public import ConRon.Bridge.Checker.Hyp
-public import ConRon.Bridge.Checker.Names
-public import ConRon.Bridge.Checker.Canon
-public import ConRon.Bridge.ExprOps.Ranges
-public import ConLeche.Verify.BridgeDecl
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.ExprOps.Ranges
+import ConLeche.Verify.BridgeDecl
 
 public section
 

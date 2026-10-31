@@ -21,12 +21,17 @@ they are `CSpec`, the old `withSort_spec`/`nativeShape?_spec` argument.
 -/
 module
 
-public import ConRon.Bridge.Inductives.StructParts
-public import ConRon.Bridge.Inductives.PosWalks
-public import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.FieldTele
 /- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
 `List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
+public import ConRon.Bridge.Inductives.Rel
+import ConLeche.Verify.Inductives.NestScope
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Specs
 
 public section
 

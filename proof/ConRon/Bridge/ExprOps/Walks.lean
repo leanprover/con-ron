@@ -20,8 +20,10 @@ extractions, and declines by `lamPair?_none_left`/`_right`, both
 -/
 module
 
-public import ConRon.Bridge.Specs
-public import ConRon.Bridge.Grind
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+public import ConRon.Bridge.StateOK
+public import ConRon.Arena.ExprOps
 
 public section
 

@@ -52,7 +52,8 @@ that does not exist yet.
 module
 
 public import ConRon.Arena.Promote
-public import ConRon.Arena.PersistentRun
+import ConRon.Arena.PersistentRun
+import ConRon.Arena.WFProofs
 
 @[expose] public section
 

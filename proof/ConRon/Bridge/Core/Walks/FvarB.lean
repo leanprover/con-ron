@@ -13,8 +13,10 @@ conjunct would make this module one line.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Cached
-public import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Ranges
+public import ConRon.Bridge.ExprOps.Abs
+import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Specs
 
 public section
 

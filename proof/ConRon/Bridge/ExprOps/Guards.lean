@@ -55,6 +55,8 @@ terms the verification conditions have.
 module
 
 public import ConRon.Bridge.ExprOps.Leaves
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

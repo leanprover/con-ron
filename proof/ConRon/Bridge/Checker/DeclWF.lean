@@ -22,9 +22,11 @@ This module imports con-leche only: the statement and the proof are pure.
 -/
 module
 
-public import ConLeche.Semantics.Bridge.Sound
+import ConLeche.Semantics.Bridge.Sound
 public import ConLeche.Kernel.BasisA
 public import ConLeche.Verify.EnvWF
+public import ConLeche.Semantics.DeclRun
+public import ConLeche.Kernel.CheckDecl
 
 public section
 

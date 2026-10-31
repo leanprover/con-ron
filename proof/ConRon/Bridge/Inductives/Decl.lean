@@ -31,7 +31,10 @@ clause for clause, so
 -/
 module
 
-public import ConRon.Bridge.Inductives.BlockTail
+import ConRon.Bridge.Inductives.BlockTail
+import ConRon.Bridge.Inductives.BlockParts
+public import ConRon.Bridge.Inductives.Rel
+import ConRon.Bridge.Promote.WalkDecl
 
 public section
 

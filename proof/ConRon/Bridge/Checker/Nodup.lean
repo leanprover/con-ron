@@ -23,13 +23,15 @@ basis install's table lemma from `Bridge/Checker/DeclWF.lean`.
 -/
 module
 
-public import ConLeche.Semantics.Bridge.Sound
-public import ConLeche.Verify.Extend.Inversions
+import ConLeche.Semantics.Bridge.Sound
+import ConLeche.Verify.Extend.Inversions
 public import ConLeche.Verify.EnvBound
 public import ConLeche.Verify.EnvWF
 public import ConLeche.Verify.ExceptBind
-public import ConLeche.Verify.Inductives.GenRecRun
-public import ConRon.Bridge.Checker.DeclWF
+import ConLeche.Verify.Inductives.GenRecRun
+import ConRon.Bridge.Checker.DeclWF
+public import ConLeche.Semantics.Decl
+public import ConLeche.Semantics.Inductives.DeclBlock
 
 public section
 

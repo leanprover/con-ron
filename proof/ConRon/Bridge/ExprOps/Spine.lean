@@ -51,7 +51,11 @@ Everything else reuses `Rel.lean`: `RelE` for `getAppFn`, `piResult` and
 -/
 module
 
-public import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.ExprOps
 
 public section
 

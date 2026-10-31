@@ -30,7 +30,10 @@ it and the fold consume it without either mentioning the other's store.
 -/
 module
 
-public import ConRon.Bridge.StateOK
+public import ConRon.Arena.CheckerSplit
+public import ConRon.Arena.NatOpPinSet
+import ConRon.Arena.WFProofs
+public import ConRon.Arena.WF
 
 public section
 

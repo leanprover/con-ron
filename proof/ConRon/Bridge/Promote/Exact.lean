@@ -41,7 +41,10 @@ lives there (`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
 -/
 module
 
-public import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.Promote.Weak
+public import ConRon.Bridge.Promote.Memo
+public import ConRon.Bridge.StateOK
 
 public section
 

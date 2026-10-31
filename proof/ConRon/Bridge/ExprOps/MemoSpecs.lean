@@ -44,8 +44,12 @@ definition named in its list.
 -/
 module
 
-public import ConRon.Bridge.Specs
+import ConRon.Bridge.Specs
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.StoreBind
+import ConRon.Bridge.GrindAttr
+import ConRon.Arena.PersistentRun
+public import ConRon.Arena.ExprOps
 
 public section
 

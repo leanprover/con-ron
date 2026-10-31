@@ -62,8 +62,10 @@ that the fold has a name to cite.
 -/
 module
 
-public import ConRon.Bridge.Frontend.Lines
+import ConRon.Bridge.Frontend.Lines
 public import ConLeche.Frontend.Scan.Equiv
+public import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Specs
 
 public section
 

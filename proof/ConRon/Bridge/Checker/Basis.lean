@@ -27,9 +27,13 @@ inductive route, and the fold's counter arithmetic has to survive it.
 -/
 module
 
-public import ConRon.Bridge.Checker.Canon
-public import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.Names
 public import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.Specs
+public import ConLeche.Kernel.Checker
+public import ConRon.Arena.CheckDecl
 
 public section
 

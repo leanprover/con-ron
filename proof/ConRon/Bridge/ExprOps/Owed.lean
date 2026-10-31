@@ -82,9 +82,10 @@ The obvious shapes are not provable, for these reasons:
 module
 
 public import ConRon.Bridge.ExprOps.Abs
-public import ConRon.Bridge.ExprOps.MemoSpecs
-public import ConRon.Bridge.ExprOps.InstLP
-public import ConRon.Bridge.SpecsL
+import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.ExprOps.InstLP
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

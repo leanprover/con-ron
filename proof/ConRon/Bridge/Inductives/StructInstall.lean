@@ -20,7 +20,10 @@ one at `hs.toList` — which is what `Frontend.denoteEArray` is defined as.
 -/
 module
 
-public import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Inductives.StructParts
+public import ConRon.Bridge.Inductives.Rel
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.ExprOps.Ranges
 
 public section
 

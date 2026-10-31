@@ -37,6 +37,7 @@ write is `Specs.lean`'s `memo_insert_step` at the table.
 -/
 import ConRon.Refine2.Specs
 import ConRon.Arena.Core
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

@@ -50,9 +50,11 @@ install is one hypothesis, exactly as `RefineOld/Main.lean`'s
 module
 
 public import ConRon.Bridge.Checker.Inv
-public import ConRon.Bridge.Core.Induction
-public import ConRon.Bridge.Core.EnsureSort
+import ConRon.Bridge.Core.Induction
+import ConRon.Bridge.Core.EnsureSort
 public import ConRon.Arena.CheckDecl
+public import ConRon.Bridge.Core.Knot
+public import ConLeche.Kernel.CheckDecl
 
 public section
 

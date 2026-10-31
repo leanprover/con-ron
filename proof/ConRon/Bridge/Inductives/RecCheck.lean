@@ -45,14 +45,23 @@ recursor stage ended on.
 module
 
 public import ConRon.Bridge.Inductives.Rel
-public import ConRon.Bridge.Inductives.PosWalks
-public import ConRon.Bridge.Inductives.StructParts
-public import ConRon.Bridge.Inductives.FieldTele
-public import ConRon.Bridge.Inductives.SumInstall
-public import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.SumInstall
+import ConRon.Bridge.Inductives.BlockParts
 public import ConRon.Bridge.Inductives.Positivity
-public import ConLeche.Verify.Inductives.RecCheckScope
+import ConLeche.Verify.Inductives.RecCheckScope
 public import ConLeche.Verify.Cached.TargetRecC
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.FvarB
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.Specs
 
 public section
 

@@ -50,14 +50,21 @@ registered spec per call).
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Cached
 public import ConRon.Bridge.Core.Walks.Spec
 public import ConRon.Bridge.ExprOps.Subst
-public import ConRon.Bridge.ExprOps.Spine
-public import ConRon.Bridge.Core.Walks.Mono
-public import ConRon.Bridge.Core.Walks.Owed
-public import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Walks.Spine
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.MemoSpecs
+public import ConRon.Bridge.Core.Walks.Frame
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Knot
+public import ConLeche.Verify.Knot
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+import ConRon.Bridge.SpecsL -- shake: keep (`vcgen [-readNamesM_spec]` names it; no proof term does)
 
 public section
 

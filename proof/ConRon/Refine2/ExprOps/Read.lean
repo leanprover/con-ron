@@ -43,6 +43,7 @@ at `fuel.val = n` and runs that line in each case of `induction n`.
 import ConRon.Refine2.Tactic.Prims
 import ConRon.Refine2.ExprOps.Pure
 import ConRon.Arena.ExprOps
+import ConRon.Arena.WF
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

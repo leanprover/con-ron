@@ -26,8 +26,15 @@ twin is proved here (`defeqLamsInner_spec`, `defeqLams_spec`).
 module
 
 public import ConRon.Bridge.Core.Arms.DefeqBase
-public import ConRon.Bridge.Core.Arms.DefeqPeel
-public import ConRon.Bridge.ExprOps.Walks
+import ConRon.Bridge.Core.Arms.DefeqPeel
+import ConRon.Bridge.ExprOps.Walks
+import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

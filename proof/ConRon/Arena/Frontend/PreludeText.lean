@@ -44,7 +44,6 @@ parse con-leche does on that file.
 -/
 module
 
-public import ConRon.Arena.Frontend.ExportC
 
 @[expose] public section
 

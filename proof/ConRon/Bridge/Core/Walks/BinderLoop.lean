@@ -29,14 +29,17 @@ order.
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Core.Walks.Frame
-public import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.ExprOps.Owed
 public import ConRon.Bridge.ExprOps.Subst
-public import ConRon.Bridge.Core.Walks.Proj
-public import ConRon.Bridge.ExprOps.Walks
-public import ConRon.Bridge.Core.Walks.FvarB
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.ExprOps.Walks
+import ConRon.Bridge.Core.Walks.FvarB
 public import ConLeche.Verify.BinderLoop
+public import ConRon.Bridge.ExprOps.Abs
+public import ConRon.Bridge.Core.Knot
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

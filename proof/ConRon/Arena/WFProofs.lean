@@ -17,7 +17,8 @@ The arena's own verification, beside the implementation (con-leche's lesson
 -/
 module
 
-public import ConRon.Arena.WFSkip
+import ConRon.Arena.WFSkip
+public import ConRon.Arena.WF
 
 @[expose] public section
 

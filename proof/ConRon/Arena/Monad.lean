@@ -34,9 +34,8 @@ them when the driver is wired to the checker.
 -/
 module
 
-public import ConRon.Arena.WFProofs
 public import ConRon.Arena.CoreState
-public import ConLeche.Kernel.Level
+public import ConRon.Arena.Denote
 
 @[expose] public section
 

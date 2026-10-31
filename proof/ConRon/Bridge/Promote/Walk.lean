@@ -20,7 +20,9 @@ gives them for every run, unconditionally.
 module
 
 public import ConRon.Bridge.Promote.Memo
-public import ConRon.Bridge.Promote.Weak
+import ConRon.Bridge.Promote.Weak
+import ConRon.Bridge.Rel
+import ConRon.Arena.PersistentRun
 
 public section
 

@@ -51,9 +51,18 @@ the twin with the nested pattern as a `Bool` test (`substPWAt_split`).
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Nat
-public import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Proj
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+public import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Knot
+import ConLeche.Verify.Mono
+public import ConLeche.Verify.Knot
+import ConRon.Bridge.SpecsL
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

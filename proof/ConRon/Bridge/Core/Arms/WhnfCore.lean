@@ -23,12 +23,10 @@ scrutinee's reduction then `reduceProjCore` (fired field `.cont`, stuck node
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Core.Walks.Owed
-public import ConRon.Bridge.Core.Walks.Iota
-public import ConRon.Bridge.Core.Walks.ProjCore
-public import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.ProjCore
 public import ConRon.Bridge.Core.Walks.BetaSpine
+import ConRon.Bridge.Core.Walks.Spine
 
 public section
 

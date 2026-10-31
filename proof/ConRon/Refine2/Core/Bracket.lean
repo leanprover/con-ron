@@ -58,6 +58,7 @@ primitives are the plain `SimS₀` lemmas at the end of this file, and
 -/
 import ConRon.Refine2.Specs
 import ConRon.Arena.Core
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

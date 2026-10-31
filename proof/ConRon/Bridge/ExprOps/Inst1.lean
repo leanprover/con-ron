@@ -57,8 +57,10 @@ no case split.  The cutoff and the catch-all are one equation each
 -/
 module
 
-public import ConRon.Bridge.Specs
+import ConRon.Bridge.Specs
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.ExprOps
 
 public section
 

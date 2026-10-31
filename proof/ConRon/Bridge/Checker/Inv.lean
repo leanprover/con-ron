@@ -39,6 +39,7 @@ module
 
 public import ConRon.Bridge.Promote.Exact
 public import ConLeche.Verify.EnvWF
+import ConRon.Bridge.Promote.WalkDecl
 
 public section
 

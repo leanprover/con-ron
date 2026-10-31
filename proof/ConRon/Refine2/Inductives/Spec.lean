@@ -42,6 +42,7 @@ standing rule for a twin (DESIGN §8.4).
 import ConRon.Refine2.Inductives.Shape
 import ConRon.Arena.Inductives.StructInstall
 import ConRon.Arena.Inductives.SumInstall
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

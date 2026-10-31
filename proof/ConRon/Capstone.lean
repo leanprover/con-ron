@@ -9,6 +9,9 @@ import ConRon.Refine2.Checker.Phased
 import ConRon.Bridge.Checker.Phased
 import ConRon.Refine2.Frontend.Source
 import ConRon.Bridge.Inductives.Decl
+import ConLeche.MainTheorem
+import ConRon.Bridge.Checker.Pins
+import ConRon.Bridge.Frontend.Prepare
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche

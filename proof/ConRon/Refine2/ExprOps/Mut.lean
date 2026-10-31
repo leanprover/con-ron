@@ -48,6 +48,7 @@ import ConRon.Refine2.ExprOps.Pure
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Arena.ExprOps
 import ConRon.Refine.ExprOpsMeta
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

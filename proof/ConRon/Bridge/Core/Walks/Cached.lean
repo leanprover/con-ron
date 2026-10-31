@@ -56,10 +56,17 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Frame
-public import ConRon.Bridge.Promote.Pers
-public import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Core.Walks.Frame
+import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.ExprOps.Owed
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.Core.Memo
+import ConLeche.Verify.InstLevels
+public import ConLeche.Verify.EnvWF
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.Core
 
 public section
 

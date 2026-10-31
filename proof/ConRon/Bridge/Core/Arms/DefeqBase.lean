@@ -17,13 +17,16 @@ so that the three can build in parallel:
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Core.Walks.PropRead
-public import ConRon.Bridge.Core.Walks.Stuck
-public import ConRon.Bridge.Core.Walks.ProjLit
-public import ConRon.Bridge.Core.Walks.Guards
-public import ConRon.Bridge.Core.Walks.Mono
-public import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.Guards
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Walks.Spine
+public import ConRon.Bridge.Core.Knot
+public import ConLeche.Verify.Mono
+public import ConLeche.Verify.EnvWF
+import ConRon.Bridge.GrindAttr
 
 public section
 

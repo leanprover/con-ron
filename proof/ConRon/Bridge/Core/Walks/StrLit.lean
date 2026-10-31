@@ -15,6 +15,11 @@ DESIGN §8.3's *index equality is structural equality* (`beq_of_denoteE`,
 module
 
 public import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

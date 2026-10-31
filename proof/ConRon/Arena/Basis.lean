@@ -29,7 +29,8 @@ con-leche does.
 -/
 module
 
-public import ConRon.Arena.TrustAxioms
+public import ConRon.Arena.Intern
+public import ConRon.Arena.Canon
 
 @[expose] public section
 

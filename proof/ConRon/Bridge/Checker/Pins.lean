@@ -41,7 +41,10 @@ module
 
 public import ConRon.Bridge.Checker.Decl
 public import ConRon.Bridge.Frontend.Shared
-public import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Specs
+public import ConRon.Arena.Checker
 
 public section
 

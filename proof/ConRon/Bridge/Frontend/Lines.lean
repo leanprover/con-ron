@@ -29,7 +29,9 @@ reachable at the post-parse state.
 -/
 module
 
-public import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.Frontend.Shared
+public import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Specs
 
 public section
 

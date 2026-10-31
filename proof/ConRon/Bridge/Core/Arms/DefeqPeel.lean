@@ -32,8 +32,12 @@ fast path answers `true` at every fuel that answers at all.
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.ExprOps.Spine
+public import ConRon.Bridge.Core.Knot
+import ConLeche.Verify.Mono
+import ConRon.Bridge.Specs
 
 public section
 

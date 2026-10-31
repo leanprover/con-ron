@@ -36,7 +36,9 @@ not.  So `SimEOp` and `SimOOp` carry it and `SimBOp` does not.
 -/
 module
 
-public import ConRon.Bridge.Core.Knot
+public import ConLeche.Verify.Shift
+public import ConRon.Bridge.Rel
+public import ConLeche.Kernel.Core
 
 public section
 

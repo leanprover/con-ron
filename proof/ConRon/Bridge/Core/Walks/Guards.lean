@@ -26,8 +26,11 @@ named slot.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Spec
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.Core.Walks.Iota
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.Core
 
 public section
 

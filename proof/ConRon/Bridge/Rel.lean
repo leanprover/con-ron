@@ -29,9 +29,9 @@ The groups, in order:
 -/
 module
 
-public import ConRon.Arena
-public import ConLeche.Kernel.ExprOps
 public import Std.WP
+public import ConRon.Arena.Frontend.Readback
+public import ConRon.Arena.WFProofs
 
 public section
 

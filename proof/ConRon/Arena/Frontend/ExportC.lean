@@ -64,9 +64,9 @@ number; a scan error and a record verdict keep theirs, since those are values.
 module
 
 public import ConRon.Arena.Frontend.Types
-public import ConRon.Arena.ExprOps
 public import ConLeche.Frontend.Scan.Fast
 public import ConLeche.Kernel.Level
+public import ConRon.Arena.Env
 
 @[expose] public section
 

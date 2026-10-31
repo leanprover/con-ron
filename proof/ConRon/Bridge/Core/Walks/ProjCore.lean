@@ -22,7 +22,14 @@ The walk's callees: `projLitToCtor_spec`, `projAnsAt`,
 module
 
 public import ConRon.Bridge.Core.Walks.ProjLit
-public import ConLeche.Verify.BetaSpine
+import ConLeche.Verify.BetaSpine
+import ConRon.Bridge.Core.Walks.IotaLeaves
+import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Spine
+public import ConLeche.Verify.EnvWF
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

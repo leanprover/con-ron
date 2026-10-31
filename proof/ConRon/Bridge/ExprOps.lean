@@ -27,7 +27,6 @@ dispatching walk).  Read it before any of the others.
 -/
 module
 
-public import ConRon.Bridge.Specs
 
 public section
 

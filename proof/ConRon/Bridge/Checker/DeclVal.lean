@@ -51,12 +51,18 @@ terms the core must run on.
 -/
 module
 
-public import ConRon.Bridge.Checker.Base
-public import ConRon.Bridge.Checker.Decl
 public import ConRon.Bridge.Checker.Basis
-public import ConRon.Bridge.Core.Walks.Cached
-public import ConLeche.Verify.CheckerSplit
-public import ConLeche.Verify.Extend.Inversions
+import ConRon.Bridge.Core.Walks.Cached
+import ConLeche.Verify.CheckerSplit
+import ConLeche.Verify.Extend.Inversions
+import ConLeche.Verify.BridgeDecl
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Specs
+public import ConLeche.Kernel.CheckerSplit
 
 public section
 

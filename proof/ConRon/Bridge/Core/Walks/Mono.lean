@@ -57,7 +57,6 @@ twin moves.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Spec
 public import ConLeche.Verify.Mono
 /- `fst_tac`/`snd_tac` close the projection equations by `rfl` through
 `pairFns`'s body, which con-leche's `Verify/PairM` (a plain `public section`)

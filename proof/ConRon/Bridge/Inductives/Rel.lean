@@ -34,16 +34,19 @@ module
 
 public import ConRon.Bridge.Inductives.Run
 public import ConRon.Bridge.Checker.Hyp
-public import ConRon.Bridge.Checker.Names
-public import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.Cached
 public import ConRon.Bridge.ExprOps.Spine
-public import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Ranges
 public import ConRon.Bridge.ExprOps.Subst
-public import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.Owed
 public import ConRon.Bridge.ExprOps.Spine
 /- `simp only [List.allM]`/`[List.anyM]` unfold the toolchain's monadic list
 folds, whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.Specs
 
 public section
 

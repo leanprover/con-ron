@@ -104,6 +104,7 @@ walks at all here: both are exactly the derived bit the store already carries.
 module
 
 public import ConRon.Arena.Monad
+public import ConLeche.Kernel.Level
 
 @[expose] public section
 

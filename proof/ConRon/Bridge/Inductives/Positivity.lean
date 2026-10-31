@@ -32,13 +32,23 @@ The twin's deviations (its module note) are absorbed as follows:
 -/
 module
 
-public import ConRon.Bridge.Inductives.FieldTele
-public import ConRon.Bridge.Inductives.StructParts
-public import ConRon.Bridge.Checker.Base
-public import ConLeche.Verify.Cached.NestPosC
+import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Checker.Base
+import ConLeche.Verify.Cached.NestPosC
 /- `simp only [List.allM]`/`[List.anyM]` unfold the toolchain's monadic list
 folds, whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
+import ConRon.Bridge.Inductives.PosWalks
+public import ConRon.Bridge.Inductives.Rel
+public import ConLeche.Verify.Inductives.NestScope
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.FvarB
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Specs
 
 public section
 

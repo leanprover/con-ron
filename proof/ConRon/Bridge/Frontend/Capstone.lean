@@ -54,14 +54,13 @@ premise of its own: `hind` alone covers it.
 -/
 module
 
-public import ConRon.Bridge.Frontend.Prepare
-public import ConRon.Bridge.Checker
-public import ConRon.Arena.Main
-public import ConLeche.MainTheorem
 -- `Semantics.declThmRun_of` and `Model.no_proof_of_False_pure`, which
 -- `ConLeche.MainTheorem` imports privately
 import ConLeche.Semantics.Bridge.DeclRun
 import ConLeche.Model.Fold
+public import ConLeche.SetTheory.Core
+public import ConRon.Bridge.Checker.Inv
+public import ConLeche.Kernel.CheckDecl
 
 public section
 

@@ -38,6 +38,7 @@ module
 
 public import ConRon.Arena.Inductives.RecCheck
 public import ConRon.Arena.Inductives.ClassRead
+public import ConRon.Arena.Inductives.BlockRec
 
 @[expose] public section
 

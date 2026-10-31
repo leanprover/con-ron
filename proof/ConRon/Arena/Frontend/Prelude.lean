@@ -35,6 +35,7 @@ module
 
 public import ConRon.Arena.Frontend.Prepare
 public import ConRon.Arena.Frontend.PreludeText
+public import ConRon.Arena.Frontend.ExportC
 
 @[expose] public section
 

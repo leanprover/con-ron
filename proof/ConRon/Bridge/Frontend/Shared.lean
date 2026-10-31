@@ -13,8 +13,10 @@ along.
 module
 
 public import ConRon.Bridge.Frontend.Rel
-public import ConRon.Bridge.SpecsL
+import ConRon.Bridge.SpecsL
 public import ConRon.Arena.Frontend.Readback
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
 
 public section
 

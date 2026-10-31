@@ -59,7 +59,9 @@ Every one of them bottoms out in `checkConstantVal_bridge`
 -/
 module
 
-public import ConRon.Bridge.Checker.Hyp
+public import ConLeche.Verify.EnvWF
+public import ConRon.Bridge.Promote.Exact
+public import ConLeche.Kernel.CheckDecl
 
 public section
 

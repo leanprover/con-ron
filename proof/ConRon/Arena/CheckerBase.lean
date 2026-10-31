@@ -20,7 +20,6 @@ constant check and the strategy-independent helpers the install paths share.
 -/
 module
 
-public import ConRon.Arena.NatOpPinSet
 public import ConRon.Arena.Inductives.StructParts
 
 @[expose] public section

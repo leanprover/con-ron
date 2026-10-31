@@ -10,7 +10,7 @@ or a tag constant that collides.
 Everything here is kernel-reduced, so it is a claim the build checks, not an
 `#eval` print.
 -/
-module
+module -- shake: keep-all (a `#guard` stores no constant shake can see)
 
 public import ConRon.Arena.Denote
 /- The `#guard`s below are EVALUATED, so the constants they name have to be

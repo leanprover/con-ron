@@ -26,8 +26,12 @@ travel along the store order (§2).
 -/
 module
 
-public import ConRon.Bridge.ExprOps.MemoSpecs
-public import ConRon.Bridge.SpecsL
+import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.SpecsL
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+public import ConRon.Bridge.StateOK
+public import ConRon.Arena.ExprOps
 
 public section
 

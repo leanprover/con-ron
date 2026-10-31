@@ -40,9 +40,10 @@ read, with their cone:
 -/
 module
 
-public import ConRon.Bridge.Checker.Inv
-public import ConRon.Bridge.Specs
-public import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Specs
+import ConRon.Bridge.Promote.Pers
+public import ConRon.Bridge.StateOK
+public import ConRon.Arena.CheckerBase
 
 public section
 

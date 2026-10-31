@@ -14,8 +14,9 @@ and adds the core-grade shapes.
 module
 
 public import ConRon.Bridge.Inductives.Records
-public import ConRon.Bridge.Specs
-public import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Specs
+import ConRon.Bridge.Promote.Pers
+public import ConRon.Bridge.Grind
 
 public section
 

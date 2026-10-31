@@ -37,8 +37,8 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
 -/
 module
 
-public import ConRon.Arena.Inductives.BlockRec
 public import ConRon.Arena.Inductives.SumInstall
+public import ConRon.Arena.Inductives.BlockParts
 
 @[expose] public section
 

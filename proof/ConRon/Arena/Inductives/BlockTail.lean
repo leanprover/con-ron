@@ -28,6 +28,7 @@ twin is `arena::inductives::block_tail`.
 module
 
 public import ConRon.Arena.Inductives.GenRec
+public import ConRon.Arena.Inductives.BlockInstall
 
 @[expose] public section
 

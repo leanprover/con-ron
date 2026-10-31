@@ -29,8 +29,9 @@ prebuilt in con-leche's `.lake`, so neither costs elaboration here.
 -/
 module
 
-public import ConRon.Bridge.Checker.Decl
-public import ConLeche.Verify.BridgeDecl
+import ConLeche.Verify.BridgeDecl
+public import ConLeche.Kernel.CheckDecl
+import ConRon.Arena.Handle -- shake: keep (`open ConRon.Arena` needs the namespace to exist)
 
 public section
 

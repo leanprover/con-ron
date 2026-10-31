@@ -33,6 +33,7 @@ indexed `IFEnv`.
 -/
 import ConRon.Refine2.Inv
 import ConRon.Arena.Env
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

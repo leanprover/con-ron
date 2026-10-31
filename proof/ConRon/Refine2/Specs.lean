@@ -32,6 +32,8 @@ two `Array`s, a `ron::HashMap2` against a `Std.HashMap`); the two above it are
 -/
 import ConRon.Refine2.Shape
 import ConRon.Arena.PersistentRun
+import ConRon.Arena.WFProofs
+import ConRon.Arena.WFSkip
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

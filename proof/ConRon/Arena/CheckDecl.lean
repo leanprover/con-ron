@@ -29,6 +29,7 @@ module
 public import ConRon.Arena.Inductives.BlockTail
 public import ConRon.Arena.DeclCheck
 public import ConRon.Arena.Promote
+public import ConRon.Arena.Basis
 
 @[expose] public section
 

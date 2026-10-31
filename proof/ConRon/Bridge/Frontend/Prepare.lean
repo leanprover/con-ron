@@ -49,13 +49,17 @@ hypothesis of any theorem.
 -/
 module
 
-public import ConRon.Bridge.Frontend.Chunks
+import ConRon.Bridge.Frontend.Chunks
 public import ConRon.Arena.Frontend.Prelude
-public import ConLeche.Frontend.Prelude
 public import ConLeche.Frontend.NatOpGround
-public import ConLeche.Verify.Frontend.Prepare
-public import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.DeclVal
 public import Init.Internal.Order.While
+public import ConLeche.Frontend.Prepare
+import ConRon.Bridge.Frontend.Lines
+public import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.Specs
 
 public section
 

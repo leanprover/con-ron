@@ -15,8 +15,9 @@ halves of con-leche's `Env`/`FEnv` pair.
 -/
 module
 
-public import ConRon.Arena.StdAxioms
 public import ConLeche.Kernel.TrustAxioms
+public import ConRon.Arena.Intern
+public import ConRon.Arena.Core
 
 @[expose] public section
 

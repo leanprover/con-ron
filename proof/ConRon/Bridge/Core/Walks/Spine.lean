@@ -32,10 +32,19 @@ shape and is what `etaCert_spec` needs.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Owed
-public import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Owed
+import ConRon.Bridge.Core.Walks.Cached
 public import ConRon.Bridge.ExprOps.Spine
 public import ConRon.Bridge.Grind
+public import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Knot
+import ConLeche.Verify.InferLemmas
+public import ConLeche.Verify.Knot
+public import ConLeche.Verify.EnvWF
+public import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

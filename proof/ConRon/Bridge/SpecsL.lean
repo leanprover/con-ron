@@ -21,7 +21,8 @@ their specs belong to the `Promote` tier's statement.
 -/
 module
 
-public import ConRon.Bridge.Specs
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
 
 public section
 

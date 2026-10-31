@@ -44,6 +44,7 @@ import ConRon.Refine2.Checker.Shape
 import ConRon.Arena.Intern
 import ConRon.Refine2.Promote.Prims
 import ConRon.Refine.Env
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

@@ -11,7 +11,8 @@ binder view its tag spells
 -/
 module
 
-public import ConRon.Bridge.Rel
+import ConRon.Arena.WFProofs
+public import ConRon.Arena.WF
 
 public section
 

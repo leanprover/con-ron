@@ -21,6 +21,7 @@ module
 
 public import ConRon.Gen.Emit
 public import ConLeche.Kernel.NatOpPins
+public import ConLeche.Kernel.BasisA
 
 @[expose] public section
 

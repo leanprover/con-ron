@@ -26,6 +26,15 @@ eventually from con-leche's `defeqStuck` at the arm's pair (`DqPost`,
 module
 
 public import ConRon.Bridge.Core.Arms.DefeqBase
+import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Owed
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Memo
+import ConLeche.Verify.InferLemmas
+import ConRon.Bridge.Specs
 
 public section
 

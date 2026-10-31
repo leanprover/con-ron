@@ -32,7 +32,8 @@ spec's own conjuncts.
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.StateOK
 
 public section
 

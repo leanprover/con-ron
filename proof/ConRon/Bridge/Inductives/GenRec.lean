@@ -42,16 +42,25 @@ module
 public import ConRon.Arena.Inductives.GenRec
 public import ConRon.Bridge.Inductives.RecCheck
 public import ConRon.Bridge.Inductives.ClassRead
-public import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.FieldTele
 public import ConRon.Bridge.Inductives.Positivity
-public import ConRon.Bridge.Inductives.BlockRec
+import ConRon.Bridge.Inductives.BlockRec
 public import ConLeche.Verify.Cached.GenRecC
 public import ConLeche.Verify.Inductives.GenRecRun
-public import ConLeche.Verify.Extend.Inversions
 public import ConLeche.Verify.Cached.BlockRunC
 /- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
 `List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
+import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.StructParts
+import ConLeche.Verify.Inductives.RecCheckScope
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.FvarB
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Specs
 
 public section
 

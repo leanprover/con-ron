@@ -64,6 +64,8 @@ module
 
 public import ConRon.Bridge.Checker.Inv
 public import ConLeche.Frontend.ExportC
+import ConRon.Bridge.Promote.WalkDecl
+public import ConRon.Arena.Frontend.ExportC
 
 public section
 

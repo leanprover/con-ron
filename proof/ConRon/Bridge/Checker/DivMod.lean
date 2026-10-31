@@ -10,7 +10,16 @@ uses too; `Bridge/Checker/Arms.lean`'s `defn` arm consumes
 -/
 module
 
-public import ConRon.Bridge.Checker.TypePins
+import ConRon.Bridge.Checker.TypePins
+import ConRon.Bridge.Checker.DeclVal
+public import ConRon.Bridge.Checker.Basis
+public import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Base
+import ConLeche.Verify.BridgeDecl
+import ConRon.Bridge.Checker.Names
+public import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Specs
 
 public section
 

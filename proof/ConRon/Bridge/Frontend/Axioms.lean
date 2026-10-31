@@ -15,9 +15,17 @@ names neither, which is what makes "two named hypotheses" a checkable claim
 rather than an editorial one (`Bridge/Checker/Axioms.lean` makes the same
 point about its two).  The capstones are printed in the last sections below.
 -/
-module
+module -- shake: keep-all (`#print axioms` stores no constant shake can see)
 
 public import ConRon.Bridge.Frontend.Capstone
+import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.Frontend.Lines
+import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.StoreBind
+import ConRon.Bridge.Specs
+import ConRon.Bridge.Frontend.Chunks
+import ConRon.Bridge.Frontend.Prepare
 
 public section
 

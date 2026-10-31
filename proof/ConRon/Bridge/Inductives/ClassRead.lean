@@ -21,8 +21,12 @@ inline one by `rfl` at its use.  The telescope opener's run forms are
 -/
 module
 
-public import ConRon.Bridge.Inductives.FieldTele
-public import ConLeche.Verify.EnvBound
+import ConRon.Bridge.Inductives.FieldTele
+import ConLeche.Verify.EnvBound
+import ConRon.Bridge.Inductives.PosWalks
+public import ConRon.Bridge.Inductives.Rel
+import ConLeche.Verify.Inductives.NestScope
+import ConRon.Bridge.ExprOps.Inst1
 
 public section
 

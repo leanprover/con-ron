@@ -33,15 +33,21 @@ readers state them.  The twin's two side-by-side lists (`checkBlockCtors`,
 -/
 module
 
-public import ConRon.Bridge.Inductives.SumInstall
-public import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.SumInstall
+import ConRon.Bridge.Inductives.BlockParts
 public import ConRon.Bridge.Inductives.Positivity
-public import ConLeche.Verify.Cached.BlockRunC
+import ConLeche.Verify.Cached.BlockRunC
 -- `Verify.openPisAtFvars_length`, which no public import re-exports
 import ConLeche.Verify.Denote.IndFrame
 /- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
 `List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
+import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.StructParts
+import ConLeche.Verify.Cached.NestPosC
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Specs
 
 public section
 

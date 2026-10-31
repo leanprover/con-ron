@@ -67,6 +67,7 @@ the port's scalar has to be tied back to the field it was split from.
 import ConRon.Refine2.Core.Probes
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Arena.CoreIO
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

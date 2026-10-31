@@ -26,7 +26,7 @@ there is only one.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-module
+module -- shake: keep-all (a `#guard` stores no constant shake can see)
 
 public import ConRon.Arena.CoreIO
 public import ConLeche.Kernel.TypeChecker

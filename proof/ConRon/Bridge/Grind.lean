@@ -102,7 +102,7 @@ a walk module adds only what is about its own walk.
 module
 
 public import ConRon.Bridge.StateOK
-public import ConRon.Bridge.GrindAttr
+import ConRon.Bridge.GrindAttr
 
 public section
 

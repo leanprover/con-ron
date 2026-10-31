@@ -52,7 +52,8 @@ Each of the three interns is ONE field update as a value
 -/
 module
 
-public import ConRon.Bridge.Rel
+import ConRon.Arena.WFProofs
+public import ConRon.Arena.WF
 
 public section
 

@@ -6,9 +6,21 @@ which must print `[propext, Classical.choice, Quot.sound]` and nothing else:
 no `sorryAx`.  `CoreSpec` never prints — it is a hypothesis of the statements,
 as everywhere else in this library.
 -/
-module
+module -- shake: keep-all (`#print axioms` stores no constant shake can see)
 
 public import ConRon.Bridge.Inductives.Decl
+import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.ClassRead
+import ConRon.Bridge.Inductives.Positivity
+import ConRon.Bridge.Inductives.BlockInstall
+import ConRon.Bridge.Inductives.SumInstall
+import ConRon.Bridge.Inductives.StructInstall
+import ConRon.Bridge.Inductives.RecCheck
+import ConRon.Bridge.Inductives.GenRec
+import ConRon.Bridge.Inductives.BlockWF
+import ConRon.Bridge.Inductives.BlockTail
 
 public section
 

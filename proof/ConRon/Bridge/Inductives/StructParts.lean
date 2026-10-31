@@ -24,7 +24,10 @@ one" — that travels in and out of the walk: `LooseMemoOK`, con-leche's
 -/
 module
 
-public import ConRon.Bridge.Inductives.Rel
+import ConRon.Bridge.Inductives.Rel
+public import ConRon.Bridge.Inductives.Run
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Specs
 
 public section
 

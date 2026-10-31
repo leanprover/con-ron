@@ -2,6 +2,7 @@ module
 
 public import ConRon.Arena.Frontend.Prelude
 public import ConRon.Arena.Checker
+public import ConLeche.Kernel.NatOpPins
 
 @[expose] public section
 

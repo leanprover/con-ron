@@ -64,6 +64,7 @@ exist only to state and use these lemmas; Theorem 1's own needs are P3's.
 -/
 import ConRon.Refine2.Shape
 import ConRon.Arena.ExprOps
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

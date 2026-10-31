@@ -15,10 +15,18 @@ equation over tags and projections (`isCtorApp_eq`, `litToCtorIfNat_eq`,
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.Stuck
-public import ConRon.Bridge.Core.Walks.ProjLit
+import ConRon.Bridge.Core.Walks.ProjLit
 public import ConRon.Bridge.ExprOps.Guards
-public import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Walks.Eta
+import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.ExprOps.Spine
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.Core
 
 public section
 

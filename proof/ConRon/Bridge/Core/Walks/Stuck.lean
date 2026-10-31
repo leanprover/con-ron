@@ -37,10 +37,20 @@ of this tier has in hand (`certs_of_verifiedChecks`, con-leche's
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.PropRead
-public import ConRon.Bridge.Core.Walks.Reserved
-public import ConRon.Bridge.Core.Walks.Eta
-public import ConRon.Bridge.ExprOps.Walks
+import ConRon.Bridge.Core.Walks.Reserved
+import ConRon.Bridge.Core.Walks.Eta
+import ConRon.Bridge.ExprOps.Walks
+public import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Owed
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Memo
+import ConLeche.Verify.InferLemmas
+public import ConLeche.Verify.EnvWF
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

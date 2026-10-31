@@ -19,8 +19,10 @@ the state phase B ended in.
 -/
 module
 
-public import ConRon.Bridge.Checker.Split
+import ConRon.Bridge.Checker.Split
 public import ConRon.Arena.Pooled
+public import ConRon.Bridge.Checker.Decl
+public import ConRon.Bridge.Checker.Hyp
 
 public section
 

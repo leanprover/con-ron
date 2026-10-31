@@ -83,7 +83,11 @@ Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish`.  What
 -/
 module
 
-public import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.ExprOps
 
 public section
 

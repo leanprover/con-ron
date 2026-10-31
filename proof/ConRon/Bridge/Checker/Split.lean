@@ -55,13 +55,27 @@ punchline lands on con-leche's pure `checkDeclsPure` itself, and the model is
 -/
 module
 
-public import ConRon.Bridge.Checker.Fold
+import ConRon.Bridge.Checker.Fold
 public import ConLeche.Verify.EnvBound
 public import ConRon.Bridge.Checker.Nodup
 public import ConRon.Bridge.Promote.Coh
 /- `simp [Env.prefixTo]` unfolds con-leche's prefix view, which
 `Verify/EnvBound` (a plain `public section`) does not expose. -/
 import all ConLeche.Verify.EnvBound
+import ConRon.Bridge.Checker.Mono
+import ConRon.Bridge.Checker.Arms
+public import ConRon.Bridge.Checker.DeclVal
+import ConLeche.Verify.CheckerSplit
+import ConLeche.Verify.Extend.Inversions
+public import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Promote.Weak
+import ConRon.Bridge.Specs
+public import ConRon.Arena.Checker
 
 public section
 

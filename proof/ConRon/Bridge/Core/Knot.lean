@@ -48,13 +48,10 @@ query's fuel is exactly what `CacheOK`'s depth-universal `∃ F, ∀ d` clause
 -/
 module
 
-public import ConRon.Bridge.Specs
-public import ConLeche.Verify.Knot
-public import ConLeche.Verify.Deep
-public import ConLeche.Verify.InferLemmas
-public import ConLeche.Verify.InferLeaves
-public import ConLeche.Verify.InferIOLeaves
-public import ConLeche.Verify.Abstract
+public import ConLeche.Verify.Shift
+public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.Core
 
 public section
 

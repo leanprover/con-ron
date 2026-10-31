@@ -23,7 +23,19 @@ two literal matches run on equations one constructor deep
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.IotaLeaves
+import ConRon.Bridge.Core.Walks.IotaLeaves
+public import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.Eta
+import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Memo
+import ConLeche.Verify.InferLemmas
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
+import ConRon.Bridge.Core.Walks.ProjLit -- shake: keep (its `grind_pattern [bridge_grind] strLitToConstructor_WScoped`; shake records the lemma, not the pattern)
 
 public section
 

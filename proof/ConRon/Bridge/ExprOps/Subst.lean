@@ -100,9 +100,11 @@ conditions are the derived-word cutoff and the catch-all leaf
 -/
 module
 
-public import ConRon.Bridge.Specs
-public import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Specs
+import ConRon.Bridge.ExprOps.Ranges
 public import ConRon.Bridge.Grind
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.ExprOps
 
 public section
 

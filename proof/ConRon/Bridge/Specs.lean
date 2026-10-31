@@ -65,12 +65,13 @@ module
 
 public import ConRon.Bridge.StateOK
 public import ConRon.Bridge.Grind
-public import ConRon.Bridge.StoreNested
-public import ConRon.Bridge.StoreBind
-public import ConRon.Arena.PersistentRun
+import ConRon.Bridge.StoreNested
+import ConRon.Bridge.StoreBind
 public import Std.WP
 -- the `vcgen` syntax on v4.35.0 (lean4#15290 moves it to `Std.WP.Tactic`)
 public import Std.Tactic.Do
+import ConRon.Bridge.GrindAttr
+public import ConRon.Arena.Core
 
 public section
 

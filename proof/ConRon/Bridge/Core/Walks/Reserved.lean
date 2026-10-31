@@ -17,8 +17,9 @@ import, this file would shrink to nothing.
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Specs
+public import ConRon.Bridge.StateOK
+public import ConRon.Arena.Core
 
 public section
 

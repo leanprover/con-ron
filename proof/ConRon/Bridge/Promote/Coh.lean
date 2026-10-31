@@ -26,6 +26,7 @@ no distinctness: the table map's re-index inserts oldest first).
 module
 
 public import ConRon.Bridge.Promote.Exact
+public import ConRon.Bridge.Promote.WalkDecl
 
 public section
 

@@ -23,7 +23,7 @@ named hypotheses" a checkable claim rather than a prose one.
 
 **The seven arms are printed in group 2**, beside the theorem they make up.
 -/
-module
+module -- shake: keep-all (`#print axioms` stores no constant shake can see)
 
 public import ConRon.Bridge.Checker.Fold
 public import ConRon.Bridge.Checker.Base
@@ -32,6 +32,12 @@ public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.Split
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.Arms
+import ConRon.Bridge.Checker.Mono
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Specs
+import ConRon.Bridge.Checker.DeclWF
+import ConRon.Bridge.Checker.TypePins
 
 public section
 

@@ -19,10 +19,15 @@ well-scoped.
 -/
 module
 
-public import ConRon.Bridge.Core.Memo
-public import ConRon.Bridge.Core.Walks.Proj
-public import ConRon.Bridge.Core.Walks.Guards
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Guards
 public import ConLeche.Verify.BetaSpine
+public import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.Core.Walks.Spine
+public import ConRon.Bridge.Core.Knot
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 

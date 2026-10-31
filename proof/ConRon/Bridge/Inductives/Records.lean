@@ -20,10 +20,10 @@ of the foundation only (`Bridge/Rel.lean`).
 -/
 module
 
-public import ConRon.Bridge.Rel
-public import ConRon.Arena.Inductives.BlockTail
+import ConRon.Bridge.Rel
 public import ConLeche.Verify.BridgeDecl
-public import ConLeche.Verify.Inductives.NestScope
+public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Frontend.Readback
 
 public section
 

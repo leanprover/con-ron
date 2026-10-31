@@ -24,10 +24,16 @@ is `getAppFn`/`getAppArgs` over.
 -/
 module
 
-public import ConRon.Bridge.Core.Walks.PropRead
-public import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.StrCtor
 public import ConLeche.Verify.BetaSpine
-public import ConRon.Bridge.Core.Walks.Iota
+import ConRon.Bridge.Core.Walks.Iota
+import ConRon.Bridge.Core.Walks.Proj
+public import ConRon.Bridge.ExprOps.Subst
+public import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Core.Memo
+public import ConRon.Bridge.Core.Knot
+import ConRon.Bridge.Specs
 
 public section
 

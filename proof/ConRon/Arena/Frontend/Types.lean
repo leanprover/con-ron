@@ -29,7 +29,7 @@ folds the line into those messages before returning.
 -/
 module
 
-public import ConRon.Arena.Env
+public import ConRon.Arena.Monad
 
 @[expose] public section
 

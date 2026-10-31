@@ -9,7 +9,8 @@ table and nothing else), with the core-grade corollary beside it.
 -/
 module
 
-public import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockParts
+public import ConRon.Bridge.Inductives.Rel
 
 public section
 

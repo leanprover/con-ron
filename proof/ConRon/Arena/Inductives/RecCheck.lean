@@ -47,7 +47,8 @@ rules (`tgtStoredRules`, `consBlockRecsTF`) with the container bit
 -/
 module
 
-public import ConRon.Arena.Inductives.BlockInstall
+public import ConRon.Arena.Inductives.SumInstall
+public import ConRon.Arena.Inductives.BlockParts
 
 @[expose] public section
 

@@ -24,7 +24,7 @@ the file.
 -/
 module
 
-public import ConLeche.Kernel.BasisA
+public import ConLeche.Kernel.Env
 
 @[expose] public section
 

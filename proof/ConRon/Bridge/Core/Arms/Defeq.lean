@@ -41,8 +41,14 @@ the twin as well (`defeqLams_spec`).
 module
 
 public import ConRon.Bridge.Core.Arms.DefeqLazy
-public import ConRon.Bridge.Core.Arms.DefeqStuck
-public import ConRon.Bridge.Core.Walks.ProjCore
+import ConRon.Bridge.Core.Arms.DefeqStuck
+import ConRon.Bridge.Core.Walks.ProjCore
+import ConRon.Bridge.Core.Walks.Guards
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Specs
+import ConRon.Bridge.Core.Arms.DefeqPeel -- shake: keep (`#print axioms` names it; no proof term does)
 
 public section
 

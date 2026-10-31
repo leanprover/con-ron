@@ -64,8 +64,11 @@ the conclusion is an equation between the arena's answer and con-leche's.
 module
 
 public import ConRon.Bridge.Core.Walks.Spec
-public import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Walks.Mono
 public import ConRon.Bridge.Grind
+public import ConRon.Bridge.Core.Knot
+public import ConLeche.Verify.Knot
+import ConRon.Bridge.GrindAttr
 
 public section
 

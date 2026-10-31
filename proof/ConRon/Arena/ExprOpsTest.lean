@@ -24,7 +24,7 @@ DESIGN.md §8.4's "correctness before proofs": (B) must agree with con-leche
 before a bridge lemma is written.  This is that check at module scope; the
 whole-checker one is P2f's `scripts/diff-e2e.sh --bin=`.
 -/
-module
+module -- shake: keep-all (a `#guard` stores no constant shake can see)
 
 public import ConRon.Arena.ExprOps
 public import ConLeche.Kernel.ExprOps

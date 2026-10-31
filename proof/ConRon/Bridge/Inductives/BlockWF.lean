@@ -16,14 +16,15 @@ module
 
 public import ConLeche.Verify.Inductives.BlockWF
 public import ConLeche.Verify.Inductives.DirectInv
-public import ConLeche.Verify.Cached.GenRecC
+import ConLeche.Verify.Cached.GenRecC
 public import ConLeche.Verify.BridgeDecl
-public import ConLeche.Semantics.Bridge.Sound
 public import ConLeche.Kernel.CheckDecl
 -- `blockNestCtx_inv`: con-leche's `Verify/Inductives/BlockWF` imports it privately
 import ConLeche.Verify.Inductives.PositivityInv
 -- `Verify.openPisAtFvars_length`: likewise, from `Verify/Denote/IndFrame`
 import ConLeche.Verify.Denote.IndFrame
+public import ConLeche.Verify.Inductives.TargetAuxFire
+import ConLeche.Verify.Inductives.BlockInv
 
 public section
 

@@ -39,6 +39,7 @@ proved — and which this tier reuses at `absBinderMeta` and `absLiteral`.
 import ConRon.Refine.Abs
 import ConRon.Refine.Nat
 import ConRon.Arena.Monad
+import ConRon.Arena.WFProofs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

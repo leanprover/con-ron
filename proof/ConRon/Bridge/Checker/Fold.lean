@@ -34,8 +34,9 @@ capstone (DESIGN `### Task #97-T2-CLEANUP`).
 -/
 module
 
-public import ConRon.Bridge.Checker.Mono
-public import ConRon.Bridge.Checker.Arms
+import ConRon.Bridge.Checker.Arms
+public import ConRon.Bridge.Checker.Decl
+public import ConRon.Bridge.Checker.Hyp
 
 public section
 
