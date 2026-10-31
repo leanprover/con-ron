@@ -70492,3 +70492,194 @@ sites, but only with hand-written hypothesis names, and never cheaper than
 The tactic and its test were removed before landing; this section is the
 record, and the tactic is short enough to rewrite from the description above
 if a large-context `grind` ever needs it.
+
+### Task #136 — Arena and Bridge as module files (2026-10-31, Opus)
+
+**The ask.**  con-agua vendors con-ron's Lean sources and proves its checker
+refines the arena twin.  No con-ron file was a `module`, so Lake could not
+stop a rebuild when an edit leaves a module's public interface unchanged
+(con-agua measured a proof-only edit rebuilding ~435 modules).  They asked
+for the arena and the bridge as module files.  The brief began as a pilot
+(the `Arena/Inductives/*` closure) and the maintainer widened it to the
+whole of both tiers ("just do the conversion").  For the record, the
+pilot closure was 33 modules.  The brief's 39 also counted
+`Arena/InductivesTest`, which a name glob picks up; it is a test of the
+whole checker and pulls in `Checker`, `CheckDecl`, `CheckerSplit`,
+`DeclCheck` and `Promote`.
+
+**What is a `module` now.**  178 files: all 57 under `ConRon/Arena/`, all 116
+under `ConRon/Bridge/`, the roots `ConRon/Arena.lean` and `ConRon/Bridge.lean`,
+and `ConRon/Gen/{Emit,Main}` and `ConRon/Dump/Pins` (header-only
+conversions, built as their `lean_exe`s; `gen-pins --check` passes).  These stay
+classic:
+* `ConRon/Generated/**` is deliberately not module output (task #112), and
+  `ConRon.lean`, `Refine/**`, `Refine2/**` and `Capstone.lean` import it.  A
+  classic file may import a module (it sees the whole module, private part
+  included, as shake's probe in con-leche found), so Refine2 and Capstone build
+  unchanged over the converted tiers.
+* `ConRon/Tools/Frontier{,Test}` is elaboration-time code: every
+  definition `#sorry_frontier` calls would need `meta`, and nothing that is a
+  module imports it.  Left classic.
+
+**Conventions: con-leche's** (its `CLAUDE.md`, "## The module system").
+The checker twin is the subject of the proofs, so every `Arena/*` file opens
+one `@[expose] public section`.  The bridge is proof code: every `Bridge/*`
+file opens a plain `public section`, and `@[expose]` goes on each
+definition another file unfolds.
+
+**Every change, by kind.**  Header and visibility only: no statement or
+proof text changed, and no `by rfl` substitution was needed (where a
+term-mode `rfl` failed, the definition it unfolds was exposed instead).
+1. *Headers.*  `module` in 178 files.  All 553 existing import edges became
+   `public import`; they are not minimised.  con-leche computes the minimal
+   set with `scripts/pub-import-plan.py` over `scripts/pub-iface.lean` and
+   its dead-code census.  con-ron has a port of the census
+   (`scripts/dead-census.lean`), so the plan could be reused, but that is
+   follow-up work.  In `Bridge/Specs.lean` one import came after a comment,
+   and it moved up into the header.
+2. *Arena exposure.*  All 57 files are exposed.  No private helper had to
+   become public, because no exposed definition mentions one.  The Arena's
+   private declarations are test fixtures (`*Test.lean`, 202), one lemma in
+   `WFProofs` and one in `PersistentRun`.
+3. *Bridge exposure.*  272 of the bridge's 431 `def`s carry `@[expose]` and
+   159 stay hidden.  The 59 `abbrev`s are exposed by the toolchain anyway.
+   Instances are exposed by default (an `@[expose]` on one warns "has no
+   effect"), so none carries the attribute.  The set was found in four
+   passes, the first three mechanical and the last driven by the build:
+   * (a) 194 defs are named in another bridge file.  This over-approximates:
+     it counts a mention, not an unfolding;
+   * (b) 44 are named in a `structure` field or in a term-mode `:= rfl`
+     theorem of their own file (`PMemoNOK` behind `PMemoOK.nM`, `instLPFn`'s
+     `@[bridge_grind =]` equations);
+   * (c) 20 are given to `grind`/`simp` by attribute (`attribute
+     [bridge_grind =] iValP`).  **The equation lemmas of a hidden definition
+     are not exported**, so `grind` downstream fails with no "not exposed"
+     note (`Core/Walks/PropRead`'s `headTypePW_specX`; found by exposing all
+     of `Grind.lean`, which fixed it, then bisecting);
+   * (d) 14 more were found by the build, most of them definitions unfolded
+     through another theorem's statement: `IndexCI`, `DSPost`,
+     `LeafGuardAt`, `prepOp`, `StepWS`, `SpineOK`, `RelBP`, `ucRuleStep`,
+     `denoteOpen`, `RSplit`, `dSeed`, `PNExt`, `containsO` and `optProj`.
+   Of the 159 that stay hidden, 152 appear in a public theorem statement.
+   So "exposed iff a public statement mentions it" would expose almost
+   everything, and the hidden set is what the build tolerated, not a
+   designed boundary.
+4. *Public → private: one.*  `Bridge/Inductives/BlockParts.lean`'s
+   `blockCounts_eq` became `private`.  A trap con-leche's list does not
+   name: **a `match` written inside a proof does not reuse the matcher of a
+   public statement in the same module.**  `blockCounts?_spec`'s
+   `have hm : (match … with …) = …; rw [hm]` stopped matching the goal's
+   `match`, which came from `blockCounts_eq`'s statement.  With the lemma
+   private, both matchers come from private elaboration and are shared
+   again.  Only this file uses the lemma.
+5. *Imports added: six.*  Five plain `import`s of con-leche lemmas that a
+   classic file reached through a con-leche module's private import:
+   `Verify/Inductives/PositivityInv` and `Verify/Denote/IndFrame` in
+   `Bridge/Inductives/BlockWF`, `IndFrame` again in `BlockInstall`, and
+   `Semantics/Bridge/DeclRun` and `Model/Fold` in `Bridge/Frontend/Capstone`.
+   These DID say "Unknown identifier", because a name is missing, not a body.
+   The sixth is `public import Std.Data.HashSet.Basic` in
+   `Arena/Frontend/NatOpGround`: `Std.HashSet` reached it only through a
+   `meta import` upstream ("may not access declaration … imported as
+   `meta`"), and a classic file does not draw that distinction.
+6. *`import all`: seven sites, none in the Arena.*
+   * `Init.Data.List.Control`, in `Bridge/Inductives/{Rel, Positivity,
+     BlockParts, BlockInstall, GenRec}`.  `simp only [List.allM]` (`anyM`,
+     `filterM`, `filterAuxM`, `findM?`) unfolds toolchain bodies that core
+     does not expose ("Invalid simp theorem … Expected a definition with an
+     exposed body").
+   * `ConLeche.Verify.PairM`, in `Bridge/Core/Walks/Mono`.  con-leche's
+     `fst_tac`/`snd_tac` close the projection equations by `rfl` through
+     `pairFns`'s body, and `Verify/PairM` is a plain `public section`.
+     Inside con-leche every user of the tactics sits in `PairM` itself.
+   * `ConLeche.Verify.EnvBound`, in `Bridge/Checker/Split`, for `simp
+     [Env.prefixTo]`.
+   The last two are con-leche proof-tier definitions that con-ron unfolds.
+   An `@[expose]` upstream would let them go.
+7. *Meta code.*  The only `meta` change is in the five `Arena/*Test.lean`
+   files: their `#guard`s are evaluated, so each import is repeated as a
+   `meta import` (con-leche's test files do the same).  Nothing else needed
+   `meta`: `syntax`/`macro_rules` (`WFProofs`' `tag_cases`, under
+   `hygiene false`), `macro` (`PromoteExt`'s `aext_auto`, `Checker/DeclWF`,
+   six in `Frontend/Lines`), `elab` (`Checker/DivMod`'s `dmc_move`) and
+   `register_grind_attr` (`GrindAttr`, whose `public import Lean` also
+   serves `DivMod`'s elaborator).  The toolchain marks their generated
+   declarations `meta` itself.
+8. *Outside `proof/`.*  The header adds four lines above every declaration
+   (`module`, a blank line, then a blank line and the section after the
+   imports).  So `scripts/twin-lines.py update` relocated 1 709 `Lean twin:`
+   citations in 38 Rust files.  They are comments only, and the line count
+   is unchanged, so the `Generated` model is unchanged too (`extract-check`
+   passes).  Ten OVERVIEW anchors into Arena/Bridge files moved by the same
+   offset.  The `overview-links` expectation changed only in line numbers
+   and two cited lines that now read `@[expose] def PSpec`/`CSpec`.
+   `scripts/gen-prelude-lean.py` emits the module header for
+   `Arena/Frontend/PreludeText.lean` (regenerated, byte-identical).
+
+**Answers to con-agua's three questions.**
+* *Meta code under the phase rules:* nothing to do except `meta import`
+  for evaluated `#guard` tests.
+* *`import all`:* no Arena file needs it.  Seven bridge files do: five for
+  core's monadic `List` folds, and two for con-leche proof-tier bodies
+  (`pairFns`, `Env.prefixTo`).
+* *Exposure:* everything in the Arena, as asked.  In the bridge it is per
+  definition, but the per-definition set is large (272 of 431), because
+  nearly every bridge definition is statement vocabulary that some later
+  proof unfolds or hands to `grind`.
+
+**Measurements** (`perf stat -e instructions:u,cycles:u`, the measure of
+record; `LAKE_JOBS=4`; `LAKE_CACHE_DIR` pointed at an empty directory, so
+every con-ron module was really elaborated and nothing was restored; the
+dependency packages are built and shared, so they replay, identically on
+both sides.  Master is `cd9ed918` in a detached scratch worktree, the branch
+is `36bbfbcb`.)
+
+*Cold build of con-ron's own modules* (no `proof/.lake/build`):
+
+| target | master | branch | |
+|---|---:|---:|---:|
+| `lake build` (all default targets, 320 con-ron modules) | 31.309 T instr | 31.185 T instr | −0.4 % |
+| `lake build ConRonArena ConRonBridge` (172 modules) | 2.221 T | 2.095 T | −5.7 % |
+
+The conversion adds no build cost; the converted tiers build 5.7 % cheaper.
+
+*Incremental: one edit, then `lake build` from the built tree* (each edit
+reverted and rebuilt before the next).  The edits:
+* **proof-only**: `have _t : True := trivial;` prefixed to one tactic proof,
+  on its own line, so no declaration moves;
+* **def-body**: one bound variable renamed inside a body, which changes the
+  exposed term but not its meaning.
+The Arena file is `Arena/ExprOps.lean` (`instantiate1Go_zero`'s proof,
+`sizeBArmApp`'s `let x`).  The Bridge file is `Bridge/StateOK.lean`
+(`MemoOK.of_empty`'s proof, `MemoOK`'s `∃ e`).
+
+| edit | `lake build` (all), master | branch | `lake build ConRonArena ConRonBridge`, master | branch |
+|---|---:|---:|---:|---:|
+| none (no-op build) | 0 mods, 0.011 T | 0, 0.011 T | 0, 0.007 T | 0, 0.007 T |
+| Arena proof-only | 244 mods, 10.726 T | **94**, 8.861 T | 151, 1.940 T | **1**, 0.076 T |
+| Arena def-body | 244, 10.726 T | 244, 10.606 T | 151, 1.940 T | 151, 1.821 T |
+| Bridge proof-only | 108, 1.520 T | **2**, 0.036 T | 107, 1.497 T | **1**, 0.012 T |
+| Bridge def-body | 108, 1.520 T | 108, 1.430 T | 107, 1.496 T | 107, 1.406 T |
+
+What it says:
+* **Early cutoff works across the converted tiers.**  A proof-only edit
+  rebuilds exactly the edited module within Arena + Bridge (151 → 1 and
+  107 → 1 modules; 26× and 120× fewer instructions).  That is the
+  con-agua case: they vendor these two tiers.
+* **A classic importer does not cut off.**  The Arena proof edit still
+  rebuilds the 92 `Refine2` modules and the capstone that import
+  `Arena/ExprOps` (the 94).  A classic file sees the module's private part,
+  so it depends on the whole `.olean`.  Theorem 2's tier gains nothing
+  until `Generated` is a module, and task #112 decided it is not.
+* **A def-body edit to an exposed definition rebuilds everything
+  downstream**, as before, at 1–6 % fewer instructions (6 % within
+  Arena + Bridge).  `MemoOK`
+  is exposed (other files unfold it).  An edit to one of the 159 hidden
+  bridge definitions would cut off like a proof edit.  That was not
+  measured, because none sits in `StateOK.lean`.
+
+**Follow-ups, not done here.**  Minimise the `public import`s with
+con-leche's plan script.  Prune the bridge's `@[expose]` set: (a) is a
+mention count, so some of the 272 are probably unneeded, and each removal
+costs a downstream rebuild to test.  Ask con-leche to expose `pairFns` and
+`Env.prefixTo`, which would retire two `import all`s.
