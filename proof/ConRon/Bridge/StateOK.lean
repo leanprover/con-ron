@@ -75,7 +75,7 @@ universe-argument list handle. -/
 handle-valued memo invariant: every recorded answer is the real one, at the
 key's own cursor.  The walk's own parameter does not appear; the invariant
 speaks of denotations, so the parameter's DENOTATION is enough. -/
-@[expose] def MemoOK (f : Nat → Expr → Expr) (tbl : Std.HashMap (EIdx × Nat) EIdx)
+def MemoOK (f : Nat → Expr → Expr) (tbl : Std.HashMap (EIdx × Nat) EIdx)
     (st : EStore) : Prop :=
   ∀ (k : EIdx × Nat) (r : EIdx), tbl[k]? = some r →
     ∃ e, denoteE st k.1 = some e ∧ denoteE st r = some (f k.2 e)

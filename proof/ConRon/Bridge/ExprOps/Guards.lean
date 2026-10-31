@@ -225,7 +225,7 @@ quantify its DENOTATION rather than naming it — see the module doc. -/
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 answer relation at a base list of HANDLES: whatever that list denotes, the
 verdict is the pure guard's. -/
-@[expose] def LSubAt (bl : List (Nat × EIdx)) (st : EStore) (c : EIdx) (r : Bool) :
+def LSubAt (bl : List (Nat × EIdx)) (st : EStore) (c : EIdx) (r : Bool) :
     Prop :=
   ∀ bl', denoteLeaves st bl = some bl' → RelV (leavesSubSpec bl') st c r
 
@@ -257,7 +257,7 @@ grind_pattern [bridge_grind] LSubAt.cut => LSubAt bl st h true
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 memo's invariant, at the base list's denotation.  `Bridge/StateOK.lean`'s
 generic `MemoVOK` behind the same quantifier as `LSubAt`. -/
-@[expose] def LSubMemoA (bl : List (Nat × EIdx)) (tbl : Std.HashMap EIdx Bool)
+def LSubMemoA (bl : List (Nat × EIdx)) (tbl : Std.HashMap EIdx Bool)
     (st : EStore) : Prop :=
   ∀ bl', denoteLeaves st bl = some bl' → MemoVOK (leavesSubSpec bl') tbl st
 

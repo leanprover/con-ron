@@ -198,7 +198,7 @@ precondition on a handle list, as one atom). -/
 
 /-- con-leche: none — a constant record's denotation, field by field (the
 length of its level parameters included). -/
-@[expose] def DenoteCV (st : EStore) (v : IConstantVal) : Option ConstantVal → Prop
+def DenoteCV (st : EStore) (v : IConstantVal) : Option ConstantVal → Prop
   | some c => denoteN st.ns v.name = some c.name ∧
       Frontend.denoteNList st.ns v.levelParams = some c.levelParams ∧
       v.levelParams.length = c.levelParams.length ∧ denoteE st v.type = some c.type

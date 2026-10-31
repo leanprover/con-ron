@@ -123,7 +123,7 @@ theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx
 
 /-- con-leche: ConLeche/Kernel/Core.lean:680-685 projLitToCtor — does the
 expansion fire: a string literal, and the stored declarations support it. -/
-@[expose] def projLitFires (env : Env) (x : Expr) : Bool :=
+def projLitFires (env : Env) (x : Expr) : Bool :=
   exprTag x == ETag.lit && (litStr? (exprLit x)).isSome && ConLeche.strLitSupported env
 attribute [bridge_grind =] projLitFires
 

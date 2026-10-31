@@ -962,7 +962,7 @@ open Classical in
 the names the store denotes (DESIGN §8.3's "index equality IS structural
 equality" as a function): with it, two handles are equal iff their names are
 by congruence closure alone. -/
-@[expose] noncomputable def idxOfName (st : NStore) (nm : ConLeche.Name) : NIdx :=
+noncomputable def idxOfName (st : NStore) (nm : ConLeche.Name) : NIdx :=
   if h : ∃ n, denoteN st n = some nm then Classical.choose h else default
 
 /-- con-leche: none — `idxOfName` inverts `denoteN` (its injectivity). -/
@@ -993,7 +993,7 @@ list (`Core/Walks/{Nat,StrLit}.lean`) register them locally, with
 /-- con-leche: none — **the name handle of a denoted name** at the name
 store, keyed by the denotation term (`idxOfName_eq` as a fact): with it, a
 handle test against a pin is the name test by congruence closure. -/
-@[expose] def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
+def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
   | some nm => idxOfName st nm = n
   | none => True
 
@@ -1016,7 +1016,7 @@ noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
   if h : ∃ n, denoteLs st n = some ls then Classical.choose h else default
 
 /-- con-leche: none — a denoting level-list handle is its list's handle. -/
-@[expose] def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
+def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
   | some ls => idxOfLs st ls = n
   | none => True
 
@@ -1068,7 +1068,7 @@ handle (view `ov`, denotation `oe`), each child of the view denotes the
 matching projection.  `denote_view` states it of every handle whose view and
 denotation the walk reads; the extraction lemmas below fire once the view's
 constructor is known. -/
-@[expose] def DenoteView (st : EStore) : Option ENodeView → Option Expr → Prop
+def DenoteView (st : EStore) : Option ENodeView → Option Expr → Prop
   | some v, some e => match v with
     | .bvar i => exprBVar e = i
     | .fvar k ty => exprFVarIdx e = k ∧ denoteE st ty = some (exprFVarType e)

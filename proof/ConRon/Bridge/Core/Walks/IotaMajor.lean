@@ -62,10 +62,10 @@ denoting subject) is `SlotRes` at the answer's denotation term, a walk's
 `SimEOp` is `OutE` there — no `∃` reaches `grind`. -/
 
 /-- a fuelled pure run reaches `v` at some fuel -/
-@[expose] def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
+def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
 
 /-- a knot slot's pure run at a subject reaches `v` -/
-@[expose] def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
+def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
   ∃ F, op F d e = .ok v
 
 /-- a knot slot's result at the answer's denotation: well scoped, and the
@@ -115,7 +115,7 @@ grind_pattern [bridge_grind] OutE.isSome => OutE P d o
   unfold SimEOp; cases h : denoteE st r <;> simp [OutE, Runs]
 
 /-- the fabricated spine's scope check -/
-@[expose] def scopeOkFn (d : Nat) (ef em : Expr) : Bool :=
+def scopeOkFn (d : Nat) (ef em : Expr) : Bool :=
   ef.wscopedB d && ef.looseBVarsBounded 0 && ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)
 
 /-- con-leche: none — `fabScopeOk`'s answer at two optional subjects. -/
@@ -1259,7 +1259,7 @@ theorem litMajorToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
   · rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — as a fuelled run. -/
-@[expose] def litMajorOp (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) : Nat → CheckM Expr :=
+def litMajorOp (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) : Nat → CheckM Expr :=
   fun F => ConLeche.litMajorToCtorFueled mode env F d x
 
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — every major but a
@@ -1320,7 +1320,7 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-! ## `majorToCtor`'s pure side -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — as a fuelled run. -/
-@[expose] def majorToCtorOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name)
+def majorToCtorOp (mode : CheckMode) (env : Env) (d : Nat) (cn : ConLeche.Name)
     (rules : List RecRule) (x : Expr) : Nat → CheckM Expr :=
   fun F => ConLeche.majorToCtorFueled mode env F d cn rules x
 

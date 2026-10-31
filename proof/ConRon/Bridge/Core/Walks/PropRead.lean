@@ -448,7 +448,7 @@ theorem headProofPW_proj {S : ConLeche.Name} {i : Nat} {e : Expr} :
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:164-176 headProofPW — the
 projection arm at the projection entry. -/
-@[expose] def projPW (f : ConLeche.Name → Option ConstantInfo) : Option ProjEntry → Option PropWhen
+def projPW (f : ConLeche.Name → Option ConstantInfo) : Option ProjEntry → Option PropWhen
   | some p => neverOnly (ConLeche.typeSortPW f p.body)
   | none => none
 attribute [bridge_grind =] projPW

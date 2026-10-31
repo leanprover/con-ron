@@ -144,7 +144,7 @@ def consB (ty : Expr) (p : List Expr × Expr) : List Expr × Expr := (ty :: p.1,
 def bpNil (x : Expr) : Option (List Expr × Expr) := some ([], x)
 
 /-- con-leche: none — an optional peel with one more binder in front. -/
-@[expose] def bpCons (x : Expr) (o : Option (List Expr × Expr)) : Option (List Expr × Expr) :=
+def bpCons (x : Expr) (o : Option (List Expr × Expr)) : Option (List Expr × Expr) :=
   o.map (consB x)
 
 /-- con-leche: none — the failed peel denotes `none`. -/

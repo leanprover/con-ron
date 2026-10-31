@@ -754,7 +754,7 @@ def isMotiveP : ConLeche.ClassSlot → Bool
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:168-177 ClassGen.prefixBinders
 (one slot) — the body of con-leche's `mapM` over the slots, at slot `sl` and
 position `s`. -/
-@[expose] def slotP (gP : ConLeche.ClassGen) (sl : ConLeche.ClassSlot) (s : Nat) : Option Expr :=
+def slotP (gP : ConLeche.ClassGen) (sl : ConLeche.ClassSlot) (s : Nat) : Option Expr :=
   match sl with
   | .motive _ =>
     gP.motiveTy ((List.range s).filter fun s' => isMotiveP (gP.slots.getD s' default)).length

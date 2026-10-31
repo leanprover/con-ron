@@ -134,7 +134,7 @@ theorem reservedBasisNameValues_eq :
 real one.  `Bridge/StateOK.lean`'s `MemoVOK` shape at an explicitly threaded
 table (the walk does not use `Monad.lean`'s `Memos`: its answer depends on the
 parameter LIST, which is a per-call datum). -/
-@[expose] def LPDMemoOK (params : List ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
+def LPDMemoOK (params : List ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
     (st : EStore) : Prop :=
   ∀ k v, tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ v = Expr.allLevelParamsDefined params e
@@ -639,7 +639,7 @@ directly. -/
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:89-124 Expr.constsResolveFGo —
 the memo invariant: a recorded answer is the real one. -/
-@[expose] def CRMemoOK (env : Env) (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
+def CRMemoOK (env : Env) (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
   ∀ k v, tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ v = Expr.constsResolve env e
 

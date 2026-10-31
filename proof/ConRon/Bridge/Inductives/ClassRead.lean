@@ -602,7 +602,7 @@ theorem classNPcOf_eq {env : Env} {fe : IFEnv} {s : AState} {p : Arena.BlockShap
 the per-binder reading (a motive when the domain's telescope ends in a sort,
 else a minor premise), as a function; `classReadSlots_succ` identifies it with
 the inline block. -/
-@[expose] def slotP (nPc : ConLeche.Name → Nat) (np : Nat) (motPos : List Nat) (d : Nat)
+def slotP (nPc : ConLeche.Name → Nat) (np : Nat) (motPos : List Nat) (d : Nat)
     (dom : Expr) : Option ConLeche.ClassSlot :=
   match dom.piResult with
   | .sort _ => do
