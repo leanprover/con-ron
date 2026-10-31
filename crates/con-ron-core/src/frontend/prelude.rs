@@ -39,7 +39,7 @@ use crate::kernel::core_types::CheckError;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
-/// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:1287-1359 preludeText`
+/// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:1286-1358 preludeText`
 /// — the committed prelude for the pinned toolchain, as bytes.  A toolchain
 /// bump regenerates `crates/con-ron-core/src/frontend/prelude_text.rs` (and
 /// con-leche's own `pins/` file behind it) and re-points all three spellings.
