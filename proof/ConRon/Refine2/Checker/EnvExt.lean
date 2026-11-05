@@ -28,7 +28,7 @@ structure EnvExt (a b : IFEnv) : Prop where
   newC : ∃ new, b.env.consts = new ++ a.env.consts ∧
     new.length = b.visibleBelow - a.visibleBelow ∧ ∀ c ∈ new, a.idx[c.name]? = none
   newT : ∃ newT, b.env.tables = newT ++ a.env.tables ∧
-    ∀ t ∈ newT, a.idx[t.structName]? = none
+    ∀ t ∈ newT, a.idx[t.structName]? = none ∧ (b.idx[t.structName]?).isSome
   vb : a.visibleBelow ≤ b.visibleBelow
   idxOld : ∀ (n : NIdx) (r : Nat × IConstantInfo), a.idx[n]? = some r → b.idx[n]? = some r
   idxNew : ∀ (n : NIdx) (r : Nat × IConstantInfo), b.idx[n]? = some r → a.idx[n]? = none → a.visibleBelow ≤ r.1
@@ -62,8 +62,12 @@ theorem EnvExt.trans {a b c : IFEnv} (h₁ : EnvExt a b) (h₂ : EnvExt b c) : E
     · exact f₁ x hx
   · intro x hx
     rcases List.mem_append.mp hx with hx | hx
-    · exact hback _ (q₂ x hx)
-    · exact q₁ x hx
+    · exact ⟨hback _ (q₂ x hx).1, (q₂ x hx).2⟩
+    · refine ⟨(q₁ x hx).1, ?_⟩
+      have := (q₁ x hx).2
+      cases hb : b.idx[x.structName]? with
+      | none => rw [hb] at this; cases this
+      | some r => rw [h₂.idxOld _ r hb]; rfl
   · intro n r hc ha
     cases hb : b.idx[n]? with
     | none => exact Nat.le_trans h₁.vb (h₂.idxNew n r hc hb)
@@ -106,7 +110,10 @@ theorem EnvExt.push {a b : IFEnv} (h : EnvExt a b) {ci : IConstantInfo}
     · exact hfree
     · exact f₁ x hx
   · obtain ⟨t₁, g₁, q₁⟩ := h.newT
-    exact ⟨t₁, by simpa [IFEnv.push] using g₁, q₁⟩
+    refine ⟨t₁, by simpa [IFEnv.push] using g₁, fun x hx => ⟨(q₁ x hx).1, ?_⟩⟩
+    have := (q₁ x hx).2
+    simp only [IFEnv.push, Std.HashMap.getElem?_insert]
+    split <;> simp_all
   · simp only [IFEnv.push]; omega
   · intro n r hr
     have hne : (ci.name == n) = false := by
@@ -141,7 +148,7 @@ theorem EnvExt.pushTable {a b : IFEnv} (h : EnvExt a b) (ha : EnvOK a) {t : IPro
     exact ⟨n₁, by simpa [IFEnv.pushTable] using e₁, l₁, f₁⟩
   · intro x hx
     rcases List.mem_cons.mp hx with rfl | hx
-    · exact hfree
+    · exact ⟨hfree, hrow⟩
     · exact q₁ x hx
   · intro T x hx
     have hne : (t.structName == T) = false := by
@@ -168,5 +175,210 @@ theorem EnvExt.pushTable {a b : IFEnv} (h : EnvExt a b) (ha : EnvOK a) {t : IPro
 theorem envOK_empty : EnvOK (mkIFEnv IEnv.empty) :=
   ⟨fun n r h => by simp [mkIFEnv, mkIFEnvGo, IEnv.empty] at h,
    fun T t h => by simp [mkIFEnv, mkIFEnvTblsGo, IEnv.empty] at h⟩
+
+/-! ## The arms of a step
+
+A small Hoare logic over `AM`: what an accepting run answers.  Nothing of the state is
+needed, since each guard reads the environment, and a guard that does not bear on the
+result is `Post.any`. -/
+
+/-- `m`'s answers satisfy `Q`, at every state it accepts from. -/
+def Post {α : Type} (m : AM α) (Q : α → Prop) : Prop :=
+  ∀ s r s', m s = .ok (r, s') → Q r
+
+theorem Post.any {α : Type} (m : AM α) : Post m (fun _ => True) := fun _ _ _ _ => trivial
+
+theorem Post.pure {α : Type} {a : α} {Q : α → Prop} (h : Q a) :
+    Post (Pure.pure a : AM α) Q := by
+  intro s r s' hr
+  cases hr
+  exact h
+
+theorem Post.bind {α β : Type} {m : AM α} {k : α → AM β} {P : α → Prop} {Q : β → Prop}
+    (hm : Post m P) (hk : ∀ a, P a → Post (k a) Q) : Post (m >>= k) Q := by
+  intro s r s' hr
+  cases hms : m s with
+  | error e =>
+    have hr' : (m s >>= fun p => k p.1 p.2) = .ok (r, s') := hr
+    rw [hms] at hr'
+    cases hr'
+  | ok p =>
+    have hr' : (m s >>= fun p => k p.1 p.2) = .ok (r, s') := hr
+    rw [hms] at hr'
+    exact hk p.1 (hm s p.1 p.2 hms) p.2 r s' hr'
+
+theorem Post.fail {α : Type} {e : CheckError} {Q : α → Prop} :
+    Post (Arena.fail e : AM α) Q := by
+  intro s r s' hr
+  cases hr
+
+theorem Post.ite {α : Type} {c : Prop} [Decidable c] {a b : AM α} {Q : α → Prop}
+    (ha : c → Post a Q) (hb : ¬ c → Post b Q) : Post (if c then a else b) Q := by
+  split
+  · exact ha ‹_›
+  · exact hb ‹_›
+
+/-- A failure, whatever follows it. -/
+theorem Post.fail_bind {α β : Type} {e : CheckError} {k : α → AM β} {Q : β → Prop} :
+    Post (Arena.fail e >>= k) Q :=
+  Post.bind (P := fun _ => False) Post.fail (fun _ h => h.elim)
+
+/-- Walk a `do` block whose guards do not bear on `Q`: a bind's left side is forgotten,
+a join point inlined, an `if` or a `match` split, a failure discharged.  What is left
+is the block's `pure`s. -/
+macro "post_walk" : tactic =>
+  `(tactic| repeat' (first
+    | exact Post.fail
+    | exact Post.fail_bind
+    | exact Post.pure rfl
+    | exact Post.pure (by assumption)
+    | (refine Post.bind (Post.any _) (fun _ _ => ?_))
+    | split
+    | (dsimp only; done)
+    | (show Post _ _; dsimp only)))
+
+/-- A name's guard: `installHeader` answers only at a free name. -/
+theorem installHeader_free (fe : IFEnv) (cv : IConstantVal) :
+    Post (installHeader fe cv) (fun _ => fe.find? cv.name = none) := by
+  rw [installHeader]
+  by_cases hf : (fe.find? cv.name).isSome = true
+  · rw [ite_eq_left hf]
+    exact Post.fail_bind
+  · rw [ite_eq_right hf]
+    intro s r s' _
+    simpa using hf
+
+/-- `checkConstantVal` likewise. -/
+theorem checkConstantVal_free (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) :
+    Post (checkConstantVal mode fe cv) (fun _ => fe.find? cv.name = none) := by
+  rw [checkConstantVal]
+  by_cases hf : (fe.find? cv.name).isSome = true
+  · rw [ite_eq_left hf]
+    exact Post.fail_bind
+  · rw [ite_eq_right hf]
+    intro s r s' _
+    simpa using hf
+
+theorem checkDefnVal_result (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (v : EIdx) (hint : ConLeche.ReducibilityHint) :
+    Post (checkDefnVal mode fe cv v hint) (· = fe.push (.defnInfo cv v hint)) := by
+  rw [checkDefnVal]
+  post_walk
+
+theorem checkThmVal_result (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (v : EIdx) : Post (checkThmVal mode fe cv v) (· = fe.push (.thmInfo cv)) := by
+  rw [checkThmVal]
+  post_walk
+
+theorem checkOpaqueVal_result (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (v : EIdx) : Post (checkOpaqueVal mode fe cv v) (· = fe.push (.axiomInfo cv)) := by
+  rw [checkOpaqueVal]
+  post_walk
+
+/-- A pinned install: every name checked at the environment it is pushed on. -/
+theorem installBasisDecls_ext {A : IFEnv} (hA : EnvOK A) :
+    ∀ (L : List IConstantInfo) (b : IFEnv), EnvExt A b →
+      Post (installBasisDecls b L) (EnvExt A)
+  | [], _, h => by
+    rw [installBasisDecls]
+    exact Post.pure h
+  | ci :: cs, b, h => by
+    rw [installBasisDecls]
+    refine Post.bind (P := EnvExt A) ?_ (fun b' h' => installBasisDecls_ext hA cs b' h')
+    rw [installBasisDecl]
+    dsimp only
+    split
+    · rename_i hf
+      have : b.find? ci.name = none := by simpa using hf
+      exact Post.bind (Post.any _) fun _ _ => Post.pure (h.push (h.free_back hA this))
+    · exact Post.fail_bind
+
+theorem checkBasisDecl_ext {A : IFEnv} (hA : EnvOK A) (kind : ConLeche.BasisKind) :
+    Post (checkBasisDecl A kind) (EnvExt A) := by
+  rw [checkBasisDecl]
+  post_walk
+  all_goals exact installBasisDecls_ext hA _ A (EnvExt.refl hA)
+
+/-- **`checkDecl` on what phase A sends it**, every kind but a block. -/
+theorem checkDecl_ext {A : IFEnv} (hA : EnvOK A) (mode : ConLeche.CheckMode)
+    (pins : List INatOpPinSet) (d : IDeclaration) (hd : ∀ b n, d ≠ .indDecl b n) :
+    Post (checkDecl mode pins A d) (EnvExt A) := by
+  have h0 := EnvExt.refl hA
+  cases d with
+  | indDecl b n => exact absurd rfl (hd b n)
+  | defnDecl cv v hint =>
+    simp only [checkDecl]
+    refine Post.bind (checkConstantVal_free mode A cv) fun _ hf => ?_
+    refine Post.bind (checkDefnVal_result mode A cv v hint) fun _ hr => ?_
+    subst hr
+    have h1 := h0.push (ci := .defnInfo cv v hint) (hA.free hf)
+    post_walk
+  | thmDecl cv v =>
+    simp only [checkDecl]
+    refine Post.bind (checkConstantVal_free mode A cv) fun _ hf => ?_
+    have h1 := h0.push (ci := .thmInfo cv) (hA.free hf)
+    intro s r s' hr
+    rw [checkThmVal_result mode A cv v s r s' hr]
+    exact h1
+  | opaqueDecl cv v =>
+    simp only [checkDecl]
+    refine Post.bind (checkConstantVal_free mode A cv) fun _ hf => ?_
+    refine Post.bind (checkOpaqueVal_result mode A cv v) fun _ hr => ?_
+    subst hr
+    have h1 := h0.push (ci := .axiomInfo cv) (hA.free hf)
+    post_walk
+  | axiomDecl cv =>
+    simp only [checkDecl]
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    split
+    · post_walk
+    · refine Post.bind (checkConstantVal_free mode A cv) fun _ hf => ?_
+      have h1 := h0.push (ci := .axiomInfo cv) (hA.free hf)
+      post_walk
+  | basisDecl kind => exact checkBasisDecl_ext hA kind
+  | quotDecl k cv =>
+    simp only [checkDecl]
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    split
+    · split
+      · exact checkBasisDecl_ext hA .quotK
+      all_goals exact Post.pure h0
+    · exact Post.fail
+
+/-- **`installStepGo`, before the promotion**, on what phase A sends it. -/
+theorem installStepGo_ext {A : IFEnv} (hA : EnvOK A) (mode : ConLeche.CheckMode)
+    (pins : List INatOpPinSet) (d : IDeclaration) (hd : ∀ b n, d ≠ .indDecl b n) :
+    Post (installStepGo mode pins A d) (fun p => EnvExt A p.1) := by
+  have h0 := EnvExt.refl hA
+  have hod : ∀ d' : IDeclaration, (∀ b n, d' ≠ .indDecl b n) →
+      Post (do pure (← checkDecl mode pins A d', (none : Option ValueGroup)))
+        (fun p => EnvExt A p.1) := fun d' h' =>
+    Post.bind (checkDecl_ext hA mode pins d' h') fun _ h => Post.pure h
+  cases d with
+  | indDecl b n => exact absurd rfl (hd b n)
+  | defnDecl cv v hint =>
+    simp only [installStepGo]
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    split
+    · exact hod _ hd
+    · refine Post.bind (installHeader_free A cv) fun _ hf => ?_
+      refine Post.bind (Post.any _) fun _ _ => ?_
+      exact Post.pure (h0.push (hA.free hf))
+  | thmDecl cv v =>
+    simp only [installStepGo]
+    refine Post.bind (installHeader_free A cv) fun _ hf => ?_
+    exact Post.pure (h0.push (hA.free hf))
+  | opaqueDecl cv v =>
+    simp only [installStepGo]
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    split
+    · exact hod _ hd
+    · refine Post.bind (installHeader_free A cv) fun _ hf => ?_
+      refine Post.bind (Post.any _) fun _ _ => ?_
+      exact Post.pure (h0.push (hA.free hf))
+  | axiomDecl cv => exact hod _ hd
+  | basisDecl kind => exact hod _ hd
+  | quotDecl k cv => exact hod _ hd
 
 end ConRon.Refine2
