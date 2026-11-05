@@ -218,7 +218,16 @@ theorem ifenv_find_base_abs {pers : arena.store.PersTier} {vis below : Std.U64}
     obtain ⟨c, pos⟩ := p
     have hlt : pos.val < pers.env.env.consts.val.length := hb.inv.2.2.1 n (c, pos) hto.symm
     simp only [Option.bind_some] at hrun ⊢
-    dsimp only at hrun
+    replace hrun : (if c < vis then (if c < below then (do
+          let i2 ← lift (Std.UScalar.cast .Usize pos)
+          if i2 < alloc.vec.Vec.len pers.env.env.consts then
+            (do
+              let i4 ← lift (Std.UScalar.cast .Usize pos)
+              let ii ← alloc.vec.Vec.index
+                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo) pers.env.env.consts i4
+              ok (some ii))
+          else ok none)
+        else ok none) else (ok none : Result (Option arena.env.IConstantInfo))) = ok o := hrun
     by_cases hc : c < vis
     · rw [ite_eq_left hc] at hrun
       by_cases hd : c < below
@@ -288,7 +297,16 @@ theorem ifenv_find_abs' {pers : arena.store.PersTier} {vis : Std.U64} {fe : aren
       unfold layerRow
       rw [← hto]
       simp only at hrun ⊢
-      dsimp only at hrun
+      replace hrun : (if c < vis then (do
+          let i2 ← lift (Std.UScalar.cast .Usize pos)
+          if i2 < alloc.vec.Vec.len fe.env.consts then
+            (do
+              let i4 ← lift (Std.UScalar.cast .Usize pos)
+              let ii ← alloc.vec.Vec.index
+                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo) fe.env.consts i4
+              ok (some ii))
+          else ok none)
+        else (ok none : Result (Option arena.env.IConstantInfo))) = ok o := hrun
       by_cases hc : c < vis
       · rw [ite_eq_left hc] at hrun
         obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun

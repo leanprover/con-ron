@@ -541,10 +541,99 @@ theorem stored_formers_aux {P} {mode : kernel.env.CheckMode} {rf : arena.env.IFE
       obtain ⟨-, hms⟩ := ExprOps.vecIndexAt hms
       subst hms
       refine LS.bind_eq fun k hk => ?_
-      have hkv : k.val = p.n_p.val + p.members.val[i.val].n_idx.val :=
-        ConRon.Refine.HashMap.uscalar_add_eq hk
-      refine LS.bind (stored_tele_ls hrel hinv hP hpe hfe _ k) ?_ ?_
-      · sorry
-      · sorry
+      have hkv : absU k = absU p.n_p + absU p.members.val[i.val].n_idx := by
+        simpa [absU] using ConRon.Refine.HashMap.uscalar_add_eq hk
+      refine LS.bind (stored_tele_ls hrel hinv hP hpe hfe _ k) (by
+        simp only [absMemberShape]; rw [hkv]) (fun _ _ => errArm_ok) ?_
+      rintro a b st1 lst1 hab hrel1 hinv1
+      subst hab
+      obtain ⟨i1, hi1⟩ : ∃ i1, i + 1#usize = ok i1 := by
+        exact Usize.add_ok_of_lt hlt
+      cases a with
+      | none =>
+        simp only [absTeleOpt, Option.map]
+        sorry
+      | some q =>
+        simp only [absTeleOpt, Option.map]
+        sorry
+
+@[lockstep] theorem stored_formers_ls {P st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ P st lst) (hinv : AStateInv P st)
+    (hP : P.frozen = false) (hpe : PersEnvEmpty P) (hfe : IFEnvRelI P IEnv.empty rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (s0 : arena.handle.LIdx) :
+    LS P (fun a b => b.1 = absICVL a.1 ∧ b.2 = absLIdx a.2)
+      (arena.inductives.stored_install.stored_formers P st mode rf p 0#usize
+        (alloc.vec.Vec.new _) s0) lst
+      (storedFormers (ConRon.Refine.absMode mode) lf (absBlockShape p).nP (absBlockShape p).members
+        0 [] (absLIdx s0)) := by
+  have h := stored_formers_aux hP hpe hfe p _ 0#usize (alloc.vec.Vec.new _) s0 st lst rfl hrel hinv
+  simpa [absICVL, alloc.vec.Vec.new, absBlockShape] using h
+
+/-! ## The recursors -/
+
+/-- `stored_take` is the twin's `take`, from the cursor on. -/
+theorem stored_take_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k : Nat) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) {o}, xs.val.length - i.val = k →
+      arena.inductives.stored_install.stored_take xs n i out = ok o →
+      absEIdxL o = absEIdxL out ++ ((xs.val.drop i.val).take (n.val - i.val)).map absEIdx := by
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+    intro i out o hk h
+    rw [arena.inductives.stored_install.stored_take.eq_def] at h
+    dsimp only at h
+    sorry
+
+@[lockstep] theorem stored_take_spec (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.inductives.stored_install.stored_take xs n 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absEIdxL xs).take (absU n)) (absEIdxL o)) := by
+  intro o h
+  have := stored_take_abs xs n _ 0#usize _ rfl h
+  simpa [TwinEq, absEIdxL, alloc.vec.Vec.new, absU] using this.symm
+
+@[lockstep] theorem stored_major_dom_ls {P st lst} (hrel : AStateRel₀ P st lst)
+    (hinv : AStateInv P st) {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hctx : CoreCtx P vis rf lf) (dom : arena.handle.EIdx) :
+    LS P (fun a b => b = a.map absTargetMajor)
+      (arena.inductives.stored_install.stored_major_dom P vis st rf dom) lst
+      (storedMajorDom lf (absEIdx dom)) := by
+  rw [arena.inductives.stored_install.stored_major_dom, storedMajorDom]
+  lockstep
+  all_goals (refine LS.pure ?_ ‹_› ‹_›; simp_all [absTargetMajor, alloc.vec.Vec.new])
+
+@[lockstep] theorem stored_major_ls {P st lst} (hrel : AStateRel₀ P st lst)
+    (hinv : AStateInv P st) {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hctx : CoreCtx P vis rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (rc : arena.inductives.block_parts.RecShape) :
+    LS P (fun a b => b = a.map absTargetMajor)
+      (arena.inductives.stored_install.stored_major P vis st rf p rc) lst
+      (storedMajor lf (absBlockShape p) (absRecShape rc)) := by
+  rw [arena.inductives.stored_install.stored_major, storedMajor]
+  simp only [absRecShape, absBlockShape_members, List.getElem?_map]
+  sorry
+
+theorem stored_recs_aux {P} (hP : P.frozen = false) (vis2 : Std.U64)
+    (p : arena.inductives.block_parts.BlockShape) (n : Nat) :
+    ∀ (r : Std.U64) (fe : arena.env.IFEnv) (lf : IFEnv) st lst,
+      p.recs.val.length - r.val = n → IFEnvRelI P IEnv.empty fe lf →
+      AStateRel₀ P st lst → AStateInv P st →
+      LS P (IFEnvRelI P IEnv.empty)
+        (arena.inductives.stored_install.stored_recs P vis2 st p r fe) lst
+        (storedRecs (absU vis2) (absBlockShape p) (absU r)
+          ((p.recs.val.drop r.val).map absRecShape) lf) := by
+  sorry
+
+/-! ## The guards, and the tables -/
+
+@[lockstep] theorem stored_guards_run_ls {E₀ pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI pers E₀ rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (c : arena.env.IConstantVal × Std.U64) :
+    LS pers (fun a b => b = absLIdxL a)
+      (arena.inductives.stored_install.stored_guards_run pers st mode rf p c) lst
+      (storedGuardsRun (ConRon.Refine.absMode mode) lf (absBlockShape p)
+        (absIConstantVal c.1, absU c.2)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.stored_install.stored_guards_run, storedGuardsRun]
+  sorry
 
 end ConRon.Refine2
