@@ -90,14 +90,14 @@ def IProjTable.beqP (a b : IProjTable) : Bool :=
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
 con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
 **A stored inference, in a scratch bracket of its own**, from fresh caches:
-`run`, and what it answers promoted by `keep` before the drop.  A failure of `run`
+`run`, framed (`scratchRun`), and what it answers promoted by `keep` before the drop.  A failure of `run`
 is `none`, at the state the bracket opened at with its scratch tier dropped (the
 Rust's `stored_abandon` makes the same state out of the one the failure left). -/
 def storedTry {α β : Type} (run : AM α) (keep : α → AM β) : AM (Option β) := do
   flushCaches
   enterScratch
   let attempt : AM (Option β) := fun s =>
-    match run s with
+    match scratchRun run s with
     | .ok (a, s₁) => (do
         let b ← keep a
         dropScratch
@@ -279,10 +279,11 @@ def storedTail (p : BlockShape) (guards : List (List LIdx)) (vis nt : Nat) (fe�
     AM IFEnv := do
   flushCaches
   enterScratch
-  let fe₂ := storedCtors p.nP p.members fe₁
-  let vis₂ := fe₂.visibleBelow
-  let fe₃ ← storedRecs vis₂ p 0 p.recs fe₂
-  let fe₄ ← storedTables p p.members guards fe₃
+  let fe₄ ← scratchRun do
+    let fe₂ := storedCtors p.nP p.members fe₁
+    let vis₂ := fe₂.visibleBelow
+    let fe₃ ← storedRecs vis₂ p 0 p.recs fe₂
+    storedTables p p.members guards fe₃
   let k := fe₄.visibleBelow - vis
   let kt := fe₄.env.tables.length - nt
   let (_, fe₅) ← promoteNew PMemo.empty coreWalkFuel k kt fe₄

@@ -23,7 +23,8 @@ note carries the WF obligations).  Three properties make it cheap and make it
 right:
 
 * **a persistent handle promotes to itself**, by one tier-bit test
-  (`Idx.isPersistent`) and no store access at all.  Most of an annotated term
+  (`Idx.isPersistent`) and one decode, so that a handle reaching the persistent
+  tier is one it can read: nothing is assumed of what a scratch run answered.  Most of an annotated term
   IS the parsed term — `annotate` rebuilds only the spine it changes — so the
   walk stops at the first persistent node on every branch;
 * **the memo makes it `O(result)`** and not `O(unfolding)`: the subject is a
@@ -79,6 +80,64 @@ def PMemo.empty : PMemo := ⟨∅, ∅, ∅, ∅⟩
 
 instance : Inhabited PMemo := ⟨PMemo.empty⟩
 
+/-! ## A scratch run's frame -/
+
+/-- con-leche: none — arena infrastructure; the name store with its persistent
+tables and its flag taken from `s₀`. -/
+def NStore.frameFrom (st s₀ : NStore) : NStore :=
+  { st with pers := s₀.pers, scratchOn := s₀.scratchOn }
+
+/-- con-leche: none — arena infrastructure; the same at the level store and below. -/
+def LStore.frameFrom (st s₀ : LStore) : LStore :=
+  { st with ns := st.ns.frameFrom s₀.ns, pers := s₀.pers, scratchOn := s₀.scratchOn }
+
+/-- con-leche: none — arena infrastructure; the same at the level-list store and below. -/
+def LsStore.frameFrom (st s₀ : LsStore) : LsStore :=
+  { st with ls := st.ls.frameFrom s₀.ls, pers := s₀.pers, scratchOn := s₀.scratchOn }
+
+/-- con-leche: none — arena infrastructure; the same at the expression store and below. -/
+def EStore.frameFrom (st s₀ : EStore) : EStore :=
+  { st with lss := st.lss.frameFrom s₀.lss, pers := s₀.pers, scratchOn := s₀.scratchOn }
+
+/-- con-leche: none — arena infrastructure; the sizes of a name tier's arrays. -/
+def NTables.sizes (t : NTables) : List Nat := [t.anons.size, t.strs.size, t.nums.size]
+
+/-- con-leche: none — arena infrastructure; the sizes of a level tier's arrays. -/
+def LTables.sizes (t : LTables) : List Nat :=
+  [t.zeros.size, t.succs.size, t.maxs.size, t.imaxs.size, t.params.size]
+
+/-- con-leche: none — arena infrastructure; the sizes of a level-list tier's arrays. -/
+def LsTables.sizes (t : LsTables) : List Nat := [t.lists.size]
+
+/-- con-leche: none — arena infrastructure; the sizes of an expression tier's arrays. -/
+def ETables.sizes (t : ETables) : List Nat :=
+  [t.bvars.size, t.fvars.size, t.sorts.size, t.consts.size, t.apps.size, t.lams.size,
+    t.foralls.size, t.lets.size, t.lits.size, t.projs.size]
+
+/-- con-leche: none — arena infrastructure; the sizes of the persistent arrays, at
+every level. -/
+def EStore.persSizes (st : EStore) : List Nat :=
+  st.pers.sizes ++ st.lss.pers.sizes ++ st.lss.ls.pers.sizes ++ st.lss.ls.ns.pers.sizes
+
+/-- con-leche: none — arena infrastructure; **a scratch run, framed**: `c`'s answer,
+at the state it ended in with the persistent tables at every level, the scratch
+flags and the pins of the state it started from.  So what a scratch run can do to
+the persistent tier is settled here, for any `c`, with nothing known about it.  The
+Rust has the tier by `&` (`arena::store::PersTier`), and saves and restores the
+flags and the pins (`arena::promote::scratch_save`, `scratch_restore`).
+
+**A run that grew the persistent arrays is an error**, which the Rust cannot reach.  It
+is what relates the run's own answer to the framed state where the run is specified: a
+handle that denotes where the run ended is in range of the arrays it started from, so
+it does not name a node a later promotion adds at the same index. -/
+def scratchRun {α : Type} (c : AM α) : AM α := fun s₀ =>
+  match c s₀ with
+  | .ok (a, s₁) =>
+    if s₁.store.persSizes == s₀.store.persSizes then
+      .ok (a, { s₁ with store := s₁.store.frameFrom s₀.store, pins := s₀.pins })
+    else .error (.internal "arena: a scratch run grew the persistent tier")
+  | .error e => .error e
+
 /-! ## The four handle kinds -/
 
 /-- con-leche: none — arena infrastructure; promote a NAME handle.  A name's
@@ -88,7 +147,9 @@ store's own bound (`Arena/Core.lean`'s `coreWalkFuel`, DESIGN §8.4 lesson
 def promoteN (m : PMemo) : Nat → NIdx → AM (PMemo × NIdx)
   | 0, _ => fail (.internal "fuel exhausted: promoteN")
   | fuel + 1, h => do
-    if h.isPersistent then pure (m, h)
+    if h.isPersistent then do
+      let _ ← viewN h
+      pure (m, h)
     else
       match m.nM[h]? with
       | some r => pure (m, r)
@@ -108,7 +169,9 @@ def promoteN (m : PMemo) : Nat → NIdx → AM (PMemo × NIdx)
 def promoteL (m : PMemo) : Nat → LIdx → AM (PMemo × LIdx)
   | 0, _ => fail (.internal "fuel exhausted: promoteL")
   | fuel + 1, h => do
-    if h.isPersistent then pure (m, h)
+    if h.isPersistent then do
+      let _ ← viewL h
+      pure (m, h)
     else
       match m.lM[h]? with
       | some r => pure (m, r)
@@ -144,7 +207,9 @@ def promoteLList (m : PMemo) (fuel : Nat) : List LIdx → AM (PMemo × List LIdx
 /-- con-leche: none — arena infrastructure; promote a universe-argument LIST
 handle. -/
 def promoteLs (m : PMemo) (fuel : Nat) (h : LsIdx) : AM (PMemo × LsIdx) := do
-  if h.isPersistent then pure (m, h)
+  if h.isPersistent then do
+    let _ ← viewLs h
+    pure (m, h)
   else
     match m.lsM[h]? with
     | some r => pure (m, r)
@@ -160,7 +225,9 @@ is a value and carries no handle (DESIGN §8.3), so it crosses unchanged. -/
 def promoteE (m : PMemo) : Nat → EIdx → AM (PMemo × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: promoteE")
   | fuel + 1, h => do
-    if h.isPersistent then pure (m, h)
+    if h.isPersistent then do
+      let _ ← view h
+      pure (m, h)
     else
       match m.eM[h]? with
       | some r => pure (m, r)

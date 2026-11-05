@@ -29,10 +29,14 @@ con-leche has both, and so does (B), because they are different things:
 environment has two tiers: phase A's index frozen into the `PersTier`, and an own
 layer per job (`arena::env`'s `IFEnv` note, `arena::checker::block_check`).  Here a
 value check reads `fe.restrictTo pc.vis` as it always has, and a block job holds
-its own `IFEnv` (`BlockCheck.view`): `fe` as the block found it, with an empty
-`env`, so that what the job pushes is `W'.env`.  A lookup answers the same on the
-two: the own layer, then the base below the block's counter, is `fe`'s index at
-the block, because no install overwrites a row (a taken name stops phase A).
+its own `IFEnv` (`BlockCheck.view`): `fe` as the block found it, so that what the job
+pushes is the prefix of `W'.env` past `fe.env`, the Rust's own layer.  A lookup answers
+the same on the two: the own layer, then the base below the block's counter, is `fe`'s
+index at the block, because no install overwrites a row (a taken name stops phase A).
+
+**A scratch run is framed** (`scratchRun`, `Arena/Promote.lean`): `installStep`'s body,
+a stored inference and each job end with the persistent tables, the scratch flags and
+the pins of the state they started from, as the Rust has them by type.
 
 ## Every declaration is bracketed, in both folds
 
@@ -212,7 +216,7 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
   let nt := fe.env.tables.length
   flushCaches
   enterScratch
-  let (fe, vg?) ← installStepGo mode pins fe pd
+  let (fe, vg?) ← scratchRun (installStepGo mode pins fe pd)
   let k := fe.visibleBelow - vis
   let kt := fe.env.tables.length - nt
   match vg? with
@@ -228,10 +232,9 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:51-57 BlockCheck
 **A block's job of the check phase**: the view its checked install runs at (the
-environment as the block found it, with an empty `env`, so that what the job pushes
-is the view's own), the block, its parameter count, its fold position (the error
-tag), and what the stored install pushed: the constants `L` and the tables `Q`, in
-install order. -/
+environment as the block found it), the block, its parameter count, its fold position
+(the error tag), and what the stored install pushed: the constants `L` and the tables
+`Q`, in install order. -/
 structure BlockCheck where
   view : IFEnv
   block : List IConstantInfo
@@ -254,7 +257,7 @@ def installBlockStep (mode : CheckMode) (i : Nat) (fe : IFEnv) (D : Array BlockC
   flushCaches
   let L := (fe₂.env.consts.take (fe₂.env.consts.length - nc)).reverse
   let Q := (fe₂.env.tables.take (fe₂.env.tables.length - nt)).reverse
-  pure (fe₂, D.push ⟨{ fe with env := IEnv.empty }, block, nP, i, L, Q⟩)
+  pure (fe₂, D.push ⟨fe, block, nP, i, L, Q⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
 con-leche: ConLeche/Verify/Cached/Defer.lean:108-110 deferredBlock?
@@ -321,7 +324,7 @@ tables whole, and so does `dropScratch` (task #97f's amendment). -/
 def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
     AM Unit := do
   enterScratch
-  checkValueGroup mode (fe.restrictTo pc.vis) pc.vg
+  scratchRun (checkValueGroup mode (fe.restrictTo pc.vis) pc.vg)
   dropScratch
 
 /-- con-leche: ConLeche/Cached/Installed.lean:308-315 checkPendingList — phase
@@ -338,11 +341,13 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
 /-! ## The block jobs, and the check phase's jobs in fold order -/
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
-**The checked install pushed `L` and `Q`** onto a view whose own environment is
-empty: its constants and tables, in install order, compared pointer-first. -/
-def pushesAgree (W' : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : Bool :=
-  listBeqBy IConstantInfo.beqP W'.env.consts.reverse L &&
-    listBeqBy IProjTable.beqP W'.env.tables.reverse Q
+**The checked install pushed `L` and `Q`** onto the view: the constants and tables
+`W'` holds past the view's, in install order, compared pointer-first. -/
+def pushesAgree (view W' : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : Bool :=
+  listBeqBy IConstantInfo.beqP
+      (W'.env.consts.take (W'.env.consts.length - view.env.consts.length)).reverse L &&
+    listBeqBy IProjTable.beqP
+      (W'.env.tables.take (W'.env.tables.length - view.env.tables.length)).reverse Q
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
 **The block's job**: its checked install at the view, from fresh caches and an empty
@@ -352,8 +357,8 @@ defect of the reader, not of the stream.  Nothing the job builds outlives it.  T
 message drops con-leche's interpolated block name (§3.1). -/
 def blockCheck (mode : CheckMode) (pins : List INatOpPinSet) (b : BlockCheck) : AM Unit := do
   enterScratch
-  let W' ← checkDecl mode pins b.view (.indDecl b.block b.nP)
-  unless pushesAgree W' b.L b.Q do
+  let W' ← scratchRun (checkDecl mode pins b.view (.indDecl b.block b.nP))
+  unless pushesAgree b.view W' b.L b.Q do
     fail (.internal "inductive block : the stored install's constants or tables are not the checked install's")
   dropScratch
 
@@ -395,7 +400,7 @@ def phaseAFailure (mode : CheckMode) (pins : List INatOpPinSet) (ds : List IDecl
         match andPinOk (.indDecl block nP) w' with
         | .ok (true, w'') =>
           match blockCheck mode pins
-              ⟨{ fe with env := IEnv.empty }, block, nP, i, [], []⟩ w'' with
+              ⟨fe, block, nP, i, [], []⟩ w'' with
           | .error e₂ => (e₂, i)
           | .ok _ => (e, i)
         | _ => (e, i)

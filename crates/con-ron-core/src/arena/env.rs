@@ -710,7 +710,7 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:113-136 FEnv
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:229-241 BlockCheck` — **an empty layer
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:233-244 BlockCheck` — **an empty layer
 /// over the frozen base**: nothing of its own, the next counter `vis` and the
 /// base visible below `below`.  A block job's is `ifenv_layer(pos, pos)`, so its
 /// pushes take the counters the stored install's did and the stored install's

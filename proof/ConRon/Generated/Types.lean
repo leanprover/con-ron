@@ -1355,7 +1355,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- [con_ron_core::arena::promote::PMemo]
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 108:0-117:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 111:0-120:1
     Visibility: public -/
 structure arena.promote.PMemo where
   e_m : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx
@@ -1363,8 +1363,18 @@ structure arena.promote.PMemo where
   l_m : ron.hashmap2.HashMap2 arena.handle.LIdx arena.handle.LIdx
   ls_m : ron.hashmap2.HashMap2 arena.handle.LsIdx arena.handle.LsIdx
 
+/-- [con_ron_core::arena::promote::ScratchFrame]
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 162:0-168:1
+    Visibility: public -/
+structure arena.promote.ScratchFrame where
+  pins : arena.pins.Pins
+  e_on : Bool
+  ls_s_on : Bool
+  l_on : Bool
+  n_on : Bool
+
 /-- [con_ron_core::arena::checker::BlockCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 490:0-499:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 492:0-501:1
     Visibility: public -/
 structure arena.checker.BlockCheck where
   block : alloc.vec.Vec arena.env.IConstantInfo
@@ -1377,7 +1387,7 @@ structure arena.checker.BlockCheck where
   t_hi : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 948:0-952:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 954:0-958:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →

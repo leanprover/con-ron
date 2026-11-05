@@ -61993,7 +61993,7 @@ def arena.checker.M_NO_RECORD : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::arena::checker::install_step_other]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 469:0-481:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 471:0-483:1
     Visibility: public -/
 def arena.checker.install_step_other
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62026,7 +62026,7 @@ def arena.checker_split.install_header
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::checker::install_step_opaque_install]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 440:0-463:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 442:0-465:1
     Visibility: public -/
 def arena.checker.install_step_opaque_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62056,7 +62056,7 @@ def arena.checker.install_step_opaque_install
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::install_step_opaque]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 411:0-431:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 413:0-433:1
     Visibility: public -/
 def arena.checker.install_step_opaque
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62078,7 +62078,7 @@ def arena.checker.install_step_opaque
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::install_step_thm]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 383:0-403:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 385:0-405:1
     Visibility: public -/
 def arena.checker.install_step_thm
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62100,7 +62100,7 @@ def arena.checker.install_step_thm
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::install_step_defn_install]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 348:0-376:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 350:0-378:1
     Visibility: public -/
 def arena.checker.install_step_defn_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62131,7 +62131,7 @@ def arena.checker.install_step_defn_install
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::install_step_defn]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 315:0-340:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 317:0-342:1
     Visibility: public -/
 def arena.checker.install_step_defn
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -62190,7 +62190,7 @@ def arena.checker.install_step_go
     arena.checker.install_step_other pers st mode pins fe pd
 
 /-- [con_ron_core::arena::promote::index_promoted_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1102:0-1111:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1151:0-1160:1
     Visibility: public -/
 def arena.promote.index_promoted_tables
   (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
@@ -62213,7 +62213,7 @@ def arena.promote.index_promoted_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::pmemo_set_e]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 428:0-432:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 474:0-478:1
     Visibility: public -/
 def arena.promote.pmemo_set_e
   (m : arena.promote.PMemo) (h : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -62228,7 +62228,7 @@ def arena.promote.pmemo_set_e
   ok { m with e_m := hm }
 
 /-- [con_ron_core::arena::promote::pmemo_get_e]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 419:0-424:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 465:0-470:1
     Visibility: public -/
 def arena.promote.pmemo_get_e
   (m : arena.promote.PMemo) (h : arena.handle.EIdx) :
@@ -62245,7 +62245,7 @@ def arena.promote.pmemo_get_e
     ok (some e)
 
 /-- [con_ron_core::arena::promote::pmemo_set_ls]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 379:0-383:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 422:0-426:1
     Visibility: public -/
 def arena.promote.pmemo_set_ls
   (m : arena.promote.PMemo) (h : arena.handle.LsIdx) (r : arena.handle.LsIdx) :
@@ -62260,7 +62260,7 @@ def arena.promote.pmemo_set_ls
   ok { m with ls_m := hm }
 
 /-- [con_ron_core::arena::promote::pmemo_get_ls]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 370:0-375:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 413:0-418:1
     Visibility: public -/
 def arena.promote.pmemo_get_ls
   (m : arena.promote.PMemo) (h : arena.handle.LsIdx) :
@@ -62277,7 +62277,7 @@ def arena.promote.pmemo_get_ls
     ok (some li)
 
 /-- [con_ron_core::arena::promote::pmemo_set_l]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 231:0-235:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 271:0-275:1
     Visibility: public -/
 def arena.promote.pmemo_set_l
   (m : arena.promote.PMemo) (h : arena.handle.LIdx) (r : arena.handle.LIdx) :
@@ -62292,7 +62292,7 @@ def arena.promote.pmemo_set_l
   ok { m with l_m := hm }
 
 /-- [con_ron_core::arena::promote::pmemo_get_l]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 222:0-227:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 262:0-267:1
     Visibility: public -/
 def arena.promote.pmemo_get_l
   (m : arena.promote.PMemo) (h : arena.handle.LIdx) :
@@ -62309,7 +62309,7 @@ def arena.promote.pmemo_get_l
     ok (some l)
 
 /-- [con_ron_core::arena::promote::pmemo_set_n]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 150:0-154:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 153:0-157:1
     Visibility: public -/
 def arena.promote.pmemo_set_n
   (m : arena.promote.PMemo) (h : arena.handle.NIdx) (r : arena.handle.NIdx) :
@@ -62324,7 +62324,7 @@ def arena.promote.pmemo_set_n
   ok { m with n_m := hm }
 
 /-- [con_ron_core::arena::promote::pmemo_get_n]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 141:0-146:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 144:0-149:1
     Visibility: public -/
 def arena.promote.pmemo_get_n
   (m : arena.promote.PMemo) (h : arena.handle.NIdx) :
@@ -62341,7 +62341,7 @@ def arena.promote.pmemo_get_n
     ok (some n)
 
 /-- [con_ron_core::arena::promote::M_FUEL_PROMOTE_N]
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 81:0-84:2 -/
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 84:0-87:2 -/
 @[global_simps, irreducible]
 def arena.promote.M_FUEL_PROMOTE_N : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -62408,7 +62408,7 @@ def arena.monad.view_n
 mutual
 
 /-- [con_ron_core::arena::promote::promote_n]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 160:0-186:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 197:0-226:1
     Visibility: public -/
 def arena.promote.promote_n
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62428,8 +62428,12 @@ def arena.promote.promote_n
     let b ← arena.handle.NIdx.is_persistent h
     if b
     then
-      let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
-      ok (core.result.Result.Ok (m, n), tier)
+      let r ← arena.monad.view_n tier st h
+      match r with
+      | core.result.Result.Ok _ =>
+        let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
+        ok (core.result.Result.Ok (m, n), tier)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, tier)
     else
       let o ← arena.promote.pmemo_get_n m h
       match o with
@@ -62450,7 +62454,7 @@ def arena.promote.promote_n
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_n_node]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 191:0-218:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 231:0-258:1
     Visibility: public -/
 def arena.promote.promote_n_node
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62494,7 +62498,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::promote::M_FUEL_PROMOTE_L]
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 88:0-91:2 -/
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 91:0-94:2 -/
 @[global_simps, irreducible]
 def arena.promote.M_FUEL_PROMOTE_L : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -62542,7 +62546,7 @@ def arena.monad.intern_persistent_l
 mutual
 
 /-- [con_ron_core::arena::promote::promote_l]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 239:0-265:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 279:0-308:1
     Visibility: public -/
 def arena.promote.promote_l
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62562,8 +62566,12 @@ def arena.promote.promote_l
     let b ← arena.handle.LIdx.is_persistent h
     if b
     then
-      let l ← arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
-      ok (core.result.Result.Ok (m, l), tier)
+      let r ← arena.monad.view_l tier st h
+      match r with
+      | core.result.Result.Ok _ =>
+        let l ← arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
+        ok (core.result.Result.Ok (m, l), tier)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, tier)
     else
       let o ← arena.promote.pmemo_get_l m h
       match o with
@@ -62584,7 +62592,7 @@ def arena.promote.promote_l
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_l_node]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 269:0-310:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 312:0-353:1
     Visibility: public -/
 def arena.promote.promote_l_node
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62650,7 +62658,7 @@ def arena.promote.promote_l_node
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_l_two]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 314:0-329:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 357:0-372:1
     Visibility: public -/
 def arena.promote.promote_l_two
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62675,7 +62683,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::promote::promote_l_list_from]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 345:0-366:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 388:0-409:1
     Visibility: public -/
 def arena.promote.promote_l_list_from
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62703,7 +62711,7 @@ def arena.promote.promote_l_list_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_l_list]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 333:0-341:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 376:0-384:1
     Visibility: public -/
 def arena.promote.promote_l_list
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62753,7 +62761,7 @@ def arena.monad.intern_persistent_ls
   arena.store.PersTier.intern_ls tier st.store.lss v
 
 /-- [con_ron_core::arena::promote::promote_ls]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 388:0-415:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 431:0-461:1
     Visibility: public -/
 def arena.promote.promote_ls
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -62764,8 +62772,12 @@ def arena.promote.promote_ls
   let b ← arena.handle.LsIdx.is_persistent h
   if b
   then
-    let li ← arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
-    ok (core.result.Result.Ok (m, li), tier)
+    let r ← arena.monad.view_ls tier st h
+    match r with
+    | core.result.Result.Ok _ =>
+      let li ← arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
+      ok (core.result.Result.Ok (m, li), tier)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, tier)
   else
     let o ← arena.promote.pmemo_get_ls m h
     match o with
@@ -62788,7 +62800,7 @@ def arena.promote.promote_ls
     | some r => ok (core.result.Result.Ok (m, r), tier)
 
 /-- [con_ron_core::arena::promote::M_FUEL_PROMOTE_E]
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 95:0-98:2 -/
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 98:0-101:2 -/
 @[global_simps, irreducible]
 def arena.promote.M_FUEL_PROMOTE_E : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -63283,7 +63295,7 @@ def arena.monad.intern_persistent_e
 mutual
 
 /-- [con_ron_core::arena::promote::promote_e]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 439:0-465:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 485:0-514:1
     Visibility: public -/
 def arena.promote.promote_e
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63303,8 +63315,12 @@ def arena.promote.promote_e
     let b ← arena.handle.EIdx.is_persistent h
     if b
     then
-      let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
-      ok (core.result.Result.Ok (m, e), tier)
+      let r ← arena.monad.view tier st h
+      match r with
+      | core.result.Result.Ok _ =>
+        let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
+        ok (core.result.Result.Ok (m, e), tier)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, tier)
     else
       let o ← arena.promote.pmemo_get_e m h
       match o with
@@ -63325,7 +63341,7 @@ def arena.promote.promote_e
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_e_node]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 469:0-551:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 518:0-600:1
     Visibility: public -/
 def arena.promote.promote_e_node
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63461,7 +63477,7 @@ def arena.promote.promote_e_node
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_e_two]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 555:0-570:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 604:0-619:1
     Visibility: public -/
 def arena.promote.promote_e_two
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63486,7 +63502,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::promote::promote_e_list_from]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 628:0-649:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 677:0-698:1
     Visibility: public -/
 def arena.promote.promote_e_list_from
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63514,7 +63530,7 @@ def arena.promote.promote_e_list_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_e_list]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 616:0-624:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 665:0-673:1
     Visibility: public -/
 def arena.promote.promote_e_list
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63527,7 +63543,7 @@ def arena.promote.promote_e_list
     (alloc.vec.Vec.new arena.handle.EIdx)
 
 /-- [con_ron_core::arena::promote::promote_proj_table_rest]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 830:0-864:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 879:0-913:1
     Visibility: public -/
 def arena.promote.promote_proj_table_rest
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63571,7 +63587,7 @@ def arena.promote.promote_proj_table_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_n_list_from]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 590:0-611:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 639:0-660:1
     Visibility: public -/
 def arena.promote.promote_n_list_from
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63599,7 +63615,7 @@ def arena.promote.promote_n_list_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_n_list]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 578:0-586:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 627:0-635:1
     Visibility: public -/
 def arena.promote.promote_n_list
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63612,7 +63628,7 @@ def arena.promote.promote_n_list
     (alloc.vec.Vec.new arena.handle.NIdx)
 
 /-- [con_ron_core::arena::promote::promote_proj_table]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 810:0-824:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 859:0-873:1
     Visibility: public -/
 def arena.promote.promote_proj_table
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63634,7 +63650,7 @@ def arena.promote.promote_proj_table
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_installed_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1073:0-1096:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1122:0-1145:1
     Visibility: public -/
 def arena.promote.promote_installed_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63671,7 +63687,7 @@ def arena.promote.promote_installed_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::erase_installed_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1058:0-1067:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1107:0-1116:1
     Visibility: public -/
 def arena.promote.erase_installed_tables
   (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
@@ -63693,7 +63709,7 @@ def arena.promote.erase_installed_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_new_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1118:0-1142:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1167:0-1191:1
     Visibility: public -/
 def arena.promote.promote_new_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63722,7 +63738,7 @@ def arena.promote.promote_new_tables
       | core.result.Result.Err _ => ok (r, tier1)
 
 /-- [con_ron_core::arena::promote::promote_caps]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 783:0-806:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 832:0-855:1
     Visibility: public -/
 def arena.promote.promote_caps
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63750,7 +63766,7 @@ def arena.promote.promote_caps
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_fire]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 692:0-709:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 741:0-758:1
     Visibility: public -/
 def arena.promote.promote_fire
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63776,7 +63792,7 @@ def arena.promote.promote_fire
     | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_rule]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 713:0-741:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 762:0-790:1
     Visibility: public -/
 def arena.promote.promote_rule
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63803,7 +63819,7 @@ def arena.promote.promote_rule
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_rules_from]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 757:0-778:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 806:0-827:1
     Visibility: public -/
 def arena.promote.promote_rules_from
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63831,7 +63847,7 @@ def arena.promote.promote_rules_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_rules]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 745:0-753:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 794:0-802:1
     Visibility: public -/
 def arena.promote.promote_rules
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63844,7 +63860,7 @@ def arena.promote.promote_rules
     arena.env.IRecRule)
 
 /-- [con_ron_core::arena::promote::promote_cv]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 664:0-688:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 713:0-737:1
     Visibility: public -/
 def arena.promote.promote_cv
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63872,7 +63888,7 @@ def arena.promote.promote_cv
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_ci]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 869:0-914:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 918:0-963:1
     Visibility: public -/
 def arena.promote.promote_ci
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63947,7 +63963,7 @@ def arena.promote.promote_ci
     | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::index_promoted]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 980:0-1015:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1029:0-1064:1
     Visibility: public -/
 def arena.promote.index_promoted
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63991,7 +64007,7 @@ def arena.promote.index_promoted
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::erase_installed]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 960:0-969:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1009:0-1018:1
     Visibility: public -/
 def arena.promote.erase_installed
   (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
@@ -64012,7 +64028,7 @@ def arena.promote.erase_installed
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_new_consts]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1029:0-1051:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1078:0-1100:1
     Visibility: public -/
 def arena.promote.promote_new_consts
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -64034,7 +64050,7 @@ def arena.promote.promote_new_consts
       arena.promote.index_promoted tier st m fuel fe2 start n fe.visible_below
 
 /-- [con_ron_core::arena::promote::promote_new]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1149:0-1162:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1198:0-1211:1
     Visibility: public -/
 def arena.promote.promote_new
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -64050,8 +64066,76 @@ def arena.promote.promote_new
     arena.promote.promote_new_tables tier1 st m2 fuel kt fe2
   | core.result.Result.Err _ => ok (r, tier1)
 
+/-- [con_ron_core::arena::promote::scratch_restore]:
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 185:0-191:1
+    Visibility: public -/
+def arena.promote.scratch_restore
+  (st : arena.monad.AState) (f : arena.promote.ScratchFrame) :
+  Result arena.monad.AState
+  := do
+  ok
+    {
+      st
+        with
+        store :=
+          {
+            st.store
+              with
+              lss :=
+                {
+                  st.store.lss
+                    with
+                    ls :=
+                      {
+                        st.store.lss.ls
+                          with
+                          ns :=
+                            { st.store.lss.ls.ns with scratch_on := f.n_on },
+                          scratch_on := f.l_on
+                      },
+                    scratch_on := f.ls_s_on
+                },
+              scratch_on := f.e_on
+          },
+        pins := f.pins
+    }
+
+/-- [con_ron_core::arena::checker::pins_dup]:
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1042:0-1050:1
+    Visibility: public -/
+def arena.checker.pins_dup (p : arena.pins.Pins) : Result arena.pins.Pins := do
+  let v ← arena.env.nidx_vec_dup p.names
+  let v1 ← arena.env.nidx_vec_dup p.reserved
+  let li ←
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.empty_levels
+  let l ← arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.zero_level
+  let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.sort_one
+  ok
+    {
+      names := v,
+      reserved := v1,
+      empty_levels := li,
+      zero_level := l,
+      sort_one := e
+    }
+
+/-- [con_ron_core::arena::promote::scratch_save]:
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 172:0-180:1
+    Visibility: public -/
+def arena.promote.scratch_save
+  (st : arena.monad.AState) : Result arena.promote.ScratchFrame := do
+  let p ← arena.checker.pins_dup st.pins
+  ok
+    {
+      pins := p,
+      e_on := st.store.scratch_on,
+      ls_s_on := st.store.lss.scratch_on,
+      l_on := st.store.lss.ls.scratch_on,
+      n_on := st.store.lss.ls.ns.scratch_on
+    }
+
 /-- [con_ron_core::arena::promote::{con_ron_core::arena::promote::PMemo}::empty]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 124:4-131:5
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 127:4-134:5
     Visibility: public -/
 def arena.promote.PMemo.empty : Result arena.promote.PMemo := do
   let hm ← ron.hashmap2.HashMap2.new arena.handle.EIdx arena.handle.EIdx
@@ -64629,7 +64713,7 @@ def arena.core.drop_scratch
   ok { st1 with store := e }
 
 /-- [con_ron_core::arena::promote::promote_vg]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 922:0-943:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 971:0-992:1
     Visibility: public -/
 def arena.promote.promote_vg
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -64652,7 +64736,7 @@ def arena.promote.promote_vg
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::checker::install_step_promote]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 273:0-307:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 275:0-309:1
     Visibility: public -/
 def arena.checker.install_step_promote
   (tier : arena.store.PersTier) (st : arena.monad.AState) (i : Std.U64)
@@ -64687,7 +64771,7 @@ def arena.checker.install_step_promote
     ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::install_step]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 229:0-266:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 229:0-268:1
     Visibility: public -/
 def arena.checker.install_step
   (_pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64703,10 +64787,12 @@ def arena.checker.install_step
   let nt ← lift (UScalar.cast .U64 i1)
   let st1 ← arena.core.flush_caches st
   let (tier, st2) ← arena.core.enter_scratch st1
+  let saved ← arena.promote.scratch_save st2
   let (r, st3) ← arena.checker.install_step_go tier st2 mode pins fe pd
   match r with
   | core.result.Result.Ok p =>
     let (fe2, vg_opt) := p
+    let st4 ← arena.promote.scratch_restore st3 saved
     let k ← fe2.visible_below - fe.visible_below
     let i2 := alloc.vec.Vec.len fe2.env.tables
     let i3 ← lift (UScalar.cast .U64 i2)
@@ -64715,25 +64801,25 @@ def arena.checker.install_step
     | none =>
       let p1 ← arena.promote.PMemo.empty
       let (r1, tier1) ←
-        arena.promote.promote_new tier st3 p1 arena.core.CORE_WALK_FUEL k kt
+        arena.promote.promote_new tier st4 p1 arena.core.CORE_WALK_FUEL k kt
           fe2
       match r1 with
       | core.result.Result.Ok p2 =>
         let (_, fe3) := p2
-        let st4 ← arena.core.drop_scratch st3 tier1
-        ok (core.result.Result.Ok (fe3, pend), st4)
+        let st5 ← arena.core.drop_scratch st4 tier1
+        ok (core.result.Result.Ok (fe3, pend), st5)
       | core.result.Result.Err e =>
-        let st4 ← arena.core.drop_scratch st3 tier1
-        ok (core.result.Result.Err e, st4)
+        let st5 ← arena.core.drop_scratch st4 tier1
+        ok (core.result.Result.Err e, st5)
     | some vg =>
-      arena.checker.install_step_promote tier st3 i fe.visible_below k kt fe2
+      arena.checker.install_step_promote tier st4 i fe.visible_below k kt fe2
         pend vg
   | core.result.Result.Err e =>
     let st4 ← arena.core.drop_scratch st3 tier
     ok (core.result.Result.Err e, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_push_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 871:0-878:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 880:0-887:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_push_all
   (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
@@ -64754,7 +64840,7 @@ def arena.inductives.stored_install.stored_push_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_ctors]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 691:0-698:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 698:0-705:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_ctors
   (n_p : Std.U64) (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
@@ -64775,7 +64861,7 @@ def arena.inductives.stored_install.stored_ctors
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tables]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 644:0-685:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 651:0-692:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tables
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64854,7 +64940,7 @@ def arena.inductives.stored_install.stored_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_take]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 455:0-463:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 459:0-467:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_take
   (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (i : Std.Usize)
@@ -64879,7 +64965,7 @@ def arena.inductives.stored_install.stored_take
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_major_dom]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 414:0-451:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 418:0-455:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_major_dom
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -64936,7 +65022,7 @@ def arena.inductives.stored_install.stored_major_dom
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_major]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 369:0-409:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 373:0-413:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_major
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -65000,7 +65086,7 @@ def arena.inductives.stored_install.stored_major
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_recs]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 470:0-517:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 474:0-521:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_recs
   (pers : arena.store.PersTier) (vis2 : Std.U64) (st : arena.monad.AState)
@@ -65054,7 +65140,7 @@ def arena.inductives.stored_install.stored_recs
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tail]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 705:0-743:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 712:0-752:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tail
   (st : arena.monad.AState) (p : arena.inductives.block_parts.BlockShape)
@@ -65065,6 +65151,7 @@ def arena.inductives.stored_install.stored_tail
   := do
   let st1 ← arena.core.flush_caches st
   let (tier, st2) ← arena.core.enter_scratch st1
+  let saved ← arena.promote.scratch_save st2
   let fe2 ←
     arena.inductives.stored_install.stored_ctors p.n_p p.members 0#usize fe1
   let (r, st3) ←
@@ -65077,22 +65164,23 @@ def arena.inductives.stored_install.stored_tail
         fe3
     match r1 with
     | core.result.Result.Ok fe4 =>
+      let st5 ← arena.promote.scratch_restore st4 saved
       let k ← fe4.visible_below - vis
       let i := alloc.vec.Vec.len fe4.env.tables
       let i1 ← lift (UScalar.cast .U64 i)
       let kt ← i1 - nt
       let p1 ← arena.promote.PMemo.empty
       let (r2, tier1) ←
-        arena.promote.promote_new tier st4 p1 arena.core.CORE_WALK_FUEL k kt
+        arena.promote.promote_new tier st5 p1 arena.core.CORE_WALK_FUEL k kt
           fe4
       match r2 with
       | core.result.Result.Ok p2 =>
         let (_, fe5) := p2
-        let st5 ← arena.core.drop_scratch st4 tier1
-        ok (core.result.Result.Ok fe5, st5)
+        let st6 ← arena.core.drop_scratch st5 tier1
+        ok (core.result.Result.Ok fe5, st6)
       | core.result.Result.Err e =>
-        let st5 ← arena.core.drop_scratch st4 tier1
-        ok (core.result.Result.Err e, st5)
+        let st6 ← arena.core.drop_scratch st5 tier1
+        ok (core.result.Result.Err e, st6)
     | core.result.Result.Err _ =>
       let st5 ← arena.core.drop_scratch st4 tier
       ok (r1, st5)
@@ -65101,7 +65189,7 @@ def arena.inductives.stored_install.stored_tail
     ok (r, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_drop]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 599:0-607:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 606:0-614:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_drop
   (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
@@ -65122,7 +65210,7 @@ def arena.inductives.stored_install.stored_drop
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::M_STORED_GUARDS]
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 89:0-89:103
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 90:0-90:103
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stored_install.M_STORED_GUARDS : Array Std.U32 13#usize :=
@@ -65132,7 +65220,7 @@ def arena.inductives.stored_install.M_STORED_GUARDS : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_guards_run]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 556:0-595:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 563:0-602:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_guards_run
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65196,37 +65284,19 @@ def arena.inductives.stored_install.stored_guards_run
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_abandon]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 223:0-227:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 224:0-228:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_abandon
   (st : arena.monad.AState) (tier : arena.store.PersTier)
-  (saved : arena.pins.Pins) :
+  (saved : arena.promote.ScratchFrame) :
   Result arena.monad.AState
   := do
-  let m ← arena.monad.Memos.reset st.memos
-  arena.core.drop_scratch { st with memos := m, pins := saved } tier
-
-/-- [con_ron_core::arena::checker::pins_dup]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1036:0-1044:1
-    Visibility: public -/
-def arena.checker.pins_dup (p : arena.pins.Pins) : Result arena.pins.Pins := do
-  let v ← arena.env.nidx_vec_dup p.names
-  let v1 ← arena.env.nidx_vec_dup p.reserved
-  let li ←
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.empty_levels
-  let l ← arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.zero_level
-  let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 p.sort_one
-  ok
-    {
-      names := v,
-      reserved := v1,
-      empty_levels := li,
-      zero_level := l,
-      sort_one := e
-    }
+  let st1 ← arena.promote.scratch_restore st saved
+  let m ← arena.monad.Memos.reset st1.memos
+  arena.core.drop_scratch { st1 with memos := m } tier
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_guards]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 525:0-551:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 529:0-558:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_guards
   (st : arena.monad.AState) (mode : kernel.env.CheckMode)
@@ -65236,29 +65306,30 @@ def arena.inductives.stored_install.stored_guards
     kernel.core_types.CheckError) × arena.monad.AState)
   := do
   let st1 ← arena.core.flush_caches st
-  let saved ← arena.checker.pins_dup st1.pins
   let (tier, st2) ← arena.core.enter_scratch st1
+  let saved ← arena.promote.scratch_save st2
   let (r, st3) ←
     arena.inductives.stored_install.stored_guards_run tier st2 mode fe1 p c
   match r with
   | core.result.Result.Ok gs =>
+    let st4 ← arena.promote.scratch_restore st3 saved
     let p1 ← arena.promote.PMemo.empty
     let (r1, tier1) ←
-      arena.promote.promote_l_list tier st3 p1 arena.core.CORE_WALK_FUEL gs
+      arena.promote.promote_l_list tier st4 p1 arena.core.CORE_WALK_FUEL gs
     match r1 with
     | core.result.Result.Ok p2 =>
       let (_, gs2) := p2
-      let st4 ← arena.core.drop_scratch st3 tier1
-      ok (core.result.Result.Ok gs2, st4)
+      let st5 ← arena.core.drop_scratch st4 tier1
+      ok (core.result.Result.Ok gs2, st5)
     | core.result.Result.Err e =>
-      let st4 ← arena.core.drop_scratch st3 tier1
-      ok (core.result.Result.Err e, st4)
+      let st5 ← arena.core.drop_scratch st4 tier1
+      ok (core.result.Result.Err e, st5)
   | core.result.Result.Err _ =>
     let st4 ← arena.inductives.stored_install.stored_abandon st3 tier saved
     ok (core.result.Result.Ok (alloc.vec.Vec.new arena.handle.LIdx), st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_guards_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 614:0-638:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 621:0-645:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_guards_all
   (st : arena.monad.AState) (mode : kernel.env.CheckMode)
@@ -65303,7 +65374,7 @@ def arena.inductives.stored_install.stored_guards_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_parts_push]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 813:0-831:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 822:0-840:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_parts_push
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65331,7 +65402,7 @@ def arena.inductives.stored_install.stored_parts_push
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::inductives::stored_install::rec_names]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 761:0-769:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 770:0-778:1
     Visibility: public -/
 def arena.inductives.stored_install.rec_names
   (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) (i : Std.Usize)
@@ -65353,7 +65424,7 @@ def arena.inductives.stored_install.rec_names
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_names_free]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 748:0-756:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 757:0-765:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_names_free
   (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
@@ -65377,7 +65448,7 @@ def arena.inductives.stored_install.stored_names_free
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tele_run]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 307:0-325:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 311:0-329:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tele_run
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65406,7 +65477,7 @@ def arena.inductives.stored_install.stored_tele_run
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tele_slow]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 263:0-302:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 264:0-306:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tele_slow
   (st : arena.monad.AState) (mode : kernel.env.CheckMode)
@@ -65415,42 +65486,43 @@ def arena.inductives.stored_install.stored_tele_slow
     arena.handle.LIdx)) kernel.core_types.CheckError) × arena.monad.AState)
   := do
   let st1 ← arena.core.flush_caches st
-  let saved ← arena.checker.pins_dup st1.pins
   let (tier, st2) ← arena.core.enter_scratch st1
+  let saved ← arena.promote.scratch_save st2
   let (r, st3) ←
     arena.inductives.stored_install.stored_tele_run tier st2 mode fe cv n
   match r with
   | core.result.Result.Ok p =>
     let (ty, s) := p
+    let st4 ← arena.promote.scratch_restore st3 saved
     let p1 ← arena.promote.PMemo.empty
     let (r1, tier1) ←
-      arena.promote.promote_e tier st3 p1 arena.core.CORE_WALK_FUEL ty
+      arena.promote.promote_e tier st4 p1 arena.core.CORE_WALK_FUEL ty
     match r1 with
     | core.result.Result.Ok p2 =>
       let (m, ty2) := p2
       let (r2, tier2) ←
-        arena.promote.promote_l tier1 st3 m arena.core.CORE_WALK_FUEL s
+        arena.promote.promote_l tier1 st4 m arena.core.CORE_WALK_FUEL s
       match r2 with
       | core.result.Result.Ok p3 =>
         let (_, s2) := p3
-        let st4 ← arena.core.drop_scratch st3 tier2
+        let st5 ← arena.core.drop_scratch st4 tier2
         let n1 ←
           arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 cv.name
         let v ← arena.env.nidx_vec_dup cv.level_params
         ok (core.result.Result.Ok (some
-          ({ «name» := n1, level_params := v, ty := ty2 }, s2)), st4)
+          ({ «name» := n1, level_params := v, ty := ty2 }, s2)), st5)
       | core.result.Result.Err e =>
-        let st4 ← arena.core.drop_scratch st3 tier2
-        ok (core.result.Result.Err e, st4)
+        let st5 ← arena.core.drop_scratch st4 tier2
+        ok (core.result.Result.Err e, st5)
     | core.result.Result.Err e =>
-      let st4 ← arena.core.drop_scratch st3 tier1
-      ok (core.result.Result.Err e, st4)
+      let st5 ← arena.core.drop_scratch st4 tier1
+      ok (core.result.Result.Err e, st5)
   | core.result.Result.Err _ =>
     let st4 ← arena.inductives.stored_install.stored_abandon st3 tier saved
     ok (core.result.Result.Ok none, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tele]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 235:0-257:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 236:0-258:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tele
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65483,7 +65555,7 @@ def arena.inductives.stored_install.stored_tele
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_formers]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 333:0-362:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 337:0-366:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_formers
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65525,7 +65597,7 @@ def arena.inductives.stored_install.stored_formers
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::M_SLOT_TAKEN]
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 82:0-85:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 83:0-86:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stored_install.M_SLOT_TAKEN : Array Std.U32 39#usize :=
@@ -65538,7 +65610,7 @@ def arena.inductives.stored_install.M_SLOT_TAKEN : Array Std.U32 39#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_parts]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 775:0-807:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 784:0-816:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_parts
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65622,7 +65694,7 @@ def arena.env.i_constant_info_names_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_install]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 840:0-867:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 849:0-876:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65704,7 +65776,7 @@ def arena.env.i_constant_infos_dup
   arena.env.i_constant_infos_dup_from cs 0#usize v
 
 /-- [con_ron_core::arena::checker::install_block_step]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 508:0-542:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 510:0-544:1
     Visibility: public -/
 def arena.checker.install_block_step
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65746,7 +65818,7 @@ def arena.checker.install_block_step
   | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
 
 /-- [con_ron_core::arena::checker::install_decl_step]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 559:0-589:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 561:0-591:1
     Visibility: public -/
 def arena.checker.install_decl_step
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65837,7 +65909,7 @@ def arena.checker.install_decl_step
   | core.result.Result.Err e => ok (core.result.Result.Err (e, i), st1)
 
 /-- [con_ron_core::arena::checker::install_fold]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 595:0-612:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 597:0-614:1
     Visibility: public -/
 def arena.checker.install_fold
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65866,7 +65938,7 @@ def arena.checker.install_fold
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::install_prefix]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 618:0-636:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 620:0-638:1
     Visibility: public -/
 def arena.checker.install_prefix
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66073,7 +66145,7 @@ def arena.checker_split.check_value_group
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::check_pending]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 653:0-664:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 655:0-668:1
     Visibility: public -/
 def arena.checker.check_pending
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66083,13 +66155,15 @@ def arena.checker.check_pending
     arena.monad.AState)
   := do
   let st1 ← arena.core.enter_record st
+  let saved ← arena.promote.scratch_save st1
   let (r, st2) ←
     arena.checker_split.check_value_group pers pc.vis st1 mode fe pc.vg
-  let st3 ← arena.core.leave_record st2
-  ok (r, st3)
+  let st3 ← arena.promote.scratch_restore st2 saved
+  let st4 ← arena.core.leave_record st3
+  ok (r, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::i_ind_caps_beq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 149:0-161:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 150:0-162:1
     Visibility: public -/
 def arena.inductives.stored_install.i_ind_caps_beq
   (a : arena.env.IIndCaps) (b : arena.env.IIndCaps) : Result Bool := do
@@ -66130,7 +66204,7 @@ def arena.inductives.stored_install.i_ind_caps_beq
   else ok false
 
 /-- [con_ron_core::arena::inductives::stored_install::i_rec_rule_fire_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 105:0-116:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 106:0-117:1
     Visibility: public -/
 def arena.inductives.stored_install.i_rec_rule_fire_beq_p
   (a : arena.env.IRecRuleFire) (b : arena.env.IRecRuleFire) : Result Bool := do
@@ -66149,7 +66223,7 @@ def arena.inductives.stored_install.i_rec_rule_fire_beq_p
       else ok false
 
 /-- [con_ron_core::arena::inductives::stored_install::i_rec_rule_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 121:0-129:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 122:0-130:1
     Visibility: public -/
 def arena.inductives.stored_install.i_rec_rule_beq_p
   (a : arena.env.IRecRule) (b : arena.env.IRecRule) : Result Bool := do
@@ -66178,7 +66252,7 @@ def arena.inductives.stored_install.i_rec_rule_beq_p
   else ok false
 
 /-- [con_ron_core::arena::inductives::stored_install::i_rec_rules_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 134:0-144:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 135:0-145:1
     Visibility: public -/
 def arena.inductives.stored_install.i_rec_rules_beq_p
   (a : alloc.vec.Vec arena.env.IRecRule) (b : alloc.vec.Vec arena.env.IRecRule)
@@ -66236,7 +66310,7 @@ def arena.inductives.stored_install.i_rec_rules_beq_p
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::i_constant_val_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 98:0-100:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 99:0-101:1
     Visibility: public -/
 def arena.inductives.stored_install.i_constant_val_beq_p
   (a : arena.env.IConstantVal) (b : arena.env.IConstantVal) : Result Bool := do
@@ -66251,7 +66325,7 @@ def arena.inductives.stored_install.i_constant_val_beq_p
   else ok false
 
 /-- [con_ron_core::arena::inductives::stored_install::i_constant_info_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 167:0-198:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 168:0-199:1
     Visibility: public -/
 def arena.inductives.stored_install.i_constant_info_beq_p
   (a : arena.env.IConstantInfo) (b : arena.env.IConstantInfo) :
@@ -66338,7 +66412,7 @@ def arena.inductives.stored_install.i_constant_info_beq_p
       else ok false
 
 /-- [con_ron_core::arena::checker::consts_agree]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 675:0-688:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 679:0-692:1
     Visibility: public -/
 def arena.checker.consts_agree
   (pers : arena.store.PersTier) (w : arena.env.IFEnv)
@@ -66369,7 +66443,7 @@ def arena.checker.consts_agree
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::i_proj_table_beq_p]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 203:0-212:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 204:0-213:1
     Visibility: public -/
 def arena.inductives.stored_install.i_proj_table_beq_p
   (a : arena.env.IProjTable) (b : arena.env.IProjTable) : Result Bool := do
@@ -66406,7 +66480,7 @@ def arena.inductives.stored_install.i_proj_table_beq_p
   else ok false
 
 /-- [con_ron_core::arena::checker::tables_agree]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 693:0-709:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 697:0-713:1
     Visibility: public -/
 def arena.checker.tables_agree
   (pers : arena.store.PersTier) (w : arena.env.IFEnv)
@@ -66437,7 +66511,7 @@ def arena.checker.tables_agree
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::pushes_agree]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 716:0-721:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 720:0-725:1
     Visibility: public -/
 def arena.checker.pushes_agree
   (pers : arena.store.PersTier) (w : arena.env.IFEnv)
@@ -66462,7 +66536,7 @@ def arena.checker.pushes_agree
   else ok false
 
 /-- [con_ron_core::arena::checker::block_check]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 730:0-757:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 734:0-763:1
     Visibility: public -/
 def arena.checker.block_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66471,29 +66545,28 @@ def arena.checker.block_check
     arena.monad.AState)
   := do
   let st1 ← arena.core.enter_record st
+  let saved ← arena.promote.scratch_save st1
   let i ← arena.env.ifenv_layer b.vis b.vis
   let (r, st2) ←
     arena.check_decl.check_ind_decl pers st1 mode i b.block b.n_p
-  let (st3, v) ←
+  let st3 ← arena.promote.scratch_restore st2 saved
+  let v ←
     match r with
     | core.result.Result.Ok w =>
       do
       let b1 ← arena.checker.pushes_agree pers w b
-      let r1 ←
-        if b1
-        then ok (core.result.Result.Ok ())
-        else
-          do
-          let s ← lift (Array.to_slice arena.checker.M_PUSHES_DIFFER)
-          let v1 ← kernel.core_types.code_points s
-          arena.monad.fail Unit (kernel.core_types.CheckError.Internal v1)
-      ok (st2, r1)
-    | core.result.Result.Err e => ok (st2, core.result.Result.Err e)
+      if b1
+      then ok (core.result.Result.Ok ())
+      else
+        let s ← lift (Array.to_slice arena.checker.M_PUSHES_DIFFER)
+        let v1 ← kernel.core_types.code_points s
+        arena.monad.fail Unit (kernel.core_types.CheckError.Internal v1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
   let st4 ← arena.core.leave_record st3
   ok (v, st4)
 
 /-- [con_ron_core::arena::checker::block_failure]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 762:0-777:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 768:0-783:1
     Visibility: public -/
 def arena.checker.block_failure
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66651,7 +66724,7 @@ def arena.monad.AState.init
   ok { store := st, memos := m, caches := c, pins := p }
 
 /-- [con_ron_core::arena::checker::worker_state]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1063:0-1067:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1069:0-1073:1
     Visibility: public -/
 def arena.checker.worker_state
   (pins : arena.pins.Pins) : Result arena.monad.AState := do
@@ -66661,7 +66734,7 @@ def arena.checker.worker_state
   ok { st with pins := p }
 
 /-- [con_ron_core::arena::checker::thaw_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1023:0-1029:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1029:0-1035:1
     Visibility: public -/
 def arena.checker.thaw_tier
   (ar : arena.store.EStore) (tier : arena.store.PersTier) :
@@ -66687,7 +66760,7 @@ def arena.checker.thaw_tier
     })
 
 /-- [con_ron_core::arena::checker::freeze_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1001:0-1014:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1007:0-1020:1
     Visibility: public -/
 def arena.checker.freeze_tier
   (ar : arena.store.EStore) (fe : arena.env.IFEnv) :
@@ -66801,7 +66874,7 @@ def arena.env.mk_ifenv (env : arena.env.IEnv) : Result arena.env.IFEnv := do
   ok { env, idx := hm2, visible_below := i2, tbls := t, base_below := 0#u64 }
 
 /-- [con_ron_core::arena::checker::fold_start]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 988:0-990:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 994:0-996:1
     Visibility: public -/
 def arena.checker.fold_start
   :
@@ -66814,7 +66887,7 @@ def arena.checker.fold_start
     alloc.vec.Vec.new arena.checker.BlockCheck)
 
 /-- [con_ron_core::arena::checker::phase_a_own_job]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 828:0-855:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 834:0-861:1
     Visibility: public -/
 def arena.checker.phase_a_own_job
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66872,7 +66945,7 @@ def arena.checker.phase_a_own_job
   else ok (none, st)
 
 /-- [con_ron_core::arena::checker::phase_a_failure]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 790:0-822:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 796:0-828:1
     Visibility: public -/
 def arena.checker.phase_a_failure
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66914,7 +66987,7 @@ def arena.checker.phase_a_failure
   | core.result.Result.Err e2 => ok (e2, st1)
 
 /-- [con_ron_core::arena::checker::run_job]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 862:0-888:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 868:0-894:1
     Visibility: public -/
 def arena.checker.run_job
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66974,7 +67047,7 @@ def arena.checker.run_job
         0#u64), st)
 
 /-- [con_ron_core::arena::checker::job_order_go]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 901:0-923:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 907:0-929:1
     Visibility: public -/
 def arena.checker.job_order_go
   (pend : alloc.vec.Vec arena.checker.PendingCheck)
@@ -67022,7 +67095,7 @@ def arena.checker.job_order_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::job_order]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 894:0-896:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 900:0-902:1
     Visibility: public -/
 def arena.checker.job_order
   (pend : alloc.vec.Vec arena.checker.PendingCheck)
@@ -67036,7 +67109,7 @@ def arena.checker.job_order
   arena.checker.job_order_go pend d 0#usize 0#usize v
 
 /-- [con_ron_core::arena::checker::install_fold_hooked]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 962:0-981:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 968:0-987:1
     Visibility: public -/
 def arena.checker.install_fold_hooked
   {H : Type} (InstallHookInst : arena.checker.InstallHook H)
@@ -67070,7 +67143,7 @@ def arena.checker.install_fold_hooked
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::check_layer]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1050:0-1052:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1056:0-1058:1
     Visibility: public -/
 def arena.checker.check_layer : Result arena.env.IFEnv := do
   arena.env.ifenv_layer 0#u64 core.num.U64.MAX
@@ -67384,7 +67457,7 @@ def arena.nat_op_pin_set.intern_pin_sets
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_names]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1221:0-1241:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1227:0-1247:1
     Visibility: public -/
 def arena.checker.intern_all_names
   (st : arena.monad.AState) :
@@ -67417,7 +67490,7 @@ def arena.checker.intern_all_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::checker::intern_all_reduce_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1195:0-1216:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1201:0-1222:1
     Visibility: public -/
 def arena.checker.intern_all_reduce_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -67450,7 +67523,7 @@ def arena.checker.intern_all_reduce_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_trust_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1176:0-1190:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1182:0-1196:1
     Visibility: public -/
 def arena.checker.intern_all_trust_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -67476,7 +67549,7 @@ def arena.checker.intern_all_trust_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins_rest]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1157:0-1171:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1163:0-1177:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -67502,7 +67575,7 @@ def arena.checker.intern_all_axiom_pins_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1138:0-1152:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1144:0-1158:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -67528,7 +67601,7 @@ def arena.checker.intern_all_axiom_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::all_basis_kinds]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1125:0-1133:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1131:0-1139:1
     Visibility: public -/
 def arena.checker.all_basis_kinds
   : Result (alloc.vec.Vec kernel.env.BasisKind) := do
@@ -67540,7 +67613,7 @@ def arena.checker.all_basis_kinds
   alloc.vec.Vec.push ks4 kernel.env.BasisKind.QuotK
 
 /-- [con_ron_core::arena::checker::intern_all_basis]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1107:0-1120:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1113:0-1126:1
     Visibility: public -/
 def arena.checker.intern_all_basis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (i : Std.Usize) :
@@ -67568,7 +67641,7 @@ def arena.checker.intern_all_basis
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1085:0-1100:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1091:0-1106:1
     Visibility: public -/
 def arena.checker.intern_all_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)

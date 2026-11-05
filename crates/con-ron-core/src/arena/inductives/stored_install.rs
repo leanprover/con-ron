@@ -57,7 +57,6 @@ use super::struct_parts;
 use super::sum_install;
 use crate::arena::basis;
 use crate::arena::canon::{eidx_vec_beq, lidx_vec_beq, nidx_vec_beq};
-use crate::arena::checker::pins_dup;
 use crate::arena::checker_base;
 use crate::arena::core::{drop_scratch, enter_scratch, flush_caches, CORE_WALK_FUEL};
 use crate::arena::env;
@@ -68,8 +67,10 @@ use crate::arena::env::{
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
 use crate::arena::monad::{fail, fail_dangling_e, intern_e_sort, view_bind, view_const, view_sort, AState};
-use crate::arena::pins::{pin_empty_levels, Pins};
-use crate::arena::promote::{promote_e, promote_l, promote_l_list, promote_new, PMemo};
+use crate::arena::pins::pin_empty_levels;
+use crate::arena::promote::{
+    promote_e, promote_l, promote_l_list, promote_new, scratch_restore, scratch_save, PMemo, ScratchFrame,
+};
 use crate::arena::store::PersTier;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{reducibility_hint_beq, CheckMode};
@@ -220,8 +221,8 @@ pub fn i_proj_table_beq_p(a: &IProjTable, b: &IProjTable) -> bool {
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:90-108 storedTry` — the
 /// `Err` arm of a stored inference (the module note): the scratch tier, the
 /// memos and the caches emptied, the pins as they were.
-pub fn stored_abandon(st: &mut AState, tier: PersTier, saved: Pins) {
-    st.pins = saved;
+pub fn stored_abandon(st: &mut AState, tier: PersTier, saved: ScratchFrame) {
+    scratch_restore(st, saved);
     st.memos.reset();
     drop_scratch(st, tier);
 }
@@ -268,36 +269,39 @@ pub fn stored_tele_slow(
     n: u64,
 ) -> Result<Option<(IConstantVal, LIdx)>, CheckError> {
     flush_caches(st);
-    let saved: Pins = pins_dup(&st.pins);
     let mut tier: PersTier = enter_scratch(st);
+    let saved: ScratchFrame = scratch_save(st);
     match stored_tele_run(&tier, st, mode, fe, cv, n) {
         Err(_) => {
             stored_abandon(st, tier, saved);
             Ok(None)
         }
-        Ok((ty, s)) => match promote_e(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, &ty) {
-            Err(e) => {
-                drop_scratch(st, tier);
-                Err(e)
-            }
-            Ok((m, ty2)) => match promote_l(&mut tier, st, m, CORE_WALK_FUEL, &s) {
+        Ok((ty, s)) => {
+            scratch_restore(st, saved);
+            match promote_e(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, &ty) {
                 Err(e) => {
                     drop_scratch(st, tier);
                     Err(e)
                 }
-                Ok((_, s2)) => {
-                    drop_scratch(st, tier);
-                    Ok(Some((
-                        IConstantVal {
-                            name: cv.name.dup2(),
-                            level_params: env::nidx_vec_dup(&cv.level_params),
-                            ty: ty2,
-                        },
-                        s2,
-                    )))
-                }
-            },
-        },
+                Ok((m, ty2)) => match promote_l(&mut tier, st, m, CORE_WALK_FUEL, &s) {
+                    Err(e) => {
+                        drop_scratch(st, tier);
+                        Err(e)
+                    }
+                    Ok((_, s2)) => {
+                        drop_scratch(st, tier);
+                        Ok(Some((
+                            IConstantVal {
+                                name: cv.name.dup2(),
+                                level_params: env::nidx_vec_dup(&cv.level_params),
+                                ty: ty2,
+                            },
+                            s2,
+                        )))
+                    }
+                },
+            }
+        }
     }
 }
 
@@ -530,23 +534,26 @@ pub fn stored_guards(
     c: &(IConstantVal, u64),
 ) -> Result<Vec<LIdx>, CheckError> {
     flush_caches(st);
-    let saved: Pins = pins_dup(&st.pins);
     let mut tier: PersTier = enter_scratch(st);
+    let saved: ScratchFrame = scratch_save(st);
     match stored_guards_run(&tier, st, mode, fe1, p, c) {
         Err(_) => {
             stored_abandon(st, tier, saved);
             Ok(Vec::new())
         }
-        Ok(gs) => match promote_l_list(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, &gs) {
-            Err(e) => {
-                drop_scratch(st, tier);
-                Err(e)
+        Ok(gs) => {
+            scratch_restore(st, saved);
+            match promote_l_list(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, &gs) {
+                Err(e) => {
+                    drop_scratch(st, tier);
+                    Err(e)
+                }
+                Ok((_, gs2)) => {
+                    drop_scratch(st, tier);
+                    Ok(gs2)
+                }
             }
-            Ok((_, gs2)) => {
-                drop_scratch(st, tier);
-                Ok(gs2)
-            }
-        },
+        }
     }
 }
 
@@ -698,7 +705,7 @@ pub fn stored_ctors(n_p: u64, ms: &Vec<MemberShape>, i: usize, fe: IFEnv) -> IFE
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:274-290 storedTail` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:274-291 storedTail` — the
 /// reading's last bracket: the constructors, the recursors and the tables pushed
 /// above the formers, and everything new since the counter `vis` and the table
 /// count `nt` promoted.
@@ -712,6 +719,7 @@ pub fn stored_tail(
 ) -> Result<IFEnv, CheckError> {
     flush_caches(st);
     let mut tier: PersTier = enter_scratch(st);
+    let saved: ScratchFrame = scratch_save(st);
     let fe2: IFEnv = stored_ctors(p.n_p, &p.members, 0, fe1);
     let vis2: u64 = fe2.visible_below;
     match stored_recs(&tier, vis2, st, p, 0, fe2) {
@@ -725,6 +733,7 @@ pub fn stored_tail(
                 Err(e)
             }
             Ok(fe4) => {
+                scratch_restore(st, saved);
                 let k: u64 = fe4.visible_below - vis;
                 let kt: u64 = fe4.env.tables.len() as u64 - nt;
                 match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, kt, fe4) {
@@ -743,7 +752,7 @@ pub fn stored_tail(
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:292-296 namesFree` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:293-297 namesFree` — **the
 /// names a block pushes are free**: `slotsOk`, read before anything is pushed.
 pub fn stored_names_free(pers: &PersTier, vis: u64, fe: &IFEnv, ns: &Vec<NIdx>, i: usize) -> bool {
     if i >= ns.len() {
@@ -756,7 +765,7 @@ pub fn stored_names_free(pers: &PersTier, vis: u64, fe: &IFEnv, ns: &Vec<NIdx>, 
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:298-315 storedParts` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — the
 /// recursors' names from `i` on, appended.
 pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= rs.len() {
@@ -769,7 +778,7 @@ pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:298-315 storedParts` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — **a
 /// block the recogniser reads**: its names distinct and free, the formers read,
 /// and the rest (`stored_parts_push`).
 pub fn stored_parts(
@@ -807,7 +816,7 @@ pub fn stored_parts(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:298-315 storedParts` — past
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — past
 /// the formers' reading: pushed with their capability records, the guards, and
 /// the last bracket.
 pub fn stored_parts_push(
@@ -831,7 +840,7 @@ pub fn stored_parts_push(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:317-334 storedInstall` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:318-335 storedInstall` — **the
 /// stored install of a block** on `fe`.  A block matching a basis pin pushes the
 /// pin's constants, a block the recogniser does not read pushes nothing, and
 /// every other block its reading, each part at its record as declared where the
