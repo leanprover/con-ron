@@ -691,11 +691,11 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq` and the eager tower's `defeqE`) is one statement indexed by
-fuel and mode,
+fuel, mode and eager flag,
 [`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L111-L128),
-proved by induction on the fuel, over every mode at once (the eager slot at a
-mode runs the knot at its eager variant), in
-[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L67-L93).
+proved by induction on the fuel, over both flags at once (the eager slot runs
+the knot one level down with the flag set), in
+[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L67-L92).
 
 ### 7.4 Theorem 2: the Rust refines the twin
 
@@ -776,7 +776,7 @@ holds of exactly the names the port's smart constructors can build from valid
 code points, and `LevelWF` and `PropWhenWF` lift it to levels and to the
 zero-ness datum.  The store invariant carries the same fact for every stored
 string.  An example of a lemma with such a premise
-([`Refine2/Core/LS/PrimsA1.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1293-L1297)):
+([`Refine2/Core/LS/PrimsA1.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1312-L1316)):
 
 ```lean
 @[lockstep] theorem level_param_ls (n : kernel.name.Name) (hn : ConRon.Refine.NameWF n) :
@@ -846,7 +846,7 @@ Theorem 1 uses the same cursor recipe (`structPsAt_go_run`, §7.3).
 **The type checker.**  The six mutually recursive functions of con-leche's
 type checker are tied by fuel on both sides.  Theorem 2 states them as one
 relation per fuel, `KnotRel f`, and proves it for every `f` in
-[`knot_rel`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/Induction.lean#L1044-L1046):
+[`knot_rel`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/Induction.lean#L1123-L1123):
 fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
 
 ### 7.6 The composition

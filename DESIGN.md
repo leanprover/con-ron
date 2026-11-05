@@ -70963,7 +70963,7 @@ Mathlib (§8).  Stored-recursor error messages are constants (§3.1): they do no
 name the recursor or binder as upstream's do.
 
 **`CheckerIO` in Rust, and why not now** (maintainer asked for the plan).  The class
-rests on a generic monad and a non-deterministic model, an `liftIO` of any action,
+rests on a generic monad and a non-deterministic model, a `liftIO` of any action,
 and result types that carry a proof (`checkDeclsIO`'s `{ env // … }`); Aeneas gives
 `Result` with threaded state, closures are outside the subset, and a pool returning
 `true` carries no evidence.  So this sync ports only what can be observed: `--`
