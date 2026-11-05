@@ -64697,7 +64697,7 @@ def arena.checker_split.value_kind_word
     kernel.core_types.code_points s
 
 /-- [con_ron_core::arena::checker_split::check_value_group_tail]:
-    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 329:0-352:1
+    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 326:0-349:1
     Visibility: public -/
 def arena.checker_split.check_value_group_tail
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -64737,7 +64737,7 @@ def arena.checker_split.is_thm
   | arena.checker_split.ValueKind.Opaque => ok false
 
 /-- [con_ron_core::arena::checker_split::check_value_group_value]:
-    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 288:0-320:1
+    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 286:0-318:1
     Visibility: public -/
 def arena.checker_split.check_value_group_value
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -64779,7 +64779,7 @@ def arena.checker_split.check_value_group_value
   else arena.checker_split.check_value_group_tail pers vis st mode fe g
 
 /-- [con_ron_core::arena::checker_split::check_value_group]:
-    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 264:0-279:1
+    Source: 'crates/con-ron-core/src/arena/checker_split.rs', lines 263:0-278:1
     Visibility: public -/
 def arena.checker_split.check_value_group
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -64803,7 +64803,7 @@ def arena.checker_split.check_value_group
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::check_pending]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 537:0-548:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 536:0-547:1
     Visibility: public -/
 def arena.checker.check_pending
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64819,7 +64819,7 @@ def arena.checker.check_pending
   ok (r, st3)
 
 /-- [con_ron_core::arena::checker::install_fold_hooked]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 589:0-608:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 586:0-605:1
     Visibility: public -/
 def arena.checker.install_fold_hooked
   {H : Type} (InstallHookInst : arena.checker.InstallHook H)
@@ -64943,7 +64943,7 @@ def arena.env.i_env_empty : Result arena.env.IEnv := do
     }
 
 /-- [con_ron_core::arena::checker::fold_start]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 615:0-617:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 612:0-614:1
     Visibility: public -/
 def arena.checker.fold_start
   :
@@ -64955,7 +64955,7 @@ def arena.checker.fold_start
   ok (0#u64, i1, alloc.vec.Vec.new arena.checker.PendingCheck)
 
 /-- [con_ron_core::arena::checker::freeze_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 630:0-642:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 627:0-639:1
     Visibility: public -/
 def arena.checker.freeze_tier
   (ar : arena.store.EStore) :
@@ -64989,7 +64989,7 @@ def arena.checker.freeze_tier
     })
 
 /-- [con_ron_core::arena::checker::thaw_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 651:0-656:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 648:0-653:1
     Visibility: public -/
 def arena.checker.thaw_tier
   (ar : arena.store.EStore) (tier : arena.store.PersTier) :
@@ -65015,7 +65015,7 @@ def arena.checker.thaw_tier
     }
 
 /-- [con_ron_core::arena::checker::pins_dup]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 663:0-671:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 660:0-668:1
     Visibility: public -/
 def arena.checker.pins_dup (p : arena.pins.Pins) : Result arena.pins.Pins := do
   let v ← arena.env.nidx_vec_dup p.names
@@ -65167,7 +65167,7 @@ def arena.monad.AState.init
   ok { store := st, memos := m, caches := c, pins := p }
 
 /-- [con_ron_core::arena::checker::worker_state]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 683:0-687:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 679:0-683:1
     Visibility: public -/
 def arena.checker.worker_state
   (pins : arena.pins.Pins) : Result arena.monad.AState := do
@@ -65485,7 +65485,7 @@ def arena.nat_op_pin_set.intern_pin_sets
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_names]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 841:0-861:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 837:0-857:1
     Visibility: public -/
 def arena.checker.intern_all_names
   (st : arena.monad.AState) :
@@ -65518,7 +65518,7 @@ def arena.checker.intern_all_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::checker::intern_all_reduce_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 815:0-836:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 811:0-832:1
     Visibility: public -/
 def arena.checker.intern_all_reduce_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -65551,7 +65551,7 @@ def arena.checker.intern_all_reduce_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_trust_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 796:0-810:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 792:0-806:1
     Visibility: public -/
 def arena.checker.intern_all_trust_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -65577,7 +65577,7 @@ def arena.checker.intern_all_trust_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins_rest]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 777:0-791:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 773:0-787:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -65603,7 +65603,7 @@ def arena.checker.intern_all_axiom_pins_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 758:0-772:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 754:0-768:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -65629,7 +65629,7 @@ def arena.checker.intern_all_axiom_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::all_basis_kinds]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 745:0-753:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 741:0-749:1
     Visibility: public -/
 def arena.checker.all_basis_kinds
   : Result (alloc.vec.Vec kernel.env.BasisKind) := do
@@ -65641,7 +65641,7 @@ def arena.checker.all_basis_kinds
   alloc.vec.Vec.push ks4 kernel.env.BasisKind.QuotK
 
 /-- [con_ron_core::arena::checker::intern_all_basis]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 727:0-740:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 723:0-736:1
     Visibility: public -/
 def arena.checker.intern_all_basis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (i : Std.Usize) :
@@ -65669,7 +65669,7 @@ def arena.checker.intern_all_basis
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 705:0-720:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 701:0-716:1
     Visibility: public -/
 def arena.checker.intern_all_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -80950,7 +80950,7 @@ def frontend.export_c.parse_chunks
     ok (core.result.Result.Err (e1, 0#u64), { ar with store := e })
 
 /-- [con_ron_core::frontend::export_c::parse_source]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2317:4-2330:5
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2316:4-2329:5
     Visibility: public -/
 @[rust_loop]
 def frontend.export_c.parse_source_loop
@@ -80985,7 +80985,7 @@ def frontend.export_c.parse_source_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::export_c::parse_source]:
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2305:0-2331:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2304:0-2330:1
     Visibility: public -/
 def frontend.export_c.parse_source
   {S : Type} (ChunkSourceInst : frontend.export_c.ChunkSource S)

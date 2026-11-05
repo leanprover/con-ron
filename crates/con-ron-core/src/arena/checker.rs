@@ -519,7 +519,6 @@ pub fn install_fold(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::check_pending_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:258-274 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
@@ -562,8 +561,7 @@ pub fn check_pending(
 //   thaw_tier               the boundary undone
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::InstallHook_refines, then delete this line
+/// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
 /// What the driver prints between phase A's steps (the `--progress`
 /// heartbeat's install line), as a trait the verified fold calls: the hook
 /// takes the state by SHARED reference and returns nothing, so it cannot
@@ -572,8 +570,7 @@ pub fn check_pending(
 /// `Modeller`'s arrangement (`frontend::types`): the trait is declared here,
 /// the implementations live in the unverified crate.
 pub trait InstallHook {
-    /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
-    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::install_before_refines, then delete this line
+    /// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
     /// Before record `pos` of `total` is installed.
     fn install_before(&self, pers: &PersTier, ar: &EStore, pos: u64, total: usize, d: &IDeclaration);
 }
@@ -671,7 +668,6 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:33-40 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,

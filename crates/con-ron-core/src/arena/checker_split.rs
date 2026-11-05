@@ -254,7 +254,6 @@ pub fn install_value_guards_tail(
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker_split::check_value_group_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// **the check half of a value declaration**, at the environment the constant
 /// was installed at: the type's sort, the theorem's is-a-proposition test, for
@@ -280,7 +279,6 @@ pub fn check_value_group(
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker_split::check_value_group_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// the cited `if g.kind = .thm then …`: a theorem's statement must be a
 /// proposition, and its raw value's guards run here.  A definition's or an
@@ -321,7 +319,6 @@ pub fn check_value_group_value(
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker_split::check_value_group_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// the cited tail past the theorem's test: the value's inferred type against
 /// the declared one.  Split off so the two branches of the `if` are tail

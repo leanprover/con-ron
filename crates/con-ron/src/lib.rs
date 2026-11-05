@@ -48,11 +48,11 @@
 //!
 //! | Rust | con-leche | Lean twin |
 //! |---|---|---|
-//! | `driver` | `Main.lean` (the phases, the flags, the verdict, the reads) | `Arena/Main.lean` |
-//! | `pool` | `Main.lean:193-316` (phase B on a pool of check workers) | `Arena/Main.lean` |
+//! | `driver` | `Driver/{Cli,CheckMain,Run}.lean` (the phases, the flags, the verdict, the reads) | `Arena/Main.lean` |
+//! | `pool` | `Driver/CheckPool.lean` (phase B on a pool of check workers) | `Arena/Main.lean` |
 //! | `keys` | none — `std::hash::Hash`/`Eq` wrappers for `Expr` and `Name` | — |
 //! | `render` | none — `Name.toString`, which the core's skip list keeps out | — |
-//! | `src/bin/con-ron.rs` | `Main.lean` (the binary) | `Arena/Main.lean`'s `main` |
+//! | `src/bin/con-ron.rs` | `Driver/Cli.lean` and `Main.lean` (the binary) | `Arena/Main.lean`'s `main` |
 //!
 //! **Two things are deliberately not ported at all**, and each is a
 //! `scripts/provenance-skip.txt` entry with its reason (§3.7 — the skip file

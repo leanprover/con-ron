@@ -1,4 +1,4 @@
-//! `pool` — con-leche's `Main.lean:193-316` over the ARENA: **phase B on a
+//! `pool` — con-leche's `Driver/CheckPool.lean` over the ARENA: **phase B on a
 //! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, tasks
 //! #97-P6-6b and #98-POOL).
 //!
@@ -18,9 +18,9 @@
 //!
 //! — both closures calls into the VERIFIED crate.  The functions are the cited
 //! ones: `worker` is `checkWorker` with `checkOne` inlined
-//! (`Main.lean:240-278`), `parallel_all` is `checkPool` (`:289-316`),
+//! (`checkWorker`), `parallel_all` is `checkPool`,
 //! `merge_results` is `mergeResults` (`:280-287`) and `first_failure` is the
-//! walk that turns the merged table into a verdict (`collectChecks`,
+//! walk that turns the merged table into a verdict (`collectJobs`,
 //! `ConLeche/Cached/Installed.lean:392-416`).
 //!
 //! **Threads live here and never in `con-ron-core`** (DESIGN.md §8.5): the
@@ -144,9 +144,7 @@ pub enum ParallelError<E> {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove pool::worker_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove pool::worker_refines, then delete this line
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -188,7 +186,6 @@ fn worker<S, E>(
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:229-234 mergeResults
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove pool::merge_results_refines, then delete this line
 /// The workers' arrays merged **by index** into one table.  The table is the
 /// pool's whole interface to the verdict: which worker produced a result, and
 /// when, is recorded nowhere.
@@ -210,8 +207,7 @@ pub fn merge_results<E>(
     tab
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:383-407 collectChecks
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove pool::first_failure_refines, then delete this line
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
 /// **The results, walked in index order.**  Slot `k` holds index `k`'s
 /// result; the walk stops at the first failure, so its answer is the
 /// sequential fold's whatever order the results were produced in.  An empty
@@ -229,7 +225,6 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///

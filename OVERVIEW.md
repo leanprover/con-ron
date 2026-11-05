@@ -67,9 +67,9 @@ equality, and installed in their place (§6.3).
 ### 2.1 Command line
 
 ```
-con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+con-ron [--verified|--trusted] [--jobs=<n>]
         [--progress[=<stride>]] [--pins FILE|--no-pins]
-        FILE.ndjson
+        [--] FILE.ndjson
 con-ron --help
 ```
 
@@ -88,8 +88,9 @@ con-ron --help
   `stride` declarations installed or checked.
 * **`--pins FILE`** and **`--no-pins`** replace the embedded `Nat.div`/`Nat.mod`
   pin list (§6.1).  They exist for testing and are outside the theorems.
-* **`--no-mark-persistent`** is accepted for command-line compatibility with
-  con-leche and does nothing.
+* **`--`** ends the options: every argument after it is a file, whatever it is
+  called, and only a `--help` before it is help.  The input is a regular file,
+  read forward; a FIFO or a directory is exit 3.
 
 ### 2.2 Exit codes
 

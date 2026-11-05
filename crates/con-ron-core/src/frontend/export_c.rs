@@ -49,7 +49,7 @@
 //!   `match`es.  `validate_ind_d` and `install_ind_d` are the two that needed
 //!   it, exactly as in con-ron-core; every piece cites the whole of the
 //!   function it came out of.
-//! * **the reader is not here.**  `serialLoop`/`parseExportHandleS`
+//! * **the reader is not here.**  `foldChunks`/`parseFileS`
 //!   (`ConLeche/Frontend/Stream.lean` since con-leche task #329) are `IO`, which DESIGN.md §8.4 forbids in (B) and which the twin does not
 //!   port either; the driver owns the reads and calls [`chunk_step`] and
 //!   [`chunk_finish`] in the loop [`parse_chunks`] spells out purely.
@@ -2274,17 +2274,17 @@ pub fn parse_chunks(
     chunk_finish(pers, ar, st, &carry[..], line_no)
 }
 
-/// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove export_c::ChunkSource_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
 /// **Where the reader loop's bytes come from** (task #97-P5-Driver): the one
 /// input seam of the parse, declared here and implemented in the driver over a
-/// file handle.  `IO.FS.Handle.read` has no model, so the refinement is
+/// file handle.  Deviation from `foldChunks`, whose reads are positional through
+/// the `CheckerIO` class: these are sequential and forward, and the seam is this
+/// trait.  `IO.FS.Handle.read` has no model, so the refinement is
 /// stated under a hypothesis that the reads ARE a list of chunks
 /// (`Refine2/Frontend/Source.lean`'s `ReadsAs`), which is the one thing about
 /// the input the binary trusts.
 pub trait ChunkSource {
-    /// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
-    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove export_c::next_chunk_refines, then delete this line
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
     /// The next buffer of the input, read strictly forward, never seeked:
     /// EMPTY exactly at the end of the input.  A source whose read fails
     /// answers empty too and keeps the failure for its owner, who reports it
@@ -2292,8 +2292,7 @@ pub trait ChunkSource {
     fn next_chunk(&mut self) -> Vec<u8>;
 }
 
-/// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove export_c::parse_source_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
 /// Lean twin: none — the reads have no model; `Refine2/Frontend/Source.lean`'s
 /// `parse_source_eq` makes this `parse_chunks` over the chunks read.
 /// **THE READER LOOP**, moved here from the driver by task #97-P5-Driver:

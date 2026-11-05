@@ -1,8 +1,8 @@
-//! `con-ron` — con-leche's `Main.lean` over the ARENA (DESIGN.md §8.6,
+//! `con-ron` — con-leche's `Driver/Cli.lean` and `Main.lean` over the ARENA (DESIGN.md §8.6,
 //! task #97 P4f), on a **raw** lean4export stream.
 //!
 //! ```text
-//! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+//! con-ron [--verified|--trusted] [--jobs=<n>]
 //!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
 //! con-ron --help
 //! ```
@@ -31,7 +31,7 @@
 //! (`checker::install_fold_hooked`), the frozen tier, and the worker pool over
 //! `checker::check_pending` for its phase B.
 //!
-//! Exit codes are con-leche's (`Main.lean:15-31`): 0 accepted, 1 rejected, 2
+//! Exit codes are con-leche's (`Driver/CheckMain.lean`'s `exitCode`): 0 accepted, 1 rejected, 2
 //! declined, 3 usage/malformed/internal — `con_ron::driver::exit_code`, the
 //! same mapping the other binary uses, so `scripts/diff-e2e.sh` reads the same
 //! numbers off both.  Out of memory is neither (a Rust allocation failure
@@ -45,7 +45,7 @@
 //! threads sharing the frozen persistent tier and the installed index by
 //! reference (`con_ron::pool`), and the default is one per hardware
 //! thread capped at sixteen — `con_ron::driver::default_jobs`, the same
-//! function `con-ron` uses.  `--no-mark-persistent`, `--pins FILE` and
+//! function `con-ron` uses.  `--pins FILE` and
 //! `--no-pins` are con-ron's own and mean exactly what they mean there.
 
 use std::io::Write;
@@ -77,17 +77,16 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: Main.lean:91-312 usage
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
+/// con-leche: ConLeche/Driver/Cli.lean:97-293 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
 /// the three paragraphs that are this checker's own: the representation, the
-/// single-lane phase B, and what the two `--no-mark-persistent` reasons are.
+/// and the single-lane phase B.
 const USAGE: &str = "\
-usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+usage: con-ron [--verified|--trusted] [--jobs=<n>]
                [--progress[=<stride>]] [--pins FILE|--no-pins]
-               FILE.ndjson
+               [--] FILE.ndjson
        con-ron --help
 
   (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
@@ -126,46 +125,9 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     capped at 16.  A worker reserves 1 GiB of stack, which a
                     `ulimit -v` must allow for.  0 or a non-numeral is a usage
                     error, as in con-leche.
-  --no-mark-persistent
-                    ACCEPTED AND A NO-OP, for a stronger reason than the
-                    `con-ron` binary's: the mark it turns off is a
-                    Lean-runtime reference-counting device
-                    (Runtime.markPersistent), and this checker has no
-                    reference counts at all -- a term is a u32 handle into a
-                    Vec and the persistent tier is immutable in phase B.  A
-                    run that passes it says so on stderr.
-  --progress[=<stride>]
-                    opt-in progress heartbeat on STDERR, one line shape per
-                    phase:
-                      con-ron: parse done: <N> fold records ... t=<s>s
-                      con-ron: install <i>/<N> <decl> t=<s>s
-                      con-ron: install done: <N>/<N> ..., <M> pending
-                      con-ron: check <done>/<M> <kind> <name> t=<s>s
-                      con-ron: check done: <M>/<M> t=<s>s
-                      con-ron: done: parse <p>s, install <i>s, check <c>s
-                    An install line is printed BEFORE every <stride>-th
-                    declaration is installed, so a run that dies in the
-                    install phase names the declaration it died in on its last
-                    line; a check line is printed AFTER every <stride>-th
-                    COMPLETED check.  On a failure the phase's closing line
-                    says so and the summary still prints.  Bare --progress is
-                    stride 1; a stride that is not a decimal numeral, or 0, is
-                    a usage error.
-  --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-                    `con-ron-pins/2` dump instead of the core's own embedded
-                    text (task #43), through the UNVERIFIED reader.  The pins
-                    are interned into the persistent tier at startup, before
-                    the fold (DESIGN.md section 8.6 P2d).
-  --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-                    loop's `[]` arm, under which a Nat.div/Nat.mod stream
-                    declines.  Neither flag is needed for a normal run: the
-                    pins are con-leche's `natOpPinSets`, embedded in the
-                    verified core and decoded by it.  A run with either
-                    flag is outside the proved theorems.
-  --help            print this text on STDOUT and exit 0, in any argument
-                    position; no input is read.  Its last line names the
-                    global allocator THIS binary was built with (below), so a
-                    measurement can be reproduced.
+  --                every argument after it is a file, whatever it is called;
+                    FILE.ndjson is a regular file, read forward (a FIFO or a
+                    directory is exit 3)
 
 build-time selection (cargo features, not command-line flags): the global
 allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
@@ -209,8 +171,7 @@ declaration with no effect on any block.  A block whose shape the installer
 does not recognise declines (exit 2), naming it.  The binary reads no
 environment variable.";
 
-/// con-leche: Main.lean:314-328 Args
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
+/// con-leche: ConLeche/Driver/Cli.lean:348-364 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -218,14 +179,12 @@ struct Args {
     verified: bool,
     progress: u64,
     jobs: Option<u64>,
-    no_mark: bool,
     pins: Option<String>,
     no_pins: bool,
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:330-358 parseArgs
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
+/// con-leche: ConLeche/Driver/Cli.lean:380-414 parseArgs
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -238,7 +197,6 @@ fn parse_args(argv: &[String]) -> Args {
         verified: true,
         progress: 0,
         jobs: None,
-        no_mark: false,
         pins: None,
         no_pins: false,
         bad: None,
@@ -253,10 +211,14 @@ fn parse_args(argv: &[String]) -> Args {
             }
         };
         match s {
+            // The end of the options: every argument after it is a file.
+            "--" => {
+                a.files.extend(argv[i + 1..].iter().cloned());
+                return a;
+            }
             "--verified" => a.verified = true,
             "--trusted" => a.verified = false,
             "--progress" => a.progress = 1,
-            "--no-mark-persistent" => a.no_mark = true,
             "--no-pins" => a.no_pins = true,
             "--pins" => {
                 i += 1;
@@ -298,6 +260,13 @@ fn parse_args(argv: &[String]) -> Args {
         i += 1;
     }
     a
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:366-369 helpWanted
+/// `--help` before any `--`: after a `--` every argument is a file, whatever it
+/// is called.
+fn help_wanted(argv: &[String]) -> bool {
+    argv.iter().take_while(|s| s.as_str() != "--").any(|s| s == "--help")
 }
 
 /// con-leche: none — the three verdict classes of a `CheckError` as the
@@ -345,10 +314,8 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
     }
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
-/// con-leche: ConLeche/Driver/Run.lean:47-65 parseInput
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
+/// con-leche: ConLeche/Driver/CheckMain.lean:86-94 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
@@ -545,7 +512,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
 }
 
 /// con-leche: Main.lean:33-93 main
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::exit_after_verdict_refines, then delete this line
 /// con-leche task #336: **exit
 /// right after the verdict, without freeing the heap**.  Returning would drop
 /// the store, the parsed and prepared declarations and the environment on the
@@ -559,10 +525,8 @@ fn exit_after_verdict(code: u8) -> ! {
     std::process::exit(code as i32)
 }
 
-/// con-leche: Main.lean:360-428 run
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::main_refines, then delete this line
+/// con-leche: ConLeche/Driver/Cli.lean:424-504 runArgs
 /// con-leche: Main.lean:33-93 main
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did
@@ -573,7 +537,7 @@ fn exit_after_verdict(code: u8) -> ! {
 /// returning here (`exit_after_verdict`, con-leche task #336).
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    if argv.iter().any(|s| s == "--help") {
+    if help_wanted(&argv) {
         println!("{}", USAGE);
         // The one build-time choice a run's numbers depend on, printed rather
         // than merely documented (task #89).
@@ -589,9 +553,6 @@ fn main() -> ExitCode {
     if a.files.len() != 1 {
         eprintln!("{}", USAGE);
         return ExitCode::from(3);
-    }
-    if a.no_mark {
-        eprintln!("con-ron: {}", driver::mark_persistent_note());
     }
     let file = a.files[0].clone();
     let h = std::thread::Builder::new()

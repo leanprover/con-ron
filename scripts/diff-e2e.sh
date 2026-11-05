@@ -327,6 +327,50 @@ display_cli pins-path --pins "$WORK/display-$evil/missing" "$CL/tests/e2e/render
 display_cli pins-file --pins "$WORK/display-pins" "$CL/tests/e2e/render_name_progress.ndjson"
 rm -rf "$WORK/display-$evil" "$WORK/display-pins"
 
+# THE COMMAND-LINE GATE (con-leche task #450, its `tests/arena.sh`): `--` ends
+# the options, only a `--help` before it is help, and a FIFO or a directory as
+# the input is exit 3 with "not a regular file", before anything opens it.
+cli_ok=0
+cli_total=0
+cli_good="$CL/tests/mode/split_good.ndjson"
+cli_dir="$WORK/cli-dashes"
+cli_case() { # <expected-exit> <args...>, in the directory of those files
+  local want=$1 got; shift
+  if [ -n "$only" ] && ! printf '%s' "cli/$*" | grep -qE "$only"; then return 0; fi
+  cli_total=$((cli_total + 1))
+  (cd "$cli_dir" && ulimit -c 0 && timeout "$TO" "$bin_abs" "$@" >/dev/null 2>&1)
+  got=$?
+  if [ "$got" = "$want" ]; then cli_ok=$((cli_ok + 1))
+  else echo "CLI FAIL ($*): expected exit $want, got $got"; fi
+}
+cli_regular() { # <path>: exit 3 and the message, within the timeout
+  local msg got
+  if [ -n "$only" ] && ! printf '%s' "cli/regular" | grep -qE "$only"; then return 0; fi
+  cli_total=$((cli_total + 1))
+  msg=$(timeout 60 "$BIN" "$1" 2>&1 >/dev/null)
+  got=$?
+  if [ "$got" = 3 ] && printf '%s' "$msg" | grep -q 'not a regular file'; then cli_ok=$((cli_ok + 1))
+  else echo "CLI FAIL (not a regular file: $1): got $got: $msg"; fi
+}
+bin_abs=$(realpath "$BIN")
+rm -rf "$cli_dir"; mkdir -p "$cli_dir"
+if [ -f "$cli_good" ]; then
+  cp "$cli_good" "$cli_dir/-weird-name.ndjson"
+  cp "$cli_good" "$cli_dir/--help"
+  cli_case 0 -- -weird-name.ndjson
+  cli_case 3 -weird-name.ndjson
+  cli_case 0 -- --help
+  cli_case 0 --help
+  cli_case 0 --help -- no-such-file
+  cli_case 0 --no-such-option --help
+  cli_case 3 -- no-such-file --help
+  cli_case 3 -- no-such-file
+fi
+mkfifo "$cli_dir/fifo"
+cli_regular "$cli_dir/fifo"
+cli_regular "$cli_dir"
+rm -rf "$cli_dir"
+
 t1=$(date +%s)
 
 # `_tmp/diff-e2e.log` is the fixed name CI collects.  Nothing WRITES there
@@ -347,6 +391,7 @@ echo "  DIFFER              $differ"
 echo "  timed out           $timedout"
 echo "  other errors        $other"
 echo "  display gate        $display_ok/$display_total"
+echo "  command-line gate   $cli_ok/$cli_total"
 echo "  $((t1 - t0))s; log: $log"
 [ "$differ" -eq 0 ] && [ "$timedout" -eq 0 ] && [ "$other" -eq 0 ] \
-  && [ "$display_ok" -eq "$display_total" ]
+  && [ "$display_ok" -eq "$display_total" ] && [ "$cli_ok" -eq "$cli_total" ]

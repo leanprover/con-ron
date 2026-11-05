@@ -1362,7 +1362,7 @@ structure arena.promote.PMemo where
   ls_m : ron.hashmap2.HashMap2 arena.handle.LsIdx arena.handle.LsIdx
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 574:0-579:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 572:0-576:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →
@@ -1711,7 +1711,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2285:0-2293:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2286:0-2293:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
