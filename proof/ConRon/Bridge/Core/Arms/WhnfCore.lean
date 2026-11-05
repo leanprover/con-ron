@@ -12,7 +12,7 @@ run by the chained `whnfCoreBody` at some knot fuel.  So:
 
 | piece | twin | pure side |
 |---|---|---|
-| one step | `whnfCoreStep` | `whnfCoreStepW` at `pureFns mode env F` (`whnfCoreStep_spec`) |
+| one step | `whnfCoreStep` | `whnfCoreStepW` at `pureFns mode eager env F` (`whnfCoreStep_spec`) |
 | the loop | `whnfCoreLoop` | `whnfCoreLoopM` (`whnfCoreLoop_spec`, induction on the budget) |
 | the body | `whnfCoreBody` | `whnfCore` (`whnfCoreBody_spec`, over `whnfCore_of_loopM`) |
 
@@ -39,22 +39,22 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. The scrutinee of the `.proj` exit -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:967 whnfCoreBody — the
 scrutinee's reduction, in the clause's mode, at the pure knot. -/
-abbrev projScrut (mode : CheckMode) (env : Env) (c : Bool) (F d : Nat)
+abbrev projScrut (mode : CheckMode) (eager : Bool) (env : Env) (c : Bool) (F d : Nat)
     (pe : Expr) : CheckM Expr :=
-  if c then ConLeche.whnfCore mode env F d pe true
-  else ConLeche.whnf mode env F d pe
+  if c then ConLeche.whnfCore mode eager env F d pe true
+  else ConLeche.whnf mode eager env F d pe
 
 /-- con-leche: ConLeche/Verify/Mono.lean:120 whnfCore_mono — the scrutinee's
 reduction is fuel-monotone in either mode. -/
 theorem projScrut_mono {c : Bool} {F F' d : Nat} {pe r : Expr} (hle : F ≤ F')
-    (h : projScrut mode env c F d pe = .ok r) :
-    projScrut mode env c F' d pe = .ok r := by
+    (h : projScrut mode eager env c F d pe = .ok r) :
+    projScrut mode eager env c F' d pe = .ok r := by
   cases c
   · exact ConLeche.whnf_mono hle h
   · exact ConLeche.whnfCore_mono hle h
@@ -63,38 +63,38 @@ theorem projScrut_mono {c : Bool} {F F' d : Nat} {pe r : Expr} (hle : F ≤ F')
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:328 whnfCoreStepW — at the pure
 knot. -/
-abbrev mStep (mode : CheckMode) (env : Env) (c : Bool) (F d : Nat) (e : Expr) :
+abbrev mStep (mode : CheckMode) (eager : Bool) (env : Env) (c : Bool) (F d : Nat) (e : Expr) :
     CheckM ConLeche.WhnfStep :=
-  ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode env F) env c d e
+  ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env F) env c d e
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:458 whnfCoreStepW_atF — fuel
 monotonicity of the step. -/
 theorem mStep_mono {c : Bool} {F F' d : Nat} {e : Expr} {r : ConLeche.WhnfStep}
-    (hle : F ≤ F') (h : mStep mode env c F d e = .ok r) :
-    mStep mode env c F' d e = .ok r := by
+    (hle : F ≤ F') (h : mStep mode eager env c F d e = .ok r) :
+    mStep mode eager env c F' d e = .ok r := by
   simp only [mStep] at h ⊢
   rw [← ConLeche.whnfCoreStepW_atF] at h ⊢
-  exact (ConLeche.whnfCoreStepW mode (ConLeche.fueledFns mode env) env c d
+  exact (ConLeche.whnfCoreStepW mode (ConLeche.fueledFns mode eager env) env c d
     e).property hle h
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:470 whnfCoreLoopM_atF — fuel
 monotonicity of the loop mirror. -/
 theorem loopM_mono {c : Bool} {d n F F' : Nat} (hle : F ≤ F') {e v : Expr}
-    (h : ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode env F) env c d n e
+    (h : ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode eager env F) env c d n e
       = .ok v) :
-    ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode env F') env c d n e
+    ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode eager env F') env c d n e
       = .ok v := by
   rw [← ConLeche.whnfCoreLoopM_atF] at h ⊢
-  exact (ConLeche.whnfCoreLoopM mode (ConLeche.fueledFns mode env) env c d n
+  exact (ConLeche.whnfCoreLoopM mode (ConLeche.fueledFns mode eager env) env c d n
     e).property hle h
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1097 whnfCoreLoop_sound_body —
 **the loop mirror is the chained head normalization**: a successful
 `whnfCoreLoopM` run at some fuel is a `whnfCore` run at some fuel. -/
 theorem whnfCore_of_loopM {c : Bool} {d n F : Nat} {e v : Expr}
-    (h : ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode env F) env c d n e
+    (h : ConLeche.whnfCoreLoopM mode (ConLeche.pureFns mode eager env F) env c d n e
       = .ok v) :
-    ∃ F', ConLeche.whnfCore mode env F' d e c = .ok v := by
+    ∃ F', ConLeche.whnfCore mode eager env F' d e c = .ok v := by
   rw [← ConLeche.whnfCoreLoopM_atF] at h
   obtain ⟨F', hF'⟩ := ConLeche.whnfCoreLoop_sound_body d e v n F h
   refine ⟨F' + 1, ?_⟩
@@ -104,10 +104,10 @@ theorem whnfCore_of_loopM {c : Bool} {d n F : Nat} {e v : Expr}
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:328 whnfCoreStepW — the `.app`
 exit: the spine head's normal form, then the batched walk. -/
 theorem mStep_app {c : Bool} {F d : Nat} {f a V : Expr} {r : ConLeche.WhnfStep}
-    (hv : ConLeche.whnfCore mode env F d (Expr.app f a).getAppFn c = .ok V)
-    (hw : mWA mode env F d V (Expr.app f a).getAppArgs = .ok r) :
-    mStep mode env c F d (.app f a) = .ok r := by
-  have hv' : (ConLeche.pureFns mode env F).whnfCore c d (Expr.app f a).getAppFn
+    (hv : ConLeche.whnfCore mode eager env F d (Expr.app f a).getAppFn c = .ok V)
+    (hw : mWA mode eager env F d V (Expr.app f a).getAppArgs = .ok r) :
+    mStep mode eager env c F d (.app f a) = .ok r := by
+  have hv' : (ConLeche.pureFns mode eager env F).whnfCore c d (Expr.app f a).getAppFn
       = .ok V := hv
   simp only [mStep, ConLeche.whnfCoreStepW, hv', bind, Except.bind]
   exact hw
@@ -116,9 +116,9 @@ theorem mStep_app {c : Bool} {F d : Nat} {f a V : Expr} {r : ConLeche.WhnfStep}
 exit, the rule does not fire: the node itself, done (con-leche's task #323:
 its scrutinee as it was). -/
 theorem mStep_proj_none {c : Bool} {F d i : Nat} {sn : Name} {pe c' : Expr}
-    (hs : projScrut mode env c F d pe = .ok c')
-    (hr : ConLeche.reduceProjCoreFueled mode env F d sn i c' = .ok none) :
-    mStep mode env c F d (.proj sn i pe) = .ok (.done (.proj sn i pe)) := by
+    (hs : projScrut mode eager env c F d pe = .ok c')
+    (hr : ConLeche.reduceProjCoreFueled mode eager env F d sn i c' = .ok none) :
+    mStep mode eager env c F d (.proj sn i pe) = .ok (.done (.proj sn i pe)) := by
   simp only [ConLeche.reduceProjCoreFueled] at hr
   cases c <;>
     simp only [projScrut, ite_true, Bool.false_eq_true, ite_false] at hs <;>
@@ -129,9 +129,9 @@ theorem mStep_proj_none {c : Bool} {F d i : Nat} {sn : Name} {pe c' : Expr}
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:328 whnfCoreStepW — the `.proj`
 exit, the rule fires: the selected field is the term to continue with. -/
 theorem mStep_proj_some {c : Bool} {F d i : Nat} {sn : Name} {pe c' m : Expr}
-    (hs : projScrut mode env c F d pe = .ok c')
-    (hr : ConLeche.reduceProjCoreFueled mode env F d sn i c' = .ok (some m)) :
-    mStep mode env c F d (.proj sn i pe) = .ok (.cont m) := by
+    (hs : projScrut mode eager env c F d pe = .ok c')
+    (hr : ConLeche.reduceProjCoreFueled mode eager env F d sn i c' = .ok (some m)) :
+    mStep mode eager env c F d (.proj sn i pe) = .ok (.cont m) := by
   simp only [ConLeche.reduceProjCoreFueled] at hr
   cases c <;>
     simp only [projScrut, ite_true, Bool.false_eq_true, ite_false] at hs <;>
@@ -146,13 +146,13 @@ theorem mStep_proj_some {c : Bool} {F d i : Nat} {sn : Name} {pe c' m : Expr}
 outcome at some fuel. -/
 theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) (c : Bool)
+    (hsim : KnotSpec mode eager env fe fuel) (c : Bool)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
     ⦃fun s => s = s₀⦄
-      whnfCoreStep mode (coreKnot mode fe id fuel) fe c d i
-    ⦃fun r s' => StepPost mode env fe d s₀ (fun F => mStep mode env c F d e)
+      whnfCoreStep mode (coreKnot mode eager fe id fuel) fe c d i
+    ⦃fun r s' => StepPost mode eager env fe d s₀ (fun F => mStep mode eager env c F d e)
         r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
@@ -160,9 +160,9 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
   refine view_bind_triple hv ?_
   -- a value answers itself
   have hval : ∀ (e0 : Expr), e = e0 →
-      mStep mode env c 0 d e0 = .ok (.done e0) →
+      mStep mode eager env c 0 d e0 = .ok (.done e0) →
       ⦃fun s => s = s₀⦄ (pure (ConRon.Arena.WhnfStep.done i) : AM _)
-      ⦃fun r s' => StepPost mode env fe d s₀ (fun F => mStep mode env c F d e)
+      ⦃fun r s' => StepPost mode eager env fe d s₀ (fun F => mStep mode eager env c F d e)
           r s'; ⊤⦄ := by
     intro e0 he0 hst
     subst he0
@@ -207,11 +207,11 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
     dsimp only
     unfold whnfCoreStepProj
     have h1 : ⦃fun s => s = s₀⦄
-        (if c then (coreKnot mode fe id fuel).whnfCore true d pe
-          else (coreKnot mode fe id fuel).whnf d pe)
-        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        (if c then (coreKnot mode eager fe id fuel).whnfCore true d pe
+          else (coreKnot mode eager fe id fuel).whnf d pe)
+        ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
-            SimEOp (fun F => projScrut mode env c F d es) d s'.store r; ⊤⦄ := by
+            SimEOp (fun F => projScrut mode eager env c F d es) d s'.store r; ⊤⦄ := by
       cases c
       · simp only [Bool.false_eq_true, ite_false]
         exact hsim.whnf s₀ d pe es hok hpe hwes
@@ -284,16 +284,16 @@ for `whnfCoreLoop`**, by induction on the step budget: the twin's loop
 denotes the mirror loop `whnfCoreLoopM` at some fuel. -/
 theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) (c : Bool) (d : Nat) :
+    (hsim : KnotSpec mode eager env fe fuel) (c : Bool) (d : Nat) :
     ∀ (n : Nat) (s₀ : AState) (i : EIdx) (e : Expr),
-      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
       Expr.WScoped d e →
       ⦃fun s => s = s₀⦄
-        whnfCoreLoop mode (coreKnot mode fe id fuel) fe c d n i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        whnfCoreLoop mode (coreKnot mode eager fe id fuel) fe c d n i
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           Expr.WScoped d v ∧ ∃ F, ConLeche.whnfCoreLoopM mode
-            (ConLeche.pureFns mode env F) env c d n e = .ok v; ⊤⦄
+            (ConLeche.pureFns mode eager env F) env c d n e = .ok v; ⊤⦄
   | 0, s₀, i, e, _, _, _ => by
     rw [whnfCoreLoop]; exact triple_fail
   | n + 1, s₀, i, e, hok, hden, hw => by
@@ -308,7 +308,7 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
       subst_vars
       refine ⟨hok1, hx1, hp1, V, hdV, hwR, F1, ?_⟩
       simp only [ConLeche.whnfCoreLoopM]
-      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode env F1) env c d e
+      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env F1) env c d e
         = .ok (.done V) from hF1]
       rfl
     | cont e' =>
@@ -320,7 +320,7 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
       rintro r s' ⟨hck, hx, hp, v, hdv, hwv, F2, hF2⟩
       refine ⟨hck, hx1.trans hx, by rw [hp, hp1], v, hdv, hwv, max F1 F2, ?_⟩
       simp only [ConLeche.whnfCoreLoopM]
-      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode env (max F1 F2))
+      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env (max F1 F2))
           env c d e = .ok (.cont E') from mStep_mono (Nat.le_max_left _ _) hF1]
       exact loopM_mono (Nat.le_max_right _ _) hF2
 
@@ -330,9 +330,9 @@ loop at its own budget, and con-leche's `whnfCoreLoop_sound_body` for the
 chained side. -/
 theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) (c : Bool) :
-    BodySpec mode env fe (whnfCoreBody mode (coreKnot mode fe id fuel) fe c)
-      (fun F d e => ConLeche.whnfCore mode env F d e c) := by
+    (hsim : KnotSpec mode eager env fe fuel) (c : Bool) :
+    BodySpec mode eager env fe (whnfCoreBody mode (coreKnot mode eager fe id fuel) fe c)
+      (fun F d e => ConLeche.whnfCore mode eager env F d e c) := by
   intro s₀ d i e hok hden hw
   unfold ConRon.Arena.whnfCoreBody
   refine triple_mono (whnfCoreLoop_spec henv hμ hsim c d _ s₀ i e hok hden hw) ?_

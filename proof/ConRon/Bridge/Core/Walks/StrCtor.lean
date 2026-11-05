@@ -35,14 +35,14 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-- con-leche: none — `internE_spec` at the checker's invariant: an intern
 extends the store and leaves caches and pins alone, so `CheckOK` survives. -/
 theorem internE_ok_spec (s₀ : AState) (w : ENodeView)
-    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ViewOK w) :
+    (hok : CheckOK mode eager env fe s₀) (hv : s₀.store.ViewOK w) :
     ⦃fun s => s = s₀⦄ internE w
-    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun h s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
   triple_mono (internE_spec s₀ w hok.state.wf hv)
     (fun _ _ ⟨hwf', hx', _, _, _, hc', hp', _, hd⟩ =>
@@ -68,11 +68,11 @@ theorem strSpineE_cons (cx ox nx : Expr) (c : Char) (cs : List Char) :
 **THEOREM 1 for the spine recursion** `strLitConsSpine`: one character per
 level, four interns each. -/
 theorem strLitConsSpine_spec (cons ofNat nilE : EIdx) (cx ox nx : Expr) :
-    ∀ (cs : List Char) (s₀ : AState), CheckOK mode env fe s₀ →
+    ∀ (cs : List Char) (s₀ : AState), CheckOK mode eager env fe s₀ →
       denoteE s₀.store cons = some cx → denoteE s₀.store ofNat = some ox →
       denoteE s₀.store nilE = some nx →
       ⦃fun s => s = s₀⦄ ConRon.Arena.strLitConsSpine cons ofNat nilE cs
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           denoteE s'.store r = some (strSpineE cx ox nx cs); ⊤⦄ := by
   intro cs
@@ -85,16 +85,16 @@ theorem strLitConsSpine_spec (cons ofNat nilE : EIdx) (cx ox nx : Expr) :
     intro s₀ hok hc ho hn
     sym only [bridge_grind, strSpineE_cons] =>
       vcgen [ConRon.Arena.strLitConsSpine, ih,
-        internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+        internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor —
 **THEOREM 1 for `strLitToConstructor`**: the handle the twin builds denotes
 con-leche's constructor form, staged over the five pins, three `constE`s,
 five interns and the spine. -/
 theorem strLitToConstructor_spec (s₀ : AState) (str : String)
-    (hok : CheckOK mode env fe s₀) :
+    (hok : CheckOK mode eager env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.strLitToConstructor str
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.strLitToConstructor str); ⊤⦄ := by
   unfold ConRon.Arena.strLitToConstructor
@@ -106,7 +106,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
     (by intro c hc; simp at hc; subst hc
         exact lview_isSome_of_denote hz)) ?_
   rintro zs s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, _, hzs⟩
-  have hok2 : CheckOK mode env fe s2 := hok.mono ⟨hwf2⟩ hx2 hc2 hp2
+  have hok2 : CheckOK mode eager env fe s2 := hok.mono ⟨hwf2⟩ hx2 hc2 hp2
   have hzs' : denoteLs s2.store.lss zs = some [Level.zero] := by
     rw [hzs]
     simp only [denoteLsView, denoteLList]
@@ -123,7 +123,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
   rintro lnN s5 ⟨hs5, hlnN⟩
   subst s5
   have hzs4 := denoteLs_ext hzs' hx4
-  refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+  refine triple_seq (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
     s4 (.const lnN zs) hok4 (viewOK_const
       (nview_isSome_of_denote (hlnN _ rfl))
       (by obtain ⟨w, hw, _⟩ := denoteLs_view hzs4; rw [hw]; rfl))) ?_
@@ -133,7 +133,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
     simp only [denoteEView, denoteN_ext (hlnN _ rfl) hx6, denoteLs_ext hzs4 hx6,
       opt2]
   have hchC6 := denote_ext hchC hx6
-  refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+  refine triple_seq (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
     s6 (.app ln chC) hok6 (viewOK_app (by rw [hln']; rfl)
       (by rw [hchC6]; rfl))) ?_
   rintro nilE s7 ⟨hok7, hx7, hp7, hnil⟩
@@ -146,7 +146,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
   rintro lcN s8 ⟨hs8, hlcN⟩
   subst s8
   have hzs7 := denoteLs_ext hzs4 (hx6.trans hx7)
-  refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+  refine triple_seq (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
     s7 (.const lcN zs) hok7 (viewOK_const
       (nview_isSome_of_denote (hlcN _ rfl))
       (by obtain ⟨w, hw, _⟩ := denoteLs_view hzs7; rw [hw]; rfl))) ?_
@@ -157,7 +157,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
     simp only [denoteEView, denoteN_ext (hlcN _ rfl) hx9, denoteLs_ext hzs7 hx9,
       opt2]
   have hchC9 := denote_ext hchC6 (hx7.trans hx9)
-  refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+  refine triple_seq (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
     s9 (.app lc chC) hok9 (viewOK_app (by rw [hlc']; rfl)
       (by rw [hchC9]; rfl))) ?_
   rintro cons s10 ⟨hok10, hx10, hp10, hcons⟩
@@ -185,7 +185,7 @@ theorem strLitToConstructor_spec (s₀ : AState) (str : String)
     (hslN _ rfl)) ?_
   rintro sl s15 ⟨hok15, hx15, hp15, hsl⟩
   have hspine15 := denote_ext hspine hx15
-  refine triple_mono (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+  refine triple_mono (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
     s15 (.app sl spine) hok15 (viewOK_app (by rw [hsl]; rfl)
       (by rw [hspine15]; rfl))) ?_
   rintro r s16 ⟨hok16, hx16, hp16, hr⟩

@@ -62,21 +62,21 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. The five leaf clauses -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1115 inferBody — a sort's type is the
 next sort. -/
 theorem infer_sort {F d : Nat} {u : Level} :
-    ConLeche.inferTypeCore mode env (F + 1) d (.sort u) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.sort u) =
       .ok (.sort (.succ u)) := rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1116-1125 inferBody — a free
 variable's type is the one its node carries (DESIGN §8.3, "Free variables":
 this is what makes every handle-keyed cache sound). -/
 theorem infer_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.fvar idx ty) = .ok ty := by
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.fvar idx ty) = .ok ty := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ite_eq_left h, pure, Except.pure]
 
@@ -85,7 +85,7 @@ constant's type at its universe instantiation. -/
 theorem infer_const {F d : Nat} {n : Name} {us : List Level}
     {ci : ConstantInfo} (hf : env.find? n = some ci)
     (hl : us.length = ci.toConstantVal.levelParams.length) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.const n us) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.const n us) =
       .ok (ci.toConstantVal.type.instantiateLevelParams
         ci.toConstantVal.levelParams us) := by
   rw [ConLeche.inferTypeCore_succ]
@@ -96,7 +96,7 @@ theorem infer_const {F d : Nat} {n : Name} {us : List Level}
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — a `Nat`
 literal types as `Nat`, once the basis declarations are pinned. -/
 theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitSupported env = true) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.lit (.natVal n)) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.lit (.natVal n)) =
       .ok (.const ConLeche.natName []) := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
@@ -105,7 +105,7 @@ theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitSupported env = true) :
 literal types as `String`. -/
 theorem infer_strLit {F d : Nat} {s : String}
     (h : ConLeche.strLitSupported env = true) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.lit (.strVal s)) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.lit (.strVal s)) =
       .ok (.const ConLeche.stringName []) := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
@@ -116,7 +116,7 @@ pattern). -/
 @[bridge_grind ←] theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
     (h : ConLeche.natLitSupported env = true) :
-    SimE (ConLeche.inferTypeCore mode env) d (.lit (.natVal n)) st r :=
+    SimE (ConLeche.inferTypeCore mode eager env) d (.lit (.natVal n)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_natLit h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1141-1147 inferBody — the string
@@ -124,7 +124,7 @@ literal clause as an answer. -/
 @[bridge_grind ←] theorem SimE.of_strLit {st : EStore} {r : EIdx} {d : Nat} {str : String}
     (hd : denoteE st r = some (.const ConLeche.stringName []))
     (h : ConLeche.strLitSupported env = true) :
-    SimE (ConLeche.inferTypeCore mode env) d (.lit (.strVal str)) st r :=
+    SimE (ConLeche.inferTypeCore mode eager env) d (.lit (.strVal str)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
@@ -138,7 +138,7 @@ theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     (hl : ls.length = c.toConstantVal.levelParams.length)
     (hd : denoteE st r = some (c.toConstantVal.type.instantiateLevelParams
       c.toConstantVal.levelParams ls)) :
-    SimE (ConLeche.inferTypeCore mode env) d (.const n ls) st r :=
+    SimE (ConLeche.inferTypeCore mode eager env) d (.const n ls) st r :=
   ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
     infer_const hfind hl⟩
 
@@ -146,24 +146,24 @@ theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
 variable clause as an answer. -/
 @[bridge_grind ←] theorem SimE.of_fvar {st : EStore} {r : EIdx} {d k : Nat} {t : Expr}
     (hk : k < d) (hd : denoteE st r = some t) (hw : Expr.WScoped d t) :
-    SimE (ConLeche.inferTypeCore mode env) d (.fvar k t) st r :=
+    SimE (ConLeche.inferTypeCore mode eager env) d (.fvar k t) st r :=
   ⟨_, hd, hw, 1, infer_fvar hk⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1166-1171 inferBody — **the `let`
 clause**, official `infer_let` (con-leche's task #342 S0): the type is a
 type, the value's type is the type, then the body at the value. -/
 theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
-    (htty : ConLeche.inferTypeCore mode env F d ty = .ok tty)
-    (hs : ConLeche.ensureSortCore mode env F d tty = .ok u)
-    (htv : ConLeche.inferTypeCore mode env F d v = .ok tv)
-    (hde : ConLeche.isDefEqCore mode env F d tv ty = .ok true)
-    (hr : ConLeche.inferTypeCore mode env F d (b.instantiate1 v) = .ok res) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.letE ty v b) = .ok res := by
-  have e1 : (ConLeche.pureFns mode env F).infer d ty = .ok tty := htty
-  have e2 : ConLeche.ensureSort (ConLeche.pureFns mode env F) env d tty = .ok u := hs
-  have e3 : (ConLeche.pureFns mode env F).infer d v = .ok tv := htv
-  have e4 : (ConLeche.pureFns mode env F).defeq d tv ty = .ok true := hde
-  have e5 : (ConLeche.pureFns mode env F).infer d (b.instantiate1 v) = .ok res := hr
+    (htty : ConLeche.inferTypeCore mode eager env F d ty = .ok tty)
+    (hs : ConLeche.ensureSortCore mode eager env F d tty = .ok u)
+    (htv : ConLeche.inferTypeCore mode eager env F d v = .ok tv)
+    (hde : ConLeche.isDefEqCore mode eager env F d tv ty = .ok true)
+    (hr : ConLeche.inferTypeCore mode eager env F d (b.instantiate1 v) = .ok res) :
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.letE ty v b) = .ok res := by
+  have e1 : (ConLeche.pureFns mode eager env F).infer d ty = .ok tty := htty
+  have e2 : ConLeche.ensureSort (ConLeche.pureFns mode eager env F) env d tty = .ok u := hs
+  have e3 : (ConLeche.pureFns mode eager env F).infer d v = .ok tv := htv
+  have e4 : (ConLeche.pureFns mode eager env F).defeq d tv ty = .ok true := hde
+  have e5 : (ConLeche.pureFns mode eager env F).infer d (b.instantiate1 v) = .ok res := hr
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
   rfl
@@ -179,14 +179,14 @@ W4c/O4 fence: at a `Prop`-declared structure the field's sort must itself be
 projection at a **non-`Prop`** structure: the fence does not apply. -/
 theorem infer_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     {us : List Level} {entry : ProjEntry}
-    (hpe : ConLeche.inferTypeCore mode env F d pe = .ok tpe)
-    (hw : ConLeche.whnf mode env F d tpe = .ok te)
+    (hpe : ConLeche.inferTypeCore mode eager env F d pe = .ok tpe)
+    (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
     (hh : te.getAppFn = .const T us)
     (ht : env.findProj? T i = some entry)
     (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
       us.length = entry.levelParams.length)
     (hp : ¬ (Level.isEquiv entry.structSort .zero == some true)) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.proj sn i pe) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
@@ -198,8 +198,8 @@ theorem infer_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
 at a **`Prop`** structure, where the field's own sort must be `Prop` too. -/
 theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     {us : List Level} {entry : ProjEntry}
-    (hpe : ConLeche.inferTypeCore mode env F d pe = .ok tpe)
-    (hw : ConLeche.whnf mode env F d tpe = .ok te)
+    (hpe : ConLeche.inferTypeCore mode eager env F d pe = .ok tpe)
+    (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
     (hh : te.getAppFn = .const T us)
     (ht : env.findProj? T i = some entry)
     (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
@@ -208,7 +208,7 @@ theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     (hf : (Level.isEquiv
       (Level.subst entry.levelParams us entry.fieldSort) .zero
         == some true)) :
-    ConLeche.inferTypeCore mode env (F + 1) d (.proj sn i pe) =
+    ConLeche.inferTypeCore mode eager env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
@@ -227,14 +227,14 @@ knot's `infer` at the head, the carry `inferSpine_go`
 `inferSpine_sound` and `Expr.mkAppN_getApp`. -/
 theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
-    ⦃fun s => s = s₀⦄ inferApp (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ inferApp (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.inferApp
   -- stage 1: the spine's head and argument vector
   refine triple_seq (headAndArgs_app_spec s₀ i e hok.state hden htag) ?_
@@ -267,15 +267,15 @@ loops, against the chained `infer_lam_*`/`infer_forallE` above: the carries are 
 `inferForall_spec`, over con-leche's `inferLams_sound`/`inferPis_sound`. -/
 theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : ETag.isBind i.tag = true) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -303,16 +303,16 @@ clause**, at the body: the dispatch hands the node to `inferApp`, whose
 carry is `inferBody_app_batched`. -/
 theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
@@ -327,16 +327,16 @@ stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec`);
 pure side `infer_const`. -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.const) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -357,8 +357,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
         rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
       have hlp := denoteNList_len (denoteCV_inv hcv).2.1
       -- the arity guard passed: con-leche's instantiated type
-      sym only [bridge_grind, SimE.of_constTy (mode := mode) (d := d) henv hfind] =>
-        vcgen [constTyAt_spec (mode := mode) (env := env) (fe := fe) s₀ ci.toConstantVal us nm
+      sym only [bridge_grind, SimE.of_constTy (mode := mode) (eager := eager) (d := d) henv hfind] =>
+        vcgen [constTyAt_spec (mode := mode) (eager := eager) (env := env) (fe := fe) s₀ ci.toConstantVal us nm
           ls c hok hname hus hfind hcv] <;> finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
@@ -368,16 +368,16 @@ literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`) and
 `infer_natLit`/`infer_strLit`. -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -389,15 +389,15 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>
-        vcgen [natLitSupported_spec (mode := mode) (env := env) (fe := fe) s₀ hok,
+        vcgen [natLitSupported_spec (mode := mode) (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinNat,
-          constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
+          constE_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
       sym only [bridge_grind] =>
-        vcgen [strLitSupported_spec (mode := mode) (env := env) (fe := fe) s₀ hok,
+        vcgen [strLitSupported_spec (mode := mode) (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinString,
-          constE_spec (mode := mode) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
+          constE_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
           finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
@@ -439,27 +439,27 @@ facts the pure clause reads hold at some fuels. -/
 theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
     (r : CoreFnsA) (inf : Nat → Nat → Expr → CheckM Expr)
     (hinf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
       Expr.WScoped d e →
       ⦃fun s => s = s₀⦄ r.infer d i
-      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ SimE inf d e s'.store x; ⊤⦄)
     (hwh : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
       Expr.WScoped d e →
       ⦃fun s => s = s₀⦄ r.whnf d i
-      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧ SimE (ConLeche.whnf mode env) d e s'.store x; ⊤⦄)
+      ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ SimE (ConLeche.whnf mode eager env) d e s'.store x; ⊤⦄)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (pe : EIdx)
-    (nm : Name) (es : Expr) (hok : CheckOK mode env fe s₀)
+    (nm : Name) (es : Expr) (hok : CheckOK mode eager env fe s₀)
     (hsn : denoteN s₀.store.ns sn = some nm)
     (hpe : denoteE s₀.store pe = some es) (hwes : Expr.WScoped d es) :
     ⦃fun s => s = s₀⦄ inferProj r fe d sn k pe
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store x = some v ∧
         Expr.WScoped d v ∧
         ∃ F1 F2 vt vte T ls p, inf F1 d es = .ok vt ∧
-          ConLeche.whnf mode env F2 d vt = .ok vte ∧
+          ConLeche.whnf mode eager env F2 d vt = .ok vte ∧
           vte.getAppFn = .const T ls ∧ env.findProj? T k = some p ∧
           (T = nm ∧ vte.getAppArgs.length = p.numParams ∧
             ls.length = p.levelParams.length) ∧
@@ -544,18 +544,18 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
           ConLeche.projEntry_typeAt_WScoped henv hfp ls hlen'
             (Expr.WScoped.getAppArgs hwvte) hwes
         -- the answer, at any state the fence leaves behind
-        have hfin : ∀ (s : AState), CheckOK mode env fe s →
+        have hfin : ∀ (s : AState), CheckOK mode eager env fe s →
             s.store = s2.store → s.pins = s₀.pins →
             ((Level.isEquiv p.structSort .zero == some true) = false ∨
               ((Level.isEquiv p.structSort .zero == some true) = true ∧
                (Level.isEquiv (Level.subst p.levelParams ls p.fieldSort) .zero
                   == some true) = true)) →
             ⦃fun s' => s' = s⦄ entry.typeAt us targs pe
-            ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+            ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
                 s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store x = some v ∧
                 Expr.WScoped d v ∧
                 ∃ F1 F2 vt vte T ls p, inf F1 d es = .ok vt ∧
-                  ConLeche.whnf mode env F2 d vt = .ok vte ∧
+                  ConLeche.whnf mode eager env F2 d vt = .ok vte ∧
                   vte.getAppFn = .const T ls ∧ env.findProj? T k = some p ∧
                   (T = nm ∧ vte.getAppArgs.length = p.numParams ∧
                     ls.length = p.levelParams.length) ∧
@@ -626,16 +626,16 @@ clause**: `inferProj_spec` at the knot, then `infer_proj_prop`/
 `infer_proj_nonprop`. -/
 theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -645,7 +645,7 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     have hwes : Expr.WScoped d es := by simpa [Expr.WScoped] using hw
     refine view_bind_triple hv ?_
     dsimp only
-    refine triple_mono (inferProj_spec henv _ (ConLeche.inferTypeCore mode env)
+    refine triple_mono (inferProj_spec henv _ (ConLeche.inferTypeCore mode eager env)
       hsim.infer hsim.whnf s₀ d sn k pe nm es hok hsn hpe hwes) ?_
     rintro r s' ⟨hok', hx', hp', v, hv', hwv, F1, F2, vt, vte, T, ls, p, hF1,
       hF2, hgf, hfp, hgP, hpr, rfl⟩
@@ -669,15 +669,15 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
 clause** (official `infer_let`, con-leche's task #342 S0): the type's type is
 a sort, the value's type is the type, then the body at the value. -/
 theorem inferBody_letE {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : i.tag = ETag.letE) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -739,18 +739,18 @@ clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
 scope check), and the throw (`.bvar`). -/
 theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
     (hnb : ETag.isBind i.tag = false) (hnc : i.tag ≠ ETag.const)
     (hnl : i.tag ≠ ETag.lit) (hnlet : i.tag ≠ ETag.letE) :
     ⦃fun s => s = s₀⦄
-      inferBody (coreKnot mode fe id fuel) fe d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      inferBody (coreKnot mode eager fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -795,9 +795,9 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
 for `inferBody`**: a case split on the tag, one dispatch child per arm. -/
 theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) :
-    BodySpec mode env fe (inferBody (coreKnot mode fe id fuel) fe)
-      (ConLeche.inferTypeCore mode env) := by
+    (hsim : KnotSpec mode eager env fe fuel) :
+    BodySpec mode eager env fe (inferBody (coreKnot mode eager fe id fuel) fe)
+      (ConLeche.inferTypeCore mode eager env) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app
   · exact inferBody_app henv hμ hsim s₀ d i e hok hden hw ha

@@ -1207,7 +1207,7 @@ def RunsC (μ : CheckMode) (env : Env) (fe : IFEnv) (m : AM Bool) (s : AState) (
   ∀ (r : Bool) (s' : AState), m s = .ok (r, s') → CoreStep μ env fe s s' ∧ r = b
 
 theorem RunsC.ret {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hck : CheckOK μ env fe s) {b : Bool} : RunsC μ env fe (Pure.pure b) s b := by
+    (hck : CheckOK μ false env fe s) {b : Bool} : RunsC μ env fe (Pure.pure b) s b := by
   intro r s' h
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h
   exact ⟨CoreStep.refl hck, rfl⟩
@@ -1233,7 +1233,7 @@ theorem RunsC.bindB {μ : CheckMode} {env : Env} {fe : IFEnv} {m : AM Bool}
     exact ⟨hs, hk hs⟩
 
 theorem RunsC.guard {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
-    {Y : AM Bool} {s : AState} (hck : CheckOK μ env fe s) (hc : c = !D)
+    {Y : AM Bool} {s : AState} (hck : CheckOK μ false env fe s) (hc : c = !D)
     (hY : D = true → RunsC μ env fe Y s B) :
     RunsC μ env fe (if c then pure false else Y) s (D && B) := by
   cases D with
@@ -1247,7 +1247,7 @@ theorem RunsC.guard {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
     exact hY rfl
 
 theorem RunsC.guardT {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
-    {Y : AM Bool} {s : AState} (hck : CheckOK μ env fe s) (hc : c = D)
+    {Y : AM Bool} {s : AState} (hck : CheckOK μ false env fe s) (hc : c = D)
     (hY : D = true → RunsC μ env fe Y s B) :
     RunsC μ env fe (if c then Y else pure false) s (D && B) := by
   subst hc
@@ -1261,18 +1261,18 @@ theorem RunsC.guardT {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
 
 /-- con-leche: none — a store-preserving read is a `CoreStep`. -/
 theorem CoreStep.of_store {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (hck : CheckOK μ env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
+    (hck : CheckOK μ false env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
     (h3 : s'.pins = s.pins) : CoreStep μ env fe s s' :=
   ⟨hck.mono ⟨by rw [h1]; exact hck.state.wf⟩ (by rw [h1]; exact Ext.refl _) h2 h3,
     by rw [h1]; exact Ext.refl _, h3⟩
 
 /-- con-leche: none — an `IStepS` is a `CoreStep`. -/
 theorem CoreStep.of_istep {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (hck : CheckOK μ env fe s) (h : Frontend.IStepS s s') : CoreStep μ env fe s s' :=
+    (hck : CheckOK μ false env fe s) (h : Frontend.IStepS s s') : CoreStep μ env fe s s' :=
   ⟨hck.mono h.ok h.ext h.caches h.pins, h.ext, h.pins⟩
 
 theorem lbbF_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E : Expr}
-    {s : AState} (hck : CheckOK μ env fe s) (hd : denoteE s.store p = some E) :
+    {s : AState} (hck : CheckOK μ false env fe s) (hd : denoteE s.store p = some E) :
     RunsC μ env fe (looseBVarsBoundedFast coreWalkFuel 0 p) s (E.looseBVarsBounded 0) := by
   intro r s' h
   obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s)
@@ -1283,7 +1283,7 @@ theorem lbbF_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E : Exp
   exact ⟨CoreStep.of_store hck h1 h2 h3, h4 _ hd⟩
 
 theorem hasFvarF_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E : Expr}
-    {s : AState} (hck : CheckOK μ env fe s) (hd : denoteE s.store p = some E) :
+    {s : AState} (hck : CheckOK μ false env fe s) (hd : denoteE s.store p = some E) :
     RunsC μ env fe (hasFvarFast coreWalkFuel p) s E.hasFvar := by
   intro r s' h
   obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s)
@@ -1294,21 +1294,21 @@ theorem hasFvarF_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E :
   exact ⟨CoreStep.of_store hck h1 h2 h3, h4 _ hd⟩
 
 theorem alpd0_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E : Expr}
-    {s : AState} (hck : CheckOK μ env fe s) (hd : denoteE s.store p = some E) :
+    {s : AState} (hck : CheckOK μ false env fe s) (hd : denoteE s.store p = some E) :
     RunsC μ env fe (allLevelParamsDefined [] p) s (E.allLevelParamsDefined []) := by
   intro r s' h
   obtain ⟨h1, h2, h3, h4⟩ := allLevelParamsDefined_run hck.state rfl hd h
   exact ⟨CoreStep.of_store hck h1 h2 h3, h4⟩
 
 theorem crF_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} {p : EIdx} {E : Expr}
-    {s : AState} (hck : CheckOK μ env fe s) (hd : denoteE s.store p = some E) :
+    {s : AState} (hck : CheckOK μ false env fe s) (hd : denoteE s.store p = some E) :
     RunsC μ env fe (constsResolveFFast fe p) s (E.constsResolve env) := by
   intro r s' h
   obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_run hck hd h
   exact ⟨CoreStep.of_store hck h1 h2 h3, h4⟩
 
 theorem constsResolveAll_runsC {μ : CheckMode} {env : Env} {fe : IFEnv} :
-    ∀ (hs : List EIdx) (xs : List Expr) {s : AState}, CheckOK μ env fe s →
+    ∀ (hs : List EIdx) (xs : List Expr) {s : AState}, CheckOK μ false env fe s →
       Frontend.denoteEList s.store hs = some xs →
       RunsC μ env fe (constsResolveAll fe hs) s (xs.all fun h => h.constsResolve env) := by
   intro hs
@@ -1364,7 +1364,7 @@ level-monomorphic and resolving, and the substituted statement resolves. -/
 theorem divModCertGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {val : EIdx} {v : Expr} {hyps : List EIdx} {hx : List Expr}
     {eqE proof : EIdx} {ex px : Expr} {s : AState}
-    (hck : CheckOK μ env fe s) (hn : denoteN s.store.ns cn = some nm)
+    (hck : CheckOK μ false env fe s) (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store val = some v) (hh : Frontend.denoteEList s.store hyps = some hx)
     (he : denoteE s.store eqE = some ex) (hpf : denoteE s.store proof = some px) :
     RunsC μ env fe (Arena.divModCertGuard fe cn val hyps eqE proof) s
@@ -1406,7 +1406,7 @@ zipped walk over the statements and the proofs. -/
 theorem divModCertsGuardGo_run {μ : CheckMode} {env : Env} {fe : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {val : EIdx} {v : Expr} :
     ∀ (stmts : List (List EIdx × EIdx)) (xs : List (List Expr × Expr))
-      (proofs : List EIdx) (ps : List Expr) {s : AState}, CheckOK μ env fe s →
+      (proofs : List EIdx) (ps : List Expr) {s : AState}, CheckOK μ false env fe s →
       denoteN s.store.ns cn = some nm → denoteE s.store val = some v →
       StmtsDenote s.store stmts xs → Frontend.denoteEList s.store proofs = some ps →
       RunsC μ env fe (Arena.divModCertsGuardGo fe cn val stmts proofs) s
@@ -1575,9 +1575,9 @@ theorem checkDivModCerts_cons_pure {μ : CheckMode} {F : Nat} {env : Env}
     {nm : ConLeche.Name} {v : Expr} {hyps : List Expr} {eqE proof tp : Expr}
     {srest : List (List Expr × Expr)} {prest : List Expr}
     (hg : ConLeche.divModCertGuard env nm v hyps eqE proof = true)
-    (h2 : ConLeche.inferTypeCore μ env F 4 (ConLeche.divModCertApplied
+    (h2 : ConLeche.inferTypeCore μ false env F 4 (ConLeche.divModCertApplied
       (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok tp)
-    (h3 : ConLeche.isDefEqCore μ env F 4 tp (Expr.substConst0 nm v eqE) = .ok true)
+    (h3 : ConLeche.isDefEqCore μ false env F 4 tp (Expr.substConst0 nm v eqE) = .ok true)
     {r : Bool}
     (h4 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v srest prest
       = .ok r) :
@@ -1593,9 +1593,9 @@ theorem checkDivModCerts_cons_false_pure {μ : CheckMode} {F : Nat} {env : Env}
     {nm : ConLeche.Name} {v : Expr} {hyps : List Expr} {eqE proof tp : Expr}
     {srest : List (List Expr × Expr)} {prest : List Expr}
     (hg : ConLeche.divModCertGuard env nm v hyps eqE proof = true)
-    (h2 : ConLeche.inferTypeCore μ env F 4 (ConLeche.divModCertApplied
+    (h2 : ConLeche.inferTypeCore μ false env F 4 (ConLeche.divModCertApplied
       (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok tp)
-    (h3 : ConLeche.isDefEqCore μ env F 4 tp (Expr.substConst0 nm v eqE) = .ok false) :
+    (h3 : ConLeche.isDefEqCore μ false env F 4 tp (Expr.substConst0 nm v eqE) = .ok false) :
     ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v ((hyps, eqE) :: srest)
       (proof :: prest) = .ok false := by
   simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h2, h3,
@@ -1612,7 +1612,7 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     {nm : ConLeche.Name} {val : EIdx} {v : Expr} (hwsv : Expr.WScoped 0 v) :
     ∀ (stmts : List (List EIdx × EIdx)) (xs : List (List Expr × Expr))
       (proofs : List EIdx) (ps : List Expr) (r : Bool) (s s' : AState),
-      CheckOK μ env fe s → denoteN s.store.ns cn = some nm →
+      CheckOK μ false env fe s → denoteN s.store.ns cn = some nm →
       denoteE s.store val = some v → StmtsDenote s.store stmts xs →
       Frontend.denoteEList s.store proofs = some ps →
       (∀ q ∈ xs, (∀ h ∈ q.1, Expr.WScoped 2 h) ∧ Expr.WScoped 2 q.2) →
@@ -1696,8 +1696,8 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     -- infer
     obtain ⟨tp, s6, g6, r7⟩ := AM.bind_ok r5
     obtain ⟨hck6, hx6, hp6, hsim6⟩ := AM.of_run (P := fun t => t = s4)
-      (Q := fun r t => CheckOK μ env fe t ∧ Ext s4.store t.store ∧ t.pins = s4.pins ∧
-        Core.SimE (ConLeche.inferTypeCore μ env) 4 _ t.store r)
+      (Q := fun r t => CheckOK μ false env fe t ∧ Ext s4.store t.store ∧ t.pins = s4.pins ∧
+        Core.SimE (ConLeche.inferTypeCore μ false env) 4 _ t.store r)
       rfl g6 (hknot.infer s4 4 ap0 _ c4.ok hap0 hwsA)
     obtain ⟨tpx, htp6, hwstp, F6, hF6⟩ := hsim6
     have c6 : CoreStep μ env fe s4 s6 := ⟨hck6, hx6, hp6⟩
@@ -1711,8 +1711,8 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       substConst0_wscoped hws4 _ (ConLeche.Expr.WScoped.mono (by omega) hwe)
     obtain ⟨b, s8, g8, r9⟩ := AM.bind_ok r8
     obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
-      (Q := fun r t => CheckOK μ env fe t ∧ Ext s7.store t.store ∧ t.pins = s7.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ env) 4 tpx (Expr.substConst0 nm v ex) r)
+      (Q := fun r t => CheckOK μ false env fe t ∧ Ext s7.store t.store ∧ t.pins = s7.pins ∧
+        Core.SimV (ConLeche.isDefEqCore μ false env) 4 tpx (Expr.substConst0 nm v ex) r)
       rfl g8 (hknot.defeq s7 4 tp rhs tpx _ c7.ok (denote_ext htp6 hs7.ext) hrhs hwstp hwsR)
     obtain ⟨F8, hF8⟩ := hsim8
     have c8 : CoreStep μ env fe s7 s8 := ⟨hck8, hx8, hp8⟩
@@ -1756,7 +1756,7 @@ theorem checkDivModPinAt_pin_false {μ : CheckMode} {F : Nat} {env : Env}
     {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet}
     (h1 : ConLeche.checkTypePins (ConLeche.fueledOps μ F) env
       (ConLeche.divModTypePins psP nm) = .ok true)
-    (h2 : ConLeche.isDefEqCore μ env F 0 v (ConLeche.divModDeclPin psP nm) = .ok false) :
+    (h2 : ConLeche.isDefEqCore μ false env F 0 v (ConLeche.divModDeclPin psP nm) = .ok false) :
     ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok false := by
   unfold ConLeche.checkDivModPinAt
   rw [h1]
@@ -1771,7 +1771,7 @@ theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
     {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet} {r : Bool}
     (h1 : ConLeche.checkTypePins (ConLeche.fueledOps μ F) env
       (ConLeche.divModTypePins psP nm) = .ok true)
-    (h2 : ConLeche.isDefEqCore μ env F 0 v (ConLeche.divModDeclPin psP nm) = .ok true)
+    (h2 : ConLeche.isDefEqCore μ false env F 0 v (ConLeche.divModDeclPin psP nm) = .ok true)
     (h3 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v
       (ConLeche.divModCertStmts nm) (ConLeche.divModCertProofs psP nm) = .ok r) :
     ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok r := by
@@ -1821,10 +1821,10 @@ on a pin that passes them `divModTypePins_run` and `typePinsGuard_spec`. -/
 theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {r : Bool} {s s' : AState}
-    (hck : CheckOK μ env fe s) (hps : PinSetDenote s.store ps psP)
+    (hck : CheckOK μ false env fe s) (hps : PinSetDenote s.store ps psP)
     (hn : denoteN s.store.ns cn = some nm)
     (hr : Arena.divModPinGuard ps fe cn s = .ok (r, s')) :
-    CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+    CheckOK μ false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       r = ConLeche.divModPinGuard psP env nm := by
   simp only [Arena.divModPinGuard] at hr
   obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hr
@@ -1863,10 +1863,10 @@ Fast walks, `substConst0List_run` + `constsResolveAll_runsC`, and
 theorem divModCertsGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {val : EIdx} {v : Expr} {r : Bool} {s s' : AState}
-    (hck : CheckOK μ env fe s) (hps : PinSetDenote s.store ps psP)
+    (hck : CheckOK μ false env fe s) (hps : PinSetDenote s.store ps psP)
     (hn : denoteN s.store.ns cn = some nm) (hv : denoteE s.store val = some v)
     (hr : Arena.divModCertsGuard ps fe cn val s = .ok (r, s')) :
-    CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+    CheckOK μ false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       r = ConLeche.divModCertsGuard psP env nm v := by
   simp only [Arena.divModCertsGuard] at hr
   obtain ⟨stmts, s1, g1, r1⟩ := AM.bind_ok hr
@@ -1900,11 +1900,11 @@ theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {val : EIdx} {v : Expr} {b : Bool} {s s' : AState}
     (hk : CoreSpec μ Arena.checkFuel)
-    (henv : EnvWF env) (hck : CheckOK μ env fe s) (hps : PinSetDenote s.store ps psP)
+    (henv : EnvWF env) (hck : CheckOK μ false env fe s) (hps : PinSetDenote s.store ps psP)
     (hn : denoteN s.store.ns cn = some nm) (hv : denoteE s.store val = some v)
     (hwsv : Expr.WScoped 0 v) (hpg : ConLeche.divModPinGuard psP env nm = true)
     (hr : Arena.checkDivModPinAt μ fe cn val ps s = .ok (b, s')) :
-    CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+    CheckOK μ false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       ∃ F, ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok b := by
   have hknot := hk.knot env fe henv
   have hwsP : Expr.WScoped 0 (ConLeche.divModDeclPin psP nm) := by
@@ -1932,8 +1932,8 @@ theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨rfl, hpd⟩ := divModDeclPin_run hck2.state hck2.pins hps2 hn2 g3
   obtain ⟨ok, s4, g4, r4⟩ := AM.bind_ok r3
   obtain ⟨hck4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun t => t = s3)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s3.store t.store ∧ t.pins = s3.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ env) 0 v (ConLeche.divModDeclPin psP nm) r)
+    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s3.store t.store ∧ t.pins = s3.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ false env) 0 v (ConLeche.divModDeclPin psP nm) r)
     rfl g4 (hknot.defeq s3 0 val p v _ hck2 hv2 hpd hwsv hwsP)
   obtain ⟨F4, hF4⟩ := hsim4
   have hx04 : Ext s.store s4.store := hx2.trans hx4
@@ -1977,10 +1977,10 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     (henv : EnvWF env) (hwsv : Expr.WScoped 0 v) :
     ∀ (ps : List INatOpPinSet) (psP : List NatOpPinSet) (tried : List String)
       (triedP : List String) (s s' : AState),
-      CheckOK μ env fe s → PinsDenote s.store ps psP →
+      CheckOK μ false env fe s → PinsDenote s.store ps psP →
       denoteN s.store.ns cn = some nm → denoteE s.store val = some v →
       Arena.checkDivModPinLoop μ fe cn val ps tried s = .ok ((), s') →
-      CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+      CheckOK μ false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
         ∃ F, ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v psP triedP
           = .ok () := by
   intro ps
@@ -1996,10 +1996,10 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     | cons q restP =>
     obtain ⟨hq, hrestP⟩ := hps
     -- the rest of the loop, from a state the step left, at a declined variant
-    have recurse : ∀ (t : AState) (tr trP : List String), CheckOK μ env fe t →
+    have recurse : ∀ (t : AState) (tr trP : List String), CheckOK μ false env fe t →
         Ext s.store t.store → t.pins = s.pins →
         Arena.checkDivModPinLoop μ fe cn val rest tr t = .ok ((), s') →
-        CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+        CheckOK μ false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
           ∃ F, ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v restP trP
             = .ok () := by
       intro t tr trP hckt hxt hpt hrt
@@ -2092,7 +2092,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {s s' : AState}
     (hk : CoreSpec μ Arena.checkFuel)
-    (hck : CheckOK μ env fe s) (henv : EnvWF env) (hok2 : StepOK env2 fe2 s)
+    (hck : CheckOK μ false env fe s) (henv : EnvWF env) (hok2 : StepOK env2 fe2 s)
     (hpins : PinsDenote s.store pins pinsP)
     (hn : denoteN s.store.ns cn = some nm)
     (hrun : checkDivModPin μ pins fe fe2 cn s = .ok ((), s')) :
@@ -2128,7 +2128,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       subst hci
       have hwc := hok2.envWF.consts _ (List.mem_of_find?_eq_some hfindP)
       obtain ⟨hf1, -, -, -⟩ := hwc.2.2.2.2.1 cv' v' hint' rfl
-      have hck1 : CheckOK μ env fe s1 := hck.mono hst1 hx1 hc1 hp1
+      have hck1 : CheckOK μ false env fe s1 := hck.mono hst1 hx1 hc1 hp1
       obtain ⟨hck', hx', hp', F, hF⟩ :=
         checkDivModPinLoop_bridge hk henv (ConLeche.Expr.WScoped.of_not_hasFvar hf1)
           pins pinsP [] [] s1 s' hck1 (PinsDenote.mono hx1 _ _ hpins) (denoteN_ext hn hx1)

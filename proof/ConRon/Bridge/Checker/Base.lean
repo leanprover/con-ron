@@ -100,8 +100,8 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h6 : c.type.hasFvar = false)
     (h8 : c.type.allLevelParamsDefined c.levelParams = true)
     (h9 : c.type.constsResolve env = true)
-    (h10 : ConLeche.inferTypeCore μ env F 0 c.type = .ok sty)
-    (h11 : ConLeche.ensureSortCore μ env F 0 sty = .ok u) :
+    (h10 : ConLeche.inferTypeCore μ false env F 0 c.type = .ok sty)
+    (h11 : ConLeche.ensureSortCore μ false env F 0 sty = .ok u) :
     ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok () := by
   simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h4, h5,
     h6, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
@@ -110,7 +110,7 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
 theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hck0 : CheckOK μ env fe s) (henv : EnvWF env)
+    (hck0 : CheckOK μ false env fe s) (henv : EnvWF env)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : checkConstantVal μ fe cv s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
@@ -134,7 +134,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   -- 2. the reserved-name guard
   obtain ⟨rs, s2, g2r, r2⟩ := AM.bind_ok r1
   obtain ⟨hp2, hrs⟩ := reservedBasisNames_run hck0.state.wf hck0.pins g2r
-  have hck2 : CheckOK μ env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
+  have hck2 : CheckOK μ false env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
   have hnm2 : denoteN s2.store.ns cv.name = some c.name := denoteN_ext hnm hp2.ext
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
@@ -165,7 +165,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : c.type.looseBVarsBounded 0 = true := by
     rw [← h5r c.type hty2]; exact hlbb
-  have hck5 : CheckOK μ env fe s5 :=
+  have hck5 : CheckOK μ false env fe s5 :=
     hck2.mono ⟨by rw [h5st]; exact hck2.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
       h5c h5p
   have hnm5 : denoteN s5.store.ns cv.name = some c.name := by rw [h5st]; exact hnm2
@@ -186,7 +186,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     cases hb : b6 with
     | false => rfl
     | true => rw [hb] at hfv; exact absurd rfl hfv
-  have hck6 : CheckOK μ env fe s6 :=
+  have hck6 : CheckOK μ false env fe s6 :=
     hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
       h6c h6p
   have hnm6 : denoteN s6.store.ns cv.name = some c.name := by rw [h6st]; exact hnm5
@@ -202,7 +202,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : c.type.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
-  have hck8 : CheckOK μ env fe s8 :=
+  have hck8 : CheckOK μ false env fe s8 :=
     hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
@@ -214,24 +214,24 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
-  have hck9 : CheckOK μ env fe s9 :=
+  have hck9 : CheckOK μ false env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
   have hty9 : denoteE s9.store cv.type = some c.type := by rw [h9st]; exact hty8
   -- 8. the inference, of the type AS STORED
   obtain ⟨stype, s10, g10r, r16⟩ := AM.bind_ok r15
   obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s9.store t.store ∧
+    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s9.store t.store ∧
       t.pins = s9.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) 0 c.type t.store r)
+      Core.SimE (ConLeche.inferTypeCore μ false env) 0 c.type t.store r)
     rfl g10r (hknot.infer s9 0 cv.type c.type hck9 hty9 hws)
   obtain ⟨w, hw10, hwsw, F10, hF10⟩ := hsim10
   -- 9. the sort test
   obtain ⟨u, s11, g11r, r17⟩ := AM.bind_ok r16
   obtain ⟨hck11, hx11, hp11, hsim11⟩ := AM.of_run (P := fun t => t = s10)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s10.store t.store ∧
+    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s10.store t.store ∧
       t.pins = s10.pins ∧
-      SimL (ConLeche.ensureSortCore μ env) 0 w t.store r)
+      SimL (ConLeche.ensureSortCore μ false env) 0 w t.store r)
     rfl g11r (hsortS s10 0 stype w hck10 hw10 hwsw)
   obtain ⟨uu, huu, F11, hF11⟩ := hsim11
   -- 10. the answer: the run ENDS at the sort test

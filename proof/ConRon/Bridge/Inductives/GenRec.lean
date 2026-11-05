@@ -3017,7 +3017,7 @@ exactly as `fe₂` (the pushes popped: same list, same bound, same row at every
 key).  The rule stage's knot calls run at the rule-less recursors'
 environment (`consBlockRecsBare`, well formed by `envWF_consBlockRecsBare`);
 the flushes restore the invariant at whichever index the state reads, and the
-last one leaves `CheckOK μ env₂ fe₂` (the `CoreStep` frame). -/
+last one leaves `CheckOK μ false env₂ fe₂` (the `CoreStep` frame). -/
 theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv₂ : EnvWF env₂)
     (hcoh : IFEnvCoh fe₂) (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (nestedBit : Bool)

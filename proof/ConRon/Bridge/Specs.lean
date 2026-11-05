@@ -1096,7 +1096,7 @@ satisfies every clause, at every mode and every environment.  This is the
 whole content of the flush's soundness: a dropped row is a cache miss and
 nothing else. -/
 theorem CacheOK.of_empty {mode : CheckMode} {env : Env} {s : AState}
-    (h : s.caches = Caches.empty) : CacheOK mode env s where
+    (h : s.caches = Caches.empty) : CacheOK mode false env s where
   whnfCore := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   whnfCoreCheap := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   whnf := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk

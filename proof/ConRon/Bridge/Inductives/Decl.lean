@@ -236,7 +236,7 @@ theorem checkIndRoute_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
   simp only [Bool.not_true, Bool.false_eq_true, ite_false] at h2
   -- the recogniser
   obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
-  have hck₁ : CheckOK μ env fe s₁ := (hstep1.toCore hok.check).ok
+  have hck₁ : CheckOK μ false env fe s₁ := (hstep1.toCore hok.check).ok
   have hb₁ : Frontend.denoteCIList s₁.store block = some b :=
     denoteCIList_mono hstep1.ext _ _ hb
   obtain ⟨hstep2, hr2⟩ := blockParts?_spec fe nP block b s₁ s₂ o hck₁ hb₁ h3

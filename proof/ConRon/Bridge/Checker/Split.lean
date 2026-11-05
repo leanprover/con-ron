@@ -118,7 +118,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
     CoreStep μ env fe s s' ∧
       ConLeche.installHeader (m := CheckM) env c = .ok () := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
-  have hck0 : CheckOK μ env fe s := hok.check
+  have hck0 : CheckOK μ false env fe s := hok.check
   simp only [Arena.installHeader] at hrun
   -- 1. the duplicate-declaration guard
   obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
@@ -132,7 +132,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   -- 2. the reserved-name guard
   obtain ⟨rs, s2, g2r, r2⟩ := AM.bind_ok r1
   obtain ⟨hp2, hrs⟩ := reservedBasisNames_run hck0.state.wf hck0.pins g2r
-  have hck2 : CheckOK μ env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
+  have hck2 : CheckOK μ false env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
   have hnm2 : denoteN s2.store.ns cv.name = some c.name := denoteN_ext hnm hp2.ext
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
@@ -163,7 +163,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : c.type.looseBVarsBounded 0 = true := by
     rw [← h5r c.type hty2]; exact hlbb
-  have hck5 : CheckOK μ env fe s5 :=
+  have hck5 : CheckOK μ false env fe s5 :=
     hck2.mono ⟨by rw [h5st]; exact hck2.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
       h5c h5p
   have hnm5 : denoteN s5.store.ns cv.name = some c.name := by rw [h5st]; exact hnm2
@@ -184,7 +184,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
     cases hb : b6 with
     | false => rfl
     | true => rw [hb] at hfv; exact absurd rfl hfv
-  have hck6 : CheckOK μ env fe s6 :=
+  have hck6 : CheckOK μ false env fe s6 :=
     hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
       h6c h6p
   have hnm6 : denoteN s6.store.ns cv.name = some c.name := by rw [h6st]; exact hnm5
@@ -199,7 +199,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : c.type.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
-  have hck8 : CheckOK μ env fe s8 :=
+  have hck8 : CheckOK μ false env fe s8 :=
     hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
@@ -210,7 +210,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail _) r14
   have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
-  have hck9 : CheckOK μ env fe s9 :=
+  have hck9 : CheckOK μ false env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
   -- 8. the answer
@@ -231,13 +231,13 @@ con-leche's `checkValueGroup_inv`, its six successful runs reassembled into
 the check half's run. -/
 theorem checkValueGroup_of_facts {μ : CheckMode} {F : Nat} {env : Env}
     {vg : ConLeche.ValueGroup} {stype vtype : ConLeche.Expr} {u : ConLeche.Level}
-    (hst : ConLeche.inferTypeCore μ env F 0 vg.cv.type = .ok stype)
-    (hsort : ConLeche.ensureSortCore μ env F 0 stype = .ok u)
+    (hst : ConLeche.inferTypeCore μ false env F 0 vg.cv.type = .ok stype)
+    (hsort : ConLeche.ensureSortCore μ false env F 0 stype = .ok u)
     (hthm : vg.kind = .thm → ConLeche.Level.isEquiv u .zero = some true)
     (hjv : vg.kind = .thm →
       ConLeche.installValueGuards (m := ConLeche.CheckM) env vg.cv vg.jv = .ok ())
-    (hvt : ConLeche.inferTypeCore μ env F 0 vg.jv = .ok vtype)
-    (hde : ConLeche.isDefEqCore μ env F 0 vtype vg.cv.type = .ok true) :
+    (hvt : ConLeche.inferTypeCore μ false env F 0 vg.jv = .ok vtype)
+    (hde : ConLeche.isDefEqCore μ false env F 0 vtype vg.cv.type = .ok true) :
     ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok () := by
   simp only [ConLeche.checkValueGroup, ConLeche.fueledOps_inferType,
     ConLeche.fueledOps_ensureSort, ConLeche.fueledOps_isDefEq, Bind.bind, Except.bind,
@@ -277,7 +277,7 @@ invariant along the rest of a do-block. -/
 theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
     {s s' : AState} (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (henv : EnvWF env) (hck : CheckOK μ env fe s)
+    (henv : EnvWF env) (hck : CheckOK μ false env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cv = some gP.cv)
@@ -297,16 +297,16 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   -- 1. the header's inference
   obtain ⟨stype, s1, ga, ra⟩ := AM.bind_ok hrun
   obtain ⟨hcka, hxa, hpa, hsima⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧
+    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s.store t.store ∧
       t.pins = s.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.cv.type t.store r)
+      Core.SimE (ConLeche.inferTypeCore μ false env) 0 gP.cv.type t.store r)
     rfl ga (hknot.infer s 0 g.cv.type gP.cv.type hck hty0 hwsty)
   obtain ⟨sty, hsty, hwssty, Fa, hFa⟩ := hsima
   -- 2. the sort
   obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
   obtain ⟨hckb, hxb, hpb, hsimb⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s1.store t.store ∧
-      t.pins = s1.pins ∧ SimL (ConLeche.ensureSortCore μ env) 0 sty t.store r)
+    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s1.store t.store ∧
+      t.pins = s1.pins ∧ SimL (ConLeche.ensureSortCore μ false env) 0 sty t.store r)
     rfl gb (hsortS s1 0 stype sty hcka hsty hwssty)
   obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
   have hext2 : Ext s.store s2.store := hxa.trans hxb
@@ -319,7 +319,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   -- conversion, at whatever the arm knows about the value.  (The same rule:
   -- no branch-dependent invariant along the rest of the block.)
   have tail : ∀ (sA : AState),
-      CheckOK μ env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
+      CheckOK μ false env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
       Expr.WScoped 0 gP.jv →
       (gP.kind = ConLeche.ValueKind.thm →
         ConLeche.installValueGuards (m := CheckM) env gP.cv gP.jv = .ok ()) →
@@ -336,9 +336,9 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     have hyA : denoteE sA.store g.jv = some gP.jv := denote_ext hjv2 hxA
     obtain ⟨vtype, s7, gh, rh⟩ := AM.bind_ok rc
     obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = sA)
-      (Q := fun r t => CheckOK μ env fe t ∧ Ext sA.store t.store ∧
+      (Q := fun r t => CheckOK μ false env fe t ∧ Ext sA.store t.store ∧
         t.pins = sA.pins ∧
-        Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.jv t.store r)
+        Core.SimE (ConLeche.inferTypeCore μ false env) 0 gP.jv t.store r)
       rfl gh (hknot.infer sA 0 g.jv gP.jv hckA hyA hwsy)
     obtain ⟨vt, hvt7, hwsvt, F2, hF2⟩ := hsim7
     have hcv7 : Frontend.denoteCV s7.store g.cv = some gP.cv :=
@@ -346,9 +346,9 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     obtain ⟨-, -, hty7⟩ := denoteCV_inv hcv7
     obtain ⟨b8, s8, gi, ri⟩ := AM.bind_ok rh
     obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
-      (Q := fun r t => CheckOK μ env fe t ∧ Ext s7.store t.store ∧
+      (Q := fun r t => CheckOK μ false env fe t ∧ Ext s7.store t.store ∧
         t.pins = s7.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ env) 0 vt gP.cv.type r)
+        Core.SimV (ConLeche.isDefEqCore μ false env) 0 vt gP.cv.type r)
       rfl gi (hknot.defeq s7 0 vtype g.cv.type vt gP.cv.type hck7 hvt7 hty7
         hwsvt hwsty)
     obtain ⟨F3, hF3⟩ := hsim8
@@ -377,7 +377,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     obtain ⟨o, s5, gf, re⟩ := AM.bind_ok rd
     obtain ⟨hckd, hstd, hpd, lu, lv, hlu, hlv, hod⟩ := AM.of_run
       (P := fun t => t = s2)
-      (Q := fun r t => CheckOK μ env fe t ∧ t.store = s2.store ∧
+      (Q := fun r t => CheckOK μ false env fe t ∧ t.store = s2.store ∧
         t.pins = s2.pins ∧ ∃ lu lv, denoteL s2.store.ls u = some lu ∧
           denoteL s2.store.ls z = some lv ∧ r = ConLeche.Level.isEquiv lu lv)
       rfl gf (Core.lvlEq?_spec s2 u z hckb)
@@ -1725,7 +1725,7 @@ scratch tier by `IFEnvOK.pmono`, `checkValueGroup_bridge` at `envK`, then the
 bracket with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch`
 and `FoldOK` across them.
 
-**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ envK s`.**
+**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ false envK s`.**
 `checkPending` opens with `enterScratch`, which REPLACES the
 scratch tier by an empty one and keeps the caches; a cache row valid at `s`
 whose handles are scratch handles names nothing — or, once the check interns
@@ -1762,7 +1762,7 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
   -- the opening: the prefix view's invariant, carried into the fresh scratch tier
   have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
   have hwf1 := (EStore.enableScratch_spec hwf).1
-  have hck1 : CheckOK μ envK (fe.restrictTo pc.vis)
+  have hck1 : CheckOK μ false envK (fe.restrictTo pc.vis)
       { store := s.store.enableScratch, memos := Memos.empty, caches := s.caches,
         pins := s.pins } :=
     { state := ⟨hwf1⟩

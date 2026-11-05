@@ -507,7 +507,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
     {env₁ : Env} {q : Arena.BlockPass} {qP : ConLeche.BlockPass Env}
     {block : List IConstantInfo} {blockP : List ConstantInfo} {s s' : AState} {fe' : IFEnv}
     (hGR : RecStageSpec μ)
-    (henv₁ : EnvWF env₁) (hck : CheckOK μ env₁ q.env1 s) (hcoh : IFEnvCoh q.env1)
+    (henv₁ : EnvWF env₁) (hck : CheckOK μ false env₁ q.env1 s) (hcoh : IFEnvCoh q.env1)
     (hden : denoteFEnv s.store q.env1 = some env₁) (hq : dPass s.store env₁ q = some qP)
     (hb : Frontend.denoteCIList s.store block = some blockP)
     (hT : ∀ cv ∈ qP.cvTas, Expr.WScoped 0 cv.type)
@@ -628,10 +628,10 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hCL : ClassesStageSpec μ) (hCS : SeedsStageSpec)
     {env : Env} {fe : IFEnv} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
     {isRec : Bool} {s s' : AState} {q : Arena.BlockPass}
-    (henv : EnvWF env) (hck : CheckOK μ env fe s) (hcoh : IFEnvCoh fe)
+    (henv : EnvWF env) (hck : CheckOK μ false env fe s) (hcoh : IFEnvCoh fe)
     (hden : denoteFEnv s.store fe = some env) (hp : dParts s.store p₀ = some p₀P)
     (hrun : Arena.checkBlockPass μ fe p₀ isRec s = .ok (q, s')) :
-    ∃ env₁ qP, InstStep s s' ∧ CheckOK μ env₁ q.env1 s' ∧
+    ∃ env₁ qP, InstStep s s' ∧ CheckOK μ false env₁ q.env1 s' ∧
       InstRel fe (fun e => e = env₁) s'.store q.env1 ∧ EnvWF env₁ ∧
       dPass s'.store env₁ q = some qP ∧ (∀ cv ∈ qP.cvTas, Expr.WScoped 0 cv.type) ∧
       EnvWF (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁) ∧
@@ -757,7 +757,7 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hGR : RecStageSpec μ)
     {env : Env} {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
-    (hok : CheckOK μ env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (hok : CheckOK μ false env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
     (hden : denoteFEnv s.store fe = some env) (hb : Frontend.denoteCIList s.store block = some b)
     (hp : dParts s.store p₀ = some p₀P)
     (hrun : Arena.checkBlock μ fe block p₀ s = .ok (fe', s')) :
@@ -873,7 +873,7 @@ theorem checkBlock_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel)
     {env : Env} {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
-    (hok : CheckOK μ env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (hok : CheckOK μ false env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
     (hden : denoteFEnv s.store fe = some env) (hb : Frontend.denoteCIList s.store block = some b)
     (hp : dParts s.store p₀ = some p₀P)
     (hrun : Arena.checkBlock μ fe block p₀ s = .ok (fe', s')) :

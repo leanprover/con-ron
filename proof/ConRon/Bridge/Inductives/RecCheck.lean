@@ -549,7 +549,7 @@ namespace RC
 /-- con-leche: none — a pure-grade `PSpecP` step taken at the core grade. -/
 theorem pspecP_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
     {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpecP P c R)
-    {s₀ s' : AState} {r : α} (hok : CheckOK μ env fe s₀) (hp : P s₀.store)
+    {s₀ s' : AState} {r : α} (hok : CheckOK μ false env fe s₀) (hp : P s₀.store)
     (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
   obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hs.toCore hok, hr⟩
@@ -557,7 +557,7 @@ theorem pspecP_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
 /-- con-leche: none — and a `PSpec` one. -/
 theorem pspec_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
     {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpec P c R)
-    {s₀ s' : AState} {r : α} (hok : CheckOK μ env fe s₀) (hp : P s₀.store)
+    {s₀ s' : AState} {r : α} (hok : CheckOK μ false env fe s₀) (hp : P s₀.store)
     (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
   obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hp hrun
   exact ⟨hs.toCore hok, hr⟩
@@ -676,7 +676,7 @@ theorem dCtorNf_inv {st : EStore} {n : Arena.NestCtorNf} {nP : ConLeche.NestCtor
 /-- con-leche: none — `lvlsEq?` in run form at the core grade. -/
 theorem lvlsEq?_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
     {us vs : LsIdx} {usP vsP : List Level} {r : Option Bool}
-    (hok : CheckOK μ env fe s₀) (hu : denoteLs s₀.store.lss us = some usP)
+    (hok : CheckOK μ false env fe s₀) (hu : denoteLs s₀.store.lss us = some usP)
     (hv : denoteLs s₀.store.lss vs = some vsP)
     (hrun : Arena.lvlsEq? us vs s₀ = .ok (r, s')) :
     CoreStep μ env fe s₀ s' ∧ r = Level.isEquivList usP vsP := by
@@ -1229,7 +1229,7 @@ end RC
 
 The rules are read at the CONSTRUCTORS' index (`fe.restrictTo vis₂` in
 `consBlockRecsTF`), while the knot's caches serve whatever index the recursor
-stage ended on.  So these statements carry two environments: `CheckOK μ envC
+stage ended on.  So these statements carry two environments: `CheckOK μ false envC
 feC` for the caches (the frame is `CoreStep` there), and `IFEnvOK env fe` for
 the lookups the rules make — which is `recRuleBits_run`'s shape
 (`Bridge/Inductives/SumInstall.lean`). -/
@@ -1330,13 +1330,13 @@ end RC
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules —
 `sumRules_spec` (`Bridge/Inductives/SumInstall.lean`) with the LOOKUP index
 apart from the knot's: the rules read `fe` (`IFEnvOK env fe`), the caches serve
-`feC` (`CheckOK μ envC feC`), as `recRuleBits_run` states it.  **Belongs in
+`feC` (`CheckOK μ false envC feC`), as `recRuleBits_run` states it.  **Belongs in
 `SumInstall.lean` beside `sumRules_spec`** (which is this at `feC := fe`). -/
 theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
     (recName : NIdx) (recNameP : ConLeche.Name) (nP : Nat) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
       (rhss : List EIdx) (rhssP : List Expr) (s₀ s' : AState) (r : List IRecRule),
-      CheckOK μ envC feC s₀ → IFEnvOK env fe s₀ →
+      CheckOK μ false envC feC s₀ → IFEnvOK env fe s₀ →
       denoteCtors s₀.store cs = some csP → Frontend.denoteEList s₀.store rhss = some rhssP →
       Arena.sumRules fe recName nP cs rhss s₀ = .ok (r, s') →
       CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r
@@ -1486,7 +1486,7 @@ index's environment `env`; the caches at `feC`. -/
 theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
     (cv : IConstantVal) (cvP : ConstantVal) (rP : Nat) (M : Arena.TargetMajor)
     (MP : ConLeche.TargetMajor) (rhss : List EIdx) (rhssP : List Expr)
-    (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK μ envC feC s₀)
+    (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK μ false envC feC s₀)
     (hie : IFEnvOK env fe s₀) (_hcv : Frontend.denoteCV s₀.store cv = some cvP)
     (hM : dMajor s₀.store M = some MP) (hrh : Frontend.denoteEList s₀.store rhss = some rhssP)
     (hrun : Arena.tgtStoredRules fe cv rP M rhss s₀ = .ok (r, s')) :
@@ -1623,7 +1623,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     ∀ (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
       (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr))
       (m : Nat) (fe : IFEnv) (env : Env) (s₀ s' : AState) (fe' : IFEnv),
-      CheckOK μ envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
+      CheckOK μ false envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
       vis₂ ≤ fe.visibleBelow → IFEnvCoh fe → denoteFEnv s₀.store fe = some env →
       dShape s₀.store p = some pP → out.mapM (dRecOut s₀.store) = some outP →
       (∀ t ∈ outP, env₂.find? t.1.name = none) →

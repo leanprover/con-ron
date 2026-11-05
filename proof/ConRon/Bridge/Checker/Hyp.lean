@@ -9,7 +9,7 @@ same position for the same reason.
 
 **`CoreSpec μ F` — the CORE tier's.**  Its main field is **`Bridge/Core/
 Knot.lean`'s own `KnotSpec`**, taken as written: the six slots of
-`ConRon.Arena.coreKnot mode fe id f` against con-leche's six fueled entry
+`ConRon.Arena.coreKnot mode false fe id f` against con-leche's six fueled entry
 points, at `CheckOK`/`Ext` with the `SimE`/`SimV` answer relations and the
 `Expr.WScoped d e` precondition.  Nothing of it is restated here —
 `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` is what discharges it, and
@@ -23,14 +23,14 @@ points, at `CheckOK`/`Ext` with the `SimE`/`SimV` answer relations and the
    (`Bridge/Checker/Inv.lean`) carries `EnvWF` as a clause — con-leche's own
    join point (`Verify/Cached/BridgeC.lean:609`) carries it too.
 2. **`ensureSortCore` is not a slot of `coreKnot`.**  `Arena/Core.lean` builds
-   it on top (`ensureSort (pureFnsA mode fe fuel) fe depth e`) and the
+   it on top (`ensureSort (pureFnsA mode false fe fuel) fe depth e`) and the
    declaration front door calls it at every constant, so `EnsureSortSpec` is a
    second field, in `Bridge/Core/Knot.lean`'s `BodySpec` shape.  It is one
    `whnf` call and a tag test, and `Bridge/Core/EnsureSort.lean` discharges
    it.
 
 **What the Core tier's frame does not say, and this tier needs.**
-`KnotSpec`'s postcondition is `CheckOK mode env fe s' ∧ Ext s₀.store s'.store`.
+`KnotSpec`'s postcondition is `CheckOK mode false env fe s' ∧ Ext s₀.store s'.store`.
 `CheckOK` carries `PinsOK s'`, so the pin table still DENOTES — but the fold
 also needs `PersPins s'` (the pin handles are persistent), and that is
 transported by `s'.pins = s₀.pins` and nothing else.  No core entry writes
@@ -77,12 +77,12 @@ point leaves behind: the invariant at the same environment, an append, and an
 untouched pin table. -/
 structure CoreStep (μ : CheckMode) (env : Env) (fe : IFEnv) (s s' : AState) :
     Prop where
-  ok : CheckOK μ env fe s'
+  ok : CheckOK μ false env fe s'
   ext : Ext s.store s'.store
   pins : s'.pins = s.pins
 
 theorem CoreStep.refl {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (h : CheckOK μ env fe s) : CoreStep μ env fe s s :=
+    (h : CheckOK μ false env fe s) : CoreStep μ env fe s s :=
   ⟨h, Ext.refl _, rfl⟩
 
 theorem CoreStep.trans {μ : CheckMode} {env : Env} {fe : IFEnv} {a b c : AState}
@@ -141,9 +141,9 @@ theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
 
 /-- con-leche: none — so does the whole checker invariant. -/
 theorem CheckOK.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
-    {s : AState} (h : CheckOK μ env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
+    {s : AState} (h : CheckOK μ false env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
     (ht : fe'.tbls = fe.tbls) :
-    CheckOK μ env fe' s :=
+    CheckOK μ false env fe' s :=
   ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht⟩
 
 /-- con-leche: none — and so does a core step's frame. -/
@@ -187,12 +187,12 @@ Core tier owns. -/
 @[expose] def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop :=
   ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK mode false env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
     ⦃fun s => s = s₀⦄ Arena.ensureSortCore mode fe f d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode false env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄
+        SimL (ConLeche.ensureSortCore mode false env) d e s'.store r; ⊤⦄
 
 /-! ## The Core tier's theorem, as this tier uses it -/
 
@@ -204,7 +204,7 @@ entry point.
 The quantification is the fold's: its environment changes at every
 declaration while `Bridge/Core/Induction.lean`'s `knot_spec` fixes one. -/
 structure CoreSpec (mode : CheckMode) (f : Nat) : Prop where
-  knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode env fe f
+  knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode false env fe f
   sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec mode env fe f
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **the Core
@@ -225,7 +225,7 @@ seventh entry point, discharged**: `Bridge/Core/EnsureSort.lean`'s
 `ensureSortCore_spec` IS this statement.  `SimL` there and `SimL` here are the
 same definition, which is why this is one term. -/
 theorem ensureSortSpec_of_knot {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {f : Nat} (hsim : Core.KnotSpec mode env fe f) :
+    {f : Nat} (hsim : Core.KnotSpec mode false env fe f) :
     EnsureSortSpec mode env fe f :=
   fun s₀ d i e hok hden hw => Core.ensureSortCore_spec hsim s₀ d i e hok hden hw
 

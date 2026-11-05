@@ -172,7 +172,7 @@ verdict is `Level.isEquiv sP .zero` under `CheckOK` (the cache licence),
 carried along the pure steps before the call. -/
 theorem lvlEqZero_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {s₀ s s₁ s' : AState} {y z : LIdx} {sP : Level} {v : Option Bool}
-    (hc : CheckOK μ env fe s₀) (q : PStep s₀ s) (hy : denoteL s.store.ls y = some sP)
+    (hc : CheckOK μ false env fe s₀) (q : PStep s₀ s) (hy : denoteL s.store.ls y = some sP)
     (hz : Arena.zeroLevel s = .ok (z, s₁)) (hr : Arena.lvlEq? y z s₁ = .ok (v, s')) :
     PStep s₀ s' ∧ v = Level.isEquiv sP .zero := by
   obtain ⟨rfl, hzl⟩ := zeroLevel_run (hc.pins.mono q.ext q.pins) hz
@@ -1515,7 +1515,7 @@ theorem shapeTail_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
     (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (nIdxs : List Nat) (y : LIdx)
     {s₀ s s' : AState} {r : Option Arena.BlockShape}
-    (hc : CheckOK μ env fe s₀) (q : PStep s₀ s)
+    (hc : CheckOK μ false env fe s₀) (q : PStep s₀ s)
     (hT0 : Frontend.denoteCV s.store cvT0 = some cvT0P)
     (hR0 : Frontend.denoteCV s.store cvR0 = some cvR0P)
     (hTs : cvTs.mapM (Frontend.denoteCV s.store) = some cvTsP)
@@ -1677,7 +1677,7 @@ counts, the pins (reassociated: the twin reads the formers' two pins in one
 pass), the result sort's three arms, each into `shapeTail_run`. -/
 theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
-    (r : Option Arena.BlockShape) (hc : CheckOK μ env fe s₀)
+    (r : Option Arena.BlockShape) (hc : CheckOK μ false env fe s₀)
     (hb : Frontend.denoteCIList s₀.store block = some blockP)
     (hrun : Arena.blockShape? nPd block s₀ = .ok (r, s')) :
     PStep s₀ s' ∧

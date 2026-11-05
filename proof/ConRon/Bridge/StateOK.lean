@@ -13,7 +13,7 @@ split, and for the same reason con-leche split `ISOK` from `ISOKF`:
   `CheckOK.mono` below instead (`Ext` plus the frame equation
   `s'.caches = s₀.caches`, which is one equation because the tables are one
   record, DESIGN `### Task #97b`).
-* **`CacheOK mode env s`** is the per-DECLARATION tables' clause, in
+* **`CacheOK mode eager env s`** is the per-DECLARATION tables' clause, in
   con-leche's `CacheOK` shape and **depth-universal** (the history report's
   lesson 8: "memo keys carry no ambient depth … entries are justified by a
   depth-universal fact `∃ F, ∀ d, a.wscopedB d → op env F d a = .ok b`").
@@ -413,31 +413,31 @@ simulation. -/
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean ModeMemosOK — the six
 mode-dependent tables of a `ModeMemos` set, valid at `mode` over the store
 `st`: `CacheOK`'s first six clauses, for the eager tower's stored set
-(`CacheOK.eager`, at `mode.toEager`). -/
-structure ModeMemosOK (mode : CheckMode) (env : Env) (mm : ModeMemos) (st : EStore) :
+(`CacheOK.eager`, at `eager := true`). -/
+structure ModeMemosOK (mode : CheckMode) (eager : Bool) (env : Env) (mm : ModeMemos) (st : EStore) :
     Prop where
-  whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) mm.whnfCoreC st
-  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
+  whnfCore : EntryCacheOK (ConLeche.whnfCore mode eager env) mm.whnfCoreC st
+  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode eager env F d e true)
     mm.whnfCoreCheapC st
-  whnf : EntryCacheOK (ConLeche.whnf mode env) mm.whnfC st
-  infer : EntryCacheOK (ConLeche.inferTypeCore mode env) mm.inferC st
-  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) mm.inferIOC st
-  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) mm.defeqC st
+  whnf : EntryCacheOK (ConLeche.whnf mode eager env) mm.whnfC st
+  infer : EntryCacheOK (ConLeche.inferTypeCore mode eager env) mm.inferC st
+  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode eager env) mm.inferIOC st
+  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode eager env) mm.defeqC st
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fourteen
 per-declaration tables of `Caches`, in one record, at the pure knot the
-bridge's Theorem 1 is stated against (`pureFns mode env F`, con-leche's
+bridge's Theorem 1 is stated against (`pureFns mode eager env F`, con-leche's
 `ConLeche/Kernel/TypeChecker.lean`), and the eager tower's stored set at
-`mode.toEager` (con-leche's `CSOK.eager`). -/
-structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
-  whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) s.caches.whnfCoreC s.store
+`eager := true` (con-leche's `CSOK.eager`). -/
+structure CacheOK (mode : CheckMode) (eager : Bool) (env : Env) (s : AState) : Prop where
+  whnfCore : EntryCacheOK (ConLeche.whnfCore mode eager env) s.caches.whnfCoreC s.store
   /-- The cheap-projection mode's own table (con-leche `whnfCoreCheapC`). -/
-  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
+  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode eager env F d e true)
     s.caches.whnfCoreCheapC s.store
-  whnf : EntryCacheOK (ConLeche.whnf mode env) s.caches.whnfC s.store
-  infer : EntryCacheOK (ConLeche.inferTypeCore mode env) s.caches.inferC s.store
-  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) s.caches.inferIOC s.store
-  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) s.caches.defeqC s.store
+  whnf : EntryCacheOK (ConLeche.whnf mode eager env) s.caches.whnfC s.store
+  infer : EntryCacheOK (ConLeche.inferTypeCore mode eager env) s.caches.inferC s.store
+  inferIO : EntryCacheOK (ConLeche.inferTypeIO mode eager env) s.caches.inferIOC s.store
+  defeq : DefeqCacheOK (ConLeche.isDefEqCore mode eager env) s.caches.defeqC s.store
   lvlEq : LvlEqCacheOK s.caches.lvlEqC s.store
   lvlsEq : LvlsEqCacheOK s.caches.lvlsEqC s.store
   constTy : ConstTyCacheOK env s.caches.constTyC s.store
@@ -446,9 +446,9 @@ structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
   readL : ReadLCacheOK s.caches.readLC s.store
   readN : ReadNCacheOK s.caches.readNC s.store
   readLs : ReadLsCacheOK s.caches.readLsC s.store
-  /-- The eager tower's stored memos are backed by runs at `mode.toEager`,
+  /-- The eager tower's stored memos are backed by runs at `eager := true`,
   the mode the `defeqE` slot runs them at. -/
-  eager : ModeMemosOK mode.toEager env s.caches.eagerMemos s.store
+  eager : ModeMemosOK mode true env s.caches.eagerMemos s.store
 
 /-! ## The pin table -/
 
@@ -566,10 +566,10 @@ theorem IFEnvOK.miss {env : Env} {fe : IFEnv} {s : AState}
 invariant: the store, the fourteen per-declaration caches, the pin table and
 the environment index.  The `ExprOps` tier does not mention it (it mentions
 `StateOK` alone); the Core tier does. -/
-structure CheckOK (mode : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
+structure CheckOK (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
   state : StateOK s
-  caches : CacheOK mode env s
+  caches : CacheOK mode eager env s
   pins : PinsOK s
   ienv : IFEnvOK env fe s
 
@@ -651,9 +651,9 @@ theorem ReadLsCacheOK.mono {tbl : Std.HashMap LsIdx (List Level)}
   fun k us hk => denoteLs_ext (h k us hk) hx
 
 /-- con-leche: none — `ModeMemosOK` transports along the store order. -/
-theorem ModeMemosOK.mono {mode : CheckMode} {env : Env} {mm : ModeMemos}
-    {st st' : EStore} (h : ModeMemosOK mode env mm st) (hx : Ext st st') :
-    ModeMemosOK mode env mm st' :=
+theorem ModeMemosOK.mono {mode : CheckMode} {eager : Bool} {env : Env} {mm : ModeMemos}
+    {st st' : EStore} (h : ModeMemosOK mode eager env mm st) (hx : Ext st st') :
+    ModeMemosOK mode eager env mm st' :=
   ⟨h.whnfCore.mono hx, h.whnfCoreCheap.mono hx, h.whnf.mono hx, h.infer.mono hx,
     h.inferIO.mono hx, h.defeq.mono hx⟩
 
@@ -661,9 +661,9 @@ theorem ModeMemosOK.mono {mode : CheckMode} {env : Env} {mm : ModeMemos}
 transports in one equation**, which is what putting the fourteen tables in a
 record buys (DESIGN `### Task #97b`: "a frame condition … is one equation
 instead of eleven"). -/
-theorem CacheOK.mono {mode : CheckMode} {env : Env} {s s' : AState}
-    (h : CacheOK mode env s) (hx : Ext s.store s'.store)
-    (hc : s'.caches = s.caches) : CacheOK mode env s' where
+theorem CacheOK.mono {mode : CheckMode} {eager : Bool} {env : Env} {s s' : AState}
+    (h : CacheOK mode eager env s) (hx : Ext s.store s'.store)
+    (hc : s'.caches = s.caches) : CacheOK mode eager env s' where
   whnfCore := by rw [hc]; exact h.whnfCore.mono hx
   whnfCoreCheap := by rw [hc]; exact h.whnfCoreCheap.mono hx
   whnf := by rw [hc]; exact h.whnf.mono hx
@@ -731,10 +731,10 @@ transports past a call that only grows the arena.**  This is the theorem the
 `ExprOps` tier's frame conditions exist for: the caches and the pin table are
 two equations, the store half comes from the call's own postcondition, and
 the environment index needs nothing but `Ext`. -/
-theorem CheckOK.mono {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK mode env fe s) (hok : StateOK s')
+theorem CheckOK.mono {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK mode eager env fe s) (hok : StateOK s')
     (hx : Ext s.store s'.store) (hc : s'.caches = s.caches)
-    (hp : s'.pins = s.pins) : CheckOK mode env fe s' where
+    (hp : s'.pins = s.pins) : CheckOK mode eager env fe s' where
   state := hok
   caches := h.caches.mono hx hc
   pins := h.pins.mono hx hp
@@ -819,9 +819,9 @@ theorem CacheFrame.of_eq {s s' : AState} (hc : s'.caches = s.caches)
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CacheOK` past a level
 comparison**: twelve clauses that did not move, recovered from the one
 equation, and the two that did, carried by the frame itself. -/
-theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
-    (h : CacheOK mode env s) (hx : Ext s.store s'.store)
-    (hf : CacheFrame s s') : CacheOK mode env s' where
+theorem CacheOK.monoF {mode : CheckMode} {eager : Bool} {env : Env} {s s' : AState}
+    (h : CacheOK mode eager env s) (hx : Ext s.store s'.store)
+    (hf : CacheFrame s s') : CacheOK mode eager env s' where
   whnfCore := by rw [hf.caches]; exact h.whnfCore.mono hx
   whnfCoreCheap := by rw [hf.caches]; exact h.whnfCoreCheap.mono hx
   whnf := by rw [hf.caches]; exact h.whnf.mono hx
@@ -842,10 +842,10 @@ theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
 that grows the arena and may compare levels**: `CheckOK.mono` with the cache
 equation replaced by the frame.  `CheckOK.mono` is the special case
 (`CacheFrame.of_eq`) and is kept because most callers still have it. -/
-theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK mode env fe s) (hok : StateOK s')
+theorem CheckOK.monoF {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK mode eager env fe s) (hok : StateOK s')
     (hx : Ext s.store s'.store) (hf : CacheFrame s s')
-    (hp : s'.pins = s.pins) : CheckOK mode env fe s' where
+    (hp : s'.pins = s.pins) : CheckOK mode eager env fe s' where
   state := hok
   caches := h.caches.monoF hx hf
   pins := h.pins.mono hx hp

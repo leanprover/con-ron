@@ -104,7 +104,7 @@ are empty" does not survive a `ParseStep`, while `CacheOK` does, through
 `CheckOK.monoF`.  `CacheOK.of_empty` is what the driver reaches it with and is
 one line at each of the two call sites. -/
 theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
-    (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK μ Env.empty s) :
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK μ false Env.empty s) :
     FoldOK μ Env.empty (mkIFEnv IEnv.empty) s where
   check :=
     { state := hok

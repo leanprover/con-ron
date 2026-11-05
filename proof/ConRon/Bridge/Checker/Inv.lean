@@ -631,7 +631,7 @@ tier runs from a boundary — so the rule is about the right-hand side of a `:`
 and about `DeclOut`-shaped records, and nothing else.
 
 **Why `StepOK` carries `IFEnvOK` and not `CheckOK`.**  `CheckOK` carries
-`CacheOK mode env s`, the fourteen caches read AT an environment, and an
+`CacheOK mode false env s`, the fourteen caches read AT an environment, and an
 install grows the environment: the entries a `whnf`/`infer`/`defeq` cache
 holds were computed at `env` and say nothing at `env.push c`.  That is
 precisely why `checkDeclStep`'s bracket OPENS with `flushCaches`.  So a value
@@ -676,7 +676,7 @@ a function, its index is its list's index (con-leche's `fe = mkFEnv fe.env`),
 and everything handed on is persistent. -/
 structure FoldOK (μ : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
-  check : CheckOK μ env fe s
+  check : CheckOK μ false env fe s
   envWF : EnvWF env
   /-- every table of the index's list is well shaped (`IFEnvOK_of_denote`'s
   `hproj`, which the bracket's close re-derives the index spec from) -/
@@ -708,7 +708,7 @@ index and the pin handles, and both transport.
 It lives here rather than in `Bridge/Checker/Arms.lean` because
 `DeclVal.lean`'s `checkThmVal_bridge`, two modules lower, uses it. -/
 theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : FoldOK μ env fe s) (hck : CheckOK μ env fe s')
+    (h : FoldOK μ env fe s) (hck : CheckOK μ false env fe s')
     (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
     FoldOK μ env fe s' where
   check := hck

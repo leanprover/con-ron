@@ -39,7 +39,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. State-only readers -/
 
@@ -55,7 +55,7 @@ theorem isCtorApp_eq (x : Expr) :
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — **THEOREM 1
 for `isCtorApp`**: an equation with con-leche's reader. -/
 theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isCtorApp fe a
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.isCtorApp env x; ⊤⦄ := by
   sym only [bridge_grind, isCtorApp_eq] =>
@@ -65,15 +65,15 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
 **THEOREM 1 for `natLitToConstructor`**: `Nat.zero`, or `Nat.succ` applied to
 the predecessor literal. -/
 theorem natLitToConstructor_spec (s₀ : AState) (n : Nat)
-    (hok : CheckOK mode env fe s₀) :
+    (hok : CheckOK mode eager env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natLitToConstructor n
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.natLitToConstructor n); ⊤⦄ := by
   sym only [bridge_grind, ConLeche.natLitToConstructor, hok.pins] =>
     vcgen [ConRon.Arena.natLitToConstructor, ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
-      pinAt_specE, constE_specA (mode := mode) (env := env) (fe := fe),
-      internE_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+      pinAt_specE, constE_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
+      internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat — the
 function as ONE equation over the tag and the literal projection
@@ -113,14 +113,14 @@ theorem litToCtorIfNat_split (h : EIdx) : ConRon.Arena.litToCtorIfNat fe h =
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat —
 **THEOREM 1 for `litToCtorIfNat`**: a supported `Nat` literal one layer. -/
 theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store h = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.litToCtorIfNat fe h
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
   sym only [bridge_grind, litToCtorIfNat_eq, Option.getD_some] =>
-    vcgen [litToCtorIfNat_split, natLitSupported_spec (mode := mode) (env := env) (fe := fe),
-      natLitToConstructor_spec (mode := mode) (env := env) (fe := fe)] <;> finish
+    vcgen [litToCtorIfNat_split, natLitSupported_spec (mode := mode) (eager := eager) (env := env) (fe := fe),
+      natLitToConstructor_spec (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: none — a denoted capability record keeps the stored `sortZ`. -/
 theorem denoteCaps_sortZ {st : EStore} {c : IIndCaps} {dc : IndCaps}
@@ -134,24 +134,24 @@ theorem denoteCaps_sortZ {st : EStore} {c : IIndCaps} {dc : IndCaps}
 **THEOREM 1 for `capsNeverZero`**. -/
 theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     (icaps : IIndCaps) (ks : List ConLeche.Name) (vs : List Level)
-    (caps : IndCaps) (hok : CheckOK mode env fe s₀)
+    (caps : IndCaps) (hok : CheckOK mode eager env fe s₀)
     (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
     (hvs : denoteLs s₀.store.lss us = some vs)
     (hcaps : Frontend.denoteCaps s₀.store icaps = some caps) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.capsNeverZero lps us icaps
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.capsNeverZero ks vs caps; ⊤⦄ := by
   sym only [bridge_grind, ConLeche.capsNeverZero, denoteCaps_sortZ hcaps] =>
-    vcgen [ConRon.Arena.capsNeverZero, readNamesM_specC (mode := mode) (env := env) (fe := fe),
-      readLevelsM_specC (mode := mode) (env := env) (fe := fe)] <;> finish
+    vcgen [ConRon.Arena.capsNeverZero, readNamesM_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
+      readLevelsM_specC (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean looseBVarsBounded —
 `ExprOps/Ranges.lean`'s `looseBVarsBoundedFast_spec` at the tier's invariant
 (`CheckOK.mono`). -/
 theorem looseBVarsBoundedFast_specC (fuel k : Nat) (s₀ : AState) (e : EIdx)
-    (hok : CheckOK mode env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
+    (hok : CheckOK mode eager env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ looseBVarsBoundedFast fuel k e
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
         RelV (Expr.looseBVarsBounded k) s₀.store e r; ⊤⦄ :=
   triple_mono (ExprOps.looseBVarsBoundedFast_spec fuel k s₀ e hok.state hden)
     (fun _ _ ⟨hst, hc, hp, hr⟩ =>
@@ -187,16 +187,16 @@ theorem leafGuard_specA (fuel : Nat) (s₀ : AState) (fab base : EIdx)
 guard) — **THEOREM 1 for `fabScopeOk`**: the executed tier's three memoised
 walks decide con-leche's syntactic guard. -/
 theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
-    (ef em : Expr) (hok : CheckOK mode env fe s₀)
+    (ef em : Expr) (hok : CheckOK mode eager env fe s₀)
     (hf : denoteE s₀.store fab = some ef) (hm : denoteE s₀.store major = some em) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.fabScopeOk d fab major
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         r = (ef.wscopedB d && ef.looseBVarsBounded 0 &&
           ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)); ⊤⦄ := by
   sym only [bridge_grind, ExprOps.leavesSubSpec] =>
     vcgen [ConRon.Arena.fabScopeOk, ExprOps.wscopedBFast_spec,
-      looseBVarsBoundedFast_specC (mode := mode) (env := env) (fe := fe),
+      looseBVarsBoundedFast_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
       leafGuard_specA] <;> finish
 
 /-- con-leche: none — the denotation of an appended handle list. -/
@@ -219,17 +219,17 @@ arguments then `etaProjs` (`Walks/Eta.lean`'s `etaProjs_spec`). -/
 theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx)
     (targs : List EIdx) (major : EIdx) (nF : Nat) (Tn : ConLeche.Name)
     (ts : List Expr) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
+    (hok : CheckOK mode eager env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
     (hts : Frontend.denoteEList s₀.store targs = some ts)
     (hx : denoteE s₀.store major = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.etaFabArgsE T targs major nF
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
           some (ConLeche.etaFabArgsE Tn ts x nF); ⊤⦄ := by
   sym only [bridge_grind, ConLeche.etaFabArgsE, denoteEList_append_eq] =>
     vcgen [ConRon.Arena.etaFabArgsE,
-      etaProjs_spec (mode := mode) (env := env) (fe := fe) (Tn := Tn) (y := x)] <;>
+      etaProjs_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (Tn := Tn) (y := x)] <;>
       finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:789-795 andRescueSlotsOf — one
@@ -270,11 +270,11 @@ local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
 two-slot walk, from slot `j` for `n` slots (answer `andSlotsFrom`). -/
 theorem andRescueSlotsGo_specA (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     (cn : ConLeche.Name) (ls : List Level) (an : NIdx) :
-    ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
+    ∀ (n j : Nat) (s₀ : AState), CheckOK mode eager env fe s₀ →
       denoteN s₀.store.ns an = some ConLeche.andName →
       denoteN s₀.store.ns ctor = some cn → denoteLs s₀.store.lss ust = some ls →
       ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlotsGo fe an ctor nP ust n j
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ r = andSlotsFrom env cn nP ls n j; ⊤⦄ := by
   intro n
   induction n with
@@ -288,7 +288,7 @@ theorem andRescueSlotsGo_specA (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     -- postcondition, and the slot's constructor comparison needs one round more
     sym only [bridge_grind, Option.getD_some] =>
       vcgen [ConRon.Arena.andRescueSlotsGo,
-        IProjEntry.fireOk_specA (mode := mode) (env := env) (fe := fe), ih] <;>
+        IProjEntry.fireOk_specA (mode := mode) (eager := eager) (env := env) (fe := fe), ih] <;>
         finish (ematch := 6)
 
 end AndSlots
@@ -298,14 +298,14 @@ end AndSlots
 fire. -/
 theorem andRescueSlots_spec (s₀ : AState) (ctor : NIdx) (nP : Nat)
     (ust : LsIdx) (cn : ConLeche.Name) (ls : List Level)
-    (hok : CheckOK mode env fe s₀) (hc : denoteN s₀.store.ns ctor = some cn)
+    (hok : CheckOK mode eager env fe s₀) (hc : denoteN s₀.store.ns ctor = some cn)
     (hus : denoteLs s₀.store.lss ust = some ls) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.andRescueSlots env cn nP ls; ⊤⦄ := by
   sym only [bridge_grind, hok.pins] =>
     vcgen [ConRon.Arena.andRescueSlots, ConRon.Arena.pinAnd, pinAt_specE,
-      andRescueSlotsGo_specA (mode := mode) (env := env) (fe := fe) (cn := cn) (ls := ls)] <;>
+      andRescueSlotsGo_specA (mode := mode) (eager := eager) (env := env) (fe := fe) (cn := cn) (ls := ls)] <;>
       finish
 
 /-- con-leche: none — a denoted rule's fields. -/

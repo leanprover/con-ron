@@ -7,7 +7,7 @@ between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 `Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
 theorems are the same as this module's six wrapper steps (five slots, the
 `whnfCore` slot in its two cheap modes).  The eager slot is the `defeq`
-wrapper at `mode.toEager` on the eager tower's own memos, swapped in and back
+wrapper at `eager := true` on the eager tower's own memos, swapped in and back
 out around it (`memoDefeqE_step`, at the end of the module).
 
 A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
@@ -85,90 +85,90 @@ the probe's shape is written down. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the
 `whnfCore` slot at `fuel + 1`. -/
-theorem coreKnot_whnfCore_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_whnfCore_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).whnfCore false d i =
+    (coreKnot mode eager fe id (fuel + 1)).whnfCore false d i =
       (do
         if whnfCoreStuckTag i then pure i
         else
         match (← get).caches.whnfCoreC[i]? with
         | some x => pure x
         | none => do
-          let x ← whnfCoreBody mode (coreKnot mode fe id fuel) fe false d i
+          let x ← whnfCoreBody mode (coreKnot mode eager fe id fuel) fe false d i
           whnfCoreSet i x
           pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1945-2021 coreKnotI — the CHEAP
 `whnfCore` slot at `fuel + 1`, under its own table. -/
-theorem coreKnot_whnfCoreCheap_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_whnfCoreCheap_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).whnfCore true d i =
+    (coreKnot mode eager fe id (fuel + 1)).whnfCore true d i =
       (do
         if whnfCoreStuckTag i then pure i
         else
         match (← get).caches.whnfCoreCheapC[i]? with
         | some x => pure x
         | none => do
-          let x ← whnfCoreBody mode (coreKnot mode fe id fuel) fe true d i
+          let x ← whnfCoreBody mode (coreKnot mode eager fe id fuel) fe true d i
           whnfCoreCheapSet i x
           pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the `whnf`
 slot at `fuel + 1`. -/
-theorem coreKnot_whnf_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_whnf_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).whnf d i =
+    (coreKnot mode eager fe id (fuel + 1)).whnf d i =
       (do
         if whnfStuckTag i then pure i
         else
         match (← get).caches.whnfC[i]? with
         | some x => pure x
         | none => do
-          let x ← whnfBody (coreKnot mode fe id fuel) fe d i
+          let x ← whnfBody (coreKnot mode eager fe id fuel) fe d i
           whnfSet i x
           pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the `infer`
 slot at `fuel + 1`. -/
-theorem coreKnot_infer_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_infer_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).infer d i =
+    (coreKnot mode eager fe id (fuel + 1)).infer d i =
       (do
         match (← get).caches.inferC[i]? with
         | some x => pure x
         | none => do
-          let x ← inferBody (coreKnot mode fe id fuel) fe d i
+          let x ← inferBody (coreKnot mode eager fe id fuel) fe d i
           inferSet i x
           pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — the `defeq` slot
 at `fuel + 1`, keyed on the ORDERED pair with the verdict. -/
-theorem coreKnot_defeq_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_defeq_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (a b : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).defeq d a b =
+    (coreKnot mode eager fe id (fuel + 1)).defeq d a b =
       (do
         match (← get).caches.defeqC[(a, b)]? with
         | some x => pure x
         | none => do
-          let x ← defeqBody mode (coreKnot mode fe id fuel) fe d a b
+          let x ← defeqBody mode eager (coreKnot mode eager fe id fuel) fe d a b
           defeqSet a b x
           pure x) := rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1488-1561 coreKnotI — the eager
-slot at `fuel + 1`: the `defeq` memo at `mode.toEager` over the knot at
-`mode.toEager` one level down, between entering the eager tower's memos and
+slot at `fuel + 1`: the `defeq` memo at `eager := true` over the knot at
+`eager := true` one level down, between entering the eager tower's memos and
 leaving them (con-leche's `withEagerMemos`). -/
-theorem coreKnot_defeqE_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_defeqE_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (a b : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).defeqE d a b =
+    (coreKnot mode eager fe id (fuel + 1)).defeqE d a b =
       (do
-        let saved ← enterEager mode.eager
+        let saved ← enterEager eager
         match (← get).caches.defeqC[(a, b)]? with
         | some x => do
           leaveEager saved
           pure x
         | none => do
-          let x ← defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe d a b
+          let x ← defeqBody mode true (coreKnot mode true fe id fuel) fe d a b
           defeqSet a b x
           leaveEager saved
           pure x) := rfl
@@ -176,14 +176,14 @@ theorem coreKnot_defeqE_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
 /-- con-leche: ConLeche/Cached/CoreC.lean:1966-1979 coreKnotI — the `inferIO`
 slot at `fuel + 1`: the io body under the io-grade view of the knot one
 level down, at every mode (con-leche task #346). -/
-theorem coreKnot_inferIO_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
+theorem coreKnot_inferIO_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).inferIO d i =
+    (coreKnot mode eager fe id (fuel + 1)).inferIO d i =
       (do
         match (← get).caches.inferIOC[i]? with
         | some x => pure x
         | none => do
-          let x ← inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+          let x ← inferBodyIO (CoreFnsA.ioView (coreKnot mode eager fe id fuel)) fe d i
           inferIOSet i x
           pure x) := rfl
 
@@ -247,8 +247,8 @@ the ORDERED pair and with the verdict. -/
   vcgen [defeqSet] with finish
 
 /-- con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager —
-`enterEager` at a plain mode moves the plain six out and the stored eager six
-in; at an eager mode it moves nothing. -/
+`enterEager` at `eager := false` moves the plain six out and the stored eager six
+in; at `eager := true` it moves nothing. -/
 theorem enterEager_spec (eager : Bool) (s₀ : AState) :
     ⦃fun s => s = s₀⦄ enterEager eager
     ⦃fun sv s' => (eager = true → sv = none ∧ s' = s₀) ∧
@@ -333,62 +333,62 @@ mechanical; the reason it is not one generic lemma is that the field being
 updated is different in each. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC. -/
-theorem CacheOK.insertWhnfCore {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
+theorem CacheOK.insertWhnfCore {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.whnfCore mode env F d a = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.whnfCore mode eager env F d a = .ok b) :
+    CacheOK mode eager env { s with caches := { s.caches with
       whnfCoreC := s.caches.whnfCoreC.insert i j } } :=
   { hc with whnfCore := EntryCacheOK.insert hc.whnfCore ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean CSOK.insertWhnfCoreCheapC. -/
-theorem CacheOK.insertWhnfCoreCheap {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
+theorem CacheOK.insertWhnfCoreCheap {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.whnfCore mode env F d a true = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.whnfCore mode eager env F d a true = .ok b) :
+    CacheOK mode eager env { s with caches := { s.caches with
       whnfCoreCheapC := s.caches.whnfCoreCheapC.insert i j } } :=
   { hc with whnfCoreCheap := EntryCacheOK.insert hc.whnfCoreCheap ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:69 CSOK.insertWhnfC. -/
-theorem CacheOK.insertWhnf {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
+theorem CacheOK.insertWhnf {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.whnf mode env F d a = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.whnf mode eager env F d a = .ok b) :
+    CacheOK mode eager env { s with caches := { s.caches with
       whnfC := s.caches.whnfC.insert i j } } :=
   { hc with whnf := EntryCacheOK.insert hc.whnf ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:87 CSOK.insertInferC. -/
-theorem CacheOK.insertInfer {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
+theorem CacheOK.insertInfer {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.inferTypeCore mode env F d a = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.inferTypeCore mode eager env F d a = .ok b) :
+    CacheOK mode eager env { s with caches := { s.caches with
       inferC := s.caches.inferC.insert i j } } :=
   { hc with infer := EntryCacheOK.insert hc.infer ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:108 CSOK.insertInferIOC. -/
-theorem CacheOK.insertInferIO {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
+theorem CacheOK.insertInferIO {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.inferTypeIO mode env F d a = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.inferTypeIO mode eager env F d a = .ok b) :
+    CacheOK mode eager env { s with caches := { s.caches with
       inferIOC := s.caches.inferIOC.insert i j } } :=
   { hc with inferIO := EntryCacheOK.insert hc.inferIO ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:146 CSOK.insertDefeqC. -/
-theorem CacheOK.insertDefeq {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr} {x : Bool}
+theorem CacheOK.insertDefeq {mode : CheckMode} {eager : Bool} {env : Env} {s : AState}
+    (hc : CacheOK mode eager env s) {i j : EIdx} {a b : Expr} {x : Bool}
     (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true → Expr.wscopedB d b = true →
-      ConLeche.isDefEqCore mode env F d a b = .ok x) :
-    CacheOK mode env { s with caches := { s.caches with
+      ConLeche.isDefEqCore mode eager env F d a b = .ok x) :
+    CacheOK mode eager env { s with caches := { s.caches with
       defeqC := s.caches.defeqC.insert (i, j) x } } :=
   { hc with defeq := DefeqCacheOK.insert hc.defeq ha hb hrun }
 
@@ -399,10 +399,10 @@ invariant follows from the cache clause alone. -/
 
 /-- con-leche: none — `CheckOK` from `CacheOK` at a state whose store, pins
 and index are the old ones (at any mode: only the cache clause names one). -/
-theorem CheckOK.ofCache {mode mode' : CheckMode} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK mode' env fe s) (hc : CacheOK mode env s')
+theorem CheckOK.ofCache {mode mode' : CheckMode} {eager eager' : Bool} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK mode' eager' env fe s) (hc : CacheOK mode eager env s')
     (hst : s'.store = s.store) (hp : s'.pins = s.pins) :
-    CheckOK mode env fe s' where
+    CheckOK mode eager env fe s' where
   state := ⟨hst ▸ h.state.wf⟩
   caches := hc
   pins := by
@@ -470,62 +470,62 @@ theorem SimE.of_row {P : Nat → Nat → Expr → CheckM Expr}
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the hit** at each table, from the state invariant (its pattern names the
 answer, the invariant and the probe, so that `grind` binds `fe` and `i`). -/
-@[bridge_grind .] theorem CheckOK.whnfCoreHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.whnfCoreHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
-    (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreC[i]? = some j)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.whnfCoreC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
-    SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s.store j :=
+    SimE (fun F d e => ConLeche.whnfCore mode eager env F d e false) d e s.store j :=
   SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
     (hok.caches.whnfCore _ _ hx) hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 the hit, cheap mode. -/
-@[bridge_grind .] theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
-    (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreCheapC[i]? = some j)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.whnfCoreCheapC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
-    SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s.store j :=
+    SimE (fun F d e => ConLeche.whnfCore mode eager env F d e true) d e s.store j :=
   SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
     (hok.caches.whnfCoreCheap _ _ hx) hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
 hit, `whnf`. -/
-@[bridge_grind .] theorem CheckOK.whnfHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.whnfHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
-    (hok : CheckOK mode env fe s) (hx : s.caches.whnfC[i]? = some j)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.whnfC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
-    SimE (ConLeche.whnf mode env) d e s.store j :=
+    SimE (ConLeche.whnf mode eager env) d e s.store j :=
   SimE.of_row (fun F _ _ _ h hw => ConLeche.whnf_WScoped henv F h hw)
     (hok.caches.whnf _ _ hx) hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — the
 hit, `infer`. -/
-@[bridge_grind .] theorem CheckOK.inferHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.inferHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
-    (hok : CheckOK mode env fe s) (hx : s.caches.inferC[i]? = some j)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.inferC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
-    SimE (ConLeche.inferTypeCore mode env) d e s.store j :=
+    SimE (ConLeche.inferTypeCore mode eager env) d e s.store j :=
   SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeCore_WScoped henv F h hw)
     (hok.caches.infer _ _ hx) hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim — the
 hit, the io grade. -/
-@[bridge_grind .] theorem CheckOK.inferIOHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.inferIOHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
-    (hok : CheckOK mode env fe s) (hx : s.caches.inferIOC[i]? = some j)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.inferIOC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
-    SimE (ConLeche.inferTypeIO mode env) d e s.store j :=
+    SimE (ConLeche.inferTypeIO mode eager env) d e s.store j :=
   SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeIO_WScoped henv F h hw)
     (hok.caches.inferIO _ _ hx) hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — the
 hit, `defeq`: the row carries the verdict, so both signs are sound. -/
-@[bridge_grind .] theorem CheckOK.defeqHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.defeqHit {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {x : Bool} {d : Nat} {a b : Expr}
-    (hok : CheckOK mode env fe s) (hx : s.caches.defeqC[(i, j)]? = some x)
+    (hok : CheckOK mode eager env fe s) (hx : s.caches.defeqC[(i, j)]? = some x)
     (hda : denoteE s.store i = some a) (hdb : denoteE s.store j = some b)
     (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
-    SimV (ConLeche.isDefEqCore mode env) d a b x := by
+    SimV (ConLeche.isDefEqCore mode eager env) d a b x := by
   obtain ⟨a', b', ha', hb', F, hall⟩ := hok.caches.defeq _ _ hx
   obtain rfl := Option.some.inj (ha'.symm.trans hda)
   obtain rfl := Option.some.inj (hb'.symm.trans hdb)
@@ -533,78 +533,78 @@ hit, `defeq`: the row carries the verdict, so both signs are sound. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the miss**, full `whnfCore`: the body's answer re-inserted. -/
-@[bridge_grind .] theorem CheckOK.insertWhnfCoreAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertWhnfCoreAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d a s.store j) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
+    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode eager env F d e false) d a s.store j) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       whnfCoreC := s.caches.whnfCoreC.insert i j } } :=
   let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnfCore hck.caches ha hb
-    (row_of_run (P := fun F d e => ConLeche.whnfCore mode env F d e false)
+    (row_of_run (P := fun F d e => ConLeche.whnfCore mode eager env F d e false)
       (fun F _ _ _ h1 h2 => ConLeche.whnfCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the miss**, cheap `whnfCore`. -/
-@[bridge_grind .] theorem CheckOK.insertWhnfCoreCheapAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertWhnfCoreCheapAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d a s.store j) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
+    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode eager env F d e true) d a s.store j) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       whnfCoreCheapC := s.caches.whnfCoreCheapC.insert i j } } :=
   let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnfCoreCheap hck.caches ha hb
-    (row_of_run (P := fun F d e => ConLeche.whnfCore mode env F d e true)
+    (row_of_run (P := fun F d e => ConLeche.whnfCore mode eager env F d e true)
       (fun F _ _ _ h1 h2 => ConLeche.whnfCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim —
 **the miss**, `whnf`. -/
-@[bridge_grind .] theorem CheckOK.insertWhnfAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertWhnfAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.whnf mode env) d a s.store j) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.whnf mode eager env) d a s.store j) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       whnfC := s.caches.whnfC.insert i j } } :=
   let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnf hck.caches ha hb
-    (row_of_run (P := ConLeche.whnf mode env)
+    (row_of_run (P := ConLeche.whnf mode eager env)
       (fun F _ _ _ h1 h2 => ConLeche.whnf_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim —
 **the miss**, `infer`. -/
-@[bridge_grind .] theorem CheckOK.insertInferAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertInferAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeCore mode env) d a s.store j) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeCore mode eager env) d a s.store j) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       inferC := s.caches.inferC.insert i j } } :=
   let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertInfer hck.caches ha hb
-    (row_of_run (P := ConLeche.inferTypeCore mode env)
+    (row_of_run (P := ConLeche.inferTypeCore mode eager env)
       (fun F _ _ _ h1 h2 => ConLeche.inferTypeCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
 **the miss**, the io grade. -/
-@[bridge_grind .] theorem CheckOK.insertInferIOAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertInferIOAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeIO mode env) d a s.store j) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeIO mode eager env) d a s.store j) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       inferIOC := s.caches.inferIOC.insert i j } } :=
   let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertInferIO hck.caches ha hb
-    (row_of_run (P := ConLeche.inferTypeIO mode env)
+    (row_of_run (P := ConLeche.inferTypeIO mode eager env)
       (fun F _ _ _ h1 h2 => ConLeche.inferTypeIO_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim —
 **the miss**, `defeq`: the verdict re-inserted at the pair. -/
-@[bridge_grind .] theorem CheckOK.insertDefeqAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.insertDefeqAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {a b : Expr} {x : Bool} {d : Nat}
     (henv : ConLeche.EnvWF env)
-    (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
+    (hck : CheckOK mode eager env fe s) (ha : denoteE s.store i = some a)
     (hb : denoteE s.store j = some b) (hwa : Expr.WScoped d a)
-    (hwb : Expr.WScoped d b) (hs : SimV (ConLeche.isDefEqCore mode env) d a b x) :
-    CheckOK mode env fe { s with caches := { s.caches with
+    (hwb : Expr.WScoped d b) (hs : SimV (ConLeche.isDefEqCore mode eager env) d a b x) :
+    CheckOK mode eager env fe { s with caches := { s.caches with
       defeqC := s.caches.defeqC.insert (i, j) x } } :=
   let ⟨F, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertDefeq hck.caches ha hb
@@ -676,11 +676,11 @@ theorem denote_stuck_of_whnfCoreStuckTag {st : EStore} (hwf : StoreWF st)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:968-975 whnfCoreBody — the six
 constructors the body's first six clauses answer with themselves. -/
-theorem whnfCore_of_stuck {mode : CheckMode} {env : Env} {e : Expr} {c : Bool}
+theorem whnfCore_of_stuck {mode : CheckMode} {eager : Bool} {env : Env} {e : Expr} {c : Bool}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
       (∃ t b, e = .lam t b) ∨ (∃ t b, e = .forallE t b))
-    (F d : Nat) : ConLeche.whnfCore mode env (F + 1) d e c = .ok e := by
+    (F d : Nat) : ConLeche.whnfCore mode eager env (F + 1) d e c = .ok e := by
   rw [ConLeche.whnfCore_succ]
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ |
       ⟨t, b, rfl⟩ | ⟨t, b, rfl⟩ <;>
@@ -727,21 +727,21 @@ theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
 
 /-- con-leche: ConLeche/Verify/Knot.lean:42 whnfCore_succ — the pure knot's
 `whnfCore` slot at `F + 1`, in the record spelling `whnfBody` calls it by. -/
-theorem pureFns_whnfCore_succ (mode : CheckMode) (env : Env) (F d : Nat) (e : Expr)
+theorem pureFns_whnfCore_succ (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (e : Expr)
     (c : Bool) :
-    (pureFns mode env (F + 1)).whnfCore c d e =
-      ConLeche.whnfCoreBody mode (pureFns mode env F) env c d e := rfl
+    (pureFns mode eager env (F + 1)).whnfCore c d e =
+      ConLeche.whnfCoreBody mode (pureFns mode eager env F) env c d e := rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1099 whnfStep/whnfBody — the
 five constructors the reduction loop cannot move: `whnfCore` returns them
 unchanged, `reduceNat`'s match needs an `.app` and `unfoldDefinition`'s needs
 a `.const` head, so the first iteration of the loop is `pure e`.  **Two fuel
 levels**, because the loop's own `whnfCore` call consumes one. -/
-theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
+theorem whnf_of_stuck {mode : CheckMode} {eager : Bool} {env : Env} {e : Expr}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ t b, e = .lam t b) ∨ (∃ t b, e = .forallE t b) ∨
       (∃ l, e = .lit l))
-    (F d : Nat) : ConLeche.whnf mode env (F + 2) d e = .ok e := by
+    (F d : Nat) : ConLeche.whnf mode eager env (F + 2) d e = .ok e := by
   obtain ⟨n, hn⟩ := ConLeche.whnfLoopFuel_succ
   rw [show F + 2 = (F + 1) + 1 from rfl, ConLeche.whnf_succ,
     ConLeche.whnfBody, hn, ConLeche.whnfLoop, ConLeche.whnfStep]
@@ -756,20 +756,20 @@ theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
 **the stuck tag** of the `whnfCore` wrappers: the pure body answers with its
 own argument.  Not registered: its operation is a `fun` over `mode`, `env`
 and `c`, which no pattern can bind, so a wrapper passes it instantiated. -/
-theorem SimE.of_whnfCoreStuck {mode : CheckMode} {env : Env} {c : Bool}
+theorem SimE.of_whnfCoreStuck {mode : CheckMode} {eager : Bool} {env : Env} {c : Bool}
     {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
     (hs : whnfCoreStuckTag i = true) (hden : denoteE st i = some e)
     (hw : Expr.WScoped d e) :
-    SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e st i :=
+    SimE (fun F d e => ConLeche.whnfCore mode eager env F d e c) d e st i :=
   ⟨e, hden, hw, 1, whnfCore_of_stuck (denote_stuck_of_whnfCoreStuckTag hwf hden hs) 0 d⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
 stuck tag of the `whnf` wrapper. -/
-@[bridge_grind .] theorem SimE.of_whnfStuck {mode : CheckMode} {env : Env}
+@[bridge_grind .] theorem SimE.of_whnfStuck {mode : CheckMode} {eager : Bool} {env : Env}
     {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
     (hs : whnfStuckTag i = true) (hden : denoteE st i = some e)
     (hw : Expr.WScoped d e) :
-    SimE (ConLeche.whnf mode env) d e st i :=
+    SimE (ConLeche.whnf mode eager env) d e st i :=
   ⟨e, hden, hw, 2, whnf_of_stuck (denote_stuck_of_whnfStuckTag hwf hden hs) 0 d⟩
 
 /-! ## 5. The six memo-wrapper steps
@@ -779,59 +779,59 @@ walk at fuel `f`, the SLOT at fuel `f + 1`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper**, full mode: stuck tag, cache hit, cache miss. -/
-theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoWhnfCoreFull_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (whnfCoreBody mode (coreKnot mode fe id fuel) fe false)
-      (fun F d e => ConLeche.whnfCore mode env F d e false))
+    (hbody : BodySpec mode eager env fe
+      (whnfCoreBody mode (coreKnot mode eager fe id fuel) fe false)
+      (fun F d e => ConLeche.whnfCore mode eager env F d e false))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore false d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).whnfCore false d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s'.store r; ⊤⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode eager env F d e false) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCore_succ]
   -- the body spec at THIS subject: `e` does not occur in the program, so
   -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes);
   -- the stuck-tag lemma at THIS slot: its answer's operation is a `fun`, so
   -- the registered form would have no pattern for `mode`, `env`, `c`
-  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (env := env) (c := false)] =>
+  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (eager := eager) (env := env) (c := false)] =>
     vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper**, CHEAP mode (official `cheap_proj`), under the
 cheap mode's own table. -/
-theorem memoWhnfCoreCheap_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoWhnfCoreCheap_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (whnfCoreBody mode (coreKnot mode fe id fuel) fe true)
-      (fun F d e => ConLeche.whnfCore mode env F d e true))
+    (hbody : BodySpec mode eager env fe
+      (whnfCoreBody mode (coreKnot mode eager fe id fuel) fe true)
+      (fun F d e => ConLeche.whnfCore mode eager env F d e true))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore true d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).whnfCore true d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s'.store r; ⊤⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode eager env F d e true) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCoreCheap_succ]
-  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (env := env) (c := true)] =>
+  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (eager := eager) (env := env) (c := true)] =>
     vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper** in either mode. -/
-theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoWhnfCore_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : ∀ c, BodySpec mode env fe
-      (whnfCoreBody mode (coreKnot mode fe id fuel) fe c)
-      (fun F d e => ConLeche.whnfCore mode env F d e c))
+    (hbody : ∀ c, BodySpec mode eager env fe
+      (whnfCoreBody mode (coreKnot mode eager fe id fuel) fe c)
+      (fun F d e => ConLeche.whnfCore mode eager env F d e c))
     {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore c d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).whnfCore c d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode eager env F d e c) d e s'.store r; ⊤⦄ := by
   cases c
   · exact memoWhnfCoreFull_step henv (hbody false) s₀ d i e hok hden hw
   · exact memoWhnfCoreCheap_step henv (hbody true) s₀ d i e hok hden hw
@@ -841,17 +841,17 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
 `whnf` wrapper**.  Its stuck-tag branch is one rung up: five head kinds, and
 the obligation carries `reduceNat = none` and `unfoldDefinition = none` as
 well (`whnf_of_stuck`). -/
-theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoWhnf_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (whnfBody (coreKnot mode fe id fuel) fe) (ConLeche.whnf mode env))
+    (hbody : BodySpec mode eager env fe
+      (whnfBody (coreKnot mode eager fe id fuel) fe) (ConLeche.whnf mode eager env))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnf d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).whnf d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnf mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.whnf mode eager env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnf_succ]
   sym only [bridge_grind] =>
     vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
@@ -859,18 +859,18 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — **the
 `infer` wrapper**.  Two branches only: inference has no answer-is-the-argument
 tag. -/
-theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoInfer_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (inferBody (coreKnot mode fe id fuel) fe)
-      (ConLeche.inferTypeCore mode env))
+    (hbody : BodySpec mode eager env fe
+      (inferBody (coreKnot mode eager fe id fuel) fe)
+      (ConLeche.inferTypeCore mode eager env))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).infer d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).infer d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_infer_succ]
   sym only [bridge_grind] =>
     vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
@@ -879,18 +879,18 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
 **the io wrapper**: the io body under the io grade's OWN table.  A hit here
 never serves a full-`infer` query and vice versa — DESIGN §8.3's lesson 9,
 which is exactly the fact that the two clauses of `CacheOK` are separate. -/
-theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoInferIO_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
-      (ConLeche.inferTypeIO mode env))
+    (hbody : BodySpec mode eager env fe
+      (inferBodyIO (CoreFnsA.ioView (coreKnot mode eager fe id fuel)) fe)
+      (ConLeche.inferTypeIO mode eager env))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).inferIO d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).inferIO d i
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
+        SimE (ConLeche.inferTypeIO mode eager env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_inferIO_succ]
   sym only [bridge_grind] =>
     vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
@@ -899,19 +899,19 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
 `defeq` wrapper**: two subjects, a `Bool` answer, and the row carries the
 verdict so that BOTH SIGNS are sound (DESIGN §8.3's open question, answered by
 con-leche's own `defeqC`). -/
-theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+theorem memoDefeq_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpecV mode env fe
-      (defeqBody mode (coreKnot mode fe id fuel) fe)
-      (ConLeche.isDefEqCore mode env))
+    (hbody : BodySpecV mode eager env fe
+      (defeqBody mode eager (coreKnot mode eager fe id fuel) fe)
+      (ConLeche.isDefEqCore mode eager env))
     (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store i = some a)
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store i = some a)
     (hdb : denoteE s₀.store j = some b)
     (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).defeq d i j
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).defeq d i j
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ := by
+        SimV (ConLeche.isDefEqCore mode eager env) d a b x; ⊤⦄ := by
   rw [coreKnot_defeq_succ]
   -- the spec is instantiated at THIS pair before `vcgen` sees it: `a` and `b`
   -- do not occur in the program, so `vcgen` would leave them as goals, and
@@ -1021,20 +1021,18 @@ theorem triple_failDanglingE {α : Type} {s₀ : AState}
 The eager slot swaps the eager tower's stored memos in for the comparison and
 back out after it.  The invariant follows the swap, as con-leche's
 `CSOK.enterEager`/`CSOK.leaveEager`: the entered state is `CheckOK` at
-`mode.toEager` (its six fields are the stored set, backed there by
+`eager := true` (its six fields are the stored set, backed there by
 `CacheOK.eager`; its eager slot is empty), and the left state takes its six
 fields from the caller's saved set and its eager set — the run's six fields —
-from the run's state at `mode.toEager`.  At an eager mode nothing moves, and
-`mode.toEager = mode`.  What `enterEager` hands to `leaveEager` is stated by
-`SavedOK`. -/
+from the run's state at `eager := true`.  At `eager := true` nothing moves.
+What `enterEager` hands to `leaveEager` is stated by `SavedOK`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.leaveEager — **what the
-saved value carries**: at an eager mode nothing was saved, and the mode is its
-own eager tower's; at a plain mode the saved six are valid at the caller's
-mode over the store `st`. -/
-def SavedOK (mode : CheckMode) (env : Env) : Option ModeMemos → EStore → Prop
-  | none, _ => mode.toEager = mode
-  | some mm, st => ModeMemosOK mode env mm st
+saved value carries**: when nothing was saved the flag is already set; otherwise
+the saved six are valid at the caller's flag over the store `st`. -/
+def SavedOK (mode : CheckMode) (eager : Bool) (env : Env) : Option ModeMemos → EStore → Prop
+  | none, _ => eager = true
+  | some mm, st => ModeMemosOK mode eager env mm st
 
 /-- con-leche: none — an empty table is valid at any operation. -/
 theorem EntryCacheOK.empty {op : Nat → Nat → Expr → CheckM Expr} {st : EStore} :
@@ -1045,49 +1043,42 @@ theorem DefeqCacheOK.empty {op : Nat → Nat → Expr → Expr → CheckM Bool} 
     DefeqCacheOK op ∅ st := fun _ _ h => by simp at h
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean ModeMemosOK.empty — the empty
-set is valid at every mode. -/
-theorem ModeMemosOK.empty {mode : CheckMode} {env : Env} {st : EStore} :
-    ModeMemosOK mode env ModeMemos.empty st :=
+set is valid at every flag. -/
+theorem ModeMemosOK.empty {mode : CheckMode} {eager : Bool} {env : Env} {st : EStore} :
+    ModeMemosOK mode eager env ModeMemos.empty st :=
   ⟨EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty, EntryCacheOK.empty,
     EntryCacheOK.empty, DefeqCacheOK.empty⟩
 
-/-- con-leche: ConLeche/Verify/Cached/SimC.lean CheckMode.toEager_of_eager —
-an eager mode is its own eager tower's mode. -/
-theorem toEager_of_eager {mode : CheckMode} (h : mode.eager = true) :
-    mode.toEager = mode := by
-  cases mode <;> simp_all [CheckMode.eager, CheckMode.toEager]
-
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.enterEager — **the
-entry**: `enterEager mode.eager` leaves a state that is `CheckOK` at the eager
-tower's mode, and returns what `leaveEager` needs. -/
-theorem enterEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
-    (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => s = s₀⦄ enterEager mode.eager
-    ⦃fun sv s' => CheckOK mode.toEager env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ SavedOK mode env sv s₀.store; ⊤⦄ := by
-  refine triple_mono (enterEager_spec mode.eager s₀) ?_
+entry**: `enterEager eager` leaves a state that is `CheckOK` at
+`eager := true`, and returns what `leaveEager` needs. -/
+theorem enterEager_ok_spec {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
+    (s₀ : AState) (hok : CheckOK mode eager env fe s₀) :
+    ⦃fun s => s = s₀⦄ enterEager eager
+    ⦃fun sv s' => CheckOK mode true env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ SavedOK mode eager env sv s₀.store; ⊤⦄ := by
+  refine triple_mono (enterEager_spec eager s₀) ?_
   rintro sv s' ⟨ht, hf⟩
   have hc := hok.caches
-  cases he : mode.eager
-  · obtain ⟨rfl, rfl⟩ := hf he
+  cases eager
+  · obtain ⟨rfl, rfl⟩ := hf rfl
     exact ⟨CheckOK.ofCache hok ⟨hc.eager.whnfCore, hc.eager.whnfCoreCheap, hc.eager.whnf,
         hc.eager.infer, hc.eager.inferIO, hc.eager.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy,
         hc.constVal, hc.ruleRhs, hc.readL, hc.readN, hc.readLs, ModeMemosOK.empty⟩ rfl rfl,
       rfl, rfl, ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩
-  · obtain ⟨rfl, rfl⟩ := ht he
-    have hE := toEager_of_eager he
-    exact ⟨by rw [hE]; exact hok, rfl, rfl, hE⟩
+  · obtain ⟨rfl, rfl⟩ := ht rfl
+    exact ⟨hok, rfl, rfl, rfl⟩
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean CSOK.leaveEager — **the
-exit**: from a state `CheckOK` at the eager tower's mode, leaving with what
+exit**: from a state `CheckOK` at `eager := true`, leaving with what
 `enterEager` saved over a store the current one extends gives `CheckOK` at the
-caller's mode. -/
-theorem leaveEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+caller's flag. -/
+theorem leaveEager_ok_spec {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     (s₀ : AState) (sv : Option ModeMemos) {st : EStore}
-    (hok : CheckOK mode.toEager env fe s₀) (hsv : SavedOK mode env sv st)
+    (hok : CheckOK mode true env fe s₀) (hsv : SavedOK mode eager env sv st)
     (hx : Ext st s₀.store) :
     ⦃fun s => s = s₀⦄ leaveEager sv
-    ⦃fun _u s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun _u s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins; ⊤⦄ := by
   refine triple_mono (leaveEager_spec sv s₀) ?_
   rintro _ s' ⟨hn, hs⟩
@@ -1095,11 +1086,11 @@ theorem leaveEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
   cases sv with
   | none =>
     obtain rfl := hn rfl
-    have hE : mode.toEager = mode := hsv
-    exact ⟨by rw [← hE]; exact hok, rfl, rfl⟩
+    obtain rfl : eager = true := hsv
+    exact ⟨hok, rfl, rfl⟩
   | some mm =>
     obtain rfl := hs mm rfl
-    have hm : ModeMemosOK mode env mm s₀.store := ModeMemosOK.mono hsv hx
+    have hm : ModeMemosOK mode eager env mm s₀.store := ModeMemosOK.mono hsv hx
     exact ⟨CheckOK.ofCache hok ⟨hm.whnfCore, hm.whnfCoreCheap, hm.whnf, hm.infer,
         hm.inferIO, hm.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs,
         hc.readL, hc.readN, hc.readLs,
@@ -1107,28 +1098,27 @@ theorem leaveEager_ok_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
       rfl, rfl⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean ssimC (the `defeqE` slot) —
-**the eager slot**: the `defeq` wrapper at the eager tower's mode, on the
-eager tower's memos.  Its answer is the eager tower's `isDefEqCore`
-(con-leche's `defeqE_def`), and the caller keeps its invariant at its own
-mode. -/
-theorem memoDefeqE_step {mode : CheckMode} {env : Env} {fe : IFEnv}
+**the eager slot**: the `defeq` wrapper at `eager := true`, on the eager
+tower's memos.  Its answer is the eager tower's `isDefEqCore` (con-leche's
+`defeqE_def`), and the caller keeps its invariant at its own flag. -/
+theorem memoDefeqE_step {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpecV mode.toEager env fe
-      (defeqBody mode.toEager (coreKnot mode.toEager fe id fuel) fe)
-      (ConLeche.isDefEqCore mode.toEager env))
+    (hbody : BodySpecV mode true env fe
+      (defeqBody mode true (coreKnot mode true fe id fuel) fe)
+      (ConLeche.isDefEqCore mode true env))
     (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store i = some a)
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store i = some a)
     (hdb : denoteE s₀.store j = some b)
     (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).defeqE d i j
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id (fuel + 1)).defeqE d i j
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode.toEager env) d a b x; ⊤⦄ := by
+        SimV (ConLeche.isDefEqCore mode true env) d a b x; ⊤⦄ := by
   rw [coreKnot_defeqE_succ]
   sym only [bridge_grind] =>
     vcgen [enterEager_ok_spec s₀ hok,
       fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb,
-      fun s₂ sv h1 h2 h3 => leaveEager_ok_spec (mode := mode) (env := env) (fe := fe)
+      fun s₂ sv h1 h2 h3 => leaveEager_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
         s₂ sv (st := s₀.store) h1 h2 h3]
       <;> finish
 

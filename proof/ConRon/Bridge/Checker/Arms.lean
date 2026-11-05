@@ -356,7 +356,7 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
 
 The twin runs `checkDecl`'s three pin gates at `fe2.restrictTo
 fe.visibleBelow`, as the Rust does (`restrict(fe2, k_pre)`).  Every gate lemma
-is stated at the invariant `CheckOK μ env fe`, which reads its index through
+is stated at the invariant `CheckOK μ false env fe`, which reads its index through
 `find?` only (`CheckOK.congr_find`), and the restricted push answers `fe`'s
 `find?` because the pushed name is fresh.  These three facts are the whole
 Theorem-1 cost of the twin change. -/

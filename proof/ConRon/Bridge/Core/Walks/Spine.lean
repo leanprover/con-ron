@@ -57,7 +57,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 0c. What the spine group needs
 
@@ -238,10 +238,10 @@ grind_pattern [bridge_grind] RelEA.mapRel => ExprOps.RelEA F st c args st' r
 `mkAppN_spec` at the tier's invariant (`CheckOK.mono`), so that `grind` need not
 re-derive `CheckOK` from `StateOK` at every pair of states. -/
 theorem mkAppN_specC (args : List EIdx) (s₀ : AState) (f : EIdx)
-    (hok : CheckOK mode env fe s₀) (hf : (denoteE s₀.store f).isSome = true)
+    (hok : CheckOK mode eager env fe s₀) (hf : (denoteE s₀.store f).isSome = true)
     (ha : (Frontend.denoteEList s₀.store args).isSome = true) :
     ⦃fun s => s = s₀⦄ mkAppN f args
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         ExprOps.RelEA Expr.mkAppN s₀.store f args s'.store r; ⊤⦄ :=
   triple_mono (ExprOps.mkAppN_spec args s₀ f hok.state hf ha)
     (fun _ _ ⟨hst, hx, _, hc, hp, hrel⟩ => ⟨hok.mono hst hx hc hp, hx, hp, hrel⟩)
@@ -287,13 +287,13 @@ grind_pattern [bridge_grind] ConstValPost.some => ConstValPost env st r (some nm
 precondition and `ConstValPost` as its answer (no `∃` to prove, no
 `∀` to instantiate). -/
 theorem constValAt_specA (s₀ : AState) (n : NIdx) (lps : List NIdx)
-    (value : EIdx) (us : LsIdx) (hok : CheckOK mode env fe s₀)
+    (value : EIdx) (us : LsIdx) (hok : CheckOK mode eager env fe s₀)
     (hd : iDefn? (fe.find? n) = true) (hlps : (iDefnVal (fe.find? n)).levelParams = lps)
     (hval : iDefnValue (fe.find? n) = value)
     (hn : (denoteN s₀.store.ns n).isSome = true)
     (hus : (denoteLs s₀.store.lss us).isSome = true) :
     ⦃fun s => s = s₀⦄ constValAt n lps value us
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ConstValPost env s'.store r (denoteN s₀.store.ns n) (denoteLs s₀.store.lss us); ⊤⦄ := by
   obtain ⟨nm, hnm⟩ := Option.isSome_iff_exists.mp hn
@@ -394,9 +394,9 @@ conditions — `getAppFn_spec`'s two preconditions, the dangling-level-list
 failure arm (free), the definition arm, the not-a-definition arm and the
 not-a-constant arm. -/
 theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldableHead fe e
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.unfoldableHead, ExprOps.getAppFn_spec coreWalkFuel] <;> finish
@@ -419,10 +419,10 @@ tiers, to a term that is not well-scoped, and nothing in `CheckOK` rules such
 an environment out.  Its one caller, `Arms/Whnf.lean`'s `whnfBody_spec`,
 takes `EnvWF` too. -/
 theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
-    (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ x, denoteE s₀.store e = some x →
           denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
@@ -431,17 +431,17 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
   obtain ⟨x, hden, hwx⟩ := hdw
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.unfoldDefinition, ExprOps.getAppFn_spec coreWalkFuel,
-      ExprOps.getAppArgs_spec coreWalkFuel, mkAppN_specC (mode := mode) (env := env) (fe := fe),
-      constValAt_specA (mode := mode) (env := env) (fe := fe)] <;> finish
+      ExprOps.getAppArgs_spec coreWalkFuel, mkAppN_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
+      constValAt_specA (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM
 1 for `headHint`**: the reducibility hint of the constant at the head.
 The answer type is one both tiers share, so the
 relation is an equation, because con-leche's `headHint` takes no fuel.  Five verification conditions. -/
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headHint fe e
-    ⦃fun h s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun h s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ h = ConLeche.headHint env x; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.headHint, ExprOps.getAppFn_spec coreWalkFuel] <;> finish
@@ -533,10 +533,10 @@ peels two subjects.  The views and tags are `Bridge/Grind.lean` §6's
 equations, the comparand is
 `sameConstHeads_eq`, and the name guard is `idxOfName`'s congruence. -/
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.sameConstHeads a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.sameConstHeads, ExprOps.getAppFn_spec coreWalkFuel] <;> finish
@@ -561,23 +561,23 @@ theorem name_eq_iff_of_denoteN {st : NStore} (hwf : NStoreWF st)
 
 /-- con-leche: none — the list comparison's answer at optional subjects
 (`defEqList_go`'s, as a named predicate on the two denotation terms). -/
-def ListDefEq (mode : CheckMode) (env : Env) (d : Nat) :
+def ListDefEq (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) :
     Option (List Expr) → Option (List Expr) → Bool → Prop
-  | some xs, some ys, r => SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r
+  | some xs, some ys, r => SimBOp (fun F => ConLeche.defEqListFueled mode eager env F d xs ys) r
   | _, _, _ => True
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1213-1222 defEqList — `Walks/Owed.lean`'s
 `defEqList_go` with `OptAllWS` preconditions and a `ListDefEq` answer (no
 `∃` to prove, no `∀` to instantiate). -/
-theorem defEqList_goA {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat)
-    (as bs : List EIdx) (s₀ : AState) (hok : CheckOK mode env fe s₀)
+theorem defEqList_goA {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel) (d : Nat)
+    (as bs : List EIdx) (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
     (ha : OptAllWS d (Frontend.denoteEList s₀.store as))
     (hb : OptAllWS d (Frontend.denoteEList s₀.store bs)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        ListDefEq mode env d (Frontend.denoteEList s₀.store as)
+        ListDefEq mode eager env d (Frontend.denoteEList s₀.store as)
           (Frontend.denoteEList s₀.store bs) r; ⊤⦄ := by
   cases hxa : Frontend.denoteEList s₀.store as with
   | none => rw [hxa] at ha; exact ha.elim
@@ -610,8 +610,8 @@ element of the list is. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:1291-1303 defeqSpine — `defeqSpine`'s
 answer, named (the statement's `SimBOp (fun F => …)`, which `grind` must not
 see as a `fun`). -/
-def SpineDefEq (mode : CheckMode) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
-  SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r
+def SpineDefEq (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
+  SimBOp (fun F => ConLeche.defeqSpineFueled mode eager env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1291-1303 defeqSpine — the answer as
 ONE equation over tags and projections: the comparison of the REVERSED spines
@@ -619,13 +619,13 @@ ONE equation over tags and projections: the comparison of the REVERSED spines
 with level-equivalent universes and the spines have one length, `false`
 otherwise (the fuel is the same on both sides). -/
 @[bridge_grind =] theorem spineDefEq_eq (d : Nat) (x y : Expr) (r : Bool) :
-    SpineDefEq mode env d x y r =
+    SpineDefEq mode eager env d x y r =
       (if (exprTag x.getAppFn == ETag.const && exprTag y.getAppFn == ETag.const &&
           exprConstName x.getAppFn == exprConstName y.getAppFn &&
           x.getAppArgs.length == y.getAppArgs.length &&
           Level.isEquivList (exprConstLevels x.getAppFn) (exprConstLevels y.getAppFn)
             == some true) = true
-        then ListDefEq mode env d (some x.getAppArgs.reverse) (some y.getAppArgs.reverse) r
+        then ListDefEq mode eager env d (some x.getAppArgs.reverse) (some y.getAppArgs.reverse) r
         else r = false) := by
   have hfalse : (∃ F : Nat, (pure false : CheckM Bool) = .ok r) = (r = false) :=
     propext ⟨fun ⟨_, h⟩ => (Except.ok.inj h).symm, fun h => ⟨0, h ▸ rfl⟩⟩
@@ -668,20 +668,20 @@ equality (`name_eq_iff_of_denoteN`, both directions), and `aa.length =
 bb.length` on handle lists where con-leche tests the denoted spines'
 (`denoteEList_len`, both directions).  The walk DECLINES on either, so both
 are needed at both signs — `lvlEq?_specA`'s rule at a compound guard. -/
-theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.defeqSpine (coreKnot mode eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r; ⊤⦄ := by
-  show ⦃fun s => s = s₀⦄ _ ⦃fun r s' => _ ∧ _ ∧ _ ∧ SpineDefEq mode env d x y r; ⊤⦄
+        SimBOp (fun F => ConLeche.defeqSpineFueled mode eager env F d x y) r; ⊤⦄ := by
+  show ⦃fun s => s = s₀⦄ _ ⦃fun r s' => _ ∧ _ ∧ _ ∧ SpineDefEq mode eager env d x y r; ⊤⦄
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.defeqSpine, ExprOps.getAppFn_spec coreWalkFuel,
-      ExprOps.getAppArgs_spec coreWalkFuel, lvlsEq?_specA (mode := mode) (env := env) (fe := fe),
+      ExprOps.getAppArgs_spec coreWalkFuel, lvlsEq?_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
       defEqList_goA hsim d] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt —
@@ -706,10 +706,10 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast —
 `instantiate1Fast_spec` at the tier's invariant (the `.letE` exit's ζ). -/
 theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
-    (hok : CheckOK mode env fe s₀) (hdb : denoteE s₀.store b = some B)
+    (hok : CheckOK mode eager env fe s₀) (hdb : denoteE s₀.store b = some B)
     (hdw : denoteE s₀.store w = some W) :
     ⦃fun s => s = s₀⦄ instantiate1Fast coreWalkFuel b w 0
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (B.instantiate1 W); ⊤⦄ :=
   triple_mono (ExprOps.instantiate1Fast_spec coreWalkFuel s₀ b w 0 W hok.state hdw
       (by rw [hdb]; rfl))
@@ -730,18 +730,18 @@ in their primed shape, two `internE`s with their `ViewOK` obligations, one
 statement's FOUR subjects are the λ's two children, its binder datum and the
 comparand — the `lam` step of an answer relation, at the level of a whole
 walk. -/
-theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (ty₁ body₁ b : EIdx)
-    (t x y : Expr) (hok : CheckOK mode env fe s₀)
+    (t x y : Expr) (hok : CheckOK mode eager env fe s₀)
     (hdt : denoteE s₀.store ty₁ = some t)
     (hdx : denoteE s₀.store body₁ = some x)
     (hdy : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d (.lam t x)) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁ body₁ b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.etaCert mode (coreKnot mode eager fe id fuel) fe d ty₁ body₁ b
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.etaCertFueled mode env F d t x y)
+        SimBOp (fun F => ConLeche.etaCertFueled mode eager env F d t x y)
           r; ⊤⦄ := by
   have hwt : Expr.WScoped d t := by unfold Expr.WScoped at hwa; exact hwa.1
   have hwx : Expr.WScoped d x := by unfold Expr.WScoped at hwa; exact hwa.2

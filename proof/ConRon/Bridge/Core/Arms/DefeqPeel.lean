@@ -50,14 +50,14 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. The pure side -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1674-1702 defeqBody — the syntactic
 fast path at the entry point: at equal terms every answer is `true`. -/
 theorem isDefEqCore_refl {F d : Nat} {e : Expr} {v : Bool}
-    (h : ConLeche.isDefEqCore mode env F d e e = .ok v) : v = true := by
+    (h : ConLeche.isDefEqCore mode eager env F d e e = .ok v) : v = true := by
   cases F with
   | zero => rw [ConLeche.isDefEqCore_zero] at h; cases h
   | succ F =>
@@ -68,7 +68,7 @@ theorem isDefEqCore_refl {F d : Nat} {e : Expr} {v : Bool}
 /-- con-leche: ConLeche/Kernel/Core.lean:1674-1702 defeqBody — and it does
 answer, from fuel one on. -/
 theorem isDefEqCore_refl_one {F d : Nat} {e : Expr} :
-    ConLeche.isDefEqCore mode env (F + 1) d e e = .ok true := by
+    ConLeche.isDefEqCore mode eager env (F + 1) d e e = .ok true := by
   rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
   simp only [beq_self_eq_true, ite_true, pure, Except.pure]
 
@@ -78,13 +78,13 @@ then the bodies opened at the second domain's free variable.  Stated for the
 two ways the arm answers. -/
 theorem quickDefEq_forallE {F d : Nat} {t₁ c₁ t₂ c₂ : Expr} {x : Bool}
     (hne : (Expr.forallE t₁ c₁ == .forallE t₂ c₂) = false)
-    (h : (ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok false ∧
+    (h : (ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok false ∧
             x = false) ∨
-         (ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true ∧
-            ConLeche.isDefEqCore mode env F (d + 1)
+         (ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok true ∧
+            ConLeche.isDefEqCore mode eager env F (d + 1)
               (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂))
               = .ok x)) :
-    ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
+    ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d
       (.forallE t₁ c₁) (.forallE t₂ c₂) = .ok (some x) := by
   unfold ConLeche.quickDefEq
   simp only [← ConLeche.defeq_def] at h
@@ -98,13 +98,13 @@ theorem quickDefEq_forallE {F d : Nat} {t₁ c₁ t₂ c₂ : Expr} {x : Bool}
 shortcut, is a no-op off `Bool.true`, and the arm answers `some`. -/
 theorem isDefEqCore_forallE {F d : Nat} {t₁ c₁ t₂ c₂ : Expr} {x : Bool}
     (hne : (Expr.forallE t₁ c₁ == .forallE t₂ c₂) = false)
-    (h : (ConLeche.isDefEqCore mode env (F + 1) d t₁ t₂ = .ok false ∧
+    (h : (ConLeche.isDefEqCore mode eager env (F + 1) d t₁ t₂ = .ok false ∧
             x = false) ∨
-         (ConLeche.isDefEqCore mode env (F + 1) d t₁ t₂ = .ok true ∧
-            ConLeche.isDefEqCore mode env (F + 1) (d + 1)
+         (ConLeche.isDefEqCore mode eager env (F + 1) d t₁ t₂ = .ok true ∧
+            ConLeche.isDefEqCore mode eager env (F + 1) (d + 1)
               (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂))
               = .ok x)) :
-    ConLeche.isDefEqCore mode env (F + 2) d (.forallE t₁ c₁)
+    ConLeche.isDefEqCore mode eager env (F + 2) d (.forallE t₁ c₁)
       (.forallE t₂ c₂) = .ok x := by
   have hq := quickDefEq_forallE hne h
   rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
@@ -134,11 +134,11 @@ answer at the body pair the chain opens (at the second domain's free
 variable), give this level's answer.  The equality case is the chain's
 syntactic fast path; the other is `isDefEqCore_forallE`. -/
 theorem peel_step_pure {j F1 F2 : Nat} {A1 c1 A2 c2 : Expr} {dq x : Bool}
-    (hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F j A1 A2 = .ok dq)
+    (hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode eager env F j A1 A2 = .ok dq)
     (hx : dq = false → x = false)
-    (hin : dq = true → ConLeche.isDefEqCore mode env F2 (j + 1)
+    (hin : dq = true → ConLeche.isDefEqCore mode eager env F2 (j + 1)
       (c1.instantiate1 (.fvar j A2)) (c2.instantiate1 (.fvar j A2)) = .ok x) :
-    ∃ F, ConLeche.isDefEqCore mode env F j (.forallE A1 c1) (.forallE A2 c2)
+    ∃ F, ConLeche.isDefEqCore mode eager env F j (.forallE A1 c1) (.forallE A2 c2)
       = .ok x := by
   by_cases heq : (Expr.forallE A1 c1 == .forallE A2 c2) = true
   · -- the syntactic fast path: every component agrees
@@ -168,11 +168,11 @@ telescope, where the twin's `quickDefEq` has already ruled out equal
 binders; the conclusion is `quickDefEq`'s own answer. -/
 theorem quick_step_pure {j F1 F2 : Nat} {A1 c1 A2 c2 : Expr} {dq x : Bool}
     (hne : (Expr.forallE A1 c1 == .forallE A2 c2) = false)
-    (hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F j A1 A2 = .ok dq)
+    (hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode eager env F j A1 A2 = .ok dq)
     (hx : dq = false → x = false)
-    (hin : dq = true → ConLeche.isDefEqCore mode env F2 (j + 1)
+    (hin : dq = true → ConLeche.isDefEqCore mode eager env F2 (j + 1)
       (c1.instantiate1 (.fvar j A2)) (c2.instantiate1 (.fvar j A2)) = .ok x) :
-    ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) j
+    ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) j
       (.forallE A1 c1) (.forallE A2 c2) = .ok (some x) := by
   refine ⟨max F1 F2, ?_⟩
   have hd := hdq (max F1 F2) (by omega)
@@ -191,18 +191,18 @@ variable {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq — **the peel's
 leaf**: both residuals opened once against the whole vector, then the knot,
 which is the chain's own next step. -/
-theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
+theorem defeqPeelLeaf_spec (hsim : KnotSpec mode eager env fe fuel) (d : Nat)
     (s₀ : AState) (a b : EIdx) (k : Nat) (fvs : Array EIdx) (ws : List Expr)
-    (ca cb : Expr) (hok : CheckOK mode env fe s₀)
+    (ca cb : Expr) (hok : CheckOK mode eager env fe s₀)
     (ha : denoteE s₀.store a = some ca) (hb : denoteE s₀.store b = some cb)
     (hvec : ExprOps.InstLVec s₀.store fvs ws)
     (hwa : Expr.WScoped (d + k) (ca.instantiateList ws 0))
     (hwb : Expr.WScoped (d + k) (cb.instantiateList ws 0)) :
     ⦃fun s => s = s₀⦄
-      defeqPeelLeaf (coreKnot mode fe id fuel) d a b k fvs
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      defeqPeelLeaf (coreKnot mode eager fe id fuel) d a b k fvs
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        ∃ F, ConLeche.isDefEqCore mode env F (d + k) (ca.instantiateList ws 0)
+        ∃ F, ConLeche.isDefEqCore mode eager env F (d + k) (ca.instantiateList ws 0)
           (cb.instantiateList ws 0) = .ok x; ⊤⦄ := by
   unfold defeqPeelLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ a fvs 0 ws
@@ -274,13 +274,13 @@ theorem defeqPeel_zero_eq (r : CoreFnsA) (d : Nat)
 /-- con-leche: none — the equality short-circuit: two equal handles are one
 opened pair, and the chain's syntactic fast path answers `true`. -/
 theorem peel_eq_case (s₀ : AState) (a b : EIdx) (j : Nat) (ws : List Expr)
-    (ca cb : Expr) (hok : CheckOK mode env fe s₀)
+    (ca cb : Expr) (hok : CheckOK mode eager env fe s₀)
     (ha : denoteE s₀.store a = some ca) (hb : denoteE s₀.store b = some cb)
     (hab : (a == b) = true) :
     ⦃fun s => s = s₀⦄ (pure true : AM Bool)
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        ∃ F, ConLeche.isDefEqCore mode env F j (ca.instantiateList ws 0)
+        ∃ F, ConLeche.isDefEqCore mode eager env F j (ca.instantiateList ws 0)
           (cb.instantiateList ws 0) = .ok x; ⊤⦄ := by
   have hab' : a = b := eq_of_beq hab
   subst hab'
@@ -294,18 +294,18 @@ for the batched descent**: at every budget, `defeqPeel` answers the chain's
 `isDefEqCore` at the opened pair.  Induction on the budget; one level is
 `peel_step_pure` over three stages (the two domain opens, the domain
 comparison or its equality short-circuit, the fresh free variable). -/
-theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+theorem defeqPeel_spec (hsim : KnotSpec mode eager env fe fuel) (d : Nat) :
     ∀ (peel : Nat) (s₀ : AState) (a b : EIdx) (k : Nat) (fvs : Array EIdx)
       (ws : List Expr) (ca cb : Expr),
-      CheckOK mode env fe s₀ → denoteE s₀.store a = some ca →
+      CheckOK mode eager env fe s₀ → denoteE s₀.store a = some ca →
       denoteE s₀.store b = some cb → ExprOps.InstLVec s₀.store fvs ws →
       Expr.WScoped (d + k) (ca.instantiateList ws 0) →
       Expr.WScoped (d + k) (cb.instantiateList ws 0) →
       ⦃fun s => s = s₀⦄
-        defeqPeel (coreKnot mode fe id fuel) d peel a b k fvs
-      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        defeqPeel (coreKnot mode eager fe id fuel) d peel a b k fvs
+      ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          ∃ F, ConLeche.isDefEqCore mode env F (d + k)
+          ∃ F, ConLeche.isDefEqCore mode eager env F (d + k)
             (ca.instantiateList ws 0) (cb.instantiateList ws 0) = .ok x; ⊤⦄ := by
   intro peel
   induction peel with
@@ -368,19 +368,19 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     -- the level's tail, once the second domain `t2` and the verdict `dq` are
     -- in hand: the fresh free variable, then the rest of the telescope
     have tail : ∀ (t2 : EIdx) (dq : Bool) (s4 : AState),
-        CheckOK mode env fe s4 → Ext s₀.store s4.store → s4.pins = s₀.pins →
+        CheckOK mode eager env fe s4 → Ext s₀.store s4.store → s4.pins = s₀.pins →
         denoteE s4.store t2 = some (tdb.instantiateList ws 0) →
-        (∃ F1, ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F (d + k)
+        (∃ F1, ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode eager env F (d + k)
           (tda.instantiateList ws 0) (tdb.instantiateList ws 0) = .ok dq) →
         ⦃fun s => s = s4⦄
           (if (!dq) = true then pure false
            else do
              let fv ← internFVarE (d + k) t2
-             defeqPeel (coreKnot mode fe id fuel) d p ba bb (k + 1)
+             defeqPeel (coreKnot mode eager fe id fuel) d p ba bb (k + 1)
                (fvs.push fv))
-        ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
-            ∃ F, ConLeche.isDefEqCore mode env F (d + k)
+            ∃ F, ConLeche.isDefEqCore mode eager env F (d + k)
               (.forallE (tda.instantiateList ws 0) (cba.instantiateList ws 1))
               (.forallE (tdb.instantiateList ws 0) (cbb.instantiateList ws 1))
               = .ok x; ⊤⦄ := by
@@ -458,10 +458,10 @@ binder compared as the chain compares it, then `defeqPeel_spec` at budget
 `peelFuel` from depth `d + 1`, and `quick_step_pure` to fold the first level
 in; the answer is con-leche's `quickDefEq` on the two ∀s. -/
 theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (ty1 body1 ty2 body2 : EIdx)
     (t1 b1 t2 b2 : Expr)
-    (hok : CheckOK mode env fe s₀)
+    (hok : CheckOK mode eager env fe s₀)
     (ht1 : denoteE s₀.store ty1 = some t1)
     (hb1 : denoteE s₀.store body1 = some b1)
     (ht2 : denoteE s₀.store ty2 = some t2)
@@ -470,10 +470,10 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     (hwb : Expr.WScoped d (.forallE t2 b2))
     (hne : (Expr.forallE t1 b1 == .forallE t2 b2) = false) :
     ⦃fun s => s = s₀⦄
-      defeqBinders (coreKnot mode fe id fuel) d ty1 body1 ty2 body2
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      defeqBinders (coreKnot mode eager fe id fuel) d ty1 body1 ty2 body2
+    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
+        ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d
           (.forallE t1 b1) (.forallE t2 b2) = .ok (some x); ⊤⦄ := by
   obtain ⟨hwt1, hwb1⟩ : Expr.WScoped d t1 ∧ Expr.WScoped d b1 := by
     simpa only [Expr.WScoped] using hwa
@@ -483,7 +483,7 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
   -- stage 1: the first domains, through the knot
   refine triple_seq (hsim.defeq s₀ d ty1 ty2 t1 t2 hok ht1 ht2 hwt1 hwt2) ?_
   rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
-  have hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F d t1 t2 = .ok v :=
+  have hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode eager env F d t1 t2 = .ok v :=
     fun F hF => ConLeche.isDefEqCore_mono hF hF1
   cases v with
   | false =>

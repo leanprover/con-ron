@@ -71,7 +71,7 @@ set_option autoImplicit false
 
 open ConLeche
 
-variable {mode : CheckMode} {env : Env} {r₁ r₂ : CoreFns CheckM}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {r₁ r₂ : CoreFns CheckM}
 
 /-! ## 1. The record-level monotonicity, one per knot-calling walk
 
@@ -246,134 +246,134 @@ one is `pureFns_mono` fed to §1, and every one has the shape a bridge proof
 calls at: *an answer produced at fuel `f` is produced at any `f' ≥ f`*.
 
 `ConLeche.…Fueled` (`Verify/Knot.lean:165-256`) is the walk applied to
-`pureFns mode env fuel`, which is exactly what `Bridge/Core/Walks/Spec.lean`'s
+`pureFns mode eager env fuel`, which is exactly what `Bridge/Core/Walks/Spec.lean`'s
 five answer relations take, so these are stated at the same spelling the
 `Sim*Op` conclusions use. -/
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `reduceNat`. -/
 theorem reduceNatFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e : Expr} {r : Option Expr}
-    (hr : reduceNatFueled mode env f d e = .ok r) :
-    reduceNatFueled mode env f' d e = .ok r :=
+    (hr : reduceNatFueled mode eager env f d e = .ok r) :
+    reduceNatFueled mode eager env f' d e = .ok r :=
   reduceNat_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `iotaCertsFull`. -/
 theorem iotaCertsFullFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {ty : Expr} {args : List Expr} {r : Bool}
-    (hr : iotaCertsFullFueled mode env f d ty args = .ok r) :
-    iotaCertsFullFueled mode env f' d ty args = .ok r :=
+    (hr : iotaCertsFullFueled mode eager env f d ty args = .ok r) :
+    iotaCertsFullFueled mode eager env f' d ty args = .ok r :=
   iotaCertsFull_mono (pureFns_mono env hle) d ty args r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `defEqList`. -/
 theorem defEqListFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {as bs : List Expr} {r : Bool}
-    (hr : defEqListFueled mode env f d as bs = .ok r) :
-    defEqListFueled mode env f' d as bs = .ok r :=
+    (hr : defEqListFueled mode eager env f d as bs = .ok r) :
+    defEqListFueled mode eager env f' d as bs = .ok r :=
   defEqList_mono (pureFns_mono env hle) d as bs r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `iotaIndexOk`. -/
 theorem iotaIndexOkFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {mI rP cnP : Nat} {tyCtor : Expr} {margs idx : List Expr} {r : Bool}
-    (hr : iotaIndexOkFueled mode env f d mI rP cnP tyCtor margs idx = .ok r) :
-    iotaIndexOkFueled mode env f' d mI rP cnP tyCtor margs idx = .ok r :=
+    (hr : iotaIndexOkFueled mode eager env f d mI rP cnP tyCtor margs idx = .ok r) :
+    iotaIndexOkFueled mode eager env f' d mI rP cnP tyCtor margs idx = .ok r :=
   iotaIndexOk_mono (pureFns_mono env hle) d mI rP cnP tyCtor margs idx r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `proofIrrel`. -/
 theorem proofIrrelFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : proofIrrelFueled mode env f d a b = .ok r) :
-    proofIrrelFueled mode env f' d a b = .ok r :=
+    (hr : proofIrrelFueled mode eager env f d a b = .ok r) :
+    proofIrrelFueled mode eager env f' d a b = .ok r :=
   proofIrrel_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `propIrrel`. -/
 theorem propIrrelFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : propIrrelFueled mode env f d a b = .ok r) :
-    propIrrelFueled mode env f' d a b = .ok r :=
+    (hr : propIrrelFueled mode eager env f d a b = .ok r) :
+    propIrrelFueled mode eager env f' d a b = .ok r :=
   propIrrel_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `structEtaCertWith`. -/
 theorem structEtaCertWithFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b wtb : Expr} {r : Bool}
-    (hr : structEtaCertWithFueled mode env f d a b wtb = .ok r) :
-    structEtaCertWithFueled mode env f' d a b wtb = .ok r :=
+    (hr : structEtaCertWithFueled mode eager env f d a b wtb = .ok r) :
+    structEtaCertWithFueled mode eager env f' d a b wtb = .ok r :=
   structEtaCertWith_mono (pureFns_mono env hle) d a b wtb r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `structEtaCert`. -/
 theorem structEtaCertFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : structEtaCertFueled mode env f d a b = .ok r) :
-    structEtaCertFueled mode env f' d a b = .ok r :=
+    (hr : structEtaCertFueled mode eager env f d a b = .ok r) :
+    structEtaCertFueled mode eager env f' d a b = .ok r :=
   structEtaCert_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `structUnitCert`. -/
 theorem structUnitCertFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : structUnitCertFueled mode env f d a b = .ok r) :
-    structUnitCertFueled mode env f' d a b = .ok r :=
+    (hr : structUnitCertFueled mode eager env f d a b = .ok r) :
+    structUnitCertFueled mode eager env f' d a b = .ok r :=
   structUnitCert_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `etaCert`. -/
 theorem etaCertFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {ty body b : Expr} {r : Bool}
-    (hr : etaCertFueled mode env f d ty body b = .ok r) :
-    etaCertFueled mode env f' d ty body b = .ok r :=
+    (hr : etaCertFueled mode eager env f d ty body b = .ok r) :
+    etaCertFueled mode eager env f' d ty body b = .ok r :=
   etaCert_mono (pureFns_mono env hle) d ty body b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `stuckIrrel`. -/
 theorem stuckIrrelFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : stuckIrrelFueled mode env f d a b = .ok r) :
-    stuckIrrelFueled mode env f' d a b = .ok r :=
+    (hr : stuckIrrelFueled mode eager env f d a b = .ok r) :
+    stuckIrrelFueled mode eager env f' d a b = .ok r :=
   stuckIrrel_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `majorToCtor`. -/
 theorem majorToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {rules : List RecRule} {e r : Expr}
-    (hr : majorToCtorFueled mode env f d c rules e = .ok r) :
-    majorToCtorFueled mode env f' d c rules e = .ok r :=
+    (hr : majorToCtorFueled mode eager env f d c rules e = .ok r) :
+    majorToCtorFueled mode eager env f' d c rules e = .ok r :=
   majorToCtor_mono (pureFns_mono env hle) d c rules e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `litMajorToCtor`. -/
 theorem litMajorToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e r : Expr}
-    (hr : litMajorToCtorFueled mode env f d e = .ok r) :
-    litMajorToCtorFueled mode env f' d e = .ok r :=
+    (hr : litMajorToCtorFueled mode eager env f d e = .ok r) :
+    litMajorToCtorFueled mode eager env f' d e = .ok r :=
   litMajorToCtor_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `prepareMajor`. -/
 theorem prepareMajorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {rules : List RecRule} {e r : Expr}
-    (hr : prepareMajorFueled mode env f d c rules e = .ok r) :
-    prepareMajorFueled mode env f' d c rules e = .ok r :=
+    (hr : prepareMajorFueled mode eager env f d c rules e = .ok r) :
+    prepareMajorFueled mode eager env f' d c rules e = .ok r :=
   prepareMajor_mono (pureFns_mono env hle) d c rules e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `boolTrueShortcut`. -/
 theorem boolTrueShortcutFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e : Expr} {r : Bool}
-    (hr : boolTrueShortcutFueled mode env f d e = .ok r) :
-    boolTrueShortcutFueled mode env f' d e = .ok r :=
+    (hr : boolTrueShortcutFueled mode eager env f d e = .ok r) :
+    boolTrueShortcutFueled mode eager env f' d e = .ok r :=
   boolTrueShortcut_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `defeqSpine`. -/
 theorem defeqSpineFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : defeqSpineFueled mode env f d a b = .ok r) :
-    defeqSpineFueled mode env f' d a b = .ok r :=
+    (hr : defeqSpineFueled mode eager env f d a b = .ok r) :
+    defeqSpineFueled mode eager env f' d a b = .ok r :=
   defeqSpine_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `defeqLamsInner`. -/
 theorem defeqLamsInnerFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {b₁ b₂ : Expr} {r : Bool}
-    (hr : defeqLamsInnerFueled mode env f d b₁ b₂ = .ok r) :
-    defeqLamsInnerFueled mode env f' d b₁ b₂ = .ok r :=
+    (hr : defeqLamsInnerFueled mode eager env f d b₁ b₂ = .ok r) :
+    defeqLamsInnerFueled mode eager env f' d b₁ b₂ = .ok r :=
   defeqLamsInner_mono (pureFns_mono env hle) d b₁ b₂ r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `defeqLams`. -/
 theorem defeqLamsFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {n : Nat} {ty₁ body₁ ty₂ body₂ : Expr} {r : Bool}
-    (hr : defeqLamsFueled mode env f n d ty₁ body₁ ty₂ body₂ = .ok r) :
-    defeqLamsFueled mode env f' n d ty₁ body₁ ty₂ body₂ = .ok r :=
+    (hr : defeqLamsFueled mode eager env f n d ty₁ body₁ ty₂ body₂ = .ok r) :
+    defeqLamsFueled mode eager env f' n d ty₁ body₁ ty₂ body₂ = .ok r :=
   defeqLams_mono (pureFns_mono env hle) n d ty₁ body₁ ty₂ body₂ r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:125 whnf_mono — **the merge
@@ -381,17 +381,17 @@ theorem defeqLamsFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {n : Nat} {
 recursion hands out one existential per iteration and this is what makes them
 one. -/
 theorem whnfLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
-    {e r : Expr} (hr : whnfLoop (pureFns mode env f) env d n e = .ok r) :
-    whnfLoop (pureFns mode env f') env d n e = .ok r :=
+    {e r : Expr} (hr : whnfLoop (pureFns mode eager env f) env d n e = .ok r) :
+    whnfLoop (pureFns mode eager env f') env d n e = .ok r :=
   whnfLoop_mono (pureFns_mono env hle) d n e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the same merge
 at the lazy-delta PROJECTION loop. -/
 theorem lazyDeltaProjReductionFueled_mono {f f' : Nat} (hle : f ≤ f')
     {d : Nat} {sn : Name} {i n : Nat} {a b : Expr} {r : Bool}
-    (hr : lazyDeltaProjReduction mode (pureFns mode env f) env d sn i n a b
+    (hr : lazyDeltaProjReduction mode (pureFns mode eager env f) env d sn i n a b
       = .ok r) :
-    lazyDeltaProjReduction mode (pureFns mode env f') env d sn i n a b = .ok r :=
+    lazyDeltaProjReduction mode (pureFns mode eager env f') env d sn i n a b = .ok r :=
   lazyDeltaProjReduction_mono (pureFns_mono env hle) d sn i n a b r hr
 
 /-! ## 4. The axiom census -/

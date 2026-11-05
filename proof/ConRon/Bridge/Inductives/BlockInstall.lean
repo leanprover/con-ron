@@ -21,10 +21,10 @@ and every statement carries exactly the scoping facts those carry.
 
 **The formers' stage runs its knot calls at the ENTRY index** and pushes the
 formers only after the last of them, so `checkBlockInds_spec` is `CSpecF` at
-`env fe`: `CheckOK μ env fe` still holds at the end.  Its answer carries the
+`env fe`: `CheckOK μ false env fe` still holds at the end.  Its answer carries the
 new index `fe₁` as an `InstRel` denoting `env₁`, and the index spec at `fe₁`
 (`IFEnvOKS`), which is what the caller's flush needs (`ReadOK.flush`) to get
-`CheckOK μ env₁ fe₁`.
+`CheckOK μ false env₁ fe₁`.
 
 **Lists of records** are denoted by `List.mapM` of the record denotation
 (`Frontend.denoteCV`, `dCtors`, `denoteLLists`), as `BlockParts.lean`'s
@@ -156,7 +156,7 @@ theorem denoteLLists_ext {st st' : EStore} (hx : Ext st st') :
 (`Bridge/Checker/DivMod.lean`'s `CoreStep.of_store`, which this tier cannot
 import). -/
 theorem coreStep_of_store {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (hck : CheckOK μ env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
+    (hck : CheckOK μ false env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
     (h3 : s'.pins = s.pins) : CoreStep μ env fe s s' :=
   ⟨hck.mono ⟨by rw [h1]; exact hck.state.wf⟩ (by rw [h1]; exact Ext.refl _) h2 h3,
     by rw [h1]; exact Ext.refl _, h3⟩
@@ -609,9 +609,9 @@ theorem checkBlockDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     subst s3
     obtain ⟨c, s4, k4, hz4⟩ := AM.bind_ok hz3
     obtain ⟨hok4, hx4, hp4, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ env) (off + j) aP.fvarTypeD bP r)
+        Core.SimV (ConLeche.isDefEqCore μ false env) (off + j) aP.fvarTypeD bP r)
       rfl k4 (hknot.defeq s₀ (off + j) t b aP.fvarTypeD bP hok ht3 hdb (hc j aP haP)
         (ht j bP hbP))
     have fkd := FOk.isDefEq hsim
@@ -779,11 +779,11 @@ theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:174-187 checkBlockInds
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
 **Stage 1**, against `checkBlockInds (fueledOpsM μ)`: the k formers checked
-and agreed at the ENTRY index (so `CheckOK μ env fe` still holds at the end —
+and agreed at the ENTRY index (so `CheckOK μ false env fe` still holds at the end —
 the frame is `CoreStep`), then consed.  The answer: the new index `fe₁` is an
 `InstRel` of `fe` denoting con-leche's `env₁`, the index spec holds at it
 (`IFEnvOKS`; with the state's `CheckOK` at `fe` this is the `ReadOK env₁ fe₁`
-the caller flushes into `CheckOK μ env₁ fe₁`), the stored formers and the
+the caller flushes into `CheckOK μ false env₁ fe₁`), the stored formers and the
 completed shape denote con-leche's, and every stored former is closed
 (`checkBlockIndsS_sim`'s answer). -/
 theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)

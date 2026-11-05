@@ -72,19 +72,19 @@ theorem FOk.liftFueled {α : Type} {a : α} {w : String} :
 answer, as the Core tier's `SimE` states it, IS an `FOk` of the fueled
 operation. -/
 theorem FOk.whnf {μ : CheckMode} {env : Env} {d : Nat} {e v : Expr}
-    (h : ∃ F, ConLeche.whnf μ env F d e = .ok v) :
+    (h : ∃ F, ConLeche.whnf μ false env F d e = .ok v) :
     FOk ((fueledOpsM μ).whnf env d e) v := h
 
 theorem FOk.inferType {μ : CheckMode} {env : Env} {d : Nat} {e v : Expr}
-    (h : ∃ F, ConLeche.inferTypeCore μ env F d e = .ok v) :
+    (h : ∃ F, ConLeche.inferTypeCore μ false env F d e = .ok v) :
     FOk ((fueledOpsM μ).inferType env d e) v := h
 
 theorem FOk.isDefEq {μ : CheckMode} {env : Env} {d : Nat} {a b : Expr} {v : Bool}
-    (h : ∃ F, ConLeche.isDefEqCore μ env F d a b = .ok v) :
+    (h : ∃ F, ConLeche.isDefEqCore μ false env F d a b = .ok v) :
     FOk ((fueledOpsM μ).isDefEq env d a b) v := h
 
 theorem FOk.ensureSort {μ : CheckMode} {env : Env} {d : Nat} {e : Expr} {v : Level}
-    (h : ∃ F, ConLeche.ensureSortCore μ env F d e = .ok v) :
+    (h : ∃ F, ConLeche.ensureSortCore μ false env F d e = .ok v) :
     FOk ((fueledOpsM μ).ensureSort env d e) v := h
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:1201 checkDecl_datF — the

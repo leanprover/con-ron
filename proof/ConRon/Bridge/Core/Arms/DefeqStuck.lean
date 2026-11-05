@@ -46,7 +46,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 section Arms
 
@@ -55,52 +55,52 @@ variable {fe : IFEnv} {fuel d : Nat} {s₀ s₁ : AState} {G : Nat → Bool → 
 /-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
 fallback arm**, at any pair the dispatch sends there. -/
 theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
-    (x' y' : Expr) (hok : CheckOK mode env fe s₁)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
+    (x' y' : Expr) (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d x' y' =
-      ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d x' y')
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d x' y' =
+      ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d x' y')
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       x' y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
-      ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ :=
+      ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ :=
   dq_stuck_exit hμ henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
     (hG.imp fun F h r hr => h r (by rw [hred F]; exact hr))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the left**. -/
 theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₁ bd₁ : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' ty₁ bd₁ : EIdx)
     (t₁ c₁ y' : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.lam t₁ c₁))
     (hty : denoteE s₁.store ty₁ = some t₁)
     (hbd : denoteE s₁.store bd₁ = some c₁)
     (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d (.lam t₁ c₁)) (hwy : Expr.WScoped d y')
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
         (.lam t₁ c₁) y' =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₁ c₁ y'
+      (ConLeche.etaCert mode (ConLeche.pureFns mode eager env F) env d t₁ c₁ y'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
+          ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
             (.lam t₁ c₁) y'))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.lam t₁ c₁) y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
-        let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁
+        let e ← ConRon.Arena.etaCert mode (coreKnot mode eager fe id fuel) fe d ty₁
           bd₁ b'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' t₁ c₁ y' hok hty hbd
     hy hwx hwy) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
-  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode env F)
+  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode eager env F)
       env d t₁ c₁ y' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
@@ -118,34 +118,34 @@ theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the right**. -/
 theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₂ bd₂ : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' ty₂ bd₂ : EIdx)
     (x' t₂ c₂ : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x')
     (hy : denoteE s₁.store b' = some (.lam t₂ c₂))
     (hty : denoteE s₁.store ty₂ = some t₂)
     (hbd : denoteE s₁.store bd₂ = some c₂)
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d (.lam t₂ c₂))
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
         x' (.lam t₂ c₂) =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₂ c₂ x'
+      (ConLeche.etaCert mode (ConLeche.pureFns mode eager env F) env d t₂ c₂ x'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
+          ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
             x' (.lam t₂ c₂)))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       x' (.lam t₂ c₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
-        let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₂
+        let e ← ConRon.Arena.etaCert mode (coreKnot mode eager fe id fuel) fe d ty₂
           bd₂ a'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' t₂ c₂ x' hok hty hbd
     hx hwy hwx) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
-  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode env F)
+  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode eager env F)
       env d t₂ c₂ x' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
@@ -164,19 +164,19 @@ theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two free
 variables**: equal indices are defeq, else stuck. -/
 theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
     (i j : Nat) (t₁ t₂ : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.fvar i t₁))
     (hy : denoteE s₁.store b' = some (.fvar j t₂))
     (hwx : Expr.WScoped d (.fvar i t₁)) (hwy : Expr.WScoped d (.fvar j t₂))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.fvar i t₁) (.fvar j t₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (if (i == j) = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   split
   · rename_i h
     exact dq_pure_exit hok hx₁ hp₁ (hG.imp fun F hh => hh _ (by
@@ -191,26 +191,26 @@ theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two
 constants**: the same name at equivalent universe arguments, else stuck. -/
 theorem dqArm_const (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
     (n n' : NIdx) (us us' : LsIdx) (nm nm' : ConLeche.Name)
     (ls ls' : List ConLeche.Level)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.const nm ls))
     (hy : denoteE s₁.store b' = some (.const nm' ls'))
     (hn : denoteN s₁.store.ns n = some nm) (hn' : denoteN s₁.store.ns n' = some nm')
     (hus : denoteLs s₁.store.lss us = some ls)
     (hus' : denoteLs s₁.store.lss us' = some ls')
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.const nm ls) (.const nm' ls') = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (if n = n' then do
           let o ← lvlsEq? us us'
           let b ← ConRon.Arena.liftFueled "level comparison" o
           if b = true then pure true
-          else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+          else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hiff := n_eq_iff_pin hwf hn hn'
   have hwx : Expr.WScoped d (.const nm ls) := by simp [Expr.WScoped]
@@ -230,10 +230,10 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
       refine triple_seq (triple_pure_post (Q := fun r s => r = b ∧ s = s2) ⟨rfl, rfl⟩) ?_
       rintro bb s3 ⟨hbb, hs3⟩
       subst bb; subst s3
-      have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+      have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
           (.const nm ls) (.const nm' ls') =
           (if b = true then pure true else ConLeche.stuckIrrel
-            (ConLeche.pureFns mode env F) env d (.const nm ls) (.const nm' ls')) := by
+            (ConLeche.pureFns mode eager env F) env d (.const nm ls) (.const nm' ls')) := by
         intro F
         exact (ite_eq_left h').trans (by rw [ho]; rfl)
       split
@@ -254,15 +254,15 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
 literal against a unary `String.ofList` application, literal on the left**:
 the literal's constructor form against the application. -/
 theorem dqArm_strL (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' fo : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' fo : EIdx)
     (st : String) (ef ex : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.lit (.strVal st)))
     (hy : denoteE s₁.store b' = some (.app ef ex))
     (hf : denoteE s₁.store fo = some ef)
     (hwy : Expr.WScoped d (.app ef ex))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.lit (.strVal st)) (.app ef ex) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -274,11 +274,11 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
             let sup ← ConRon.Arena.strLitSupported fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
-              (coreKnot mode fe id fuel).defeq d c b'
-            else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+              (coreKnot mode eager fe id fuel).defeq d c b'
+            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -322,15 +322,15 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — the same,
 literal on the right. -/
 theorem dqArm_strR (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' fo : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' fo : EIdx)
     (st : String) (ef ex : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.app ef ex))
     (hy : denoteE s₁.store b' = some (.lit (.strVal st)))
     (hf : denoteE s₁.store fo = some ef)
     (hwx : Expr.WScoped d (.app ef ex))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.app ef ex) (.lit (.strVal st)) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -342,11 +342,11 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
             let sup ← ConRon.Arena.strLitSupported fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
-              (coreKnot mode fe id fuel).defeq d a' c
-            else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+              (coreKnot mode eager fe id fuel).defeq d a' c
+            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -391,14 +391,14 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
 applications**: spine-wise congruence (equal lengths, the heads, the
 argument lists), else stuck. -/
 theorem dqArm_app (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
     (ef₁ ea₁ ef₂ ea₂ : Expr)
-    (hok : CheckOK mode env fe s₁)
+    (hok : CheckOK mode eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.app ef₁ ea₁))
     (hy : denoteE s₁.store b' = some (.app ef₂ ea₂))
     (hwx : Expr.WScoped d (.app ef₁ ea₁)) (hwy : Expr.WScoped d (.app ef₂ ea₂))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -407,29 +407,29 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
         if aa.length = bb.length then do
           let fa ← getAppFn coreWalkFuel a'
           let fb ← getAppFn coreWalkFuel b'
-          let dq ← (coreKnot mode fe id fuel).defeq d fa fb
+          let dq ← (coreKnot mode eager fe id fuel).defeq d fa fb
           if dq = true then do
-            let dl ← ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d aa bb
+            let dl ← ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d aa bb
             if dl = true then pure true
-            else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-          else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
-  have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
+            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+          else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+  have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) =
       (if (Expr.app ef₁ ea₁).getAppArgs.length =
           (Expr.app ef₂ ea₂).getAppArgs.length then
-        (ConLeche.isDefEqCore mode env F d (Expr.app ef₁ ea₁).getAppFn
+        (ConLeche.isDefEqCore mode eager env F d (Expr.app ef₁ ea₁).getAppFn
             (Expr.app ef₂ ea₂).getAppFn >>= fun b =>
           if b = true then
-            (ConLeche.defEqList (ConLeche.pureFns mode env F) env d
+            (ConLeche.defEqList (ConLeche.pureFns mode eager env F) env d
                 (Expr.app ef₁ ea₁).getAppArgs (Expr.app ef₂ ea₂).getAppArgs
               >>= fun b2 => if b2 = true then pure true
-                else ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
+                else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
                   (.app ef₁ ea₁) (.app ef₂ ea₂))
-          else ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
+          else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
             (.app ef₁ ea₁) (.app ef₂ ea₂))
-      else ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
+      else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
         (.app ef₁ ea₁) (.app ef₂ ea₂)) := by
     intro F; cases ef₁ <;> rfl
   refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₁ a' hok.state
@@ -459,7 +459,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
     refine triple_seq (hsim.defeq s₁ d fa fb _ _ hok (hfa _ hx) (hfb _ hy)
       (Expr.WScoped.getAppFn hwx) (Expr.WScoped.getAppFn hwy)) ?_
     rintro dq s6 ⟨hok6, hx6, hp6, hdq⟩
-    have hD : Ev (fun F => ConLeche.isDefEqCore mode env F d
+    have hD : Ev (fun F => ConLeche.isDefEqCore mode eager env F d
         (Expr.app ef₁ ea₁).getAppFn (Expr.app ef₂ ea₂).getAppFn = .ok dq) :=
       Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hdq
     have hx06 := hx₁.trans hx6
@@ -477,7 +477,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
         (denoteEList_ext hx6 _ _ haa') (denoteEList_ext hx6 _ _ hbb')
         (Expr.WScoped.getAppArgs hwx) (Expr.WScoped.getAppArgs hwy)) ?_
       rintro dl s7 ⟨hok7, hx7, hp7, hdl⟩
-      have hL : Ev (fun F => ConLeche.defEqList (ConLeche.pureFns mode env F) env d
+      have hL : Ev (fun F => ConLeche.defEqList (ConLeche.pureFns mode eager env F) env d
           (Expr.app ef₁ ea₁).getAppArgs (Expr.app ef₂ ea₂).getAppArgs = .ok dl) :=
         Ev.of_mono (fun hle h => defEqListFueled_mono hle h) hdl
       have hx07 := hx06.trans hx7
@@ -509,17 +509,17 @@ for the stuck comparison**: the twin's `defeqStuck` against con-leche's, at an
 arbitrary pure goal `G` that follows eventually from con-leche's answer. -/
 theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) (d : Nat)
+    (hsim : KnotSpec mode eager env fe fuel) (d : Nat)
     (s₀ s₁ : AState) (a' b' : EIdx) (x' y' : Expr)
-    (hok : CheckOK mode env fe s₁) (hx₁ : Ext s₀.store s₁.store)
+    (hok : CheckOK mode eager env fe s₁) (hx₁ : Ext s₀.store s₁.store)
     (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
     (G : Nat → Bool → Prop)
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F)
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F)
       env d x' y' = .ok r → G F r)) :
-    ⦃fun s => s = s₁⦄ ConRon.Arena.defeqStuck mode (coreKnot mode fe id fuel) fe d a' b'
-    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
+    ⦃fun s => s = s₁⦄ ConRon.Arena.defeqStuck mode (coreKnot mode eager fe id fuel) fe d a' b'
+    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqStuck
   obtain ⟨va, hva⟩ := denoteE_view hx

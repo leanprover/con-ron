@@ -77,7 +77,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 0. The readback frame and the projection table, as `grind` reads them
 
@@ -96,11 +96,11 @@ grind_pattern [bridge_grind] ReadbackFrame.trans => ReadbackFrame s₀ s₁, Rea
 grind_pattern [bridge_grind] ReadbackFrame.ofReadN =>
   ({ s0.caches with readNC := s1.caches.readNC } : Caches)
 attribute [bridge_grind →] ReadbackFrame.store ReadbackFrame.pins
-grind_pattern [bridge_grind] CheckOK.ofReadbackFrame => CheckOK mode env fe s, ReadbackFrame s s'
+grind_pattern [bridge_grind] CheckOK.ofReadbackFrame => CheckOK mode eager env fe s, ReadbackFrame s s'
 
 /-- con-leche: none — the name-readback table's invariant off `CheckOK` (as
 `CheckOK.readL'`). -/
-theorem CheckOK.readN' {s : AState} (h : CheckOK mode env fe s) :
+theorem CheckOK.readN' {s : AState} (h : CheckOK mode eager env fe s) :
     ReadNCacheOK s.caches.readNC s.store := h.caches.readN
 
 /-- con-leche: none — the denotation of an OPTIONAL projection entry, so that
@@ -116,7 +116,7 @@ lookups, side by side: a hit denotes the environment's table and is well
 shaped (`IFEnvOK.tblHit`); a miss is a miss (`IFEnvOK.tblCover` through
 `denoteN_inj`). -/
 theorem findTable?_at {s : AState} {T : NIdx} {Tn : ConLeche.Name}
-    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (hck : CheckOK mode eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
     (∀ t, fe.findTable? T = some t → ∃ pt, Frontend.denoteProjTable s.store t = some pt ∧
       env.findTable? Tn = some pt ∧ IProjTableOK t) ∧
     (fe.findTable? T = none → env.findTable? Tn = none) := by
@@ -138,7 +138,7 @@ con-leche's.  The table lookups (`findTable?_at`), and `Bridge/Rel.lean`'s
 `denoteProjTable_entry` in range — which `IProjTableOK`'s sizes make the two
 `numFields` tests one. -/
 theorem findProjAt {s : AState} {T : NIdx} {Tn : ConLeche.Name} {i : Nat}
-    (hck : CheckOK mode env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (hck : CheckOK mode eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
     denoteProjEntryO s.store (fe.findProj? T i) = some (env.findProj? Tn i) := by
   obtain ⟨hhit, hmiss⟩ := findTable?_at hck hT
   simp only [ConRon.Arena.IFEnv.findProj?, ConLeche.Env.findProj?]
@@ -155,7 +155,7 @@ theorem findProjAt {s : AState} {T : NIdx} {Tn : ConLeche.Name} {i : Nat}
         denoteProjTable_entry hpt (by rw [hok.bodies]; exact hlt) (by rw [hok.guards]; exact hlt)]
     · rfl
 grind_pattern [bridge_grind] findProjAt =>
-  CheckOK mode env fe s, fe.findProj? T i, env.findProj? Tn i where
+  CheckOK mode eager env fe s, fe.findProj? T i, env.findProj? Tn i where
   guard denoteN s.store.ns T = some Tn
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? — **THEOREM 1
@@ -163,7 +163,7 @@ for the indexed projection-table lookup**, `findProjAt` read off: the entry the
 arena answers with denotes the entry con-leche's environment answers with, and
 a miss is a miss. -/
 theorem IFEnv.findProj?_spec {s : AState} (T : NIdx) (i : Nat)
-    (Tn : ConLeche.Name) (hok : CheckOK mode env fe s)
+    (Tn : ConLeche.Name) (hok : CheckOK mode eager env fe s)
     (hT : denoteN s.store.ns T = some Tn) :
     (∀ e, fe.findProj? T i = some e → ∃ p, denoteProjEntry s.store e = some p ∧
       env.findProj? Tn i = some p) ∧
@@ -210,18 +210,18 @@ parameters, the instantiation levels and the field sort, and the rest is
 `Level.subst`/`Level.isEquiv` on values both tiers share — no `ExprOps` rule,
 no fuel, no `∃ F`. -/
 theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
-    (p : ProjEntry) (ls : List Level) (hok : CheckOK mode env fe s₀)
+    (p : ProjEntry) (ls : List Level) (hok : CheckOK mode eager env fe s₀)
     (hden : denoteProjEntry s₀.store entry = some p)
     (hus : denoteLs s₀.store.lss us = some ls) :
     ⦃fun s => s = s₀⦄ entry.fireOk us
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = p.fireOk ls; ⊤⦄ := by
   obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf⟩ :=
     denoteProjEntry_inv hden
   simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
   sym only [bridge_grind, ConLeche.ProjEntry.fireOk, → CheckOK.readL', → CheckOK.readLs',
       → CheckOK.readN', hok.pins] =>
-    vcgen [lvlEq?_specA (mode := mode) (env := env) (fe := fe), -readNamesM_spec,
+    vcgen [lvlEq?_specA (mode := mode) (eager := eager) (env := env) (fe := fe), -readNamesM_spec,
       readNamesM_frame] <;> finish
 
 /-! ## 5. The two that stand on `ExprOps` -/
@@ -230,11 +230,11 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
 `ExprOps/Subst.lean`'s `instantiateListFast_spec` at the tier's invariant
 (`CheckOK.mono`, as `Core/Walks/Spine.lean`'s `mkAppN_specC`). -/
 theorem instantiateListFast_specC (fuel : Nat) (s₀ : AState) (e : EIdx)
-    (vs : Array EIdx) (d : Nat) (ws : List Expr) (hok : CheckOK mode env fe s₀)
+    (vs : Array EIdx) (d : Nat) (ws : List Expr) (hok : CheckOK mode eager env fe s₀)
     (hvec : ExprOps.InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiateListFast fuel e vs d
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         ExprOps.InstLAt ws d s₀.store e s'.store r; ⊤⦄ :=
   triple_mono (ExprOps.instantiateListFast_spec fuel s₀ e vs d ws hok.state hvec hden)
     (fun _ _ ⟨hst, hx, hc, hp, _, hrel⟩ => ⟨hok.mono hst hx hc hp, hx, hp, hrel⟩)
@@ -251,13 +251,13 @@ loose variables in ONE traversal.
 `pe :: targs.reverse`. -/
 theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     (targs : List EIdx) (pe : EIdx) (p : ProjEntry) (ls : List Level)
-    (xs : List Expr) (x : Expr) (hok : CheckOK mode env fe s₀)
+    (xs : List Expr) (x : Expr) (hok : CheckOK mode eager env fe s₀)
     (hden : denoteProjEntry s₀.store entry = some p)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hargs : Frontend.denoteEList s₀.store targs = some xs)
     (hpe : denoteE s₀.store pe = some x) :
     ⦃fun s => s = s₀⦄ entry.typeAt us targs pe
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (p.typeAt ls xs x); ⊤⦄ := by
   obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf⟩ :=
@@ -273,7 +273,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     vcgen [ConRon.Arena.IProjEntry.typeAt,
       ExprOps.instLPFast_spec coreWalkFuel s₀ entry.levelParams us entry.body _ _ hok.state
         hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus (by rw [hb]; rfl),
-      fun (s : AState) (e : EIdx) => instantiateListFast_specC (mode := mode) (env := env)
+      fun (s : AState) (e : EIdx) => instantiateListFast_specC (mode := mode) (eager := eager) (env := env)
         (fe := fe) coreWalkFuel s e (targs.toArray.push pe) 0 (x :: xs.reverse)] <;> finish
 
 /-! ## 5a. `iotaCertsFull` — the batched full-grade telescope certificate
@@ -290,7 +290,7 @@ own cached-tier simulation, and the induction is its lexicographic measure
 /-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — the spine
 ran out: certified. -/
 theorem iotaCertsFullFueled_nil {F d : Nat} {ty : Expr} :
-    ConLeche.iotaCertsFullFueled mode env F d ty [] = .ok true := by
+    ConLeche.iotaCertsFullFueled mode eager env F d ty [] = .ok true := by
   simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull]; rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — a certified
@@ -298,12 +298,12 @@ slot: the argument's FULL-grade type agrees with the domain, and the walk
 continues. -/
 theorem iotaCertsFullFueled_cert {F d : Nat} {t b : Expr} {x ta : Expr}
     {xs : List Expr}
-    (h1 : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok true) :
-    ConLeche.iotaCertsFullFueled mode env F d (.forallE t b) (x :: xs) =
-      ConLeche.iotaCertsFullFueled mode env F d (b.instantiate1 x) xs := by
-  have e1 : (ConLeche.pureFns mode env F).infer d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok true := h2
+    (h1 : ConLeche.inferTypeCore mode eager env F d x = .ok ta)
+    (h2 : ConLeche.isDefEqCore mode eager env F d ta t = .ok true) :
+    ConLeche.iotaCertsFullFueled mode eager env F d (.forallE t b) (x :: xs) =
+      ConLeche.iotaCertsFullFueled mode eager env F d (b.instantiate1 x) xs := by
+  have e1 : (ConLeche.pureFns mode eager env F).infer d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode eager env F).defeq d ta t = .ok true := h2
   simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull, e1, e2,
     bind, Except.bind, ite_true]
 
@@ -311,12 +311,12 @@ theorem iotaCertsFullFueled_cert {F d : Nat} {t b : Expr} {x ta : Expr}
 whose argument's type does not agree: declined. -/
 theorem iotaCertsFullFueled_fail {F d : Nat} {t b : Expr} {x ta : Expr}
     {xs : List Expr}
-    (h1 : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok false) :
-    ConLeche.iotaCertsFullFueled mode env F d (.forallE t b) (x :: xs) =
+    (h1 : ConLeche.inferTypeCore mode eager env F d x = .ok ta)
+    (h2 : ConLeche.isDefEqCore mode eager env F d ta t = .ok false) :
+    ConLeche.iotaCertsFullFueled mode eager env F d (.forallE t b) (x :: xs) =
       .ok false := by
-  have e1 : (ConLeche.pureFns mode env F).infer d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok false := h2
+  have e1 : (ConLeche.pureFns mode eager env F).infer d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode eager env F).defeq d ta t = .ok false := h2
   simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull, e1, e2,
     bind, Except.bind]
   rfl
@@ -325,7 +325,7 @@ theorem iotaCertsFullFueled_fail {F d : Nat} {t b : Expr} {x ta : Expr}
 left over and no binder to take them: declined. -/
 theorem iotaCertsFullFueled_notpi {F d : Nat} {ty x : Expr}
     {xs : List Expr} (h : ∀ t b, ty ≠ .forallE t b) :
-    ConLeche.iotaCertsFullFueled mode env F d ty (x :: xs) = .ok false := by
+    ConLeche.iotaCertsFullFueled mode eager env F d ty (x :: xs) = .ok false := by
   cases ty <;> simp_all [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull] <;> rfl
 
 /-- con-leche: none — a denoting suffix of an argument array, peeled at its
@@ -396,24 +396,24 @@ theorem denote_not_forallE_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean iotaCertsFullCAux_sim —
 **the induction**, in ∃/∀ shape (the recursive calls' subjects are answers
 of `instantiateListFast` and of the accumulator push). -/
-theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (d : Nat) (args : Array EIdx) :
     ∀ (k m : Nat) (h : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState),
-      args.size - i = k → acc.size = m → CheckOK mode env fe s₀ →
+      args.size - i = k → acc.size = m → CheckOK mode eager env fe s₀ →
       (∃ tyx ws xs, denoteE s₀.store h = some tyx ∧
         ExprOps.InstLVec s₀.store acc ws ∧
         Expr.WScoped d (tyx.instantiateList ws) ∧
         Frontend.denoteEList s₀.store (args.toList.drop i) = some xs ∧
         ∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.iotaCertsFullAux (coreKnot mode fe id fuel) fe d h acc
+        ConRon.Arena.iotaCertsFullAux (coreKnot mode eager fe id fuel) fe d h acc
           args i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ tyx ws xs, denoteE s₀.store h = some tyx →
             ExprOps.InstLVec s₀.store acc ws →
             Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
-            SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d
+            SimBOp (fun F => ConLeche.iotaCertsFullFueled mode eager env F d
               (tyx.instantiateList ws) xs) r; ⊤⦄ := by
   have tpure : ∀ {s : AState} {v : Bool} {Q : Bool → AState → Prop}, Q v s →
       ⦃fun s' => s' = s⦄ (pure v : AM Bool) ⦃fun r s' => Q r s'; ⊤⦄ := by
@@ -431,10 +431,10 @@ theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hwf := hok.state.wf
   -- the postcondition's three subjects are functional
   suffices key : ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaCertsFullAux (coreKnot mode fe id fuel) fe d h acc args i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.iotaCertsFullAux (coreKnot mode eager fe id fuel) fe d h acc args i
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d
+        SimBOp (fun F => ConLeche.iotaCertsFullFueled mode eager env F d
           (tyx.instantiateList ws) xs) r; ⊤⦄ by
     refine triple_mono key ?_
     rintro r s' ⟨h1, h2, h3, h4⟩
@@ -491,7 +491,7 @@ theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           (denoteEList_ext hx03 _ _ hxs')
         refine ⟨hok4, hx03.trans hx4, by rw [hp4, hp3, hp2, hp1],
           F1 + F2 + F3, ?_⟩
-        show ConLeche.iotaCertsFullFueled mode env _ d _ _ = _
+        show ConLeche.iotaCertsFullFueled mode eager env _ d _ _ = _
         rw [iotaCertsFullFueled_cert (ConLeche.inferTypeCore_mono (by omega) hF1)
           (ConLeche.isDefEqCore_mono (by omega) hF2),
           ← Expr.instantiateList_cons]
@@ -542,19 +542,19 @@ theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — **THEOREM 1
 for `iotaCertsFull`**, the empty-accumulator entry of `iotaCertsFullAux_go`,
 in answer shape (its subject is `constTyAt`'s answer at its caller). -/
-theorem iotaCertsFull_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+theorem iotaCertsFull_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (d : Nat) (h : EIdx) (args : List EIdx) (s₀ : AState)
-    (hok : CheckOK mode env fe s₀)
+    (hok : CheckOK mode eager env fe s₀)
     (hpre : ∃ tyx xs, denoteE s₀.store h = some tyx ∧ Expr.WScoped d tyx ∧
       Frontend.denoteEList s₀.store args = some xs ∧
       ∀ x ∈ xs, Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaCertsFull (coreKnot mode fe id fuel) fe d h args
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.iotaCertsFull (coreKnot mode eager fe id fuel) fe d h args
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ tyx xs, denoteE s₀.store h = some tyx →
           Frontend.denoteEList s₀.store args = some xs →
-          SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d tyx xs)
+          SimBOp (fun F => ConLeche.iotaCertsFullFueled mode eager env F d tyx xs)
             r; ⊤⦄ := by
   obtain ⟨tyx, xs, hh, hw, hxs, hwxs⟩ := hpre
   have hg := iotaCertsFullAux_go hsim d args.toArray _ _ h #[] 0 s₀
@@ -624,7 +624,7 @@ theorem env_find_name {n : ConLeche.Name} {ci : ConstantInfo}
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
 a constructor. -/
-theorem env_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
+theorem env_ctor_of_index {s : AState} (hok : CheckOK mode eager env fe s)
     {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {nP nF : Nat}
     (hn : denoteN s.store.ns c = some nm)
     (hfd : fe.find? c = some (.ctorInfo icv nP nF)) :
@@ -637,7 +637,7 @@ theorem env_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half at
 a constructor. -/
-theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
+theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode eager env fe s)
     {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
     (hnd : ∀ v nP nF, fe.find? c ≠ some (.ctorInfo v nP nF)) :
     ∀ cv nP nF, env.find? nm ≠ some (.ctorInfo cv nP nF) := by
@@ -735,7 +735,7 @@ ONE equation over the environment's constructor projections. -/
 the structural projection's certificate**: the constructor's stored type has
 the spine's arity (`teleArityOk`, con-leche's task #342 L18).  Read-only.
 `grind` reads the index through `IndexAt` and the type through `DenoteCV`. -/
-theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
+theorem projCert_spec (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
     (c : NIdx) (args : List EIdx) (cn : ConLeche.Name) (xs : List Expr)
     (hc : denoteN s₀.store.ns c = some cn)
     (hargs : Frontend.denoteEList s₀.store args = some xs) :
@@ -747,7 +747,7 @@ theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
 /-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — **THEOREM 1 for
 `projCertAt`**: the verified mode checks the arity, the trusted mode nothing.
 Read-only. -/
-theorem projCertAt_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
+theorem projCertAt_spec (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
     (verified : Bool) (c : NIdx) (args : List EIdx) (cn : ConLeche.Name)
     (xs : List Expr) (hc : denoteN s₀.store.ns c = some cn)
     (hargs : Frontend.denoteEList s₀.store args = some xs) :

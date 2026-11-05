@@ -58,7 +58,7 @@ theorem checkStructDomsAt_mono {μ : CheckMode} {env : Env} {F F' : Nat}
         MonadExceptOf.throw, pure, Except.pure] at h
     | some b =>
     simp only [ha, hb, ConLeche.unwrapOr, bind, Except.bind, pure, Except.pure] at h ⊢
-    cases hd : ConLeche.isDefEqCore μ env F (off + j) a.fvarTypeD b with
+    cases hd : ConLeche.isDefEqCore μ false env F (off + j) a.fvarTypeD b with
     | error e => rw [hd] at h; exact nomatch h
     | ok c =>
       rw [hd] at h
@@ -134,9 +134,9 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨c, s4, k4, hz4⟩ := AM.bind_ok hz3
     obtain ⟨hws1, hws2⟩ := hws j (Nat.lt_succ_self j) aP bP haP hbP
     obtain ⟨hok4, hx4, hp4, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ env) (off + j) aP.fvarTypeD bP r)
+        Core.SimV (ConLeche.isDefEqCore μ false env) (off + j) aP.fvarTypeD bP r)
       rfl k4 (hknot.defeq s₀ (off + j) t b aP.fvarTypeD bP hok ht hdb hws1 hws2)
     obtain ⟨F1, hF1⟩ := hsim
     obtain ⟨hc, hz5⟩ := AM.dunless_ok AM.Never.fail_any hz4

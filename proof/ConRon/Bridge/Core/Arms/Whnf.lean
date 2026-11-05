@@ -53,7 +53,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. One iteration of the reduction loop -/
 
@@ -62,12 +62,12 @@ acceleration**: the head normal form is a `Nat` constructor application the
 `reduceNat` pass packs back into a literal, and the loop continues on the
 packed form. -/
 theorem whnfLoop_reduceNat {F d n : Nat} {e e₁ e₂ res : Expr}
-    (h1 : ConLeche.whnfCore mode env F d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F) env d e₁
+    (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F) env d e₁
       = .ok (some e₂))
-    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d n e₂
+    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d n e₂
       = .ok res) :
-    ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e
+    ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e
       = .ok res := by
   rw [ConLeche.whnfLoop, ConLeche.whnfStep]
   simp only [ConLeche.whnfCore_def, h1, h2, bind, Except.bind]
@@ -77,13 +77,13 @@ theorem whnfLoop_reduceNat {F d n : Nat} {e e₁ e₂ res : Expr}
 step**: the head is an unfoldable constant, and the loop continues on the
 unfolding. -/
 theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
-    (h1 : ConLeche.whnfCore mode env F d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F) env d e₁
+    (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F) env d e₁
       = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = some e₂)
-    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d n e₂
+    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d n e₂
       = .ok res) :
-    ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e
+    ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e
       = .ok res := by
   rw [ConLeche.whnfLoop, ConLeche.whnfStep]
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind]
@@ -92,11 +92,11 @@ theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — **the loop's exit**:
 nothing further reduces, so the `whnfCore` reduct is the answer. -/
 theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
-    (h1 : ConLeche.whnfCore mode env F d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F) env d e₁
+    (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F) env d e₁
       = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = none) :
-    ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e
+    ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e
       = .ok e₁ := by
   rw [ConLeche.whnfLoop, ConLeche.whnfStep]
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind, pure,
@@ -116,12 +116,12 @@ handles, so there is no term to state it as. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — the literal
 acceleration, fuels merged: the step's loop is the inner loop. -/
 theorem whnfLoop_reduceNat_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
-    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok (some e₂))
-    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂).isOk = true) :
-    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e =
-      ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ := by
-  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ with
+    (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁ = .ok (some e₂))
+    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂).isOk = true) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e =
+      ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂ := by
+  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂ with
   | error => rw [hr] at hk; cases hk
   | ok res =>
     exact ⟨max F₁ (max F₂ F₃), whnfLoop_reduceNat
@@ -131,20 +131,20 @@ theorem whnfLoop_reduceNat_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
       (whnfLoopFueled_mono
         (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hr)⟩
 grind_pattern [bridge_grind] whnfLoop_reduceNat_eq =>
-  ConLeche.whnfCore mode env F₁ d e,
-  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
-  ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂
+  ConLeche.whnfCore mode eager env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁,
+  ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — the delta step,
 fuels merged. -/
 theorem whnfLoop_delta_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
-    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
+    (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁ = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = some e₂)
-    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂).isOk = true) :
-    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e =
-      ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ := by
-  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ with
+    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂).isOk = true) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e =
+      ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂ := by
+  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂ with
   | error => rw [hr] at hk; cases hk
   | ok res =>
     exact ⟨max F₁ (max F₂ F₃), whnfLoop_delta
@@ -155,24 +155,24 @@ theorem whnfLoop_delta_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
       (whnfLoopFueled_mono
         (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hr)⟩
 grind_pattern [bridge_grind] whnfLoop_delta_eq =>
-  ConLeche.whnfCore mode env F₁ d e,
-  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
+  ConLeche.whnfCore mode eager env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁,
   ConLeche.unfoldDefinition env e₁,
-  ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂
+  ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — the loop's exit,
 fuels merged, at every remaining budget. -/
 theorem whnfLoop_done_eq {F₁ F₂ d : Nat} {e e₁ : Expr}
-    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
-    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
+    (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁ = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = none) :
-    ∃ F, ∀ n, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok e₁ :=
+    ∃ F, ∀ n, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e = .ok e₁ :=
   ⟨max F₁ F₂, fun _ => whnfLoop_done
     (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
     (reduceNatFueled_mono (Nat.le_max_right _ _) h2) h3⟩
 grind_pattern [bridge_grind] whnfLoop_done_eq =>
-  ConLeche.whnfCore mode env F₁ d e,
-  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
+  ConLeche.whnfCore mode eager env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁,
   ConLeche.unfoldDefinition env e₁
 
 /-! ### The callees' optional answers
@@ -205,9 +205,9 @@ grind_pattern [bridge_grind] SimOOp.none_inv => SimOOp P d st none
 loop at its own budget, so the entry is one rewrite.  This is the lemma the
 twin's `whnfBody` theorem ends on. -/
 theorem whnf_of_loop {F d : Nat} {e res : Expr}
-    (h : ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d
+    (h : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d
       ConLeche.whnfLoopFuel e = .ok res) :
-    ConLeche.whnf mode env (F + 1) d e = .ok res := by
+    ConLeche.whnf mode eager env (F + 1) d e = .ok res := by
   rw [ConLeche.whnf_succ, ConLeche.whnfBody]
   exact h
 
@@ -251,23 +251,23 @@ theorem whnfLoopFuel_eq :
 /-- con-leche: none — `reduceNat_spec` with its answer as an `Ans` atom
 (the same proposition; `Bridge/Grind.lean` §3) and its precondition as the
 named predicate `DenWS` on the subject's denotation term. -/
-theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
     (hdw : DenWS d (denoteE s₀.store e)) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot mode eager fe id fuel) fe d e
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
+        Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d x) d
           s'.store r) (denoteE s₀.store e); ⊤⦄ :=
   reduceNat_spec hsim s₀ d e hok (denWS_exists hdw)
 
 /-- con-leche: none — `unfoldDefinition_spec` with its answer as an `Ans`
 atom and its precondition as `DenWS`. -/
 theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : AState)
-    (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
     (hdw : DenWS d (denoteE s₀.store e)) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ans (fun x => denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
           ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y)
@@ -281,15 +281,15 @@ an `Ans` atom about the subject's denotation: the loop is also
 called on handles the caller has only just made, whose denotation is not a
 parameter. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) :
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) :
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
-      CheckOK mode env fe s₀ → DenWS d (denoteE s₀.store i) →
+      CheckOK mode eager env fe s₀ → DenWS d (denoteE s₀.store i) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.whnfLoop (coreKnot mode fe id fuel) fe d n i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        ConRon.Arena.whnfLoop (coreKnot mode eager fe id fuel) fe d n i
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Ans (fun e => ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-              ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d n e
+              ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d n e
                 = .ok v) (denoteE s₀.store i); ⊤⦄ := by
   intro n
   induction n with
@@ -303,7 +303,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     sym only [bridge_grind] =>
       vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
         hsim.whnfCore (c := false) (e := e), reduceNat_specA hsim,
-        unfoldDefinition_specA (mode := mode) (fe := fe) henv (d := d), ih] <;> finish
+        unfoldDefinition_specA (mode := mode) (eager := eager) (fe := fe) henv (d := d), ih] <;> finish
 
 /-! ## 4. The body theorem -/
 
@@ -312,9 +312,9 @@ answer at the twin's budget is a `whnf` answer (`whnf_of_loop` with the
 budgets' equation), from the loop's answer as ONE premise. -/
 @[bridge_grind .] theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d : Nat} {e : Expr}
     (h : ∃ v, denoteE st r = some v ∧ Expr.WScoped d v ∧
-      ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d
+      ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d
         ConRon.Arena.whnfLoopFuel e = .ok v) :
-    SimE (ConLeche.whnf mode env) d e st r := by
+    SimE (ConLeche.whnf mode eager env) d e st r := by
   obtain ⟨v, hv, hw, F, hF⟩ := h
   rw [whnfLoopFuel_eq] at hF
   exact ⟨v, hv, hw, F + 1, whnf_of_loop hF⟩
@@ -326,9 +326,9 @@ for `whnfBody`**.
 entry, and `whnf_of_loop` is the bracket. -/
 theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) :
-    BodySpec mode env fe (whnfBody (coreKnot mode fe id fuel) fe)
-      (ConLeche.whnf mode env) := by
+    (hsim : KnotSpec mode eager env fe fuel) :
+    BodySpec mode eager env fe (whnfBody (coreKnot mode eager fe id fuel) fe)
+      (ConLeche.whnf mode eager env) := by
   intro s₀ d i e hok hden hw
   -- the loop's answer, through the entry bracket
   sym only [bridge_grind] =>

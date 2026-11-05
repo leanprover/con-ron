@@ -40,7 +40,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. Store facts -/
 
@@ -82,17 +82,17 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
 /-- con-leche: ConLeche/Kernel/Core.lean:1065-1071 defeqArg — **THEOREM 1 for
 `defeqArg`**: the argument's type against the domain, in the eager tower for
 an `eagerReduce _ _` argument and in the knot's own otherwise — one comparison
-at the argument's mode (con-leche's `defeqArg_def`, `CheckMode.argMode`). -/
-theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+at the argument's mode (con-leche's `defeqArg_def`, `argEager`). -/
+theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (s₀ : AState) (d : Nat) (a i j : EIdx) (x ta ty : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdi : denoteE s₀.store i = some ta) (hdj : denoteE s₀.store j = some ty)
     (hwi : Expr.WScoped d ta) (hwj : Expr.WScoped d ty) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqArg (coreKnot mode fe id fuel) d a i j
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqArg (coreKnot mode eager fe id fuel) d a i j
+    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore (mode.argMode x) env) d ta ty r; ⊤⦄ := by
-  sym only [bridge_grind, CheckMode.argMode] =>
+        SimV (ConLeche.isDefEqCore mode (argEager eager x) env) d ta ty r; ⊤⦄ := by
+  sym only [bridge_grind, argEager] =>
     vcgen [ConRon.Arena.defeqArg, isEagerReduce_spec s₀ a x hok hda,
       fun s₁ h1 h2 h3 => hsim.defeqE s₁ d i j ta ty h1 h2 h3 hwi hwj,
       fun s₁ h1 h2 h3 => hsim.defeq s₁ d i j ta ty h1 h2 h3 hwi hwj] <;> finish
@@ -103,14 +103,14 @@ theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 syntactic-`∀` step, certificate passed. -/
 theorem inferSpine_pi_step {F d : Nat} {dom body x ta : Expr}
     {ws xs : List Expr}
-    (hi : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (hd : ConLeche.isDefEqCore (mode.argMode x) env F d ta (dom.instantiateList ws)
+    (hi : ConLeche.inferTypeCore mode eager env F d x = .ok ta)
+    (hd : ConLeche.isDefEqCore mode (argEager eager x) env F d ta (dom.instantiateList ws)
       = .ok true) :
-    ConLeche.inferSpine (pureFns mode env F) d (.forallE dom body) ws
+    ConLeche.inferSpine (pureFns mode eager env F) d (.forallE dom body) ws
         (x :: xs) =
-      ConLeche.inferSpine (pureFns mode env F) d body (x :: ws) xs := by
-  have e1 : (pureFns mode env F).infer d x = .ok ta := hi
-  have e2 : ConLeche.defeqArg (pureFns mode env F) d x ta (dom.instantiateList ws)
+      ConLeche.inferSpine (pureFns mode eager env F) d body (x :: ws) xs := by
+  have e1 : (pureFns mode eager env F).infer d x = .ok ta := hi
+  have e2 : ConLeche.defeqArg (pureFns mode eager env F) d x ta (dom.instantiateList ws)
       = .ok true := by rw [ConLeche.defeqArg_def]; exact hd
   rw [ConLeche.inferSpine_pi]
   unfold ConLeche.inferSpinePi
@@ -121,16 +121,16 @@ normalise-and-retry step, certificate passed. -/
 theorem inferSpine_whnf_step {F d : Nat} {ty dom body x ta : Expr}
     {ws xs : List Expr}
     (hne : ∀ p q, ty ≠ .forallE p q)
-    (hw : ConLeche.whnf mode env F d (ty.instantiateList ws)
+    (hw : ConLeche.whnf mode eager env F d (ty.instantiateList ws)
       = .ok (.forallE dom body))
-    (hi : ConLeche.inferTypeCore mode env F d x = .ok ta)
-    (hd : ConLeche.isDefEqCore (mode.argMode x) env F d ta dom = .ok true) :
-    ConLeche.inferSpine (pureFns mode env F) d ty ws (x :: xs) =
-      ConLeche.inferSpine (pureFns mode env F) d body [x] xs := by
-  have e0 : (pureFns mode env F).whnf d (ty.instantiateList ws)
+    (hi : ConLeche.inferTypeCore mode eager env F d x = .ok ta)
+    (hd : ConLeche.isDefEqCore mode (argEager eager x) env F d ta dom = .ok true) :
+    ConLeche.inferSpine (pureFns mode eager env F) d ty ws (x :: xs) =
+      ConLeche.inferSpine (pureFns mode eager env F) d body [x] xs := by
+  have e0 : (pureFns mode eager env F).whnf d (ty.instantiateList ws)
       = .ok (.forallE dom body) := hw
-  have e1 : (pureFns mode env F).infer d x = .ok ta := hi
-  have e2 : ConLeche.defeqArg (pureFns mode env F) d x ta dom = .ok true := by
+  have e1 : (pureFns mode eager env F).infer d x = .ok ta := hi
+  have e2 : ConLeche.defeqArg (pureFns mode eager env F) d x ta dom = .ok true := by
     rw [ConLeche.defeqArg_def]; exact hd
   rw [ConLeche.inferSpine_ne_pi _ _ hne]
   unfold ConLeche.inferSpineWhnf
@@ -149,22 +149,22 @@ accumulator `acc` and the cursor `i` denotes con-leche's pure mirror
 `ConLeche.inferSpine` at some fuel, on the pending telescope `tyx`, the
 pending substitution `ws` and the remaining arguments `xs`.  Induction on
 the arguments left. -/
-theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
     (d : Nat) (args : Array EIdx) :
     ∀ (k : Nat) (ty : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState)
       (tyx : Expr) (ws xs : List Expr),
-      args.size - i = k → CheckOK mode env fe s₀ →
+      args.size - i = k → CheckOK mode eager env fe s₀ →
       denoteE s₀.store ty = some tyx → ExprOps.InstLVec s₀.store acc ws →
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferSpine (coreKnot mode fe id fuel) fe d ty acc
+        ConRon.Arena.inferSpine (coreKnot mode eager fe id fuel) fe d ty acc
           args i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-            ∃ F, ConLeche.inferSpine (pureFns mode env F) d tyx ws xs
+            ∃ F, ConLeche.inferSpine (pureFns mode eager env F) d tyx ws xs
               = .ok v; ⊤⦄ := by
   intro k
   induction k with
@@ -295,21 +295,21 @@ carry of `inferSpineIO`**, `inferSpine_go` at the io grade (official
 inferred or compared (con-leche's task #342: there are no licence or
 certificate arms, so no `verifiedChecks` premise either). -/
 theorem inferSpineIO_go {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel) (d : Nat) (args : Array EIdx) :
+    (hsim : KnotSpec mode eager env fe fuel) (d : Nat) (args : Array EIdx) :
     ∀ (k : Nat) (ty : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState)
       (tyx : Expr) (ws xs : List Expr),
-      args.size - i = k → CheckOK mode env fe s₀ →
+      args.size - i = k → CheckOK mode eager env fe s₀ →
       denoteE s₀.store ty = some tyx → ExprOps.InstLVec s₀.store acc ws →
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
         ConRon.Arena.inferSpineIO
-          (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d ty acc args i
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          (CoreFnsA.ioView (coreKnot mode eager fe id fuel)) fe d ty acc args i
+      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-            ∃ F, ConLeche.inferSpineIO (pureFns mode env F) d tyx ws xs
+            ∃ F, ConLeche.inferSpineIO (pureFns mode eager env F) d tyx ws xs
               = .ok v; ⊤⦄ := by
   intro k
   induction k with
@@ -391,7 +391,7 @@ theorem inferSpineIO_go {fuel : Nat}
           rintro r s6 ⟨hok6, hx6, hp6, v, hv, hwv, F4, hF4⟩
           refine ⟨hok6, hx03.trans hx6, by rw [hp6, hp3, hp2],
             v, hv, hwv, max F1 F4, ?_⟩
-          have e0 : (pureFns mode env (max F1 F4)).whnf d
+          have e0 : (pureFns mode eager env (max F1 F4)).whnf d
               (tyx.instantiateList ws) = .ok (.forallE edom ebody) :=
             ConLeche.whnf_mono (by omega) hF1
           rw [ConLeche.inferSpineIO_ne_pi _ _ hne]

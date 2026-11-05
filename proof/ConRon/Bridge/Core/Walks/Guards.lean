@@ -43,7 +43,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the `PIN_BOOL_TRUE` slot of `pinNames` is `Bool.true`'s name.  `rfl`: both
@@ -159,9 +159,9 @@ make the two the same test.
 It needs nothing from the `ExprOps` tier, nothing from `denoteProjEntry` and
 no fuel bookkeeping (con-leche's `Expr.isBoolTrue` is a plain function). -/
 theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
   -- the pin table's invariant at the initial state: the two pin reads'
   -- precondition (as a registered forward rule it would fire at every
@@ -212,9 +212,9 @@ local grind_pattern [bridge_grind] view_of_viewConst => st.viewConst i, some (n,
 **THEOREM 1 for `isEagerReduce`**: is `e` of the form `eagerReduce _ _`
 (official `is_eager_reduce`)? -/
 theorem isEagerReduce_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
+    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isEagerReduce h
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isEagerReduce x; ⊤⦄ := by
   sym only [bridge_grind, hok.pins, isEagerReduce_eq] =>
     vcgen [ConRon.Arena.isEagerReduce, eagerReduceName_spec] <;> finish

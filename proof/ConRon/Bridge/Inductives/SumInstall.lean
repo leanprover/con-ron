@@ -109,13 +109,13 @@ theorem whnfTelescope_mono {μ : CheckMode} {env : Env} {F F' : Nat}
   | zero =>
     intro i e v h
     simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind] at h ⊢
-    cases hw : ConLeche.whnf μ env F i e with
+    cases hw : ConLeche.whnf μ false env F i e with
     | error x => rw [hw] at h; exact nomatch h
     | ok w => rw [hw] at h; rw [ConLeche.whnf_mono hle hw]; exact h
   | succ n ih =>
     intro i e v h
     simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind] at h ⊢
-    cases hw : ConLeche.whnf μ env F i e with
+    cases hw : ConLeche.whnf μ false env F i e with
     | error x => rw [hw] at h; exact nomatch h
     | ok w =>
     rw [hw] at h; rw [ConLeche.whnf_mono hle hw]
@@ -162,8 +162,8 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [whnfTelescope_zero_eq] at hrun
     obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
-        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ false env) i eP u.store r)
       rfl k1 (hknot.whnf s₀ i e eP hok he hws)
     obtain ⟨wP, hwP, -, F1, hF1⟩ := hsim
     obtain ⟨v, s2, k2, z2⟩ := AM.bind_ok z1
@@ -183,8 +183,8 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [whnfTelescope_succ_eq] at hrun
     obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
-        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ false env) i eP u.store r)
       rfl k1 (hknot.whnf s₀ i e eP hok he hws)
     have c1 : CoreStep μ env fe s₀ s1 := ⟨hok1, hx1, hp1⟩
     obtain ⟨wP, hwP, hwsw, F1, hF1⟩ := hsim
@@ -254,7 +254,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P
           = .ok (cvAP, sP) ∧
         Frontend.denoteCV st r.1 = some cvAP ∧ denoteL st.ls r.2 = some sP) := by
-  have slow : ∀ (s₁ s'' : AState) (r : IConstantVal × LIdx), CheckOK μ env fe s₁ →
+  have slow : ∀ (s₁ s'' : AState) (r : IConstantVal × LIdx), CheckOK μ false env fe s₁ →
       Frontend.denoteCV s₁.store cv = some cvP →
       Frontend.denoteCV s₁.store cvTa₀ = some cvTa₀P →
       denoteFEnv s₁.store fe = some env →
@@ -420,12 +420,12 @@ theorem checkStructFieldSortsI_mono {μ : CheckMode} {env : Env} {F F' : Nat}
       simp [ha, ConLeche.unwrapOr, throw, throwThe, MonadExceptOf.throw] at h
     | some a =>
     simp only [ha, ConLeche.unwrapOr, pure, Except.pure] at h ⊢
-    cases hi : ConLeche.inferTypeCore μ env F (nP + j) a.fvarTypeD with
+    cases hi : ConLeche.inferTypeCore μ false env F (nP + j) a.fvarTypeD with
     | error x => rw [hi] at h; exact nomatch h
     | ok t =>
     rw [hi] at h; rw [ConLeche.inferTypeCore_mono hle hi]
     dsimp only at h ⊢
-    cases he : ConLeche.ensureSortCore μ env F (nP + j) t with
+    cases he : ConLeche.ensureSortCore μ false env F (nP + j) t with
     | error x => rw [he] at h; exact nomatch h
     | ok u =>
     rw [he] at h; rw [ConLeche.ensureSortCore_mono hle he]
@@ -502,17 +502,17 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hwsa := hws j (Nat.lt_succ_self j) aP haP
     obtain ⟨ty, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨hok3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
-        Core.SimE (ConLeche.inferTypeCore μ env) (nP + j) aP.fvarTypeD u.store r)
+        Core.SimE (ConLeche.inferTypeCore μ false env) (nP + j) aP.fvarTypeD u.store r)
       rfl k3 (hknot.infer s₀ (nP + j) t aP.fvarTypeD hok ht hwsa)
     have c3 : CoreStep μ env fe s₀ s3 := ⟨hok3, hx3, hp3⟩
     obtain ⟨tyP, htyP, hwsty, F1, hF1⟩ := hsim3
     obtain ⟨u, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨hok4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun u => u = s3)
-      (Q := fun r u => CheckOK μ env fe u ∧ Ext s3.store u.store ∧
+      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s3.store u.store ∧
         u.pins = s3.pins ∧
-        SimL (ConLeche.ensureSortCore μ env) (nP + j) tyP u.store r)
+        SimL (ConLeche.ensureSortCore μ false env) (nP + j) tyP u.store r)
       rfl k4 (hsort s3 (nP + j) ty tyP hok3 htyP hwsty)
     have c4 : CoreStep μ env fe s₀ s4 := c3.trans ⟨hok4, hx4, hp4⟩
     obtain ⟨uP, huP, F2, hF2⟩ := hsim4
@@ -535,9 +535,9 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       exact denoteLList_append hrest (by
         simp only [denoteLList, denoteL_ext huP (c5.ext.trans c6.ext), opt2])
     have hF1' : ∀ F, F1 ≤ F →
-        ConLeche.inferTypeCore μ env F (nP + j) aP.fvarTypeD = .ok tyP :=
+        ConLeche.inferTypeCore μ false env F (nP + j) aP.fvarTypeD = .ok tyP :=
       fun F hle => ConLeche.inferTypeCore_mono hle hF1
-    have hF2' : ∀ F, F2 ≤ F → ConLeche.ensureSortCore μ env F (nP + j) tyP = .ok uP :=
+    have hF2' : ∀ F, F2 ≤ F → ConLeche.ensureSortCore μ false env F (nP + j) tyP = .ok uP :=
       fun F hle => ConLeche.ensureSortCore_mono hle hF2
     cases isProp with
     | false =>
@@ -1197,7 +1197,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
 recursor name), so the frame is `ReadbackFrame.refl`. -/
 theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
+    (hok : CheckOK μ false envC feC s) (hi : IFEnvOK env fe s)
     (hc : denoteN s.store.ns ctor = some ctorP)
     (hrun : Arena.recRuleEtaOf fe ctor s = .ok (r, s')) :
     Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? ctorP := by
@@ -1293,7 +1293,7 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
 bits stamped, in run form: the rule denotes con-leche's stamped rule. -/
 theorem recRuleBits_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {rl rl' : IRecRule} {rlP : RecRule}
-    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
+    (hok : CheckOK μ false envC feC s) (hi : IFEnvOK env fe s)
     (hrl : Frontend.denoteRule s.store rl = some rlP)
     (hrun : Arena.recRuleBits fe rl s = .ok (rl', s')) :
     Core.ReadbackFrame s s' ∧

@@ -893,7 +893,7 @@ unmemoised leaves.  `IFEnvOK.find_isSome` is the whole `.const`/`.proj`
 content, and its MISS half is `denoteN_inj`. -/
 theorem constsResolveFFast_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
-    (hck : CheckOK μ env fe s) (hd : denoteE s.store e = some x)
+    (hck : CheckOK μ false env fe s) (hd : denoteE s.store e = some x)
     (hrun : constsResolveFFast fe e s = .ok (r, s')) :
     s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
       r = Expr.constsResolve env x := by

@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Core.EnsureSort` — the seventh entry point
 
 `Arena/Core.lean` has SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
-top of the knot (`ensureSort (pureFnsA mode fe fuel) fe depth e`) rather than
+top of the knot (`ensureSort (pureFnsA mode eager fe fuel) fe depth e`) rather than
 being one of its fields, so `Bridge/Core/Knot.lean`'s `KnotSpec` does not
 cover it — and the declaration front door calls it at every constant, so
 `Bridge/Checker/Hyp.lean` states `EnsureSortSpec` as a second named
@@ -38,7 +38,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. The answer relation
 
@@ -63,8 +63,8 @@ reduction loop lands on a sort.  con-leche's `ensureSort_def`
 /-- con-leche: ConLeche/Kernel/Core.lean:1101-1107 ensureSort — the entry's
 only exit: `whnf` answered a sort, so `ensureSortCore` answers its level. -/
 theorem ensureSortCore_of_whnf {F d : Nat} {e : Expr} {l : Level}
-    (h : ConLeche.whnf mode env F d e = .ok (.sort l)) :
-    ConLeche.ensureSortCore mode env F d e = .ok l := by
+    (h : ConLeche.whnf mode eager env F d e = .ok (.sort l)) :
+    ConLeche.ensureSortCore mode eager env F d e = .ok l := by
   rw [← ConLeche.ensureSort_def]
   simp only [ConLeche.ensureSort, ConLeche.whnf_def] at h ⊢
   simp only [h, bind, Except.bind, pure, Except.pure]
@@ -74,14 +74,14 @@ exit as an answer: the `whnf` slot answered a handle whose view is a sort, so
 the level handle is the `ensureSortCore` answer.  Keyed by the goal and the
 slot's answer at the same store. -/
 theorem SimL.of_whnfSort {st : EStore} {r : EIdx} {u : LIdx} {d : Nat} {e : Expr}
-    (hs : SimE (ConLeche.whnf mode env) d e st r) (hwf : StoreWF st)
+    (hs : SimE (ConLeche.whnf mode eager env) d e st r) (hwf : StoreWF st)
     (hv : st.view r = some (.sort u)) :
-    SimL (ConLeche.ensureSortCore mode env) d e st u := by
+    SimL (ConLeche.ensureSortCore mode eager env) d e st u := by
   obtain ⟨v, hd, _, F, hF⟩ := hs
   obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hd
   exact ⟨l, hl, F, ensureSortCore_of_whnf hF⟩
 grind_pattern [bridge_grind] SimL.of_whnfSort =>
-  SimL (ConLeche.ensureSortCore mode env) d e st u, SimE (ConLeche.whnf mode env) d e st r
+  SimL (ConLeche.ensureSortCore mode eager env) d e st u, SimE (ConLeche.whnf mode eager env) d e st r
 
 /-! ## 3. The entry's theorem -/
 
@@ -94,14 +94,14 @@ the fuel every entry is called with).
 tier's `CoreSpec` is therefore fully discharged by the Core tier (the six
 body walks `KnotSpec` itself rests on are closed too). -/
 theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
+    (hsim : KnotSpec mode false env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK mode false env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.ensureSortCore mode fe f d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode false env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄ := by
+        SimL (ConLeche.ensureSortCore mode false env) d e s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.ensureSortCore ConRon.Arena.pureFnsA
   -- both failing branches have native specs and leave no condition; the
   -- sort exit is `SimL.of_whnfSort`
