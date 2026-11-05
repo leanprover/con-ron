@@ -325,6 +325,17 @@ theorem envExt_promoted {a b c : IFEnv} {rf₁ rf₂ : arena.env.IFEnv}
     congr 1
     exact hT
 
+/-- `AOutRel₀` at a weaker relation. -/
+theorem AOutRel₀.mono {α β : Type} {R R' : α → β → Prop} {pers : arena.store.PersTier}
+    {o : core.result.Result α kernel.core_types.CheckError} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)} (hR : ∀ a b, R a b → R' a b)
+    (h : AOutRel₀ R pers o st' x) : AOutRel₀ R' pers o st' x := by
+  cases o with
+  | Err e => exact h
+  | Ok a =>
+    obtain ⟨v, lst', hx, hr, hrel, hinv⟩ := h
+    exact ⟨v, lst', hx, hR _ _ hr, hrel, hinv⟩
+
 /-! ## A failing run, as the twin sees it -/
 
 /-- A Rust failure is a twin failure, whichever of the four kinds. -/
@@ -464,6 +475,76 @@ theorem stored_tele_slow_refines {P st lst} {mode : kernel.env.CheckMode}
       | Ok p2 =>
         obtain ⟨_, s2⟩ := p2
         obtain ⟨⟨vm2, vs⟩, lst6, hx6, ⟨⟨-, hvs⟩, htf2⟩, hrel6, hinv6⟩ := hL
-        sorry
+        simp only at hvs hvty
+        obtain ⟨st7, h7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨lst7, hx7, hrel7, hinv7⟩ := (drop_scratch_rel hrel6 hinv6 htf2 h7 hP).apply
+        obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨lp1, hlp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := dupId_nidx _ _ hn1
+        have hlpv : lp1 = cv.level_params := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hlp1)
+        subst hlpv
+        cases Result.ok_injective hrun
+        refine ⟨some (({ absIConstantVal cv with type := vty } : IConstantVal), vs), lst7, ?_,
+          ?_, hrel7, hinv7⟩
+        · simp only [hx6, except_ok_bind, am_run_bind, hx7]
+          rfl
+        · simp only [absTeleOpt, Option.map, absIConstantVal, hvty, hvs]
+
+/-- `stored_tele` ⊑ `storedTele`. -/
+@[lockstep] theorem stored_tele_ls {P st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ P st lst) (hinv : AStateInv P st)
+    (hP : P.frozen = false) (hpe : PersEnvEmpty P) (hfe : IFEnvRelI P IEnv.empty rf lf)
+    (cv : arena.env.IConstantVal) (n : Std.U64) :
+    LS P (fun a b => b = absTeleOpt a)
+      (arena.inductives.stored_install.stored_tele P st mode rf cv n) lst
+      (storedTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)) := by
+  have hslow : ∀ {st lst}, AStateRel₀ P st lst → AStateInv P st →
+      LS P (fun a b => b = absTeleOpt a)
+        (arena.inductives.stored_install.stored_tele_slow st mode rf cv n) lst
+        (storedTry (storedTeleRun (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n))
+          fun q => do
+            let (m, ty) ← promoteE PMemo.empty coreWalkFuel q.1
+            let (_, s) ← promoteL m coreWalkFuel q.2
+            pure (({ absIConstantVal cv with type := ty } : IConstantVal), s)) :=
+    fun hr hi => LS.ofSimRel₀ fun _ h => stored_tele_slow_refines hr hi hP hpe hfe h
+  rw [arena.inductives.stored_install.stored_tele, storedTele]
+  lockstep
+  all_goals first
+    | exact hslow ‹_› ‹_›
+    | (refine LS.pure ?_ ‹_› ‹_›; simp [absTeleOpt, absIConstantVal])
+
+/-! ## The formers -/
+
+theorem stored_formers_aux {P} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hP : P.frozen = false) (hpe : PersEnvEmpty P) (hfe : IFEnvRelI P IEnv.empty rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (n : Nat) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantVal) (s0 : arena.handle.LIdx)
+      st lst, p.members.val.length - i.val = n → AStateRel₀ P st lst → AStateInv P st →
+      LS P (fun a b => b.1 = absICVL a.1 ∧ b.2 = absLIdx a.2)
+        (arena.inductives.stored_install.stored_formers P st mode rf p i out s0) lst
+        (storedFormers (ConRon.Refine.absMode mode) lf (absU p.n_p)
+          ((p.members.val.drop i.val).map absMemberShape) i.val (absICVL out).reverse
+          (absLIdx s0)) := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro i out s0 st lst hn hrel hinv
+    have hl := alloc.vec.Vec.len_val p.members
+    rw [arena.inductives.stored_install.stored_formers.eq_def]
+    dsimp only
+    by_cases hge : i ≥ alloc.vec.Vec.len p.members
+    · have hle : p.members.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge, List.drop_eq_nil_of_le hle, List.map_nil, storedFormers]
+      exact LS.pure (by simp) hrel hinv
+    · have hlt : i.val < p.members.val.length := by scalar_tac
+      rw [ite_eq_right hge, List.drop_eq_getElem_cons hlt, List.map_cons, storedFormers]
+      refine LS.bind_eq fun ms hms => ?_
+      obtain ⟨-, hms⟩ := ExprOps.vecIndexAt hms
+      subst hms
+      refine LS.bind_eq fun k hk => ?_
+      have hkv : k.val = p.n_p.val + p.members.val[i.val].n_idx.val :=
+        ConRon.Refine.HashMap.uscalar_add_eq hk
+      refine LS.bind (stored_tele_ls hrel hinv hP hpe hfe _ k) ?_ ?_
+      · sorry
+      · sorry
 
 end ConRon.Refine2
