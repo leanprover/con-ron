@@ -7,7 +7,9 @@ con-leche's `ConLeche/Kernel/Inductives/BlockTail.lean`, assembled step by
 step as upstream's cached bridge assembles its own driver
 (`ConLeche/Verify/Cached/GenRecC.lean`'s `checkBlockKS_run` /
 `checkBlockPassS_run` / `checkBlockTailS_run`, `BlockRunC.lean`'s
-`checkBlockTablesS_run`).
+`checkBlockTablesS_run`).  The stored recursors' comparison is
+`Bridge/Inductives/StoredRecs.lean`; `checkBlockTailStored_of` here is its
+environment: the generated install pushed, compared at, and popped.
 
 The twin's `flushCaches` at the environment transitions are what re-establish
 `CheckOK` at the new index (`ReadOK.flush`, `Bridge/Inductives/Rel.lean`):
@@ -19,8 +21,9 @@ module
 
 import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.RecCheck
-import ConRon.Bridge.Inductives.GenRec
+public import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.BlockWF
+import ConRon.Bridge.Inductives.StoredRecs
 import ConLeche.Verify.Inductives.PositivityInv
 public import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.BlockParts
@@ -180,6 +183,35 @@ theorem consBlockRecsTF_shape (vis₂ : Nat) (p : Arena.BlockShape) :
     obtain ⟨rules, s₁, -, h2⟩ := AM.bind_ok h
     obtain ⟨l, rfl⟩ := consBlockRecsTF_shape vis₂ p _ rest _ s₁ s' fe' h2
     exact ⟨_ :: l, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT —
+**the temporary pushes are the permanent ones, recording what they displace**:
+the same rules at the same index (`consBlockRecsTF`), and the recorded rows,
+popped in reverse, give back an index answering exactly as the input
+(`GR.popTemp_push`). -/
+theorem consBlockRecsTemp_run (vis₂ : Nat) (p : Arena.BlockShape) :
+    ∀ (out : List (IConstantVal × Arena.TargetMajor × List EIdx)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option (Nat × IConstantInfo))) (s s' : AState) (feG : IFEnv)
+      (prevs' : List (NIdx × Option (Nat × IConstantInfo))),
+      Arena.consBlockRecsTemp vis₂ p m out fe prevs s = .ok ((feG, prevs'), s') →
+      Arena.consBlockRecsTF vis₂ p m out fe s = .ok (feG, s') ∧
+        ∃ news, prevs' = prevs ++ news ∧
+          GR.FEq (news.foldr (fun (x : NIdx × Option (Nat × IConstantInfo)) acc =>
+            acc.popTemp x.1 x.2) feG) fe
+  | [], m, fe, prevs, s, s', feG, prevs', h => by
+    simp only [Arena.consBlockRecsTemp] at h
+    obtain ⟨hr, rfl⟩ := AM.pure_ok h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj hr
+    exact ⟨rfl, [], by simp, GR.FEq.refl _⟩
+  | (cv, M, rhss) :: rest, m, fe, prevs, s, s', feG, prevs', h => by
+    simp only [Arena.consBlockRecsTemp] at h
+    obtain ⟨rules, s₁, k1, h2⟩ := AM.bind_ok h
+    obtain ⟨h3, news, hn, hf⟩ := consBlockRecsTemp_run vis₂ p rest (m + 1) _ _ s₁ s' feG prevs' h2
+    refine ⟨?_, (cv.name, fe.idx[cv.name]?) :: news, by rw [hn]; simp, ?_⟩
+    · simp only [Arena.consBlockRecsTF, AM.bind_apply, k1]
+      exact h3
+    · simp only [List.foldr_cons]
+      exact (hf.popTemp _ _).trans (GR.popTemp_push fe _)
 
 /-- con-leche: none — **an index with the same list, coherent, is the same
 install** (`InstRel` at the identity): the recursor stage hands its index
@@ -495,6 +527,106 @@ def RecStageSpec (μ : CheckMode) : Prop :=
 
 /-! ## The install after the pass -/
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:133-138 checkBlockTail
+con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS —
+**the stored recursors against the generated ones, and their install**: the
+generated family pushed at the constructors' index (`consBlockRecsTemp_run`, the
+same rows as `consBlockRecsTF_spec`), so the index denotes con-leche's
+`consBlockRecsT` of the generated family, and a flush makes it `CheckOK` there;
+the comparison (`storedRecsCheck_spec`); the pops (`GR.FEq`: the index answers as
+`fe₂` again), a flush making it `CheckOK` at `env₂`; and the stored family consed
+at the constructors' view. -/
+theorem checkBlockTailStored_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel) {env₂ : Env}
+    {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {out : List (IConstantVal × Arena.TargetMajor × List EIdx)}
+    {outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)} {fe₂ fe₃ : IFEnv}
+    {s₃ s₄ : AState}
+    (henv₂ : EnvWF env₂) (henvG : EnvWF (consBlockRecsT env₂.find? pP 0 outP env₂))
+    (hok : CheckOK μ false env₂ fe₂ s₃) (hcoh : IFEnvCoh fe₂)
+    (hden : denoteFEnv s₃.store fe₂ = some env₂) (hsh : dShape s₃.store p = some pP)
+    (hout : out.mapM (dRecOut s₃.store) = some outP)
+    (hfresh : ∀ t ∈ outP, env₂.find? t.1.name = none)
+    (hrun : Arena.checkBlockTailStored μ fe₂.visibleBelow p out fe₂ s₃ = .ok (fe₃, s₄)) :
+    InstStep s₃ s₄ ∧ PinsOK s₄ ∧
+      InstRel fe₂ (fun e => e = consBlockRecsT env₂.find? pP 0 (ConLeche.storedOut pP.recs outP) env₂)
+        s₄.store fe₃ ∧
+      IFEnvOK (consBlockRecsT env₂.find? pP 0 (ConLeche.storedOut pP.recs outP) env₂) fe₃ s₄ ∧
+      FOk (ConLeche.storedRecsCheck (fueledOpsM μ) .plain
+        (mkFEnv (consBlockRecsT env₂.find? pP 0 outP env₂)) pP.recs outP) () := by
+  have hrecs := (dShape_inv hsh).2.1
+  simp only [Arena.checkBlockTailStored] at hrun
+  -- the generated family, pushed
+  obtain ⟨⟨feG, prevs⟩, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨h1F, news, hn, hfeq⟩ := consBlockRecsTemp_run _ _ _ _ _ _ _ _ _ _ k1
+  rw [List.nil_append] at hn
+  subst hn
+  obtain ⟨c1, hrel1⟩ := consBlockRecsTF_spec (μ := μ) fe₂.visibleBelow p pP out outP 0
+    fe₂ env₂ s₃ s₁ feG hok (RC.IFEnvOK.of_find? hok.ienv rfl) (Nat.le_refl _)
+    hcoh hden hsh hout hfresh h1F
+  obtain ⟨envG, hdenG, rfl⟩ := hrel1.denote
+  obtain ⟨l, hfeG⟩ := consBlockRecsTF_shape _ _ _ _ _ _ _ _ h1F
+  have hts₂ := TablesStored.of_envWF henv₂
+  have hienvG : IFEnvOK (consBlockRecsT env₂.find? pP 0 outP env₂) feG s₁ := by
+    rw [hfeG]
+    rw [hfeG] at hdenG
+    exact IFEnvOK_pushAll c1.ok.state l fe₂ env₂ _ c1.ok.ienv hcoh hts₂
+      (denoteFEnv_mono c1.ext hden) hdenG
+  have x1 := c1.ext
+  -- the flush entering it
+  obtain ⟨u2, s₂, k2, z2⟩ := AM.bind_ok z1
+  obtain ⟨c2, i2, hs2⟩ := ReadOK.flush (μ := μ)
+    (⟨c1.ok.state, c1.ok.pins, hienvG⟩ : ReadOK _ feG s₁) k2
+  have x2 : Ext s₃.store s₂.store := by rw [hs2]; exact x1
+  -- the comparison
+  obtain ⟨u3, s₃', k3, z3⟩ := AM.bind_ok z2
+  obtain ⟨c3, _, -, hFS⟩ := storedRecsCheck_spec feG hk henvG p.recs pP.recs out outP s₂ s₃' _ c2
+    ⟨dRec_ext.list x2 _ _ hrecs, dRecOut_ext.list x2 _ _ hout⟩ k3
+  have x3 : Ext s₃.store s₃'.store := x2.trans c3.ext
+  -- the pops, and the flush leaving it
+  dsimp only at z3
+  generalize hfe2 : prevs.foldr (fun (x : NIdx × Option (Nat × IConstantInfo)) acc =>
+    acc.popTemp x.1 x.2) feG = fe2 at hfeq
+  have hfe2' : List.foldr (fun x acc =>
+      match x with
+      | (n, prev) => IFEnv.popTemp acc n prev) feG prevs = fe2 := hfe2
+  rw [hfe2'] at z3
+  have hcoh2 : IFEnvCoh fe2 := ⟨by rw [hfeq.2.1, hcoh.1, hfeq.1], fun n => by
+    rw [hfeq.2.2.1 n, hcoh.2.1 n, hfeq.1], fun n => by
+    rw [hfeq.2.2.2, hcoh.2.2 n, hfeq.1]⟩
+  have hfind2 : fe2.find? = fe₂.find? := by
+    funext n; rw [hcoh2.find?, hcoh.find?, hfeq.1]
+  have hraw2 : ∀ n, fe2.rawTable? n = fe₂.rawTable? n := by
+    intro n; rw [hcoh2.rawTable?, hcoh.rawTable?, hfeq.1]
+  obtain ⟨u4, s₄', k4, z4⟩ := AM.bind_ok z3
+  obtain ⟨c4, i4, hs4⟩ := ReadOK.flush (μ := μ)
+    (⟨c3.ok.state, hok.pins.mono x3 (by rw [c3.pins, i2.pins, c1.pins]),
+      RC.IFEnvOK.of_find? (hok.ienv.mono x3) hfind2 hraw2⟩ : ReadOK env₂ fe2 s₃') k4
+  have x4 : Ext s₃.store s₄'.store := by rw [hs4]; exact x3
+  -- the stored family, consed
+  have hview : (fe2.restrictTo fe₂.visibleBelow).find? = fe₂.find? := by
+    rw [← hfeq.2.1]; exact hfind2
+  obtain ⟨c5, hrel5⟩ := consBlockRecsTF_spec (μ := μ) fe₂.visibleBelow p pP
+    (Arena.storedOut p.recs out) (ConLeche.storedOut pP.recs outP) 0 fe2 env₂ s₄' s₄ fe₃ c4
+    (RC.IFEnvOK.of_find? (hok.ienv.mono x4) hview hraw2) (Nat.le_of_eq hfeq.2.1.symm) hcoh2
+    (by simp only [denoteFEnv, hfeq.1]; exact denoteFEnv_mono x4 hden)
+    (dShape_ext x4 _ _ hsh)
+    (storedOut_denote _ _ _ _ (dRec_ext.list x4 _ _ hrecs) (dRecOut_ext.list x4 _ _ hout))
+    (storedOut_fresh hfresh) z4
+  have x5 := c5.ext
+  obtain ⟨env₃, hden₃, rfl⟩ := hrel5.denote
+  obtain ⟨l₃, hfe₃⟩ := consBlockRecsTF_shape _ _ _ _ _ _ _ _ z4
+  have hienv₃ : IFEnvOK (consBlockRecsT env₂.find? pP 0 (ConLeche.storedOut pP.recs outP) env₂)
+      fe₃ s₄ := by
+    rw [hfe₃]
+    rw [hfe₃] at hden₃
+    exact IFEnvOK_pushAll c5.ok.state l₃ fe2 env₂ _ c5.ok.ienv hcoh2 hts₂
+      (by simp only [denoteFEnv, hfeq.1]; exact denoteFEnv_mono (x4.trans x5) hden) hden₃
+  -- the chain
+  have r0 := InstRel.same (st := s₄.store) hcoh hcoh2 hfeq.1
+    (denoteFEnv_mono (x4.trans x5) hden)
+  exact ⟨(c1.toInst.trans (i2.trans (c3.toInst.trans (i4.trans c5.toInst)))), c5.ok.pins,
+    InstRel.trans r0 hrel5, hienv₃, hFS⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:868 checkBlockTailS_run —
 **the install after the pass**, from the formers' index `q.env1` (whose
@@ -513,6 +645,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
     (hT : ∀ cv ∈ qP.cvTas, Expr.WScoped 0 cv.type)
     (henv₂ : EnvWF (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁))
     (hMs : ∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M)
+    (hpl : qP.params.length = qP.p.nP) (hcls : ∀ M ∈ qP.cls, ConLeche.ClassOutParams qP.p.nP M)
     (hrun : Arena.checkBlockTail μ block q s = .ok (fe', s')) :
     InstStep s s' ∧
       InstRel q.env1 (fun e => FOk (ConLeche.checkBlockTail (fueledOpsM μ) blockP qP) e)
@@ -558,40 +691,35 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   rw [blockNestedBit_eq hsh, ← hkd, ← show qP.p.toBlockShape = shP by rw [hpP]] at hGRF
   have x3 := c3.ext
   dsimp only at h6
-  -- the recursors consed at the constructors' view
+  -- the stored recursors against the generated ones, consed at the constructors' view
   obtain ⟨fe₃, s₄, h7, h8⟩ := AM.bind_ok h6
-  have hvis : fe₂b.visibleBelow = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow := by
+  have hvis : (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow = fe₂b.visibleBelow := by
     rw [hcoh₂b.1, hcons.coh.1, hfe₂b]
+  rw [hvis] at h7
+  have hden₂b : denoteFEnv s₃.store fe₂b = some env₂ := by
+    have h' := denoteFEnv_mono (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂
+    simp only [denoteFEnv] at h' ⊢; rw [hfe₂b]; exact h'
+  have x03 : Ext s.store s₃.store := x2.trans x3
+  have henvG : EnvWF (consBlockRecsT env₂.find? shP 0 outP env₂) := by
+    obtain ⟨FR, hFR⟩ := hGRF
+    rw [checkBlockRec_datF] at hFR
+    rw [← show qP.p.toBlockShape = shP by rw [hpP]]
+    exact ConLeche.Cached.genRecCheck_recsWF (mode := μ) henv₂ hFR hpl hcls _
   have hfind₂b : fe₂b.find? = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).find? := by
     funext n; rw [hcoh₂b.find?, hcons.coh.find?, hfe₂b]
   have hraw₂b : ∀ n, fe₂b.rawTable? n
       = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).rawTable? n := by
     intro n; rw [hcoh₂b.rawTable?, hcons.coh.rawTable?, hfe₂b]
-  have hden₂b : denoteFEnv s₃.store fe₂b = some env₂ := by
-    have h' := denoteFEnv_mono (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂
-    simp only [denoteFEnv] at h' ⊢; rw [hfe₂b]; exact h'
-  have x03 : Ext s.store s₃.store := x2.trans x3
-  have hview : (fe₂b.restrictTo (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow).find?
-      = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).find? := by
-    rw [← hvis]; exact hfind₂b
-  obtain ⟨c4, hrel4⟩ := consBlockRecsTF_spec (μ := μ)
-    (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow q.p.shape shP out outP 0
-    fe₂b env₂ s₃ s₄ fe₃ c3.ok (RC.IFEnvOK.of_find? c3.ok.ienv hview hraw₂b)
-    (Nat.le_of_eq hvis.symm)
-    hcoh₂b hden₂b (dShape_ext x03 _ _ hsh) hout hfresh h7
-  have x4 := c4.ext
+  have hok₂b : CheckOK μ false env₂ fe₂b s₃ :=
+    ⟨c3.ok.state, c3.ok.caches, c3.ok.pins, RC.IFEnvOK.of_find? c3.ok.ienv hfind₂b hraw₂b⟩
+  obtain ⟨i4, hpins4, hrel4, hienv₃, hFS⟩ := checkBlockTailStored_of hk henv₂ henvG hok₂b hcoh₂b
+    hden₂b (dShape_ext x03 _ _ hsh) hout hfresh h7
+  have x4 := i4.ext
   obtain ⟨env₃, hden₃, rfl⟩ := hrel4.denote
-  obtain ⟨l, hfe₃⟩ := consBlockRecsTF_shape _ _ _ _ _ _ _ _ h7
-  have hienv₃ : IFEnvOK (consBlockRecsT env₂.find? shP 0 outP env₂)
-      fe₃ s₄ := by
-    subst hfe₃
-    exact IFEnvOK_pushAll c4.ok.state l fe₂b env₂ _
-      (RC.IFEnvOK.of_find? c4.ok.ienv hfind₂b hraw₂b) hcoh₂b (TablesStored.of_envWF henv₂)
-      (denoteFEnv_mono x4 hden₂b) hden₃
   have x04 : Ext s.store s₄.store := x03.trans x4
   -- the projection tables
   obtain ⟨p5, hrel5⟩ := checkBlockTables_spec q.p.shape shP q.p.shape.members shP.members
-    q.ctorsAs qP.ctorsAs q.sortsss qP.sortsss fe₃ _ s₄ s' fe' c4.ok.state c4.ok.pins hrel4.coh
+    q.ctorsAs qP.ctorsAs q.sortsss qP.sortsss fe₃ _ s₄ s' fe' i4.state hpins4 hrel4.coh
     hienv₃ hden₃ (dShape_ext x04 _ _ hsh) (dMember_ext.list x04 _ _ hms)
     (dCtors_ext.list x04 _ _ hca)
     (DExt.list (d := denoteLLists) (fun hx x y h => BI.denoteLLists_ext hx x y h) x04 _ _ hss)
@@ -603,14 +731,14 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   have r0 := InstRel.trans hcons r12
   have r03 := InstRel.trans r0 hrel4
   have r05 := InstRel.trans r03 hrel5
-  refine ⟨(c1.toInst.trans i2).trans (c3.toInst.trans (c4.toInst.trans p5.toInst)), ?_⟩
+  refine ⟨(c1.toInst.trans i2).trans (c3.toInst.trans (i4.trans p5.toInst)), ?_⟩
   refine r05.imp fun e he' => ?_
   obtain ⟨env₁', cvTasP, pP', ctorsAsP, sortsssP, kindsP, nfsP, paramsP, rdP, clsP, tblP⟩ := qP
-  simp only at he hpP hisF hGRF hE₂ hfresh he' hkd
+  simp only at he hpP hisF hGRF hE₂ hfresh he' hkd hFS
   subst he hpP
   subst hE₂
   unfold ConLeche.checkBlockTail
-  exact FOk.bind hisF (FOk.bind hGRF he')
+  exact FOk.bind hisF (FOk.bind hGRF (FOk.seq hFS he'))
 
 
 /-! ## The pass -/
@@ -796,9 +924,13 @@ theorem checkBlock_bridge_of (hk : CoreSpec .verified Arena.checkFuel) (hCL : Cl
       (by simp only [dParts, dShape_ext x12 _ _ hsh, Option.map_some]) h5
   have x3 := i3.ext
   obtain ⟨e₁, hden₁, rfl⟩ := hrel3.denote
+  have hclasses : qP.params.length = qP.p.nP ∧ ∀ M ∈ qP.cls, ConLeche.ClassOutParams qP.p.nP M := by
+    obtain ⟨FP, hFP'⟩ := hFP
+    rw [checkBlockPass_datF] at hFP'
+    exact checkBlockPass_classes hFP'
   -- the install after it
   obtain ⟨i4, hrel4⟩ := checkBlockTail_of hk hGR henv₁ c3 hrel3.coh hden₁ hq
-    (denoteCIList_mono (x12.trans x3) _ _ hb) hT henv₂ hMs h6
+    (denoteCIList_mono (x12.trans x3) _ _ hb) hT henv₂ hMs hclasses.1 hclasses.2 h6
   have hrel := InstRel.trans hrel3 hrel4
   have hFB : ∀ e, FOk (ConLeche.checkBlockTail (fueledOpsM .verified) b qP) e →
       FOk (ConLeche.checkBlock (fueledOpsM .verified) env b ⟨shP⟩) e := by

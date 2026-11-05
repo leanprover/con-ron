@@ -68,7 +68,7 @@ theorem knot_spec_all {mode : CheckMode} {env : Env} {fe : IFEnv} (henv : ConLec
     (hμ : mode.verifiedChecks = true) :
     ∀ f {eager : Bool}, KnotSpec mode eager env fe f
   | 0, eager => knotSpec_zero mode eager env fe
-  | f + 1, eager =>
+  | f + 1, _ =>
     { whnfCore := fun {c} s₀ d i e hok hden hw =>
         memoWhnfCore_step henv
           (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv hμ f) c) (c := c)
