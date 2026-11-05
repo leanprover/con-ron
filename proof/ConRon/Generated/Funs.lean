@@ -13910,14 +13910,13 @@ def arena.prop_read.type_sort_pw
   arena.prop_read.type_sort_pw_go pers vis st fe fuel t t 0#u64
 
 /-- [con_ron_core::arena::env::ifenv_table_base]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 867:0-887:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 867:0-886:1
     Visibility: public -/
 def arena.env.ifenv_table_base
-  (pers : arena.store.PersTier) (vis : Std.U64) (below : Std.U64)
-  (t : arena.handle.NIdx) :
+  (pers : arena.store.PersTier) (below : Std.U64) (t : arena.handle.NIdx) :
   Result (Option arena.env.IProjTable)
   := do
-  let o ← arena.env.ifenv_find_base pers vis below t
+  let o ← arena.env.ifenv_find_base pers below below t
   let b := core.option.Option.is_some o
   if b
   then
@@ -13941,11 +13940,11 @@ def arena.env.ifenv_table_base
   else ok none
 
 /-- [con_ron_core::arena::env::ifenv_raw_table]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 846:0-862:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 846:0-861:1
     Visibility: public -/
 def arena.env.ifenv_raw_table
-  (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
-  (t : arena.handle.NIdx) :
+  (pers : arena.store.PersTier) (fe : arena.env.IFEnv) (t : arena.handle.NIdx)
+  :
   Result (Option arena.env.IProjTable)
   := do
   let o ←
@@ -13953,7 +13952,7 @@ def arena.env.ifenv_raw_table
       arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
       arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 fe.tbls t
   match o with
-  | none => arena.env.ifenv_table_base pers vis fe.base_below t
+  | none => arena.env.ifenv_table_base pers fe.base_below t
   | some s =>
     let i ← lift (UScalar.cast .Usize s)
     let i1 := alloc.vec.Vec.len fe.env.tables
@@ -13967,7 +13966,7 @@ def arena.env.ifenv_raw_table
     else ok none
 
 /-- [con_ron_core::arena::env::ifenv_find_table]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 893:0-904:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 892:0-903:1
     Visibility: public -/
 def arena.env.ifenv_find_table
   (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
@@ -13977,7 +13976,7 @@ def arena.env.ifenv_find_table
   let o ← arena.env.ifenv_find pers vis fe t
   let b := core.option.Option.is_some o
   if b
-  then arena.env.ifenv_raw_table pers vis fe t
+  then arena.env.ifenv_raw_table pers fe t
   else ok none
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::of_word]:
@@ -14043,7 +14042,7 @@ def arena.env.i_proj_table_entry
     }
 
 /-- [con_ron_core::arena::env::ifenv_find_proj]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 997:0-1008:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 996:0-1007:1
     Visibility: public -/
 def arena.env.ifenv_find_proj
   (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
@@ -36319,14 +36318,14 @@ def ron.hashmap2.HashMap2.remove
     else ok (none, self)
 
 /-- [con_ron_core::arena::env::{impl core::clone::Clone for con_ron_core::arena::env::IConstantInfo}::clone]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 936:4-938:5
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 935:4-937:5
     Visibility: public -/
 def arena.env.IConstantInfo.Insts.CoreCloneClone.clone
   (self : arena.env.IConstantInfo) : Result arena.env.IConstantInfo := do
   arena.env.i_constant_info_dup self
 
 /-- Trait implementation: [con_ron_core::arena::env::{impl core::clone::Clone for con_ron_core::arena::env::IConstantInfo}]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 934:0-939:1 -/
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 933:0-938:1 -/
 @[reducible]
 def arena.env.IConstantInfo.Insts.CoreCloneClone : core.clone.Clone
   arena.env.IConstantInfo := {
@@ -36340,7 +36339,7 @@ def arena.handle.NIdx.of_word (w : Std.U32) : Result arena.handle.NIdx := do
   ok { word := w }
 
 /-- [con_ron_core::arena::env::i_constant_info_dummy]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 922:0-928:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 921:0-927:1
     Visibility: public -/
 def arena.env.i_constant_info_dummy : Result arena.env.IConstantInfo := do
   let n ← arena.handle.NIdx.of_word 0#u32
@@ -36353,7 +36352,7 @@ def arena.env.i_constant_info_dummy : Result arena.env.IConstantInfo := do
     })
 
 /-- [con_ron_core::arena::env::ifenv_pop_temp]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 971:0-992:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 970:0-991:1
     Visibility: public -/
 def arena.env.ifenv_pop_temp
   (fe : arena.env.IFEnv) (n : arena.handle.NIdx)
@@ -36419,7 +36418,7 @@ def arena.inductives.gen_rec.class_fe_r_pop
 partial_fixpoint
 
 /-- [con_ron_core::arena::env::ifenv_push_temp]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 958:0-965:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 957:0-964:1
     Visibility: public -/
 def arena.env.ifenv_push_temp
   (fe : arena.env.IFEnv) (ci : arena.env.IConstantInfo) :
@@ -38062,7 +38061,7 @@ def arena.inductives.block_parts.rec_names
 partial_fixpoint
 
 /-- [con_ron_core::arena::env::i_constant_info_dummy_val]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 910:0-916:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 909:0-915:1
     Visibility: public -/
 def arena.env.i_constant_info_dummy_val : Result arena.env.IConstantVal := do
   let n ← arena.handle.NIdx.of_word 0#u32
@@ -54139,7 +54138,7 @@ def arena.inductives.block_parts.block_parts
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::env::pi_sort_tele_len::M]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1175:8-1178:10 -/
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1174:8-1177:10 -/
 @[global_simps, irreducible]
 def arena.env.pi_sort_tele_len.M : Array Std.U32 34#usize :=
   Array.make 34#usize [
@@ -54151,7 +54150,7 @@ def arena.env.pi_sort_tele_len.M : Array Std.U32 34#usize :=
     ]
 
 /-- [con_ron_core::arena::env::view_e::M]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1040:12-1043:14 -/
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1039:12-1042:14 -/
 @[global_simps, irreducible]
 def arena.env.view_e.M : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -54162,7 +54161,7 @@ def arena.env.view_e.M : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::env::view_e]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1036:0-1047:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1035:0-1046:1
     Visibility: public -/
 def arena.env.view_e
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -54180,7 +54179,7 @@ def arena.env.view_e
   | some v => ok (core.result.Result.Ok v)
 
 /-- [con_ron_core::arena::env::pi_sort_tele_len]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1168:0-1191:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1167:0-1190:1
     Visibility: public -/
 def arena.env.pi_sort_tele_len
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -62191,7 +62190,7 @@ def arena.checker.install_step_go
     arena.checker.install_step_other pers st mode pins fe pd
 
 /-- [con_ron_core::arena::promote::index_promoted_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1092:0-1101:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1102:0-1111:1
     Visibility: public -/
 def arena.promote.index_promoted_tables
   (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
@@ -63635,7 +63634,7 @@ def arena.promote.promote_proj_table
   | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::promote_installed_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1065:0-1086:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1073:0-1096:1
     Visibility: public -/
 def arena.promote.promote_installed_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63655,6 +63654,13 @@ def arena.promote.promote_installed_tables
     match r with
     | core.result.Result.Ok p =>
       let (m2, t) := p
+      let it1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          arena.env.IProjTable) fe.env.tables i
+      let b ←
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 t.struct_name
+          it1.struct_name
+      massert b
       let (_, index_mut_back) ←
         alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
           arena.env.IProjTable) fe.env.tables i
@@ -63665,7 +63671,7 @@ def arena.promote.promote_installed_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::erase_installed_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1050:0-1059:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1058:0-1067:1
     Visibility: public -/
 def arena.promote.erase_installed_tables
   (fe : arena.env.IFEnv) (i : Std.Usize) : Result arena.env.IFEnv := do
@@ -63687,7 +63693,7 @@ def arena.promote.erase_installed_tables
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_new_tables]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1108:0-1132:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1118:0-1142:1
     Visibility: public -/
 def arena.promote.promote_new_tables
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63941,7 +63947,7 @@ def arena.promote.promote_ci
     | core.result.Result.Err e => ok (core.result.Result.Err e, tier1)
 
 /-- [con_ron_core::arena::promote::index_promoted]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 980:0-1007:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 980:0-1015:1
     Visibility: public -/
 def arena.promote.index_promoted
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -63957,11 +63963,18 @@ def arena.promote.index_promoted
     let ii ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         arena.env.IConstantInfo) fe.env.consts i
-    let (r, tier1) ← arena.promote.promote_ci tier st m fuel ii
+    let «name» ← arena.env.i_constant_info_name ii
+    let ii1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IConstantInfo) fe.env.consts i
+    let (r, tier1) ← arena.promote.promote_ci tier st m fuel ii1
     match r with
     | core.result.Result.Ok p =>
       let (m2, ci) := p
       let n ← arena.env.i_constant_info_name ci
+      let b ←
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n «name»
+      massert b
       let i1 ← c - 1#u64
       let i2 ← lift (UScalar.cast .U64 i)
       let (_, hm) ←
@@ -63999,7 +64012,7 @@ def arena.promote.erase_installed
 partial_fixpoint
 
 /-- [con_ron_core::arena::promote::promote_new_consts]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1021:0-1043:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1029:0-1051:1
     Visibility: public -/
 def arena.promote.promote_new_consts
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -64021,7 +64034,7 @@ def arena.promote.promote_new_consts
       arena.promote.index_promoted tier st m fuel fe2 start n fe.visible_below
 
 /-- [con_ron_core::arena::promote::promote_new]:
-    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1139:0-1152:1
+    Source: 'crates/con-ron-core/src/arena/promote.rs', lines 1149:0-1162:1
     Visibility: public -/
 def arena.promote.promote_new
   (tier : arena.store.PersTier) (st : arena.monad.AState)
@@ -67672,7 +67685,7 @@ def arena.env.i_declaration_names
   | arena.env.IDeclaration.QuotDecl _ cv => arena.env.i_declaration_one_name cv
 
 /-- [con_ron_core::arena::env::dangling_name::M]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1062:4-1065:6 -/
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1061:4-1064:6 -/
 @[global_simps, irreducible]
 def arena.env.dangling_name.M : Array Std.U32 27#usize :=
   Array.make 27#usize [
@@ -67683,7 +67696,7 @@ def arena.env.dangling_name.M : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::arena::env::dangling_name]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1061:0-1067:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1060:0-1066:1
     Visibility: public -/
 def arena.env.dangling_name : Result kernel.core_types.CheckError := do
   let s ← lift (Array.to_slice arena.env.dangling_name.M)
@@ -67691,7 +67704,7 @@ def arena.env.dangling_name : Result kernel.core_types.CheckError := do
   kernel.core_types.internal v
 
 /-- [con_ron_core::arena::env::view_n]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1051:0-1056:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1050:0-1055:1
     Visibility: public -/
 def arena.env.view_n
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -67707,7 +67720,7 @@ def arena.env.view_n
   | some v => ok (core.result.Result.Ok v)
 
 /-- [con_ron_core::arena::env::read_name_at]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1083:0-1099:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1082:0-1098:1
     Visibility: public -/
 def arena.env.read_name_at
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67747,7 +67760,7 @@ def arena.env.read_name_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::env::read_name]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1075:0-1077:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1074:0-1076:1
     Visibility: public -/
 def arena.env.read_name
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -67761,7 +67774,7 @@ def arena.env.read_name
   arena.env.read_name_at pers ar i2 h
 
 /-- [con_ron_core::arena::env::dangling_level::M]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1152:4-1155:6 -/
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1151:4-1154:6 -/
 @[global_simps, irreducible]
 def arena.env.dangling_level.M : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -67772,7 +67785,7 @@ def arena.env.dangling_level.M : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::arena::env::dangling_level]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1151:0-1157:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1150:0-1156:1
     Visibility: public -/
 def arena.env.dangling_level : Result kernel.core_types.CheckError := do
   let s ← lift (Array.to_slice arena.env.dangling_level.M)
@@ -67780,7 +67793,7 @@ def arena.env.dangling_level : Result kernel.core_types.CheckError := do
   kernel.core_types.internal v
 
 /-- [con_ron_core::arena::env::read_level_at]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1112:0-1147:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1111:0-1146:1
     Visibility: public -/
 def arena.env.read_level_at
   (pers : arena.store.PersTier) (ar : arena.store.EStore) (fuel : Std.U64)
@@ -67844,7 +67857,7 @@ def arena.env.read_level_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::env::read_level]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1106:0-1108:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 1105:0-1107:1
     Visibility: public -/
 def arena.env.read_level
   (pers : arena.store.PersTier) (ar : arena.store.EStore)

@@ -64,7 +64,7 @@ use crate::arena::monad::{
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
-use crate::ron::hashmap::{Dup};
+use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
@@ -990,9 +990,17 @@ pub fn index_promoted(
     if j <= start {
         Ok((m, fe))
     } else {
+        let name: NIdx = env::i_constant_info_name(&fe.env.consts[j - 1]);
         match promote_ci(tier, st, m, fuel, &fe.env.consts[j - 1]) {
             Err(e) => Err(e),
             Ok((m2, ci)) => {
+                // An installed name is the stream's or a pin's, a persistent
+                // handle, which promotes to itself.  What this assertion buys is
+                // a fact about the index: no row an earlier record installed is
+                // overwritten here, which a block job's view of the frozen base
+                // rests on.  The twin has no such test (Rust-only, it can only
+                // turn an accept into a panic).
+                assert!(env::i_constant_info_name(&ci).eq2(&name));
                 let mut fe2: IFEnv = fe;
                 // The index row is the SLOT (task #97-P6-5's lever 1), so the
                 // re-index is the slot the promoted record is written into and
@@ -1077,6 +1085,8 @@ pub fn promote_installed_tables(
         match promote_proj_table(tier, st, m, fuel, &fe.env.tables[j - 1]) {
             Err(e) => Err(e),
             Ok((m2, t)) => {
+                // As `index_promoted`: a table's structure name does not move.
+                assert!(t.struct_name.eq2(&fe.env.tables[j - 1].struct_name));
                 let mut fe2: IFEnv = fe;
                 fe2.env.tables[j - 1] = t;
                 promote_installed_tables(tier, st, m2, fuel, fe2, start, j - 1)

@@ -845,7 +845,6 @@ pub fn ifenv_push_table(fe: IFEnv, t: IProjTable) -> IFEnv {
 /// (`ifenv_table_base`).
 pub fn ifenv_raw_table<'a>(
     pers: &'a PersTier,
-    vis: u64,
     fe: &'a IFEnv,
     t: &NIdx,
 ) -> Option<&'a IProjTable> {
@@ -857,20 +856,20 @@ pub fn ifenv_raw_table<'a>(
                 None
             }
         }
-        None => ifenv_table_base(pers, vis, fe.base_below, t),
+        None => ifenv_table_base(pers, fe.base_below, t),
     }
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:88-94 FBase.findTable?
 /// Lean twin: none — as `ifenv_find_base`.  **The base layer's table lookup**:
-/// `t`'s table, visible where the base shows the constant `t`.
+/// `t`'s table, visible where the base shows the constant `t` to this layer.  The
+/// reader's own bound is `ifenv_find_table`'s gate, not this one's.
 pub fn ifenv_table_base<'a>(
     pers: &'a PersTier,
-    vis: u64,
     below: u64,
     t: &NIdx,
 ) -> Option<&'a IProjTable> {
-    if ifenv_find_base(pers, vis, below, t).is_some() {
+    if ifenv_find_base(pers, below, below, t).is_some() {
         match pers.env.tbls.get(t) {
             Some(s) => {
                 if (*s as usize) < pers.env.env.tables.len() {
@@ -897,7 +896,7 @@ pub fn ifenv_find_table<'a>(
     t: &NIdx,
 ) -> Option<&'a IProjTable> {
     if ifenv_find(pers, vis, fe, t).is_some() {
-        ifenv_raw_table(pers, vis, fe, t)
+        ifenv_raw_table(pers, fe, t)
     } else {
         None
     }
