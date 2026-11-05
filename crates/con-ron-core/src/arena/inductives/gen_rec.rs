@@ -1677,8 +1677,39 @@ pub fn class_const_ok_type(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:380-387 classRecTyCheck
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:1-1 classRecTyCheck` — **the
+/// check of a generated recursor type**: checked as a constant and defeq to the
+/// stream's checked type `cv_ri`.
+pub fn class_rec_ty_check(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    cv_ri: &IConstantVal,
+    cv_g: &IConstantVal,
+) -> Result<(), CheckError> {
+    match class_const_ok(pers, st, mode, fe, cv_g) {
+        Err(e) => Err(e),
+        Ok(()) => match core::is_def_eq_core(
+            pers,
+            fe.visible_below,
+            st,
+            mode,
+            fe,
+            core::CHECK_FUEL,
+            0,
+            &cv_ri.ty,
+            &cv_g.ty,
+        ) {
+            Err(e) => Err(e),
+            Ok(false) => fail(core_types::invalid(code_points(&M_REC_DEFEQ))),
+            Ok(true) => Ok(()),
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:389-405 classRecTyOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_rec_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:530-550 classRecTyOk` — **one
 /// recursor's generated type, checked and compared**: the record's member,
 /// rule prefix and major index are the generated ones; the generated type is
@@ -1717,23 +1748,9 @@ pub fn class_rec_ty_ok(
                             level_params: env::nidx_vec_dup(&rc.cv_r.level_params),
                             ty: gty,
                         };
-                        match class_const_ok(pers, st, mode, fe, &cv) {
+                        match class_rec_ty_check(pers, st, mode, fe, cv_ri, &cv) {
                             Err(e) => Err(e),
-                            Ok(()) => match core::is_def_eq_core(
-                                pers,
-                                fe.visible_below,
-                                st,
-                                mode,
-                                fe,
-                                core::CHECK_FUEL,
-                                0,
-                                &cv_ri.ty,
-                                &cv.ty,
-                            ) {
-                                Err(e) => Err(e),
-                                Ok(false) => fail(core_types::invalid(code_points(&M_REC_DEFEQ))),
-                                Ok(true) => Ok(cv),
-                            },
+                            Ok(()) => Ok(cv),
                         }
                     }
                 }
@@ -1743,7 +1760,6 @@ pub fn class_rec_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:407-416 classRecTysOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_rec_tys_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:552-562 classRecTysOk` — every
 /// recursor's generated type, pairwise with the stream's checked types and
 /// the recursors' classes; the lists running out unevenly is internal.
@@ -1777,8 +1793,7 @@ pub fn class_rec_tys_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:439-444 classRuleOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::domains_resolve_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:418-437 classRuleCheck
 /// Lean twin: `rbs.all (fun b => w.resolve feT b.1)` — the rule's λ-domains
 /// resolve at the constructors' environment (visibility bound `vis_t`).
 pub fn domains_resolve(
@@ -1801,15 +1816,83 @@ pub fn domains_resolve(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:439-444 classRuleOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_rule_ok_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:418-437 classRuleCheck
 /// con-leche: ConLeche/Cached/CheckerC.lean:90-116 sharedOpsRuleR
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:564-592 classRuleOk` — **one
-/// generated rule, installed as generated**: closed, its level parameters the
-/// recursor's, resolving and typed at the rule-less recursors' environment
-/// (bound `vis_r`; `sharedOpsRuleR`'s flush leaving the inference), its
-/// λ-telescope `n` long, its λ-domains resolving at the constructors'
-/// environment (bound `vis_t`).
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:1-1 classRuleCheck` — **the
+/// check of a generated rule**: closed, its level parameters the recursor's,
+/// resolving and typed at the rule-less recursors' environment (bound `vis_r`;
+/// `sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n` long,
+/// its λ-domains resolving at the constructors' environment (bound `vis_t`).
+#[allow(clippy::too_many_arguments)]
+pub fn class_rule_check(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    vis_t: u64,
+    vis_r: u64,
+    fe: &IFEnv,
+    cv_r: &IConstantVal,
+    n: u64,
+    gen: &EIdx,
+) -> Result<(), CheckError> {
+    match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, gen) {
+        Err(e) => Err(e),
+        Ok(false) => fail(core_types::internal(code_points(&M_RULE_OPEN))),
+        Ok(true) => match expr_ops::has_fvar_fast(pers, st, CORE_WALK_FUEL, gen) {
+            Err(e) => Err(e),
+            Ok(true) => fail(core_types::internal(code_points(&M_RULE_OPEN))),
+            Ok(false) => match checker_base::all_level_params_defined(pers, st, &cv_r.level_params, gen) {
+                Err(e) => Err(e),
+                Ok(false) => fail(core_types::internal(code_points(&M_RULE_ULP))),
+                Ok(true) => match checker_base::consts_resolve_f_fast(pers, vis_r, st, fe, gen) {
+                    Err(e) => Err(e),
+                    Ok(false) => match checker_base::unresolved_consts_error(pers, st, gen) {
+                        Err(e) => Err(e),
+                        Ok(er) => fail(er),
+                    },
+                    Ok(true) => match core::infer_type_core(pers, vis_r, st, mode, fe, core::CHECK_FUEL, 0, gen) {
+                        Err(e) => Err(e),
+                        Ok(_) => {
+                            // `sharedOpsRuleR`'s `inferType`: the flush leaving the
+                            // rule-less recursors' environment
+                            core::flush_caches(st);
+                            class_rule_check_tail(pers, st, vis_t, fe, n, gen)
+                        }
+                    },
+                },
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:418-437 classRuleCheck
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:1-1 classRuleCheck` — the
+/// λ-telescope and its domains' resolution.
+pub fn class_rule_check_tail(
+    pers: &PersTier,
+    st: &mut AState,
+    vis_t: u64,
+    fe: &IFEnv,
+    n: u64,
+    gen: &EIdx,
+) -> Result<(), CheckError> {
+    match expr_ops::strip_lams(pers, st, n, gen) {
+        Err(e) => Err(e),
+        Ok(None) => fail(core_types::internal(code_points(&M_RULE_TELE))),
+        Ok(Some((rbs, _))) => match domains_resolve(pers, vis_t, st, fe, &rbs, 0) {
+            Err(e) => Err(e),
+            Ok(false) => match checker_base::unresolved_consts_error(pers, st, gen) {
+                Err(e) => Err(e),
+                Ok(er) => fail(er),
+            },
+            Ok(true) => Ok(()),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:439-444 classRuleOk
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:1-1 classRuleOk` — **one
+/// generated rule, installed as generated**, after its check.
 #[allow(clippy::too_many_arguments)]
 pub fn class_rule_ok(
     pers: &PersTier,
@@ -1822,66 +1905,13 @@ pub fn class_rule_ok(
     n: u64,
     gen: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &gen) {
+    match class_rule_check(pers, st, mode, vis_t, vis_r, fe, cv_r, n, &gen) {
         Err(e) => Err(e),
-        Ok(false) => fail(core_types::internal(code_points(&M_RULE_OPEN))),
-        Ok(true) => match expr_ops::has_fvar_fast(pers, st, CORE_WALK_FUEL, &gen) {
-            Err(e) => Err(e),
-            Ok(true) => fail(core_types::internal(code_points(&M_RULE_OPEN))),
-            Ok(false) => match checker_base::all_level_params_defined(pers, st, &cv_r.level_params, &gen) {
-                Err(e) => Err(e),
-                Ok(false) => fail(core_types::internal(code_points(&M_RULE_ULP))),
-                Ok(true) => match checker_base::consts_resolve_f_fast(pers, vis_r, st, fe, &gen) {
-                    Err(e) => Err(e),
-                    Ok(false) => match checker_base::unresolved_consts_error(pers, st, &gen) {
-                        Err(e) => Err(e),
-                        Ok(er) => fail(er),
-                    },
-                    Ok(true) => match core::infer_type_core(pers, vis_r, st, mode, fe, core::CHECK_FUEL, 0, &gen) {
-                        Err(e) => Err(e),
-                        Ok(_) => {
-                            // `sharedOpsRuleR`'s `inferType`: the flush leaving the
-                            // rule-less recursors' environment
-                            core::flush_caches(st);
-                            class_rule_ok_tail(pers, st, vis_t, fe, cv_r, n, gen)
-                        }
-                    },
-                },
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:439-444 classRuleOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_rule_ok_tail_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:564-592 classRuleOk` — the
-/// λ-telescope and its domains' resolution.
-#[allow(clippy::too_many_arguments)]
-pub fn class_rule_ok_tail(
-    pers: &PersTier,
-    st: &mut AState,
-    vis_t: u64,
-    fe: &IFEnv,
-    _cv_r: &IConstantVal,
-    n: u64,
-    gen: EIdx,
-) -> Result<EIdx, CheckError> {
-    match expr_ops::strip_lams(pers, st, n, &gen) {
-        Err(e) => Err(e),
-        Ok(None) => fail(core_types::internal(code_points(&M_RULE_TELE))),
-        Ok(Some((rbs, _))) => match domains_resolve(pers, vis_t, st, fe, &rbs, 0) {
-            Err(e) => Err(e),
-            Ok(false) => match checker_base::unresolved_consts_error(pers, st, &gen) {
-                Err(e) => Err(e),
-                Ok(er) => fail(er),
-            },
-            Ok(true) => Ok(gen),
-        },
+        Ok(()) => Ok(gen),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:446-457 classRulesOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_rules_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:594-608 classRulesOk` — a
 /// recursor's generated rules, one per constructor of its class, from `i` on.
 #[allow(clippy::too_many_arguments)]
@@ -1926,7 +1956,6 @@ pub fn class_rules_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:459-468 classRecsRulesOk
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_recs_rules_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:610-623 classRecsRulesOk` — every
 /// recursor's generated rules, with its class, from `i` on (the shorter of
 /// the two lists decides, as the cited zip does).
@@ -1980,7 +2009,6 @@ pub fn class_ctors_dup(xs: &Vec<ClassCtor>, i: usize, out: Vec<ClassCtor>) -> Ve
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:470-478 classStreamRecs
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove gen_rec::class_stream_recs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:625-632 classStreamRecs` — the
 /// stream's recursor constants, checked (`checkConstantValF`), from `i` on.
 pub fn class_stream_recs(

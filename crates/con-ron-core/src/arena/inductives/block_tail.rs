@@ -18,6 +18,11 @@
 //!   pushes above it (`blockRecInfosTF`'s fixed `find?`/`resolves`).
 //! * **`checkBlockTablesF`'s walkers are the arena's** (`struct_install`'s
 //!   `check_struct_proj_table`, the one table install).
+//! * **The generated install is pushed in place and popped**
+//!   (`cons_block_recs_temp`, `gen_rec::class_fe_r_pop`), where con-leche's
+//!   cached driver reads an overlay on the constructors' index
+//!   (`FEnv.overlay`): the same read-only environment, a flush entering and
+//!   leaving it, and no copy of the index.
 
 use super::block_install;
 use super::block_parts;
@@ -27,10 +32,12 @@ use super::gen_rec;
 use super::positivity::{nest_seeds, NestCtorNf, NestFieldKind};
 use super::rec_check;
 use super::rec_check::TargetMajor;
+use super::stored_recs;
 use super::struct_install;
 use super::struct_parts;
 use crate::arena::checker_base;
 use crate::arena::core;
+use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv};
 use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::{fail, AState};
@@ -38,6 +45,7 @@ use crate::arena::store::PersTier;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
+use crate::ron::hashmap::Dup;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `direct rec: duplicate constructor`, as code points.
@@ -70,7 +78,6 @@ pub struct BlockPass {
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
 /// con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_tail::check_block_pass_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:58-79 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
@@ -99,7 +106,6 @@ pub fn check_block_pass(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
 /// con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_tail::check_block_pass_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:58-79 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 #[allow(clippy::too_many_arguments)]
@@ -216,14 +222,84 @@ pub fn check_block_tables(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
 /// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:1-1 consBlockRecsTemp` — **the
+/// generated install, pushed TEMPORARILY**: each generated recursor from `m` on
+/// with its rules at its major (the lookups at the constructors' bound `vis2`).
+/// Returns the rows the pushes displaced, for `gen_rec::class_fe_r_pop`.
+#[allow(clippy::too_many_arguments)]
+pub fn cons_block_recs_temp(
+    pers: &PersTier,
+    vis2: u64,
+    st: &mut AState,
+    p: &BlockShape,
+    m: u64,
+    out: &Vec<(IConstantVal, TargetMajor, Vec<EIdx>)>,
+    fe: IFEnv,
+    prevs: Vec<(NIdx, Option<(u64, u64)>)>,
+) -> Result<(IFEnv, Vec<(NIdx, Option<(u64, u64)>)>), CheckError> {
+    if m >= out.len() as u64 {
+        Ok((fe, prevs))
+    } else {
+        let cv: IConstantVal = env::i_constant_val_dup(&out[m as usize].0);
+        let n: NIdx = cv.name.dup2();
+        let m_i: u64 = block_parts::major_idx_at(p, m);
+        let r_p: u64 = block_parts::rule_prefix_at(p, m);
+        match rec_check::tgt_stored_rules(pers, vis2, st, &fe, &cv, r_p, &out[m as usize].1, &out[m as usize].2) {
+            Err(e) => Err(e),
+            Ok(rules) => {
+                let mut fe2: IFEnv = fe;
+                let prev: Option<(u64, u64)> = env::ifenv_push_temp(&mut fe2, IConstantInfo::RecInfo(cv, m_i, r_p, rules));
+                let mut ps: Vec<(NIdx, Option<(u64, u64)>)> = prevs;
+                ps.push((n, prev));
+                cons_block_recs_temp(pers, vis2, st, p, m + 1, out, fe2, ps)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
+/// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:1-1 checkBlockTailStored` —
+/// **the stored recursors against the generated ones, and their install**: the
+/// generated install pushed, a flush entering it, the comparison, the pushes
+/// undone, a flush leaving it, and the stored recursors consed at their majors.
+#[allow(clippy::too_many_arguments)]
+pub fn check_block_tail_stored(
+    pers: &PersTier,
+    vis2: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    p: &BlockShape,
+    out: &Vec<(IConstantVal, TargetMajor, Vec<EIdx>)>,
+    fe: IFEnv,
+) -> Result<IFEnv, CheckError> {
+    match cons_block_recs_temp(pers, vis2, st, p, 0, out, fe, Vec::new()) {
+        Err(e) => Err(e),
+        Ok((fe_g, prevs)) => {
+            core::flush_caches(st);
+            match stored_recs::stored_recs_check(pers, st, mode, &fe_g, &p.recs, out, 0) {
+                Err(e) => Err(e),
+                Ok(()) => {
+                    let fe2: IFEnv = gen_rec::class_fe_r_pop(fe_g, &prevs, prevs.len());
+                    core::flush_caches(st);
+                    let stored: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)> =
+                        stored_recs::stored_out(&p.recs, out, 0, Vec::new());
+                    rec_check::cons_block_recs_t(pers, vis2, st, p, 0, &stored, fe2)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
+/// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:111-126 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the
-/// recursors consed at their majors, and the projection tables.
+/// stored recursors against the generated ones and consed at their majors, and
+/// the projection tables.
 pub fn check_block_tail(
     pers: &PersTier,
     st: &mut AState,
@@ -240,7 +316,7 @@ pub fn check_block_tail(
             let nested: bool = rec_check::block_nested_bit(&q.p.shape, &q.kinds);
             match check_block_rec(pers, st, mode, fe2, &q.p, nested, &q.params, &q.tbl, &q.rd, &q.cls, block, &q.cv_tas) {
                 Err(e) => Err(e),
-                Ok((fe2b, out)) => match rec_check::cons_block_recs_t(pers, vis2, st, &q.p.shape, 0, &out, fe2b) {
+                Ok((fe2b, out)) => match check_block_tail_stored(pers, vis2, st, mode, &q.p.shape, &out, fe2b) {
                     Err(e) => Err(e),
                     Ok(fe3) => check_block_tables(pers, st, &q.p.shape, &q.ctors_as, &q.sortsss, 0, fe3),
                 },

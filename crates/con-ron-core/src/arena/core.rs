@@ -2322,6 +2322,34 @@ pub fn nat_op_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:450-465 natDivModNames
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:497-511 reservedRecName
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 reservedRecBool` — the last three
+/// disjuncts: `n == boolName || n == boolTrueName || n == boolFalseName`.
+pub fn reserved_rec_bool(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    match pin_bool(st) {
+        Err(e) => Err(e),
+        Ok(b) => {
+            if n.eq2(&b) {
+                Ok(true)
+            } else {
+                match pin_bool_true(st) {
+                    Err(e) => Err(e),
+                    Ok(t) => {
+                        if n.eq2(&t) {
+                            Ok(true)
+                        } else {
+                            match pin_bool_false(st) {
+                                Err(e) => Err(e),
+                                Ok(f) => Ok(n.eq2(&f)),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:620-630 natOpWfNames
 /// Lean twin: `proof/ConRon/Arena/Core.lean:889-895 natDivModNames`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1091-1097 natOpWfNames`
@@ -2417,11 +2445,12 @@ pub fn lit_guard_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:497-511 reservedRecName
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::reserved_rec_name_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1481-1496 reservedRecName` — **a name no
 /// block RECURSOR may take**: one the pinned basis blocks reserve, one a
-/// literal guard looks up, or one of the certified `Nat` operations.  The
-/// cited `||` chain, each list read off the pin table (handle equality).
+/// literal guard looks up, one of the certified `Nat` operations, or `Bool` and
+/// its two constructors, whose stored entries the certified operations' guards
+/// read.  The cited `||` chain, each list read off the pin table (handle
+/// equality).
 pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> {
     match reserved_basis_names(st) {
         Err(e) => Err(e),
@@ -2443,7 +2472,13 @@ pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> 
                                     } else {
                                         match nat_div_mod_names(st) {
                                             Err(e) => Err(e),
-                                            Ok(ds) => Ok(env::nidx_vec_contains(&ds, n)),
+                                            Ok(ds) => {
+                                                if env::nidx_vec_contains(&ds, n) {
+                                                    Ok(true)
+                                                } else {
+                                                    reserved_rec_bool(st, n)
+                                                }
+                                            }
                                         }
                                     }
                                 }

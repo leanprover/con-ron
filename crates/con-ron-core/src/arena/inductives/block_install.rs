@@ -314,9 +314,7 @@ pub fn block_raw_rec(pers: &PersTier, st: &AState, p: &BlockParts) -> Result<boo
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:111-122 checkBlockTele
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:122-135 checkBlockTele` —
 /// one member's type former: the constant check, official's telescope loop
 /// and the result sort, without the environment cons.
@@ -512,9 +510,7 @@ pub fn tele_vals(cvs: &Vec<(IConstantVal, LIdx)>, i: usize, out: Vec<IConstantVa
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:179-192 checkBlockInds
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_inds_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_inds_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:196-213 checkBlockInds` —
 /// **stage 1**: the k type formers, checked, agreed and consed — official's
 /// `declare_inductive_types`, which puts every former in the environment
@@ -589,7 +585,6 @@ pub fn shape_nest_ctx(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:204-216 checkBlockCtors
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_ctors_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:228-241 checkBlockCtors` —
 /// the constructors of every member from `i` on (the member's former

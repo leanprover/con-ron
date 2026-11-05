@@ -44,6 +44,7 @@ pub mod block_rec;
 pub mod rec_check;
 pub mod class_read;
 pub mod gen_rec;
+pub mod stored_recs;
 pub mod block_install;
 pub mod block_parts;
 pub mod block_tail;

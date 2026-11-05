@@ -989,7 +989,7 @@ structure arena.env.IProjEntry where
   struct_sort : arena.handle.LIdx
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9155:0-9162:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9190:0-9197:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -997,7 +997,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8916:0-8929:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8951:0-8964:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1007,7 +1007,7 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6512:0-6515:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6547:0-6550:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where
@@ -1015,7 +1015,7 @@ inductive arena.core.WhnfStep where
 | Cont : arena.handle.EIdx → arena.core.WhnfStep
 
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2473:0-2489:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2508:0-2524:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1065,6 +1065,47 @@ structure arena.nat_op_pin_set.INatOpPinSet where
   shift_right_type_pins : alloc.vec.Vec (arena.handle.NIdx ×
     arena.handle.EIdx)
 
+/-- [con_ron_core::arena::inductives::block_parts::RecShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 89:0-95:1
+    Visibility: public -/
+structure arena.inductives.block_parts.RecShape where
+  cv_r : arena.env.IConstantVal
+  r_p : Std.U64
+  m_i : Std.U64
+  tgt : Std.U64
+  rules : alloc.vec.Vec arena.env.IRecRule
+
+/-- [con_ron_core::arena::inductives::positivity::NestFieldKind]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 886:0-892:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arena.inductives.positivity.NestFieldKind where
+| Ordinary : arena.inductives.positivity.NestFieldKind
+| Recursive : Std.U64 → arena.inductives.positivity.NestFieldKind
+| Reflexive : Std.U64 → arena.inductives.positivity.NestFieldKind
+| InProgress : arena.inductives.positivity.NestFieldKind
+| Nested : Bool → arena.inductives.positivity.NestFieldKind
+
+/-- [con_ron_core::arena::inductives::block_parts::MemberShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 49:0-53:1
+    Visibility: public -/
+structure arena.inductives.block_parts.MemberShape where
+  cv_t : arena.env.IConstantVal
+  n_idx : Std.U64
+  ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
+
+/-- [con_ron_core::arena::inductives::block_parts::BlockShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 114:0-122:1
+    Visibility: public -/
+structure arena.inductives.block_parts.BlockShape where
+  members : alloc.vec.Vec arena.inductives.block_parts.MemberShape
+  recs : alloc.vec.Vec arena.inductives.block_parts.RecShape
+  n_p : Std.U64
+  elim : arena.handle.NIdx
+  res_sort : arena.handle.LIdx
+  large : Bool
+  is_prop : Bool
+
 /-- [con_ron_core::arena::inductives::positivity::NestCtorNf]
     Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 973:0-978:1
     Visibility: public -/
@@ -1087,47 +1128,6 @@ structure arena.inductives.rec_check.TargetMajor where
   member : Option Std.U64
   nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
   pfvs : alloc.vec.Vec arena.handle.EIdx
-
-/-- [con_ron_core::arena::inductives::block_parts::RecShape]
-    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 88:0-94:1
-    Visibility: public -/
-structure arena.inductives.block_parts.RecShape where
-  cv_r : arena.env.IConstantVal
-  r_p : Std.U64
-  m_i : Std.U64
-  tgt : Std.U64
-  rhss : alloc.vec.Vec arena.handle.EIdx
-
-/-- [con_ron_core::arena::inductives::block_parts::MemberShape]
-    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 49:0-53:1
-    Visibility: public -/
-structure arena.inductives.block_parts.MemberShape where
-  cv_t : arena.env.IConstantVal
-  n_idx : Std.U64
-  ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
-
-/-- [con_ron_core::arena::inductives::block_parts::BlockShape]
-    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 114:0-122:1
-    Visibility: public -/
-structure arena.inductives.block_parts.BlockShape where
-  members : alloc.vec.Vec arena.inductives.block_parts.MemberShape
-  recs : alloc.vec.Vec arena.inductives.block_parts.RecShape
-  n_p : Std.U64
-  elim : arena.handle.NIdx
-  res_sort : arena.handle.LIdx
-  large : Bool
-  is_prop : Bool
-
-/-- [con_ron_core::arena::inductives::positivity::NestFieldKind]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 886:0-892:1
-    Visibility: public -/
-@[discriminant isize]
-inductive arena.inductives.positivity.NestFieldKind where
-| Ordinary : arena.inductives.positivity.NestFieldKind
-| Recursive : Std.U64 → arena.inductives.positivity.NestFieldKind
-| Reflexive : Std.U64 → arena.inductives.positivity.NestFieldKind
-| InProgress : arena.inductives.positivity.NestFieldKind
-| Nested : Bool → arena.inductives.positivity.NestFieldKind
 
 /-- [con_ron_core::arena::inductives::class_read::ClassKey]
     Source: 'crates/con-ron-core/src/arena/inductives/class_read.rs', lines 38:0-42:1
@@ -1247,7 +1247,7 @@ structure arena.inductives.block_parts.BlockParts where
   shape : arena.inductives.block_parts.BlockShape
 
 /-- [con_ron_core::arena::inductives::block_tail::BlockPass]
-    Source: 'crates/con-ron-core/src/arena/inductives/block_tail.rs', lines 57:0-69:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_tail.rs', lines 65:0-77:1
     Visibility: public -/
 structure arena.inductives.block_tail.BlockPass where
   env1 : arena.env.IFEnv
@@ -1289,7 +1289,7 @@ structure kernel.name.DisplayAcc where
   full : Bool
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2694:0-2703:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2729:0-2738:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx
