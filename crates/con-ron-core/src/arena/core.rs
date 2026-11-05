@@ -36,7 +36,10 @@
 //!    beside `mode` through every function whose twin takes `r`.  That is
 //!    defunctionalization of the twin's one higher-order argument, and it is
 //!    the same move §3.4 asks for at `kernel::expr_ops::rename_consts`'
-//!    `f : Name → Name` (its `NameToName` bound).
+//!    `f : Name → Name` (its `NameToName` bound).  The official kernel's
+//!    `m_eager_reduce` flag travels the same way, `eager: bool` right after
+//!    `mode`: con-leche's `coreKnot mode eager` captures it in the record, and
+//!    with no record every body that reaches a slot passes it on.
 //!
 //!    `CoreFnsA.ioView` — `{ r with infer := r.inferIO }`, the *one* place
 //!    the record is rebound — is the extra `io: bool` of `infer_body_io`,
@@ -104,7 +107,7 @@ use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
 use crate::kernel::core_types::{code_points, CheckError};
-use crate::kernel::env::{eager, to_eager, CheckMode, ReducibilityHint};
+use crate::kernel::env::{verified_checks, CheckMode, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::expr::Literal;
 use crate::kernel::expr_ops::sub_nat;
@@ -364,13 +367,11 @@ pub const M_FUEL_DEFEQ: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::LANE_FULL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot` — **the
 /// executed knot**: the memoized one, `pureFnsA`'s.
 pub const LANE_FULL: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::LANE_IO_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
 /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
 /// unmemoized; every other slot is the full knot's.
@@ -3629,6 +3630,7 @@ pub fn reduce_nat(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3641,13 +3643,13 @@ pub fn reduce_nat(
             Some((f, b)) => match view(pers, st, &f) {
                 Err(er) => Err(er),
                 Ok(ENodeView::Const(c, us)) => {
-                    reduce_nat_succ(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &b)
+                    reduce_nat_succ(pers, vis, st, mode, eager, lane, fuel, fe, depth, &c, &us, &b)
                 }
                 Ok(ENodeView::App(g, a)) => if g.tag() == ETAG_CONST {
                     match view_const(pers, st, &g) {
                         None => fail_dangling_e(),
                         Some((c, us)) => {
-                            reduce_nat_bin(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &a, &b)
+                            reduce_nat_bin(pers, vis, st, mode, eager, lane, fuel, fe, depth, &c, &us, &a, &b)
                         },
                     }
                 } else {
@@ -3669,6 +3671,7 @@ pub fn reduce_nat_succ(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3694,7 +3697,7 @@ pub fn reduce_nat_succ(
                         Err(er) => Err(er),
                         Ok(nls) => {
                             if c.eq2(&ns) && nls {
-                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+                                match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
                                     Err(er) => Err(er),
                                     Ok(w) => match raw_nat_lit(pers, st, &w) {
                                         Err(er) => Err(er),
@@ -3724,6 +3727,7 @@ pub fn reduce_nat_bin(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3743,13 +3747,13 @@ pub fn reduce_nat_bin(
                     Err(er) => Err(er),
                     Ok(bin) => {
                         if bin && nat_op_stored(vis, fe, c) {
-                            match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+                            match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
                                 Err(er) => Err(er),
                                 Ok(wa) => match raw_nat_lit(pers, st, &wa) {
                                     Err(er) => Err(er),
                                     Ok(None) => Ok(None),
                                     Ok(Some(n1)) => {
-                                        match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b)
+                                        match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, b)
                                         {
                                             Err(er) => Err(er),
                                             Ok(wb) => match raw_nat_lit(pers, st, &wb) {
@@ -3764,7 +3768,7 @@ pub fn reduce_nat_bin(
                                 },
                             }
                         } else {
-                            reduce_nat_wf(pers, vis, st, mode, lane, fuel, fe, depth, c, a, b)
+                            reduce_nat_wf(pers, vis, st, mode, eager, lane, fuel, fe, depth, c, a, b)
                         }
                     }
                 }
@@ -3782,6 +3786,7 @@ pub fn reduce_nat_wf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3798,13 +3803,13 @@ pub fn reduce_nat_wf(
             Err(er) => Err(er),
             Ok(nls) => {
                 if env::nidx_vec_contains(&wf, c) && nls {
-                    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+                    match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
                         Err(er) => Err(er),
                         Ok(wa) => match raw_nat_lit(pers, st, &wa) {
                             Err(er) => Err(er),
                             Ok(None) => Ok(None),
                             Ok(Some(_)) => {
-                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+                                match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
                                     Err(er) => Err(er),
                                     Ok(wb) => match raw_nat_lit(pers, st, &wb) {
                                         Err(er) => Err(er),
@@ -3845,6 +3850,7 @@ pub fn iota_certs_full(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3854,7 +3860,7 @@ pub fn iota_certs_full(
     i: usize,
 ) -> Result<bool, CheckError> {
     let acc: Vec<EIdx> = Vec::new();
-    iota_certs_full_aux(pers, vis, st, mode, lane, fuel, fe, depth, h, acc, args, i)
+    iota_certs_full_aux(pers, vis, st, mode, eager, lane, fuel, fe, depth, h, acc, args, i)
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:149-176 iotaCertsFullIAux
@@ -3873,6 +3879,7 @@ pub fn iota_certs_full_aux(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3891,16 +3898,16 @@ pub fn iota_certs_full_aux(
                 let arg: EIdx = args[i].dup2();
                 match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
                     Err(e) => Err(e),
-                    Ok(ty2) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
+                    Ok(ty2) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, &arg) {
                         Err(e) => Err(e),
-                        Ok(ta) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2) {
+                        Ok(ta) => match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ta, &ty2) {
                             Err(e) => Err(e),
                             Ok(false) => Ok(false),
                             Ok(true) => {
                                 let mut acc2: Vec<EIdx> = acc;
                                 acc2.push(arg);
                                 iota_certs_full_aux(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args,
+                                    pers, vis, st, mode, eager, lane, fuel, fe, depth, &body, acc2, args,
                                     i + 1,
                                 )
                             }
@@ -3917,7 +3924,7 @@ pub fn iota_certs_full_aux(
                         Ok(ty2) => {
                             let acc2: Vec<EIdx> = Vec::new();
                             iota_certs_full_aux(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &ty2, acc2, args, i,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty2, acc2, args, i,
                             )
                         }
                     }
@@ -3968,6 +3975,7 @@ pub fn def_eq_list(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -3987,9 +3995,9 @@ pub fn def_eq_list(
     } else {
         let a: EIdx = xs[i].dup2();
         let b: EIdx = ys[i].dup2();
-        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &a, &b) {
+        match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a, &b) {
             Err(e) => Err(e),
-            Ok(true) => def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, xs, ys, i + 1),
+            Ok(true) => def_eq_list(pers, vis, st, mode, eager, lane, fuel, fe, depth, xs, ys, i + 1),
             Ok(false) => Ok(false),
         }
     }
@@ -4003,6 +4011,7 @@ pub fn iota_index_ok(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4023,7 +4032,7 @@ pub fn iota_index_ok(
                 Err(e) => Err(e),
                 Ok(args) => {
                     let rest: Vec<EIdx> = drop_eidx_n(&args, cn_p);
-                    def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, idx, 0)
+                    def_eq_list(pers, vis, st, mode, eager, lane, fuel, fe, depth, &rest, idx, 0)
                 }
             },
             Ok(None) => Ok(false),
@@ -4043,6 +4052,7 @@ pub fn proof_irrel(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4050,9 +4060,9 @@ pub fn proof_irrel(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
-        Ok(ta) => prop_sorts_zero(pers, vis, st, mode, lane, fuel, fe, depth, &ta, b),
+        Ok(ta) => prop_sorts_zero(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ta, b),
     }
 }
 
@@ -4070,6 +4080,7 @@ pub fn prop_sorts_zero(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4077,9 +4088,9 @@ pub fn prop_sorts_zero(
     ta: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, ta) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, ta) {
         Err(e) => Err(e),
-        Ok(tta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tta) {
+        Ok(tta) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tta) {
             Err(e) => Err(e),
             Ok(wa) => if wa.tag() == ETAG_SORT {
                 match view_sort(pers, st, &wa) {
@@ -4091,12 +4102,12 @@ pub fn prop_sorts_zero(
                             Ok(o) => match lift_fueled(o) {
                                 Err(e) => Err(e),
                                 Ok(ok_a) => {
-                                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+                                    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
                                         Err(e) => Err(e),
                                         Ok(tb) => prop_sorts_zero_right(
                                             pers,
                                             vis,
-                                            st, mode, lane, fuel, fe, depth, ok_a, &tb,
+                                            st, mode, eager, lane, fuel, fe, depth, ok_a, &tb,
                                         ),
                                     }
                                 }
@@ -4119,6 +4130,7 @@ pub fn prop_sorts_zero_right(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4126,9 +4138,9 @@ pub fn prop_sorts_zero_right(
     ok_a: bool,
     tb: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, tb) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, tb) {
         Err(e) => Err(e),
-        Ok(ttb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ttb) {
+        Ok(ttb) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ttb) {
             Err(e) => Err(e),
             Ok(wb) => if wb.tag() == ETAG_SORT {
                 match view_sort(pers, st, &wb) {
@@ -4161,6 +4173,7 @@ pub fn prop_irrel(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4192,13 +4205,13 @@ pub fn prop_irrel(
                                     match knot_infer_io(
                                         pers,
                                         vis,
-                                        st, mode, lane, fuel, fe, depth, a,
+                                        st, mode, eager, lane, fuel, fe, depth, a,
                                     ) {
                                         Err(e) => Err(e),
                                         Ok(ta) => prop_sorts_zero(
                                             pers,
                                             vis,
-                                            st, mode, lane, fuel, fe, depth, &ta, b,
+                                            st, mode, eager, lane, fuel, fe, depth, &ta, b,
                                         ),
                                     }
                                 }
@@ -4332,6 +4345,7 @@ pub fn struct_eta_cert_tail(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4352,14 +4366,14 @@ pub fn struct_eta_cert_tail(
             Ok(false) => Ok(false),
             Ok(true) => {
                 let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
-                match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
+                match def_eq_list(pers, vis, st, mode, eager, lane, fuel, fe, depth, &head, targs, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match eta_projs(pers, st, t, b, eta_fields) {
                         Err(e) => Err(e),
                         Ok(projs) => {
                             let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
-                            def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
+                            def_eq_list(pers, vis, st, mode, eager, lane, fuel, fe, depth, &rest, &projs, 0)
                         }
                     },
                 }
@@ -4381,6 +4395,7 @@ pub fn struct_eta_cert_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4426,6 +4441,7 @@ pub fn struct_eta_cert_at(
                                                 vis,
                                                 st,
                                                 mode,
+                                                eager,
                                                 lane,
                                                 fuel,
                                                 fe,
@@ -4467,6 +4483,7 @@ pub fn struct_eta_cert_with(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4491,7 +4508,7 @@ pub fn struct_eta_cert_with(
                                     struct_eta_cert_at(
                                         pers,
                                         vis,
-                                        st, mode, lane, fuel, fe, depth, &cvc, &c, &us, b,
+                                        st, mode, eager, lane, fuel, fe, depth, &cvc, &c, &us, b,
                                         wtb, &aargs,
                                     )
                                 } else {
@@ -4555,6 +4572,7 @@ pub fn struct_eta_cert(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4565,12 +4583,12 @@ pub fn struct_eta_cert(
     match eta_ctor_shape(pers, vis, st, fe, a) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
             Err(e) => Err(e),
-            Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
+            Ok(tb) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tb) {
                 Err(e) => Err(e),
                 Ok(wtb) => {
-                    struct_eta_cert_with(pers, vis, st, mode, lane, fuel, fe, depth, a, b, &wtb)
+                    struct_eta_cert_with(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b, &wtb)
                 }
             },
         },
@@ -4590,6 +4608,7 @@ pub fn struct_unit_cert_tail(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4597,15 +4616,15 @@ pub fn struct_unit_cert_tail(
     wta: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
         Err(e) => Err(e),
-        Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
+        Ok(tb) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
             Ok(wtb) => {
                 if wtb.tag() == ETAG_FORALL_E {
                     Ok(false)
                 } else {
-                    knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, wta, &wtb)
+                    knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, wta, &wtb)
                 }
             }
         },
@@ -4622,6 +4641,7 @@ pub fn struct_unit_cert(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4629,9 +4649,9 @@ pub fn struct_unit_cert(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
-        Ok(ta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ta) {
+        Ok(ta) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ta) {
             Err(e) => Err(e),
             Ok(wta) => match get_app_fn(pers, st, CORE_WALK_FUEL, &wta) {
                 Err(e) => Err(e),
@@ -4655,7 +4675,7 @@ pub fn struct_unit_cert(
                                                     && uslen.len() == cvt.level_params.len()
                                                 {
                                                     struct_unit_cert_tail(
-                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        pers, vis, st, mode, eager, lane, fuel, fe, depth,
                                                         &wta, b,
                                                     )
                                                 } else {
@@ -4690,6 +4710,7 @@ pub fn eta_cert(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4701,19 +4722,19 @@ pub fn eta_cert(
     match io_neutral(pers, st, b) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, b) {
             Err(e) => Err(e),
-            Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
+            Ok(tb) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tb) {
                 Err(e) => Err(e),
                 Ok(w) => if w.tag() == ETAG_FORALL_E {
                     match view_bind(pers, st, &w) {
                         None => fail_dangling_e(),
                         Some((ty2, cod2)) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
+                            match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty2, ty1) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
                                 Ok(true) => eta_cert_body(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, &cod2, b,
+                                    pers, vis, st, mode, eager, lane, fuel, fe, depth, ty1, body1, &cod2, b,
                                 ),
                             }
                         }
@@ -4738,6 +4759,7 @@ pub fn eta_cert_body(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4754,17 +4776,17 @@ pub fn eta_cert_body(
             Ok(b1) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
                 Err(e) => Err(e),
                 Ok(ba) => {
-                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &b1, &ba) {
+                    match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, &b1, &ba) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => {
-                            if crate::kernel::env::verified_checks(mode) {
-                                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, &b1) {
+                            if verified_checks(mode) {
+                                match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, &b1) {
                                     Err(e) => Err(e),
                                     Ok(t1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, cod2, &fv, 0) {
                                         Err(e) => Err(e),
                                         Ok(t2) => knot_defeq(
-                                            pers, vis, st, mode, lane, fuel, fe, depth + 1, &t1, &t2,
+                                            pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, &t1, &t2,
                                         ),
                                     },
                                 }
@@ -4789,6 +4811,7 @@ pub fn stuck_irrel(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4796,16 +4819,16 @@ pub fn stuck_irrel(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match struct_eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+    match struct_eta_cert(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
         Err(e) => Err(e),
         Ok(true) => Ok(true),
-        Ok(false) => match struct_eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, b, a) {
+        Ok(false) => match struct_eta_cert(pers, vis, st, mode, eager, lane, fuel, fe, depth, b, a) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
-            Ok(false) => match struct_unit_cert(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+            Ok(false) => match struct_unit_cert(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
                 Err(e) => Err(e),
                 Ok(true) => Ok(true),
-                Ok(false) => proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a, b),
+                Ok(false) => proof_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b),
             },
         },
     }
@@ -4979,6 +5002,7 @@ pub fn major_to_ctor_certs(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -4990,16 +5014,16 @@ pub fn major_to_ctor_certs(
     match fab_scope_ok(pers, st, depth, fab, major) {
         Err(e) => Err(e),
         Ok(false) => Ok(major.dup2()),
-        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, fab) {
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, fab) {
             Err(e) => Err(e),
-            Ok(tfab) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, tmaj, &tfab) {
+            Ok(tfab) => match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, tmaj, &tfab) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(major.dup2()),
                 Ok(true) => {
-                    let ir = if !crate::kernel::env::verified_checks(mode) {
+                    let ir = if !verified_checks(mode) {
                         Ok(true)
                     } else {
-                        proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, fab, major)
+                        proof_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, fab, major)
                     };
                     match ir {
                         Err(e) => Err(e),
@@ -5022,6 +5046,7 @@ pub fn major_to_ctor_k(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5032,9 +5057,9 @@ pub fn major_to_ctor_k(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5057,7 +5082,7 @@ pub fn major_to_ctor_k(
                                                         match mk_app_n(pers, st, &hd, &spine) {
                                                             Err(e) => Err(e),
                                                             Ok(fab) => major_to_ctor_certs(
-                                                                pers, vis, st, mode, lane, fuel,
+                                                                pers, vis, st, mode, eager, lane, fuel,
                                                                 fe, depth, &fab, &tmaj, major,
                                                             ),
                                                         }
@@ -5096,6 +5121,7 @@ pub fn major_to_ctor_eta(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5105,9 +5131,9 @@ pub fn major_to_ctor_eta(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5224,6 +5250,7 @@ pub fn major_to_ctor_and(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5234,9 +5261,9 @@ pub fn major_to_ctor_and(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5257,7 +5284,7 @@ pub fn major_to_ctor_and(
                                                 && ars
                                             {
                                                 major_to_ctor_and_build(
-                                                    pers, vis, st, mode, lane, fuel, fe, depth,
+                                                    pers, vis, st, mode, eager, lane, fuel, fe, depth,
                                                     ctor, t, &ust, &targs, &tmaj, major,
                                                 )
                                             } else {
@@ -5285,6 +5312,7 @@ pub fn major_to_ctor_and_build(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5308,7 +5336,7 @@ pub fn major_to_ctor_and_build(
                     Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                         Err(e) => Err(e),
                         Ok(fab) => major_to_ctor_certs(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &fab, tmaj, major,
+                            pers, vis, st, mode, eager, lane, fuel, fe, depth, &fab, tmaj, major,
                         ),
                     },
                 }
@@ -5326,6 +5354,7 @@ pub fn major_to_ctor_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5341,9 +5370,9 @@ pub fn major_to_ctor_at(
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if k {
-        major_to_ctor_k(pers, vis, st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
+        major_to_ctor_k(pers, vis, st, mode, eager, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
     } else if eta {
-        major_to_ctor_eta(pers, vis, st, mode, lane, fuel, fe, depth, cvt, caps, t, major)
+        major_to_ctor_eta(pers, vis, st, mode, eager, lane, fuel, fe, depth, cvt, caps, t, major)
     } else {
         match pin_and(st) {
             Err(e) => Err(e),
@@ -5352,7 +5381,7 @@ pub fn major_to_ctor_at(
                     major_to_ctor_and(
                         pers,
                         vis,
-                        st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major,
+                        st, mode, eager, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major,
                     )
                 } else {
                     Ok(major.dup2())
@@ -5373,6 +5402,7 @@ pub fn major_to_ctor(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5412,7 +5442,7 @@ pub fn major_to_ctor(
                                                     major_to_ctor_at(
                                                         pers,
                                                         vis,
-                                                        st, mode, lane, fuel, fe, depth,
+                                                        st, mode, eager, lane, fuel, fe, depth,
                                                         &cvj, cn_p, &ctor, k, eta, &cvt,
                                                         &caps, &t, major,
                                                     )
@@ -5445,6 +5475,7 @@ pub fn lit_major_to_ctor(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5461,7 +5492,7 @@ pub fn lit_major_to_ctor(
                     Ok(false) => Ok(h.dup2()),
                     Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
                         Err(e) => Err(e),
-                        Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
+                        Ok(c) => knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &c),
                     },
                 }
             }
@@ -5480,6 +5511,7 @@ pub fn proj_lit_to_ctor(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5496,7 +5528,7 @@ pub fn proj_lit_to_ctor(
                     Ok(false) => Ok(h.dup2()),
                     Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
                         Err(e) => Err(e),
-                        Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
+                        Ok(c) => knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &c),
                     },
                 }
             }
@@ -5663,6 +5695,7 @@ pub fn prepare_major(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5672,12 +5705,12 @@ pub fn prepare_major(
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if rec_rule_k(rules) {
-        match major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, major) {
+        match major_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, rec_name, rules, major) {
             Err(e) => Err(e),
             Ok(major_k) => match is_ctor_app(pers, vis, st, fe, &major_k) {
                 Err(e) => Err(e),
                 Ok(true) => {
-                    lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major_k)
+                    lit_major_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, &major_k)
                 }
                 Ok(false) => Ok(major_k),
             },
@@ -5687,7 +5720,7 @@ pub fn prepare_major(
             Err(e) => Err(e),
             Ok(true) => Ok(major.dup2()),
             Ok(false) => {
-                major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, major)
+                major_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, rec_name, rules, major)
             }
         };
         match major_e {
@@ -5696,7 +5729,7 @@ pub fn prepare_major(
                 Err(e) => Err(e),
                 Ok(true) => Ok(major_e),
                 Ok(false) => prepare_major_whnf(
-                    pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, &major_e,
+                    pers, vis, st, mode, eager, lane, fuel, fe, depth, rec_name, rules, &major_e,
                 ),
             },
         }
@@ -5713,6 +5746,7 @@ pub fn prepare_major_whnf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5721,12 +5755,12 @@ pub fn prepare_major_whnf(
     rules: &Vec<IRecRule>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+    match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(major0) => match lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0) {
+        Ok(major0) => match lit_major_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, &major0) {
             Err(e) => Err(e),
             Ok(major1) => {
-                major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, &major1)
+                major_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, rec_name, rules, &major1)
             }
         },
     }
@@ -5924,6 +5958,7 @@ pub fn iota_rec_fire(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5940,7 +5975,7 @@ pub fn iota_rec_fire(
     margs: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
     match iota_rec_cert(
-        pers, vis, st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
+        pers, vis, st, mode, eager, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
     ) {
         Err(e) => Err(e),
         Ok(false) => Ok(None),
@@ -5963,6 +5998,7 @@ pub fn iota_rec_cert(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -5977,7 +6013,7 @@ pub fn iota_rec_cert(
     args: &Vec<EIdx>,
     margs: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
-    if !crate::kernel::env::verified_checks(mode) {
+    if !verified_checks(mode) {
         Ok(true)
     } else {
         match rec_fire_levels(pers, st, rl, &cv.level_params, us, &cvj.level_params) {
@@ -5986,7 +6022,7 @@ pub fn iota_rec_cert(
                 Err(e) => Err(e),
                 Ok(false) => Ok(true),
                 Ok(true) => iota_rec_case3(
-                    pers, vis, st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, &cmp_lvls,
+                    pers, vis, st, mode, eager, lane, fuel, fe, depth, cv, cvj, rl, us, usj, &cmp_lvls,
                     m_i, r_p, args, margs,
                 ),
             },
@@ -6005,6 +6041,7 @@ pub fn iota_rec_case3(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6029,11 +6066,11 @@ pub fn iota_rec_case3(
                 Err(e) => Err(e),
                 Ok(cmp_args) => {
                     let head: Vec<EIdx> = take_eidx_n(margs, rl.ctor_params);
-                    match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, &cmp_args, 0) {
+                    match def_eq_list(pers, vis, st, mode, eager, lane, fuel, fe, depth, &head, &cmp_args, 0) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => iota_rec_fam(
-                            pers, vis, st, mode, lane, fuel, fe, depth, cvj, rl, usj, m_i, r_p,
+                            pers, vis, st, mode, eager, lane, fuel, fe, depth, cvj, rl, usj, m_i, r_p,
                             args, margs,
                         ),
                     }
@@ -6056,6 +6093,7 @@ pub fn iota_rec_fam(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6070,13 +6108,13 @@ pub fn iota_rec_fam(
 ) -> Result<bool, CheckError> {
     match const_ty_at(pers, st, cvj, usj) {
         Err(e) => Err(e),
-        Ok(ty_c) => match iota_certs_full(pers, vis, st, mode, lane, fuel, fe, depth, &ty_c, margs, 0) {
+        Ok(ty_c) => match iota_certs_full(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty_c, margs, 0) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => {
                 let idx: Vec<EIdx> = drop_eidx_n(&take_eidx_n(args, m_i), r_p);
                 iota_index_ok(
-                    pers, vis, st, mode, lane, fuel, fe, depth, m_i, r_p, rl.ctor_params, &ty_c,
+                    pers, vis, st, mode, eager, lane, fuel, fe, depth, m_i, r_p, rl.ctor_params, &ty_c,
                     margs, &idx,
                 )
             }
@@ -6124,6 +6162,7 @@ pub fn iota_rec_major(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6156,7 +6195,7 @@ pub fn iota_rec_major(
                                             Ok(None)
                                         } else {
                                             iota_rec_fire(
-                                                pers, vis, st, mode, lane, fuel, fe, depth, cv,
+                                                pers, vis, st, mode, eager, lane, fuel, fe, depth, cv,
                                                 &cvj, &rl, rec_c, us, &usj, m_i, r_p, args,
                                                 &margs,
                                             )
@@ -6195,6 +6234,7 @@ pub fn iota_rec_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6236,12 +6276,12 @@ pub fn iota_rec_at(
                                             Ok(b0) => {
                                                 let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
                                                 match prepare_major(
-                                                    pers, vis, st, mode, lane, fuel, fe, depth, &c,
+                                                    pers, vis, st, mode, eager, lane, fuel, fe, depth, &c,
                                                     &rules, &maj0,
                                                 ) {
                                                     Err(er) => Err(er),
                                                     Ok(major) => iota_rec_major(
-                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        pers, vis, st, mode, eager, lane, fuel, fe, depth,
                                                         &cv, &rules, &c, &us, m_i, r_p, &args,
                                                         &major,
                                                     ),
@@ -6366,6 +6406,7 @@ pub fn reduce_proj_core(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6374,7 +6415,7 @@ pub fn reduce_proj_core(
     i: u64,
     c: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match proj_lit_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, c) {
+    match proj_lit_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, c) {
         Err(e) => Err(e),
         Ok(ep) => match env::ifenv_find_proj(vis, fe, sn, i) {
             Some(entry) => reduce_proj_core_at(pers, vis, st, mode, fe, i, &ep, &entry),
@@ -6451,7 +6492,7 @@ pub fn reduce_proj_core_fire(
         Err(e) => Err(e),
         Ok(b0) => {
             let arg: EIdx = get_d_eidx(args, entry.num_params + i, &b0);
-            let verified: bool = crate::kernel::env::verified_checks(mode);
+            let verified: bool = verified_checks(mode);
             match proj_cert_at(pers, vis, st, fe, verified, c, args) {
                 Err(e) => Err(e),
                 Ok(true) => Ok(Some(arg)),
@@ -6497,6 +6538,7 @@ pub fn whnf_core_step_proj(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6508,13 +6550,13 @@ pub fn whnf_core_step_proj(
     pe: &EIdx,
 ) -> Result<WhnfStep, CheckError> {
     let rc = if cheap {
-        knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, pe)
+        knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, pe)
     } else {
-        knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, pe)
+        knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, pe)
     };
     match rc {
         Err(er) => Err(er),
-        Ok(c) => match reduce_proj_core(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, &c) {
+        Ok(c) => match reduce_proj_core(pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, &c) {
             Err(er) => Err(er),
             Ok(Some(m)) => Ok(WhnfStep::Cont(m)),
             Ok(None) => Ok(WhnfStep::Done(e.dup2())),
@@ -6637,6 +6679,7 @@ pub fn whnf_app(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6672,7 +6715,7 @@ pub fn whnf_app(
                     va.push(a);
                     let n: usize = va.len();
                     let step = if hd.tag() == ETAG_CONST {
-                        iota_rec_at(pers, vis, st, mode, lane, fuel, fe, depth, hd, &va, n)
+                        iota_rec_at(pers, vis, st, mode, eager, lane, fuel, fe, depth, hd, &va, n)
                     } else {
                         // `iotaArityOk`'s `.const` match, off the handle's tag.
                         Ok(None)
@@ -6680,7 +6723,7 @@ pub fn whnf_app(
                     match step {
                         Err(e) => Err(e),
                         Ok(None) => whnf_app(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &ap, hd, va, same2, args,
+                            pers, vis, st, mode, eager, lane, fuel, fe, depth, &ap, hd, va, same2, args,
                             nodes, i + 1,
                         ),
                         Ok(Some(e2)) => match mk_app_n_from(pers, st, &e2, args, i + 1) {
@@ -6793,6 +6836,7 @@ pub fn whnf_core_step(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6817,14 +6861,14 @@ pub fn whnf_core_step(
                 let hd: EIdx = sp.0;
                 let args: Vec<EIdx> = sp.1;
                 let nodes: Vec<EIdx> = sp.2;
-                match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &hd) {
+                match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, cheap, depth, &hd) {
                     Err(er) => Err(er),
                     Ok(v) => {
                         let same: bool = v.eq2(&hd);
                         match head_and_args(pers, st, &v) {
                             Err(er) => Err(er),
                             Ok(hv) => whnf_app(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &v, &hv.0, hv.1, same,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &v, &hv.0, hv.1, same,
                                 &args, &nodes, 0,
                             ),
                         }
@@ -6833,7 +6877,7 @@ pub fn whnf_core_step(
             }
         },
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_step_proj(pers, vis, st, mode, lane, fuel, fe, cheap, depth, e, &sn, i, &pe)
+            whnf_core_step_proj(pers, vis, st, mode, eager, lane, fuel, fe, cheap, depth, e, &sn, i, &pe)
         }
         // ζ, Lean's way (con-leche task #342 S0): lets are stored as Lean
         // stores them, and the reduct is the loop's next term.
@@ -6858,6 +6902,7 @@ pub fn whnf_core_loop(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6872,7 +6917,7 @@ pub fn whnf_core_loop(
         if k == 0 {
             return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE_LOOP)));
         }
-        match whnf_core_step(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &cur) {
+        match whnf_core_step(pers, vis, st, mode, eager, lane, fuel, fe, cheap, depth, &cur) {
             Err(er) => return Err(er),
             Ok(WhnfStep::Done(v)) => return Ok(v),
             Ok(WhnfStep::Cont(e2)) => {
@@ -6892,6 +6937,7 @@ pub fn whnf_core_body(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6899,7 +6945,7 @@ pub fn whnf_core_body(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    whnf_core_loop(pers, vis, st, mode, lane, fuel, fe, cheap, depth, WHNF_CORE_LOOP_FUEL, e)
+    whnf_core_loop(pers, vis, st, mode, eager, lane, fuel, fe, cheap, depth, WHNF_CORE_LOOP_FUEL, e)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:988-999 whnfLoopFuel
@@ -6925,15 +6971,16 @@ pub fn whnf_step(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
     e: &EIdx,
 ) -> Result<WhnfStep, CheckError> {
-    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, false, depth, e) {
+    match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, false, depth, e) {
         Err(er) => Err(er),
-        Ok(e1) => match reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, &e1) {
+        Ok(e1) => match reduce_nat(pers, vis, st, mode, eager, lane, fuel, fe, depth, &e1) {
             Err(er) => Err(er),
             Ok(Some(e2)) => Ok(WhnfStep::Cont(e2)),
             Ok(None) => match unfold_definition(pers, vis, st, fe, &e1) {
@@ -6957,6 +7004,7 @@ pub fn whnf_loop(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -6970,7 +7018,7 @@ pub fn whnf_loop(
         if k == 0 {
             return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_LOOP)));
         }
-        match whnf_step(pers, vis, st, mode, lane, fuel, fe, depth, &cur) {
+        match whnf_step(pers, vis, st, mode, eager, lane, fuel, fe, depth, &cur) {
             Err(er) => return Err(er),
             Ok(WhnfStep::Done(v)) => return Ok(v),
             Ok(WhnfStep::Cont(e2)) => {
@@ -6989,13 +7037,14 @@ pub fn whnf_body(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, WHNF_LOOP_FUEL, e)
+    whnf_loop(pers, vis, st, mode, eager, lane, fuel, fe, depth, WHNF_LOOP_FUEL, e)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1029-1035 ensureSort
@@ -7006,13 +7055,14 @@ pub fn ensure_sort(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, e) {
+    match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, e) {
         Err(er) => Err(er),
         Ok(w) => if w.tag() == ETAG_SORT {
             match view_sort(pers, st, &w) {
@@ -7171,6 +7221,7 @@ pub fn infer_forall(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7178,9 +7229,9 @@ pub fn infer_forall(
     ty: &EIdx,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => if w.tag() == ETAG_SORT {
                 // Binder-telescope loop (con-leche's task #72, `inferBodyI`'s
@@ -7197,7 +7248,7 @@ pub fn infer_forall(
                             let mut stk: Vec<LIdx> = Vec::new();
                             stk.push(u);
                             infer_pis(
-                                pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, PEEL_FUEL, body, 1,
                                 fvs, stk,
                             )
                         }
@@ -7223,6 +7274,7 @@ pub fn infer_proj(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -7232,9 +7284,9 @@ pub fn infer_proj(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, pe) {
+    match knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, pe) {
         Err(e) => Err(e),
-        Ok(tp) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tp) {
+        Ok(tp) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tp) {
             Err(e) => Err(e),
             Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                 Err(e) => Err(e),
@@ -7373,6 +7425,7 @@ pub fn infer_lam(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7380,9 +7433,9 @@ pub fn infer_lam(
     ty: &EIdx,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => if w.tag() == ETAG_SORT {
                 // Binder-telescope loop (con-leche's task #72): the first binder
@@ -7398,7 +7451,7 @@ pub fn infer_lam(
                         let mut stk: Vec<EIdx> = Vec::new();
                         stk.push(ty.dup2());
                         infer_lams(
-                            pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1, fvs,
+                            pers, vis, st, mode, eager, lane, fuel, fe, depth, PEEL_FUEL, body, 1, fvs,
                             stk,
                         )
                     }
@@ -7421,6 +7474,7 @@ pub fn infer_lam_open(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7433,7 +7487,7 @@ pub fn infer_lam_open(
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
-            Ok(ob) => match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+            Ok(ob) => match knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth + 1, &ob) {
                 Err(e) => Err(e),
                 Ok(bt) => infer_lam_result(pers, st, ty, &bt, depth),
             },
@@ -7452,6 +7506,7 @@ pub fn infer_let(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7460,18 +7515,18 @@ pub fn infer_let(
     v: &EIdx,
     b: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match ensure_sort(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
-            Ok(_) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, v) {
+            Ok(_) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, v) {
                 Err(e) => Err(e),
-                Ok(tv) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &tv, ty) {
+                Ok(tv) => match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tv, ty) {
                     Err(e) => Err(e),
                     Ok(false) => fail(CheckError::Invalid(code_points(&M_LET_VALUE))),
                     Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
                         Err(e) => Err(e),
-                        Ok(ob) => knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &ob),
+                        Ok(ob) => knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ob),
                     },
                 },
             },
@@ -7489,6 +7544,7 @@ pub fn infer_let_io(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -7499,7 +7555,7 @@ pub fn infer_let_io(
 ) -> Result<EIdx, CheckError> {
     match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
         Err(e) => Err(e),
-        Ok(ob) => knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &ob),
+        Ok(ob) => knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, &ob),
     }
 }
 
@@ -7514,6 +7570,7 @@ pub fn defeq_arg(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7524,8 +7581,8 @@ pub fn defeq_arg(
 ) -> Result<bool, CheckError> {
     match is_eager_reduce(pers, st, a) {
         Err(e) => Err(e),
-        Ok(true) => knot_defeq_e(pers, vis, st, mode, lane, fuel, fe, depth, ta, ty),
-        Ok(false) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ta, ty),
+        Ok(true) => knot_defeq_e(pers, vis, st, mode, eager, lane, fuel, fe, depth, ta, ty),
+        Ok(false) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, ta, ty),
     }
 }
 
@@ -7549,6 +7606,7 @@ pub fn infer_spine(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7569,10 +7627,10 @@ pub fn infer_spine(
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(dom2) => {
-                            match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                            match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a) {
                                 Err(e) => Err(e),
                                 Ok(ta) => match defeq_arg(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &a, &ta, &dom2,
+                                    pers, vis, st, mode, eager, lane, fuel, fe, depth, &a, &ta, &dom2,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(false) => {
@@ -7582,7 +7640,7 @@ pub fn infer_spine(
                                         let mut acc2: Vec<EIdx> = acc;
                                         acc2.push(a);
                                         infer_spine(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2,
+                                            pers, vis, st, mode, eager, lane, fuel, fe, depth, &body, acc2,
                                             args, i + 1,
                                         )
                                     }
@@ -7595,16 +7653,16 @@ pub fn infer_spine(
         } else {
             match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0) {
                 Err(e) => Err(e),
-                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty2) {
                     Err(e) => Err(e),
                     Ok(w) => if w.tag() == ETAG_FORALL_E {
                         match view_bind(pers, st, &w) {
                             None => fail_dangling_e(),
                             Some((dom, body)) => {
-                                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                                match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a) {
                                     Err(e) => Err(e),
                                     Ok(ta) => match defeq_arg(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &a, &ta, &dom,
+                                        pers, vis, st, mode, eager, lane, fuel, fe, depth, &a, &ta, &dom,
                                     ) {
                                         Err(e) => Err(e),
                                         Ok(false) => {
@@ -7614,7 +7672,7 @@ pub fn infer_spine(
                                             let mut acc2: Vec<EIdx> = Vec::new();
                                             acc2.push(a);
                                             infer_spine(
-                                                pers, vis, st, mode, lane, fuel, fe, depth, &body,
+                                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &body,
                                                 acc2, args, i + 1,
                                             )
                                         }
@@ -7640,6 +7698,7 @@ pub fn infer_app(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7648,11 +7707,11 @@ pub fn infer_app(
 ) -> Result<EIdx, CheckError> {
     match head_and_args(pers, st, e) {
         Err(er) => Err(er),
-        Ok(hv) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &hv.0) {
+        Ok(hv) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, &hv.0) {
             Err(er) => Err(er),
             Ok(tf) => {
                 let acc: Vec<EIdx> = Vec::new();
-                infer_spine(pers, vis, st, mode, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
+                infer_spine(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
             }
         },
     }
@@ -7722,6 +7781,7 @@ pub fn infer_lams_leaf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7733,7 +7793,7 @@ pub fn infer_lams_leaf(
 ) -> Result<EIdx, CheckError> {
     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
-        Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
+        Ok(ob) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &ob) {
             Err(e) => Err(e),
             Ok(bt) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &bt, d, k, 0) {
                 Err(e) => Err(e),
@@ -7757,6 +7817,7 @@ pub fn infer_lams(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7768,15 +7829,15 @@ pub fn infer_lams(
     stk: Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     if peel == 0 || t.tag() != ETAG_LAM {
-        infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+        infer_lams_leaf(pers, vis, st, mode, eager, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
         match view_bind(pers, st, t) {
             None => fail_dangling_e(),
             Some((ty, body)) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                 Err(e) => Err(e),
-                Ok(tyo) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                Ok(tyo) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &tyo) {
                     Err(e) => Err(e),
-                    Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                    Ok(tty) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &tty) {
                         Err(e) => Err(e),
                         Ok(w) => {
                             if w.tag() == ETAG_SORT {
@@ -7788,7 +7849,7 @@ pub fn infer_lams(
                                         let mut stk2: Vec<EIdx> = stk;
                                         stk2.push(tyo);
                                         infer_lams(
-                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1, &body,
+                                            pers, vis, st, mode, eager, lane, fuel, fe, d, peel - 1, &body,
                                             k + 1, fvs2, stk2,
                                         )
                                     }
@@ -7838,6 +7899,7 @@ pub fn infer_pis_leaf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7849,9 +7911,9 @@ pub fn infer_pis_leaf(
 ) -> Result<EIdx, CheckError> {
     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
-        Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
+        Ok(ob) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &ob) {
             Err(e) => Err(e),
-            Ok(bt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &bt) {
+            Ok(bt) => match ensure_sort(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &bt) {
                 Err(e) => Err(e),
                 Ok(v) => {
                     let n: usize = stk.len();
@@ -7876,6 +7938,7 @@ pub fn infer_pis(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7887,15 +7950,15 @@ pub fn infer_pis(
     stk: Vec<LIdx>,
 ) -> Result<EIdx, CheckError> {
     if peel == 0 || t.tag() != ETAG_FORALL_E {
-        infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+        infer_pis_leaf(pers, vis, st, mode, eager, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
         match view_bind(pers, st, t) {
             None => fail_dangling_e(),
             Some((ty, body)) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                 Err(e) => Err(e),
-                Ok(tyo) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                Ok(tyo) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &tyo) {
                     Err(e) => Err(e),
-                    Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                    Ok(tty) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &tty) {
                         Err(e) => Err(e),
                         Ok(w) => {
                             if w.tag() == ETAG_SORT {
@@ -7909,7 +7972,7 @@ pub fn infer_pis(
                                             let mut stk2: Vec<LIdx> = stk;
                                             stk2.push(u);
                                             infer_pis(
-                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                pers, vis, st, mode, eager, lane, fuel, fe, d, peel - 1,
                                                 &body, k + 1, fvs2, stk2,
                                             )
                                         }
@@ -7936,6 +7999,7 @@ pub fn infer_body(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -7950,17 +8014,17 @@ pub fn infer_body(
         Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
-            infer_forall(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body)
+            infer_forall(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty, &body)
         }
         Ok(ENodeView::Lam(ty, body)) => {
-            infer_lam(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body)
+            infer_lam(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty, &body)
         }
-        Ok(ENodeView::App(_, _)) => infer_app(pers, vis, st, mode, lane, fuel, fe, depth, e),
+        Ok(ENodeView::App(_, _)) => infer_app(pers, vis, st, mode, eager, lane, fuel, fe, depth, e),
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj(pers, vis, st, mode, lane, false, fuel, fe, depth, &sn, i, &pe)
+            infer_proj(pers, vis, st, mode, eager, lane, false, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(ty, v, b)) => {
-            infer_let(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
+            infer_let(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty, &v, &b)
         }
         Ok(ENodeView::BVar(_)) => {
             fail(CheckError::NotImplemented(code_points(&M_BVAR_INFER)))
@@ -7986,6 +8050,7 @@ pub fn infer_body_io(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -8001,19 +8066,19 @@ pub fn infer_body_io(
         Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
-            infer_forall_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &ty, &body)
+            infer_forall_io(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, &ty, &body)
         }
         Ok(ENodeView::Lam(ty, body)) => {
-            infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, io)
+            infer_lam_open(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty, &body, io)
         }
         Ok(ENodeView::App(_, _)) => {
-            infer_app_io_at(pers, vis, st, mode, lane, io, fuel, fe, depth, e)
+            infer_app_io_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, e)
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj(pers, vis, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
+            infer_proj(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, v, b)) => {
-            infer_let_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &v, &b)
+            infer_let_io(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, &v, &b)
         }
         Ok(ENodeView::BVar(_)) => {
             fail(CheckError::NotImplemented(code_points(&M_BVAR_INFER)))
@@ -8031,6 +8096,7 @@ pub fn infer_forall_io(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -8039,15 +8105,15 @@ pub fn infer_forall_io(
     ty: &EIdx,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, ty) {
+    match knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => if w.tag() == ETAG_SORT {
                 match view_sort(pers, st, &w) {
                     None => fail_dangling_e(),
                     Some(u) => infer_forall_io_at(
-                        pers, vis, st, mode, lane, io, fuel, fe, depth, ty, body, &u,
+                        pers, vis, st, mode, eager, lane, io, fuel, fe, depth, ty, body, &u,
                     ),
                 }
             } else {
@@ -8067,6 +8133,7 @@ pub fn infer_forall_io_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -8080,9 +8147,9 @@ pub fn infer_forall_io_at(
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
-            Ok(ob) => match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+            Ok(ob) => match knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth + 1, &ob) {
                 Err(e) => Err(e),
-                Ok(tb) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
+                Ok(tb) => match ensure_sort(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, &tb) {
                     Err(e) => Err(e),
                     Ok(v) => match intern_l_node(pers, st, LNodeView::Imax(u.dup2(), v.dup2())) {
                         Err(e) => Err(e),
@@ -8103,6 +8170,7 @@ pub fn infer_app_io_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -8113,11 +8181,11 @@ pub fn infer_app_io_at(
     match head_and_args(pers, st, e) {
         Err(er) => Err(er),
         Ok(hv) => {
-            match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &hv.0) {
+            match knot_infer_at(pers, vis, st, mode, eager, lane, io, fuel, fe, depth, &hv.0) {
                 Err(er) => Err(er),
                 Ok(tf) => {
                     let acc: Vec<EIdx> = Vec::new();
-                    infer_spine_io(pers, vis, st, mode, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
+                    infer_spine_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
                 }
             }
         }
@@ -8135,6 +8203,7 @@ pub fn infer_spine_io(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8154,13 +8223,13 @@ pub fn infer_spine_io(
                 Some((_, body)) => {
                     let mut acc2: Vec<EIdx> = acc;
                     acc2.push(a);
-                    infer_spine_io(pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args, i + 1)
+                    infer_spine_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, &body, acc2, args, i + 1)
                 }
             }
         } else {
             match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0) {
                 Err(e) => Err(e),
-                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty2) {
                     Err(e) => Err(e),
                     Ok(w) => {
                         if w.tag() == ETAG_FORALL_E {
@@ -8170,7 +8239,7 @@ pub fn infer_spine_io(
                                     let mut acc2: Vec<EIdx> = Vec::new();
                                     acc2.push(a);
                                     infer_spine_io(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args,
+                                        pers, vis, st, mode, eager, lane, fuel, fe, depth, &body, acc2, args,
                                         i + 1,
                                     )
                                 }
@@ -8198,13 +8267,14 @@ pub fn bool_true_shortcut(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+    match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
         Ok(w) => is_bool_true(pers, st, &w),
     }
@@ -8223,6 +8293,7 @@ pub fn defeq_spine(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8254,7 +8325,7 @@ pub fn defeq_spine(
                                                     let ra: Vec<EIdx> = eidx_rev(&aa, aa.len(), Vec::with_capacity(aa.len()));
                                                     let rb: Vec<EIdx> = eidx_rev(&bb, bb.len(), Vec::with_capacity(bb.len()));
                                                     def_eq_list(
-                                                        pers, vis, st, mode, lane, fuel, fe, depth, &ra, &rb, 0,
+                                                        pers, vis, st, mode, eager, lane, fuel, fe, depth, &ra, &rb, 0,
                                                     )
                                                 }
                                                 Ok(_) => Ok(false),
@@ -8278,7 +8349,6 @@ pub fn defeq_spine(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1501-1536 lazyDeltaReduction
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::defeq_no_fvars_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2912-2920 defeqNoFvars` — the
 /// literal-acceleration guard: *both* sides free of free variables, mirroring
 /// the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
@@ -8300,20 +8370,19 @@ pub fn defeq_no_fvars(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1501-1536 lazyDeltaReduction
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::lazy_fold_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2922-2928 lazyFoldOk` — **the literal
-/// fold's guard**: the eager flag (`env::eager`, official `m_eager_reduce`)
+/// fold's guard**: the eager flag (official `m_eager_reduce`)
 /// or both sides free of free variables — official's
 /// `(!has_fvar(t_n) && !has_fvar(s_n)) || m_eager_reduce`.  Under the flag the
 /// sides are not walked.
 pub fn lazy_fold_ok(
     pers: &PersTier,
     st: &mut AState,
-    mode: &CheckMode,
+    eager: bool,
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    if eager(mode) {
+    if eager {
         Ok(true)
     } else {
         defeq_no_fvars(pers, st, a, b)
@@ -8338,6 +8407,7 @@ pub fn defeq_binders(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8347,7 +8417,7 @@ pub fn defeq_binders(
     ty2: &EIdx,
     body2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
+    match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
@@ -8355,7 +8425,7 @@ pub fn defeq_binders(
             Ok(fv) => {
                 let mut fvs: Vec<EIdx> = Vec::new();
                 fvs.push(fv);
-                defeq_peel(pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1, fvs)
+                defeq_peel(pers, vis, st, mode, eager, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1, fvs)
             }
         },
     }
@@ -8392,6 +8462,7 @@ pub fn defeq_peel(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8408,7 +8479,7 @@ pub fn defeq_peel(
         // the knot, whose `a == b` test then decides `true`.
         Ok(true)
     } else if peel == 0 || a.tag() != ETAG_FORALL_E || b.tag() != ETAG_FORALL_E {
-        defeq_peel_leaf(pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs)
+        defeq_peel_leaf(pers, vis, st, mode, eager, lane, fuel, fe, d, a, b, k, fvs)
     } else {
         match view_bind(pers, st, a) {
             None => fail_dangling_e(),
@@ -8433,7 +8504,7 @@ pub fn defeq_peel(
                                     let dq: Result<bool, CheckError> = if same_dom {
                                         Ok(true)
                                     } else {
-                                        knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2)
+                                        knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &t1, &t2)
                                     };
                                     match dq {
                                         Err(e) => Err(e),
@@ -8444,7 +8515,7 @@ pub fn defeq_peel(
                                                 let mut fvs2: Vec<EIdx> = fvs;
                                                 fvs2.push(fv);
                                                 defeq_peel(
-                                                    pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                    pers, vis, st, mode, eager, lane, fuel, fe, d, peel - 1,
                                                     &pa.1, &pb.1, k + 1, fvs2,
                                                 )
                                             }
@@ -8471,6 +8542,7 @@ pub fn defeq_peel_leaf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8484,7 +8556,7 @@ pub fn defeq_peel_leaf(
         Err(e) => Err(e),
         Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, &fvs, 0) {
             Err(e) => Err(e),
-            Ok(o2) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2),
+            Ok(o2) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, d + k, &o1, &o2),
         },
     }
 }
@@ -8506,6 +8578,7 @@ pub fn defeq_lams_inner(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8513,16 +8586,16 @@ pub fn defeq_lams_inner(
     b1: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, b1, b2) {
+    match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, b1, b2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
-            if crate::kernel::env::verified_checks(mode) {
-                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, b1) {
+            if verified_checks(mode) {
+                match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, b1) {
                     Err(e) => Err(e),
-                    Ok(t1) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, b2) {
+                    Ok(t1) => match knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, b2) {
                         Err(e) => Err(e),
-                        Ok(t2) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &t1, &t2),
+                        Ok(t2) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth + 1, &t1, &t2),
                     },
                 }
             } else {
@@ -8547,6 +8620,7 @@ pub fn defeq_lams(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8557,7 +8631,7 @@ pub fn defeq_lams(
     ty2: &EIdx,
     body2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
+    match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
@@ -8579,13 +8653,13 @@ pub fn defeq_lams(
                                     Ok(true)
                                 } else {
                                     defeq_lams(
-                                        pers, vis, st, mode, lane, fuel, fe, lfuel - 1, depth + 1,
+                                        pers, vis, st, mode, eager, lane, fuel, fe, lfuel - 1, depth + 1,
                                         &ty1b, &body1b, &ty2b, &body2b,
                                     )
                                 }
                             }
                             Ok(None) => {
-                                defeq_lams_inner(pers, vis, st, mode, lane, fuel, fe, depth, &b1, &b2)
+                                defeq_lams_inner(pers, vis, st, mode, eager, lane, fuel, fe, depth, &b1, &b2)
                             }
                         }
                     }
@@ -8608,6 +8682,7 @@ pub fn quick_defeq(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8641,7 +8716,7 @@ pub fn quick_defeq(
                         }
                         (ENodeView::ForallE(ty1, body1), ENodeView::ForallE(ty2, body2)) => {
                             match defeq_binders(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &ty2, &body2,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty1, &body1, &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),
@@ -8649,7 +8724,7 @@ pub fn quick_defeq(
                         }
                         (ENodeView::Lam(ty1, body1), ENodeView::Lam(ty2, body2)) => {
                             match defeq_lams(
-                                pers, vis, st, mode, lane, fuel, fe, LAMS_FUEL, depth, &ty1, &body1,
+                                pers, vis, st, mode, eager, lane, fuel, fe, LAMS_FUEL, depth, &ty1, &body1,
                                 &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
@@ -8754,6 +8829,7 @@ pub fn defeq_offset(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8778,7 +8854,7 @@ pub fn defeq_offset(
                             Err(e) => Err(e),
                             Ok(None) => Ok(None),
                             Ok(Some(y)) => {
-                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &x, &y) {
+                                match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &x, &y) {
                                     Err(e) => Err(e),
                                     Ok(ok) => Ok(Some(ok)),
                                 }
@@ -8811,6 +8887,7 @@ pub fn try_unfold_proj_app(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8820,7 +8897,7 @@ pub fn try_unfold_proj_app(
     match head_is_proj(pers, st, e) {
         Err(er) => Err(er),
         Ok(false) => Ok(None),
-        Ok(true) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, false, depth, e) {
+        Ok(true) => match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, false, depth, e) {
             Err(er) => Err(er),
             Ok(e2) => {
                 if e2.eq2(e) {
@@ -8860,6 +8937,7 @@ pub fn delta_quick(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8867,7 +8945,7 @@ pub fn delta_quick(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<DeltaStepA, CheckError> {
-    match quick_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+    match quick_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
         Err(e) => Err(e),
         Ok(Some(true)) => Ok(DeltaStepA::Eq),
         Ok(Some(false)) => Ok(DeltaStepA::Diff),
@@ -8884,6 +8962,7 @@ pub fn lazy_delta_one(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8895,13 +8974,13 @@ pub fn lazy_delta_one(
     match unfold_definition(pers, vis, st, fe, u) {
         Err(e) => Err(e),
         Ok(None) => Ok(DeltaStepA::Unknown),
-        Ok(Some(u2)) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, &u2) {
+        Ok(Some(u2)) => match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, &u2) {
             Err(e) => Err(e),
             Ok(u3) => {
                 if flipped {
-                    delta_quick(pers, vis, st, mode, lane, fuel, fe, depth, other, &u3)
+                    delta_quick(pers, vis, st, mode, eager, lane, fuel, fe, depth, other, &u3)
                 } else {
-                    delta_quick(pers, vis, st, mode, lane, fuel, fe, depth, &u3, other)
+                    delta_quick(pers, vis, st, mode, eager, lane, fuel, fe, depth, &u3, other)
                 }
             }
         },
@@ -8918,6 +8997,7 @@ pub fn lazy_delta_side(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8926,16 +9006,16 @@ pub fn lazy_delta_side(
     other: &EIdx,
     flipped: bool,
 ) -> Result<DeltaStepA, CheckError> {
-    match try_unfold_proj_app(pers, vis, st, mode, lane, fuel, fe, depth, other) {
+    match try_unfold_proj_app(pers, vis, st, mode, eager, lane, fuel, fe, depth, other) {
         Err(e) => Err(e),
         Ok(Some(o2)) => {
             if flipped {
-                delta_quick(pers, vis, st, mode, lane, fuel, fe, depth, &o2, u)
+                delta_quick(pers, vis, st, mode, eager, lane, fuel, fe, depth, &o2, u)
             } else {
-                delta_quick(pers, vis, st, mode, lane, fuel, fe, depth, u, &o2)
+                delta_quick(pers, vis, st, mode, eager, lane, fuel, fe, depth, u, &o2)
             }
         }
-        Ok(None) => lazy_delta_one(pers, vis, st, mode, lane, fuel, fe, depth, u, other, flipped),
+        Ok(None) => lazy_delta_one(pers, vis, st, mode, eager, lane, fuel, fe, depth, u, other, flipped),
     }
 }
 
@@ -8947,6 +9027,7 @@ pub fn lazy_delta_unfold_both(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -8960,14 +9041,14 @@ pub fn lazy_delta_unfold_both(
             Err(e) => Err(e),
             Ok(ub) => match (ua, ub) {
                 (Some(a2), Some(b2)) => {
-                    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, &a2) {
+                    match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, &a2) {
                         Err(e) => Err(e),
                         Ok(a3) => {
-                            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, &b2)
+                            match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, &b2)
                             {
                                 Err(e) => Err(e),
                                 Ok(b3) => {
-                                    delta_quick(pers, vis, st, mode, lane, fuel, fe, depth, &a3, &b3)
+                                    delta_quick(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a3, &b3)
                                 }
                             }
                         }
@@ -8988,6 +9069,7 @@ pub fn lazy_delta_both(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9001,9 +9083,9 @@ pub fn lazy_delta_both(
             Err(e) => Err(e),
             Ok(hb) => {
                 if crate::kernel::env::reducibility_hint_lt(&hb, &ha) {
-                    lazy_delta_one(pers, vis, st, mode, lane, fuel, fe, depth, a, b, false)
+                    lazy_delta_one(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b, false)
                 } else if crate::kernel::env::reducibility_hint_lt(&ha, &hb) {
-                    lazy_delta_one(pers, vis, st, mode, lane, fuel, fe, depth, b, a, true)
+                    lazy_delta_one(pers, vis, st, mode, eager, lane, fuel, fe, depth, b, a, true)
                 } else {
                     match same_const_heads(pers, st, a, b) {
                         Err(e) => Err(e),
@@ -9011,7 +9093,7 @@ pub fn lazy_delta_both(
                             let sp = if crate::kernel::env::reducibility_hint_same_regular(&ha, &hb)
                                 && sch
                             {
-                                defeq_spine(pers, vis, st, mode, lane, fuel, fe, depth, a, b)
+                                defeq_spine(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b)
                             } else {
                                 Ok(false)
                             };
@@ -9019,7 +9101,7 @@ pub fn lazy_delta_both(
                                 Err(e) => Err(e),
                                 Ok(true) => Ok(DeltaStepA::Eq),
                                 Ok(false) => lazy_delta_unfold_both(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, a, b,
+                                    pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b,
                                 ),
                             }
                         }
@@ -9040,6 +9122,7 @@ pub fn lazy_delta_step(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9055,11 +9138,11 @@ pub fn lazy_delta_step(
                 if !ua && !ub {
                     Ok(DeltaStepA::Unknown)
                 } else if ua && !ub {
-                    lazy_delta_side(pers, vis, st, mode, lane, fuel, fe, depth, a, b, false)
+                    lazy_delta_side(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b, false)
                 } else if !ua && ub {
-                    lazy_delta_side(pers, vis, st, mode, lane, fuel, fe, depth, b, a, true)
+                    lazy_delta_side(pers, vis, st, mode, eager, lane, fuel, fe, depth, b, a, true)
                 } else {
-                    lazy_delta_both(pers, vis, st, mode, lane, fuel, fe, depth, a, b)
+                    lazy_delta_both(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b)
                 }
             }
         },
@@ -9085,7 +9168,6 @@ pub enum LazyResA {
 pub const DEFEQ_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1501-1536 lazyDeltaReduction
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::lazy_delta_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3262-3290 lazyDeltaReduction` — the
 /// loop's literal acceleration, guarded on both sides being fvar-free; its
 /// reduct restarts the comparison (`defeq`).  `None`: neither side folds.
@@ -9094,6 +9176,7 @@ pub fn lazy_delta_nat(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9101,30 +9184,30 @@ pub fn lazy_delta_nat(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<Option<bool>, CheckError> {
-    match lazy_fold_ok(pers, st, mode, a, b) {
+    match lazy_fold_ok(pers, st, eager, a, b) {
         Err(e) => Err(e),
         Ok(nf) => {
             let ra = if nf {
-                reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, a)
+                reduce_nat(pers, vis, st, mode, eager, lane, fuel, fe, depth, a)
             } else {
                 Ok(None)
             };
             match ra {
                 Err(e) => Err(e),
-                Ok(Some(a2)) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &a2, b) {
+                Ok(Some(a2)) => match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a2, b) {
                     Err(e) => Err(e),
                     Ok(v) => Ok(Some(v)),
                 },
                 Ok(None) => {
                     let rb = if nf {
-                        reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, b)
+                        reduce_nat(pers, vis, st, mode, eager, lane, fuel, fe, depth, b)
                     } else {
                         Ok(None)
                     };
                     match rb {
                         Err(e) => Err(e),
                         Ok(Some(b2)) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, &b2) {
+                            match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, &b2) {
                                 Err(e) => Err(e),
                                 Ok(v) => Ok(Some(v)),
                             }
@@ -9138,9 +9221,7 @@ pub fn lazy_delta_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1501-1536 lazyDeltaReduction
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::lazy_delta_reduction_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1318-1342 lazyDeltaReductionI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::lazy_delta_reduction_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3262-3290 lazyDeltaReduction` — **the
 /// lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 /// iteration the offset check, the literal acceleration, then one
@@ -9151,6 +9232,7 @@ pub fn lazy_delta_reduction(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9162,16 +9244,16 @@ pub fn lazy_delta_reduction(
     if n == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ_LOOP)))
     } else {
-        match defeq_offset(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+        match defeq_offset(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
             Err(e) => Err(e),
             Ok(Some(v)) => Ok(LazyResA::Verdict(v)),
-            Ok(None) => match lazy_delta_nat(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+            Ok(None) => match lazy_delta_nat(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
                 Err(e) => Err(e),
                 Ok(Some(v)) => Ok(LazyResA::Verdict(v)),
-                Ok(None) => match lazy_delta_step(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+                Ok(None) => match lazy_delta_step(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
                     Err(e) => Err(e),
                     Ok(DeltaStepA::Cont(a2, b2)) => lazy_delta_reduction(
-                        pers, vis, st, mode, lane, fuel, fe, depth, n - 1, &a2, &b2,
+                        pers, vis, st, mode, eager, lane, fuel, fe, depth, n - 1, &a2, &b2,
                     ),
                     Ok(DeltaStepA::Eq) => Ok(LazyResA::Verdict(true)),
                     Ok(DeltaStepA::Diff) => Ok(LazyResA::Verdict(false)),
@@ -9191,6 +9273,7 @@ pub fn lazy_delta_proj_fields(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9200,14 +9283,14 @@ pub fn lazy_delta_proj_fields(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match reduce_proj_core(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, a) {
+    match reduce_proj_core(pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, a) {
         Err(e) => Err(e),
-        Ok(Some(x)) => match reduce_proj_core(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, b) {
+        Ok(Some(x)) => match reduce_proj_core(pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, b) {
             Err(e) => Err(e),
-            Ok(Some(y)) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &x, &y),
-            Ok(None) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, b),
+            Ok(Some(y)) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &x, &y),
+            Ok(None) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b),
         },
-        Ok(None) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, b),
+        Ok(None) => knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b),
     }
 }
 
@@ -9222,6 +9305,7 @@ pub fn lazy_delta_proj_reduction(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9235,17 +9319,17 @@ pub fn lazy_delta_proj_reduction(
     if n == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PROJ_LOOP)))
     } else {
-        match lazy_delta_step(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+        match lazy_delta_step(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
             Err(e) => Err(e),
             Ok(DeltaStepA::Cont(a2, b2)) => lazy_delta_proj_reduction(
-                pers, vis, st, mode, lane, fuel, fe, depth, sn, i, n - 1, &a2, &b2,
+                pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, n - 1, &a2, &b2,
             ),
             Ok(DeltaStepA::Eq) => Ok(true),
             Ok(DeltaStepA::Diff) => {
-                lazy_delta_proj_fields(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, a, b)
+                lazy_delta_proj_fields(pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, a, b)
             }
             Ok(DeltaStepA::Unknown) => {
-                lazy_delta_proj_fields(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, a, b)
+                lazy_delta_proj_fields(pers, vis, st, mode, eager, lane, fuel, fe, depth, sn, i, a, b)
             }
         }
     }
@@ -9261,6 +9345,7 @@ pub fn defeq_proj_pair(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9277,7 +9362,7 @@ pub fn defeq_proj_pair(
                     (ENodeView::Proj(s1, i1, e1), ENodeView::Proj(s2, i2, e2)) => {
                         if s1.eq2(&s2) && i1 == i2 {
                             lazy_delta_proj_reduction(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &s1, i1,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &s1, i1,
                                 DEFEQ_LOOP_FUEL, &e1, &e2,
                             )
                         } else {
@@ -9304,6 +9389,7 @@ pub fn defeq_str_app(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9315,7 +9401,7 @@ pub fn defeq_str_app(
     flipped: bool,
 ) -> Result<bool, CheckError> {
     match l {
-        Literal::NatVal(_) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+        Literal::NatVal(_) => stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2),
         Literal::StrVal(s) => {
             let cs: Vec<u32> = expr::str_copy(s);
             if fo.tag() == ETAG_CONST {
@@ -9334,19 +9420,19 @@ pub fn defeq_str_app(
                                             Ok(ce) => {
                                                 if flipped {
                                                     knot_defeq(
-                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        pers, vis, st, mode, eager, lane, fuel, fe, depth,
                                                         a2, &ce,
                                                     )
                                                 } else {
                                                     knot_defeq(
-                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        pers, vis, st, mode, eager, lane, fuel, fe, depth,
                                                         &ce, b2,
                                                     )
                                                 }
                                             }
                                         }
                                     } else {
-                                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                                        stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                                     }
                                 }
                             },
@@ -9354,7 +9440,7 @@ pub fn defeq_str_app(
                     },
                 }
             } else {
-                stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
             }
         }
     }
@@ -9369,6 +9455,7 @@ pub fn defeq_apps(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9387,20 +9474,20 @@ pub fn defeq_apps(
                         Ok(fa) => match get_app_fn(pers, st, CORE_WALK_FUEL, b2) {
                             Err(e) => Err(e),
                             Ok(fb) => {
-                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &fa, &fb)
+                                match knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &fa, &fb)
                                 {
                                     Err(e) => Err(e),
                                     Ok(false) => stuck_irrel(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, a2, b2,
+                                        pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2,
                                     ),
                                     Ok(true) => {
                                         match def_eq_list(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
+                                            pers, vis, st, mode, eager, lane, fuel, fe, depth, &aa, &bb, 0,
                                         ) {
                                             Err(e) => Err(e),
                                             Ok(true) => Ok(true),
                                             Ok(false) => stuck_irrel(
-                                                pers, vis, st, mode, lane, fuel, fe, depth, a2, b2,
+                                                pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2,
                                             ),
                                         }
                                     }
@@ -9409,7 +9496,7 @@ pub fn defeq_apps(
                         },
                     }
                 } else {
-                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                    stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                 }
             }
         },
@@ -9429,6 +9516,7 @@ pub fn defeq_stuck(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9442,16 +9530,16 @@ pub fn defeq_stuck(
             Err(e) => Err(e),
             Ok(vb) => match (va, vb) {
                 (ENodeView::Lit(l), ENodeView::App(fo, _)) => {
-                    defeq_str_app(pers, vis, st, mode, lane, fuel, fe, depth, &l, &fo, a2, b2, false)
+                    defeq_str_app(pers, vis, st, mode, eager, lane, fuel, fe, depth, &l, &fo, a2, b2, false)
                 }
                 (ENodeView::App(fo, _), ENodeView::Lit(l)) => {
-                    defeq_str_app(pers, vis, st, mode, lane, fuel, fe, depth, &l, &fo, a2, b2, true)
+                    defeq_str_app(pers, vis, st, mode, eager, lane, fuel, fe, depth, &l, &fo, a2, b2, true)
                 }
                 (ENodeView::FVar(i, _), ENodeView::FVar(j, _)) => {
                     if i == j {
                         Ok(true)
                     } else {
-                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                        stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                     }
                 }
                 (ENodeView::Const(n, us), ENodeView::Const(n2, us2)) => {
@@ -9462,41 +9550,40 @@ pub fn defeq_stuck(
                                 Err(e) => Err(e),
                                 Ok(true) => Ok(true),
                                 Ok(false) => {
-                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                                    stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                                 }
                             },
                         }
                     } else {
-                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                        stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                     }
                 }
                 (ENodeView::App(_, _), ENodeView::App(_, _)) => {
-                    defeq_apps(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
+                    defeq_apps(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                 }
                 (ENodeView::Lam(ty1, body1), _) => {
-                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, b2)
+                    match eta_cert(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty1, &body1, b2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
-                        Ok(false) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+                        Ok(false) => stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2),
                     }
                 }
                 (_, ENodeView::Lam(ty2, body2)) => {
-                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, &body2, a2)
+                    match eta_cert(pers, vis, st, mode, eager, lane, fuel, fe, depth, &ty2, &body2, a2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
-                        Ok(false) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+                        Ok(false) => stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2),
                     }
                 }
-                (_, _) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+                (_, _) => stuck_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2),
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1638-1696 defeqBody
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::defeq_after_lazy_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3400-3438 defeqBody` — the tail of the
 /// body after the lazy-delta loop came back undecided: the proj/proj check,
 /// then the FULL `whnfCore` of both sides (only when one is projection-headed)
@@ -9506,6 +9593,7 @@ pub fn defeq_after_lazy(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9513,7 +9601,7 @@ pub fn defeq_after_lazy(
     a1: &EIdx,
     b1: &EIdx,
 ) -> Result<bool, CheckError> {
-    match defeq_proj_pair(pers, vis, st, mode, lane, fuel, fe, depth, a1, b1) {
+    match defeq_proj_pair(pers, vis, st, mode, eager, lane, fuel, fe, depth, a1, b1) {
         Err(e) => Err(e),
         Ok(true) => Ok(true),
         Ok(false) => match head_is_proj(pers, st, a1) {
@@ -9522,19 +9610,19 @@ pub fn defeq_after_lazy(
                 Err(e) => Err(e),
                 Ok(pb) => {
                     if !pa && !pb {
-                        defeq_stuck(pers, vis, st, mode, lane, fuel, fe, depth, a1, b1)
+                        defeq_stuck(pers, vis, st, mode, eager, lane, fuel, fe, depth, a1, b1)
                     } else {
-                        match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, false, depth, a1) {
+                        match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, false, depth, a1) {
                             Err(e) => Err(e),
                             Ok(a2) => {
-                                match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, false, depth, b1)
+                                match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, false, depth, b1)
                                 {
                                     Err(e) => Err(e),
                                     Ok(b2) => {
                                         if a2.eq2(a1) && b2.eq2(b1) {
-                                            defeq_stuck(pers, vis, st, mode, lane, fuel, fe, depth, a1, b1)
+                                            defeq_stuck(pers, vis, st, mode, eager, lane, fuel, fe, depth, a1, b1)
                                         } else {
-                                            knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &a2, &b2)
+                                            knot_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a2, &b2)
                                         }
                                     }
                                 }
@@ -9548,7 +9636,6 @@ pub fn defeq_after_lazy(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1638-1696 defeqBody
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::defeq_after_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3400-3438 defeqBody` — the body after the
 /// CHEAP head normalization of both sides: `quick_defeq` on the reducts, the
 /// lazy-delta loop, and `defeq_after_lazy`.  (Proof irrelevance is no longer
@@ -9559,6 +9646,7 @@ pub fn defeq_after_whnf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9566,17 +9654,17 @@ pub fn defeq_after_whnf(
     a2: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match quick_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2) {
+    match quick_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a2, b2) {
         Err(e) => Err(e),
         Ok(Some(v)) => Ok(v),
         Ok(None) => {
             match lazy_delta_reduction(
-                pers, vis, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, a2, b2,
+                pers, vis, st, mode, eager, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, a2, b2,
             ) {
                 Err(e) => Err(e),
                 Ok(LazyResA::Verdict(v)) => Ok(v),
                 Ok(LazyResA::Unknown(a3, b3)) => {
-                    defeq_after_lazy(pers, vis, st, mode, lane, fuel, fe, depth, &a3, &b3)
+                    defeq_after_lazy(pers, vis, st, mode, eager, lane, fuel, fe, depth, &a3, &b3)
                 }
             }
         }
@@ -9584,7 +9672,6 @@ pub fn defeq_after_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1638-1696 defeqBody
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::defeq_unreduced_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3400-3438 defeqBody` — the body
 /// past the `Bool.true` shortcut (con-leche task #333): `quick_defeq` and proof
 /// irrelevance on the UNREDUCED pair, so that a proof is never head-normalized
@@ -9595,6 +9682,7 @@ pub fn defeq_unreduced(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9602,20 +9690,20 @@ pub fn defeq_unreduced(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match quick_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+    match quick_defeq(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
         Err(e) => Err(e),
         Ok(Some(v)) => Ok(v),
-        Ok(None) => match prop_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+        Ok(None) => match prop_irrel(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
             Ok(false) => {
-                match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, a) {
+                match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, a) {
                     Err(e) => Err(e),
                     Ok(a2) => {
-                        match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, b) {
+                        match knot_whnf_core(pers, vis, st, mode, eager, lane, fuel, fe, true, depth, b) {
                             Err(e) => Err(e),
                             Ok(b2) => defeq_after_whnf(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &a2, &b2,
+                                pers, vis, st, mode, eager, lane, fuel, fe, depth, &a2, &b2,
                             ),
                         }
                     }
@@ -9626,7 +9714,6 @@ pub fn defeq_unreduced(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1638-1696 defeqBody
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::defeq_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3400-3438 defeqBody` — **the
 /// definitional-equality body** (the official kernel's `is_def_eq_core`,
 /// clause for clause except con-leche task #333's reordering): the syntactic
@@ -9638,6 +9725,7 @@ pub fn defeq_body(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9655,8 +9743,8 @@ pub fn defeq_body(
                 Ok(hf) => {
                     // the eager flag fires the shortcut with free
                     // variables present (official `m_eager_reduce`)
-                    let sc = if ibt && (eager(mode) || !hf) {
-                        bool_true_shortcut(pers, vis, st, mode, lane, fuel, fe, depth, a)
+                    let sc = if ibt && (eager || !hf) {
+                        bool_true_shortcut(pers, vis, st, mode, eager, lane, fuel, fe, depth, a)
                     } else {
                         Ok(false)
                     };
@@ -9664,7 +9752,7 @@ pub fn defeq_body(
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
                         Ok(false) => {
-                            defeq_unreduced(pers, vis, st, mode, lane, fuel, fe, depth, a, b)
+                            defeq_unreduced(pers, vis, st, mode, eager, lane, fuel, fe, depth, a, b)
                         }
                     }
                 }
@@ -9688,7 +9776,7 @@ pub const PEEL_FUEL: u64 = 16777216;
 // deviation 6).  The six slots are six plain mutually recursive functions
 // here (the module note's deviation 1), each taking the `lane` that says which
 // of the arena's two knots it belongs to.  The eager slot (`knot_defeq_e`)
-// runs the knot one level down at `to_eager(mode)`, so the `mode` argument is
+// runs the knot one level down at `eager` true, so `mode` and `eager` are
 // the record's other component.
 //
 // The twin's detach-before-update (lesson 14) and `@[noinline]` (lesson 15)
@@ -9870,9 +9958,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -9882,6 +9968,7 @@ pub fn knot_whnf_core(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     _lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9896,7 +9983,7 @@ pub fn knot_whnf_core(
     } else if cheap {
         match whnf_core_cheap_probe(st, e) {
             Some(r) => Ok(r),
-            None => match whnf_core_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, true, depth, e) {
+            None => match whnf_core_body(pers, vis, st, mode, eager, LANE_FULL, fuel - 1, fe, true, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     whnf_core_cheap_set(st, e, &r);
@@ -9907,7 +9994,7 @@ pub fn knot_whnf_core(
     } else {
         match whnf_core_probe(st, e) {
             Some(r) => Ok(r),
-            None => match whnf_core_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, false, depth, e) {
+            None => match whnf_core_body(pers, vis, st, mode, eager, LANE_FULL, fuel - 1, fe, false, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     whnf_core_set(st, e, &r);
@@ -9919,9 +10006,7 @@ pub fn knot_whnf_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -9929,6 +10014,7 @@ pub fn knot_whnf(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     _lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9942,7 +10028,7 @@ pub fn knot_whnf(
     } else {
         match whnf_probe(st, e) {
             Some(r) => Ok(r),
-            None => match whnf_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match whnf_body(pers, vis, st, mode, eager, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     whnf_set(st, e, &r);
@@ -9954,11 +10040,8 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
@@ -9968,6 +10051,7 @@ pub fn knot_infer(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -9977,11 +10061,11 @@ pub fn knot_infer(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INFER)))
     } else if lane == LANE_IO {
-        infer_body_io(pers, vis, st, mode, lane, false, fuel - 1, fe, depth, e)
+        infer_body_io(pers, vis, st, mode, eager, lane, false, fuel - 1, fe, depth, e)
     } else {
         match infer_probe(st, e) {
             Some(r) => Ok(r),
-            None => match infer_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match infer_body(pers, vis, st, mode, eager, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     infer_set(st, e, &r);
@@ -9993,11 +10077,8 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `inferIO`
 /// slot.**  At `LANE_FULL` it is the io body at every mode (con-leche task
@@ -10009,6 +10090,7 @@ pub fn knot_infer_io(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -10018,12 +10100,12 @@ pub fn knot_infer_io(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INFER)))
     } else if lane == LANE_IO {
-        infer_body_io(pers, vis, st, mode, lane, false, fuel - 1, fe, depth, e)
+        infer_body_io(pers, vis, st, mode, eager, lane, false, fuel - 1, fe, depth, e)
     } else {
         match infer_io_probe(st, e) {
             Some(r) => Ok(r),
             None => {
-                match infer_body_io(pers, vis, st, mode, LANE_FULL, true, fuel - 1, fe, depth, e) {
+                match infer_body_io(pers, vis, st, mode, eager, LANE_FULL, true, fuel - 1, fe, depth, e) {
                     Err(er) => Err(er),
                     Ok(r) => {
                         infer_io_set(st, e, &r);
@@ -10048,6 +10130,7 @@ pub fn knot_infer_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     lane: u32,
     io: bool,
     fuel: u64,
@@ -10056,16 +10139,14 @@ pub fn knot_infer_at(
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if io {
-        knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, e)
+        knot_infer_io(pers, vis, st, mode, eager, lane, fuel, fe, depth, e)
     } else {
-        knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, e)
+        knot_infer(pers, vis, st, mode, eager, lane, fuel, fe, depth, e)
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -10074,6 +10155,7 @@ pub fn knot_defeq(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     _lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -10087,7 +10169,7 @@ pub fn knot_defeq(
         let k: EIdxPair = eidx_pair(a, b);
         match defeq_probe(st, &k) {
             Some(r) => Ok(r),
-            None => match defeq_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, a, b) {
+            None => match defeq_body(pers, vis, st, mode, eager, LANE_FULL, fuel - 1, fe, depth, a, b) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     defeq_set(st, a, b, r);
@@ -10101,11 +10183,11 @@ pub fn knot_defeq(
 /// con-leche: ConLeche/Cached/StateC.lean:351-363 CState.enterEager
 /// con-leche: ConLeche/Cached/StateC.lean:347-349 CState.modeMemos
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3500-3515 enterEager` — **enter the
-/// eager tower.**  From a plain mode (`eager` false) the plain memos move out
+/// eager tower.**  With the flag clear (`eager` false) the plain memos move out
 /// (returned), the stored eager ones move into the six fields, and the eager
 /// slot is left empty (`ModeMemos::empty` allocates nothing).  Every table
 /// moves, none is copied, so the comparison that follows mutates the eager
-/// tables in place.  From an eager mode the six fields already hold the eager
+/// tables in place.  With the flag set the six fields already hold the eager
 /// set: nothing moves.
 pub fn enter_eager(st: &mut AState, eager: bool) -> Option<ModeMemos> {
     if eager {
@@ -10154,13 +10236,10 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1700-1735 coreKnot
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1567-1588 coreKnotI
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/StateC.lean:377-395 withEagerMemos
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::knot_defeq_e_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3533-3623 coreKnot` — **the eager slot**:
-/// definitional equality in the eager tower, `defeq_body` at `to_eager(mode)`
+/// definitional equality in the eager tower, `defeq_body` at `eager` true
 /// one level down (the flag holds for the comparison and everything it calls,
 /// as official's `flet` scope does), memoized at the ordered pair in the
 /// eager tower's own tables: `enter_eager` swaps the stored eager set in,
@@ -10169,7 +10248,7 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 /// `withEagerMemos mode (memoBI …)` with the bind pushed into the probe's
 /// two branches).  An eager entry never serves a plain query, nor the other
 /// way round; the mode-independent caches are shared.  A nested eager
-/// comparison (already at an eager mode) runs on the eager set as it is.  On
+/// comparison (`eager` already set) runs on the eager set as it is.  On
 /// an error the plain memos are not put back, as con-leche's (the state is
 /// not read after an error).
 pub fn knot_defeq_e(
@@ -10177,6 +10256,7 @@ pub fn knot_defeq_e(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
+    eager: bool,
     _lane: u32,
     fuel: u64,
     fe: &IFEnv,
@@ -10187,7 +10267,7 @@ pub fn knot_defeq_e(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ)))
     } else {
-        let saved: Option<ModeMemos> = enter_eager(st, eager(mode));
+        let saved: Option<ModeMemos> = enter_eager(st, eager);
         let k: EIdxPair = eidx_pair(a, b);
         match defeq_probe(st, &k) {
             Some(r) => {
@@ -10195,8 +10275,7 @@ pub fn knot_defeq_e(
                 Ok(r)
             }
             None => {
-                let me: CheckMode = to_eager(mode);
-                match defeq_body(pers, vis, st, &me, LANE_FULL, fuel - 1, fe, depth, a, b) {
+                match defeq_body(pers, vis, st, mode, true, LANE_FULL, fuel - 1, fe, depth, a, b) {
                     Err(er) => Err(er),
                     Ok(r) => {
                         defeq_set(st, a, b, r);
@@ -10220,7 +10299,7 @@ pub fn knot_defeq_e(
 /// `driver.rs`, the Lean runtime's default con-leche relies on), and a
 /// recursion deeper than it holds hits the thread's guard page, which the
 /// Rust runtime turns into `thread … has overflowed its stack` and an abort
-/// (exit 134; `tests/e2e/src/stack_fuel_offset.lean`) — an error, never an
+/// (exit 134) — an error, never an
 /// accept.
 pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 
@@ -10239,7 +10318,6 @@ pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3649-3653 whnf` — the full
 /// reduction loop (fueled).
 pub fn whnf(
@@ -10252,11 +10330,10 @@ pub fn whnf(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_whnf(pers, vis, st, mode, false, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::infer_type_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3655-3659 inferTypeCore` —
 /// full-grade type inference (fueled): the declaration front door's entry.
 pub fn infer_type_core(
@@ -10269,11 +10346,10 @@ pub fn infer_type_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_infer(pers, vis, st, mode, false, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::is_def_eq_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3661-3665 isDefEqCore` —
 /// definitional equality (fueled).
 pub fn is_def_eq_core(
@@ -10287,11 +10363,10 @@ pub fn is_def_eq_core(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    knot_defeq(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, a, b)
+    knot_defeq(pers, vis, st, mode, false, LANE_FULL, fuel, fe, depth, a, b)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 ensureSortCore
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove core::ensure_sort_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3667-3671 ensureSortCore` —
 /// `ensureSort` over the knot (fueled).
 pub fn ensure_sort_core(
@@ -10304,7 +10379,7 @@ pub fn ensure_sort_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    ensure_sort(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
+    ensure_sort(pers, vis, st, mode, false, LANE_FULL, fuel, fe, depth, e)
 }
 
 // ---------------------------------------------------------------------------

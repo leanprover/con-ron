@@ -202,10 +202,6 @@ want_for() {
 # table (`tests/arena.sh`), keyed the same way and applied the same way: an
 # entry IS that fixture's timeout, below or above `--timeout`, which is the
 # timeout of every fixture the table does not name.
-# stack_fuel_offset: its expected verdict is the native stack overflow (exit
-# 134), reached after ~10 s of CPU here (3000000 knot levels filling the
-# 1 GiB thread stack) plus the core dump; a slower CI runner took over 60 s
-# and timed out first (124), as con-leche's CI did (its task #357).
 # proj_stuck_struct: BELOW the default, on purpose — checks in milliseconds;
 # a regression (a stuck projection's structure argument replaced by its WHNF)
 # is exponential in time AND memory (~8 GB at 60 s), so it fails fast here
@@ -223,7 +219,6 @@ want_for() {
 # does not terminate, run in constant stack — so a 124 there is an agreement,
 # not a TIMEOUT line; 5 s tells it from a stack overflow (exit 134).
 declare -A E2E_TIMEOUT=(
-  [stack_fuel_offset.ndjson]=300
   [whnf_delta_loop.ndjson]=5
   [whnf_core_loop.ndjson]=5
   [proj_stuck_struct.ndjson]=10
@@ -242,10 +237,9 @@ one() { # one <suite> <label> <stream> <expected-exit>
   if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ]; then
     to=${E2E_TIMEOUT[$label]}
   fi
-  # `ulimit -c 0` (inside the substitution's subshell): an expected abort
-  # (stack_fuel_offset's overflow) would otherwise hand the system's core
-  # handler a 1 GiB stack, which doubles that fixture's wall time and leaves
-  # a dump behind on every run.
+  # `ulimit -c 0` (inside the substitution's subshell): an abort (a native
+  # stack overflow) would otherwise hand the system's core handler a 1 GiB
+  # stack and leave a dump behind.
   out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ] && [ "$want" != 124 ]; then

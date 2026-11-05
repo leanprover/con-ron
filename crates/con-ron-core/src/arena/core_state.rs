@@ -368,7 +368,7 @@ pub struct Caches {
     /// is one `Vec` allocation and `n` reference bumps.
     pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
     /// **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
-    /// six entry-point tables of the eager tower (the knot at `to_eager(mode)`,
+    /// six entry-point tables of the eager tower (the knot at `eager` true,
     /// the `defeqE` slot), stored here between eager comparisons and swapped
     /// in for each one (`arena::core::enter_eager`).  Kept for the declaration
     /// like the plain ones, and apart from them: an eager entry never serves a

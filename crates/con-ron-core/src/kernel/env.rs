@@ -53,59 +53,25 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:21-60 CheckMode
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove env::CheckMode_refines, then delete this line
-/// The checker's mode: `--verified` or `--trusted`, and each one's **eager
-/// variant** — the official kernel's `m_eager_reduce` flag set, which the
-/// knot's eager slot (`arena::core::knot_defeq_e`) runs a comparison at.  No
-/// command line selects an eager variant.  `deriving DecidableEq, Repr,
-/// Inhabited` is dropped: nothing executable compares two modes
-/// (`verified_checks` and `eager` below are what the kernel reads).
+/// The checker's mode: `--verified` or `--trusted`.  The official kernel's
+/// `m_eager_reduce` flag is not the mode's: it is internal to the knot
+/// (`arena::core::KnotMode`).  `deriving DecidableEq, Repr, Inhabited` is
+/// dropped: nothing executable compares two modes (`verified_checks` below is
+/// what the kernel reads).
 pub enum CheckMode {
     Verified,
     Trusted,
-    VerifiedEager,
-    TrustedEager,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:62-83 CheckMode.verifiedChecks
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove env::verified_checks_refines, then delete this line
 /// The verified mode's extra checks: the η and λ/λ body-type comparisons and
 /// the certificate families (the K/`And` rescues' proof irrelevance, ι's
 /// case-3 decision, the projection fire's arity check) — everything the
-/// trusted mode omits.  An eager variant runs its base mode's checks.
+/// trusted mode omits.
 pub fn verified_checks(m: &CheckMode) -> bool {
     match m {
-        CheckMode::Trusted => false,
-        CheckMode::TrustedEager => false,
         CheckMode::Verified => true,
-        CheckMode::VerifiedEager => true,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:103-112 CheckMode.eager
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove env::eager_refines, then delete this line
-/// The official kernel's `m_eager_reduce` flag: set in the eager variants.
-/// Read by `arena::core::defeq_body` (the `Bool.true` shortcut ignores free
-/// variables) and `arena::core::lazy_delta_nat` (the Nat-literal fold ignores
-/// free variables).
-pub fn eager(m: &CheckMode) -> bool {
-    match m {
         CheckMode::Trusted => false,
-        CheckMode::Verified => false,
-        CheckMode::TrustedEager => true,
-        CheckMode::VerifiedEager => true,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:114-119 CheckMode.toEager
-/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove env::to_eager_refines, then delete this line
-/// The mode with the eager flag set: the eager tower's mode.
-pub fn to_eager(m: &CheckMode) -> CheckMode {
-    match m {
-        CheckMode::Verified => CheckMode::VerifiedEager,
-        CheckMode::Trusted => CheckMode::TrustedEager,
-        CheckMode::VerifiedEager => CheckMode::VerifiedEager,
-        CheckMode::TrustedEager => CheckMode::TrustedEager,
     }
 }
 
@@ -538,15 +504,6 @@ mod tests {
         }
         assert!(env::verified_checks(&CheckMode::Verified));
         assert!(!env::verified_checks(&CheckMode::Trusted));
-        assert!(env::verified_checks(&CheckMode::VerifiedEager));
-        assert!(!env::verified_checks(&CheckMode::TrustedEager));
-        for m in [CheckMode::Verified, CheckMode::Trusted] {
-            let e = env::to_eager(&m);
-            assert!(!env::eager(&m));
-            assert!(env::eager(&e));
-            assert_eq!(env::verified_checks(&e), env::verified_checks(&m));
-            assert!(env::eager(&env::to_eager(&e)));
-        }
     }
 
     #[test]
