@@ -70939,3 +70939,86 @@ Task #137's three side findings, closed on master.
 
 `scripts/gates.sh`: all 16 steps OK (`lake-build` 1 297 s, a cold build of
 the tip in the main tree: the cache had no entry for #136/#137).
+
+### Task #139 — con-leche sync 0d2f467b → 7cb7a45c: stored recursors checked against the generated ones, `eager` beside the mode, the observable command line (2026-11-05, Opus)
+
+con-leche goes from `0d2f467b` to **`7cb7a45c`** (no toolchain move; 72 commits,
+7 first-parent).
+
+| upstream | what it did | here |
+|---|---|---|
+| #431 (with #386, #410, #411, ported to its master as #430), pure tier | `RecShape.rhss` → `rules`; `Kernel/Inductives/StoredRecs.lean`: the stored recursors, against the generated ones up to defeq, at the generated install, then installed; `classRecTyCheck`, `classRuleCheck` factored out; `reservedRecName` gains `Bool` and its constructors | **ported**, Rust, twin, both theorems |
+| #431, #411, driver | `Cached/StoredInstall.lean`, a block's checked install as a job of the check phase | **skipped**: it exists for the parallel install; con-ron installs sequentially and checks a block inline in phase A, which is the spec fold's own step |
+| #452 | `CheckMode` is `verified \| trusted`; `eager : Bool` beside it | **ported as upstream has it** (maintainer's ruling: no bundling): 103 signatures in `arena/core.rs` gain `eager` right after `mode`; the front doors enter at `false`. The cached knot's split (`knotPlainI`, `knotEagerI`) is Lean compiler engineering: skipped |
+| #453 | `μ` and `hμ` leave the proofs | follows where con-leche's statements force it: 47 theorems of `Bridge/{Checker,Inductives,Frontend}` restated at `.verified`. `Bridge/Core/**` keeps `mode` with `hμ` (nothing forces it; a possible clean-up) |
+| #450 | `CheckerIO`, `ModelIO`, `runArgs`, `main_no_False`, `pread`; `--`, `--help`, a non-regular input, `UInt8` exit codes, `--no-mark-persistent` gone | **observable behaviour ported** (below); the class and its model skipped |
+| #470 | the `.olean` reader | **deferred to its own task, which the maintainer wants** (skip-list reason says so) |
+| #366, #367 | spike records | nothing to port |
+
+**The generated install without a copy.**  `check_block_tail_stored` pushes the
+generated recursors with the arena's temporary pushes, runs `stored_recs_check`
+there (a flush entering and leaving that environment, as `checkBlockTailS`), pops
+them and pushes the stored ones.  An environment copy per block was once 14.7 % of
+Mathlib (§8).  Stored-recursor error messages are constants (§3.1): they do not
+name the recursor or binder as upstream's do.
+
+**`CheckerIO` in Rust, and why not now** (maintainer asked for the plan).  The class
+rests on a generic monad and a non-deterministic model, an `liftIO` of any action,
+and result types that carry a proof (`checkDeclsIO`'s `{ env // … }`); Aeneas gives
+`Result` with threaded state, closures are outside the subset, and a pool returning
+`true` carries no evidence.  So this sync ports only what can be observed: `--`
+makes every later argument a file; `--help` is decided before any `--`; a
+non-regular input is exit 3 (this drops the old "the input may be a pipe"); exit
+codes are `u8`; `--no-mark-persistent` is gone.  The Rust keeps forward reads: `pread`
+and the dropped read-ahead answer Lean's lack of a seek.  `ChunkSource` stays, cited
+with the deviation.  The trust surface is unchanged: `driver.rs`, `main` and
+`pool.rs` (OVERVIEW §8.2), and the capstone's `h1`…`h8`, `hreads`.
+
+*A possible follow-up, not started and not prototyped:* a `CheckerIo` trait in the
+core and an extracted `run_args<I: CheckerIo>` returning the `u8`, under a thin
+`main`.  Non-determinism becomes "for all instances", with a law over one snapshot
+generalising `ReadsAs` on the file operations; `liftIO` becomes named methods
+with no postcondition.  `ChunkSource` shows the shape extracts.  Phase B stays the
+hard part: the pool's `true` remains a law (`PoolAccepts`), or the core runs it
+serially.  The gain: `h1`…`h8` become theorems about `run_args`.
+
+**Theorems.**  No proof had to be rethought, no twin divergence, no change to
+`Refine2/Tactic/{Lockstep,Prims}.lean`.
+* *Theorem 1*: `Bridge/Inductives/StoredRecs.lean` is new (+877, 22 theorems), plus
+  `consBlockRecsTemp_run` and `checkBlockTailStored_of`: the pops give back an
+  index answering as `fe₂` did.  About 2 500 lines each way are one-token
+  substitutions.  No `finish` limit raised.  `StoredRecs` is in the tier's run form
+  (`CSpecF`, `PStep`), NOT `vcgen`: `Bridge/Inductives/**` has no `vcgen` at all
+  today, against the `### Task #123` rule as CLAUDE.md states it for `Bridge/**`.
+  Converting that tier is a decision of its own.
+* *Theorem 2*: `Refine2/Inductives/StoredRecs.lean` is new (+524, 26 theorems), 36
+  new theorems in all; `eager` in the knot relations by about 470 regex
+  substitutions, by hand only in the eager tier.
+* *Capstone*: `stages_model`'s conclusion drops the mode argument, as #453 forces
+  (`Nonempty (EnvModelM V .verified env')` → `Nonempty (EnvModelM V env')`);
+  `model_exists`, `no_False_declaration` statements unchanged.
+
+**Measurement** (`bump-con-leche.sh measure`, `Init`, one worker, both accept
+57 919): master `97eead2d` 187 572 529 925, this branch `abee2d0d` **188 182 703 261
+instructions:u (+0.325 %)**.  Upstream's whole of #386–#431 cost +0.68 % on
+init-full, most of it its `--jobs=1` alignment, which is not ported.  The Mathlib
+landing run was not made: the install keeps the parsed rules instead of generated
+ones and copies no environment; peak RSS on `Init` 568 492 → 506 404 KB, within the
+binaries' run-to-run spread (#131).
+
+**Findings.**  `update --auto`: 212 findings (156 changed, 56 gone), 30 deleted
+mechanically, **182 markers, 0 at the end**.  Coverage 869/952 → **880/964**, no new
+uncovered declaration without a reason.  diff-e2e (640 fixtures): master's binary
+at the new pin 626 agree, 14 differ (`ind_rule_binder_bad` and the 13 of upstream's
+#386); the branch's **640/640** at `--jobs=1` and `--jobs=4`, display gate 9/9,
+the new command-line gate 10/10 (mirrors upstream's `dash_case` and FIFO tests).
+`con-ron-lean` 640/640, command-line gate 10/10, display gate 6/9: `cli/pins-path`
+and `cli/pins-file` need `--pins`, which the twin never had; `render_name_progress`
+was not investigated (this branch changed no heartbeat in the twin).  No fixture
+shows a verdict differing from upstream, though on a stream with a failing
+definition and a later failing block con-ron reports the block (the spec fold's
+order) where upstream reports first failure in fold order.
+
+**Size** (from master): Rust core +1 979 −1 116; driver +121 −167; twin +754 −428;
+Theorem 1 and Capstone +4 258 −3 206; Theorem 2 +1 387 −640; generated model
++4 248 −2 747.
