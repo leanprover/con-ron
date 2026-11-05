@@ -71367,3 +71367,25 @@ module note had named with no theorem behind it, exists now.
 **The theorems owe** (as this section was written, before they were touched): the twin
 statements above, `Refine2/Checker/Phased.lean`'s `PoolAccepts`,
 `Arena/Pooled.lean`'s `PooledAccepts`, and the capstone's `h6`…`h8`.
+
+#### The landing run
+
+The final binary against master `5de7dd3c`, one run each, `--verified`, `perf stat`, under the
+27 GB cap.  The job count and accepted declarations agree across all runs.
+
+| run | instructions:u | peak RSS | parse / install / check |
+|---|---:|---:|---|
+| `Init`, master, 1 worker (`bump-con-leche.sh measure`, #139) | 188 182 703 261 | 506 MB | |
+| `Init`, this branch, 1 worker | 191 471 276 782 (**+1.75 %**) | 507 MB | |
+| Mathlib, master, 1 worker | 3 391 958 607 251 | 6.94 GB | 53.7 / 12.0 / 361.9 s |
+| Mathlib, this branch, 1 worker | 3 435 528 959 839 (**+1.28 %**) | 6.87 GB | 52.8 / 10.9 / 368.6 s |
+| Mathlib, this branch, 8 workers | 3 453 111 699 836 | 7.25 GB | 52.8 / 10.6 / 51.3 s |
+
+Of the `Init` delta, stored install and jobs were +1.51 % and the restore +0.24 %.  Upstream's
+whole of #386–#431 cost +0.68 % on init-full at `--jobs=1`.  Mathlib: 703 080 jobs, 6 795 of them
+blocks.  Wall times are one run each with another run beside them, so indicative only.  Phase A
+stays sequential: about 10 s of a 115 s run at 8 workers, against about 53 s for the parse.
+
+diff-e2e, 640 fixtures, the final binary: 640/640 at `--jobs=1` and `--jobs=4`, display gate 9/9,
+command-line gate 10/10.  A panic in `promote.rs`'s name assertions is exit 3, never a verdict
+(`bin/con-ron.rs`), and no fixture reaches one.
