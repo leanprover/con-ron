@@ -4268,6 +4268,31 @@ impl EStore {
         PersTier { frozen: true, n, l, ls, e, env: ifenv_layer(0, 0) }
     }
 
+    /// con-leche: none — arena infrastructure; Lean twin:
+    /// proof/ConRon/Arena/Store.lean:504-507 EStore.dropScratch
+    /// **A closed store made of a tier alone**: the tier's tables, empty scratch
+    /// tiers, the flags off.  `thaw`'s answer, read off nothing of the store it
+    /// would be called on, for the state a failed run left
+    /// (`stored_install::stored_abandon`).
+    pub fn of_tier(tier: PersTier) -> EStore {
+        EStore {
+            lss: LsStore {
+                ls: LStore {
+                    ns: NStore { pers: tier.n, scr: NTables::empty(), scratch_on: false },
+                    pers: tier.l,
+                    scr: LTables::empty(),
+                    scratch_on: false,
+                },
+                pers: tier.ls,
+                scr: LsTables::empty(),
+                scratch_on: false,
+            },
+            pers: tier.e,
+            scr: ETables::empty(),
+            scratch_on: false,
+        }
+    }
+
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:509-512 EStore.dropScratch
     /// **Thaw the store** (the bracket, closed): the tier's four tables back

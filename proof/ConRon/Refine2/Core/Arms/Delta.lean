@@ -219,31 +219,31 @@ theorem ifenv_find_base_abs {pers : arena.store.PersTier} {vis below : Std.U64}
     have hlt : pos.val < pers.env.env.consts.val.length := hb.inv.2.2.1 n (c, pos) hto.symm
     simp only [Option.bind_some] at hrun ⊢
     by_cases hc : c < vis
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       by_cases hd : c < below
-      · rw [if_pos hd] at hrun
+      · rw [ite_eq_left hd] at hrun
         obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
         have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
         have hd' : absU c < absU below := (Std.UScalar.lt_equiv c below).mp hd
-        rw [if_pos hd', rowOf]
-        simp only [hci, Option.map_some, rowAt, if_pos hc']
+        rw [ite_eq_left hd', rowOf]
+        simp only [hci, Option.map_some, rowAt, ite_eq_left hc']
         exact ⟨trivial, fun ci' h => by
           cases h; exact hb.envWF ci (List.mem_of_getElem? hci)⟩
-      · rw [if_neg hd] at hrun
+      · rw [ite_eq_right hd] at hrun
         cases Result.ok_injective hrun
         have hd' : ¬ absU c < absU below := fun h => hd ((Std.UScalar.lt_equiv c below).mpr h)
-        rw [if_neg hd']
+        rw [ite_eq_right hd']
         exact ⟨rfl, by simp⟩
-    · rw [if_neg hc] at hrun
+    · rw [ite_eq_right hc] at hrun
       cases Result.ok_injective hrun
       refine ⟨?_, by simp⟩
       have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)
       by_cases hd' : absU c < absU below
-      · rw [if_pos hd', rowOf]
+      · rw [ite_eq_left hd', rowOf]
         cases hci : pers.env.env.consts.val[pos.val]? with
         | none => rfl
         | some ci => simp [rowAt, hc']
-      · rw [if_neg hd']; rfl
+      · rw [ite_eq_right hd']; rfl
 
 /-- **`arena::env::ifenv_find` against `IFEnv.find?`**, and what it finds is canonical
 Rust data.  The own layer, then the base: `CoreCtx.idx` is that composition, with the
@@ -288,14 +288,14 @@ theorem ifenv_find_abs' {pers : arena.store.PersTier} {vis : Std.U64} {fe : aren
       rw [← hto]
       simp only at hrun ⊢
       by_cases hc : c < vis
-      · rw [if_pos hc] at hrun
+      · rw [ite_eq_left hc] at hrun
         obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
         have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
         rw [rowOf]
-        simp only [hci, Option.map_some, rowAt, if_pos hc']
+        simp only [hci, Option.map_some, rowAt, ite_eq_left hc']
         exact ⟨trivial, fun ci' h => by
           cases h; exact hctx.envWF ci (List.mem_of_getElem? hci)⟩
-      · rw [if_neg hc] at hrun
+      · rw [ite_eq_right hc] at hrun
         cases Result.ok_injective hrun
         refine ⟨?_, by simp⟩
         have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)

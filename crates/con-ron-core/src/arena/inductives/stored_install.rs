@@ -32,8 +32,8 @@
 //!   (`stored_tele_slow`, `stored_guards`): a failed inference is a VALUE here,
 //!   `None` or no guards, and the run goes on, so the state after one must be
 //!   the state it started from.  The bracket gives exactly that: nothing writes
-//!   the persistent tier inside it, its `Err` arm (`stored_abandon`) empties the
-//!   scratch tier, the memos and the caches and puts the pins back, and what an
+//!   the persistent tier inside it, its `Err` arm (`stored_abandon`) writes the state
+//!   from the tier and the saved pins, with empty memos, caches and scratch, and what an
 //!   accepted inference leaves is promoted before the drop.  Everything else of
 //!   the reading runs in one bracket at its end (`stored_tail`), which promotes
 //!   the block's new constants and tables as `install_step`'s does.
@@ -66,12 +66,13 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
-use crate::arena::monad::{fail, fail_dangling_e, intern_e_sort, view_bind, view_const, view_sort, AState};
+use crate::arena::core_state::Caches;
+use crate::arena::monad::{fail, fail_dangling_e, intern_e_sort, view_bind, view_const, view_sort, AState, Memos};
 use crate::arena::pins::pin_empty_levels;
 use crate::arena::promote::{
     promote_e, promote_l, promote_l_list, promote_new, scratch_restore, scratch_save, PMemo, ScratchFrame,
 };
-use crate::arena::store::PersTier;
+use crate::arena::store::{EStore, PersTier};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{reducibility_hint_beq, CheckMode};
 use crate::kernel::prop_when;
@@ -219,12 +220,15 @@ pub fn i_proj_table_beq_p(a: &IProjTable, b: &IProjTable) -> bool {
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:90-108 storedTry` — the
-/// `Err` arm of a stored inference (the module note): the scratch tier, the
-/// memos and the caches emptied, the pins as they were.
+/// `Err` arm of a stored inference (the module note): the state written from what
+/// the failed run could not touch, the tier and the saved pins, with empty memos,
+/// caches and scratch tiers.  Fresh tables rather than reset ones: nothing is known
+/// of the tables a failed run leaves, and the failure path is rare.
 pub fn stored_abandon(st: &mut AState, tier: PersTier, saved: ScratchFrame) {
-    scratch_restore(st, saved);
-    st.memos.reset();
-    drop_scratch(st, tier);
+    st.store = EStore::of_tier(tier);
+    st.memos = Memos::empty();
+    st.caches = Caches::empty();
+    st.pins = saved.pins;
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele

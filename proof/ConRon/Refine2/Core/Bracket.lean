@@ -298,7 +298,9 @@ def layer00 : arena.env.IFEnv :=
               slots := alloc.vec.Vec.new _ },
     base_below := 0#u64 }
 
-theorem ifenv_layer00 : arena.env.ifenv_layer 0#u64 0#u64 = ok layer00 := rfl
+theorem ifenv_layer00 : arena.env.ifenv_layer 0#u64 0#u64 = ok layer00 := by
+  simp only [arena.env.ifenv_layer, arena.env.i_env_empty, ron.hashmap2.HashMap2.new, bind_ok]
+  rfl
 
 /-- The persistent tier `freeze` moves out of a store: its four own
 persistent tables, `frozen`, and no environment base. -/

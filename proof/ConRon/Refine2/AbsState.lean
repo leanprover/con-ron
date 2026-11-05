@@ -512,28 +512,28 @@ structure BaseOK (pers : arena.store.PersTier) : Prop where
 
 /-- `n`'s row in the frozen base, as a layer whose base is visible below `below`
 reads it: `ifenv_find_base`, without the reader's own bound. -/
-def baseRow (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
+noncomputable def baseRow (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
     Option (Nat × IConstantInfo) :=
   (ConRon.Refine.HashMap2.toFun pers.env.idx n).bind fun p =>
     if absU p.1 < absU below then rowOf pers.env.env.consts p else none
 
 /-- `n`'s table in the frozen base, gated on the structure being visible to the
 layer: `ifenv_table_base`. -/
-def baseTbl (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
+noncomputable def baseTbl (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
     Option IProjTable :=
   if (baseRow pers below n).isSome then
     (ConRon.Refine.HashMap2.toFun pers.env.tbls n).bind (tblOf pers.env.env.tables)
   else none
 
 /-- **The lookup of a layer**, as a row: the own index, and on a miss the base. -/
-def layerRow (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
+noncomputable def layerRow (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
     (n : arena.handle.NIdx) : Option (Nat × IConstantInfo) :=
   match ConRon.Refine.HashMap2.toFun rf.idx n with
   | some p => rowOf rf.env.consts p
   | none => baseRow pers rf.base_below n
 
 /-- **The table lookup of a layer**: the own map, and on a miss the base's, gated. -/
-def layerTbl (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
+noncomputable def layerTbl (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
     (n : arena.handle.NIdx) : Option IProjTable :=
   match ConRon.Refine.HashMap2.toFun rf.tbls n with
   | some s => tblOf rf.env.tables s

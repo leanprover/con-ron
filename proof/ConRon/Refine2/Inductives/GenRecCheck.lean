@@ -1352,9 +1352,10 @@ itself is not structurally restored — and `TFEq` for the twin), and
 def RFEq (a b : arena.env.IFEnv) : Prop :=
   a.env.consts.val = b.env.consts.val ∧
     ConRon.Refine.HashMap2.toFun a.idx = ConRon.Refine.HashMap2.toFun b.idx ∧
-    a.visible_below = b.visible_below ∧ a.env.tables = b.env.tables ∧ a.tbls = b.tbls
+    a.visible_below = b.visible_below ∧ a.env.tables = b.env.tables ∧ a.tbls = b.tbls ∧
+    a.base_below = b.base_below
 
-theorem RFEq.refl (a : arena.env.IFEnv) : RFEq a a := ⟨rfl, rfl, rfl, rfl, rfl⟩
+theorem RFEq.refl (a : arena.env.IFEnv) : RFEq a a := ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The port index's table invariant alone. -/
 abbrev IdxInv (a : arena.env.IFEnv) : Prop :=
@@ -1408,15 +1409,19 @@ theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
 /-- **The relation survives answering-alike indexes on both sides.** -/
 theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf lf' : IFEnv} (h : IFEnvRelI pers E₀ rf lf)
     (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI pers E₀ rf' lf' := by
-  obtain ⟨⟨henv, hidx, hvb, hwf, hkeys, htbls, htk⟩, ⟨-, hbound, hrange, htinv, htrange⟩⟩ := h
-  obtain ⟨hc, ht, hv, hT, hTb⟩ := hr
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, hi, ?_, ?_, ?_, ?_⟩
-  · rw [hl.1, henv]; simp only [absIEnv, hc, hT]
-  · intro n; rw [ht, hc, hl.2.2.1]; exact hidx n
+  obtain ⟨⟨henv, hidx, hvb, hwf, hkeys, htbls, htk, hbase⟩, ⟨-, hbound, hrange, htinv, htrange⟩⟩ := h
+  obtain ⟨hc, ht, hv, hT, hTb, hB⟩ := hr
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hbase⟩, hi, ?_, ?_, ?_, ?_⟩
+  · rw [hl.1, henv]; simp only [overEnv, hc, hT]
+  · intro n
+    rw [hl.2.2.1, ← hidx n]
+    simp only [layerRow, rowOf, ht, hc, hB]
   · rw [hl.2.1, hvb, hv]
   · intro ci hci; rw [hc] at hci; exact hwf ci hci
   · intro k p hp; rw [ht] at hp; rw [hc]; exact hkeys k p hp
-  · intro n; rw [hTb, hT, hl.2.2.2]; exact htbls n
+  · intro n
+    rw [hl.2.2.2, ← htbls n]
+    simp only [layerTbl, tblOf, hTb, hT, hB]
   · intro k s hs; rw [hTb] at hs; rw [hT]; exact htk k s hs
   · rw [hv, hc]; exact hbound
   · intro n p hp; rw [ht] at hp; rw [hc]; exact hrange n p hp
@@ -1435,7 +1440,7 @@ theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.ICons
         ConRon.Refine.HashMap2.toFun rf'.idx =
           Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some (rf.visible_below, s))) ∧
       rf'.visible_below.val = rf.visible_below.val + 1 ∧ IdxInv rf' ∧
-      rf'.env.tables = rf.env.tables ∧ rf'.tbls = rf.tbls := by
+      rf'.env.tables = rf.env.tables ∧ rf'.tbls = rf.tbls ∧ rf'.base_below = rf.base_below := by
   rw [arena.env.ifenv_push_temp] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1447,7 +1452,7 @@ theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.ICons
       hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
   have h' := Prod.mk.inj (Result.ok_injective h)
   obtain ⟨rfl, rfl⟩ := h'
-  refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, ?_, hinv', rfl, rfl⟩
+  refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, ?_, hinv', rfl, rfl, rfl⟩
   · rw [arena.env.ifenv_push, hs]
     simp only [bind_ok, hn, hq, hv, hc1]
     rfl
@@ -1464,7 +1469,8 @@ theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx
       ConRon.Refine.HashMap2.toFun out.idx =
         Function.update (ConRon.Refine.HashMap2.toFun fe.idx) n prev ∧
       out.visible_below.val = fe.visible_below.val - 1 ∧ 1 ≤ fe.visible_below.val ∧
-      IdxInv out ∧ out.env.tables = fe.env.tables ∧ out.tbls = fe.tbls := by
+      IdxInv out ∧ out.env.tables = fe.env.tables ∧ out.tbls = fe.tbls ∧
+      out.base_below = fe.base_below := by
   unfold arena.env.ifenv_pop_temp at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hvv : v.val = fe.env.consts.val.take (fe.env.consts.val.length - 1) := by
@@ -1510,7 +1516,7 @@ theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx
         ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
           hi ConRon.Refine.HashMap2.KeysOk_true trivial hq
       exact ⟨hinv', hupd⟩
-  exact ⟨hvv, hhmv.2, by simpa using hc1v.2, by simpa using hc1v.1, hhmv.1, rfl, rfl⟩
+  exact ⟨hvv, hhmv.2, by simpa using hc1v.2, by simpa using hc1v.1, hhmv.1, rfl, rfl, rfl⟩
 
 /-- **A pop undoes its push** on the port side, from any index answering like
 the pushed one. -/
@@ -1521,12 +1527,13 @@ theorem gr_pop_push {rf rf1 rfX out : arena.env.IFEnv} {ci : arena.env.IConstant
     (hX : RFEq rfX rf1) (hXi : IdxInv rfX)
     (hpop : arena.env.ifenv_pop_temp rfX n prev = ok out) :
     RFEq out rf ∧ IdxInv out := by
-  obtain ⟨-, n', hn', hprev, hc, ⟨s, -, ht⟩, hvb, -, hT1, hTb1⟩ :=
+  obtain ⟨-, n', hn', hprev, hc, ⟨s, -, ht⟩, hvb, -, hT1, hTb1, hB1⟩ :=
     gr_ifenv_push_temp_spec hfinv hpush
   rw [hn] at hn'; cases Result.ok_injective hn'
-  obtain ⟨hoc, hot, hov, hov1, hoi, hoT, hoTb⟩ := gr_ifenv_pop_temp_spec hXi hpop
-  obtain ⟨hXc, hXt, hXv, hXT, hXTb⟩ := hX
-  refine ⟨⟨?_, ?_, ?_, by rw [hoT, hXT, hT1], by rw [hoTb, hXTb, hTb1]⟩, hoi⟩
+  obtain ⟨hoc, hot, hov, hov1, hoi, hoT, hoTb, hoB⟩ := gr_ifenv_pop_temp_spec hXi hpop
+  obtain ⟨hXc, hXt, hXv, hXT, hXTb, hXB⟩ := hX
+  refine ⟨⟨?_, ?_, ?_, by rw [hoT, hXT, hT1], by rw [hoTb, hXTb, hTb1],
+    by rw [hoB, hXB, hB1]⟩, hoi⟩
   · rw [hoc, hXc, hc]; simp
   · rw [hot, hXt, ht, hprev]
     funext k
