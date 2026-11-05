@@ -312,7 +312,9 @@ def promoteENodeSpec (m : PMemo) (fuel : Nat) : ENodeView → AM (PMemo × EIdx)
 /-- `promoteN` in terms of its transcription. -/
 theorem promoteN_unfold (m : PMemo) (fuel : Nat) (h : NIdx) :
     promoteN m (fuel + 1) h = (do
-      if h.isPersistent then pure (m, h)
+      if h.isPersistent then do
+        let _ ← viewN h
+        pure (m, h)
       else
         match m.nM[h]? with
         | some r => pure (m, r)
@@ -332,7 +334,9 @@ theorem promoteN_unfold (m : PMemo) (fuel : Nat) (h : NIdx) :
 /-- `promoteL` in terms of its transcription. -/
 theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
     promoteL m (fuel + 1) h = (do
-      if h.isPersistent then pure (m, h)
+      if h.isPersistent then do
+        let _ ← viewL h
+        pure (m, h)
       else
         match m.lM[h]? with
         | some r => pure (m, r)
@@ -352,7 +356,9 @@ theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
 /-- `promoteE` in terms of its transcription. -/
 theorem promoteE_unfold (m : PMemo) (fuel : Nat) (h : EIdx) :
     promoteE m (fuel + 1) h = (do
-      if h.isPersistent then pure (m, h)
+      if h.isPersistent then do
+        let _ ← view h
+        pure (m, h)
       else
         match m.eM[h]? with
         | some r => pure (m, r)
@@ -1211,6 +1217,23 @@ private theorem LST.and_rust {α β : Type} {P0 : arena.store.PersTier}
     obtain ⟨b, lst', h3, h4, h5, h6⟩ := hh
     exact ⟨b, lst', h3, ⟨h4, hQ a t' h1⟩, h5, h6⟩
 
+/-- **The promotion moved no name** of the constants: the Rust's assertion in
+`index_promoted`, read over the list. -/
+def KeptC (a b : arena.env.IFEnv) : Prop :=
+  b.env.consts.val.map (fun c => (absIConstantInfo c).name) =
+    a.env.consts.val.map (fun c => (absIConstantInfo c).name)
+
+/-- The same at the tables' structure names (`promote_installed_tables`). -/
+def KeptT (a b : arena.env.IFEnv) : Prop :=
+  b.env.tables.val.map (fun t => absNIdx t.struct_name) =
+    a.env.tables.val.map (fun t => absNIdx t.struct_name)
+
+theorem map_set_same {α β : Type} (f : α → β) (l : List α) (i : Nat) (hi : i < l.length) (x : α)
+    (h : f x = f l[i]) : (l.set i x).map f = l.map f := by
+  rw [List.map_set, h]
+  have : f l[i] = (l.map f)[i]'(by simpa using hi) := by simp
+  rw [this, List.set_getElem_self]
+
 private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     {c i1 i2 : Std.U64} {ci : arena.env.IConstantInfo} {nn : arena.handle.NIdx}
     {hm : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.U64 × Std.U64)}
@@ -1330,7 +1353,7 @@ private theorem index_promoted_aux (d : Nat) :
       (∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
         p.2.val < start.val ∨ j.val ≤ p.2.val) →
       LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
-        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
+        p.1.2.env.tables = rf.env.tables ∧ KeptC rf p.1.2) ∧ p.2.frozen = true)
         (fun t' => glue t' st)
         (arena.promote.index_promoted t st rm fuel rf start j c) lst
         (indexPromotedTwin lm (absU fuel) lf.env.consts lf.idx lf.visibleBelow lf.env.tables
@@ -1342,7 +1365,7 @@ private theorem index_promoted_aux (d : Nat) :
     have hje : j.val = start.val := by omega
     show LS _ _ (packT _ _) _ _
     rw [arena.promote.index_promoted, ite_eq_left (by scalar_tac), hje, indexPromotedTwin_zero]
-    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl⟩, ht⟩ hrel hinv)
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl, rfl⟩, ht⟩ hrel hinv)
   | succ d ih =>
     intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
       hfree
@@ -1367,6 +1390,12 @@ private theorem index_promoted_aux (d : Nat) :
     -- the promoted constant is canonical: `ii` is stored in the related source
     have hiiwf : IConstantInfoWF ii :=
       hfe.envWF ii (by rw [← hii]; exact List.getElem_mem _)
+    -- the name the assertion below compares with
+    refine LS.packT_bind (LS.bind_eq fun name hname => ?_)
+    have hname' := i_constant_info_name_abs hname
+    refine LS.packT_bind (LS.bind_eq fun ii1 hii1 => ?_)
+    obtain ⟨-, hii1⟩ := ExprOps.vecIndexAt hii1
+    obtain rfl : ii1 = ii := by rw [← hii1, hii]
     refine LS.packT_bind (LS.bindT (LST.and_rust (promote_ci_ls hP ht hsc hrel hinv hm fuel ii)
         (Q := fun r => IConstantInfoWF r.2)
         (fun a t' h => promote_ci_wf hiiwf h)) (by rw [htw]) ?_ ?_)
@@ -1378,6 +1407,16 @@ private theorem index_promoted_aux (d : Nat) :
       try dsimp only
       refine LS.packT_bind (LS.bind_eq fun nn hnn => ?_)
       have hnn' := i_constant_info_name_abs hnn
+      refine LS.packT_bind (LS.bind_eq fun bb hbb => ?_)
+      refine LS.packT_bind (LS.bind_eq fun _ hass => ?_)
+      have hbt : bb = true := by
+        cases bb with
+        | true => rfl
+        | false => simp [massert] at hass
+      have hsame : absNIdx nn = absNIdx name := by
+        have := nidx_eq2_abs hbb
+        rw [hbt] at this
+        simpa using this
       refine LS.packT_bind (LS.bind_eq fun i1 hi1' => ?_)
       obtain ⟨hc1, hi1v⟩ := ConRon.Refine.Nat.usub_val hi1'
       refine LS.packT_bind (LS.bind_eq fun i2 hi2 => ?_)
@@ -1400,7 +1439,15 @@ private theorem index_promoted_aux (d : Nat) :
       have hrec := ih fuel start i i1 (by omega) (by omega) (by rw [hlen']; omega)
           hP hf1 hsc hrel1 hinv1 hM hrel' hinv' hfree'
       rw [hlen'] at hrec
-      refine LS.tailT hrec ?_ (fun _ _ h => h)
+      have hkept : KeptC rf { rf with env := { rf.env with
+          consts := alloc.vec.Vec.set rf.env.consts i ci }, idx := hmm } := by
+        show (alloc.vec.Vec.set rf.env.consts i ci).val.map _ = _
+        simp only [alloc.vec.Vec.set_val_eq]
+        refine map_set_same _ _ _ (by rw [← hii]; omega) _ ?_
+        rw [← hnn', hsame, hname']
+        congr 2
+      refine LS.tailT hrec ?_ (fun _ _ h =>
+        ⟨⟨h.1.1, h.1.2.1, h.1.2.2.1, h.1.2.2.2.trans hkept⟩, h.2⟩)
       simp only [hiv, show absU i1 = absU c - 1 from hi1v]
 
 open Lockstep in
@@ -1423,7 +1470,7 @@ theorem index_promoted_ls {P t st lst rm lm rf lf} {fuel : Std.U64}
     (hfree : ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
       p.2.val < start.val ∨ j.val ≤ p.2.val) :
     LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
-        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
+        p.1.2.env.tables = rf.env.tables ∧ KeptC rf p.1.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.index_promoted t st rm fuel rf start j c) lst
       (indexPromotedTwin lm (absU fuel) (absIEnv rf.env).consts lf.idx lf.visibleBelow
@@ -1454,7 +1501,7 @@ theorem promote_new_consts_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
     (hkeys : IFEnvKeys rf)
     (hk : absU k ≤ rf.env.consts.val.length) :
     LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
-        p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
+        p.1.2.env.tables = rf.env.tables ∧ KeptC rf p.1.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new_consts t st rm fuel k rf) lst
       (promoteNewConsts lm (absU fuel) (absU k) lf) := by
@@ -1464,7 +1511,7 @@ theorem promote_new_consts_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
   · rw [ite_eq_left hk0]
     have h0 : absU k = 0 := by rw [hk0]; rfl
     rw [promoteNewConsts, h0]
-    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl⟩, ht⟩ hrel hinv)
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl, rfl⟩, ht⟩ hrel hinv)
   · rw [ite_eq_right hk0]
     have hn := alloc.vec.Vec.len_val rf.env.consts
     refine LS.packT_bind (LS.bind_eq fun kk hkk => ?_)
@@ -1535,7 +1582,8 @@ theorem promote_new_consts_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
       have hkn : k.val ≤ rf.env.consts.val.length := hk
       rw [Nat.sub_sub_self hkn, hkabs]
     have he2 : fe2.env = rf.env := (erase_installed_aux _ rfl hfinv hfe2).1
-    exact LS.tailT hI htw (fun _ _ h => ⟨⟨h.1.1, h.1.2.1, h.1.2.2.trans (by rw [he2])⟩, h.2⟩)
+    exact LS.tailT hI htw (fun _ _ h => ⟨⟨h.1.1, h.1.2.1, h.1.2.2.1.trans (by rw [he2]),
+      h.1.2.2.2.trans (by simp only [he2])⟩, h.2⟩)
 
 /-! ## The tables' promotion (`promote_new_tables`)
 
@@ -1755,7 +1803,8 @@ def PromotedTables (rf : arena.env.IFEnv) (start j : Nat) (fe : arena.env.IFEnv)
   (∀ q, q < start → fe.env.tables.val[q]? = rf.env.tables.val[q]?) ∧
   (fe.env.tables.val.map absIProjTable).reverse =
     (rf.env.tables.val.map absIProjTable).reverse.take (rf.env.tables.val.length - j) ++ mid ++
-      (rf.env.tables.val.map absIProjTable).reverse.drop (rf.env.tables.val.length - start)
+      (rf.env.tables.val.map absIProjTable).reverse.drop (rf.env.tables.val.length - start) ∧
+  KeptT rf fe
 
 open Lockstep in
 /-- `promote_installed_tables` ⊑ `promoteProjTables` on the slice `start..j`,
@@ -1780,7 +1829,7 @@ private theorem promote_installed_tables_aux (d : Nat) :
     rw [arena.promote.promote_installed_tables, ite_eq_left (by scalar_tac), hje, Nat.sub_self,
       List.take_zero]
     simp only [promoteProjTables]
-    refine LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨rf.env.tables, rfl⟩, rfl, fun _ _ => rfl, ?_⟩, ht⟩
+    refine LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨rf.env.tables, rfl⟩, rfl, fun _ _ => rfl, ?_, rfl⟩, ht⟩
       hrel hinv)
     simp
   | succ d ih =>
@@ -1822,6 +1871,19 @@ private theorem promote_installed_tables_aux (d : Nat) :
       simp only at hM htt hf1
       subst htt
       try dsimp only
+      refine LS.packT_bind (LS.bind_eq fun ii1 hii1 => ?_)
+      obtain ⟨-, hii1⟩ := ExprOps.vecIndexAt hii1
+      obtain rfl : ii1 = ii := by rw [← hii1, hii]
+      refine LS.packT_bind (LS.bind_eq fun bb hbb => ?_)
+      refine LS.packT_bind (LS.bind_eq fun _ hass => ?_)
+      have hbt : bb = true := by
+        cases bb with
+        | true => rfl
+        | false => simp [massert] at hass
+      have hsame : absNIdx tt.struct_name = absNIdx ii1.struct_name := by
+        have := nidx_eq2_abs hbb
+        rw [hbt] at this
+        simpa using this
       refine LS.packT_bind (LS.bind_eq fun q2 hq2 => ?_)
       obtain ⟨x, back⟩ := q2
       have : Inhabited arena.env.IProjTable := ⟨tt⟩
@@ -1853,9 +1915,9 @@ private theorem promote_installed_tables_aux (d : Nat) :
         congr 2; omega
       · rintro ⟨m3, fe3⟩ t3 ⟨m3', mid⟩ lst3 ⟨⟨hM3, hPT⟩, hf3⟩ hrel3 hinv3
         refine LS.pure ⟨⟨hM3, ?_⟩, hf3⟩ hrel3 hinv3
-        obtain ⟨⟨T, hT⟩, hTl, hTpre, hTlist⟩ := hPT
+        obtain ⟨⟨T, hT⟩, hTl, hTpre, hTlist, hTk⟩ := hPT
         subst hT
-        refine ⟨⟨T, rfl⟩, ?_, ?_, ?_⟩
+        refine ⟨⟨T, rfl⟩, ?_, ?_, ?_, ?_⟩
         · show T.val.length = _
           rw [show T.val.length = _ from hTl]; exact hlen'
         · intro q hq
@@ -1869,6 +1931,11 @@ private theorem promote_installed_tables_aux (d : Nat) :
               omega,
             take_set_succ _ _ _ hlt, List.drop_set_of_lt (by omega)]
           simp [List.append_assoc]
+        · refine Eq.trans hTk ?_
+          show (alloc.vec.Vec.set rf.env.tables i tt).val.map _ = _
+          simp only [alloc.vec.Vec.set_val_eq]
+          refine map_set_same _ _ _ hil _ ?_
+          rw [hsame, ← hii1]
 
 open Lockstep in
 /-- **`promote_new_tables` ⊑ `promoteNewTables`** — the phase-A bracket's
@@ -1881,7 +1948,8 @@ theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hk : absU kt ≤ rf.env.tables.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧ KeptT rf p.1.2 ∧
+        p.1.2.env.consts = rf.env.consts) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new_tables t st rm fuel kt rf) lst
       (promoteNewTables lm (absU fuel) (absU kt) lf) := by
@@ -1953,7 +2021,7 @@ theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
       try dsimp only
       refine LS.packT_bind (LS.bind_eq fun o ho => ?_)
       refine LS.packT_ok_ok (LS.pure ⟨⟨hM, ?_⟩, hf1⟩ hrel1 hinv1)
-      obtain ⟨⟨T, rfl⟩, hTl, hTpre, hTlist⟩ := hPT
+      obtain ⟨⟨T, rfl⟩, hTl, hTpre, hTlist, hTk⟩ := hPT
       simp only [hn] at hTl hTpre hTlist
       have hk' : kt.val ≤ rf.env.tables.val.length := hk
       have hT2 : (T.val.map absIProjTable).reverse
@@ -2012,8 +2080,8 @@ theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
       rw [hdrop, List.reverse_reverse] at hR4
       have hTlist' : (T.val.map absIProjTable).reverse = mid ++ tables.drop kt.val := by
         rw [hT2, hts]
-      refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, hK4⟩,
-        ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hI4, ?_⟩⟩
+      refine ⟨⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, hK4⟩,
+        ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hI4, ?_⟩⟩, hTk, rfl⟩
       · show IEnv.mk consts (mid ++ tables.drop (absU kt)) = absIEnv _
         have h := hfe.env
         simp only [absIEnv, IEnv.mk.injEq] at h ⊢
@@ -2040,7 +2108,8 @@ theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k kt : Std.U64}
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length) (hkt : absU kt ≤ rf.env.tables.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧ KeptC rf p.1.2 ∧
+        KeptT rf p.1.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new t st rm fuel k kt rf) lst
       (promoteNew lm (absU fuel) (absU k) (absU kt) lf) := by
@@ -2050,11 +2119,13 @@ theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k kt : Std.U64}
     (promote_new_consts_ls_keyed hP ht hsc hrel hinv hm hfe hfinv hfe.keys hk) rfl ?_ ?_)
   · intro e t1
     exact ErrArm.packT_ok_err
-  · rintro ⟨m2, fe2⟩ t1 ⟨m2', fe2'⟩ lst1 ⟨⟨hM, ⟨hR, hI⟩, htb⟩, hf1⟩ hrel1 hinv1
+  · rintro ⟨m2, fe2⟩ t1 ⟨m2', fe2'⟩ lst1 ⟨⟨hM, ⟨hR, hI⟩, htb, hkc⟩, hf1⟩ hrel1 hinv1
     try dsimp only
-    simp only at htb
+    simp only at htb hkc
     exact LS.tailT (promote_new_tables_ls hP hf1 hsc hrel1 hinv1 hM hR hI (by rw [htb]; exact hkt))
-      rfl (fun _ _ h => h)
+      rfl (fun _ _ h => ⟨⟨h.1.1, h.1.2.1,
+        (by unfold KeptC; rw [h.1.2.2.2]; exact hkc),
+        (by unfold KeptT at *; rw [h.1.2.2.1, htb])⟩, h.2⟩)
 
 open Lockstep in
 /-- `promote_vg` ⊑ `promoteVG` — the datum that crosses the install/check
