@@ -214,11 +214,10 @@ Core tier is `EnsureSortSpec` and nothing else.
 
 The Core tier's statement and this tier's hypothesis are the same statement,
 and one line joins them. -/
-theorem CoreSpec.of_knot {μ : CheckMode} (hμ : μ.verifiedChecks = true)
-    (hs : ∀ (env : Env) (fe : IFEnv), EnvWF env →
-      EnsureSortSpec μ env fe Arena.checkFuel) :
-    CoreSpec μ Arena.checkFuel :=
-  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs⟩
+theorem CoreSpec.of_knot (hs : ∀ (env : Env) (fe : IFEnv), EnvWF env →
+      EnsureSortSpec .verified env fe Arena.checkFuel) :
+    CoreSpec .verified Arena.checkFuel :=
+  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv rfl, hs⟩
 
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore — **the
 seventh entry point, discharged**: `Bridge/Core/EnsureSort.lean`'s
@@ -232,10 +231,10 @@ theorem ensureSortSpec_of_knot {mode : CheckMode} {env : Env} {fe : IFEnv}
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **`CoreSpec`
 with NOTHING left to supply**: both fields come from `Bridge/Core`, so the
 capstone's Core-tier hypothesis is discharged outright. -/
-theorem CoreSpec.of_core {μ : CheckMode} (hμ : μ.verifiedChecks = true) :
-    CoreSpec μ Arena.checkFuel :=
-  CoreSpec.of_knot hμ
-    (fun _ _ henv => ensureSortSpec_of_knot (Core.knot_spec_checkFuel henv hμ))
+theorem CoreSpec.of_core :
+    CoreSpec .verified Arena.checkFuel :=
+  CoreSpec.of_knot
+    (fun _ _ henv => ensureSortSpec_of_knot (Core.knot_spec_checkFuel henv rfl))
 
 /-! ## The inductive install -/
 
@@ -349,8 +348,8 @@ statement above this tier changes: the capstones take
 `hind : IndSpec .verified`, and `IndSpec.run` carries both of `IndWFSpec.run`'s
 clauses, so this is a projection (`denoteFEnv` is a function, which turns the
 witnessed `EnvWF` into the universal one). -/
-theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (hind : IndSpec μ) :
-    IndWFSpec μ := by
+theorem IndSpec.wf (hind : IndSpec .verified) :
+    IndWFSpec .verified := by
   refine ⟨fun {env fe fe' s s' block b nP} hok hb hpin hrun => ?_⟩
   obtain ⟨-, -, -, -, -, -, -, env', -, hden, -, hwf, hproj⟩ :=
     hind.run (pinsP := []) hok hb hpin hrun

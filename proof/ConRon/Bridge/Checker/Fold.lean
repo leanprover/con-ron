@@ -149,31 +149,31 @@ con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
 `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
 `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
 total extension holds here and weakens one level up. -/
-theorem Arena.checkDecl_bridge {μ : CheckMode}
+theorem Arena.checkDecl_bridge 
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hok : FoldOK .verified env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
-    (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
-    DeclOut μ pinsP env d s fe fe' s' := by
+    (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s')) :
+    DeclOut .verified pinsP env d s fe fe' s' := by
   cases pd with
   | axiomDecl v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨cv, hcv, rfl⟩ := hd
-    exact checkDecl_bridge_axiom hμ hk hok hpins hcv hrun
+    exact checkDecl_bridge_axiom hk hok hpins hcv hrun
   | quotDecl k v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨cv, hcv, rfl⟩ := hd
-    exact checkDecl_bridge_quot hμ hk hok hpins hcv hrun
+    exact checkDecl_bridge_quot hk hok hpins hcv hrun
   | basisDecl kind =>
     simp only [Frontend.denoteDecl, Option.some.injEq] at hd
     subst hd
-    exact checkDecl_bridge_basis hμ hk hok hpins hrun
+    exact checkDecl_bridge_basis hk hok hpins hrun
   | indDecl block nP =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨b, hb, rfl⟩ := hd
-    exact checkDecl_bridge_ind hμ hk hind hok hpins hb hrun
+    exact checkDecl_bridge_ind hk hind hok hpins hb hrun
   | defnDecl v e hint =>
     simp only [Frontend.denoteDecl] at hd
     cases hcv : Frontend.denoteCV s.store v with
@@ -185,7 +185,7 @@ theorem Arena.checkDecl_bridge {μ : CheckMode}
         rw [hcv, he] at hd
         simp only [Option.some.injEq] at hd
         subst hd
-        exact checkDecl_bridge_defn hμ hk hok hpins hcv he hrun
+        exact checkDecl_bridge_defn hk hok hpins hcv he hrun
   | thmDecl v e =>
     simp only [Frontend.denoteDecl] at hd
     cases hcv : Frontend.denoteCV s.store v with
@@ -197,7 +197,7 @@ theorem Arena.checkDecl_bridge {μ : CheckMode}
         rw [hcv, he] at hd
         simp only [Option.some.injEq] at hd
         subst hd
-        exact checkDecl_bridge_thm hμ hk hok hpins hcv he hrun
+        exact checkDecl_bridge_thm hk hok hpins hcv he hrun
   | opaqueDecl v e =>
     simp only [Frontend.denoteDecl] at hd
     cases hcv : Frontend.denoteCV s.store v with
@@ -209,6 +209,6 @@ theorem Arena.checkDecl_bridge {μ : CheckMode}
         rw [hcv, he] at hd
         simp only [Option.some.injEq] at hd
         subst hd
-        exact checkDecl_bridge_opaque hμ hk hok hpins hcv he hrun
+        exact checkDecl_bridge_opaque hk hok hpins hcv he hrun
 
 end ConRon.Bridge

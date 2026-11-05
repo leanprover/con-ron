@@ -105,7 +105,7 @@ theorem checkBlockPass_classes {μ : CheckMode} {F : Nat} {env : Env} {p₀ : Bl
 /-- con-leche: Kernel/Inductives/BlockTail.lean:127 checkBlockTail — from a
 pass whose constructors' environment is well-formed, whose parameters are the
 block's and whose outside classes sit below them (`checkBlockPass_classes`),
-the install after it yields a well-formed environment (`genRecCheck_recsWF`,
+the install after it yields a well-formed environment (`storedRecs_recsWF`,
 then the tables). -/
 theorem checkBlockTail_envWF {μ : CheckMode} {F : Nat} {block : List ConstantInfo}
     {q : BlockPass Env} {env' : Env}
@@ -115,7 +115,8 @@ theorem checkBlockTail_envWF {μ : CheckMode} {F : Nat} {block : List ConstantIn
   unfold checkBlockTail at h
   obtain ⟨_, -, h⟩ := exceptBind_ok h
   obtain ⟨out, hR, h⟩ := exceptBind_ok h
-  have henv₃ := ConLeche.Cached.genRecCheck_recsWF (mode := μ) henv₂ hR hpl hcls
+  obtain ⟨_, hS, h⟩ := exceptBind_ok h
+  have henv₃ := ConLeche.Cached.storedRecs_recsWF (mode := μ) henv₂ hR hpl hcls _ hS
     (consBlockCtors q.p.nP q.ctorsAs q.env₁).find?
   exact checkBlockTables_envWF _ _ henv₃ h
 

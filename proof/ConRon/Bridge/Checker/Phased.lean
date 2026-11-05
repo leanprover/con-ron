@@ -89,23 +89,23 @@ con-leche's `checkDeclsPure` accepts the denoted stream at the environment
 `fe'` denotes in the phase-A state `s'`.  `installThenCheckPhased_bridge`'s
 hypotheses verbatim; phase B is the per-list `checkPendingList_bridge`,
 gathered record by record. -/
-theorem Arena.pooledAccepts_bridge {μ : CheckMode}
+theorem Arena.pooledAccepts_bridge 
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hpp : PersPinSets pins)
-    (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
+    (hok : FoldOK .verified Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)
     (hpd : ∀ x ∈ ds.toList, PersDecl x)
     (hden : denoteDecls s.store ds.toList = some dsP)
-    (hrun : Arena.PooledAccepts μ pins ds s fe' s') :
+    (hrun : Arena.PooledAccepts .verified pins ds s fe' s') :
     ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
-      ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F') pinsP dsP = .ok env' := by
+      ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F') pinsP dsP = .ok env' := by
   have hnd0 : NodupNames Env.empty := List.nodup_nil
   obtain ⟨n, pend, parts, hA, hcov, hsub, hw⟩ := hrun
   obtain ⟨env₁, pendP, hok₁, -, hPA, hrel, -, hc₁⟩ :=
-    Arena.installFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
+    Arena.installFold_bridge hk hind hpp ds.toList dsP Env.empty 0 n
       (mkIFEnv IEnv.empty) fe' #[] pend [] s s' hok hnd0 hpins hpd hden .nil hA
   simp only [List.nil_append] at hrel
   have hc : pend.toList ≠ [] → s'.caches = Caches.empty := by
@@ -119,7 +119,7 @@ theorem Arena.pooledAccepts_bridge {μ : CheckMode}
       exact hne (ListRel.nil_right hrel)
     · exact hc₁ hds
   have hall : ∀ p ∈ pendP, ∃ F,
-      ConLeche.checkValueGroup (ConLeche.fueledOps μ F) p.1 p.2 = .ok () := by
+      ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) p.1 p.2 = .ok () := by
     intro p hp
     obtain ⟨pc, hpc, hR⟩ := listRel_exists_left hrel p hp
     obtain ⟨w, hwm, hpcw⟩ := hcov pc hpc
@@ -131,7 +131,7 @@ theorem Arena.pooledAccepts_bridge {μ : CheckMode}
     obtain ⟨s₃, hrun3⟩ := hw w hwm
     obtain ⟨s₄, hB'⟩ := Arena.checkPendingList_worker hcw hrun3
     obtain ⟨-, -, hallw⟩ :=
-      Arena.checkPendingList_bridge hμ hk (hPA.nodup hnd0) w wP s' s₄ hok₁ hwP hcw hB'
+      Arena.checkPendingList_bridge hk (hPA.nodup hnd0) w wP s' s₄ hok₁ hwP hcw hB'
     exact hallw p hpw
   obtain ⟨F, hF⟩ := hPA.foldlM hall
   exact ⟨env₁, F, hok₁.denote, hF F (Nat.le_refl _)⟩

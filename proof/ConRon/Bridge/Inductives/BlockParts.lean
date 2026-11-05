@@ -1033,7 +1033,39 @@ theorem natDivModNames_runB {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r8
   exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, d8, trivial⟩
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:456-466 reservedRecName — the
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:508-511 reservedRecName — the last
+three disjuncts, `Bool` and its two constructors, off the pin table. -/
+theorem reservedRecBool_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b : Bool}
+    (hok : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (hr : Arena.reservedRecBool n s = .ok (b, s')) :
+    s' = s ∧ b = (nm == ConLeche.boolName || nm == ConLeche.boolTrueName ||
+      nm == ConLeche.boolFalseName) := by
+  simp only [Arena.reservedRecBool] at hr
+  obtain ⟨n1, s1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.boolName) hp rfl g1
+  rw [e1, beq_handle_eq hok.wf hn d1] at r1
+  split at r1
+  · rename_i hc
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
+    exact ⟨rfl, by simp only [hc, Bool.true_or]⟩
+  · rename_i hc
+    simp only [Bool.not_eq_true] at hc
+    obtain ⟨n2, s2, g2, r2⟩ := AM.bind_ok r1
+    obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.boolTrueName) hp rfl g2
+    rw [e2, beq_handle_eq hok.wf hn d2] at r2
+    split at r2
+    · rename_i hc2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+      exact ⟨rfl, by simp only [hc, hc2, Bool.true_or, Bool.or_true]⟩
+    · rename_i hc2
+      simp only [Bool.not_eq_true] at hc2
+      obtain ⟨n3, s3, g3, r3⟩ := AM.bind_ok r2
+      obtain ⟨e3, d3⟩ := pinAt_run (x := ConLeche.boolFalseName) hp rfl g3
+      rw [e3, beq_handle_eq hok.wf hn d3] at r3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok r3
+      exact ⟨rfl, by simp only [hc, hc2, Bool.false_or]⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:508-511 reservedRecName — the
 `||` chain, one pin-table list at a time. -/
 theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b : Bool}
     (hok : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
@@ -1073,10 +1105,15 @@ theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b :
         simp only [Bool.not_eq_true] at hc3
         obtain ⟨ds, s₄, h7, h8⟩ := AM.bind_ok h6
         obtain ⟨rfl, hds⟩ := natDivModNames_runB hp1 h7
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
-        refine ⟨p1, ?_⟩
-        rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hds) _ _ hn1]
-        simp only [hc, hc2, hc3, Bool.false_or]
+        rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hds) _ _ hn1] at h8
+        split at h8
+        · rename_i hc4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
+          exact ⟨p1, by simp only [hc, hc2, hc3, hc4, Bool.true_or, Bool.false_or]⟩
+        · rename_i hc4
+          simp only [Bool.not_eq_true] at hc4
+          obtain ⟨rfl, hb⟩ := reservedRecBool_run p1.ok hp1 hn1 h8
+          exact ⟨p1, by rw [hb]; simp only [hc, hc2, hc3, hc4, Bool.false_or, Bool.or_assoc]⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:359-368 blockRecNamesUnreserved
 No recursor takes a reserved name: the twin stops at the first hit, the pure
@@ -1269,7 +1306,7 @@ def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
       (⟨a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape)
   let recsL := rs.map fun (r : ConstantVal × Nat × Nat × List RecRule) =>
     (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf names r.2.1 r.1.type,
-      r.2.2.2.map RecRule.rhs⟩ : ConLeche.RecShape)
+      r.2.2.2⟩ : ConLeche.RecShape)
   match largeOfP lps cvR0.levelParams with
   | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp⟩
   | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp⟩
@@ -1317,7 +1354,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
     (cs.map fun c => (c.1, c.2.2))
   let recsL ← rs.mapM fun r => do
     let tgt ← Arena.recTargetOf (cvTs.map (·.name)) r.2.1 r.1.type
-    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : Arena.RecShape)
+    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : Arena.RecShape)
   match (match cvR0.levelParams with
       | [] => none
       | elim :: relps =>
@@ -1404,27 +1441,6 @@ theorem denoteCtors3_ext {st st' : EStore} (hx : Ext st st') :
         rw [denoteCV_ext h1 hx, ih xs h2]
         exact h
 
-/-- con-leche: none — the rules' right-hand sides denote. -/
-theorem denoteRules_rhss {st : EStore} :
-    ∀ (rs : List IRecRule) (rsP : List RecRule),
-      Frontend.denoteRules st rs = some rsP →
-      Frontend.denoteEList st (rs.map (·.rhs)) = some (rsP.map (·.rhs)) := by
-  intro rs
-  induction rs with
-  | nil => intro rsP h; simp only [Frontend.denoteRules, Option.some.injEq] at h; subst h; rfl
-  | cons r rs ih =>
-    intro rsP h
-    simp only [Frontend.denoteRules] at h
-    cases h1 : Frontend.denoteRule st r with
-    | none => rw [h1] at h; simp at h
-    | some x =>
-      cases h2 : Frontend.denoteRules st rs with
-      | none => rw [h1, h2] at h; simp at h
-      | some xs =>
-        rw [h1, h2] at h
-        obtain rfl := (Option.some.inj h).symm
-        simp only [List.map_cons, Frontend.denoteEList, denoteRule_rhs h1, ih xs h2]
-
 /-- con-leche: none — the recursor records, each with the member its MAJOR
 names (`recTargetOf_spec` at each). -/
 theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
@@ -1435,12 +1451,12 @@ theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
       rs.mapM (dRec4 s₀.store) = some rsP →
       (rs.mapM fun r => (do
           let tgt ← Arena.recTargetOf names r.2.1 r.1.type
-          pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : Arena.RecShape) :
+          pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : Arena.RecShape) :
             AM Arena.RecShape)) s₀ =
         .ok (out, s') →
       PStep s₀ s' ∧ out.mapM (dRec s'.store) = some (rsP.map fun r =>
         (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf namesP r.2.1 r.1.type,
-          r.2.2.2.map RecRule.rhs⟩ : ConLeche.RecShape)) := by
+          r.2.2.2⟩ : ConLeche.RecShape)) := by
   intro rs
   induction rs with
   | nil =>
@@ -1470,7 +1486,7 @@ theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
     have x5 := p3.ext.trans p5.ext
     simp only [List.map_cons]
     refine mapM_option_cons ?_ h7
-    simp only [dRec, denoteCV_ext hcv x5, denoteRules_rhss _ _ (denoteRules_ext x5 _ _ hru),
+    simp only [dRec, denoteCV_ext hcv x5, denoteRules_ext x5 _ _ hru,
       Option.bind_eq_bind, Option.bind_some, Option.pure_def, hmI, hrP]
 
 /-- con-leche: none — the members, zipped from the formers, their counts and

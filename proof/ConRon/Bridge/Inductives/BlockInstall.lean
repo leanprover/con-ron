@@ -468,15 +468,15 @@ theorem blockRawRec_spec (p : Arena.BlockParts) (pP : ConLeche.BlockParts) :
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
 One member's type former, against `checkBlockTele (fueledOpsM μ)`; the
 stored type is closed (`checkBlockTeleS_sim`'s answer). -/
-theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockTele_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
     (nP : Nat) (ms : Arena.MemberShape) (msP : ConLeche.MemberShape) :
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => dMember st ms = some msP ∧ denoteFEnv st fe = some env)
-      (Arena.checkBlockTele μ fe nP ms)
+      (Arena.checkBlockTele .verified fe nP ms)
       (fun st r v => Frontend.denoteCV st r.1 = some v.1 ∧ denoteL st.ls r.2 = some v.2 ∧
         Expr.WScoped 0 v.1.type)
-      (ConLeche.checkBlockTele (fueledOpsM μ) env nP msP) := by
+      (ConLeche.checkBlockTele (fueledOpsM .verified) env nP msP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hm, hfe⟩ := hpre
   obtain ⟨cv, nI, cs⟩ := msP
@@ -484,14 +484,14 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   dsimp only at hcv
   simp only [Arena.checkBlockTele] at hrun
   obtain ⟨_, s₁, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨c1, F₁, hF₁⟩ := checkConstantVal_bridge hμ hk hok henv hcv k1
+  obtain ⟨c1, F₁, hF₁⟩ := checkConstantVal_bridge hk hok henv hcv k1
   have hcA := denoteCV_ext hcv c1.ext
   have hw1 : Expr.WScoped 0 cv.type :=
     Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
-  have fk1 : FOk (ConLeche.checkConstantVal (fueledOpsM μ) env cv) () :=
+  have fk1 : FOk (ConLeche.checkConstantVal (fueledOpsM .verified) env cv) () :=
     ⟨F₁, by rw [checkConstantVal_datF]; exact hF₁⟩
   obtain ⟨t2, s₂, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨c2, ⟨cvTaP, sP⟩, ⟨h2a, h2b, hw2⟩, fk2⟩ := checkSumTele_specF fe hμ hk henv ms.cvT cv
+  obtain ⟨c2, ⟨cvTaP, sP⟩, ⟨h2a, h2b, hw2⟩, fk2⟩ := checkSumTele_specF fe hk henv ms.cvT cv
     (nP + ms.nIdx) ms.cvT cv hw1 s₁ s₂ t2 c1.ok
     ⟨hcA, hcA, denoteFEnv_mono c1.ext hfe⟩ k2
   obtain ⟨cvTa, sI⟩ := t2
@@ -525,15 +525,15 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:38-45 checkBlockTelesF
 The members' type formers, in block order; every stored type closed
 (`checkBlockTelesS_sim`). -/
-theorem checkBlockTeles_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockTeles_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
     (nP : Nat) :
     ∀ (mss : List Arena.MemberShape) (mssP : List ConLeche.MemberShape),
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => mss.mapM (dMember st) = some mssP ∧ denoteFEnv st fe = some env)
-      (Arena.checkBlockTeles μ fe nP mss)
+      (Arena.checkBlockTeles .verified fe nP mss)
       (fun st r v => r.mapM (dCvL st) = some v ∧ ∀ x ∈ v, Expr.WScoped 0 x.1.type)
-      (ConLeche.checkBlockTeles (fueledOpsM μ) env nP mssP) := by
+      (ConLeche.checkBlockTeles (fueledOpsM .verified) env nP mssP) := by
   intro mss
   induction mss with
   | nil =>
@@ -550,7 +550,7 @@ theorem checkBlockTeles_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨msP, restP, rfl, hm, hrest⟩ := mapM_option_cons_inv hms
     simp only [Arena.checkBlockTeles] at hrun
     obtain ⟨t1, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨c1, v1, ⟨h1a, h1b, hw1⟩, fk1⟩ := checkBlockTele_specF fe hμ hk henv nP ms msP
+    obtain ⟨c1, v1, ⟨h1a, h1b, hw1⟩, fk1⟩ := checkBlockTele_specF fe hk henv nP ms msP
       s₀ s₁ t1 hok ⟨hm, hfe⟩ k1
     obtain ⟨t2, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, v2, ⟨h2, hw2⟩, fk2⟩ := ih restP s₁ s₂ t2 c1.ok
@@ -786,16 +786,16 @@ the frame is `CoreStep`), then consed.  The answer: the new index `fe₁` is an
 the caller flushes into `CheckOK μ false env₁ fe₁`), the stored formers and the
 completed shape denote con-leche's, and every stored former is closed
 (`checkBlockIndsS_sim`'s answer). -/
-theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
     (hcoh : IFEnvCoh fe) (p : Arena.BlockParts) (pP : ConLeche.BlockParts) (isRec : Bool) :
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => dParts st p = some pP ∧ denoteFEnv st fe = some env)
-      (Arena.checkBlockInds μ fe p isRec)
+      (Arena.checkBlockInds .verified fe p isRec)
       (fun st r v => InstRel fe (fun e => e = v.1) st r.1 ∧ IFEnvOKS v.1 r.1 st ∧
         r.2.1.mapM (Frontend.denoteCV st) = some v.2.1 ∧ dShape st r.2.2 = some v.2.2 ∧
         ∀ cv ∈ v.2.1, Expr.WScoped 0 cv.type)
-      (ConLeche.checkBlockInds (fueledOpsM μ) env pP isRec) := by
+      (ConLeche.checkBlockInds (fueledOpsM .verified) env pP isRec) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hp, hfe⟩ := hpre
   simp only [dParts, Option.map_eq_some_iff] at hp
@@ -813,12 +813,12 @@ theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨ms₀P, restP, rfl, hm0, hrestP⟩ := mapM_option_cons_inv hms
   dsimp only at hrun
   obtain ⟨t1, s₁, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨c1, ⟨cvTa₀P, s0P⟩, ⟨h1a, h1b, hw1⟩, fk1⟩ := checkBlockTele_specF fe hμ hk henv
+  obtain ⟨c1, ⟨cvTa₀P, s0P⟩, ⟨h1a, h1b, hw1⟩, fk1⟩ := checkBlockTele_specF fe hk henv
     p.shape.nP ms₀ ms₀P s₀ s₁ t1 hok ⟨hm0, hfe⟩ k1
   obtain ⟨cvTa₀, s0⟩ := t1
   dsimp only at h1a h1b z1
   obtain ⟨cvs, s₂, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨c2, cvsP, ⟨h2, hw2⟩, fk2⟩ := checkBlockTeles_specF fe hμ hk henv p.shape.nP rest
+  obtain ⟨c2, cvsP, ⟨h2, hw2⟩, fk2⟩ := checkBlockTeles_specF fe hk henv p.shape.nP rest
     restP s₁ s₂ cvs c1.ok ⟨dMember_ext.list c1.ext _ _ hrestP, denoteFEnv_mono c1.ext hfe⟩ k2
   have x12 := c2.ext
   obtain ⟨u3, s₃, k3, z3⟩ := AM.bind_ok z2
@@ -899,20 +899,20 @@ con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
 `checkBlockCtors (fueledOpsM μ) env₀ env pP (msP.zip cvsP)`: the twin's two
 side-by-side lists stop at the shorter, as `zip` does.  The formers' stored
 types are closed (`checkBlockCtorsS_sim`'s `hl`). -/
-theorem checkBlockCtors_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockCtors_specF {env : Env} (fe₀ fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env₀ : Env) :
     ∀ (mss : List Arena.MemberShape) (mssP : List ConLeche.MemberShape)
       (cvs : List IConstantVal) (cvsP : List ConstantVal),
     (∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) →
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => dShape st p = some pP ∧ mss.mapM (dMember st) = some mssP ∧
         cvs.mapM (Frontend.denoteCV st) = some cvsP ∧
         denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
         IFEnvOKS env₀ fe₀ st)
-      (Arena.checkBlockCtors μ fe₀ fe p mss cvs)
+      (Arena.checkBlockCtors .verified fe₀ fe p mss cvs)
       (fun st r v => r.1.mapM (dCtors st) = some v.1 ∧ r.2.mapM (denoteLLists st) = some v.2)
-      (ConLeche.checkBlockCtors (fueledOpsM μ) env₀ env pP (mssP.zip cvsP)) := by
+      (ConLeche.checkBlockCtors (fueledOpsM .verified) env₀ env pP (mssP.zip cvsP)) := by
   intro mss
   induction mss with
   | nil =>
@@ -947,7 +947,7 @@ theorem checkBlockCtors_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     dsimp only at hsP
     simp only [Arena.checkBlockCtors] at hrun
     obtain ⟨t1, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨c1, ⟨csA, ssA⟩, ⟨h1a, h1b⟩, fk1⟩ := checkSumCtors_specF fe₀ fe hμ hk henv
+    obtain ⟨c1, ⟨csA, ssA⟩, ⟨h1a, h1b⟩, fk1⟩ := checkSumCtors_specF fe₀ fe hk henv
       ms.cvT.name cvT.name p.lps _ p.nP ms.nIdx p.resSort sP p.isProp p.large cvTa cvTaP env₀
       ms.ctors csP (ConLeche.Cached.ws0_hasFvar (hws _ List.mem_cons_self)) s₀ s₁ t1 hok
       ⟨denoteCV_name hcvT, hlps, hsP, hcv, by rw [← dCtors_eq_denoteCtors]; exact hcs,

@@ -352,17 +352,17 @@ hypotheses delivers them (`FoldOK` speaks about `env`, and the statement does
 not say `c` is a constant OF `env`).  It is free at the one call site —
 `Bridge/Checker/Arms.lean`'s `defn` arm has `checkConstantVal_bridge`'s own
 pure run, and `checkConstantVal_typeWF` reads it off. -/
-theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
+theorem checkDefnVal_bridge {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {hint : ReducibilityHint} {s s' : AState}
-    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hk : CoreSpec .verified Arena.checkFuel)
+    (hok : FoldOK .verified env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkDefnVal μ fe cv value hint s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
+    (hrun : checkDefnVal .verified fe cv value hint s = .ok (fe', s')) :
+    CoreStep .verified env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkDefnVal (ConLeche.fueledOps μ F) env c x hint = .ok env' := by
+        ConLeche.checkDefnVal (ConLeche.fueledOps .verified F) env c x hint = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
   have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
@@ -378,9 +378,9 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
   -- 2. the inference, of the value as declared
   obtain ⟨vtype, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hck2, hx2, hp2, hsim2⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s1.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s1.store t.store ∧
       t.pins = s1.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ false env) 0 x t.store r)
+      Core.SimE (ConLeche.inferTypeCore .verified false env) 0 x t.store r)
     rfl g2 (hknot.infer s1 0 value x hstep1.ok hy1 hwsy)
   obtain ⟨vt, hvt2, hwsvt, F2, hF2⟩ := hsim2
   -- 3. the conversion
@@ -389,9 +389,9 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨-, -, hty2⟩ := denoteCV_inv hcv2
   obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2
   obtain ⟨hck3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun t => t = s2)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s2.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s2.store t.store ∧
       t.pins = s2.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) 0 vt c.type r)
+      Core.SimV (ConLeche.isDefEqCore .verified false env) 0 vt c.type r)
     rfl g3 (hknot.defeq s2 0 vtype cv.type vt c.type hck2 hvt2 hty2 hwsvt
       (ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar))
   obtain ⟨F3, hF3⟩ := hsim3
@@ -431,17 +431,17 @@ inference (which the other two do not make) and once at the conversion.
 **No value is stored** (con-leche task #329 THMVAL): `constWF_thmInfo` is the
 type half alone and the value never reaches the environment — exactly
 con-leche's own reading. -/
-theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
+theorem checkThmVal_bridge {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {s s' : AState}
-    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hk : CoreSpec .verified Arena.checkFuel)
+    (hok : FoldOK .verified env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkThmVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
+    (hrun : checkThmVal .verified fe cv value s = .ok (fe', s')) :
+    CoreStep .verified env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
+        ConLeche.checkThmVal (ConLeche.fueledOps .verified F) env c x = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
   have hsortS := hk.sort env fe hok.envWF
   have hwsty : ConLeche.Expr.WScoped 0 c.type :=
@@ -454,17 +454,17 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   -- 1. the type's own inference
   obtain ⟨stype, s1, ga, ra⟩ := AM.bind_ok hrun
   obtain ⟨hcka, hxa, hpa, hsima⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s.store t.store ∧
       t.pins = s.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ false env) 0 c.type t.store r)
+      Core.SimE (ConLeche.inferTypeCore .verified false env) 0 c.type t.store r)
     rfl ga (hknot.infer s 0 cv.type c.type hok.check hty0 hwsty)
   obtain ⟨sty, hsty, hwssty, Fa, hFa⟩ := hsima
   -- 2. the sort
   obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
   obtain ⟨hckb, hxb, hpb, hsimb⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s1.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s1.store t.store ∧
       t.pins = s1.pins ∧
-      SimL (ConLeche.ensureSortCore μ false env) 0 sty t.store r)
+      SimL (ConLeche.ensureSortCore .verified false env) 0 sty t.store r)
     rfl gb (hsortS s1 0 stype sty hcka hsty hwssty)
   obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
   -- 3. the pinned zero level — a pin read moves nothing
@@ -477,7 +477,7 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨o, s4, gd, rd⟩ := AM.bind_ok rc
   obtain ⟨hckd, hstd, hpd, lu, lv, hlu, hlv, hod⟩ := AM.of_run
     (P := fun t => t = s2)
-    (Q := fun r t => CheckOK μ false env fe t ∧ t.store = s2.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ t.store = s2.store ∧
       t.pins = s2.pins ∧ ∃ lu lv, denoteL s2.store.ls u = some lu ∧
         denoteL s2.store.ls z = some lv ∧ r = ConLeche.Level.isEquiv lu lv)
     rfl gd (Core.lvlEq?_spec s2 u z hckb)
@@ -508,9 +508,9 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   -- 7. the witness's inference
   obtain ⟨vtype, s7, gg, rh⟩ := AM.bind_ok rg
   obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s6.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s6.store t.store ∧
       t.pins = s6.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ false env) 0 x t.store r)
+      Core.SimE (ConLeche.inferTypeCore .verified false env) 0 x t.store r)
     rfl gg (hknot.infer s6 0 value x hstep6.ok hy6 hwsy)
   obtain ⟨vt, hvt7, hwsvt, F2, hF2⟩ := hsim7
   -- 8. the conversion
@@ -519,9 +519,9 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨-, -, hty7⟩ := denoteCV_inv hcv7
   obtain ⟨b8, s8, gi, ri⟩ := AM.bind_ok rh
   obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s7.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s7.store t.store ∧
       t.pins = s7.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) 0 vt c.type r)
+      Core.SimV (ConLeche.isDefEqCore .verified false env) 0 vt c.type r)
     rfl gi (hknot.defeq s7 0 vtype cv.type vt c.type hck7 hvt7 hty7 hwsvt hwsty)
   obtain ⟨F3, hF3⟩ := hsim8
   obtain ⟨hb, rj⟩ := AM.dunless_ok AM.Never.fail_any ri
@@ -557,17 +557,17 @@ of `.defnInfo` — and the `ConstWF` introduction is the cheaper one, because an
 `axiomInfo` has no value clause at all (the checked value is a realizability
 witness, consumed by the model extension and then discarded).  It takes the
 same `htw`. -/
-theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
+theorem checkOpaqueVal_bridge {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {s s' : AState}
-    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hk : CoreSpec .verified Arena.checkFuel)
+    (hok : FoldOK .verified env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkOpaqueVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
+    (hrun : checkOpaqueVal .verified fe cv value s = .ok (fe', s')) :
+    CoreStep .verified env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
       ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
+        ConLeche.checkOpaqueVal (ConLeche.fueledOps .verified F) env c x = .ok env' := by
   have hknot := hk.knot env fe hok.envWF
   have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
@@ -581,9 +581,9 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
   have hy1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   obtain ⟨vtype, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hck2, hx2, hp2, hsim2⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s1.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s1.store t.store ∧
       t.pins = s1.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ false env) 0 x t.store r)
+      Core.SimE (ConLeche.inferTypeCore .verified false env) 0 x t.store r)
     rfl g2 (hknot.infer s1 0 value x hstep1.ok hy1 hwsy)
   obtain ⟨vt, hvt2, hwsvt, F2, hF2⟩ := hsim2
   have hcv2 : Frontend.denoteCV s2.store cv = some c :=
@@ -591,9 +591,9 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨-, -, hty2⟩ := denoteCV_inv hcv2
   obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2
   obtain ⟨hck3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun t => t = s2)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s2.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s2.store t.store ∧
       t.pins = s2.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) 0 vt c.type r)
+      Core.SimV (ConLeche.isDefEqCore .verified false env) 0 vt c.type r)
     rfl g3 (hknot.defeq s2 0 vtype cv.type vt c.type hck2 hvt2 hty2 hwsvt
       (ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar))
   obtain ⟨F3, hF3⟩ := hsim3
@@ -1890,16 +1890,15 @@ theorem certifyNatEqs_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
         exact ⟨⟨hok1, hx1, hp1⟩, fun hr => absurd hr (by simp)⟩
 
-theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
+theorem certifyNatEqs_bridge {env : Env}
     {fe : IFEnv} {eqs : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
-    {r : Bool} {s s' : AState} (_hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ false env fe s)
+    {r : Bool} {s s' : AState} (hk : CoreSpec .verified Arena.checkFuel) (hck : CheckOK .verified false env fe s)
     (henv : EnvWF env)
     (hden : EqPairsDenote s.store eqs xs)
     (hws : ∀ q ∈ xs, Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2)
-    (hrun : certifyNatEqs μ fe eqs s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧
-      (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs
+    (hrun : certifyNatEqs .verified fe eqs s = .ok (r, s')) :
+    CoreStep .verified env fe s s' ∧
+      (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps .verified F) env xs
         = .ok true) :=
   certifyNatEqs_bridge_aux hk henv eqs xs r s s' hck hden hws hrun
 
@@ -2149,17 +2148,16 @@ definitionally equal to the build-time pin.
 
 Proved: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
 `IFEnvOK`, then `KnotSpec.defeq` at the pinned term. -/
-theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
+theorem checkReducePin_bridge {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
-    {x : Expr} {s s' : AState} (_hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ false env fe s)
+    {x : Expr} {s s' : AState} (hk : CoreSpec .verified Arena.checkFuel) (hck : CheckOK .verified false env fe s)
     (henv : EnvWF env)
     (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store value = some x) (hws : Expr.WScoped 0 x)
-    (hrun : checkReducePin μ fe fe2 cn value s = .ok ((), s')) :
+    (hrun : checkReducePin .verified fe fe2 cn value s = .ok ((), s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x
+      ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps .verified F) env env2 nm x
         = .ok () := by
   have hknot := hk.knot env fe henv
   simp only [Arena.checkReducePin] at hrun
@@ -2172,7 +2170,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   obtain ⟨hs2, rfl⟩ := reduceElemOk_run hs1.ok (hck.pins.mono hs1.ext hs1.pins)
     (hck.ienv.mono hs1.ext) (denoteN_ext hn hs1.ext) _ _ g2
   have hs12 := hs1.trans hs2
-  have hck2 : CheckOK μ false env fe s2 :=
+  have hck2 : CheckOK .verified false env fe s2 :=
     hck.mono hs12.ok hs12.ext hs12.caches hs12.pins
   rcases AM.ite_ok r2 with ⟨hc1', r3⟩ | ⟨-, r3⟩
   rotate_left
@@ -2193,7 +2191,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   obtain ⟨p, s5, g5, r7⟩ := AM.bind_ok r5
   obtain ⟨hs5, hpd⟩ := reduceDeclPin_run hck3.state hck3.pins
     (denoteN_ext hn hx03) g5
-  have hck5 : CheckOK μ false env fe s5 := hck3.mono hs5.ok hs5.ext hs5.caches hs5.pins
+  have hck5 : CheckOK .verified false env fe s5 := hck3.mono hs5.ok hs5.ext hs5.caches hs5.pins
   have hwsP : Expr.WScoped 0 (ConLeche.reduceDeclPin nm) := by
     refine ConLeche.Expr.WScoped.of_not_hasFvar ?_
     simp only [ConLeche.reducePinGuard, Bool.and_eq_true, Bool.not_eq_true'] at hc2
@@ -2201,9 +2199,9 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   -- the pin comparison
   obtain ⟨ok1, s7, g7, r9⟩ := AM.bind_ok r7
   obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s5)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s5.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s5.store t.store ∧
       t.pins = s5.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) 0 x (ConLeche.reduceDeclPin nm) r)
+      Core.SimV (ConLeche.isDefEqCore .verified false env) 0 x (ConLeche.reduceDeclPin nm) r)
     rfl g7 (hknot.defeq s5 0 value p x _ hck5 (denote_ext hx3v hs5.ext) hpd hws hwsP)
   obtain ⟨F7, hF7⟩ := hsim7
   rcases AM.ite_ok r9 with ⟨hc7, r10⟩ | ⟨-, r10⟩
@@ -2216,7 +2214,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   obtain ⟨xv, s8, g8, r11⟩ := AM.bind_ok r10
   obtain ⟨hs8, hxv⟩ := reduceCertVar_run hck7.state hck7.pins
     (denoteN_ext hn (hx03.trans hx37)) g8
-  have hck8 : CheckOK μ false env fe s8 := hck7.mono hs8.ok hs8.ext hs8.caches hs8.pins
+  have hck8 : CheckOK .verified false env fe s8 := hck7.mono hs8.ok hs8.ext hs8.caches hs8.pins
   have hw8 : denoteE s8.store value = some x := denote_ext hx3v (hx37.trans hs8.ext)
   obtain ⟨ax, s9, g9, r12⟩ := AM.bind_ok r11
   obtain ⟨hs9, hax⟩ := Frontend.internE_sstep hck8.state
@@ -2225,7 +2223,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
       = some (.app x (ConLeche.reduceCertVar nm)) := by
     rw [hax]
     simp only [denoteEView, denote_ext hw8 hs9.ext, denote_ext hxv hs9.ext, opt2]
-  have hck9 : CheckOK μ false env fe s9 := hck8.mono hs9.ok hs9.ext hs9.caches hs9.pins
+  have hck9 : CheckOK .verified false env fe s9 := hck8.mono hs9.ok hs9.ext hs9.caches hs9.pins
   have hwsC : Expr.WScoped 1 (ConLeche.reduceCertVar nm) := by
     unfold ConLeche.reduceCertVar ConLeche.reduceElemTy
     split <;> simp [Expr.WScoped]
@@ -2234,9 +2232,9 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     exact ⟨ConLeche.Expr.WScoped.mono (by omega) hws, hwsC⟩
   obtain ⟨ok2, s10, g10, r13⟩ := AM.bind_ok r12
   obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
-    (Q := fun r t => CheckOK μ false env fe t ∧ Ext s9.store t.store ∧
+    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s9.store t.store ∧
       t.pins = s9.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) 1 (.app x (ConLeche.reduceCertVar nm))
+      Core.SimV (ConLeche.isDefEqCore .verified false env) 1 (.app x (ConLeche.reduceCertVar nm))
         (ConLeche.reduceCertVar nm) r)
     rfl g10 (hknot.defeq s9 1 ax xv _ _ hck9 hax' (denote_ext hxv hs9.ext)
       hwsA hwsC)

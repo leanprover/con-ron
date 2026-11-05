@@ -29,6 +29,7 @@ public import ConLeche.Verify.EnvBound
 public import ConLeche.Verify.EnvWF
 public import ConLeche.Verify.ExceptBind
 import ConLeche.Verify.Inductives.GenRecRun
+import ConLeche.Verify.Inductives.StoredRecsInv
 import ConRon.Bridge.Checker.DeclWF
 public import ConLeche.Semantics.Decl
 public import ConLeche.Semantics.Inductives.DeclBlock
@@ -275,11 +276,11 @@ theorem genRecCheck_out_names {mode : CheckMode} {env : Env} {p : BlockShape}
 /-- con-leche: ConLeche/Semantics/Inductives/DeclBlock.lean:40 DeclBlockRun —
 the uniform install pushes the formers, the constructors, the recursors and
 the projection tables, each at a name found fresh. -/
-theorem declBlockRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
-    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun μ F e block p₀ e')
+theorem declBlockRun_nodup {F : Nat} {e e' : Env}
+    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun F e block p₀ e')
     (hnd : NodupNames e) : NodupNames e' := by
   obtain ⟨hndC, hndM, isRec, env₁, cvTas, p₁, p, ctorsAs, sortsss, ctx, holes, rd, Ms, kinds,
-    nfs, pos, st, isorts, out, hInd, hp, hCtors, -, -, -, -, -, -, hRec, hTbl⟩ := h
+    nfs, pos, st, isorts, out, hInd, hp, hCtors, -, -, -, -, -, -, hRec, -, hTbl⟩ := h
   -- the formers: the members' names, each fresh at the base
   obtain ⟨ms0, rest, cvTa0, s0, cvs, hm, hcv, hp1, henv1, htele0, hteles, -⟩ :=
     checkBlockInds_shape hInd
@@ -352,9 +353,13 @@ theorem declBlockRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
     exact hfrC c hc
   -- the recursors: fresh at the constructors' environment, distinct by the pins
   obtain ⟨R⟩ := genRecCheck_run hRec
+  have hnames := genRecCheck_out_names hRec
+  have hlen : out.length = p.recs.length := by
+    simpa using congrArg List.length hnames
   have hnd3 := consBlockRecsT_nodup (consBlockCtors p.nP ctorsAs env₁).find?
-    p.toBlockShape out 0 hnd2
-    ⟨by rw [genRecCheck_out_names hRec]; exact targetRecPins_nodup R.pins, fun n hn => by
+    p.toBlockShape (storedOut p.recs out) 0 hnd2
+    ⟨by rw [storedOut_map_name hlen, hnames]; exact targetRecPins_nodup R.pins, fun n hn => by
+      rw [storedOut_map_name hlen] at hn
       obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hn
       exact genRecCheck_out_fresh hRec o ho⟩
   -- the tables
@@ -367,9 +372,9 @@ pure fold keeps names unique**: every install is guarded by a `find?` miss
 (`checkConstantVal`, `installBasisDecl`, the inductive install), which is
 what con-leche's `PushChain` carries through its cached fold.  Read off
 `DeclRun` arm by arm (the module note). -/
-theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
+theorem checkDecl_nodup {pinsP : List NatOpPinSet} {F : Nat}
     {env env' : Env} {d : Declaration}
-    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env')
+    (h : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env')
     (hnd : NodupNames env) : NodupNames env' := by
   have hrun := checkDeclRun_ofEnvFactsK h
   cases d with
@@ -497,11 +502,11 @@ theorem checkBlockTables_tables (p : BlockShape) :
 /-- con-leche: ConLeche/Semantics/Inductives/DeclBlock.lean:40 DeclBlockRun —
 the uniform install's tables are its members' structures', each fresh at the
 base (the formers' `checkConstantVal`, `declBlockRun_nodup`'s first stage). -/
-theorem declBlockRun_tables {μ : CheckMode} {F : Nat} {e e' : Env}
-    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun μ F e block p₀ e') :
+theorem declBlockRun_tables {F : Nat} {e e' : Env}
+    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun F e block p₀ e') :
     TblExt e e' := by
   obtain ⟨-, -, isRec, env₁, cvTas, p₁, p, ctorsAs, sortsss, ctx, holes, rd, Ms, kinds,
-    nfs, pos, st, isorts, out, hInd, hp, -, -, -, -, -, -, -, -, hTbl⟩ := h
+    nfs, pos, st, isorts, out, hInd, hp, -, -, -, -, -, -, -, -, -, hTbl⟩ := h
   obtain ⟨ms0, rest, cvTa0, s0, cvs, hm, hcv, hp1, henv1, htele0, hteles, -⟩ :=
     checkBlockInds_shape hInd
   obtain ⟨cvT0, hn0, -, heq0, hccv0, -⟩ := checkBlockTele_shape htele0
@@ -533,9 +538,9 @@ theorem declBlockRun_tables {μ : CheckMode} {F : Nat} {e e' : Env}
 pure fold's table list only grows, by tables of structures the step's
 environment does not store**: every arm but the inductive route installs no
 table, and the route installs its own members' (`declBlockRun_tables`). -/
-theorem checkDecl_tables {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
+theorem checkDecl_tables {pinsP : List NatOpPinSet} {F : Nat}
     {env env' : Env} {d : Declaration}
-    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') :
+    (h : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env') :
     TblExt env env' := by
   have hrun := checkDeclRun_ofEnvFactsK h
   cases d with

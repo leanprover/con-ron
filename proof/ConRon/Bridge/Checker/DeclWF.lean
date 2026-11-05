@@ -201,8 +201,8 @@ theorem declBasisRun_envWF {e e' : Env} {k : BasisKind} (h : DeclBasisRun e k e'
 
 /-- con-leche: ConLeche/Semantics/DeclRun.lean:93 ConstantValRun — the type
 half of `ConstWF` at a checked header, stored in the extended environment. -/
-theorem constantValRun_typeWF {μ : CheckMode} {F : Nat} {env : Env}
-    {cv : ConstantVal} {type' : Expr} (h : ConstantValRun μ F env cv type')
+theorem constantValRun_typeWF {F : Nat} {env : Env}
+    {cv : ConstantVal} {type' : Expr} (h : ConstantValRun F env cv type')
     (c : ConstantInfo) :
     type'.hasFvar = false ∧ type'.allLevelParamsDefined cv.levelParams = true ∧
       type'.constsResolve ⟨c :: env.consts, env.tables⟩ = true ∧
@@ -212,9 +212,9 @@ theorem constantValRun_typeWF {μ : CheckMode} {F : Nat} {env : Env}
 
 /-- con-leche: ConLeche/Semantics/DeclRun.lean:107 ValueFrontRun — the value
 half of `ConstWF` at a checked value. -/
-theorem valueFrontRun_valueWF {μ : CheckMode} {F : Nat} {env : Env}
+theorem valueFrontRun_valueWF {F : Nat} {env : Env}
     {cv : ConstantVal} {value type' value' : Expr}
-    (h : ValueFrontRun μ F env cv value type' value') (c : ConstantInfo) :
+    (h : ValueFrontRun F env cv value type' value') (c : ConstantInfo) :
     value'.hasFvar = false ∧ value'.allLevelParamsDefined cv.levelParams = true ∧
       value'.constsResolve ⟨c :: env.consts, env.tables⟩ = true ∧
       value'.looseBVarsBounded 0 = true := by
@@ -244,9 +244,9 @@ read off `DeclRun`: the value arms' records
 carry the type's and the value's guards, the axiom arm's the type's, and the pinned blocks are
 `declBasisRun_envWF`.  (The unpinned inductive route is `IndSpec`'s and is
 excluded by `hd`.) -/
-theorem checkDecl_wf_pure {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
+theorem checkDecl_wf_pure {pinsP : List NatOpPinSet} {F : Nat}
     {env env' : Env} {d : Declaration}
-    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env')
+    (h : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env')
     (hwf : EnvWF env)
     (hd : ∀ b nP, d = .indDecl b nP → (basisPinHit b).isSome = true) :
     EnvWF env' := by

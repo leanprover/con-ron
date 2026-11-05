@@ -292,8 +292,8 @@ theorem option_bind_ext {α β : Type} {o o' : Option α} {f : α → Option β}
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape. -/
 @[expose] def dRec (st : EStore) (r : Arena.RecShape) : Option ConLeche.RecShape := do
   let cvR ← Frontend.denoteCV st r.cvR
-  let rhss ← Frontend.denoteEList st r.rhss
-  pure ⟨cvR, r.rP, r.mI, r.tgt, rhss⟩
+  let rules ← Frontend.denoteRules st r.rules
+  pure ⟨cvR, r.rP, r.mI, r.tgt, rules⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:98-121 BlockShape. -/
 @[expose] def dShape (st : EStore) (p : Arena.BlockShape) : Option ConLeche.BlockShape := do
@@ -335,7 +335,7 @@ theorem dRec_ext : DExt dRec := by
   | some cv =>
     rw [hcv] at h
     simp only [Option.bind_eq_bind, Option.bind_some] at h ⊢
-    exact option_bind_ext (fun a ha => denoteEList_ext hx _ a ha) h
+    exact option_bind_ext (fun a ha => denoteRules_ext hx _ a ha) h
 
 theorem dShape_ext : DExt dShape := by
   intro st st' hx p y h
@@ -560,12 +560,12 @@ theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberS
 theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
     (h : dRec st r = some rP) :
     Frontend.denoteCV st r.cvR = some rP.cvR ∧ r.rP = rP.rP ∧ r.mI = rP.mI ∧
-      r.tgt = rP.tgt ∧ Frontend.denoteEList st r.rhss = some rP.rhss := by
+      r.tgt = rP.tgt ∧ Frontend.denoteRules st r.rules = some rP.rules := by
   simp only [dRec] at h
   cases h1 : Frontend.denoteCV st r.cvR with
   | none => rw [h1] at h; exact nomatch h
   | some cv =>
-  cases h2 : Frontend.denoteEList st r.rhss with
+  cases h2 : Frontend.denoteRules st r.rules with
   | none => rw [h1, h2] at h; exact nomatch h
   | some rh =>
   rw [h1, h2] at h

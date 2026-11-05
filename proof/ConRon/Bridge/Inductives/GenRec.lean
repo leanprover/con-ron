@@ -2371,6 +2371,35 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
       (FOk.bind hF9 (FOk.bind hF10 (FOk.pure ())))))))))
 
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:380-387 classRecTyCheck —
+the generated type, checked as a constant and `isDefEq` to the stream's checked
+type. -/
+theorem classRecTyCheck_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (cvRi cvG : IConstantVal) (cvRiP cvGP : ConstantVal)
+    (hRi : Expr.WScoped 0 cvRiP.type) :
+    CSpecF μ env fe
+      (fun st => Frontend.denoteCV st cvRi = some cvRiP ∧ Frontend.denoteCV st cvG = some cvGP)
+      (Arena.classRecTyCheck μ fe cvRi cvG)
+      (fun _ _ _ => Expr.WScoped 0 cvGP.type ∧ env.find? cvGP.name = none)
+      (ConLeche.classRecTyCheck (fueledOpsM μ) (mkFEnv env) cvRiP cvGP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hRiD, hcvG⟩ := hpre
+  simp only [Arena.classRecTyCheck] at hrun
+  obtain ⟨_, s5, k5, z5⟩ := AM.bind_ok hrun
+  obtain ⟨c5, _, ⟨hwG, hfrG⟩, hF5⟩ := classConstOk_spec fe hk henv _ _ s₀ s5 _ hok hcvG k5
+  obtain ⟨b, s6, k6, z6⟩ := AM.bind_ok z5
+  obtain ⟨c6, hF6⟩ := defeq_crun (hk.knot env fe henv) c5.ok
+    (Core.denoteCV_inv (dExt_denoteCV c5.ext _ _ hRiD)).2.2
+    (Core.denoteCV_inv (dExt_denoteCV c5.ext _ _ hcvG)).2.2 hRi hwG k6
+  obtain ⟨hb, z7⟩ := AM.dunless_ok (AM.Never.fail _) z6
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z7
+  refine ⟨c5.trans c6, (), ⟨hwG, hfrG⟩, ?_⟩
+  simp only [ConLeche.classRecTyCheck]
+  subst hb
+  exact FOk.bind hF5 (FOk.bind (by simpa [mkFEnv_env] using hF6)
+    (by simp only [↓reduceIte]; exact FOk.pure ()))
+
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:389-407 classRecTyOk —
 **one recursor's generated type, checked and compared**: the record's member,
 rule prefix and major index the generated ones, the generated type checked as
@@ -2425,25 +2454,11 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨hnm4, hlps4, -⟩ := Core.denoteCV_inv (dExt_denoteCV p14.ext _ _ hcvR)
       simp only [Frontend.denoteCV, hnm4, hlps4, hgtyd]
     obtain ⟨_, s5, k5, z5⟩ := AM.bind_ok z4
-    obtain ⟨c5, _, ⟨hwG, hfrG⟩, hF5⟩ := classConstOk_spec fe hk henv _ _ s4 s5 _
-      c14.ok hcvG k5
-    obtain ⟨b, s6, k6, z6⟩ := AM.bind_ok z5
-    have c15 := c14.trans c5
-    obtain ⟨c6, hF6⟩ := defeq_crun (hk.knot env fe henv) c5.ok
-      (Core.denoteCV_inv (dExt_denoteCV c15.ext _ _ hRiD)).2.2
-      (Core.denoteCV_inv (dExt_denoteCV c5.ext _ _ hcvG)).2.2 hRi hwG k6
-    cases b with
-    | false =>
-      simp only [Bool.false_eq_true, ↓reduceIte] at z6
-      exact absurd z6 (fun hc => AM.fail_ok hc)
-    | true =>
-      simp only [↓reduceIte] at z6
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
-      refine ⟨c15.trans c6, _, ⟨dExt_denoteCV c6.ext _ _ (dExt_denoteCV c5.ext _ _ hcvG),
-        hwG, hfrG⟩, ?_⟩
-      exact FOk.bind FOk.unwrapOr (FOk.bind hF5 (FOk.bind (by simpa [mkFEnv_env] using hF6)
-        (by simp only [↓reduceIte]
-            exact FOk.seq (FOk.pure ()) (FOk.pure _))))
+    obtain ⟨c5, _, ⟨hwG, hfrG⟩, hF5⟩ := classRecTyCheck_spec fe hk henv _ _ _ _ hRi s4 s5 _
+      c14.ok ⟨dExt_denoteCV c14.ext _ _ hRiD, hcvG⟩ k5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
+    refine ⟨c14.trans c5, _, ⟨dExt_denoteCV c5.ext _ _ hcvG, hwG, hfrG⟩, ?_⟩
+    exact FOk.bind FOk.unwrapOr (FOk.bind hF5 (FOk.pure _))
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:409-418 classRecTysOk —
 every recursor's generated type, pairwise; the lists running out unevenly
@@ -2545,28 +2560,25 @@ theorem allM_domains_resolve {env : Env} {fe : IFEnv} :
         (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, hc, Bool.true_and, hb]⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
-con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
-**One generated rule, installed as generated**, at the rule-less recursors'
-environment `envR` (index `feR`): closed, its level parameters the
-recursor's, resolving and inferred there — the flush after the inference
-(`sharedOpsRuleR`'s) restores the invariant at `feR` — its λ-telescope `n`
-long, its λ-domains resolving at the constructors' environment `env₂` (the
-view `feR.restrictTo visT`).  The rule is returned as generated. -/
-theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:418-437 classRuleCheck
+con-leche: ConLeche/Cached/CheckerC.lean:90-116 sharedOpsRuleR — the check of a
+generated rule: closed, its level parameters the recursor's, resolved and typed
+at the rule-less recursors' environment, its λ-telescope `n` long, its λ-domains
+resolving at the constructors' view `feR.restrictTo visT`. -/
+theorem classRuleCheck_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
     (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
     (cvR : IConstantVal) (cvRP : ConstantVal) (n : Nat) (gen : EIdx)
     (genP : Expr) :
     CSpecF μ envR feR
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         IFEnvOKS env₂ (feR.restrictTo visT) st)
-      (Arena.classRuleOk μ visT feR cvR n gen) (fun st r v => denoteE st r = some v)
-      (ConLeche.classRuleOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (Arena.classRuleCheck μ visT feR cvR n gen) (fun _ _ _ => True)
+      (ConLeche.classRuleCheck (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
   obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcv
-  simp only [Arena.classRuleOk] at hrun
+  simp only [Arena.classRuleCheck] at hrun
   -- the closedness guards
   obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, rfl⟩ := RC.looseBVarsBoundedFast_pstep hok.state hgen k1
@@ -2619,19 +2631,47 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
     have hr6 : ReadOK env₂ (feR.restrictTo visT) s6 :=
       ⟨hok6.state, hok6.pins, hie₂.mono c16.ext _ rfl⟩
     obtain ⟨p8, rfl⟩ := allM_domains_resolve rbs rbsP s6 s8 _ hr6 hrbs k8
-    obtain ⟨hdom, z13⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) z12
-    replace z13 := AM.pure_bind_ok z13
+    obtain ⟨hdom, z13⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) z12
     have c18 := c16.trans (p8.toCore hok6)
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z13
-    refine ⟨c18, genP, denote_ext hgen c18.ext, ?_⟩
+    refine ⟨c18, (), trivial, ?_⟩
     have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
       simp only [hlb, hfvP, Bool.not_false, Bool.and_self]
-    simp only [ConLeche.classRuleOk, h1P, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+    simp only [ConLeche.classRuleCheck, h1P, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
       mkFEnv_env, hsl, ↓reduceIte]
     refine FOk.bind hF5 (FOk.bind FOk.unwrapOr ?_)
     dsimp only
     rw [ite_eq_left hdom]
     exact FOk.pure _
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
+con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
+**One generated rule, installed as generated**, at the rule-less recursors'
+environment `envR` (index `feR`): closed, its level parameters the
+recursor's, resolving and inferred there — the flush after the inference
+(`sharedOpsRuleR`'s) restores the invariant at `feR` — its λ-telescope `n`
+long, its λ-domains resolving at the constructors' environment `env₂` (the
+view `feR.restrictTo visT`).  The rule is returned as generated. -/
+theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+    (cvR : IConstantVal) (cvRP : ConstantVal) (n : Nat) (gen : EIdx)
+    (genP : Expr) :
+    CSpecF μ envR feR
+      (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
+        IFEnvOKS env₂ (feR.restrictTo visT) st)
+      (Arena.classRuleOk μ visT feR cvR n gen) (fun st r v => denoteE st r = some v)
+      (ConLeche.classRuleOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+        genP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hgen, hie₂⟩ := hpre
+  simp only [Arena.classRuleOk] at hrun
+  obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨c1, _, -, hF1⟩ := classRuleCheck_spec feR visT hk henvR _ _ n _ genP s₀ s1 _ hok
+    ⟨hcv, hgen, hie₂⟩ k1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+  refine ⟨c1, genP, denote_ext hgen c1.ext, ?_⟩
+  simp only [ConLeche.classRuleOk]
+  exact FOk.bind hF1 (FOk.pure _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk — a
 recursor's generated rules, one per constructor of its class, the callee the
@@ -2774,13 +2814,13 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
 **the stream's recursor constants, checked** (`checkConstantVal`): each
 passes con-leche's `checkConstantValF` at `fueledOpsM μ` and is stored as
 declared, closed. -/
-theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+theorem classStreamRecs_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape),
-    CSpecF μ env fe (fun st => recs.mapM (dRec st) = some recsP)
-      (Arena.classStreamRecs μ fe recs)
+    CSpecF .verified env fe (fun st => recs.mapM (dRec st) = some recsP)
+      (Arena.classStreamRecs .verified fe recs)
       (fun st r v => r.mapM (Frontend.denoteCV st) = some v ∧ ∀ cv ∈ v, Expr.WScoped 0 cv.type)
-      (ConLeche.classStreamRecs (fueledOpsM μ) (mkFEnv env) recsP) := by
+      (ConLeche.classStreamRecs (fueledOpsM .verified) (mkFEnv env) recsP) := by
   intro recs
   induction recs with
   | nil =>
@@ -2797,7 +2837,7 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hcvR := (dRec_inv hrc).1
     simp only [Arena.classStreamRecs] at hrun
     obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨c1, F, hF⟩ := checkConstantVal_bridge hμ hk hok henv hcvR k1
+    obtain ⟨c1, F, hF⟩ := checkConstantVal_bridge hk hok henv hcvR k1
     have hcA := dExt_denoteCV c1.ext _ _ hcvR
     have hwA : Expr.WScoped 0 rcP.cvR.type :=
       Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF).1
@@ -3018,8 +3058,8 @@ key).  The rule stage's knot calls run at the rule-less recursors'
 environment (`consBlockRecsBare`, well formed by `envWF_consBlockRecsBare`);
 the flushes restore the invariant at whichever index the state reads, and the
 last one leaves `CheckOK μ false env₂ fe₂` (the `CoreStep` frame). -/
-theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv₂ : EnvWF env₂)
+theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv₂ : EnvWF env₂)
     (hcoh : IFEnvCoh fe₂) (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (nestedBit : Bool)
     (params : List EIdx) (paramsP : List Expr) (tbl : List Arena.NestCtorNf)
     (tblP : List ConLeche.NestCtorNf) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
@@ -3027,15 +3067,15 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (block : List IConstantInfo)
     (blockP : List ConstantInfo)
     (hMs : ∀ M ∈ MsP, Cached.ClassMajScoped pP.nP M) (hT : ∀ cv ∈ cvTasP, Expr.WScoped 0 cv.type) :
-    CSpecF μ env₂ fe₂
+    CSpecF .verified env₂ fe₂
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
         tbl.mapM (dCtorNf st) = some tblP ∧ dClassRead st rd = some rdP ∧
         ms.mapM (dMajor st) = some MsP ∧ cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧
         Frontend.denoteCIList st block = some blockP ∧ denoteFEnv st fe₂ = some env₂)
-      (Arena.genRecCheck μ fe₂ p nestedBit params tbl rd ms cvTas block)
+      (Arena.genRecCheck .verified fe₂ p nestedBit params tbl rd ms cvTas block)
       (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
         GR.FEq r.1 fe₂)
-      (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM μ)) (mkFEnv env₂) pP nestedBit paramsP
+      (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP nestedBit paramsP
         tblP rdP MsP cvTasP blockP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, htbl, hrd, hms, hcvT, hblk, hfe₂⟩ := hpre
@@ -3050,7 +3090,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
   have c1 := p1.toCore hok
   -- the stream's recursor types
   obtain ⟨cvRis, s2, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨c2, cvRisP, ⟨hcvRis, hwRis⟩, hF2⟩ := classStreamRecs_spec fe₂ hμ hk henv₂ p.recs
+  obtain ⟨c2, cvRisP, ⟨hcvRis, hwRis⟩, hF2⟩ := classStreamRecs_spec fe₂ hk henv₂ p.recs
     pP.recs s1 s2 cvRis c1.ok (dRec_ext.list c1.ext _ _ hrecs) k2
   have c12 := c1.trans c2
   -- the elimination guard
@@ -3078,7 +3118,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
         (nestedBit || MsP.any (·.member.isNone))) = false := by
       rw [← hlarge]; simp only [Bool.not_eq_true] at hL; simp [hL]
     generalize hs3 : s2 = s3 at z3
-    have c13 : CoreStep μ env₂ fe₂ s₀ s3 := hs3 ▸ c12
+    have c13 : CoreStep .verified env₂ fe₂ s₀ s3 := hs3 ▸ c12
     have hcvRis3 : cvRis.mapM (Frontend.denoteCV s3.store) = some cvRisP := hs3 ▸ hcvRis
     have z4 := AM.pure_bind_ok z3
   all_goals
@@ -3199,7 +3239,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     -- the flush into the rule-less recursors' environment
     obtain ⟨u11, s11, k11, z13⟩ := AM.bind_ok z12
     obtain ⟨hok11, hi11, hst11⟩ := (⟨c10.ok.state, c10.ok.pins, hfeR.1⟩ :
-      ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush (μ := μ) k11
+      ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush (μ := .verified) k11
     -- the rules
     obtain ⟨out, s12, k12, z14⟩ := AM.bind_ok z13
     obtain ⟨c12', outP, hout, hF12⟩ := classRecsRulesOk_spec _ fe₂.visibleBelow hk henvR _ _
@@ -3213,13 +3253,13 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       rw [c12'.pins, hi11.pins, c110.pins]
     obtain ⟨hok13, hi13, hst13⟩ := (⟨c12'.ok.state, by
       exact hok.pins.mono hext12 hpins12, hok.ienv.mono hext12⟩ : ReadOK env₂ fe₂ s12).flush
-      (μ := μ) k13
+      (μ := .verified) k13
     obtain ⟨hr15, hs15⟩ := AM.pure_ok z15
     subst hr15
     rw [← hs15] at hok13 hi13 hst13
-    have hframe : CoreStep μ env₂ fe₂ s₀ s' :=
+    have hframe : CoreStep .verified env₂ fe₂ s₀ s' :=
       ⟨hok13, by rw [hst13]; exact hext12, by rw [hi13.pins, hpins12]⟩
-    have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM μ)) (mkFEnv env₂) pP
+    have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP
         nestedBit paramsP tblP rdP MsP cvTasP blockP) outP := by
       simp only [ConLeche.genRecCheck, ShadowOps.ofOps, mkFEnv_env]
       refine FOk.bind hF1 (FOk.bind hF2 ?_)

@@ -304,7 +304,7 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
   cases hden'
   obtain ⟨env', F', -, hpure⟩ :=
     Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
-  exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V rfl hmem hty hpure
+  exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V hmem hty hpure
 
 /-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
 Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no

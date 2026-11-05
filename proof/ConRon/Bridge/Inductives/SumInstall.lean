@@ -240,29 +240,28 @@ The type former's stage: the telescope checked and the result sort measured.
 
 **Proof:** over `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
 `defeq` slot for the stored type's comparison. -/
-theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
+theorem checkSumTele_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
     (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal)
     (hws : Expr.WScoped 0 cvTa₀P.type) :
-    CSpec μ env fe
+    CSpec .verified env fe
       (fun st => Frontend.denoteCV st cv = some cvP ∧
         Frontend.denoteCV st cvTa₀ = some cvTa₀P ∧
         denoteFEnv st fe = some env)
-      (Arena.checkSumTele μ fe cv n cvTa₀)
+      (Arena.checkSumTele .verified fe cv n cvTa₀)
       (fun st r => ∃ F cvAP sP,
-        ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P
+        ConLeche.checkSumTele (ConLeche.fueledOps .verified F) env cvP n cvTa₀P
           = .ok (cvAP, sP) ∧
         Frontend.denoteCV st r.1 = some cvAP ∧ denoteL st.ls r.2 = some sP) := by
-  have slow : ∀ (s₁ s'' : AState) (r : IConstantVal × LIdx), CheckOK μ false env fe s₁ →
+  have slow : ∀ (s₁ s'' : AState) (r : IConstantVal × LIdx), CheckOK .verified false env fe s₁ →
       Frontend.denoteCV s₁.store cv = some cvP →
       Frontend.denoteCV s₁.store cvTa₀ = some cvTa₀P →
       denoteFEnv s₁.store fe = some env →
-      Arena.checkSumTele.checkSumTeleSlow μ fe cv n cvTa₀ s₁ = .ok (r, s'') →
-      CoreStep μ env fe s₁ s'' ∧ ∃ F bsP sP,
-        ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
+      Arena.checkSumTele.checkSumTeleSlow .verified fe cv n cvTa₀ s₁ = .ok (r, s'') →
+      CoreStep .verified env fe s₁ s'' ∧ ∃ F bsP sP,
+        ConLeche.whnfTelescope (ConLeche.fueledOps .verified F) env 0 n cvTa₀P.type
           = .ok (bsP, sP) ∧
-        ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
+        ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env
           { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } = .ok () ∧
         Frontend.denoteCV s''.store r.1
           = some { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } ∧
@@ -286,7 +285,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨hn, hl, -⟩ := denoteCV_inv hcv
       simp only [Frontend.denoteCV, denoteN_ext hn x14, denoteNListE_ext x14 _ _ hl, hty]
     obtain ⟨_, s₅, k5, z5⟩ := AM.bind_ok z4
-    obtain ⟨c5, F₂, hF₂⟩ := checkConstantVal_bridge hμ hk c4.ok henv hcvT k5
+    obtain ⟨c5, F₂, hF₂⟩ := checkConstantVal_bridge hk c4.ok henv hcvT k5
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
     refine ⟨c4.trans c5, max F₁ F₂, bsP, sP,
       whnfTelescope_mono (Nat.le_max_left F₁ F₂) hF₁,
@@ -299,18 +298,18 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hs1, hsq⟩ := stripPis_pstep hck.state (denoteCV_type hcv0) k1
   rw [hs1] at z1
   -- the slow arm, on both sides
-  have finish : Arena.checkSumTele.checkSumTeleSlow μ fe cv n cvTa₀ s₀ = .ok (r, s') →
+  have finish : Arena.checkSumTele.checkSumTeleSlow .verified fe cv n cvTa₀ s₀ = .ok (r, s') →
       (∀ bsP sP, ¬ cvTa₀P.type.stripPis n = some (bsP, .sort sP)) →
-      CoreStep μ env fe s₀ s' ∧ ∃ F cvAP sP,
-        ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P = .ok (cvAP, sP) ∧
+      CoreStep .verified env fe s₀ s' ∧ ∃ F cvAP sP,
+        ConLeche.checkSumTele (ConLeche.fueledOps .verified F) env cvP n cvTa₀P = .ok (cvAP, sP) ∧
         Frontend.denoteCV s'.store r.1 = some cvAP ∧ denoteL s'.store.ls r.2 = some sP := by
     intro hz hns
     obtain ⟨c, F, bsP, sP, hF₁, hF₂, hcA, hsP⟩ := slow s₀ s' r hck hcv hcv0 hfe hz
     refine ⟨c, F, _, sP, ?_, hcA, hsP⟩
     have tail : (do
-        let (bs, s) ← ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
+        let (bs, s) ← ConLeche.whnfTelescope (ConLeche.fueledOps .verified F) env 0 n cvTa₀P.type
         let cvTa := { cvP with type := ConLeche.closeTelescope bs 0 (.sort s) }
-        ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cvTa
+        ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env cvTa
         pure (cvTa, s) : CheckM (ConstantVal × Level))
           = .ok ({ cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) }, sP) := by
       simp only [bind, Except.bind, hF₁, hF₂, pure, Except.pure]
@@ -775,15 +774,14 @@ field sorts.
 **Proof:** over `checkConstantVal_bridge`, `checkStructDomsAt_spec`
 (`Bridge/Inductives/StructInstall.lean`), `checkStructFieldSortsI_spec`,
 `fieldDomsResolve_spec`, `idxArgsResolve_spec` and `structCtorResidOk_spec`. -/
-theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
+theorem checkSumCtor_spec {env : Env} (fe₀ fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvC : IConstantVal) (cvCP : ConstantVal) (nF : Nat)
     (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
     (hws : Expr.WScoped 0 cvTaP.type) :
-    CSpec μ env fe
+    CSpec .verified env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteL st.ls resSort = some resSortP ∧
@@ -791,9 +789,9 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         Frontend.denoteCV st cvTa = some cvTaP ∧
         denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
         IFEnvOKS env₀ fe₀ st)
-      (Arena.checkSumCtor μ fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa)
+      (Arena.checkSumCtor .verified fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa)
       (fun st r => ∃ F cvCaP sortsP,
-        ConLeche.checkSumCtor (ConLeche.fueledOps μ F) env₀ env TP lpsP nP
+        ConLeche.checkSumCtor (ConLeche.fueledOps .verified F) env₀ env TP lpsP nP
           nIdx resSortP isProp large cvCP nF cvTaP = .ok (cvCaP, sortsP) ∧
         Frontend.denoteCV st r.1 = some cvCaP ∧
         denoteLList st.ls r.2 = some sortsP) := by
@@ -804,7 +802,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   simp only [Arena.checkSumCtor] at hrun
   -- the constructor's own check (stored as declared)
   obtain ⟨_, s₂, k1, z2⟩ := AM.bind_ok hrun
-  obtain ⟨c12, F₁, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hcvC k1
+  obtain ⟨c12, F₁, hF₁⟩ := checkConstantVal_bridge hk hck henv hcvC k1
   have hcA : Frontend.denoteCV s₂.store cvC = some cvCP := denoteCV_ext hcvC c12.ext
   have x1 := c12.ext
   -- the stored constructor is a checked constant: closed
@@ -968,15 +966,14 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
 The whole constructor list.
 
 **Proof:** a list induction over `checkSumCtor_spec`. -/
-theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
+theorem checkSumCtors_spec {env : Env} (fe₀ fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
     (hws : Expr.WScoped 0 cvTaP.type) :
-    CSpec μ env fe
+    CSpec .verified env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteL st.ls resSort = some resSortP ∧
@@ -984,9 +981,9 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         denoteCtors st cs = some csP ∧
         denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
         IFEnvOKS env₀ fe₀ st)
-      (Arena.checkSumCtors μ fe₀ fe T lps nP nIdx resSort isProp large cvTa cs)
+      (Arena.checkSumCtors .verified fe₀ fe T lps nP nIdx resSort isProp large cvTa cs)
       (fun st r => ∃ F ctorsAP sortssP,
-        ConLeche.checkSumCtors (ConLeche.fueledOps μ F) env₀ env TP lpsP nP
+        ConLeche.checkSumCtors (ConLeche.fueledOps .verified F) env₀ env TP lpsP nP
           nIdx resSortP isProp large cvTaP csP = .ok (ctorsAP, sortssP) ∧
         denoteCtors st r.1 = some ctorsAP ∧
         denoteLLists st r.2 = some sortssP) := by
@@ -1014,7 +1011,7 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     obtain rfl := (Option.some.inj hcs).symm
     simp only [Arena.checkSumCtors] at hrun
     obtain ⟨t1, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨c1, F₁, cvCaP, sortsP, hF₁, hcA, hsorts⟩ := checkSumCtor_spec fe₀ fe hμ hk henv T TP
+    obtain ⟨c1, F₁, cvCaP, sortsP, hF₁, hcA, hsorts⟩ := checkSumCtor_spec fe₀ fe hk henv T TP
       lps lpsP nP nIdx resSort resSortP isProp large cv cP n cvTa cvTaP env₀ hws s₀ s₁ t1 hck
       ⟨hT, hlps, hrs, hcv, hcvTa, hfe₀, hfe, hok₀⟩ k1
     obtain ⟨cvCa, sorts⟩ := t1
@@ -1030,10 +1027,10 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨c1.trans c2, max F₁ F₂, (cvCaP, n) :: restAP, sortsP :: srestP, ?_, ?_, ?_⟩
     · have g₁ := checkSumCtor_up (Nat.le_max_left F₁ F₂) hF₁
-      have g₂ : ConLeche.checkSumCtors (ConLeche.fueledOps μ (max F₁ F₂)) env₀ env TP lpsP nP
+      have g₂ : ConLeche.checkSumCtors (ConLeche.fueledOps .verified (max F₁ F₂)) env₀ env TP lpsP nP
           nIdx resSortP isProp large cvTaP restP = .ok (restAP, srestP) := by
         rw [← ConLeche.checkSumCtors_datF] at hF₂ ⊢
-        exact (ConLeche.checkSumCtors (ConLeche.fueledOpsM μ) env₀ env TP lpsP nP nIdx resSortP
+        exact (ConLeche.checkSumCtors (ConLeche.fueledOpsM .verified) env₀ env TP lpsP nP nIdx resSortP
           isProp large cvTaP restP).property (Nat.le_max_right F₁ F₂) hF₂
       simp only [ConLeche.checkSumCtors, bind, Except.bind, g₁, g₂, pure, Except.pure]
     · simp only [denoteCtors, denoteCV_ext hcA c2.ext, hra]
@@ -1346,22 +1343,21 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
 type's scope (`checkSumTeleS_sim`'s answer): the declared one on the fast
 path, a checked constant's on the slow one (`checkSumTele_shape`,
 `checkConstantVal_typeWF`). -/
-theorem checkSumTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
+theorem checkSumTele_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
     (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal)
     (hws : Expr.WScoped 0 cvTa₀P.type) :
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => Frontend.denoteCV st cv = some cvP ∧
         Frontend.denoteCV st cvTa₀ = some cvTa₀P ∧
         denoteFEnv st fe = some env)
-      (Arena.checkSumTele μ fe cv n cvTa₀)
+      (Arena.checkSumTele .verified fe cv n cvTa₀)
       (fun st r v => Frontend.denoteCV st r.1 = some v.1 ∧ denoteL st.ls r.2 = some v.2 ∧
         Expr.WScoped 0 v.1.type)
-      (ConLeche.checkSumTele (fueledOpsM μ) env cvP n cvTa₀P) := by
+      (ConLeche.checkSumTele (fueledOpsM .verified) env cvP n cvTa₀P) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hstep, F, cvAP, sP, hF, h1, h2⟩ :=
-    checkSumTele_spec fe hμ hk henv cv cvP n cvTa₀ cvTa₀P hws s₀ s' r hok hpre hrun
+    checkSumTele_spec fe hk henv cv cvP n cvTa₀ cvTa₀P hws s₀ s' r hok hpre hrun
   refine ⟨hstep, (cvAP, sP), ⟨h1, h2, ?_⟩, F, by rw [checkSumTele_datF]; exact hF⟩
   rcases ConLeche.checkSumTele_shape hF with ⟨rfl, -⟩ | ⟨_, rfl, hc⟩
   · exact hws
@@ -1395,15 +1391,14 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
 `checkSumCtors_spec` against `checkSumCtors (fueledOpsM μ)` — the form the
 uniform route's constructor stage (`checkBlockCtors`, run at the formers'
 environment `env` with the pre-block `env₀`) consumes. -/
-theorem checkSumCtors_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
+theorem checkSumCtors_specF {env : Env} (fe₀ fe : IFEnv)
+    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
     (hTf : cvTaP.type.hasFvar = false) :
-    CSpecF μ env fe
+    CSpecF .verified env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteL st.ls resSort = some resSortP ∧
@@ -1411,12 +1406,12 @@ theorem checkSumCtors_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         denoteCtors st cs = some csP ∧
         denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
         IFEnvOKS env₀ fe₀ st)
-      (Arena.checkSumCtors μ fe₀ fe T lps nP nIdx resSort isProp large cvTa cs)
+      (Arena.checkSumCtors .verified fe₀ fe T lps nP nIdx resSort isProp large cvTa cs)
       (fun st r v => denoteCtors st r.1 = some v.1 ∧ denoteLLists st r.2 = some v.2)
-      (ConLeche.checkSumCtors (fueledOpsM μ) env₀ env TP lpsP nP nIdx resSortP isProp large
+      (ConLeche.checkSumCtors (fueledOpsM .verified) env₀ env TP lpsP nP nIdx resSortP isProp large
         cvTaP csP) := by
   intro s₀ s' r hok hpre hrun
-  obtain ⟨hstep, F, ctorsAP, sortssP, hF, h1, h2⟩ := checkSumCtors_spec fe₀ fe hμ hk henv T TP
+  obtain ⟨hstep, F, ctorsAP, sortssP, hF, h1, h2⟩ := checkSumCtors_spec fe₀ fe hk henv T TP
     lps lpsP nP nIdx resSort resSortP isProp large cvTa cvTaP env₀ cs csP
     (Expr.WScoped.of_not_hasFvar hTf) s₀ s' r hok hpre hrun
   exact ⟨hstep, (ctorsAP, sortssP), ⟨h1, h2⟩, F,

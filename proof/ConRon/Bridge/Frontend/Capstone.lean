@@ -177,13 +177,13 @@ env.consts, env.tables⟩`) — and the third, the `PushChain`, is not needed at
 **It is still a con-leche-tier lemma** and belongs beside the original: the
 whole statement is about con-leche's own functions and mentions no handle.
 The upstream ask is this file's §5 note. -/
-theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
+theorem checkDeclsPure_thmDecl_const {F : Nat}
     {pins : List NatOpPinSet} {ds : List Declaration} {env' : Env}
     {cv : ConstantVal} {value : Expr} {n : ConLeche.Name} {ls : List Level}
     (hty : cv.type = .const n ls) (hmem : Declaration.thmDecl cv value ∈ ds)
-    (h : ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F) pins ds = .ok env') :
+    (h : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pins ds = .ok env') :
     ∃ ds₀ env₀,
-      ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F) pins ds₀ = .ok env₀ ∧
+      ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pins ds₀ = .ok env₀ ∧
         ∃ c ∈ env₀.consts, c.toConstantVal.type = .const n ls := by
   -- the stream around the record
   obtain ⟨pre, post, rfl⟩ := List.append_of_mem hmem
@@ -196,13 +196,13 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
   -- the record's own step, at the environment the prefix left
   simp only [ConLeche.checkDeclsPure, List.foldlM_append, List.foldlM_cons,
     List.foldlM_nil, Bind.bind, Except.bind] at h₀
-  cases h₁ : List.foldlM (ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pins)
+  cases h₁ : List.foldlM (ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pins)
       Env.empty pre with
   | error e => rw [h₁] at h₀; exact nomatch h₀
   | ok env₁ =>
   rw [h₁] at h₀
   simp only [] at h₀
-  cases h₂ : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pins env₁
+  cases h₂ : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pins env₁
       (.thmDecl cv value) with
   | error e => rw [h₂] at h₀; exact nomatch h₀
   | ok env₂ =>
@@ -223,17 +223,17 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
 — **the same letter at the PURE fold**: a stream that declares a theorem of
 type `False` is never accepted.  con-leche's own two steps, at the pure tier:
 the record's constant survives the run, and in the model of the main theorem
-its type denotes the empty set.  Stated at the `--verified` mode itself
-(`isVerified`, not its eager tower), as con-leche's model tier is. -/
+its type denotes the empty set.  Stated at `.verified`, as con-leche's model tier
+is. -/
 theorem no_False_theorem_accepted_pure (V : Type w) [ConLeche.SetTheory V]
-    {μ : CheckMode} (hμ : μ.isVerified = true) {F : Nat}
+    {F : Nat}
     {pins : List NatOpPinSet} {ds : List Declaration} {env' : Env}
     {cv : ConstantVal} {value : Expr}
     (hmem : Declaration.thmDecl cv value ∈ ds)
     (hty : cv.type = .const ConLeche.falseName [])
-    (h : ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F) pins ds = .ok env') :
+    (h : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pins ds = .ok env') :
     False := by
   obtain ⟨ds₀, env₀, h₀, c, hc, hcty⟩ := checkDeclsPure_thmDecl_const hty hmem h
-  exact ConLeche.Model.no_proof_of_False_pure (V := V) (pins := pins) hμ h₀ c hc hcty
+  exact ConLeche.Model.no_proof_of_False_pure (V := V) (pins := pins) h₀ c hc hcty
 
 end ConRon.Bridge.Frontend

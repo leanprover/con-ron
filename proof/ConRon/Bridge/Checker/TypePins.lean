@@ -181,7 +181,7 @@ theorem typePinStored_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
         denoteE s'.store r = some (ConLeche.typePinStored env nm); ⊤⦄ := by
   sym only [bridge_grind, typePinStored_eq, denoteCV_type, denoteEView_sort_eq] =>
     vcgen [Arena.typePinStored, Arena.zeroLevel, pinZeroLevel_spec s₀ hok.pins,
-      internE_specC (mode := μ) (env := env) (fe := fe)] <;> finish
+      internE_specC (mode := μ) (eager := false) (env := env) (fe := fe)] <;> finish
 
 /-! ## The guard -/
 
@@ -196,7 +196,7 @@ theorem typePinGuard_spec (s₀ : AState) (n : NIdx) (ty : EIdx) (nm : ConLeche.
   sym only [bridge_grind, TypePinGuardP] =>
     vcgen [Arena.typePinGuard, typePinStored_spec s₀ n nm hok hn,
       hasFvarFast_specC (μ := μ) (env := env) (fe := fe),
-      looseBVarsBoundedFast_specC (mode := μ) (env := env) (fe := fe),
+      looseBVarsBoundedFast_specC (mode := μ) (eager := false) (env := env) (fe := fe),
       constsResolveFFast_specC (μ := μ) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard — the
