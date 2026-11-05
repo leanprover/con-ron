@@ -111,15 +111,15 @@ by hand, then `unresolved_consts_error` at a specialised copy fixed at
 `"value"`/`"type"`.  Both are one `lockstep` call now (since task #119 the
 value install is the guard-only `install_value_guards_tail`). -/
 
-theorem install_value_guards_tail_refines' {pers st lst} {vis : Std.U64} {rf lf}
+theorem install_value_guards_tail_refines' {E₀ : IEnv} {pers st lst} {vis : Std.U64} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.install_value_guards_tail pers vis st rf cv value = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value)) := by
-  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
   have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
   refine LS.toSim₀ ?_ hrun
   rw [arena.checker_split.install_value_guards_tail]

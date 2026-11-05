@@ -87,7 +87,7 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe cheap depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_core_body pers vis st mode eager lane fu fe cheap depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
@@ -100,7 +100,7 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.infer_body pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (inferBody
@@ -113,7 +113,7 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane io fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hio : io = true ∨ lane = arena.core.LANE_IO)
     (hrun : arena.core.infer_body_io pers vis st mode eager lane io fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o

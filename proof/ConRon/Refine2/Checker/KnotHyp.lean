@@ -114,19 +114,16 @@ finding 3 said did not exist.
 pending declaration was installed at; the twin sees `lf.restrictTo (absU vis)`
 and nothing else.  There is no hypothesis tying the two counters together,
 because at this call site they genuinely differ. -/
-theorem IFEnvInv.coreCtxAt (vis : Std.U64) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
-    CoreCtx vis rf (lf.restrictTo (absU vis)) := by
-  refine ⟨?_, rfl, hfinv.idxInv, hfinv.idxPos, hfinv.tblInv⟩
-  have : (lf.restrictTo (absU vis)).restrictTo (absU rf.visible_below) = lf := by
-    rw [IFEnv.restrictTo, IFEnv.restrictTo, ← hfe.visibleBelow]
-  rw [this]
-  exact hfe
+theorem IFEnvInv.coreCtxAt {E₀ : IEnv} (vis : Std.U64) {pers : arena.store.PersTier}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) :
+    CoreCtx pers vis rf (lf.restrictTo (absU vis)) :=
+  ⟨hfe.idx, hfe.tbls, rfl, hfinv, hfe.envWF, hfe.base⟩
 
 /-- The Core tier's ambient argument, built from the checker tier's own. -/
-theorem IFEnvInv.coreCtx {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hvis : absU vis = lf.visibleBelow) : CoreCtx vis rf lf := by
+theorem IFEnvInv.coreCtx {pers : arena.store.PersTier} {E₀ : IEnv} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
+    (hvis : absU vis = lf.visibleBelow) : CoreCtx pers vis rf lf := by
   have hr : lf.restrictTo (absU vis) = lf := by
     rw [IFEnv.restrictTo, hvis]
   exact hr ▸ IFEnvInv.coreCtxAt vis hfe hfinv
@@ -134,9 +131,9 @@ theorem IFEnvInv.coreCtx {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
 /-- The same where the counter is the record's own field, which is every site
 that does not thread finding 10's scalar: `IFEnvRel.visibleBelow` IS the
 equation. -/
-theorem IFEnvInv.coreCtxSelf {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
-    CoreCtx rf.visible_below rf lf :=
+theorem IFEnvInv.coreCtxSelf {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) :
+    CoreCtx pers rf.visible_below rf lf :=
   IFEnvInv.coreCtx hfe hfinv hfe.visibleBelow.symm
 
 /-! ## Bridges between `LS` and the checker tier's shapes (task #97-T2-LOCKSTEP lane Checker) -/
@@ -190,10 +187,10 @@ elab "checker_env_facts" : tactic => do
       let t ← instantiateMVars d.type
       let h := d.toExpr
       let mut facts : Array Expr := #[]
-      if t.isAppOfArity ``IFEnvRelI 2 then
+      if t.isAppOfArity ``IFEnvRelI 4 then
         facts := facts.push (← mkAppM ``IFEnvRel.visibleBelow #[← mkAppM ``IFEnvRelI.rel #[h]])
         facts := facts.push (← mkAppM ``IFEnvInv.visBound #[← mkAppM ``IFEnvRelI.inv #[h]])
-      else if t.isAppOfArity ``IFEnvRel 2 then
+      else if t.isAppOfArity ``IFEnvRel 4 then
         facts := facts.push (← mkAppM ``IFEnvRel.visibleBelow #[h])
       else if t.isAppOfArity ``IFEnvInv 1 then
         facts := facts.push (← mkAppM ``IFEnvInv.visBound #[h])
@@ -222,7 +219,7 @@ attribute [lockstep_simp] check_fuel_abs core_walk_fuel_abs
 open Lockstep in
 @[lockstep] theorem infer_type_core_ls {pers vis st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_type_core pers vis st mode fe fu depth e) lst
       (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
@@ -232,7 +229,7 @@ open Lockstep in
 open Lockstep in
 @[lockstep] theorem ensure_sort_core_ls {pers vis st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absLIdx a)
       (arena.core.ensure_sort_core pers vis st mode fe fu depth e) lst
       (ensureSortCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
@@ -242,7 +239,7 @@ open Lockstep in
 open Lockstep in
 @[lockstep] theorem is_def_eq_core_ls {pers vis st mode fe lfe fu depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = id a)
       (arena.core.is_def_eq_core pers vis st mode fe fu depth a b) lst
       (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
@@ -252,7 +249,7 @@ open Lockstep in
 open Lockstep in
 @[lockstep] theorem whnf_ls {pers vis st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.whnf pers vis st mode fe fu depth e) lst
       (Arena.whnf (ConRon.Refine.absMode mode) lfe checkFuel (absU depth) (absEIdx e)) :=

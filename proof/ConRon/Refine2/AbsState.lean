@@ -26,10 +26,11 @@ indexed `IFEnv`.
    index is `HashMap<NIdx, (u64, u64)>` — the installation counter and the
    position — and `ifenv_find` reads the constant out of `env.consts` at that
    position; the twin's is `HashMap NIdx (Nat × IConstantInfo)`.  `IFEnvRel`
-   therefore composes the probe with the array read, which is the one clause
-   of this file that is not a field-for-field map.  The table map `tbls` is
-   the same design: the Rust row is the table's slot in `env.tables`, the
-   twin's the table, and `IFEnvRel.tbls` composes the same way.
+   therefore composes the probe with the array read (`rowOf`).  The table map
+   `tbls` is the same design (`tblOf`).
+4. **The Rust's environment has two tiers and the twin's has one**: a layer reads
+   its own index, then the frozen base `PersTier.env` below `base_below`.  So
+   `IFEnvRel` is stated on what a lookup answers (`layerRow`, `layerTbl`).
 -/
 import ConRon.Refine2.Inv
 import ConRon.Arena.Env
@@ -479,17 +480,88 @@ def IConstantInfoWF : arena.env.IConstantInfo → Prop
   | .IndInfo _ caps => ConRon.Refine.PropWhenWF caps.sort_z
   | _ => True
 
-/-- **The one clause that is not a field map** (task #97-P6-5's lever 1): the
-Rust's index answers `(counter, position)` and `ifenv_find` reads the constant
-out of `env.consts` at that position, where the twin's index answers
-`(counter, constant)`.  The relation composes the probe with the array read,
-and an out-of-range position — which `ifenv_find` declines — is `none` on the
-twin's side too. -/
-structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
-  env : lf.env = absIEnv rf.env
-  idx : ∀ n, ((ConRon.Refine.HashMap2.toFun rf.idx n).bind fun p =>
-      (rf.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
-    = lf.idx[absNIdx n]?
+/-- A row of the Rust index, read through its position: `(counter, position)` as the
+twin's `(counter, constant)`; an out-of-range position, which `ifenv_find` declines,
+is `none`.  **The one composition that is not a field map** (task #97-P6-5's lever 1):
+the Rust's index answers a position and the twin's the constant. -/
+def rowOf (cs : alloc.vec.Vec arena.env.IConstantInfo) (p : Std.U64 × Std.U64) :
+    Option (Nat × IConstantInfo) :=
+  (cs.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci)
+
+/-- A slot of the Rust table list, read as the twin's table. -/
+def tblOf (ts : alloc.vec.Vec arena.env.IProjTable) (s : Std.U64) : Option IProjTable :=
+  (ts.val[s.val]?).map absIProjTable
+
+/-- **The index's own invariant**: its tables are well formed, the counter does not
+run past the constant list, and every position and slot it stores is in range.
+`Refine2/Checker/Shape.lean` carries the note on each clause. -/
+def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
+  Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
+    rf.visible_below.val ≤ rf.env.consts.val.length ∧
+    (∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
+      p.2.val < rf.env.consts.val.length) ∧
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls ∧
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
+      s.val < rf.env.tables.val.length
+
+/-- **What a reader needs of the frozen base** (`PersTier.env`): the index's own
+invariant, and canonical constants. -/
+structure BaseOK (pers : arena.store.PersTier) : Prop where
+  inv : IFEnvInv pers.env
+  envWF : ∀ ci ∈ pers.env.env.consts.val, IConstantInfoWF ci
+
+/-- `n`'s row in the frozen base, as a layer whose base is visible below `below`
+reads it: `ifenv_find_base`, without the reader's own bound. -/
+def baseRow (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
+    Option (Nat × IConstantInfo) :=
+  (ConRon.Refine.HashMap2.toFun pers.env.idx n).bind fun p =>
+    if absU p.1 < absU below then rowOf pers.env.env.consts p else none
+
+/-- `n`'s table in the frozen base, gated on the structure being visible to the
+layer: `ifenv_table_base`. -/
+def baseTbl (pers : arena.store.PersTier) (below : Std.U64) (n : arena.handle.NIdx) :
+    Option IProjTable :=
+  if (baseRow pers below n).isSome then
+    (ConRon.Refine.HashMap2.toFun pers.env.tbls n).bind (tblOf pers.env.env.tables)
+  else none
+
+/-- **The lookup of a layer**, as a row: the own index, and on a miss the base. -/
+def layerRow (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
+    (n : arena.handle.NIdx) : Option (Nat × IConstantInfo) :=
+  match ConRon.Refine.HashMap2.toFun rf.idx n with
+  | some p => rowOf rf.env.consts p
+  | none => baseRow pers rf.base_below n
+
+/-- **The table lookup of a layer**: the own map, and on a miss the base's, gated. -/
+def layerTbl (pers : arena.store.PersTier) (rf : arena.env.IFEnv)
+    (n : arena.handle.NIdx) : Option IProjTable :=
+  match ConRon.Refine.HashMap2.toFun rf.tbls n with
+  | some s => tblOf rf.env.tables s
+  | none => baseTbl pers rf.base_below n
+
+/-- The twin's `IEnv` of a Rust layer over `E₀`: what the layer pushed, newest first,
+above what the twin holds below it. -/
+def overEnv (E₀ : IEnv) (e : arena.env.IEnv) : IEnv :=
+  ⟨(e.consts.val.map absIConstantInfo).reverse ++ E₀.consts,
+    (e.tables.val.map absIProjTable).reverse ++ E₀.tables⟩
+
+/-- **A Rust environment layer against the twin's one `IFEnv`.**  The twin has one
+environment value and no base; the Rust reads its own layer, then the frozen base
+below `base_below`.  So the index clause and the table clause are stated on what a
+lookup answers (`layerRow`, `layerTbl`), and the lists on the layer: what it pushed
+is the twin's `env` above `E₀`, which no theorem of the tier reads and every one
+keeps.
+
+* Phase A: `E₀` is empty and so is the base (`PersEnvEmpty`): the relation is the
+  field-for-field one (`IFEnvOwn`).
+* A block job: the layer `ifenv_layer(pos, pos)` over the frozen base against the
+  twin's `BlockCheck.view`, with `E₀` the environment the block found.
+* A value check: `check_layer()` against the whole environment restricted to `0`,
+  with `E₀` its whole `env`; the reader's bound is `vis`. -/
+structure IFEnvRel (pers : arena.store.PersTier) (E₀ : IEnv) (rf : arena.env.IFEnv)
+    (lf : IFEnv) : Prop where
+  env : lf.env = overEnv E₀ rf.env
+  idx : ∀ n, layerRow pers rf n = lf.idx[absNIdx n]?
   visibleBelow : lf.visibleBelow = absU rf.visible_below
   /-- The stored constants are canonical Rust data (`IConstantInfoWF`): a
   Rust environment represents a twin one only when it is. -/
@@ -497,14 +569,28 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
   /-- Every index row points at a slot whose constant carries the row's key
   (`IFEnvKeys`). -/
   keys : IFEnvKeys rf
-  /-- The table map, as `idx`: a row is a slot of `env.tables`, read through,
-  where the twin's row is the table; an out-of-range slot — which
-  `ifenv_raw_table` declines — is `none` on the twin's side too. -/
+  /-- The table map, as `idx`. -/
+  tbls : ∀ n, layerTbl pers rf n = lf.tbls[absNIdx n]?
+  /-- Every table-map row points at a slot whose table belongs to the row's
+  key (`IFEnvTblKeys`). -/
+  tblKeys : IFEnvTblKeys rf
+  /-- The frozen base is well formed. -/
+  base : BaseOK pers
+
+/-- **A layer with nothing below it, field for field**: phase A's relation, at the
+promotion, which runs in phase A only and never reads a base.  Every index row is a
+position read through, every table-map row a slot read through. -/
+structure IFEnvOwn (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
+  env : lf.env = absIEnv rf.env
+  idx : ∀ n, ((ConRon.Refine.HashMap2.toFun rf.idx n).bind fun p =>
+      (rf.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
+    = lf.idx[absNIdx n]?
+  visibleBelow : lf.visibleBelow = absU rf.visible_below
+  envWF : ∀ ci ∈ rf.env.consts.val, IConstantInfoWF ci
+  keys : IFEnvKeys rf
   tbls : ∀ n, ((ConRon.Refine.HashMap2.toFun rf.tbls n).bind fun s =>
       (rf.env.tables.val[s.val]?).map absIProjTable)
     = lf.tbls[absNIdx n]?
-  /-- Every table-map row points at a slot whose table belongs to the row's
-  key (`IFEnvTblKeys`). -/
   tblKeys : IFEnvTblKeys rf
 
 end ConRon.Refine2

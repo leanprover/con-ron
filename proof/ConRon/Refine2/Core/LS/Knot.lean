@@ -22,7 +22,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_whnf_core_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe cheap depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.knot_whnf_core pers vis st mode eager lane fu fe cheap depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).whnfCore cheap (absU depth)
@@ -32,7 +32,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_whnf_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.knot_whnf pers vis st mode eager lane fu fe depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).whnf (absU depth) (absEIdx e)) :=
@@ -41,7 +41,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_infer_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.knot_infer pers vis st mode eager lane fu fe depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).infer (absU depth) (absEIdx e)) :=
@@ -50,7 +50,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_infer_io_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.knot_infer_io pers vis st mode eager lane fu fe depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).inferIO (absU depth) (absEIdx e)) :=
@@ -59,7 +59,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_infer_at_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane io fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.knot_infer_at pers vis st mode eager lane io fu fe depth e) lst
       ((laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f).infer (absU depth)
@@ -69,7 +69,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_defeq_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun x y => y = x)
       (arena.core.knot_defeq pers vis st mode eager lane fu fe depth a b) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).defeq (absU depth) (absEIdx a)
@@ -79,7 +79,7 @@ open ConRon.Arena ConRon.Refine2
 @[lockstep] theorem knot_defeq_e_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun x y => y = x)
       (arena.core.knot_defeq_e pers vis st mode eager lane fu fe depth a b) lst
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).defeqE (absU depth) (absEIdx a)

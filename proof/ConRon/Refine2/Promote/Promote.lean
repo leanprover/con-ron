@@ -1037,9 +1037,9 @@ which over the twin's newest-first list is `eraseInstalled` at its first
 `dropScratch` hands that word back to the next declaration, and `IFEnv.find?`
 would answer a different constant under it. -/
 theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.promote.erase_installed rf i = ok o) :
-    (IFEnvRel o
+    (IFEnvOwn o
         { lf with
           idx := eraseInstalled lf.idx
                    ((absIEnv rf.env).consts.take
@@ -1214,7 +1214,7 @@ private theorem LST.and_rust {α β : Type} {P0 : arena.store.PersTier}
 private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     {c i1 i2 : Std.U64} {ci : arena.env.IConstantInfo} {nn : arena.handle.NIdx}
     {hm : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.U64 × Std.U64)}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hfree : ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
       p.2.val < start.val ∨ j.val ≤ p.2.val)
     (hsj : start.val < j.val) (hj : j.val ≤ rf.env.consts.val.length)
@@ -1232,7 +1232,7 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
           lf.env.tables⟩,
         lf.idx.insert (absIConstantInfo ci).name (absU c - 1, absIConstantInfo ci),
         lf.visibleBelow, lf.tbls⟩
-    IFEnvRel rf' lf' ∧ IFEnvInv rf' ∧
+    IFEnvOwn rf' lf' ∧ IFEnvInv rf' ∧
       rf'.env.consts.val.length = rf.env.consts.val.length ∧
       ∀ k p, ConRon.Refine.HashMap2.toFun rf'.idx k = some p →
         p.2.val < start.val ∨ i.val ≤ p.2.val := by
@@ -1326,10 +1326,10 @@ private theorem index_promoted_aux (d : Nat) :
       j.val - start.val = d → start.val ≤ j.val → j.val ≤ rf.env.consts.val.length →
       P.frozen = false → t.frozen = true → ScratchOn st.store →
       AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
-      IFEnvRel rf lf → IFEnvInv rf →
+      IFEnvOwn rf lf → IFEnvInv rf →
       (∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
         p.2.val < start.val ∨ j.val ≤ p.2.val) →
-      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
         p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
         (fun t' => glue t' st)
         (arena.promote.index_promoted t st rm fuel rf start j c) lst
@@ -1418,11 +1418,11 @@ theorem index_promoted_ls {P t st lst rm lm rf lf} {fuel : Std.U64}
     {start j : Std.Usize} {c : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
-    (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hle : start.val ≤ j.val) (hj : j.val ≤ rf.env.consts.val.length)
     (hfree : ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
       p.2.val < start.val ∨ j.val ≤ p.2.val) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
         p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.index_promoted t st rm fuel rf start j c) lst
@@ -1450,10 +1450,10 @@ round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
 theorem promote_new_consts_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
-    (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hkeys : IFEnvKeys rf)
     (hk : absU k ≤ rf.env.consts.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2 ∧
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2 ∧
         p.1.2.env.tables = rf.env.tables) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new_consts t st rm fuel k rf) lst
@@ -1879,9 +1879,9 @@ untouched.  `hk` is finding C at the tables.  A TIER walk, as
 theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
-    (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hk : absU kt ≤ rf.env.tables.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new_tables t st rm fuel kt rf) lst
       (promoteNewTables lm (absU fuel) (absU kt) lf) := by
@@ -2038,9 +2038,9 @@ round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
 theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k kt : Std.U64}
     (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
     (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
-    (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hm : PMemoRel rm lm) (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length) (hkt : absU kt ≤ rf.env.tables.val.length) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvOwnI p.1.2 v.2) ∧ p.2.frozen = true)
       (fun t' => glue t' st)
       (arena.promote.promote_new t st rm fuel k kt rf) lst
       (promoteNew lm (absU fuel) (absU k) (absU kt) lf) := by

@@ -35,8 +35,8 @@ attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
 
 /-! ## The stored type: `rec_doms_at`, `rec_ty_opened`, `stored_closed`, `rec_ty_check` -/
 
-theorem rec_doms_at_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hfe : IFEnvRelI rf lf) (sfvs gfvs : alloc.vec.Vec arena.handle.EIdx) (n : Nat) :
+theorem rec_doms_at_aux {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers E₀ rf lf) (sfvs gfvs : alloc.vec.Vec arena.handle.EIdx) (n : Nat) :
     ∀ (j k : Std.U64) st lst, k.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
         (arena.inductives.stored_recs.rec_doms_at pers st mode rf sfvs gfvs j k) lst
@@ -56,9 +56,9 @@ theorem rec_doms_at_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFE
     rw [show absU j1 = j.val + 1 by simp [absU]; scalar_tac]
     rfl
 
-@[lockstep] theorem rec_doms_at_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem rec_doms_at_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (sfvs gfvs : alloc.vec.Vec arena.handle.EIdx) (j k : Std.U64) :
+    (hfe : IFEnvRelI pers E₀ rf lf) (sfvs gfvs : alloc.vec.Vec arena.handle.EIdx) (j k : Std.U64) :
     LS pers (fun a b => b = a)
       (arena.inductives.stored_recs.rec_doms_at pers st mode rf sfvs gfvs j k) lst
       (recDomsAt (ConRon.Refine.absMode mode) lf (absEIdxL sfvs) (absEIdxL gfvs) (absU j)
@@ -70,9 +70,9 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
     Option (List EIdx × EIdx) :=
   o.map fun p => (absEIdxL p.1, absEIdx p.2)
 
-@[lockstep] theorem rec_ty_opened_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem rec_ty_opened_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (n : Std.U64)
+    (hfe : IFEnvRelI pers E₀ rf lf) (n : Std.U64)
     (s g : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)) :
     LS pers (fun a b => b = a)
       (arena.inductives.stored_recs.rec_ty_opened pers st mode rf n s g) lst
@@ -90,9 +90,9 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
   rw [arena.inductives.stored_recs.stored_closed, storedClosed]
   lockstep
 
-@[lockstep] theorem rec_ty_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem rec_ty_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (n : Std.U64)
+    (hfe : IFEnvRelI pers E₀ rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (n : Std.U64)
     (s g : arena.handle.EIdx) :
     LS pers (fun a b => b = a)
       (arena.inductives.stored_recs.rec_ty_check pers st mode rf lps n s g) lst
@@ -104,9 +104,9 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
 
 /-! ## One rule: `rule_agree` -/
 
-@[lockstep] theorem rule_agree_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem rule_agree_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (s g : arena.handle.EIdx) :
+    (hfe : IFEnvRelI pers E₀ rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (s g : arena.handle.EIdx) :
     LS pers (fun a b => b = a)
       (arena.inductives.stored_recs.rule_agree pers st mode rf lps s g) lst
       (ruleAgree (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absEIdx s) (absEIdx g)) := by
@@ -286,8 +286,8 @@ theorem stored_rules_shape_aux {pers st lst} (rs : alloc.vec.Vec arena.env.IRecR
   have h := stored_rules_shape_aux rs cs hrel hinv _ 0#usize rfl
   simpa [absCtorsLFrom, absCtorsL] using h
 
-theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
+theorem stored_rules_check_aux {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
     (rs : alloc.vec.Vec arena.env.IRecRule) (gs : alloc.vec.Vec arena.handle.EIdx) (n : Nat) :
     ∀ (i : Std.Usize) st lst, rs.val.length - i.val = n →
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -320,9 +320,9 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
       simp only [storedRulesCheck]
       lockstep
 
-@[lockstep] theorem stored_rules_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem stored_rules_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
+    (hfe : IFEnvRelI pers E₀ rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
     (rs : alloc.vec.Vec arena.env.IRecRule) (gs : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a)
       (arena.inductives.stored_recs.stored_rules_check pers st mode rf lps rs gs 0#usize) lst
@@ -334,9 +334,9 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
 /-! ## One recursor, and the family: `stored_rec_compare`, `stored_rec_check`,
 `stored_recs_check`, `stored_out` -/
 
-@[lockstep] theorem stored_rec_compare_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem stored_rec_compare_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (rc : arena.inductives.block_parts.RecShape)
+    (hfe : IFEnvRelI pers E₀ rf lf) (rc : arena.inductives.block_parts.RecShape)
     (g : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a)
@@ -347,9 +347,9 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
   simp only [absRecOut, absRecShape, absIConstantVal]
   lockstep
 
-@[lockstep] theorem stored_rec_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem stored_rec_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (rc : arena.inductives.block_parts.RecShape)
+    (hfe : IFEnvRelI pers E₀ rf lf) (rc : arena.inductives.block_parts.RecShape)
     (g : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a)
@@ -360,8 +360,8 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
   simp only [absRecOut, gr_absRecShape_rP, gr_absRecShape_mI, gr_absRecShape_cvR]
   lockstep
 
-theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+theorem stored_recs_check_aux {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
     (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
     (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) (n : Nat) :
@@ -396,9 +396,9 @@ theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.e
       simp only [storedRecsCheck]
       lockstep
 
-@[lockstep] theorem stored_recs_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem stored_recs_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (hfe : IFEnvRelI pers E₀ rf lf) (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
     (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) :
     LS pers (fun a b => b = a)

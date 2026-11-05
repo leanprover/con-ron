@@ -395,10 +395,10 @@ theorem u64_find_idx_abs {xs : alloc.vec.Vec Std.U64} {x : Std.U64} :
 
 /-! ## `class_n_pc_of` (`gen_rec.rs`; the twin's `classNPcOf` lives in `ClassRead`) -/
 
-@[lockstep] theorem class_n_pc_of_twin {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockShape)
+@[lockstep] theorem class_n_pc_of_twin {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers E₀ rf lf) (p : arena.inductives.block_parts.BlockShape)
     (i : arena.handle.NIdx) :
-    LSP (arena.inductives.gen_rec.class_n_pc_of p rf i)
+    LSP (arena.inductives.gen_rec.class_n_pc_of pers p rf i)
       (fun o => TwinEq (classNPcOf (absBlockShape p) lf (absNIdx i)) (absU o)) := by
   intro o h
   rw [arena.inductives.gen_rec.class_n_pc_of] at h
@@ -546,8 +546,8 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
 
 /-! ## `class_read_slot` -/
 
-@[lockstep] theorem class_read_slot_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+@[lockstep] theorem class_read_slot_ls {E₀ : IEnv} {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
     (p : arena.inductives.block_parts.BlockShape) (np : Std.U64)
     (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64) (dom : arena.handle.EIdx) :
     LS pers (fun a b => b = a.map absClassSlot)
@@ -575,7 +575,7 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
 
 /-! ## `class_read_slots` -/
 
-theorem class_read_slots_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+theorem class_read_slots_acc {E₀ : IEnv} {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
     (p : arena.inductives.block_parts.BlockShape) (np : Std.U64) :
     ∀ (k : Nat) (n : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
       (e : arena.handle.EIdx) (out : alloc.vec.Vec arena.inductives.class_read.ClassSlot) st lst,
@@ -612,8 +612,8 @@ theorem class_read_slots_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : I
            funext r
            rcases r with _ | r <;> simp [hout1, hsv])
 
-@[lockstep] theorem class_read_slots_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+@[lockstep] theorem class_read_slots_ls {E₀ : IEnv} {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
     (p : arena.inductives.block_parts.BlockShape) (np n : Std.U64)
     (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64) (e : arena.handle.EIdx) :
     LS pers (fun a b => b = a.map (fun v => v.val.map absClassSlot))
@@ -693,8 +693,8 @@ def classRead' (p : BlockShape) (fe : IFEnv) (nP : Nat) (recs : List RecShape) :
 
 theorem classRead_eq : classRead = classRead' := rfl
 
-@[lockstep] theorem class_read_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+@[lockstep] theorem class_read_ls {E₀ : IEnv} {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
     (p : arena.inductives.block_parts.BlockShape) (n_p : Std.U64)
     (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
     LS pers (fun a b => b = a.map absClassRead)

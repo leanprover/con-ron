@@ -13,7 +13,7 @@ the four things it needed that the tier did not have.
 task #97-P6-5's lever 1 split the index's value in two, so the Rust's index
 answers `(counter, position)` and reads the constant out of `env.consts` at
 that position, where the twin's index answers `(counter, constant)`.
-`Refine2/AbsState.lean`'s `IFEnvRel.idx` composes the probe with the array
+`Refine2/AbsState.lean`'s `rowOf` composes the probe with the array
 read, and `ifenv_find_abs` below is that clause spent: **one equation,
 `o.map absIConstantInfo = lfe.find? (absNIdx n)`**, and the visibility test is
 `CoreCtx.vis` on both sides.
@@ -152,98 +152,166 @@ theorem core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
 
 /-! ## The environment index's one reader -/
 
-/-- **`arena::env::ifenv_find` against `IFEnv.find?`.**  The port probes the
-index for `(counter, position)` and reads `env.consts` at the position; the
-twin's index holds the constant itself.  `IFEnvRel.idx` is that composition
-and this lemma is it spent — see the module note. -/
-theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) {n : arena.handle.NIdx}
-    {o : Option arena.env.IConstantInfo}
-    (hrun : arena.env.ifenv_find vis fe n = ok o) :
-    o.map absIConstantInfo = lfe.find? (absNIdx n) := by
-  rw [arena.env.ifenv_find] at hrun
+/-- A row's visibility at a reader's bound, as `IFEnv.find?` tests it. -/
+def rowAt (v : Nat) : Option (Nat × IConstantInfo) → Option IConstantInfo
+  | some (c, ci) => if c < v then some ci else none
+  | none => none
+
+theorem IFEnv.find?_eq_rowAt (lf : IFEnv) (n : NIdx) :
+    lf.find? n = rowAt lf.visibleBelow lf.idx[n]? := by
+  rw [IFEnv.find?]
+  cases lf.idx[n]? with
+  | none => rfl
+  | some r => obtain ⟨c, ci⟩ := r; rfl
+
+/-- A stored position in range is read: the cast is the identity, the test passes. -/
+private theorem read_slot {cs : alloc.vec.Vec arena.env.IConstantInfo} {pos : Std.U64} {o}
+    (hlt : pos.val < cs.val.length)
+    (hrun : (do
+        let i2 ← lift (Std.UScalar.cast .Usize pos)
+        if i2 < alloc.vec.Vec.len cs then
+          (do
+            let i4 ← lift (Std.UScalar.cast .Usize pos)
+            let ii ← alloc.vec.Vec.index
+              (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo) cs i4
+            ok (some ii))
+        else ok none : Result (Option arena.env.IConstantInfo)) = ok o) :
+    ∃ ci, cs.val[pos.val]? = some ci ∧ o = some ci := by
+  have hfit : pos.val ≤ Std.Usize.max := le_of_lt (lt_of_lt_of_le hlt cs.property)
+  obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hi2v : i2.val = pos.val := by
+    rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hfit]
+    exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
+  have hb : i2 < alloc.vec.Vec.len cs := by
+    apply (Std.UScalar.lt_equiv _ _).mpr
+    rw [hi2v, alloc.vec.Vec.len_val]
+    exact hlt
+  rw [ite_eq_left hb] at hrun
+  obtain ⟨i4, hi4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hi4v : i4.val = pos.val := by
+    rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hfit]
+    exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi4).symm
+  obtain ⟨hl, hne⟩ := ConRon.Refine.ExprOps.vec_index_val hii
+  simp only [hi4v] at hl hne
+  refine ⟨ii, ?_, (Result.ok_injective hrun).symm⟩
+  rw [List.getElem?_eq_getElem hl, hne]
+
+/-- **The base layer's lookup**: `ifenv_find_base` is `baseRow` at the reader's bound,
+and what it finds is canonical. -/
+theorem ifenv_find_base_abs {pers : arena.store.PersTier} {vis below : Std.U64}
+    (hb : BaseOK pers) {n : arena.handle.NIdx} {o : Option arena.env.IConstantInfo}
+    (hrun : arena.env.ifenv_find_base pers vis below n = ok o) :
+    o.map absIConstantInfo = rowAt (absU vis) (baseRow pers below n) ∧
+      ∀ ci, o = some ci → IConstantInfoWF ci := by
+  rw [arena.env.ifenv_find_base] at hrun
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.idxInv
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.inv.1
     ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hidx := hctx.idx n
-  rw [← hto] at hidx
-  cases hr2 : r with
+  unfold baseRow
+  rw [← hto]
+  cases r with
   | none =>
-    rw [hr2] at hrun hidx
-    have ho : (none : Option arena.env.IConstantInfo) = o :=
-      Result.ok_injective hrun
-    rw [← ho, IFEnv.find?, ← hidx]
-    rfl
+    cases Result.ok_injective hrun
+    exact ⟨rfl, by simp⟩
   | some p =>
     obtain ⟨c, pos⟩ := p
-    rw [hr2] at hrun hidx
-    -- the port's `match` on a literal `some`, and the twin's `Option.bind`
-    -- on the same, both by `rfl`
-    replace hrun : (if c < vis then
-        (do
-          let i2 ← lift (Std.UScalar.cast .Usize pos)
-          if i2 < alloc.vec.Vec.len fe.env.consts then
-            (do
-              let i4 ← lift (Std.UScalar.cast .Usize pos)
-              let ii ← alloc.vec.Vec.index
-                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo)
-                fe.env.consts i4
-              ok (some ii))
-          else ok none)
-      else (ok none : Result (Option arena.env.IConstantInfo))) = ok o := hrun
-    replace hidx : Option.map (fun ci => (absU c, absIConstantInfo ci))
-        fe.env.consts.val[pos.val]? = lfe.idx[absNIdx n]? := hidx
-    have hposfit : pos.val ≤ Std.Usize.max :=
-      hctx.idxPos n (c, pos) (hto.symm.trans hr2)
-    have hlen : (alloc.vec.Vec.len fe.env.consts).val
-        = fe.env.consts.val.length := alloc.vec.Vec.len_val _
+    have hlt : pos.val < pers.env.env.consts.val.length := hb.inv.2.2.1 n (c, pos) hto.symm
+    simp only [Option.bind_some] at hrun ⊢
     by_cases hc : c < vis
-    · rw [ite_eq_left hc] at hrun
-      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hi2v : i2.val = pos.val := by
-        rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hposfit]
-        exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
-      have hcv : absU c < lfe.visibleBelow := by
-        rw [← hctx.vis]
-        exact (Std.UScalar.lt_equiv c vis).mp hc
-      by_cases hb : i2 < alloc.vec.Vec.len fe.env.consts
-      · rw [ite_eq_left hb] at hrun
-        obtain ⟨i4, hi4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have ho : some ii = o := Result.ok_injective hrun
-        have hi4v : i4.val = pos.val := by
-          rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hposfit]
-          exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi4).symm
-        obtain ⟨hlt, hne⟩ := ConRon.Refine.ExprOps.vec_index_val hii
-        simp only [hi4v] at hlt hne
-        rw [List.getElem?_eq_getElem hlt] at hidx
-        rw [← ho, hne, IFEnv.find?, ← hidx]
-        simp only [Option.map_some]
-        rw [ite_eq_left hcv]
-      · rw [ite_eq_right hb] at hrun
-        have ho : (none : Option arena.env.IConstantInfo) = o :=
-          Result.ok_injective hrun
-        have hge : fe.env.consts.val.length ≤ pos.val := by
-          have hnl : ¬ (i2.val < (alloc.vec.Vec.len fe.env.consts).val) := by
-            intro hxx; exact hb ((Std.UScalar.lt_equiv _ _).mpr hxx)
-          rw [hlen] at hnl
-          omega
-        rw [List.getElem?_eq_none hge] at hidx
-        rw [← ho, IFEnv.find?, ← hidx]
-        rfl
-    · rw [ite_eq_right hc] at hrun
-      have ho : (none : Option arena.env.IConstantInfo) = o :=
-        Result.ok_injective hrun
-      have hcv : ¬ (absU c < lfe.visibleBelow) := by
-        rw [← hctx.vis]
-        intro hxx; exact hc ((Std.UScalar.lt_equiv c vis).mpr hxx)
-      rw [← ho, IFEnv.find?, ← hidx]
-      cases hg : fe.env.consts.val[pos.val]? with
-      | none => rfl
-      | some ci =>
-        simp only [Option.map_some]
-        rw [ite_eq_right hcv]
-        rfl
+    · rw [if_pos hc] at hrun
+      by_cases hd : c < below
+      · rw [if_pos hd] at hrun
+        obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
+        have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
+        have hd' : absU c < absU below := (Std.UScalar.lt_equiv c below).mp hd
+        rw [if_pos hd', rowOf]
+        simp only [hci, Option.map_some, rowAt, if_pos hc']
+        exact ⟨trivial, fun ci' h => by
+          cases h; exact hb.envWF ci (List.mem_of_getElem? hci)⟩
+      · rw [if_neg hd] at hrun
+        cases Result.ok_injective hrun
+        have hd' : ¬ absU c < absU below := fun h => hd ((Std.UScalar.lt_equiv c below).mpr h)
+        rw [if_neg hd']
+        exact ⟨rfl, by simp⟩
+    · rw [if_neg hc] at hrun
+      cases Result.ok_injective hrun
+      refine ⟨?_, by simp⟩
+      have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)
+      by_cases hd' : absU c < absU below
+      · rw [if_pos hd', rowOf]
+        cases hci : pers.env.env.consts.val[pos.val]? with
+        | none => rfl
+        | some ci => simp [rowAt, hc']
+      · rw [if_neg hd']; rfl
+
+/-- **`arena::env::ifenv_find` against `IFEnv.find?`**, and what it finds is canonical
+Rust data.  The own layer, then the base: `CoreCtx.idx` is that composition, with the
+position read through.  A layer with no constant has no row, so the fast path is the
+miss. -/
+theorem ifenv_find_abs' {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {n : arena.handle.NIdx}
+    {o : Option arena.env.IConstantInfo}
+    (hrun : arena.env.ifenv_find pers vis fe n = ok o) :
+    o.map absIConstantInfo = lfe.find? (absNIdx n) ∧ ∀ ci, o = some ci → IConstantInfoWF ci := by
+  rw [IFEnv.find?_eq_rowAt, ← hctx.vis, ← hctx.idx n]
+  have hmiss : ConRon.Refine.HashMap2.toFun fe.idx n = none →
+      arena.env.ifenv_find_base pers vis fe.base_below n = ok o →
+      o.map absIConstantInfo = rowAt (absU vis) (layerRow pers fe n) ∧
+        ∀ ci, o = some ci → IConstantInfoWF ci := by
+    intro hn hb
+    unfold layerRow
+    rw [hn]
+    exact ifenv_find_base_abs hctx.base hb
+  rw [arena.env.ifenv_find] at hrun
+  simp only at hrun
+  split at hrun
+  · rename_i hz
+    have hlen : fe.env.consts.val.length = 0 := by
+      have := congrArg Aeneas.Std.UScalar.val hz
+      simpa [alloc.vec.Vec.len_val] using this
+    refine hmiss ?_ hrun
+    cases hp : ConRon.Refine.HashMap2.toFun fe.idx n with
+    | none => rfl
+    | some p =>
+      have := hctx.inv.2.2.1 n p hp
+      omega
+  · obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.inv.1
+      ConRon.Refine.HashMap2.KeysOk_true trivial hr
+    cases r with
+    | none => exact hmiss hto.symm hrun
+    | some p =>
+      obtain ⟨c, pos⟩ := p
+      have hlt : pos.val < fe.env.consts.val.length := hctx.inv.2.2.1 n (c, pos) hto.symm
+      unfold layerRow
+      rw [← hto]
+      simp only at hrun ⊢
+      by_cases hc : c < vis
+      · rw [if_pos hc] at hrun
+        obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
+        have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
+        rw [rowOf]
+        simp only [hci, Option.map_some, rowAt, if_pos hc']
+        exact ⟨trivial, fun ci' h => by
+          cases h; exact hctx.envWF ci (List.mem_of_getElem? hci)⟩
+      · rw [if_neg hc] at hrun
+        cases Result.ok_injective hrun
+        refine ⟨?_, by simp⟩
+        have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)
+        rw [rowOf]
+        cases hci : fe.env.consts.val[pos.val]? with
+        | none => rfl
+        | some ci => simp [rowAt, hc']
+
+/-- **`arena::env::ifenv_find` against `IFEnv.find?`**: the one lemma every reader of
+the tiers above consumes. -/
+theorem ifenv_find_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {n : arena.handle.NIdx}
+    {o : Option arena.env.IConstantInfo}
+    (hrun : arena.env.ifenv_find pers vis fe n = ok o) :
+    o.map absIConstantInfo = lfe.find? (absNIdx n) :=
+  (ifenv_find_abs' hctx hrun).1
 
 -- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
 -- round 2), beside the other `arena::env` copies.
@@ -584,19 +652,19 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
   -- under them is on task #97-T2-AUDIT's D1 list, so these are TRUE once that
   -- lane makes `Arena/PropRead.lean` tag-first).
   proofPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     arena.prop_read.proof_pw pers vis st fe fuel a = ok o →
     Sim₀ ExprOps.absPwOpt pers lst o (proofPW lfe (absU fuel) (absEIdx a))
   typeSortPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     arena.prop_read.type_sort_pw pers vis st fe fuel t = ok o →
     Sim₀ ExprOps.absPwOpt pers lst o (typeSortPW lfe (absU fuel) (absEIdx t))
   isProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     arena.prop_read.is_proof_fast pers vis st fe fuel a = ok o →
     Sim₀ id pers lst o (isProofFast lfe (absU fuel) (absEIdx a))
   notProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     arena.prop_read.not_proof_fast pers vis st fe fuel a = ok o →
     Sim₀ id pers lst o (notProofFast lfe (absU fuel) (absEIdx a))
 
@@ -863,7 +931,7 @@ call sites) and `CoreCtx`'s two index clauses; no `sorry`. -/
 theorem unfold_definition_refines {pers vis st fe lfe e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe)
+    (hctx : CoreCtx pers vis fe lfe)
     (hrun : arena.core.unfold_definition pers vis st fe e = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (unfoldDefinition lfe (absEIdx e)) := by

@@ -155,7 +155,7 @@ the tag too.  The entry `ensure_sort_core` is this at `LANE_FULL`. -/
 theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.ensure_sort pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absLIdx pers lst o
       (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
@@ -245,7 +245,7 @@ NOT an entry of `Core/Entries.lean`'s kind: `ensure_sort` is a body"*.  It is
 theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode fe lfe fu depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.ensure_sort_core pers vis st mode fe fu depth e = ok o) :
     Sim₀ absLIdx pers lst o
       (ensureSortCore (ConRon.Refine.absMode mode) lfe f (absU depth)

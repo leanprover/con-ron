@@ -77,7 +77,7 @@ attribute [local lockstep_simp] Lockstep.absIRecRule_ctor absIRecRule_nfields_eq
 
 @[lockstep] theorem rec_rule_k_of_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis rf lf) (ctor : arena.handle.NIdx) :
+    (hctx : CoreCtx pers vis rf lf) (ctor : arena.handle.NIdx) :
     LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
       (recRuleKOf lf (absNIdx ctor)) := by
   rw [arena.core.rec_rule_k_of, recRuleKOf]
@@ -85,7 +85,7 @@ attribute [local lockstep_simp] Lockstep.absIRecRule_ctor absIRecRule_nfields_eq
 
 @[lockstep] theorem rec_rule_eta_of_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis rf lf) (ctor : arena.handle.NIdx) :
+    (hctx : CoreCtx pers vis rf lf) (ctor : arena.handle.NIdx) :
     LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf ctor) lst
       (recRuleEtaOf lf (absNIdx ctor)) := by
   rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
@@ -97,7 +97,7 @@ attribute [local lockstep_simp] Lockstep.absIRecRule_ctor absIRecRule_nfields_eq
 
 @[lockstep] theorem rec_rule_bits_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis rf lf) (rl : arena.env.IRecRule) :
+    (hctx : CoreCtx pers vis rf lf) (rl : arena.env.IRecRule) :
     LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rl) lst
       (recRuleBits lf (absIRecRule rl)) := by
   rw [arena.core.rec_rule_bits, recRuleBits]
@@ -111,7 +111,7 @@ theorem sum_rules_ctx_aux (m : Nat) :
       {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {out : alloc.vec.Vec arena.env.IRecRule},
       ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
-      CoreCtx vis rf lf →
+      CoreCtx pers vis rf lf →
       Lockstep.LS pers (fun a b => b = absIRecRuleL a)
         (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p
           ctors rhss i out) lst
@@ -143,7 +143,7 @@ theorem sum_rules_ctx_aux (m : Nat) :
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IRecRule}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf) :
     LS pers (fun a b => b = absIRecRuleL a)
       (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p ctors
         rhss i out) lst
@@ -157,7 +157,7 @@ theorem sum_rules_ctx_aux (m : Nat) :
     {rec_name : arena.handle.NIdx} {n_p : Std.U64}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {rhss : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf) :
     LS pers (fun a b => b = absIRecRuleL a)
       (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p ctors
         rhss 0#usize (alloc.vec.Vec.new arena.env.IRecRule)) lst
@@ -307,7 +307,7 @@ attribute [local lockstep_inline] arena.inductives.rec_check.pair_closed
 section ParamsDefEq
 
 variable {pers : arena.store.PersTier} {mode : kernel.env.CheckMode} {vis : Std.U64}
-  {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf) (d : Std.U64)
+  {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (d : Std.U64)
   (names : alloc.vec.Vec arena.handle.NIdx) (lvls : arena.handle.LsIdx)
   (holes pfvs xs ys : alloc.vec.Vec arena.handle.EIdx)
 
@@ -400,7 +400,7 @@ end ParamsDefEq
 
 @[lockstep] theorem target_params_def_eq_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (d : Std.U64) (names : alloc.vec.Vec arena.handle.NIdx) (lvls : arena.handle.LsIdx)
     (holes pfvs xs ys : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
     LS pers (fun a b => b = a)
@@ -475,7 +475,7 @@ theorem ctors_name_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
 /-! ## `target_pin_tys`, `target_major_pins` -/
 
 theorem target_pin_tys_aux {pers} {mode : kernel.env.CheckMode} {vis : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf) (d : Std.U64)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (d : Std.U64)
     (xs : alloc.vec.Vec arena.handle.EIdx) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
@@ -503,7 +503,7 @@ theorem target_pin_tys_aux {pers} {mode : kernel.env.CheckMode} {vis : Std.U64}
 
 @[lockstep] theorem target_pin_tys_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (d : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
     LS pers (fun a b => b = a)
       (arena.inductives.rec_check.target_pin_tys pers st mode vis rf d xs i) lst
@@ -512,7 +512,7 @@ theorem target_pin_tys_aux {pers} {mode : kernel.env.CheckMode} {vis : Std.U64}
 
 @[lockstep] theorem target_major_pins_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (r_p : Std.U64) (m : arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = a)
       (arena.inductives.rec_check.target_major_pins pers st mode vis rf r_p m) lst
@@ -798,7 +798,7 @@ theorem targetMajorNfs_append (mode : ConLeche.CheckMode) (fe : IFEnv) (p : Bloc
 
 @[lockstep] theorem target_class_match_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (p : arena.inductives.block_parts.BlockShape)
     (former_tys pfvs : alloc.vec.Vec arena.handle.EIdx) (us : arena.handle.LsIdx)
     (ds : alloc.vec.Vec arena.handle.EIdx) (lvls : arena.handle.LsIdx)
@@ -823,7 +823,7 @@ theorem targetMajorNfs_append (mode : ConLeche.CheckMode) (fe : IFEnv) (p : Bloc
 section MajorNfs
 
 variable {pers : arena.store.PersTier} {mode : kernel.env.CheckMode} {vis : Std.U64}
-  {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf)
+  {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
   (p : arena.inductives.block_parts.BlockShape)
   (former_tys pfvs : alloc.vec.Vec arena.handle.EIdx) (us : arena.handle.LsIdx)
   (ds : alloc.vec.Vec arena.handle.EIdx)
@@ -896,7 +896,7 @@ end MajorNfs
 
 @[lockstep] theorem target_major_nfs_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (p : arena.inductives.block_parts.BlockShape)
     (former_tys pfvs : alloc.vec.Vec arena.handle.EIdx) (us : arena.handle.LsIdx)
     (ds : alloc.vec.Vec arena.handle.EIdx)
@@ -932,7 +932,7 @@ attribute [local lockstep high] take_eidx_n_twin
 
 @[lockstep] theorem target_k53_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (mc : arena.inductives.rec_check.TargetMajor)
     (tele : alloc.vec.Vec arena.handle.EIdx)
@@ -1016,7 +1016,7 @@ attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
 @[lockstep] theorem target_outside_inst_ls {pers st lst} {vis : Std.U64}
     {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (i_name : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = (absU a.1, absLIdx a.2))
       (arena.inductives.rec_check.target_outside_inst pers st vis rf i_name us ds) lst
@@ -1030,7 +1030,7 @@ attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
 @[lockstep] theorem target_ctors_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
+    {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (c : arena.handle.NIdx) :
     LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
       (arena.inductives.rec_check.target_ctors_of pers st vis rf c) st lst
       (targetCtorsOf lf (absNIdx c)) := by
@@ -1083,7 +1083,7 @@ attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
 
 @[lockstep] theorem target_major_of_ls {pers st lst} {vis : Std.U64}
     {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
     (p : arena.inductives.block_parts.BlockShape)
     (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
     (pfvs fvs : alloc.vec.Vec arena.handle.EIdx) (mty : arena.handle.EIdx) :
@@ -1425,9 +1425,9 @@ local macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (exact IFEnvInv.coreCtxAt _ (IFEnvRelI.rel ‹_›) (IFEnvRelI.inv ‹_›)))
 
-@[lockstep] theorem tgt_stored_rules_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+@[lockstep] theorem tgt_stored_rules_ls {E₀ : IEnv} {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (cv : arena.env.IConstantVal) (r_p : Std.U64)
+    (hfe : IFEnvRelI pers E₀ rf lf) (cv : arena.env.IConstantVal) (r_p : Std.U64)
     (m : arena.inductives.rec_check.TargetMajor) (rhss : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = absIRecRuleL a)
       (arena.inductives.rec_check.tgt_stored_rules pers vis st rf cv r_p m rhss) lst
@@ -1444,13 +1444,13 @@ def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMa
 
 attribute [local lockstep high] Lockstep.PA1.eidx_vec_dup_ls
 
-theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
+theorem cons_block_recs_t_aux {E₀ : IEnv} {pers} (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) (n : Nat) :
     ∀ (m : Std.U64) st lst (rf : arena.env.IFEnv) (lf : IFEnv),
-      out.val.length - m.val = n → IFEnvRelI rf lf →
+      out.val.length - m.val = n → IFEnvRelI pers E₀ rf lf →
       AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => IFEnvRelI a b)
+      LS pers (fun a b => IFEnvRelI pers E₀ a b)
         (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p m out rf) lst
         (consBlockRecsTF (absU vis2) (absBlockShape p) (absU m)
           ((out.val.drop m.val).map absRecOut) lf) := by
@@ -1481,12 +1481,12 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
       exact h1
     · simp only [ha, absU]
 
-@[lockstep] theorem cons_block_recs_t_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+@[lockstep] theorem cons_block_recs_t_ls {E₀ : IEnv} {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
     (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape) (m : Std.U64)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) :
-    LS pers (fun a b => IFEnvRelI a b)
+    LS pers (fun a b => IFEnvRelI pers E₀ a b)
       (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p m out rf) lst
       (consBlockRecsTF (absU vis2) (absBlockShape p) (absU m)
         ((out.val.drop m.val).map absRecOut) lf) :=

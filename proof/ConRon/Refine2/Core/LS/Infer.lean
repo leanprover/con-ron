@@ -39,7 +39,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 @[lockstep] theorem defeq_arg_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth a ta ty lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun x y => y = x)
       (arena.core.defeq_arg pers vis st mode eager lane fu fe depth a ta ty) lst
       (defeqArg (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth)
@@ -50,7 +50,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe depth ty acc args i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.infer_spine pers vis st mode eager lane fu fe depth ty acc args i) lst
         (inferSpine (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -69,7 +69,7 @@ theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth ty acc args i lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_spine pers vis st mode eager lane fu fe depth ty acc args i) lst
       (inferSpine (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -80,7 +80,7 @@ theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_app pers vis st mode eager lane fu fe depth e) lst
       (inferApp (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -96,7 +96,7 @@ any io view of the lane knot (`io` is fixed by the caller's twin). -/
 theorem infer_spine_io_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane io fu fe lfe depth ty acc args i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.infer_spine_io pers vis st mode eager lane fu fe depth ty acc args i) lst
         (inferSpineIO (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe (absU depth)
@@ -115,7 +115,7 @@ theorem infer_spine_io_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane io fu fe lfe depth ty acc args i lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_spine_io pers vis st mode eager lane fu fe depth ty acc args i) lst
       (inferSpineIO (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe (absU depth)
@@ -129,7 +129,7 @@ end spineIO
     {pers vis st mode eager lane io fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_app_io_at pers vis st mode eager lane io fu fe depth e) lst
       (inferAppIOAt (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe (absU depth)
@@ -143,7 +143,7 @@ end spineIO
     {pers vis st mode eager lane fu fe lfe d t k fvs stk lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_lams_leaf pers vis st mode eager lane fu fe d t k fvs stk) lst
       (inferLamsLeaf (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) (absEIdx t)
@@ -154,7 +154,7 @@ end spineIO
 theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe d peel t k fvs stk lst},
       ExprOpsHyp pers → (peel : Std.U64).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.infer_lams pers vis st mode eager lane fu fe d peel t k fvs stk) lst
         (inferLams (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) (absU peel)
@@ -173,7 +173,7 @@ theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe d peel t k fvs stk lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_lams pers vis st mode eager lane fu fe d peel t k fvs stk) lst
       (inferLams (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) (absU peel)
@@ -186,7 +186,7 @@ theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe d t k fvs stk lst}
     (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_pis_leaf pers vis st mode eager lane fu fe d t k fvs stk) lst
       (inferPisLeaf (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU d) (absEIdx t)
@@ -197,7 +197,7 @@ theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
 theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe d peel t k fvs stk lst},
       ExprOpsHyp pers → (peel : Std.U64).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.infer_pis pers vis st mode eager lane fu fe d peel t k fvs stk) lst
         (inferPis (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU d) (absU peel)
@@ -216,7 +216,7 @@ theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe d peel t k fvs stk lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_pis pers vis st mode eager lane fu fe d peel t k fvs stk) lst
       (inferPis (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU d) (absU peel)
@@ -230,7 +230,7 @@ theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth ty body lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_lam pers vis st mode eager lane fu fe depth ty body) lst
       (inferLam (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth) (absEIdx ty)
@@ -243,7 +243,7 @@ theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth ty body lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_forall pers vis st mode eager lane fu fe depth ty body) lst
       (inferForall (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -284,7 +284,7 @@ set_option maxHeartbeats 4000000 in
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_body pers vis st mode eager lane fu fe depth e) lst
       (inferBody (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -308,7 +308,7 @@ call of the io body is `knot_infer_at io`, `laneKnotAt`'s `infer`.) -/
     {pers vis st mode eager lane io fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (_hio : io = true ∨ lane = arena.core.LANE_IO) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_body_io pers vis st mode eager lane io fu fe depth e) lst

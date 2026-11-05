@@ -304,15 +304,6 @@ index's does.
 its `Inv`, and every slot it stores in range of `env.tables` (`mk_tbls_go`
 stores its cursor, `ifenv_push_table` the length before its `push`,
 `index_promoted_tables` `j - 1` for a cursor `j ≥ 1`). -/
-def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
-  Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
-    rf.visible_below.val ≤ rf.env.consts.val.length ∧
-    (∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
-      p.2.val < rf.env.consts.val.length) ∧
-    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls ∧
-    ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
-      s.val < rf.env.tables.val.length
-
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
 
@@ -391,14 +382,75 @@ weaken this at the last step. -/
 
 /-- **The environment, related and well formed** — the result relation a fold
 step has to carry. -/
-def IFEnvRelI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
-  IFEnvRel rf lf ∧ IFEnvInv rf
+def IFEnvRelI (pers : arena.store.PersTier) (E₀ : IEnv) (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
+  IFEnvRel pers E₀ rf lf ∧ IFEnvInv rf
 
-theorem IFEnvRelI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
-    IFEnvRel rf lf := h.1
+theorem IFEnvRelI.rel {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI pers E₀ rf lf) :
+    IFEnvRel pers E₀ rf lf := h.1
 
-theorem IFEnvRelI.inv {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
+theorem IFEnvRelI.inv {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI pers E₀ rf lf) :
     IFEnvInv rf := h.2
+
+/-- `IFEnvOwn` and the invariant: phase A's pair, at the promotion. -/
+def IFEnvOwnI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
+  IFEnvOwn rf lf ∧ IFEnvInv rf
+
+theorem IFEnvOwnI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvOwnI rf lf) :
+    IFEnvOwn rf lf := h.1
+
+theorem IFEnvOwnI.inv {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvOwnI rf lf) :
+    IFEnvInv rf := h.2
+
+/-- **A tier whose environment base is empty**: phase A's readers, the stand-in
+`PersTier::empty` and the tier a bracket freezes out of an owned store. -/
+structure PersEnvEmpty (pers : arena.store.PersTier) : Prop where
+  base : BaseOK pers
+  idx : ∀ n, ConRon.Refine.HashMap2.toFun pers.env.idx n = none
+
+theorem PersEnvEmpty.baseRow {pers : arena.store.PersTier} (h : PersEnvEmpty pers)
+    (below : Std.U64) (n : arena.handle.NIdx) : baseRow pers below n = none := by
+  simp [ConRon.Refine2.baseRow, h.idx n]
+
+theorem PersEnvEmpty.baseTbl {pers : arena.store.PersTier} (h : PersEnvEmpty pers)
+    (below : Std.U64) (n : arena.handle.NIdx) : baseTbl pers below n = none := by
+  simp [ConRon.Refine2.baseTbl, h.baseRow]
+
+theorem overEnv_empty (e : arena.env.IEnv) : overEnv IEnv.empty e = absIEnv e := by
+  simp [overEnv, absIEnv, IEnv.empty]
+
+/-- **Over an empty base the relation is the field-for-field one.** -/
+theorem IFEnvRel.toOwn {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hpe : PersEnvEmpty pers) (h : IFEnvRel pers IEnv.empty rf lf) : IFEnvOwn rf lf := by
+  refine ⟨by rw [h.env, overEnv_empty], fun n => ?_, h.visibleBelow, h.envWF, h.keys,
+    fun n => ?_, h.tblKeys⟩
+  · rw [← h.idx n, layerRow]
+    cases ConRon.Refine.HashMap2.toFun rf.idx n with
+    | none => simp [hpe.baseRow]
+    | some p => rfl
+  · rw [← h.tbls n, layerTbl]
+    cases ConRon.Refine.HashMap2.toFun rf.tbls n with
+    | none => simp [hpe.baseTbl]
+    | some s => rfl
+
+theorem IFEnvOwn.toRel {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hpe : PersEnvEmpty pers) (h : IFEnvOwn rf lf) : IFEnvRel pers IEnv.empty rf lf := by
+  refine ⟨by rw [h.env, overEnv_empty], fun n => ?_, h.visibleBelow, h.envWF, h.keys,
+    fun n => ?_, h.tblKeys, hpe.base⟩
+  · rw [← h.idx n, layerRow]
+    cases ConRon.Refine.HashMap2.toFun rf.idx n with
+    | none => simp [hpe.baseRow]
+    | some p => rfl
+  · rw [← h.tbls n, layerTbl]
+    cases ConRon.Refine.HashMap2.toFun rf.tbls n with
+    | none => simp [hpe.baseTbl]
+    | some s => rfl
+
+/-- The relation moves between two empty-based tiers: the reader of a bracket's body
+and the reader outside it. -/
+theorem IFEnvRelI.rebase {pers pers' : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hpe : PersEnvEmpty pers) (hpe' : PersEnvEmpty pers')
+    (h : IFEnvRelI pers IEnv.empty rf lf) : IFEnvRelI pers' IEnv.empty rf lf :=
+  ⟨(h.rel.toOwn hpe).toRel hpe', h.inv⟩
 
 /-! ## `arena::env::ifenv_push` — the one environment write every install route
 folds over (task #97-P5-Checker round 3)
@@ -490,11 +542,11 @@ The three clauses, in order:
 and the invariant: the index's `Inv` is `HashMap2::insert`'s, the counter
 bound is the old one plus one on both sides, and the new row's position is
 `|consts|`, which is in range of `|consts| + 1`. -/
-theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+theorem ifenv_push_refines {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {ci : arena.env.IConstantInfo}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hwf : IConstantInfoWF ci)
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hwf : IConstantInfoWF ci)
     (h : arena.env.ifenv_push rf ci = ok rf') :
-    IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
+    IFEnvRel pers E₀ rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
   rw [arena.env.ifenv_push] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -516,25 +568,25 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     simpa using ConRon.Refine.Nat.uadd_val hc1
   have hrf' : rf' =
       { env := { consts := v, tables := rf.env.tables }, idx := q.2, visible_below := c1,
-        tbls := rf.tbls } :=
+        tbls := rf.tbls, base_below := rf.base_below } :=
     (Result.ok_injective h).symm
   subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys⟩, hinv', ?_, ?_, hfinv.tblInv,
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys, hfe.base⟩, hinv', ?_, ?_, hfinv.tblInv,
     hfinv.tblRange⟩
   · -- the constant list
-    show (lf.push (absIConstantInfo ci)).env = absIEnv _
-    simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
+    show (lf.push (absIConstantInfo ci)).env = overEnv _ _
+    simp only [IFEnv.push, overEnv, hvv, List.map_append, List.reverse_append]
     rw [hfe.env]
-    simp [absIEnv]
+    simp [overEnv]
   · -- the index
     intro m
-    rw [hupd]
+    simp only [layerRow, hupd]
     simp only [IFEnv.push, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = n
     · subst hm
       rw [ite_eq_left rfl, ite_eq_left (by simp [hname])]
-      simp only [Option.bind, hvv]
+      simp only [rowOf, hvv]
       rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
       simp only [List.getElem?_cons_zero, Option.map_some]
       rw [hfe.visibleBelow]
@@ -543,11 +595,11 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
         simp only [beq_iff_eq]
         intro hc
         exact hm (absNIdx_inj (hc.symm.trans hname.symm))
-      rw [ite_eq_right hne, ← hfe.idx m]
+      rw [ite_eq_right hne, ← hfe.idx m, layerRow]
       cases hp : ConRon.Refine.HashMap2.toFun rf.idx m with
-      | none => simp
+      | none => rfl
       | some p =>
-        simp only [Option.bind, hvv]
+        simp only [rowOf, hvv]
         rw [List.getElem?_append_left (hfinv.idxRange m p hp)]
   · -- the counter
     show (lf.push (absIConstantInfo ci)).visibleBelow = absU c1
@@ -604,11 +656,11 @@ table list's CURRENT length and the list grows by one, where the twin conses
 and inserts the table itself; every other row's slot was in range already
 (`IFEnvInv.tblRange`), so the append does not move what it reads.  The
 constants, the index and the counter are untouched. -/
-theorem ifenv_push_table_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+theorem ifenv_push_table_refines {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {t : arena.env.IProjTable}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel t E₀ rf lf) (hfinv : IFEnvInv rf)
     (h : arena.env.ifenv_push_table rf t = ok rf') :
-    IFEnvRel rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
+    IFEnvRel t E₀ rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
       rf'.visible_below = rf.visible_below := by
   rw [arena.env.ifenv_push_table] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -627,34 +679,34 @@ theorem ifenv_push_table_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
   have hvv : v.val = rf.env.tables.val ++ [t] := ConRon.Refine.vec_push_val hv
   have hrf' : rf' =
       { env := { consts := rf.env.consts, tables := v }, idx := rf.idx,
-        visible_below := rf.visible_below, tbls := q.2 } :=
+        visible_below := rf.visible_below, tbls := q.2, base_below := rf.base_below } :=
     (Result.ok_injective h).symm
   subst hrf'
-  refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, ?_⟩,
+  refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, ?_, hfe.base⟩,
     ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hinv', ?_⟩, rfl⟩
   · -- the table list
-    show (lf.pushTable (absIProjTable t)).env = absIEnv _
+    show (lf.pushTable (absIProjTable t)).env = overEnv _ _
     have h := hfe.env
-    simp only [IFEnv.pushTable, absIEnv, hvv, List.map_append, List.reverse_append] at h ⊢
+    simp only [IFEnv.pushTable, overEnv, hvv, List.map_append, List.reverse_append] at h ⊢
     rw [h]
     simp
   · -- the table map
     intro m
-    rw [hupd]
+    simp only [layerTbl, hupd]
     simp only [IFEnv.pushTable, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = t.struct_name
     · subst hm
       rw [ite_eq_left rfl, ite_eq_left (by simp [absIProjTable])]
-      simp only [Option.bind, hvv]
+      simp only [tblOf, hvv]
       rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
       simp
     · rw [ite_eq_right hm, ite_eq_right (by
         simp only [absIProjTable, beq_iff_eq]; intro h; exact hm (absNIdx_inj h).symm),
-        ← hfe.tbls m]
+        ← hfe.tbls m, layerTbl]
       cases hp : ConRon.Refine.HashMap2.toFun rf.tbls m with
       | none => rfl
       | some p =>
-        simp only [Option.bind_some, hvv]
+        simp only [tblOf, hvv]
         rw [List.getElem?_append_left (hfinv.tblRange m p hp)]
   · -- every row keyed by its slot's structure
     intro m p hp

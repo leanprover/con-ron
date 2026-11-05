@@ -212,7 +212,7 @@ end
     simp only [Option.map_some, absIConstantInfo, natSuccOk] <;> lockstep
 
 @[lockstep] theorem nat_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
       (natLitSupported lfe) := by
   rw [arena.core.nat_lit_supported, natLitSupported]
@@ -247,7 +247,7 @@ attribute [local simp] ConRon.Refine.LiteralWF
   lockstep
 
 @[lockstep] theorem lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers vis st fe h) lst
       (litToCtorIfNat lfe (absEIdx h)) := by
   rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
@@ -451,7 +451,7 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
     simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep_lp
 
 @[lockstep] theorem str_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
       (strLitSupported lfe) := by
   rw [arena.core.str_lit_supported, strLitSupported]
@@ -516,9 +516,9 @@ theorem natOpStored_pure (fe : IFEnv) (c : NIdx) :
   · rfl
   · cases ci <;> rfl
 
-@[lockstep] theorem nat_op_stored_spec {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) (c : arena.handle.NIdx) :
-    LSP (arena.core.nat_op_stored vis fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
+@[lockstep] theorem nat_op_stored_spec {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers vis fe lfe) (c : arena.handle.NIdx) :
+    LSP (arena.core.nat_op_stored pers vis fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
   intro a ha
   rw [arena.core.nat_op_stored] at ha
   obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
@@ -539,7 +539,7 @@ set_option maxHeartbeats 4000000 in
 @[lockstep] theorem reduce_nat_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
       (arena.core.reduce_nat pers vis st mode eager lane fu fe depth e) lst
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe

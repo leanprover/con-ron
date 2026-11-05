@@ -69,51 +69,16 @@ attribute [local lockstep_simp] absIProjEntry
 
 attribute [local lockstep_simp] absIConstantInfo
 
-/-- A constant `ifenv_find` answers is one of the environment's. -/
-theorem ifenv_find_mem {vis : Std.U64} {fe : arena.env.IFEnv} {n : arena.handle.NIdx}
-    {ci : arena.env.IConstantInfo} (h : arena.env.ifenv_find vis fe n = ok (some ci)) :
-    ci ∈ fe.env.consts.val := by
-  rw [arena.env.ifenv_find] at h
-  obtain ⟨r, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r with
-  | none => cases Result.ok_injective h
-  | some p =>
-    obtain ⟨c, pos⟩ := p
-    replace h : (if c < vis then
-        (do
-          let i2 ← lift (Std.UScalar.cast .Usize pos)
-          if i2 < alloc.vec.Vec.len fe.env.consts then
-            (do
-              let i4 ← lift (Std.UScalar.cast .Usize pos)
-              let ii ← alloc.vec.Vec.index
-                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo)
-                fe.env.consts i4
-              ok (some ii))
-          else ok none)
-      else (ok none : Result (Option arena.env.IConstantInfo))) = ok (some ci) := h
-    split at h
-    · obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      split at h
-      · obtain ⟨i4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        cases Result.ok_injective h
-        obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt hii
-        rw [← hx]
-        exact List.getElem_mem hb
-      · cases Result.ok_injective h
-    · cases Result.ok_injective h
-
 /-- `arena::env::ifenv_find` against `IFEnv.find?`: the twin's lookup is a
 pure expression, so the pair is a `TwinEq` the twin side is rewritten with;
-and the constant found is canonical Rust data (`IFEnvRel.envWF`, the
-coordinator's ruling (d) of task #97-P5-Core round 5). -/
-@[lockstep] theorem ifenv_find_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) (n : arena.handle.NIdx) :
-    LSP (arena.env.ifenv_find vis fe n)
+and the constant found is canonical Rust data (the coordinator's ruling (d) of
+task #97-P5-Core round 5). -/
+@[lockstep] theorem ifenv_find_ls {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers vis fe lfe) (n : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find pers vis fe n)
       (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo) ∧
         ∀ ci, o = some ci → IConstantInfoWF ci) :=
-  fun o h => ⟨(ifenv_find_abs hctx h).symm, fun ci hci => by
-    subst hci; exact hctx.fenv.envWF ci (ifenv_find_mem h)⟩
+  fun _ h => ⟨(ifenv_find_abs' hctx h).1.symm, (ifenv_find_abs' hctx h).2⟩
 
 @[lockstep] theorem reducibility_hint_dup_ls (h : kernel.env.ReducibilityHint) :
     LSP (kernel.env.reducibility_hint_dup h) (fun r => r = h) := by
@@ -127,14 +92,14 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
 
 @[lockstep] theorem is_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
     (fuel a) :
     LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers vis st fe fuel a)
       lst (isProofFast lfe (absU fuel) (absEIdx a)) :=
   LS.ofSim₀ (A := id) fun _ h => hx.isProofFast hrel hinv hctx h
 
 @[lockstep] theorem not_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
     (fuel a) :
     LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers vis st fe fuel a)
       lst (notProofFast lfe (absU fuel) (absEIdx a)) :=
@@ -145,7 +110,7 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 @[lockstep] theorem ensure_sort_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absLIdx a)
       (arena.core.ensure_sort pers vis st mode eager lane fu fe depth e) lst
       (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
@@ -154,7 +119,7 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 
 @[lockstep] theorem unfold_definition_ls {pers vis st fe lfe e lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
+    (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = Option.map absEIdx a)
       (arena.core.unfold_definition pers vis st fe e) lst
       (unfoldDefinition lfe (absEIdx e)) :=
@@ -223,60 +188,107 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
       simp [List.getD, this]; rfl
   simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
 
-/-- **`arena::env::ifenv_raw_table` against `IFEnv.rawTable?`.**  The port
-probes the table map for a slot and reads `env.tables` there; the twin's map
-holds the table.  `IFEnvRel.tbls` is that composition; the slot fits a
-`usize` because a row's slot holds a table (`IFEnvRel.tblKeys`). -/
-theorem ifenv_raw_table_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) {t : arena.handle.NIdx}
+/-- A stored slot in range is read. -/
+private theorem read_tbl_slot {ts : alloc.vec.Vec arena.env.IProjTable} {s : Std.U64} {o}
+    (hslt : s.val < ts.val.length)
+    (hrun : (do
+        let i2 ← lift (Std.UScalar.cast .Usize s)
+        if i2 < alloc.vec.Vec.len ts then
+          (do
+            let i4 ← lift (Std.UScalar.cast .Usize s)
+            let it ← alloc.vec.Vec.index
+              (core.slice.index.SliceIndexUsizeSlice arena.env.IProjTable) ts i4
+            ok (some it))
+        else ok none : Result (Option arena.env.IProjTable)) = ok o) :
+    o.map absIProjTable = tblOf ts s := by
+  have hsfit : s.val ≤ Std.Usize.max := le_of_lt (lt_of_lt_of_le hslt ts.property)
+  obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hi2v : i2.val = s.val := by
+    rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hsfit]
+    exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
+  have hb : i2 < alloc.vec.Vec.len ts := by
+    apply (Std.UScalar.lt_equiv _ _).mpr
+    rw [hi2v, alloc.vec.Vec.len_val]
+    exact hslt
+  rw [ite_eq_left hb] at hrun
+  obtain ⟨i4, hi4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨it, hit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  cases Result.ok_injective hrun
+  have hi4v : i4.val = s.val := by
+    rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hsfit]
+    exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi4).symm
+  have hit' := vec_index_some hit
+  rw [hi4v] at hit'
+  simp [tblOf, hit']
+
+/-- **`arena::env::ifenv_table_base` against `baseTbl`**: gated on the structure's
+row at the layer's bound. -/
+theorem ifenv_table_base_abs {pers : arena.store.PersTier} {below : Std.U64}
+    (hb : BaseOK pers) {t : arena.handle.NIdx} {o : Option arena.env.IProjTable}
+    (hrun : arena.env.ifenv_table_base pers below t = ok o) :
+    o.map absIProjTable = baseTbl pers below t := by
+  rw [arena.env.ifenv_table_base] at hrun
+  obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hf := (ifenv_find_base_abs hb hoc).1
+  have hgate : oc.isSome = (baseRow pers below t).isSome := by
+    have hrow : rowAt (absU below) (baseRow pers below t) =
+        (baseRow pers below t).map Prod.snd := by
+      unfold baseRow
+      cases ConRon.Refine.HashMap2.toFun pers.env.idx t with
+      | none => rfl
+      | some p =>
+        simp only [Option.bind_some]
+        by_cases hd : absU p.1 < absU below
+        · rw [if_pos hd, rowOf]
+          cases pers.env.env.consts.val[p.2.val]? with
+          | none => rfl
+          | some ci => simp [rowAt, hd]
+        · rw [if_neg hd]; rfl
+    rw [hrow] at hf
+    have := congrArg Option.isSome hf
+    simpa using this
+  unfold baseTbl
+  rw [← hgate]
+  simp only [core.option.Option.is_some] at hrun
+  cases oc with
+  | none =>
+    simp at hrun ⊢
+    cases hrun; rfl
+  | some ci =>
+    simp only [Option.isSome_some, if_true] at hrun ⊢
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.inv.2.2.2.1
+      ConRon.Refine.HashMap2.KeysOk_true trivial hr
+    rw [← hto]
+    cases r with
+    | none => cases Result.ok_injective hrun; rfl
+    | some s =>
+      exact read_tbl_slot (hb.inv.2.2.2.2 t s hto.symm) hrun
+
+/-- **`arena::env::ifenv_raw_table` against `IFEnv.rawTable?`**: the own map, then the
+base's, gated: `CoreCtx.tbls` is that composition. -/
+theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
-    (hrun : arena.env.ifenv_raw_table fe t = ok o) :
+    (hrun : arena.env.ifenv_raw_table pers fe t = ok o) :
     o.map absIProjTable = lfe.rawTable? (absNIdx t) := by
+  rw [IFEnv.rawTable?, ← hctx.tbls t]
   rw [arena.env.ifenv_raw_table] at hrun
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.tblInv
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.inv.2.2.2.1
     ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have htb : ((ConRon.Refine.HashMap2.toFun fe.tbls t).bind fun s =>
-      (fe.env.tables.val[s.val]?).map absIProjTable) = lfe.tbls[absNIdx t]? :=
-    hctx.fenv.tbls t
-  rw [← hto] at htb
+  unfold layerTbl
+  rw [← hto]
   cases r with
-  | none =>
-    cases Result.ok_injective hrun
-    rw [IFEnv.rawTable?, ← htb]
-    rfl
-  | some s =>
-    have hs : ConRon.Refine.HashMap2.toFun fe.tbls t = some s := hto.symm
-    obtain ⟨tt, htt, -⟩ := hctx.fenv.tblKeys t s hs
-    have hslt : s.val < fe.env.tables.val.length := (List.getElem?_eq_some_iff.mp htt).1
-    have hsfit : s.val ≤ Std.Usize.max :=
-      le_of_lt (lt_of_lt_of_le hslt fe.env.tables.property)
-    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hi2v : i2.val = s.val := by
-      rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hsfit]
-      exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
-    have hb : i2 < alloc.vec.Vec.len fe.env.tables := by
-      apply (Std.UScalar.lt_equiv _ _).mpr
-      rw [hi2v, alloc.vec.Vec.len_val]
-      exact hslt
-    rw [ite_eq_left hb] at hrun
-    obtain ⟨i4, hi4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨it, hit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    cases Result.ok_injective hrun
-    have hi4v : i4.val = s.val := by
-      rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hsfit]
-      exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi4).symm
-    have hit' := vec_index_some hit
-    rw [hi4v] at hit'
-    rw [IFEnv.rawTable?, ← htb]
-    simp [hit']
+  | none => exact ifenv_table_base_abs hctx.base hrun
+  | some s => exact read_tbl_slot (hctx.inv.2.2.2.2 t s hto.symm) hrun
 
 /-- **`arena::env::ifenv_find_table` against `IFEnv.findTable?`**: gated by
 the structure's own lookup, as the twin is. -/
 theorem ifenv_find_table_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) {t : arena.handle.NIdx}
+    (hctx : CoreCtx t vis fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
-    (hrun : arena.env.ifenv_find_table vis fe t = ok o) :
+    (hrun : arena.env.ifenv_find_table t vis fe t = ok o) :
     o.map absIProjTable = lfe.findTable? (absNIdx t) := by
   rw [arena.env.ifenv_find_table] at hrun
   obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -292,9 +304,9 @@ theorem ifenv_find_table_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv
 /-- **`arena::env::ifenv_find_proj` against `IFEnv.findProj?`**: the
 structure's table, viewed at field `i`. -/
 theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
+    (hctx : CoreCtx t vis fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
     {o : Option arena.env.IProjEntry}
-    (hrun : arena.env.ifenv_find_proj vis fe t i = ok o) :
+    (hrun : arena.env.ifenv_find_proj t vis fe t i = ok o) :
     o.map absIProjEntry = lfe.findProj? (absNIdx t) (absU i) := by
   rw [arena.env.ifenv_find_proj] at hrun
   obtain ⟨ot, hot, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -324,8 +336,8 @@ theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 /-- The table lookup (`ifenv_find_table`) against `IFEnv.findTable?`, as
 `ifenv_find_ls`. -/
 @[lockstep] theorem ifenv_find_table_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) (t : arena.handle.NIdx) :
-    LSP (arena.env.ifenv_find_table vis fe t)
+    (hctx : CoreCtx t vis fe lfe) (t : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find_table t vis fe t)
       (fun o => TwinEq (lfe.findTable? (absNIdx t)) (o.map absIProjTable)) :=
   fun _ h => (ifenv_find_table_abs hctx h).symm
 
@@ -333,8 +345,8 @@ theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 `IFEnv.findProj?`: a pure read on both sides, a `TwinEq` the twin side is
 rewritten with, as `ifenv_find_ls`. -/
 @[lockstep] theorem ifenv_find_proj_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
-    LSP (arena.env.ifenv_find_proj vis fe t i)
+    (hctx : CoreCtx t vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
+    LSP (arena.env.ifenv_find_proj t vis fe t i)
       (fun o => TwinEq (lfe.findProj? (absNIdx t) (absU i)) (o.map absIProjEntry)) :=
   fun _ h => (ifenv_find_proj_abs hctx h).symm
 

@@ -287,11 +287,24 @@ has one store and no tier: its `enableScratch`/`dropScratch` are the scratch
 halves alone, so the relation moves its READER at a freeze and a thaw — from
 the owned store's stand-in to the tier handed out, and back. -/
 
+/-- `ifenv_layer(0, 0)`: the empty environment layer of every tier that holds no
+frozen base. -/
+def layer00 : arena.env.IFEnv :=
+  { env := { consts := alloc.vec.Vec.new _, tables := alloc.vec.Vec.new _ },
+    idx := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
+             slots := alloc.vec.Vec.new _ },
+    visible_below := 0#u64,
+    tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
+              slots := alloc.vec.Vec.new _ },
+    base_below := 0#u64 }
+
+theorem ifenv_layer00 : arena.env.ifenv_layer 0#u64 0#u64 = ok layer00 := rfl
+
 /-- The persistent tier `freeze` moves out of a store: its four own
-persistent tables, `frozen`. -/
+persistent tables, `frozen`, and no environment base. -/
 def tierOf (ar : arena.store.EStore) : arena.store.PersTier :=
   { frozen := true, n := ar.lss.ls.ns.pers, l := ar.lss.ls.pers, ls := ar.lss.pers,
-    e := ar.pers }
+    e := ar.pers, env := layer00 }
 
 theorem nstore_freeze_eq {rs : arena.store.NStore} {t rs'}
     (h : arena.store.NStore.freeze rs = ok (t, rs')) :
@@ -346,6 +359,9 @@ theorem estore_freeze {pers} {rs : arena.store.EStore} {ls : EStore} {tier rs'}
   obtain ⟨e0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   simp only [core.mem.replace] at h
   obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨le0, hle0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [ifenv_layer00] at hle0
+  obtain rfl := Result.ok_injective hle0
   have h' := Result.ok_injective h
   simp only [Prod.mk.injEq] at h'
   obtain ⟨rfl, rfl⟩ := h'

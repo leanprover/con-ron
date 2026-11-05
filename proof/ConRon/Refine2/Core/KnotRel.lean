@@ -135,69 +135,24 @@ theorem laneKnot_of_ne (mode eager fe f) {lane : Std.U32}
 persistent tier to the twin's single store (`Refine2/AbsStore.lean`'s
 `absStore`).  What is left is the environment and the visibility scalar. -/
 
-/-- The port's `(vis, fe)` against the twin's one `IFEnv`.
+/-- The port's `(pers, vis, fe)` against the twin's one `IFEnv`: **what a reader
+sees**.  A layer's lookups (`layerRow`, `layerTbl`: the own layer, then the frozen
+base `pers.env` below `base_below`) are the twin's two maps, and the reader's bound
+`vis`, which need not be the layer's own counter, is the twin's.
 
-The last two clauses are the environment INDEX's own invariant and are the
-answer to task #97-P5-Core §8's *"`IFEnvInv rf` is not needed at all"*: that
-was true while no body was proved.  `unfold_definition` — the `whnf` loop's
-delta leaf — reads `ifenv_find`, and a `ron::HashMap2` probe is a
-specification of a WELL-FORMED table only (`Refine2/Checker/Shape.lean`'s
-`IFEnvInv` says exactly `idxInv`), so the reader's lemma needs it.  Both
-belong to `IFEnvInv` and P3 supplies them; they are spelled here because the
-Core tier may not edit that file. -/
-structure CoreCtx (vis : Std.U64) (fe : arena.env.IFEnv) (lfe : IFEnv) : Prop where
-  /-- **The indexed environment's DATA, field for field**
-  (`Refine2/AbsState.lean`) — `IFEnvRel` at the twin environment RESTRICTED to
-  the port record's own counter, so that its third clause
-  (`lfe.visibleBelow = absU fe.visible_below`) is discharged by the
-  restriction and says nothing.  What the counter is, is the next clause's
-  business and only the next clause's.
-
-  **Why it is not the plain `IFEnvRel fe lfe`** (task #97-P5-Bracket's
-  finding 3, repaired by task #97-P5-Checker round 3).  Paired with `vis`
-  below, the plain relation forces `absU vis = absU fe.visible_below`: it says
-  the twin's counter is the port record's field and `vis` says it is the split
-  scalar, so `CoreCtx` was satisfiable only where the split scalar is NOT
-  split.  `arena::checker::check_pending` is the one call site where it is —
-  a pending record carries the `vis` its declaration was installed at, `fe` is
-  the whole environment phase A ended with, and that difference is the entire
-  point of phase B — so every Core entry, and every checker-tier statement
-  above them, was unusable at exactly the place the campaign needs them.
-
-  `IFEnv.restrictTo` touches `visibleBelow` alone, so `.env` and `.idx` of
-  the restricted environment are `lfe`'s definitionally and every consumer of
-  those two clauses is unchanged. -/
-  fenv : IFEnvRel fe (lfe.restrictTo (absU fe.visible_below))
-  /-- Task #97-P6-6b's split scalar: the twin environment this record stands
-  for is viewed at `vis`, which need not be the port record's own field. -/
+It says nothing of the constant lists, which no reader reads: `IFEnvRel` is this and
+the lists, for what pushes.  `ifenv_find` and the table readers need the index's
+tables well formed on both tiers (`inv`, `base`), since `HashMap2.get` specifies
+nothing otherwise, and their stored positions and slots in range, which also makes
+the `pos as usize` casts the identity. -/
+structure CoreCtx (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
+    (lfe : IFEnv) : Prop where
+  idx : ∀ n, layerRow pers fe n = lfe.idx[absNIdx n]?
+  tbls : ∀ n, layerTbl pers fe n = lfe.tbls[absNIdx n]?
   vis : absU vis = lfe.visibleBelow
-  /-- `Refine2/Checker/Shape.lean`'s `IFEnvInv`: the index is a well-formed
-  `ron::HashMap2`, without which `HashMap2.get` specifies nothing. -/
-  idxInv : ConRon.Refine.HashMap2.Inv
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable fe.idx
-  /-- **Every position the index stores fits a `usize`.**  `IFEnv.idx`'s value
-  is `(u64, u64)` and `ifenv_find` indexes `env.consts` with `pos as usize`,
-  which Aeneas models as a TRUNCATING cast; on a 64-bit `usize` it is the
-  identity, and in general it is the identity exactly here.  A stored position
-  is a position in a `Vec`, so this is an invariant of the index and not an
-  assumption about the platform — `IFEnvInv` should carry it, and
-  `ifenv_find_abs` is the only consumer. -/
-  idxPos : ∀ n p, ConRon.Refine.HashMap2.toFun fe.idx n = some p →
-    p.2.val ≤ Std.Usize.max
-  /-- The table map is a well-formed `ron::HashMap2`, as `idxInv` the index
-  (`IFEnvInv.tblInv`); its slots fit a `usize` by `fenv.tblKeys`. -/
-  tblInv : ConRon.Refine.HashMap2.Inv
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable fe.tbls
-
-
-/-- `fenv`'s index clause, at `lfe` itself.  **This is the one `ifenv_find_abs`
-consumes**, and it is stated here rather than projected through `fenv` because
-the restriction in `fenv`'s type is not syntactically `lfe`. -/
-theorem CoreCtx.idx {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (h : CoreCtx vis fe lfe) : ∀ n,
-      ((ConRon.Refine.HashMap2.toFun fe.idx n).bind fun p =>
-        (fe.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
-      = lfe.idx[absNIdx n]? := h.fenv.idx
+  inv : IFEnvInv fe
+  envWF : ∀ ci ∈ fe.env.consts.val, IConstantInfoWF ci
+  base : BaseOK pers
 
 /-! ## The two relations -/
 
@@ -209,7 +164,7 @@ refines the corresponding slot of the lane's twin knot.  Established once by
 knot_infer` and `Core/Induction.lean`'s `KnotRel.inferAt` derives it. -/
 structure KnotRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode eager lane fu fe lfe cheap depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_whnf_core pers vis st mode eager lane fu fe cheap depth e = ok o →
     Sim₀ absEIdx pers lst o
@@ -220,28 +175,28 @@ structure KnotRel (f : Nat) : Prop where
   arm has already declined (task #97-P5-Core-2's history of the gated lane,
   deleted with it at task #105, is in git). -/
   whnf : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_whnf pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).whnf
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_infer pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).infer
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_infer_io pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).inferIO
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_defeq pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
@@ -252,7 +207,7 @@ structure KnotRel (f : Nat) : Prop where
   memoized on the eager tower's own memos, at every lane (`coreKnotIO`'s slot
   is the full knot's). -/
   defeqE : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.knot_defeq_e pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
@@ -265,7 +220,7 @@ and `r.infer` without it — the two halves of `CoreFnsA.ioView` by iota. -/
 theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
     {pers vis st mode eager lane io fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.knot_infer_at pers vis st mode eager lane io fu fe depth e
       = ok o) :
     Sim₀ absEIdx pers lst o
@@ -301,7 +256,7 @@ infer otherwise.  The field is therefore stated at the call sites' shape,
 `io = true ∨ lane = LANE_IO`, a fact about the port's two scalar arguments. -/
 structure BodyRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode eager lane fu fe lfe cheap depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.whnf_core_body pers vis st mode eager lane fu fe cheap depth e = ok o →
     Sim₀ absEIdx pers lst o
@@ -309,14 +264,14 @@ structure BodyRel (f : Nat) : Prop where
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe cheap
         (absU depth) (absEIdx e))
   whnf : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.whnf_body pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.infer_body pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
@@ -324,7 +279,7 @@ structure BodyRel (f : Nat) : Prop where
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode eager lane io fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     (io = true ∨ lane = arena.core.LANE_IO) →
     arena.core.infer_body_io pers vis st mode eager lane io fu fe depth e = ok o →
@@ -333,7 +288,7 @@ structure BodyRel (f : Nat) : Prop where
         (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
     absU fu = f →
     arena.core.defeq_body pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o

@@ -101,7 +101,7 @@ theorem beta_peel_aux (n : Nat) :
 theorem whnf_app_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe depth v hd vargs same args nodes i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absWhnfStep a)
         (arena.core.whnf_app pers vis st mode eager lane fu fe depth v hd vargs same args nodes i) lst
         (whnfApp (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
@@ -132,7 +132,7 @@ theorem whnf_app_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth v hd vargs same args nodes i lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absWhnfStep a)
       (arena.core.whnf_app pers vis st mode eager lane fu fe depth v hd vargs same args nodes i) lst
       (whnfApp (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
@@ -148,7 +148,7 @@ end spine
     {pers vis st mode eager lane fu fe lfe depth sn i c lst}
     (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
       (arena.core.reduce_proj_core pers vis st mode eager lane fu fe depth sn i c) lst
       (reduceProjCore (ConRon.Refine.absMode mode)
@@ -163,7 +163,7 @@ end spine
     {pers vis st mode eager lane fu fe lfe cheap depth e sn i pe lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absWhnfStep a)
       (arena.core.whnf_core_step_proj pers vis st mode eager lane fu fe cheap depth e sn i pe) lst
       (whnfCoreStepProj (ConRon.Refine.absMode mode)
@@ -176,7 +176,7 @@ end spine
     {pers vis st mode eager lane fu fe lfe cheap depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absWhnfStep a)
       (arena.core.whnf_core_step pers vis st mode eager lane fu fe cheap depth e) lst
       (whnfCoreStep (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
@@ -189,7 +189,7 @@ end spine
 theorem whnf_core_loop_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe cheap depth k cur lst},
       ExprOpsHyp pers → (k : Std.U64).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.whnf_core_loop_loop pers vis st mode eager lane fu fe cheap depth k cur) lst
         (whnfCoreLoop (ConRon.Refine.absMode mode)
@@ -209,7 +209,7 @@ theorem whnf_core_loop_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe cheap depth k cur lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.whnf_core_loop_loop pers vis st mode eager lane fu fe cheap depth k cur) lst
       (whnfCoreLoop (ConRon.Refine.absMode mode)
@@ -228,7 +228,7 @@ theorem whnf_core_body_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe cheap depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.whnf_core_body pers vis st mode eager lane fu fe cheap depth e) lst
       (whnfCoreBody (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)

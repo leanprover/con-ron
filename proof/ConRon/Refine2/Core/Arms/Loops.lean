@@ -85,7 +85,7 @@ attribute [local lockstep_simp] absWhnfStep
     {pers vis st mode eager lane fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absWhnfStep a)
       (arena.core.whnf_step pers vis st mode eager lane fu fe depth e) lst
       (whnfStep (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
@@ -96,7 +96,7 @@ attribute [local lockstep_simp] absWhnfStep
 theorem whnf_loop_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode eager lane fu fe lfe depth k cur lst},
       ExprOpsHyp pers → (k : Std.U64).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
       LS pers (fun a b => b = absEIdx a)
         (arena.core.whnf_loop_loop pers vis st mode eager lane fu fe depth k cur) lst
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) n
@@ -115,7 +115,7 @@ theorem whnf_loop_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     {pers vis st mode eager lane fu fe lfe depth k cur lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.whnf_loop_loop pers vis st mode eager lane fu fe depth k cur) lst
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absU k)
@@ -130,7 +130,7 @@ theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth n e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_loop pers vis st mode eager lane fu fe depth n e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
@@ -145,7 +145,7 @@ theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_body pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
@@ -171,7 +171,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode eager lane fu fe lfe depth a b lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_body pers vis st mode eager lane fu fe depth a b
       = ok o) :
     Sim₀ id pers lst o

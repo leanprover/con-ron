@@ -232,9 +232,9 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
 
 /-! ## The fold -/
 
-private theorem mk_ifenv_empty_refines' {e f}
+private theorem mk_ifenv_empty_refines' {pers : arena.store.PersTier} {E₀ : IEnv} {e f}
     (he : arena.env.i_env_empty = ok e) (hf : arena.env.mk_ifenv e = ok f) :
-    IFEnvRel f (mkIFEnv IEnv.empty) ∧ IFEnvInv f := by
+    IFEnvRel pers E₀ f (mkIFEnv IEnv.empty) ∧ IFEnvInv f := by
   rw [arena.env.i_env_empty] at he
   have he' : e =
       { consts := alloc.vec.Vec.new arena.env.IConstantInfo,
@@ -475,8 +475,8 @@ over any list of records, every step accepting, from a related state, is the
 twin's `checkPendingList` over the abstracted records, accepting.
 `check_pending_refines` per step; the list is a plain `List` (a pool worker's
 claims, which may repeat a record: task #98-H8). -/
-theorem foldAllOk_check_pending_refines {pers rf lf} {mode : kernel.env.CheckMode}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
+theorem foldAllOk_check_pending_refines {E₀ : IEnv} {pers rf lf} {mode : kernel.env.CheckMode}
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) :
     ∀ (pcs : List arena.checker.PendingCheck) {st lst},
       AIdle pers st lst → AStateInv pers st → pers.frozen = true →
       FoldAllOk (fun st pc => arena.checker.check_pending pers st mode rf pc) st pcs →
@@ -505,7 +505,7 @@ and `AStateInv`, nothing about the twin — task #97-T2-LOCKSTEP lane Checker). 
 its own: `worker_state_rel` puts its fresh state against `lst'.worker`, and
 `foldAllOk_check_pending_refines` walks that worker's list — whatever list
 the pool gave it. -/
-theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
+theorem pool_accepts_refines {E₀ : IEnv} {H : Type} {inst : arena.checker.InstallHook H}
     {h : H} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
@@ -515,7 +515,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
     ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (absIDeclL ds).toArray lst lfe lst' ∧
-      IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
+      IFEnvRel pers E₀ fe lfe ∧ AStateRel₀ pers st' lst' := by
   obtain ⟨t, n, pend, tier, est, parts, ht, hq, hfr, hcov, hsub, hw⟩ := hpool.toParts
   rw [arena.checker.fold_start] at ht
   obtain ⟨e, he, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht

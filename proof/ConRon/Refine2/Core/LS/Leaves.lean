@@ -113,9 +113,9 @@ The answer is a `CheckError` on both sides; messages are never compared
 
 /-- `proj_indexed_struct_like` is pure on both sides: the cited `&&` chain,
 read off the environment. -/
-theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
     {t sn : arena.handle.NIdx} {i n : Std.U64} {b : Bool}
-    (h : arena.core.proj_indexed_struct_like vis fe t sn i n = ok b) :
+    (h : arena.core.proj_indexed_struct_like t vis fe t sn i n = ok b) :
     b = projIndexedStructLike lfe (absNIdx t) (absNIdx sn) (absU i) (absU n) := by
   rw [arena.core.proj_indexed_struct_like] at h
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -176,9 +176,9 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
 
 /-- `proj_miss_error` against `projMissError`: the error KIND (messages are
 never compared, DESIGN §3.1). -/
-@[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+@[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
     (ht : Bool) (t sn : arena.handle.NIdx) (i n : Std.U64) :
-    LSP (arena.core.proj_miss_error vis fe ht t sn i n)
+    LSP (arena.core.proj_miss_error t vis fe ht t sn i n)
       (fun ce => absAErrKind ce
         = lAErrKind (projMissError lfe ht (absNIdx t) (absNIdx sn) (absU i) (absU n))) := by
   intro ce h
@@ -221,7 +221,7 @@ the twin's `what` is free (messages are never compared). -/
 
 @[lockstep] theorem is_ctor_app_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
+    (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = a) (arena.core.is_ctor_app pers vis st fe e) lst
       (isCtorApp lfe (absEIdx e)) := by
   rw [arena.core.is_ctor_app, isCtorApp]
@@ -262,7 +262,7 @@ the twin's `what` is free (messages are never compared). -/
 
 @[lockstep] theorem head_hint_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
+    (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = ConRon.Refine.absHint a) (arena.core.head_hint pers vis st fe e) lst
       (headHint lfe (absEIdx e)) := by
   rw [arena.core.head_hint, headHint]
@@ -270,7 +270,7 @@ the twin's `what` is free (messages are never compared). -/
 
 @[lockstep] theorem unfoldable_head_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
+    (hctx : CoreCtx pers vis fe lfe) :
     LS pers (fun a b => b = a) (arena.core.unfoldable_head pers vis st fe e) lst
       (unfoldableHead lfe (absEIdx e)) := by
   rw [arena.core.unfoldable_head, unfoldableHead]

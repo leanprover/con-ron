@@ -38,8 +38,8 @@ section Entries
 variable {pers vis st mode fe lfe fu depth lst}
 
 /-- `arena::core::whnf` against `Arena.whnf`, with no side condition. -/
-theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+theorem whnf_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.whnf pers vis st mode fe fu depth e = ok o) :
     Sim₀ absEIdx pers lst o
@@ -51,8 +51,8 @@ theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers 
   exact h
 
 /-- `arena::core::infer_type_core` against `Arena.inferTypeCore`. -/
-theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+theorem infer_type_core_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.infer_type_core pers vis st mode fe fu depth e = ok o) :
     Sim₀ absEIdx pers lst o
@@ -64,8 +64,8 @@ theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateR
   exact h
 
 /-- `arena::core::is_def_eq_core` against `Arena.isDefEqCore`. -/
-theorem is_def_eq_core_refines {f : Nat} (hk : KnotRel f) {a b o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+theorem is_def_eq_core_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {a b o} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.is_def_eq_core pers vis st mode fe fu depth a b = ok o) :
     Sim₀ id pers lst o

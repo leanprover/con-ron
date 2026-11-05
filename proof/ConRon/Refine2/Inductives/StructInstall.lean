@@ -100,7 +100,7 @@ set_option maxHeartbeats 1000000 in
 binder-domain comparisons, run binder by binder at its own frame.  Walks from
 the last binder to the first, which is why the counter is the twin's `j + 1`
 recursion and not a cursor. -/
-@[lockstep] theorem check_struct_doms_at_ls
+@[lockstep] theorem check_struct_doms_at_ls {E₀ : IEnv}
     {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -110,7 +110,7 @@ recursion and not a cursor. -/
     {k : Std.U64}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
+    (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
     LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install.check_struct_doms_at pers vis st mode rf off fvs doms k) lst
       (checkStructDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
@@ -143,7 +143,7 @@ recursion and not a cursor. -/
 open Lockstep in
 /-- `proj_bodies_scoped` ⊑ `checkStructProjTable`'s `scopedOk` `let`, from the
 cursor on. -/
-@[lockstep] theorem proj_bodies_scoped_ls
+@[lockstep] theorem proj_bodies_scoped_ls {E₀ : IEnv}
     {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -153,7 +153,7 @@ cursor on. -/
     {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
+    (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
     LS pers (fun a b => b = id a) (arena.inductives.struct_install.proj_bodies_scoped pers vis st rf lps n_p bodies i) lst
       (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p)
@@ -176,7 +176,7 @@ cursor on. -/
 open Lockstep in
 /-- `check_struct_proj_table_push` ⊑ `checkStructProjTable`'s tail: the
 structure stored, its table free, the table pushed. -/
-@[lockstep] theorem check_struct_proj_table_push_ls
+@[lockstep] theorem check_struct_proj_table_push_ls {E₀ : IEnv}
     {pers st lst}
     {t c : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -187,8 +187,8 @@ structure stored, its table free, the table pushed. -/
     {rf lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) :
-    LSR pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table_push t c lps n_p
+    (hfe : IFEnvRelI pers E₀ rf lf) :
+    LSR pers IFEnvRelI pers E₀ (arena.inductives.struct_install.check_struct_proj_table_push pers t c lps n_p
         n_f res_sort guards bodies rf) st lst
       (checkStructProjTablePushSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
         (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards)
@@ -204,7 +204,7 @@ structure stored, its table free, the table pushed. -/
 open Lockstep in
 /-- `check_struct_proj_table` ⊑ `checkStructProjTable` — stage 5, the
 projection table, pushed after its structure. -/
-@[lockstep] theorem check_struct_proj_table_ls
+@[lockstep] theorem check_struct_proj_table_ls {E₀ : IEnv}
     {pers st lst}
     {t c : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -215,8 +215,8 @@ projection table, pushed after its structure. -/
     {rf lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) :
-    LS pers IFEnvRelI (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
+    (hfe : IFEnvRelI pers E₀ rf lf) :
+    LS pers IFEnvRelI pers E₀ (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
       (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards)
         (absIConstantVal cv_ca) lf) := by
