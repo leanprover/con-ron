@@ -71356,9 +71356,13 @@ together.  A predicate for precisely the syntactic invariants con-ron's own code
 work properly may be valuable, with a better way to establish them: right away during parsing, or
 a quick dedicated pass.  That could retire `scratchRun` and its flag tests.
 
-**Status.**  `lake build ConRonBridge` is green.  `Capstone.lean` waits on Theorem 2's
-`PoolAccepts`: its twin section is restated and checked apart (`stages_storeWF` now reads the
-frame and needs neither tier hypothesis), `h6`, `h7`, `h8` are not yet.
+**The headlines.**  One premise per pipeline step, so two new ones: `hord` (`job_order pend
+blocks = ok order`) and `hlayer` (`check_layer = ok layer`).  `h6` answers `(n, fe, pend,
+blocks)`, `h7` is `freeze_tier st6.store fe`, and `h8` is `ParallelAll order.length
+(worker_state st6.pins) (jobStep tier .Verified layer pend blocks order)`, the contract's
+own name rather than its `∃ ws` written out.  `RustDenotes` reads `fe` by `IFEnvOwn`.
+`stages_storeWF` reads the frame and needs neither tier hypothesis.  `emptyTier_eq`, which the
+module note had named with no theorem behind it, exists now.
 
 **The theorems owe** (as this section was written, before they were touched): the twin
 statements above, `Refine2/Checker/Phased.lean`'s `PoolAccepts`,

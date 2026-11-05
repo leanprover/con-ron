@@ -600,7 +600,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
         Ok(p) => p,
     };
     let (_n_installed, fe, pend, blocks): (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) = p;
-    let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
+    let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);  // ConRon.Capstone: hord
     let m = order.len();
     obs.install_done(pers, &st.store, total, m, blocks.len());
     let workers = workers_for(jobs, m);
@@ -610,7 +610,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // (empty) store, its tables moved out, so the observer can still read a
     // label back through the tier.  (ConRon.Capstone: h7)
     let tier: PersTier = checker::freeze_tier(&mut st.store, fe);
-    let layer: IFEnv = checker::check_layer();
+    let layer: IFEnv = checker::check_layer();  // ConRon.Capstone: hlayer
     // PHASE B: `run_job` at every job, on `workers` threads, each folding it over
     // the jobs it claims on ONE `worker_state` — the verdict and the record a
     // rejection names are the one-worker walk's at every `--jobs` (the least

@@ -491,7 +491,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // tier at the phase boundary and phase B is the pool at every worker count
     // (task #97-P6-6b), so a run with no heartbeat is the same computation as
     // a run with one and `install_then_check` is no longer a second path.
-    // ConRon.Capstone: h6, h7, h8 (the driver's three steps, either observer)
+    // ConRon.Capstone: h6, hord, h7, hlayer, h8 (the driver's steps, either observer)
     let verdict = if a.progress > 0 {
         driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
     } else {
