@@ -13,7 +13,7 @@ lemmas and `Quot` in `String`, which is the same three every tier of this
 repository already carries.
 
 **Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
-`Arena.installThenCheck_bridge`.  They print the three standard axioms only,
+`Arena.pooledAccepts_bridge`.  They print the three standard axioms only,
 like group 1 (the capstone's closure, which contains them, is
 `sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
@@ -52,8 +52,8 @@ namespace ConRon.Bridge
 #print axioms PExt.dropScratch
 
 -- the promotion memo and the frame
-#print axioms PMemoOK.empty
-#print axioms PMemoOK.mono
+#print axioms PMemoPi.empty
+#print axioms PMemoPi.mono
 #print axioms Pushed.refl
 #print axioms Pushed.trans
 #print axioms Pushed.push
@@ -392,7 +392,9 @@ hypotheses of the statement. -/
 
 -- the fold's skeleton and the startup walk
 #print axioms Arena.installFold_bridge
-#print axioms Arena.checkPendingList_bridge
+#print axioms installFold_frame
+#print axioms Arena.blockCheck_bridge
+#print axioms Arena.installBlockStep_bridge
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
 

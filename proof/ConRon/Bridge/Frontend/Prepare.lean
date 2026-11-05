@@ -384,7 +384,7 @@ stream's front, prelude record by prelude record.
 
 **The persistence clauses travel with the denotations**, because both passes
 of the preparation are PERMUTATIONS: no record is built, so every record out
-is a record in, and the fold theorems' `hpd` (`Arena.installThenCheck_bridge`)
+is a record in, and the fold theorems' `hpd` (`Arena.pooledAccepts_bridge`)
 at the fold's argument is the parse's and the prelude's, carried.
 
 Proved: a list induction over `preludeKey_run` and `pick_denote`. -/

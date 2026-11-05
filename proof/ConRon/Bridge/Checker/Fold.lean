@@ -20,8 +20,8 @@ fe'.env`) with the readback where con-leche has the identity.
 
 `Arena.checkDecl_bridge` is `cases pd` over `Bridge/Checker/Arms.lean`'s
 seven arm theorems.  Its consumer is `Bridge/Checker/Split.lean`'s
-install/check seam, whose fold (`Arena.installThenCheck_bridge`, and
-`Bridge/Checker/Phased.lean` above it) is the one the binary runs.
+install/check seam, whose fold (`Bridge/Checker/Phased.lean` above it) is the one the
+binary runs.
 
 **There is no sequential fold here.**  The per-declaration theorem is the
 only fold-level fact this module states: the list of declarations is folded

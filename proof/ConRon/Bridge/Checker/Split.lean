@@ -47,15 +47,18 @@ combining.  `Bridge/Checker/Mono.lean`'s
 
 ## What this module states and what it does not
 
-It states the five bridge theorems of `Arena/CheckerSplit.lean` and
-`Arena/Checker.lean`'s phase-A/phase-B pair, and the punchline
-`Arena.installThenCheck_bridge`.  It does not restate the model tier: the
-punchline lands on con-leche's pure `checkDeclsPure` itself, and the model is
-`ConRon/Capstone.lean`'s (through `Bridge/Checker/Phased.lean`'s pooled fold).
+It states the bridge theorems of `Arena/CheckerSplit.lean` and `Arena/Checker.lean`'s
+phase A and one recorded check.  A block's step is conditional on its job, as upstream's
+(`Verify/Cached/Defer.lean`): `Arena.installFold_bridge` takes "every block job passed" as a
+static premise over the final state, and `Bridge/Checker/StoredFrame.lean`'s frame is what
+relates a step's store to that final one with nothing known of the environments between.
+The pool is `Bridge/Checker/Phased.lean`, and the model `ConRon/Capstone.lean`.
 -/
 module
 
 import ConRon.Bridge.Checker.Fold
+public import ConRon.Bridge.Checker.Job
+public import ConRon.Bridge.Checker.StoredFrame
 public import ConLeche.Verify.EnvBound
 public import ConRon.Bridge.Checker.Nodup
 public import ConRon.Bridge.Promote.Coh
@@ -750,9 +753,8 @@ value declaration's install halves at `env`, plus its check half at the SAME
    check and returns `checkDecl`'s fold.  Pure, con-leche only;
 2. **phase A over handles**, `Arena.installFold_bridge`, by induction over
    `Arena.installStep_split` (one step: the four arms and the bracket);
-3. **phase B over handles**, `Arena.checkPendingList_bridge`, by induction
-   over `Arena.checkPending_prefix` (one record, at the prefix environment);
-4. the assembly, `Arena.installThenCheck_bridge`.
+3. **phase B's check of one record**, `Arena.checkPending_prefix`, at the prefix
+   environment; the assembly is `Bridge/Checker/Phased.lean`'s.
 
 `PendRel` is what crosses the seam for one record: the handle record
 denotes the pure one, the two scope facts phase B's knot calls need, the
@@ -1038,7 +1040,7 @@ persistent tier and re-indexes, and `dropScratch` takes the tier.  What the
 body must hand the close is `BodyOut` — the index facts at the pushed
 environment `env'` that the next boundary's `FoldOK` needs and the close
 cannot conjure: `EnvWF env'`, the table list's growth and the membership-shaped
-table clause `IFEnvOK_of_denote` takes, and `promoteNew_spec`'s
+table clause `IFEnvOK_of_denote` takes, and `promoteNew_pi`'s
 `NamesDistinct`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain — **what a step
@@ -1063,51 +1065,43 @@ theorem NamesDistinct.mono {st st' : EStore} {cs : List IConstantInfo}
     ⟨x, y, denoteN_ext h1 hx, denoteN_ext h2 hx, h3⟩) h
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**the bracket closes onto a boundary**: from `FoldOK` at the step's opening
-boundary `s0` and the body's `BodyOut`, the promotion (`promoteNew_spec`,
-`promoteNew_pushed`, `promoteNew_projOK`) and the drop
-(`promoteBracket_close`) leave `FoldOK` at the pushed environment.  `m` is
-the memo the promotion starts from (`promoteVG`'s, in phase A's split arms);
-`hext` is everything between the opening `enterScratch` and the promotion,
-which only appended; the body ended at `sb`, and whatever ran between it and
-the promotion (`promoteVG`, or nothing) only appended too. -/
+**the bracket closes onto a boundary**: from `FoldOK` at the step's opening boundary `s0`
+and the body's `BodyOut` at the state `sb` it ended in, the promotion on the framed state
+(`promoteNew_pi`, `promoteNew_projOK`) and the drop leave `FoldOK` at the pushed
+environment.  `hsrc` is the promotion's invariant with `sb` its source; `hxp` says what ran
+between the opening and this promotion only extended the projection. -/
 theorem bracketClose_foldOK {env env' : Env} {fe fe1 fe' : IFEnv}
     {s0 sb s2 s3 : AState} {m m' : PMemo} {fuel : Nat}
     (hok : FoldOK env fe s0) (hb : BodyOut env' fe fe1 sb)
-    (hxb : Ext sb.store s2.store)
-    (hwf2 : StoreWF' s2.store) (hm : PMemoOK m s2.store)
-    (hext : Ext s0.store.enableScratch s2.store) (hpins : s2.pins = s0.pins)
+    (hsrc : PSrc sb.store s2.store) (hm : PMemoPi m sb.store s2.store)
+    (hxp : Ext s0.store.dropScratch s2.store.dropScratch) (hpins : s2.pins = s0.pins)
     (hrun : promoteNew m fuel (fe1.visibleBelow - fe.visibleBelow)
       (fe1.env.tables.length - fe.env.tables.length) fe1 s2 = .ok ((m', fe'), s3)) :
     FoldOK env' fe'
         ({ store := s3.store.dropScratch, memos := s3.memos, caches := Caches.empty,
            pins := s3.pins } : AState) ∧
-      PExt s0.store s3.store.dropScratch ∧ Pushed fe fe' ∧
-      PMemoOK m' s3.store ∧ Ext s2.store s3.store ∧ s3.pins = s0.pins ∧
-      StoreWF' s3.store := by
-  obtain ⟨hwf3, hx23, hm3, hp3, hcoh3, hd3, -, hfr⟩ :=
-    promoteNew_spec hwf2 hm hok.coh hok.persEnv hb.coh hb.pushed hb.tpushed rfl rfl
-      (hb.distinct.mono hxb) (denoteFEnv_mono hxb hb.denote) hrun
-  have hpush := promoteNew_pushed hok.coh hb.coh hb.pushed rfl hrun
-  have hproj3 := promoteNew_projOK hwf2 hm hb.proj hrun
-  obtain ⟨-, hwf4, hx04, hx34⟩ :=
-    promoteBracket_close hok.check.state.wf hwf3 (hext.trans hx23)
-  have hpins3 : s3.pins = s0.pins := by rw [hfr.pins, hpins]
-  have hd4 : denoteFEnv s3.store.dropScratch fe' = some env' :=
-    denoteFEnv_pext hx34 hp3 hd3
-  refine ⟨?_, hx04, hpush, hm3, hx23, hpins3, hwf3⟩
+      PExt s0.store s3.store.dropScratch ∧ Pushed fe fe' ∧ s3.pins = s0.pins := by
+  obtain ⟨hs3, -, hx3, hf3⟩ := promoteNew_frame hsrc hm hrun
+  obtain ⟨hp3, hcoh3, hd3, -, hpush, -⟩ := promoteNew_pi hsrc hm hok.coh hok.persEnv hb.coh hb.pushed
+    hb.tpushed rfl rfl hb.distinct hb.denote hrun
+  have hproj3 := promoteNew_projOK hsrc hm hb.proj hrun
+  have hwf4 := hs3.piWF
+  have hx04 : PExt s0.store s3.store.dropScratch :=
+    (PExt.dropScratch hok.check.state.wf).trans (PExt.of_ext (hxp.trans hx3))
+  have hpins3 : s3.pins = s0.pins := by rw [hf3.pins, hpins]
+  refine ⟨?_, hx04, hpush, hpins3⟩
   exact
     { check :=
         { state := ⟨hwf4⟩
           caches := CacheOK.of_empty rfl
           pins := hok.check.pins.pmono hok.persPins hx04 hpins3
-          ienv := IFEnvOK_of_denote ⟨hwf4⟩ hcoh3 hproj3 hd4 }
+          ienv := IFEnvOK_of_denote ⟨hwf4⟩ hcoh3 hproj3 hd3 }
       envWF := hb.envWF
       tblShape := hproj3
       persPins := hok.persPins.mono hpins3
       persEnv := hp3
       coh := hcoh3
-      denote := hd4 }
+      denote := hd3 }
 
 /-- con-leche: none — a push onto a denoting index extends the denoted
 environment by the pushed constants' denotations. -/
@@ -1439,12 +1433,13 @@ what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
 `PendRel` — and the two frame facts phase B reads (the caches are empty after
 the bracket's `dropScratch`; the environment only grows).
 
-**The proof** is the bracket — `FoldOK.enter` for the opening, `promoteVG_spec`
-for the split arms' record, and `bracketClose_foldOK` (`promoteNew_spec`,
-`promoteNew_pushed`, `promoteNew_projOK`, `promoteBracket_close`) for the close
-— around ONE child, `Arena.installStepGo_bridge`, the step body.
+**The proof** is the bracket — `FoldOK.enter` for the opening, `promoteVG_pi`
+for the split arms' record, and `bracketClose_foldOK` (`promoteNew_pi`,
+`promoteNew_projOK`) for the close — around ONE child,
+`Arena.installStepGo_bridge`, the step body, whose state `scratchRun` frames:
+`PSrc.of_run` relates what the body denoted to the framed store.
 
-**Why `hnd : NodupNames env`**: the close's `promoteNew_spec` needs the
+**Why `hnd : NodupNames env`**: the close's `promoteNew_pi` needs the
 pushed constants' names distinct, which the full arm reads off the pure
 fold's name uniqueness (`checkDecl_nodup`).  The fold has it (`PhaseA.nodup`
 from the empty environment, carried by `Arena.installFold_bridge`).  **And
@@ -1481,14 +1476,19 @@ theorem Arena.installStep_split
   simp only [Except.ok.injEq, Prod.mk.injEq] at g1
   obtain ⟨-, rfl⟩ := g1
   obtain ⟨⟨fe1, vg?⟩, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨sb, g2b, hsz, rfl⟩ := scratchRun_ok g2
   have hok1 := hok.enter
   obtain ⟨env', hb, hx12, hp12, hcase⟩ :=
     Arena.installStepGo_bridge hk hind hok1 hnd (PinsDenote.pmono hx1 _ _ hpp hpins)
-      (denoteDecl_pext hx1 hpd hd) g2
+      (denoteDecl_pext hx1 hpd hd) g2b
   have hdenv := hok.denote
   have hnew : ∃ new, env'.consts = new ++ env.consts :=
     envExt_of_pushed (fe := fe) (fe1 := fe1)
       (denoteFEnv_mono hx12 (denoteFEnv_pext hx1 hok.persEnv hdenv)) hb.denote hb.pushed
+  have hsrc : PSrc sb.store (sb.store.frameFrom s.store.enableScratch) :=
+    PSrc.of_run hok1.check.state.wf hb.state.wf hx12 hsz rfl
+  have hp0 : Ext s.store.dropScratch (sb.store.frameFrom s.store.enableScratch).dropScratch :=
+    Ext.refl _
   rcases hcase with ⟨rfl, F, hF⟩ | ⟨vg, gP, F, rfl, hsplit, hkind, hcv, hjv, hwsty, hwsjv⟩
   · -- a full step: promote the pushed constants, drop
     simp only at r2
@@ -1500,16 +1500,17 @@ theorem Arena.installStep_split
     obtain ⟨hv, rfl⟩ := AM.pure_ok r4
     simp only [Prod.mk.injEq] at hv
     obtain ⟨rfl, rfl⟩ := hv
-    obtain ⟨hfold, hx04, hpush, -, -, -, -⟩ :=
-      bracketClose_foldOK (s0 := s) (hok := hok)
-        hb (Ext.refl _) (StoreWF'.of_wf hb.state.wf) (PMemoOK.empty _) hx12 hp12 g3
+    obtain ⟨hfold, hx04, hpush, -⟩ :=
+      bracketClose_foldOK (s0 := s)
+        (s2 := ⟨sb.store.frameFrom s.store.enableScratch, sb.memos, sb.caches, s.pins⟩)
+        (hok := hok) hb hsrc (PMemoPi.empty _ _) hp0 rfl g3
     exact ⟨env', hfold, hx04, hpush, hpend, rfl, hnew, checkDecl_tables hF,
       Or.inl ⟨rfl, F, hF⟩⟩
   · -- a split step: promote the record, then the pushed constant, drop
     simp only at r2
     obtain ⟨⟨m, vg'⟩, s2', g2', r2'⟩ := AM.bind_ok r2
-    obtain ⟨hwf2', hx22', hm2', hpvg, hkd, hcv', hjv', hfr2⟩ :=
-      promoteVG_spec (StoreWF'.of_wf hb.state.wf) (PMemoOK.empty _) hcv hjv g2'
+    obtain ⟨hs2', hm2', hx2', hfr2, hpvg, hkd, -, -, hcv', hjv'⟩ :=
+      promoteVG_pi hsrc (PMemoPi.empty _ _) g2'
     obtain ⟨⟨m', fe2⟩, s3, g3, r3⟩ := AM.bind_ok r2'
     obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok r3
     rw [dropScratch_run] at g4
@@ -1518,11 +1519,10 @@ theorem Arena.installStep_split
     obtain ⟨hv, rfl⟩ := AM.pure_ok r4
     simp only [Prod.mk.injEq] at hv
     obtain ⟨rfl, rfl⟩ := hv
-    obtain ⟨hfold, hx04, hpush, -, hx2'3, hpins3, hwf3⟩ :=
+    obtain ⟨hfold, hx04, hpush, hpins3⟩ :=
       bracketClose_foldOK (s0 := s) (hok := hok)
-        hb hx22' hwf2' hm2' (hx12.trans hx22') (by rw [hfr2.pins, hp12]) g3
-    have hx34 : PExt s3.store s3.store.dropScratch := PExt.dropScratch' hwf3
-    have hx2'4 : PExt s2'.store s3.store.dropScratch := (PExt.of_ext hx2'3).trans hx34
+        hb hs2' hm2' (hp0.trans hx2') hfr2.pins g3
+    obtain ⟨-, -, hx3, -⟩ := promoteNew_frame hs2' hm2' g3
     have hvis : fe.visibleBelow = env.consts.length := by
       rw [hok.coh.1]
       exact denoteCIList_length _ _ (denoteIEnv_some.mp hdenv).1
@@ -1535,8 +1535,8 @@ theorem Arena.installStep_split
       · rw [List.mem_singleton] at hpc; subst hpc; exact hpvg
     · exact
         { kind := by rw [hkd]; exact hkind
-          cv := denoteCV_pext hx2'4 hpvg.cv hcv'
-          jv := hx2'4.expr _ _ hpvg.jv hjv'
+          cv := denoteCV_ext (hcv' _ hcv) hx3
+          jv := denote_ext (hjv' _ hjv) hx3
           wsty := hwsty
           wsjv := hwsjv
           envWF := hok.envWF
@@ -1574,23 +1574,106 @@ theorem ListRel.snoc {α β : Type} {R : α → β → Prop} :
   | [], [], _, _, .nil, h => .cons h .nil
   | _ :: _, _ :: _, _, _, .cons h hs, hab => .cons h (ListRel.snoc hs hab)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls (phase A) —
-**phase A over handles**: an accepting `installFold` is a pure `PhaseA` whose
-owed checks are the arena's pending records, related one for one.
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:138-166 installDeclStep_defer — **a block's
+step, its evidence its job**: with the job accepted at a state over the persistent tier the
+store install extended, the stored install's pushes are the pure step's, so the fold's
+invariant holds past the block. -/
+theorem Arena.installBlockStep_bridge
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env} {fe fe₁ : IFEnv}
+    {i nP : Nat} {block : List IConstantInfo} {b : List ConstantInfo}
+    {D D₁ : Array BlockCheck} {s s₁ w t : AState}
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) (hpp : PersPinSets pins)
+    (hok : FoldOK env fe s) (hnd : NodupNames env) (hpins : PinsDenote s.store pins pinsP)
+    (hb : Frontend.denoteCIList s.store block = some b) (hbp : PersCIList block)
+    (hrun : Arena.installBlockStep .verified i fe D block nP s = .ok ((fe₁, D₁), s₁))
+    (hx : PExt s₁.store w.store) (hwf : StoreWF w.store) (hc : w.caches = Caches.empty)
+    (hp : w.pins = s₁.pins)
+    (hjob : blockCheck .verified pins ⟨fe, block, nP, i,
+        (fe₁.env.consts.take (fe₁.env.consts.length - fe.env.consts.length)).reverse,
+        (fe₁.env.tables.take (fe₁.env.tables.length - fe.env.tables.length)).reverse⟩ w
+      = .ok ((), t)) :
+    ∃ env₁ F, FoldOK env₁ fe₁ s₁ ∧ PExt s.store s₁.store ∧ s₁.caches = Caches.empty ∧
+      (∃ new, env₁.consts = new ++ env.consts) ∧ TblExt env env₁ ∧
+      ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
+        = .ok env₁ := by
+  have hwfs := hok.check.state.wf
+  have hbd : Bdy { s with caches := Caches.empty } :=
+    Bdy.of_empty hwfs rfl (hok.check.pins.pmono hok.persPins (PExt.refl _) rfl)
+      (hok.persPins.mono rfl)
+  have hrun' : Arena.installBlockStep .verified i fe D block nP
+      { s with caches := Caches.empty } = .ok ((fe₁, D₁), s₁) := hrun
+  obtain ⟨h1, hc1, -, hout⟩ := installBlockStep_frame hbd hb hrun'
+  obtain ⟨hpush, htp, ⟨env₂, hd₂⟩, hpe₁, hcoh⟩ := hout env hok.coh hok.persEnv hok.denote
+  have hbw : Frontend.denoteCIList w.store block = some b :=
+    denoteCIList_pext (h1.pext.trans hx) _ _ hbp hb
+  have hpw : w.pins = s.pins := by rw [hp, h1.pins]
+  obtain ⟨st, env', F, hxst, hden, hF, hwfE, hQ⟩ := Arena.blockCheck_bridge hk hind hok
+    (h1.pext.trans hx) hwf hc hpw hpp hpins hbw hbp hjob
+  -- the stored install's pushes are the job's
+  obtain ⟨nc, hnc⟩ := hpush
+  obtain ⟨nt, hnt⟩ := htp
+  have hC : fe₁.env.consts = (fe₁.env.consts.take
+      (fe₁.env.consts.length - fe.env.consts.length)).reverse.reverse ++ fe.env.consts := by
+    rw [hnc]; simp
+  have hT : fe₁.env.tables = (fe₁.env.tables.take
+      (fe₁.env.tables.length - fe.env.tables.length)).reverse.reverse ++ fe.env.tables := by
+    rw [hnt]; simp
+  have hdenI : denoteIEnv st fe₁.env = some env' := by
+    have h := hden
+    rw [← hC, ← hT] at h
+    exact h
+  have hnd₁ : NodupNames env' := checkDecl_nodup hF hnd
+  have hndH : (fe₁.env.consts.map IConstantInfo.name).Nodup :=
+    denoteCIList_nodup _ _ (denoteIEnv_some.mp hdenI).1 hnd₁
+  have hcoh₁ := hcoh hndH
+  obtain rfl : env₂ = env' := by
+    have h := denoteFEnv_pext (hxst.trans (PExt.refl _)) hpe₁
+      (denoteFEnv_pext hx hpe₁ hd₂)
+    exact Option.some.inj (h.symm.trans hdenI)
+  have hproj : ∀ t' ∈ fe₁.env.tables, IProjTableOK t' := by
+    intro t' ht'
+    rw [hT] at ht'
+    rcases List.mem_append.mp ht' with h' | h'
+    · exact hQ t' (by simpa using h')
+    · exact hok.tblShape t' h'
+  have hst₁ : StateOK s₁ := h1.bdy.check.state
+  have hnew : ∃ new, env₂.consts = new ++ env.consts :=
+    envExt_of_pushed (denoteFEnv_pext h1.pext hok.persEnv hok.denote) hd₂ ⟨nc, hnc⟩
+  refine ⟨env₂, F, ?_, h1.pext, hc1, hnew, checkDecl_tables hF, hF⟩
+  exact
+    { check :=
+        { state := hst₁
+          caches := CacheOK.of_empty hc1
+          pins := hok.check.pins.pmono hok.persPins h1.pext h1.pins
+          ienv := IFEnvOK_of_denote hst₁ hcoh₁ hproj hd₂ }
+      envWF := hwfE
+      tblShape := hproj
+      persPins := hok.persPins.mono h1.pins
+      persEnv := hpe₁
+      coh := hcoh₁
+      denote := hd₂ }
 
-The proof: `Arena.installStep_split` and an induction over the records, the
-relation carried across each bracket by `PendRel.listRel_mono`. -/
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:191-213 DeferredRun — **phase A over handles,
+its block jobs passed**: an accepting `installFold`, with every job it recorded accepted by
+the final state's worker, is a pure `PhaseA` whose owed checks are the arena's pending
+records, related one for one.
+
+The induction runs in fold order, and the premise is static.  At a block the evidence is
+its job at the final state, whose persistent tier extends this step's by
+`installFold_frame`, which reads no environment; every other step is proved as ever, at the
+`FoldOK` the blocks before it have established. -/
 theorem Arena.installFold_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     (hpp : PersPinSets pins) :
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (env : Env) (i i' : Nat)
-      (fe fe' : IFEnv) (pend pend' : Array PendingCheck)
+      (fe fe' : IFEnv) (pend pend' : Array PendingCheck) (D D' : Array BlockCheck)
       (pendP : List (Env × ConLeche.ValueGroup)) (s s' : AState),
       FoldOK env fe s → NodupNames env → PinsDenote s.store pins pinsP →
       (∀ x ∈ ds, PersDecl x) → denoteDecls s.store ds = some dsP →
       ListRel (PendRel s.store env) pend.toList pendP →
-      Arena.installFold .verified pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
+      Arena.installFold .verified pins (i, fe, pend, D) ds s = .ok (.ok (i', fe', pend', D'), s') →
+      (∀ b ∈ D'.toList, ∃ t, blockCheck .verified pins b s'.worker = .ok ((), t)) →
       ∃ env' pendP', FoldOK env' fe' s' ∧ PExt s.store s'.store ∧
         PhaseA .verified pinsP env dsP env' pendP' ∧
         ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
@@ -1598,17 +1681,17 @@ theorem Arena.installFold_bridge
   intro ds
   induction ds with
   | nil =>
-    intro dsP env i i' fe fe' pend pend' pendP s s' hok _ _ _ hden hrel hrun
+    intro dsP env i i' fe fe' pend pend' D D' pendP s s' hok _ _ _ hden hrel hrun _
     simp only [denoteDecls, Option.some.injEq] at hden
     subst hden
     simp only [Arena.installFold] at hrun
     obtain ⟨he, rfl⟩ := AM.pure_ok hrun
     simp only [Except.ok.injEq, Prod.mk.injEq] at he
-    obtain ⟨rfl, rfl, rfl⟩ := he
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := he
     exact ⟨env, [], hok, PExt.refl _, .nil env, by simpa using hrel,
       fun _ => rfl, fun h => absurd rfl h⟩
   | cons a as ih =>
-    intro dsP env i i' fe fe' pend pend' pendP s s' hok hnd hpins hpd hden hrel hrun
+    intro dsP env i i' fe fe' pend pend' D D' pendP s s' hok hnd hpins hpd hden hrel hrun hjobs
     simp only [denoteDecls] at hden
     cases ha : Frontend.denoteDecl s.store a with
     | none => rw [ha] at hden; simp at hden
@@ -1649,53 +1732,129 @@ theorem Arena.installFold_bridge
         have hpins0 := PinsDenote.pmono hx0' _ _ hpp hpins
         have ha0 : Frontend.denoteDecl s₀.store a = some x :=
           denoteDecl_pext hx0' (hpd a (by simp)) ha
+        have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
         rw [hP] at hstep
         simp only at hstep
-        cases hA : Arena.installStep .verified pins i fe pend a s₀ with
-        | error e =>
-          rw [hA] at hstep
-          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
-          obtain ⟨rfl, rfl⟩ := hstep
-          obtain ⟨hbad, -⟩ := AM.pure_ok htail
-          exact absurd hbad (by simp)
-        | ok v =>
-          obtain ⟨⟨fe₁, pend₁⟩, s₁'⟩ := v
-          rw [hA] at hstep
-          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
-          obtain ⟨h1, h2⟩ := hstep
-          subst h1
-          subst s₁'
+        -- a block's step takes its evidence from its job
+        have hblock : ∀ {block nP}, a = .indDecl block nP → ∀ {fe₁ D₁},
+            Arena.installBlockStep .verified i fe D block nP s₀ = .ok ((fe₁, D₁), s₁) →
+            r1 = .ok (i + 1, fe₁, pend, D₁) →
+            ∃ env' pendP', FoldOK env' fe' s' ∧ PExt s.store s'.store ∧
+              PhaseA .verified pinsP env (x :: xs) env' pendP' ∧
+              ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
+              (a :: as = [] → s' = s) ∧ (a :: as ≠ [] → s'.caches = Caches.empty) := by
+          intro block nP hA fe₁ D₁ hstepB hr1
+          subst hA hr1
+          simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at ha0
+          obtain ⟨b, hb, rfl⟩ := ha0
+          have hbp : PersCIList block := hpd (.indDecl block nP) List.mem_cons_self
+          have hbd : Bdy { s₀ with caches := Caches.empty } :=
+            Bdy.of_empty hok'.check.state.wf rfl
+              (hok'.check.pins.pmono hok'.persPins (PExt.refl _) rfl) (hok'.persPins.mono rfl)
+          have hstep' : Arena.installBlockStep .verified i fe D block nP
+              { s₀ with caches := Caches.empty } = .ok ((fe₁, D₁), s₁) := hstepB
+          obtain ⟨h1, -, hD, -⟩ := installBlockStep_frame hbd hb hstep'
+          have hbd₁ : Bdy s₁ := h1.bdy
+          have has₁ := denoteDecls_pext (hx0'.trans h1.pext) as xs hpd₁ has
+          obtain ⟨hR, -, hDm⟩ := installFold_frame as xs (i + 1, fe₁, pend, D₁) (i', fe', pend', D')
+            s₁ s' hbd₁ hpd₁ has₁ htail
+          have hwf' : StoreWF s'.worker.store := (EStore.dropScratch_spec hR.bdy.check.state.wf).1
+          have hxw : PExt s₁.store s'.worker.store :=
+            hR.pext.trans (PExt.dropScratch hR.bdy.check.state.wf)
+          obtain ⟨t, hjob⟩ := hjobs _ (hDm _ (by
+            show _ ∈ D₁.toList
+            rw [hD, Array.toList_push]
+            exact List.mem_append_right _ (List.mem_singleton.mpr rfl)))
+          obtain ⟨env₁, F, hok₁, hx₁', hc₁, hext₁, hextT₁, hF⟩ :=
+            Arena.installBlockStep_bridge hk hind hpp hok' hnd hpins0 hb hbp hstepB hxw hwf'
+              rfl hR.pins hjob
+          have hx₁ : PExt s.store s₁.store := hx0'.trans hx₁'
+          have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hextT₁ hrel
+          have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
+          have has₂ := denoteDecls_pext hx₁ as xs hpd₁ has
+          obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
+            ih xs env₁ (i + 1) i' fe₁ fe' pend pend' D₁ D' pendP s₁ s' hok₁
+              (checkDecl_nodup hF hnd) hpins₁ hpd₁ has₂ hrel₁ htail hjobs
+          refine ⟨env', pendP', hok', hx₁.trans hx', .full F hF hA', hrel',
+            fun h => absurd h (by simp), fun _ => ?_⟩
+          by_cases hnil : as = []
+          · rw [hnil' hnil]; exact hc₁
+          · exact hc' hnil
+        -- every other step, as ever
+        have hother : ∀ {fe₁ pend₁}, (∀ block nP, a ≠ .indDecl block nP) →
+            Arena.installStep .verified pins i fe pend a s₀ = .ok ((fe₁, pend₁), s₁) →
+            r1 = .ok (i + 1, fe₁, pend₁, D) →
+            ∃ env' pendP', FoldOK env' fe' s' ∧ PExt s.store s'.store ∧
+              PhaseA .verified pinsP env (x :: xs) env' pendP' ∧
+              ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
+              (a :: as = [] → s' = s) ∧ (a :: as ≠ [] → s'.caches = Caches.empty) := by
+          intro fe₁ pend₁ _ hA hr1
+          subst hr1
           obtain ⟨env₁, hok₁, hx₁', -, -, hc₁, hext₁, hextT₁, hcase⟩ :=
             Arena.installStep_split hk hind hok' hnd hpins0 hpp
               (PendRel.listRel_pers hrel) (hpd a (by simp)) ha0 hA
           have hx₁ : PExt s.store s₁.store := hx0'.trans hx₁'
           have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hextT₁ hrel
           have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
-          have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
           have has₁ := denoteDecls_pext hx₁ as xs hpd₁ has
           rcases hcase with ⟨hpeq, F, hF⟩ | ⟨pc, gP, F, hpeq, -, -, hsplit, hpc⟩
           · have hrelA : ListRel (PendRel s₁.store env₁) pend₁.toList pendP := by
               rw [hpeq]; exact hrel₁
             obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
-              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' pendP s₁ s' hok₁
-                (checkDecl_nodup hF hnd) hpins₁ hpd₁ has₁ hrelA htail
+              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' D D' pendP s₁ s' hok₁
+                (checkDecl_nodup hF hnd) hpins₁ hpd₁ has₁ hrelA htail hjobs
             refine ⟨env', pendP', hok', hx₁.trans hx', .full F hF hA', hrel',
               fun h => absurd h (by simp), fun _ => ?_⟩
             by_cases hnil : as = []
-            · rw [hnil'  hnil]; exact hc₁
+            · rw [hnil' hnil]; exact hc₁
             · exact hc' hnil
           · have hrelA : ListRel (PendRel s₁.store env₁) pend₁.toList
                 (pendP ++ [(env, gP)]) := by
               rw [hpeq]; exact ListRel.snoc hrel₁ hpc
             obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
-              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' (pendP ++ [(env, gP)]) s₁ s'
-                hok₁ (hsplit.nodup hnd) hpins₁ hpd₁ has₁ hrelA htail
+              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' D D' (pendP ++ [(env, gP)]) s₁ s'
+                hok₁ (hsplit.nodup hnd) hpins₁ hpd₁ has₁ hrelA htail hjobs
             refine ⟨env', (env, gP) :: pendP', hok', hx₁.trans hx',
               .split gP F hsplit hA', by simpa [List.append_assoc] using hrel',
               fun h => absurd h (by simp), fun _ => ?_⟩
             by_cases hnil : as = []
             · rw [hnil' hnil]; exact hc₁
             · exact hc' hnil
+        -- the dispatch
+        cases a with
+        | indDecl block nP =>
+          simp only at hstep
+          cases hA : Arena.installBlockStep .verified i fe D block nP s₀ with
+          | error e =>
+            rw [hA] at hstep
+            simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+            obtain ⟨rfl, rfl⟩ := hstep
+            obtain ⟨hbad, -⟩ := AM.pure_ok htail
+            exact absurd hbad (by simp)
+          | ok v =>
+            obtain ⟨⟨fe₁, D₁⟩, s₁'⟩ := v
+            rw [hA] at hstep
+            simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+            obtain ⟨h1, h2⟩ := hstep
+            subst h1 h2
+            exact hblock rfl hA rfl
+        | _ =>
+          all_goals
+            simp only at hstep
+            cases hA : Arena.installStep .verified pins i fe pend _ s₀ with
+            | error e =>
+              rw [hA] at hstep
+              simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+              obtain ⟨rfl, rfl⟩ := hstep
+              obtain ⟨hbad, -⟩ := AM.pure_ok htail
+              exact absurd hbad (by simp)
+            | ok v =>
+              obtain ⟨⟨fe₁, pend₁⟩, s₁'⟩ := v
+              rw [hA] at hstep
+              simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+              obtain ⟨h1, h2⟩ := hstep
+              subst h1 h2
+              exact hother (fun _ _ h => nomatch h) hA rfl
 
 /-- con-leche: none — `IFEnvOK` reads the environment through `find?` and
 `findTable?` only, so it transports to any environment that looks up alike. -/
@@ -1718,21 +1877,8 @@ environment as the install halves.  `IFEnvOK_prefix` gives the index
 invariant at `env.prefixTo pc.vis`, which keeps every table of the final
 environment, and `IFEnvOK.congr_env` moves it to `envK`, which looks up
 alike (`hfind`, `htab`: `PendRel.prefix_find?`/`prefix_findTable?` at the
-call site), so the knot is instantiated at `envK` itself.
-
-The proof: `IFEnvOK_prefix`, `IFEnvOK.congr_env`, carried into the fresh
-scratch tier by `IFEnvOK.pmono`, `checkValueGroup_bridge` at `envK`, then the
-bracket with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch`
-and `FoldOK` across them.
-
-**Why `hcE : s.caches = Caches.empty` and not `CacheOK false envK s`.**
-`checkPending` opens with `enterScratch`, which REPLACES the
-scratch tier by an empty one and keeps the caches; a cache row valid at `s`
-whose handles are scratch handles names nothing — or, once the check interns
-again, something else — after it, so `CacheOK` at `s` does not survive the
-opening and the theorem is not provable from it.  The call site has the
-stronger fact: every `checkPending` follows a `dropScratch`
-(`checkPendingList_bridge`'s `hc`). -/
+call site), so the knot is instantiated at `envK` itself.  `hcE` because the check opens a
+scratch tier over the caches it finds. -/
 theorem Arena.checkPending_prefix {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
@@ -1747,18 +1893,15 @@ theorem Arena.checkPending_prefix {env : Env}
     (hwsty : Expr.WScoped 0 gP.cv.type)
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending .verified fe pc s = .ok ((), s')) :
-    FoldOK env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
-      ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) envK gP = .ok () := by
+    ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) envK gP = .ok () := by
   have hwf := hok.check.state.wf
   simp only [Arena.checkPending] at hrun
   obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok hrun
   rw [enterScratch_run] at g1
   simp only [Except.ok.injEq, Prod.mk.injEq] at g1
   obtain ⟨-, rfl⟩ := g1
-  obtain ⟨u2, s2, g2, r2⟩ := AM.bind_ok r1
-  rw [dropScratch_run] at r2
-  simp only [Except.ok.injEq, Prod.mk.injEq] at r2
-  obtain ⟨-, rfl⟩ := r2
+  obtain ⟨u2, s2, g2, -⟩ := AM.bind_ok r1
+  obtain ⟨sb, g2b, -, -⟩ := scratchRun_ok g2
   -- the opening: the prefix view's invariant, carried into the fresh scratch tier
   have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
   have hwf1 := (EStore.enableScratch_spec hwf).1
@@ -1771,77 +1914,8 @@ theorem Arena.checkPending_prefix {env : Env}
       ienv := ((IFEnvOK_prefix hok hnd pc.vis).congr_env hfind htab).pmono
         ⟨hok.persEnv.env, hok.persEnv.idx, hok.persEnv.tables, hok.persEnv.tbls⟩ hx1 }
   -- the check, at the record's environment
-  obtain ⟨hcs, F, hF⟩ := checkValueGroup_bridge hk henvK hck1 hkind
-    (denoteCV_pext hx1 hpers.cv hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2
-  -- the close
-  have hwf2 := hcs.ok.state.wf
-  have hx : PExt s.store s2.store.dropScratch :=
-    (hx1.trans (PExt.of_ext hcs.ext)).trans (PExt.dropScratch hwf2)
-  have hpins : s2.pins = s.pins := hcs.pins
-  refine ⟨?_, hx, rfl, F, hF⟩
-  exact
-    { check :=
-        { state := ⟨(EStore.dropScratch_spec hwf2).1⟩
-          caches := CacheOK.of_empty rfl
-          pins := hok.check.pins.pmono hok.persPins hx hpins
-          ienv := hok.check.ienv.pmono hok.persEnv hx }
-      envWF := hok.envWF
-      tblShape := hok.tblShape
-      persPins := hok.persPins.mono hpins
-      persEnv := hok.persEnv
-      coh := hok.coh
-      denote := denoteFEnv_pext hx hok.persEnv hok.denote }
-
-/-- con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList —
-**phase B over handles**: every owed check of phase A is paid, at the
-environment it was owed at.
-
-The proof: `Arena.checkPending_prefix` and an induction over the records;
-each check leaves the caches empty (`dropScratch`), which is the next check's
-`CacheOK` at ITS prefix. -/
-theorem Arena.checkPendingList_bridge {env : Env} {fe : IFEnv}
-    (hk : CoreSpec Arena.checkFuel)
-    (hnd : NodupNames env) :
-    ∀ (pend : List PendingCheck) (pendP : List (Env × ConLeche.ValueGroup))
-      (s s' : AState), FoldOK env fe s →
-      ListRel (PendRel s.store env) pend pendP →
-      (pend ≠ [] → s.caches = Caches.empty) →
-      Arena.checkPendingList .verified fe pend s = .ok (.ok (), s') →
-      FoldOK env fe s' ∧ PExt s.store s'.store ∧
-        ∀ p ∈ pendP, ∃ F,
-          ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) p.1 p.2 = .ok () := by
-  intro pend
-  induction pend with
-  | nil =>
-    intro pendP s s' hok hrel _ hrun
-    cases hrel
-    simp only [Arena.checkPendingList] at hrun
-    obtain ⟨-, rfl⟩ := AM.pure_ok hrun
-    exact ⟨hok, PExt.refl _, fun _ h => absurd h (by simp)⟩
-  | cons pc rest ih =>
-    intro pendP s s' hok hrel hc hrun
-    cases hrel with
-    | cons hp hrest =>
-      rename_i p pendP'
-      have hc0 := hc (by simp)
-      simp only [Arena.checkPendingList] at hrun
-      cases hA : Arena.checkPending .verified fe pc s with
-      | error e =>
-        rw [hA] at hrun
-        simp at hrun
-      | ok v =>
-        obtain ⟨⟨⟩, s₁⟩ := v
-        rw [hA] at hrun
-        obtain ⟨hok₁, hx₁, hc₁, F, hF⟩ :=
-          Arena.checkPending_prefix hk hok hp.pers hnd
-            hc0 hp.envWF hp.prefix_find? hp.prefix_findTable? hp.kind hp.cv
-            hp.jv hp.wsty hp.wsjv hA
-        obtain ⟨hok', hx', hall⟩ :=
-          ih pendP' s₁ s' hok₁ (PendRel.listRel_mono hx₁ ⟨[], rfl⟩ (TblExt.of_eq rfl) hrest)
-            (fun _ => hc₁) hrun
-        refine ⟨hok', hx₁.trans hx', fun q hq => ?_⟩
-        rcases List.mem_cons.mp hq with rfl | hq
-        · exact ⟨F, hF⟩
-        · exact hall q hq
+  obtain ⟨-, F, hF⟩ := checkValueGroup_bridge hk henvK hck1 hkind
+    (denoteCV_pext hx1 hpers.cv hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2b
+  exact ⟨F, hF⟩
 
 end ConRon.Bridge

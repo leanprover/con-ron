@@ -8,7 +8,7 @@ one a reader can check without knowing what an `Env` is:
 > a file whose chunks are one of the shapes `ConLeche.jsonWithTheoremFalse`
 > describes is never accepted by the Lean arena checker.
 
-`Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` is the statement
+`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge` is the statement
 at the FOLD (the twin's accept is con-leche's, at a declaration list); this is
 the letter at the BYTES, and the distance between them is exactly this tier:
 the parse's exactness, the preparation's, and the prelude.
@@ -19,7 +19,7 @@ the parse's exactness, the preparation's, and the prelude.
 |---|---|
 | 1. the parse holds the record | `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` |
 | 2. the preparation keeps it | `Bridge/Frontend/Prepare.lean`'s `mem_preparePrelude_denote` |
-| 3. the twin's accept is con-leche's | `Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` |
+| 3. the twin's accept is con-leche's | `Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge` |
 | 4. con-leche refutes it | `checkDeclsPure_thmDecl_const` + `ConLeche.Model.no_proof_of_False_pure` |
 
 **Step 4 is the one that is not a transport**, and §3 below says why: con-leche
@@ -74,7 +74,7 @@ universe w
 
 /-! ## 1. The post-parse state
 
-The fold theorem `Arena.installThenCheck_bridge` asks this tier for three
+The fold theorem `Arena.pooledAccepts_bridge` asks this tier for three
 things.  Two are `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` (the denotation
 and the persistence); the third is this. -/
 

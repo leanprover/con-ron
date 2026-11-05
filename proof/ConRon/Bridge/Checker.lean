@@ -33,8 +33,11 @@ In dependency order:
   push no projection table off the inductive route (the pinned blocks'
   `ConstWF`, by evaluation); `Bridge/Checker/DivMod.lean` — the
   `Nat.div`/`Nat.mod` pin-variant gate.
-* `Bridge/Checker/Split.lean` — the install/check seam and
-  `Arena.installThenCheck_bridge`, the binary's own fold;
+* `Bridge/Checker/Frame.lean`, `StoredFrame.lean` — what a framed scratch run leaves, and
+  phase A's frame with nothing known of the environment;
+  `Bridge/Checker/Job.lean` — a block job as evidence for its step;
+* `Bridge/Checker/Split.lean` — the install/check seam and phase A's fold, its block jobs
+  passed;
 * `Bridge/Checker/Axioms.lean` — the trust census.
 -/
 module
@@ -54,6 +57,9 @@ public import ConRon.Bridge.Checker.DeclVal
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.DeclWF
 public import ConRon.Bridge.Checker.Nodup
+public import ConRon.Bridge.Checker.Frame
+public import ConRon.Bridge.Checker.StoredFrame
+public import ConRon.Bridge.Checker.Job
 public import ConRon.Bridge.Checker.Split
 public import ConRon.Bridge.Checker.Axioms
 

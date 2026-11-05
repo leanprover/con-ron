@@ -978,7 +978,7 @@ that the induction has one invariant rather than two. -/
 
 /-- con-leche: none — every declaration record the parse state holds is
 persistent (`Bridge/Promote/Pers.lean`'s `PersDecl`).  This is the clause
-`Arena.installThenCheck_bridge` names `hpd`. -/
+`Arena.pooledAccepts_bridge` names `hpd`. -/
 @[expose] def PersDecls (ds : Array IDeclaration) : Prop := ∀ d ∈ ds, PersDecl d
 
 /-- con-leche: none — the parse state's handles are persistent.  Free (the
