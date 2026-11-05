@@ -1325,7 +1325,7 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
       refine ⟨c'', ?_, hcn⟩
       rw [hget, ite_eq_right (by rcases hfree k p hp with h | h <;> omega)]
       exact hc''
-  · show rf.visible_below.val ≤ rf'.env.consts.val.length
+  · show rf.visible_below.val ≤ rf'.env.consts.val.length + rf.base_below.val
     rw [hlen]; exact hfinv.visBound
   · intro k p hp
     rw [hlen]

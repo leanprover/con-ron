@@ -1099,7 +1099,7 @@ invariant's counter bound is the one thing that needs the new counter to fit
 the constant list. -/
 theorem IFEnvRelI.restrict {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv}
     (h : IFEnvRelI pers E₀ rf lf) {k : Std.U64}
-    (hk : k.val ≤ rf.env.consts.val.length) :
+    (hk : k.val ≤ rf.env.consts.val.length + rf.base_below.val) :
     IFEnvRelI pers E₀ { rf with visible_below := k } (lf.restrictTo (absU k)) :=
   ⟨⟨h.rel.env, h.rel.idx, rfl, h.rel.envWF, h.rel.keys, h.rel.tbls, h.rel.tblKeys, h.rel.base⟩,
     ⟨h.inv.1, hk, h.inv.2.2⟩⟩

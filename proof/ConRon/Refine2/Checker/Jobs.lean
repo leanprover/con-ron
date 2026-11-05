@@ -514,39 +514,245 @@ structure JobsRel (tier : arena.store.PersTier) (layer : arena.env.IFEnv)
 theorem checkPending_restrict0 (mode : ConLeche.CheckMode) (lf : IFEnv) (pc : PendingCheck) :
     checkPending mode (lf.restrictTo 0) pc = checkPending mode lf pc := rfl
 
+theorem forall₂_get {α β : Type} {R : α → β → Prop} :
+    ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → ∀ i (h : i < l₁.length),
+      ∃ y, l₂[i]? = some y ∧ R l₁[i] y
+  | _, _, .nil, _, h => by simp at h
+  | _, _, .cons hr _, 0, _ => ⟨_, rfl, hr⟩
+  | _, _, .cons _ ht, i + 1, h => forall₂_get ht i (by simpa using h)
+
+/-- A cast that fits, at an index read. -/
+private theorem cast_val {i : Std.U64} {x : Std.Usize} (hi : i.val ≤ Std.Usize.max)
+    (h : lift (UScalar.cast .Usize i) = (ok x : Result Std.Usize)) : x.val = i.val := by
+  rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hi]
+  exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective h).symm
+
 /-- **`run_job` ⊑ `runJob`, accepting**: a job the Rust ran to `Ok` the twin ran to `.ok`,
-between two idle states. -/
+between two idle states.  What a failing job answers is on a path no accept reaches.
+`hj`: an index `job_order` handed out is a `usize` cast up. -/
 theorem run_job_refines {tier layer pend d lf lp lD st lst st'}
     {mode : kernel.env.CheckMode} {lpins : List INatOpPinSet} {j : Bool × Std.U64}
     (hJ : JobsRel tier layer pend d lf lp lD)
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
+    (hj : j.2.val ≤ Std.Usize.max)
     (hrun : arena.checker.run_job tier st mode layer pend d j = ok (.Ok (), st')) :
     ∃ lst', runJob (ConRon.Refine.absMode mode) lpins lf lp lD (absJob j) lst = .ok (.ok (), lst') ∧
       AIdle tier st' lst' ∧ AStateInv tier st' := by
   obtain ⟨jb, ji⟩ := j
+  simp only at hj
   rw [arena.checker.run_job] at hrun
-  dsimp only at hrun
+  change (if jb = true then _ else _) = _ at hrun
   cases jb with
   | true =>
     simp only [↓reduceIte] at hrun
     obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    sorry
+    have hi1v := cast_val hj hi1
+    by_cases hb : i1 < alloc.vec.Vec.len d
+    · rw [ite_eq_left hb] at hrun
+      have hb' : ji.val < d.val.length := by
+        have := (Std.UScalar.lt_equiv _ _).mp hb
+        rw [hi1v] at this
+        simpa using this
+      obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi3v := cast_val hj hi3
+      obtain ⟨bc, hbc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb3, hbc'⟩ := ConRon.Refine2.ExprOps.vecIndexAt hbc
+      have hbc2 : bc = d.val[ji.val] := by rw [← hbc']; simp only [hi3v]
+      subst hbc2
+      obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases r with
+      | Err e =>
+        obtain ⟨i4, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨bc1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        cases Result.ok_injective hrun
+      | Ok u =>
+        cases Result.ok_injective hrun
+        obtain ⟨tb, htb, hrel⟩ := forall₂_get hJ.jobs ji.val hb'
+        have hS := block_check_refines (lpins := lpins) hidle hinv htf hrel h1
+        obtain ⟨lst', hx, hi', hv', -⟩ := hS
+        refine ⟨lst', ?_, hi', hv'⟩
+        have hd : lD[absU ji]? = some tb := by
+          simpa [absU] using htb
+        have hx' : blockCheck (ConRon.Refine.absMode mode) lpins tb lst = .ok ((), lst') := hx
+        simp [runJob, absJob, hd, hx']
+    · rw [ite_eq_right hb] at hrun
+      obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
   | false =>
     simp only [Bool.false_eq_true, ↓reduceIte] at hrun
     obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    sorry
+    have hi1v := cast_val hj hi1
+    by_cases hb : i1 < alloc.vec.Vec.len pend
+    · rw [ite_eq_left hb] at hrun
+      have hb' : ji.val < pend.val.length := by
+        have := (Std.UScalar.lt_equiv _ _).mp hb
+        rw [hi1v] at this
+        simpa using this
+      obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi3v := cast_val hj hi3
+      obtain ⟨pc, hpc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb3, hpc'⟩ := ConRon.Refine2.ExprOps.vecIndexAt hpc
+      have hpc2 : pc = pend.val[ji.val] := by rw [← hpc']; simp only [hi3v]
+      subst hpc2
+      obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases r with
+      | Err e =>
+        obtain ⟨i4, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨pc1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        cases Result.ok_injective hrun
+      | Ok u =>
+        cases Result.ok_injective hrun
+        have hS := check_pending_refines hidle hinv htf hJ.layer hJ.layerInv h1
+        obtain ⟨lst', hx, hi', hv', -⟩ := hS
+        refine ⟨lst', ?_, hi', hv'⟩
+        have hp : lp[absU ji]? = some (absPendingCheck pend.val[ji.val]) := by
+          rw [hJ.pend]
+          simp [absPendingCheckL, absU, hb']
+        have hx' : checkPending (ConRon.Refine.absMode mode) lf (absPendingCheck pend.val[ji.val]) lst
+            = .ok ((), lst') := hx
+        simp [runJob, absJob, hp, hx']
+    · rw [ite_eq_right hb] at hrun
+      obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
 
-/-- `job_order_go` is the twin's merge, on the abstracted arrays. -/
+/-- `job_order_go` is the twin's merge, on the abstracted arrays, and every index it hands
+out is a `usize` cast up. -/
 theorem job_order_go_abs {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {d : alloc.vec.Vec arena.checker.BlockCheck} {lD : Array BlockCheck}
     (hD : List.Forall₂ (fun (b : arena.checker.BlockCheck) (tb : BlockCheck) => tb.pos = absU b.pos)
       d.val lD.toList) (n : Nat) :
     ∀ (a b : Std.Usize) (acc : alloc.vec.Vec (Bool × Std.U64)) {r},
       pend.val.length - a.val + (d.val.length - b.val) = n →
+      (∀ j ∈ acc.val, j.2.val ≤ Std.Usize.max) →
       arena.checker.job_order_go pend d a b acc = ok r →
       r.val.map absJob = (jobOrderGo (absPendingCheckL pend).toArray lD a.val b.val
-        (acc.val.map absJob).toArray).toList := by
-  sorry
+        (acc.val.map absJob).toArray).toList ∧ ∀ j ∈ r.val, j.2.val ≤ Std.Usize.max := by
+  have hlD : lD.size = d.val.length := by
+    have := hD.length_eq
+    simpa using this.symm
+  have hlp : (absPendingCheckL pend).toArray.size = pend.val.length := by
+    simp [absPendingCheckL]
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro a b acc r hn hacc h
+    rw [arena.checker.job_order_go.eq_def] at h
+    dsimp only at h
+    rw [jobOrderGo]
+    have hpush : ∀ {x : Bool × Std.U64} {acc1 : alloc.vec.Vec (Bool × Std.U64)},
+        alloc.vec.Vec.push acc x = ok acc1 →
+        (acc1.val.map absJob).toArray = (acc.val.map absJob).toArray.push (absJob x) ∧
+          (x.2.val ≤ Std.Usize.max → ∀ j ∈ acc1.val, j.2.val ≤ Std.Usize.max) := by
+      intro x acc1 hp
+      rw [show acc1.val = acc.val ++ [x] from ConRon.Refine.vec_push_val hp]
+      refine ⟨by simp, fun hx j hj => ?_⟩
+      rcases List.mem_append.mp hj with h1 | h1
+      · exact hacc j h1
+      · rw [List.mem_singleton.mp h1]; exact hx
+    have hlpv := alloc.vec.Vec.len_val pend
+    have hldv := alloc.vec.Vec.len_val d
+    -- the record's arm, which three branches share
+    have hpa : a.val < pend.val.length →
+        (do
+          let i2 ← lift (UScalar.cast .U64 a)
+          let acc1 ← alloc.vec.Vec.push acc (false, i2)
+          let i3 ← a + 1#usize
+          arena.checker.job_order_go pend d i3 b acc1) = ok r →
+        r.val.map absJob = (jobOrderGo (absPendingCheckL pend).toArray lD (a.val + 1) b.val
+          ((acc.val.map absJob).toArray.push (false, a.val))).toList ∧
+          ∀ j ∈ r.val, j.2.val ≤ Std.Usize.max := by
+      intro ha' h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = a.val := by
+        simp only [lift, Result.ok.injEq] at hi2
+        rw [← hi2, usize_cast_u64_val]
+      obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi3v : i3.val = a.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
+      obtain ⟨he, hbd⟩ := hpush hacc1
+      have hrec := ih _ (by omega) i3 b acc1 rfl (hbd (by
+        simp only [hi2v]; exact a.hBounds.le)) h
+      rw [he, hi3v] at hrec
+      have hj : absJob (false, i2) = (false, a.val) := by simp [absJob, absU, hi2v]
+      rw [hj] at hrec
+      exact hrec
+    by_cases ha : a < alloc.vec.Vec.len pend
+    · have ha' : a.val < pend.val.length := by scalar_tac
+      rw [ite_eq_left ha, dif_pos (by rw [hlp]; exact ha')]
+      by_cases hb : b < alloc.vec.Vec.len d
+      · have hb' : b.val < d.val.length := by scalar_tac
+        rw [ite_eq_left hb] at h
+        rw [dif_pos (by rw [hlD]; exact hb')]
+        obtain ⟨bc, hbc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨pc, hpc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb1, hbc'⟩ := ConRon.Refine2.ExprOps.vecIndexAt hbc
+        obtain ⟨hb2, hpc'⟩ := ConRon.Refine2.ExprOps.vecIndexAt hpc
+        subst hbc' hpc'
+        obtain ⟨tb, htb, htp⟩ := forall₂_get hD b.val hb'
+        have hgb : lD[b.val]'(by rw [hlD]; exact hb') = tb := by
+          have : lD[b.val]? = some tb := by simpa using htb
+          simpa [this] using (Array.getElem?_eq_getElem (by rw [hlD]; exact hb')).symm.trans this
+        have hgp : ((absPendingCheckL pend).toArray[a.val]'(by rw [hlp]; exact ha')).pos
+            = absU pend.val[a.val].pos := by
+          simp [absPendingCheckL, absPendingCheck]
+        by_cases hlt : d.val[b.val].pos < pend.val[a.val].pos
+        · rw [ite_eq_left hlt] at h
+          have hlt' : (lD[b.val]'(by rw [hlD]; exact hb')).pos
+              < ((absPendingCheckL pend).toArray[a.val]'(by rw [hlp]; exact ha')).pos := by
+            rw [hgb, htp, hgp]
+            exact (Std.UScalar.lt_equiv _ _).mp hlt
+          rw [if_pos hlt']
+          obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi2v : i2.val = b.val := by
+            simp only [lift, Result.ok.injEq] at hi2
+            rw [← hi2, usize_cast_u64_val]
+          obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi3v : i3.val = b.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
+          obtain ⟨he, hbd⟩ := hpush hacc1
+          have hrec := ih _ (by omega) a i3 acc1 rfl (hbd (by
+            simp only [hi2v]; exact b.hBounds.le)) h
+          rw [he, hi3v] at hrec
+          have hj : absJob (true, i2) = (true, b.val) := by simp [absJob, absU, hi2v]
+          rw [hj] at hrec
+          exact hrec
+        · rw [ite_eq_right hlt] at h
+          have hlt' : ¬ (lD[b.val]'(by rw [hlD]; exact hb')).pos
+              < ((absPendingCheckL pend).toArray[a.val]'(by rw [hlp]; exact ha')).pos := by
+            rw [hgb, htp, hgp]
+            exact fun h' => hlt ((Std.UScalar.lt_equiv _ _).mpr h')
+          rw [if_neg hlt']
+          exact hpa ha' h
+      · have hb' : d.val.length ≤ b.val := by scalar_tac
+        rw [ite_eq_right hb] at h
+        rw [dif_neg (by rw [hlD]; omega)]
+        exact hpa ha' h
+    · have ha' : pend.val.length ≤ a.val := by scalar_tac
+      rw [ite_eq_right ha, dif_neg (by rw [hlp]; omega)]
+      by_cases hb : b < alloc.vec.Vec.len d
+      · have hb' : b.val < d.val.length := by scalar_tac
+        rw [ite_eq_left hb] at h
+        rw [if_pos (by rw [hlD]; exact hb')]
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = b.val := by
+          simp only [lift, Result.ok.injEq] at hi2
+          rw [← hi2, usize_cast_u64_val]
+        obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi3v : i3.val = b.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
+        obtain ⟨he, hbd⟩ := hpush hacc1
+        have hrec := ih _ (by omega) a i3 acc1 rfl (hbd (by
+          simp only [hi2v]; exact b.hBounds.le)) h
+        rw [he, hi3v] at hrec
+        have hj : absJob (true, i2) = (true, b.val) := by simp [absJob, absU, hi2v]
+        rw [hj] at hrec
+        exact hrec
+      · have hb' : d.val.length ≤ b.val := by scalar_tac
+        rw [ite_eq_right hb] at h
+        rw [if_neg (by rw [hlD]; omega)]
+        cases Result.ok_injective h
+        exact ⟨by simp, hacc⟩
 
 /-- **What the fold hands the pool, at the frozen tier**: every job related. -/
 theorem jobs_rel {ar : arena.store.EStore} {fe layer : arena.env.IFEnv} {lf : IFEnv}
@@ -558,7 +764,41 @@ theorem jobs_rel {ar : arena.store.EStore} {fe layer : arena.env.IFEnv} {lf : IF
     (hO : arena.checker.job_order pend d = ok order)
     (hp : lp = (absPendingCheckL pend).toArray) :
     JobsRel (tierWith ar fe) layer pend d lf lp lD ∧
-      (jobOrder lp lD).toList = order.val.map absJob := by
-  sorry
+      (jobOrder lp lD).toList = order.val.map absJob ∧
+      ∀ j ∈ order.val, j.2.val ≤ Std.Usize.max := by
+  have hb : BaseOK (tierWith ar fe) := ⟨hinv, hown.envWF⟩
+  have hown' : IFEnvOwn (tierWith ar fe).env lf := hown
+  obtain ⟨hl, hli⟩ := check_layer_rel hb hown' hok hL
+  have hrc : lf.env.consts.reverse = fe.env.consts.val.map absIConstantInfo := by
+    rw [hown.env]; simp [absIEnv]
+  have hrt : lf.env.tables.reverse = fe.env.tables.val.map absIProjTable := by
+    rw [hown.env]; simp [absIEnv]
+  refine ⟨⟨hl, hli, hp, ?_⟩, ?_⟩
+  · refine hD.imp fun b tb h => ⟨fun w hw => ?_, h.block, h.nP, h.pos, h.clo, ?_, h.tlo, ?_, ?_, ?_⟩
+    · obtain rfl := ifenv_layer_eq hw
+      refine ⟨layer_rel hb hown' h.ext h.viewOK h.vis, ?_⟩
+      have hnone := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+        (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
+      have tnone := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+        (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.tbls) rfl
+      refine ⟨hnone.1, by simp [layer00], fun n p hp => ?_, tnone.1, fun n q hq => ?_⟩
+      · rw [show ConRon.Refine.HashMap2.toFun _ n = _ from hnone.2.2 n] at hp; cases hp
+      · rw [show ConRon.Refine.HashMap2.toFun _ n = _ from tnone.2.2 n] at hq; cases hq
+    · have := h.chi; rw [← List.length_reverse, hrc] at this; simpa using this
+    · have := h.thi; rw [← List.length_reverse, hrt] at this; simpa using this
+    · rw [h.L, hrc, List.map_take, List.map_drop]
+    · rw [h.Q, hrt, List.map_take, List.map_drop]
+  · rw [arena.checker.job_order] at hO
+    obtain ⟨i2, -, hO⟩ := ConRon.Refine.bind_eq_ok_iff.mp hO
+    have hposD : List.Forall₂ (fun (b : arena.checker.BlockCheck) (tb : BlockCheck) =>
+        tb.pos = absU b.pos) d.val lD.toList := hD.imp fun _ _ h => h.pos
+    obtain ⟨h1, h2⟩ := job_order_go_abs hposD _ 0#usize 0#usize _ rfl
+      (by simp [alloc.vec.Vec.with_capacity]) hO
+    rw [hp]
+    refine ⟨?_, h2⟩
+    rw [h1, jobOrder]
+    simp [alloc.vec.Vec.with_capacity]
 
 end ConRon.Refine2

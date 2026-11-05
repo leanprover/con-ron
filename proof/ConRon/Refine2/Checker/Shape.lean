@@ -310,7 +310,7 @@ theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
 /-- The counter is a bound on the constant list — finding C, at the call
 site. -/
 theorem IFEnvInv.visBound {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    rf.visible_below.val ≤ rf.env.consts.val.length := h.2.1
+    rf.visible_below.val ≤ rf.env.consts.val.length + rf.base_below.val := h.2.1
 
 /-- **Every position the index stores fits a `usize`** — task #97-P5-Core-2's
 `CoreCtx.idxPos`, which `ifenv_find_abs` is the only consumer of.

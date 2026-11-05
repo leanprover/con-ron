@@ -493,11 +493,12 @@ def tblOf (ts : alloc.vec.Vec arena.env.IProjTable) (s : Std.U64) : Option IProj
   (ts.val[s.val]?).map absIProjTable
 
 /-- **The index's own invariant**: its tables are well formed, the counter does not
-run past the constant list, and every position and slot it stores is in range.
-`Refine2/Checker/Shape.lean` carries the note on each clause. -/
+run past the constant list and what the layer sits above (`base_below`), and every
+position and slot it stores is in range.  `Refine2/Checker/Shape.lean` carries the note on
+each clause. -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
   Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
-    rf.visible_below.val ≤ rf.env.consts.val.length ∧
+    rf.visible_below.val ≤ rf.env.consts.val.length + rf.base_below.val ∧
     (∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
       p.2.val < rf.env.consts.val.length) ∧
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls ∧

@@ -1465,7 +1465,11 @@ theorem stored_tail_refines {P st lst} {p : arena.inductives.block_parts.BlockSh
       have hktabs : v4.env.tables.length - absU nt = absU kt := by
         rw [hv4t]; simp only [absU]; omega
       have hk : absU kk ≤ fe4.env.consts.val.length := by
-        have := hv4.inv.visBound; simp only [absU]; omega
+        obtain ⟨new, e₁, l₁, -⟩ := hpush.ext.newC
+        have hl : v4.env.consts.length = fe4.env.consts.val.length := by
+          rw [hv4.rel.env]; simp [overEnv, IEnv.empty]
+        rw [← hkabs, hvis, ← l₁, ← hl, e₁]
+        simp
       have hktle : absU kt ≤ fe4.env.tables.val.length := by simp only [absU]; omega
       obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨⟨r6, tier1⟩, h6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

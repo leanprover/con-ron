@@ -403,13 +403,16 @@ theorem foldAllOk_run_job_refines {tier layer pend d lf lp lD} {mode : kernel.en
     (hJ : JobsRel tier layer pend d lf lp lD) :
     ∀ (js : List (Bool × Std.U64)) {st lst},
       AIdle tier st lst → AStateInv tier st → tier.frozen = true →
+      (∀ j ∈ js, j.2.val ≤ Std.Usize.max) →
       FoldAllOk (fun st j => arena.checker.run_job tier st mode layer pend d j) st js →
       ∃ s'', checkJobList (ConRon.Refine.absMode mode) lpins lf lp lD (js.map absJob) lst
         = .ok (.ok (), s'')
-  | [], _, lst, _, _, _, _ => ⟨lst, rfl⟩
-  | j :: js, _, lst, hidle, hinv, htf, ⟨_, hs1, hf⟩ => by
-    obtain ⟨lst1, hx, hidle1, hinv1⟩ := run_job_refines hJ hidle hinv htf hs1
-    obtain ⟨s'', h⟩ := foldAllOk_run_job_refines hJ js hidle1 hinv1 htf hf
+  | [], _, lst, _, _, _, _, _ => ⟨lst, rfl⟩
+  | j :: js, _, lst, hidle, hinv, htf, hb, ⟨_, hs1, hf⟩ => by
+    obtain ⟨lst1, hx, hidle1, hinv1⟩ :=
+      run_job_refines (lpins := lpins) hJ hidle hinv htf (hb j (by simp)) hs1
+    obtain ⟨s'', h⟩ := foldAllOk_run_job_refines (lpins := lpins) hJ js hidle1 hinv1 htf
+      (fun x hx => hb x (List.mem_cons_of_mem _ hx)) hf
     refine ⟨s'', ?_⟩
     simp only [List.map_cons, checkJobList, hx]
     exact h
@@ -456,7 +459,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hown := hv2.rel.toOwn hpe
-  obtain ⟨hJ, hOrd⟩ := jobs_rel hown hv2.inv hok hjobs hL hO hv3
+  obtain ⟨hJ, hOrd, hOb⟩ := jobs_rel hown hv2.inv hok hjobs hL hO hv3
   -- one worker: its own `worker_state`, its own list
   have hwork1 : ∀ w ∈ parts, ∃ js : List (Bool × Std.U64),
       w.map (fun k => order.val[k]?) = js.map some ∧
@@ -466,7 +469,11 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     obtain ⟨ws, hws, hf⟩ := hw w hwm
     obtain ⟨hrelW, hinvW⟩ := worker_state_rel fe hrel1 hinv1 hpers hws
     obtain ⟨js, hm, hf'⟩ := foldAllOk_jobStep w ws hf
-    exact ⟨js, hm, foldAllOk_run_job_refines hJ js hrelW hinvW rfl hf'⟩
+    refine ⟨js, hm, foldAllOk_run_job_refines hJ js hrelW hinvW rfl (fun x hx => hOb x ?_) hf'⟩
+    have hs : some x ∈ w.map (fun k => order.val[k]?) := by
+      rw [hm]; exact List.mem_map_of_mem hx
+    obtain ⟨k, -, hk⟩ := List.mem_map.mp hs
+    exact List.mem_of_getElem? hk
   choose! recs hrecm hrecf using hwork1
   refine ⟨fe1, lst', ⟨n1, lp, lD, parts.map (fun w => (recs w).map absJob), ?_, ?_, ?_, ?_⟩,
     hown, hrel1⟩

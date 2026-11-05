@@ -239,11 +239,11 @@ theorem ifenv_table_base_abs {pers : arena.store.PersTier} {below : Std.U64}
       | some p =>
         simp only [Option.bind_some]
         by_cases hd : absU p.1 < absU below
-        · rw [if_pos hd, rowOf]
+        · rw [ite_eq_left hd, rowOf]
           cases pers.env.env.consts.val[p.2.val]? with
           | none => rfl
           | some ci => simp [rowAt, hd]
-        · rw [if_neg hd]; rfl
+        · rw [ite_eq_right hd]; rfl
     rw [hrow] at hf
     have := congrArg Option.isSome hf
     simpa using this
@@ -255,7 +255,7 @@ theorem ifenv_table_base_abs {pers : arena.store.PersTier} {below : Std.U64}
     simp at hrun ⊢
     cases hrun; rfl
   | some ci =>
-    simp only [Option.isSome_some, if_true] at hrun ⊢
+    simp only [Option.isSome_some, ite_true] at hrun ⊢
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.inv.2.2.2.1
       ConRon.Refine.HashMap2.KeysOk_true trivial hr

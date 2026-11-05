@@ -1098,7 +1098,7 @@ theorem install_step_promote_refines {pers tier st lst} {rf lf}
     (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st)
     (htf : tier.frozen = true) (hpers : pers.frozen = false)
     (hfe : IFEnvOwn rf lf) (hfinv : IFEnvInv rf)
-    (hk : k.val ≤ rf.visible_below.val) (hkt : absU kt ≤ rf.env.tables.val.length)
+    (hk' : absU k ≤ rf.env.consts.val.length) (hkt : absU kt ≤ rf.env.tables.val.length)
     (hrun : arena.checker.install_step_promote tier st i vis k kt rf pend vg = ok o) :
     SimRel₀ (fun r v => (IFEnvOwnI r.1 v.1 ∧ KeptC rf r.1 ∧ KeptT rf r.1 ∧
         ∃ m m' s s', promoteNew m coreWalkFuel (absU k) (absU kt) lf s = .ok ((m', v.1), s')) ∧
@@ -1128,7 +1128,6 @@ theorem install_step_promote_refines {pers tier st lst} {rf lf}
     simp only [hx1, except_ok_bind]
     try simp only [Aeneas.Std.uncurry] at hrun
     obtain ⟨⟨r1, tier2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hk' : absU k ≤ rf.env.consts.val.length := le_trans hk hfinv.visBound
     have hP := promote_new_drop htf1 hrel1 hinv1 hvm hfe hfinv hk' hkt h2
     rw [core_walk_fuel_abs] at hP
     cases r1 with
@@ -1228,15 +1227,19 @@ theorem install_step_refines {pers st lst} {rf lf}
       omega
     have hktle : absU kt ≤ fe2.env.tables.val.length := by simp only [absU]; omega
     have hown := hv.rel.toOwn hpeT
+    have hkb : absU kk ≤ fe2.env.consts.val.length := by
+      obtain ⟨new, e₁, l₁, -⟩ := hext.newC
+      have hl : v.env.consts.length = fe2.env.consts.val.length := by
+        rw [hv.rel.env]; simp [overEnv, IEnv.empty]
+      rw [← hkabs, ← l₁, ← hl, e₁]
+      simp
     subst hvg
     cases vgo with
     | none =>
       obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨⟨r1, tier1⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hk : absU kk ≤ fe2.env.consts.val.length := by
-        have := hv.inv.visBound; simp only [absU]; omega
       have hP := promote_new_drop (lm := PMemo.empty) htf hrel3 hinv3
-        (pmemo_empty_refines hpm) hown hv.inv hk hktle h4
+        (pmemo_empty_refines hpm) hown hv.inv hkb hktle h4
       rw [core_walk_fuel_abs, ← hkabs, ← hktabs] at hP
       cases r1 with
       | Err e =>
@@ -1258,9 +1261,8 @@ theorem install_step_refines {pers st lst} {rf lf}
         simp only [Option.map, hx4, except_ok_bind, am_run_bind, hx5]
         rfl
     | some vg =>
-      have hk : kk.val ≤ fe2.visible_below.val := by omega
       have hA := install_step_promote_refines (i := i) (pend := pend) hrel3 hinv3 htf hpers
-        hown hv.inv hk hktle hrun
+        hown hv.inv hkb hktle hrun
       simp only [Option.map]
       rw [hkabs, hktabs, ← hfe.visibleBelow]
       refine AOutRel₀.mono ?_ hA
@@ -1402,6 +1404,59 @@ theorem install_block_step_refines {pers st lst} {mode : kernel.env.CheckMode} {
           rw [htlv, hthv, ← hvt, ← hlt, g₁]
           simp
 
+/-- A record that is not a block, past its `And` pin: `install_step`, its answer tagged. -/
+theorem decl_step_other {pers st0 lst0 lf} {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {pi : Std.U64} {prf : arena.env.IFEnv}
+    {ppend : alloc.vec.Vec arena.checker.PendingCheck}
+    {pjobs : alloc.vec.Vec arena.checker.BlockCheck} {D : Array BlockCheck}
+    {pd : arena.env.IDeclaration} {o}
+    (hrel : AStateRel₀ pers st0 lst0) (hinv : AStateInv pers st0)
+    (hpers : pers.frozen = false) (hpe : PersEnvEmpty pers)
+    (hE : IFEnvRelI pers IEnv.empty prf lf) (hok : EnvOK lf)
+    (hjobs : List.Forall₂ (BlockAt lf) pjobs.val D.toList)
+    (hnb : ∀ b n, absIDeclaration pd ≠ .indDecl b n)
+    (hrun : (do
+      let (r1, st2) ← arena.checker.install_step pers st0 mode pins pi prf ppend pd
+      match r1 with
+      | core.result.Result.Ok q =>
+        let i2 ← pi + 1#u64
+        let (i3, v2) := q
+        ok (core.result.Result.Ok (i2, i3, v2, pjobs), st2)
+      | core.result.Result.Err e => ok (core.result.Result.Err (e, pi), st2)) = ok o) :
+    match o.1 with
+    | .Ok r => ∃ v lst',
+        (match installStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absU pi) lf
+            (absPendingCheckL ppend).toArray (absIDeclaration pd) lst0 with
+          | .ok ((fe', pend'), s') => .ok (.ok (absU pi + 1, fe', pend', D), s')
+          | .error e => .ok (.error (e, absU pi), AState.abandoned)) = .ok (.ok v, lst') ∧
+        FoldR pers r v ∧ AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2
+    | .Err p => ∀ k, absAErrKind p.1 = some k → ∃ le lst',
+        (match installStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absU pi) lf
+            (absPendingCheckL ppend).toArray (absIDeclaration pd) lst0 with
+          | .ok ((fe', pend'), s') => .ok (.ok (absU pi + 1, fe', pend', D), s')
+          | .error e => .ok (.error (e, absU pi), AState.abandoned)) = .ok (.error (le, absU p.2), lst') ∧
+        lAErrKind le = some k := by
+  obtain ⟨⟨qr, qst⟩, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hA := install_step_refines (lf := lf) (i := pi) (pend := ppend) (pd := pd)
+    hrel hinv hpers hpe hE.rel hE.inv hok hnb hq
+  simp only [SimRel₀, AOutRel₀, StateT.run] at hA
+  cases qr with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    intro k hk
+    obtain ⟨le, hle, hlk⟩ := hA k hk
+    exact ⟨le, AState.abandoned, by rw [hle], hlk⟩
+  | Ok q' =>
+    obtain ⟨⟨w1, w2⟩, lst1, hx, ⟨hw1, hw2, hw3⟩, hrel1, hinv1⟩ := hA
+    obtain ⟨qf, qpend⟩ := q'
+    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hi2v : i2.val = pi.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact ⟨(absU pi + 1, w1, w2, D), lst1, by rw [hx], ⟨by simp [hi2v, absU], hw1, hw3, hw2.ok,
+      hjobs.imp fun _ _ h => h.mono hw2⟩, hrel1, hinv1⟩
+
 /-- **`install_decl_step` ⊑ `installDeclStep`** — phase A's step with the position
 carried and the error tagged (finding 13's `SimFold`). -/
 theorem install_decl_step_refines {pers st lst} {v}
@@ -1451,9 +1506,8 @@ theorem install_decl_step_refines {pers st lst} {v}
       exact ⟨_, AState.abandoned, rfl, by simpa using hk⟩
     | true =>
       simp only [id] at hrun ⊢
-      -- the record's own kind
-      by_cases hib : ∃ block n_p, pd = .IndDecl block n_p
-      · obtain ⟨block, n_p, rfl⟩ := hib
+      cases pd with
+      | IndDecl block n_p =>
         simp only [absIDeclaration] at hrun ⊢
         obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hA := install_block_step_refines hrel0 hinv0 hpers hpe hE hok hjobs hq
@@ -1476,27 +1530,14 @@ theorem install_decl_step_refines {pers st lst} {v}
           have hi2v : i2.val = pi.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
           have ho := Result.ok_injective hrun
           subst ho
-          exact ⟨(absU pi + 1, w1, _, w2), lst1, by rw [hx], ⟨by simp [hi2v], hw1, rfl, hw2.ok, hw3⟩,
+          exact ⟨(absU pi + 1, w1, _, w2), lst1, by rw [hx], ⟨by simp [hi2v, absU], hw1, rfl, hw2.ok, hw3⟩,
             hrel1, hinv1⟩
-      · have hnb : ∀ b n, absIDeclaration pd ≠ .indDecl b n := by
-          intro b n he
-          cases pd <;> simp [absIDeclaration] at he
-          exact hib ⟨_, _, rfl⟩
-        have hstep : ∃ q, arena.checker.install_step pers st0 mode pins pi prf ppend pd = ok q ∧
-            (match q.1 with
-              | .Ok q' => (do
-                  let i2 ← pi + 1#u64
-                  ok (core.result.Result.Ok (i2, q'.1, q'.2, pjobs), q.2))
-              | .Err e => ok (core.result.Result.Err (e, pi), q.2)) = ok o := by
-          sorry
-        obtain ⟨q, hq, hrun⟩ := hstep
-        have hA := install_step_refines (lf := vf) (i := pi) (pend := ppend) (pd := pd)
-          hrel0 hinv0 hpers hpe hE.rel hE.inv hok hnb hq
-        obtain ⟨qr, qst⟩ := q
-        simp only [SimRel₀, AOutRel₀, StateT.run] at hA
-        have hkind : ∀ (x : AM (IFEnv × Array PendingCheck)),
-            True := fun _ => trivial
-        sorry
+      | AxiomDecl cv => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
+      | DefnDecl cv v h => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
+      | ThmDecl cv v => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
+      | OpaqueDecl cv v => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
+      | BasisDecl k => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
+      | QuotDecl k cv => exact decl_step_other hrel0 hinv0 hpers hpe hE hok hjobs (by simp [absIDeclaration]) hrun
 
 /-- Phase A's fold, by the cursor's measure. -/
 private theorem install_fold_aux (n : Nat) :
