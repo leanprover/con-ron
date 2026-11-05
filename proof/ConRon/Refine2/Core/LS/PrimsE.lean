@@ -60,15 +60,15 @@ attribute [simp] absLamStk absPiStk
 `laneKnotAt … io f` is `laneKnot … f` with (under `io`) its `infer` slot
 rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
 
-@[local lockstep_simp] theorem laneKnotAt_whnf (m fe l io f) :
-    (laneKnotAt m fe l io f).whnf = (laneKnot m fe l f).whnf := by cases io <;> rfl
+@[local lockstep_simp] theorem laneKnotAt_whnf (m eg fe l io f) :
+    (laneKnotAt m eg fe l io f).whnf = (laneKnot m eg fe l f).whnf := by cases io <;> rfl
 /-- Under the io view the `infer` slot IS the lane knot's `inferIO`. -/
-theorem laneKnotAt_true_infer (m fe l f) :
-    (laneKnotAt m fe l true f).infer = (laneKnot m fe l f).inferIO := rfl
+theorem laneKnotAt_true_infer (m eg fe l f) :
+    (laneKnotAt m eg fe l true f).infer = (laneKnot m eg fe l f).inferIO := rfl
 
 /-- `ensureSort` reads its record's `whnf` slot alone. -/
-@[local lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
-    ensureSort (laneKnotAt m fe l io f) lfe d e = ensureSort (laneKnot m fe l f) lfe d e := by
+@[local lockstep_simp] theorem ensureSort_laneKnotAt (m eg fe l io f lfe d e) :
+    ensureSort (laneKnotAt m eg fe l io f) lfe d e = ensureSort (laneKnot m eg fe l f) lfe d e := by
   cases io <;> rfl
 
 /-- `!=` is `!(==)`, so the tag tests `t.tag != ETag.lam` reduce with the

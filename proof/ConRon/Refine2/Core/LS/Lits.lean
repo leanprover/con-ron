@@ -537,12 +537,12 @@ attribute [local lockstep_simp] natOpStored_pure
 set_option maxHeartbeats 4000000 in
 /-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B. -/
 @[lockstep] theorem reduce_nat_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
+    {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.reduce_nat pers vis st mode lane fu fe depth e) lst
-      (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      (arena.core.reduce_nat pers vis st mode eager lane fu fe depth e) lst
+      (reduceNat (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.reduce_nat, reduceNat]
   lockstep
@@ -561,8 +561,18 @@ pin table. -/
   rw [arena.core.lit_guard_names, litGuardNames]
   lockstep_core
 
+/-- `reserved_rec_bool` ⊑ `reservedRecBool`: `Bool` and its two constructors,
+off the pin table. -/
+@[lockstep] theorem reserved_rec_bool_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.reserved_rec_bool st n) st lst
+      (reservedRecBool (absNIdx n)) := by
+  apply LSR.of_LS
+  rw [arena.core.reserved_rec_bool, reservedRecBool]
+  lockstep_core
+
 /-- `reserved_rec_name` ⊑ `reservedRecName`: the cited `||` chain over the
-four reserved lists. -/
+four reserved lists and the `Bool` tail. -/
 @[lockstep] theorem reserved_rec_name_ls {pers st n lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.reserved_rec_name st n) lst

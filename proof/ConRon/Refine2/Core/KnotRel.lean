@@ -11,8 +11,8 @@ dispatch on it:
 |---|---|
 | `knot_whnf_core … lane fuel … cheap …` | `(<lane's knot> f).whnfCore cheap` (the official `cheap_proj` flag is an argument on both sides) |
 | `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`, `knot_defeq_e` | the record's other five slots (`knot_defeq_e` is the eager slot, task #125) |
-| `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode fe id` |
-| `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode fe` |
+| `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode eager fe id` |
+| `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode eager fe` |
 
 (`LANE_GATED` and `coreKnotGated` went with con-leche's modeled route, task
 #105; `knot_whnf_core`, `knot_whnf` and `knot_defeq` no
@@ -56,6 +56,15 @@ dangling child without looking at it and their stores stay equal field for
 field — only the twin's DAG invariant fails there.  Nothing about resolution
 is premised or concluded any more.
 
+## The eager flag
+
+Every port knot function threads `eager : bool` right after `mode`, and the
+twin's bodies that only call through the record take no flag: there the flag is
+in the record.  So `laneKnot` takes it, and the port's `eager` argument IS the
+flag the lane's twin knot was tied at; the relations quantify over it exactly as
+they do over `mode`.  `knot_defeq_e` re-enters at `eager = true`, the twin's
+`defeqE` slot at `coreKnot mode true`.
+
 ## The three ambient arguments
 
 Every port function of this tier carries `pers : &PersTier`, `vis : u64` and
@@ -84,40 +93,40 @@ open ConRon.Arena
 anything else (`LANE_FULL`, which is `0`) the memoized full knot — the port's
 own `else` arm, so the reading is the code's and not a case analysis the
 refinement invents. -/
-def laneKnot (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
+def laneKnot (mode : ConLeche.CheckMode) (eager : Bool) (fe : IFEnv) (lane : Std.U32)
     (f : Nat) : CoreFnsA :=
-  if lane = arena.core.LANE_IO then coreKnotIO mode fe f
-  else coreKnot mode fe id f
+  if lane = arena.core.LANE_IO then coreKnotIO mode eager fe f
+  else coreKnot mode eager fe id f
 
 /-- **The record an `io`-flagged body call resolves `r.infer` through.**
 `arena::core::knot_infer_at`'s own doc comment: *"This function IS the
 `ioView` substitution in the port — the knot is plain functions, so there is
 no record whose `infer` field can be rebound."* -/
-def laneKnotAt (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
+def laneKnotAt (mode : ConLeche.CheckMode) (eager : Bool) (fe : IFEnv) (lane : Std.U32)
     (io : Bool) (f : Nat) : CoreFnsA :=
-  if io then (laneKnot mode fe lane f).ioView else laneKnot mode fe lane f
+  if io then (laneKnot mode eager fe lane f).ioView else laneKnot mode eager fe lane f
 
-@[simp] theorem laneKnot_io (mode fe f) :
-    laneKnot mode fe arena.core.LANE_IO f = coreKnotIO mode fe f := by
+@[simp] theorem laneKnot_io (mode eager fe f) :
+    laneKnot mode eager fe arena.core.LANE_IO f = coreKnotIO mode eager fe f := by
   rw [laneKnot, ite_eq_left rfl]
 
-@[simp] theorem laneKnot_full (mode fe f) :
-    laneKnot mode fe arena.core.LANE_FULL f = coreKnot mode fe id f := by
+@[simp] theorem laneKnot_full (mode eager fe f) :
+    laneKnot mode eager fe arena.core.LANE_FULL f = coreKnot mode eager fe id f := by
   rw [laneKnot, ite_eq_right (by rw [arena.core.LANE_FULL, arena.core.LANE_IO]; decide)]
 
-@[simp] theorem laneKnotAt_true (mode fe lane f) :
-    laneKnotAt mode fe lane true f = (laneKnot mode fe lane f).ioView := by
+@[simp] theorem laneKnotAt_true (mode eager fe lane f) :
+    laneKnotAt mode eager fe lane true f = (laneKnot mode eager fe lane f).ioView := by
   rw [laneKnotAt, ite_eq_left rfl]
 
-@[simp] theorem laneKnotAt_false (mode fe lane f) :
-    laneKnotAt mode fe lane false f = laneKnot mode fe lane f := by
+@[simp] theorem laneKnotAt_false (mode eager fe lane f) :
+    laneKnotAt mode eager fe lane false f = laneKnot mode eager fe lane f := by
   rw [laneKnotAt, ite_eq_right (by decide)]
 
 /-- The port's lane is NOT `LANE_IO` exactly when the twin's knot is the full
 one — the reading every `else` arm of the five entries takes. -/
-theorem laneKnot_of_ne (mode fe f) {lane : Std.U32}
+theorem laneKnot_of_ne (mode eager fe f) {lane : Std.U32}
     (hi : ¬ lane = arena.core.LANE_IO) :
-    laneKnot mode fe lane f = coreKnot mode fe id f := by
+    laneKnot mode eager fe lane f = coreKnot mode eager fe id f := by
   rw [laneKnot, ite_eq_right hi]
 
 /-! ## The ambient arguments
@@ -199,68 +208,68 @@ refines the corresponding slot of the lane's twin knot.  Established once by
 `knot_infer_at` is not a field: it is `if io then knot_infer_io else
 knot_infer` and `Core/Induction.lean`'s `KnotRel.inferAt` derives it. -/
 structure KnotRel (f : Nat) : Prop where
-  whnfCore : ∀ {pers vis st mode lane fu fe lfe cheap depth e lst o},
+  whnfCore : ∀ {pers vis st mode eager lane fu fe lfe cheap depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_whnf_core pers vis st mode lane fu fe cheap depth e = ok o →
+    arena.core.knot_whnf_core pers vis st mode eager lane fu fe cheap depth e = ok o →
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore cheap
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).whnfCore cheap
         (absU depth) (absEIdx e))
   /-- **No fuel side condition, at any lane**: the twin's slots test the
   stuck tag in their `| fuel + 1 =>` branch only, where the port's `fuel = 0`
   arm has already declined (task #97-P5-Core-2's history of the gated lane,
   deleted with it at task #105, is in git). -/
-  whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
+  whnf : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o →
+    arena.core.knot_whnf pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).whnf
         (absU depth) (absEIdx e))
-  infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
+  infer : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_infer pers vis st mode lane fu fe depth e = ok o →
+    arena.core.knot_infer pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).infer
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).infer
         (absU depth) (absEIdx e))
-  inferIO : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
+  inferIO : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_infer_io pers vis st mode lane fu fe depth e = ok o →
+    arena.core.knot_infer_io pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).inferIO
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).inferIO
         (absU depth) (absEIdx e))
-  defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
+  defeq : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o →
+    arena.core.knot_defeq pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeq
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).defeq
         (absU depth) (absEIdx a) (absEIdx b))
   /-- **The eager slot** (task #125, con-leche #353): `knot_defeq_e` against
-  the record's `defeqE` — the defeq body at `toEager mode` one level down,
+  the record's `defeqE` — the defeq body at `eager := true` one level down,
   memoized on the eager tower's own memos, at every lane (`coreKnotIO`'s slot
   is the full knot's). -/
-  defeqE : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
+  defeqE : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.knot_defeq_e pers vis st mode lane fu fe depth a b = ok o →
+    arena.core.knot_defeq_e pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeqE
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane f).defeqE
         (absU depth) (absEIdx a) (absEIdx b))
 
 /-- **`knot_infer_at`, derived.**  `if io then knot_infer_io else knot_infer`
 against `(laneKnotAt … io f).infer`, which is `r.inferIO` under the io view
 and `r.infer` without it — the two halves of `CoreFnsA.ioView` by iota. -/
 theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
-    {pers vis st mode lane io fu fe lfe depth e lst o}
+    {pers vis st mode eager lane io fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.knot_infer_at pers vis st mode lane io fu fe depth e
+    (hrun : arena.core.knot_infer_at pers vis st mode eager lane io fu fe depth e
       = ok o) :
     Sim₀ absEIdx pers lst o
-      ((laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f).infer
+      ((laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f).infer
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer_at] at hrun
   cases io with
@@ -291,45 +300,45 @@ clause always re-enters `knot_infer_io`, while the twin's `inferBodyIO` calls
 infer otherwise.  The field is therefore stated at the call sites' shape,
 `io = true ∨ lane = LANE_IO`, a fact about the port's two scalar arguments. -/
 structure BodyRel (f : Nat) : Prop where
-  whnfCore : ∀ {pers vis st mode lane fu fe lfe cheap depth e lst o},
+  whnfCore : ∀ {pers vis st mode eager lane fu fe lfe cheap depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.whnf_core_body pers vis st mode lane fu fe cheap depth e = ok o →
+    arena.core.whnf_core_body pers vis st mode eager lane fu fe cheap depth e = ok o →
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe cheap
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe cheap
         (absU depth) (absEIdx e))
-  whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
+  whnf : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o →
+    arena.core.whnf_body pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      (whnfBody (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e))
-  infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
+  infer : ∀ {pers vis st mode eager lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.infer_body pers vis st mode lane fu fe depth e = ok o →
+    arena.core.infer_body pers vis st mode eager lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       (inferBody
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e))
-  inferIO : ∀ {pers vis st mode lane io fu fe lfe depth e lst o},
+  inferIO : ∀ {pers vis st mode eager lane io fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
     (io = true ∨ lane = arena.core.LANE_IO) →
-    arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o →
+    arena.core.infer_body_io pers vis st mode eager lane io fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       (inferBodyIO
-        (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
+        (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe
         (absU depth) (absEIdx e))
-  defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
+  defeq : ∀ {pers vis st mode eager lane fu fe lfe depth a b lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
-    arena.core.defeq_body pers vis st mode lane fu fe depth a b = ok o →
+    arena.core.defeq_body pers vis st mode eager lane fu fe depth a b = ok o →
     Sim₀ id pers lst o
-      (defeqBody (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      (defeqBody (ConRon.Refine.absMode mode) eager
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b))
 
 end ConRon.Refine2

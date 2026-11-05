@@ -427,6 +427,20 @@ theorem pin_sorry_ax_run₀ {pers st lst} {o}
   rw [hc] at h
   exact h
 
+/-- `pin_bool` ⊑ `pinBool`, at slot `PIN_BOOL`. -/
+theorem pin_bool_run₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.pins.pin_bool st = ok o) :
+    PinRE absNIdx lst o pinBool := by
+  rw [arena.pins.pin_bool] at hrun
+  have h := pin_at_run₀ hrel hinv hrun
+  have hc : absSz arena.pins.PIN_BOOL = Arena.PIN_BOOL := by
+    show (arena.pins.PIN_BOOL).val = _
+    rw [arena.pins.PIN_BOOL]
+    rfl
+  rw [hc] at h
+  exact h
+
 /-- `pin_bool_true` ⊑ `pinBoolTrue`, at slot `PIN_BOOL_TRUE`. -/
 theorem pin_bool_true_run₀ {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -583,6 +597,11 @@ theorem pin_eager_reduce_run₀ {pers st lst} {o}
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_sorry_ax st) st lst pinSorryAx :=
   pinRE_lsr hrel hinv fun _ h => pin_sorry_ax_run₀ hrel hinv h
+
+@[lockstep] theorem pin_bool_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_bool st) st lst pinBool :=
+  pinRE_lsr hrel hinv fun _ h => pin_bool_run₀ hrel hinv h
 
 @[lockstep] theorem pin_bool_true_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :

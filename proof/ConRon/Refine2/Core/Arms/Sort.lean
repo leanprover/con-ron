@@ -153,18 +153,18 @@ the twin read its VIEW, so at a dangling non-`sort` reduct the port said
 `Invalid` and the twin `internal` — and it is gone because the twin now tests
 the tag too.  The entry `ensure_sort_core` is this at `LANE_FULL`. -/
 theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
+    {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.ensure_sort pers vis st mode lane fu fe depth e = ok o) :
+    (hrun : arena.core.ensure_sort pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absLIdx pers lst o
-      (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.ensure_sort] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, st1⟩ := p
   have hw := hk.whnf hrel hinv hctx hf hp
-  have htw := ensureSort_run (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+  have htw := ensureSort_run (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
     lfe (absU depth) (absEIdx e) lst
   cases r with
   | Err er =>
@@ -180,7 +180,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
       rw [ite_eq_left hts] at hrun
       have htag : (absEIdx w).tag = ETag.sort := by
         rw [hta, hts]; exact etag_sort_abs
-      have htw2 : (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      have htw2 : (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
           (absU depth) (absEIdx e)).run lst
           = (match lst1.store.view (absEIdx w) with
              | some (.sort u) => Except.ok (u, lst1)

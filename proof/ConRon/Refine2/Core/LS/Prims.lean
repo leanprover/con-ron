@@ -143,12 +143,12 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 /-! ## The Core lemmas closed before round 5, as `@[lockstep]` -/
 
 @[lockstep] theorem ensure_sort_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
+    {pers vis st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absLIdx a)
-      (arena.core.ensure_sort pers vis st mode lane fu fe depth e) lst
-      (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+      (arena.core.ensure_sort pers vis st mode eager lane fu fe depth e) lst
+      (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) :=
   LS.ofSim₀ fun _ h => ensure_sort_refines hk hrel hinv hctx hf h
 

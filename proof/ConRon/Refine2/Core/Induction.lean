@@ -47,7 +47,7 @@ circuit.
 2. **At `LANE_IO`, `knot_whnf_core` / `knot_whnf` / `knot_defeq` fall
    through to the FULL lane's memoized arm**, and `coreKnotIO (f + 1)`'s
    three corresponding slots are literally
-   `(coreKnot mode fe id (f + 1)).whnfCore` and its two siblings — the same
+   `(coreKnot mode eager fe id (f + 1)).whnfCore` and its two siblings — the same
    knot at the SAME fuel.  So those three fields at `LANE_IO` are the field
    at `LANE_FULL`, and the proof is one `rw`.  (`knot_infer_io`'s old
    `io_gate` selector went with con-leche's task #346: the io slot is the io
@@ -103,78 +103,78 @@ reading the base case needs is therefore one lemma per slot, and each is
 alone would make the kernel whnf the WHOLE definition (all five bodies in the
 successor branch), which is 45 s of kernel time on this file; rewriting with
 the equation lemma first leaves a five-`fail` record. -/
-theorem coreKnot_zero_run (mode fe c d a b lst) :
-    (((coreKnot mode fe id 0).whnfCore c d a).run lst
+theorem coreKnot_zero_run (mode eager fe c d a b lst) :
+    (((coreKnot mode eager fe id 0).whnfCore c d a).run lst
         = .error (.internal "fuel exhausted: whnfCore")) ∧
-      (((coreKnot mode fe id 0).whnf d a).run lst
+      (((coreKnot mode eager fe id 0).whnf d a).run lst
         = .error (.internal "fuel exhausted: whnf")) ∧
-      (((coreKnot mode fe id 0).infer d a).run lst
+      (((coreKnot mode eager fe id 0).infer d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
-      (((coreKnot mode fe id 0).inferIO d a).run lst
+      (((coreKnot mode eager fe id 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
-      (((coreKnot mode fe id 0).defeq d a b).run lst
+      (((coreKnot mode eager fe id 0).defeq d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) ∧
-      (((coreKnot mode fe id 0).defeqE d a b).run lst
+      (((coreKnot mode eager fe id 0).defeqE d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) := by
   rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-theorem coreKnotIO_zero_run (mode fe c d a b lst) :
-    (((coreKnotIO mode fe 0).whnfCore c d a).run lst
+theorem coreKnotIO_zero_run (mode eager fe c d a b lst) :
+    (((coreKnotIO mode eager fe 0).whnfCore c d a).run lst
         = .error (.internal "fuel exhausted: whnfCore")) ∧
-      (((coreKnotIO mode fe 0).whnf d a).run lst
+      (((coreKnotIO mode eager fe 0).whnf d a).run lst
         = .error (.internal "fuel exhausted: whnf")) ∧
-      (((coreKnotIO mode fe 0).infer d a).run lst
+      (((coreKnotIO mode eager fe 0).infer d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
-      (((coreKnotIO mode fe 0).inferIO d a).run lst
+      (((coreKnotIO mode eager fe 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
-      (((coreKnotIO mode fe 0).defeq d a b).run lst
+      (((coreKnotIO mode eager fe 0).defeq d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) ∧
-      (((coreKnotIO mode fe 0).defeqE d a b).run lst
+      (((coreKnotIO mode eager fe 0).defeqE d a b).run lst
         = .error (.internal "fuel exhausted: defeq")) := by
   rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The two reduction slots at fuel `0`, **at every lane**. -/
-theorem laneKnot_zero_whnfCore (mode fe lane c d e lst) :
-    ((laneKnot mode fe lane 0).whnfCore c d e).run lst
+theorem laneKnot_zero_whnfCore (mode eager fe lane c d e lst) :
+    ((laneKnot mode eager fe lane 0).whnfCore c d e).run lst
       = .error (.internal "fuel exhausted: whnfCore") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe c d e e lst).1
-  · exact (coreKnot_zero_run mode fe c d e e lst).1
+  · exact (coreKnotIO_zero_run mode eager fe c d e e lst).1
+  · exact (coreKnot_zero_run mode eager fe c d e e lst).1
 
-theorem laneKnot_zero_whnf (mode fe lane d e lst) :
-    ((laneKnot mode fe lane 0).whnf d e).run lst
+theorem laneKnot_zero_whnf (mode eager fe lane d e lst) :
+    ((laneKnot mode eager fe lane 0).whnf d e).run lst
       = .error (.internal "fuel exhausted: whnf") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d e e lst).2.1
-  · exact (coreKnot_zero_run mode fe false d e e lst).2.1
+  · exact (coreKnotIO_zero_run mode eager fe false d e e lst).2.1
+  · exact (coreKnot_zero_run mode eager fe false d e e lst).2.1
 
-theorem laneKnot_zero_infer (mode fe lane d e lst) :
-    ((laneKnot mode fe lane 0).infer d e).run lst
+theorem laneKnot_zero_infer (mode eager fe lane d e lst) :
+    ((laneKnot mode eager fe lane 0).infer d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d e e lst).2.2.1
-  · exact (coreKnot_zero_run mode fe false d e e lst).2.2.1
+  · exact (coreKnotIO_zero_run mode eager fe false d e e lst).2.2.1
+  · exact (coreKnot_zero_run mode eager fe false d e e lst).2.2.1
 
-theorem laneKnot_zero_inferIO (mode fe lane d e lst) :
-    ((laneKnot mode fe lane 0).inferIO d e).run lst
+theorem laneKnot_zero_inferIO (mode eager fe lane d e lst) :
+    ((laneKnot mode eager fe lane 0).inferIO d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d e e lst).2.2.2.1
-  · exact (coreKnot_zero_run mode fe false d e e lst).2.2.2.1
+  · exact (coreKnotIO_zero_run mode eager fe false d e e lst).2.2.2.1
+  · exact (coreKnot_zero_run mode eager fe false d e e lst).2.2.2.1
 
-theorem laneKnot_zero_defeq (mode fe lane d a b lst) :
-    ((laneKnot mode fe lane 0).defeq d a b).run lst
+theorem laneKnot_zero_defeq (mode eager fe lane d a b lst) :
+    ((laneKnot mode eager fe lane 0).defeq d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2.1
-  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2.1
+  · exact (coreKnotIO_zero_run mode eager fe false d a b lst).2.2.2.2.1
+  · exact (coreKnot_zero_run mode eager fe false d a b lst).2.2.2.2.1
 
-theorem laneKnot_zero_defeqE (mode fe lane d a b lst) :
-    ((laneKnot mode fe lane 0).defeqE d a b).run lst
+theorem laneKnot_zero_defeqE (mode eager fe lane d a b lst) :
+    ((laneKnot mode eager fe lane 0).defeqE d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2.2
-  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2.2
+  · exact (coreKnotIO_zero_run mode eager fe false d a b lst).2.2.2.2.2
+  · exact (coreKnot_zero_run mode eager fe false d a b lst).2.2.2.2.2
 
 /-! ## The base case
 
@@ -186,54 +186,54 @@ are never compared). -/
 
 theorem knotRel_zero : KnotRel 0 := by
   constructor
-  · intro pers vis st mode lane fu fe lfe cheap depth e lst o _ _ _ hf hrun
+  · intro pers vis st mode eager lane fu fe lfe cheap depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf_core, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _ _ _))
+  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _ _))
+  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _ _))
+  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer_io, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _ _))
+  · intro pers vis st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
     rw [arena.core.knot_defeq, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _ _))
+  · intro pers vis st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
     rw [arena.core.knot_defeq_e, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeqE _ _ _ _ _ _ _))
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeqE _ _ _ _ _ _ _ _))
 
 /-! ## The twin's `do` block, split at a bind -/
 
@@ -242,59 +242,59 @@ theorem am_run_bind {α β : Type} (m : AM α) (k : α → AM β) (lst : AState)
 
 /-! ## The `defeq` field -/
 
-theorem coreKnotIO_succ_defeq (mode lfe f d a b) :
-    (coreKnotIO mode lfe (f + 1)).defeq d a b
-      = (coreKnot mode lfe id (f + 1)).defeq d a b := by
+theorem coreKnotIO_succ_defeq (mode eager lfe f d a b) :
+    (coreKnotIO mode eager lfe (f + 1)).defeq d a b
+      = (coreKnot mode eager lfe id (f + 1)).defeq d a b := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_defeq_split (mode lfe f d a b lst) :
-    ((coreKnot mode lfe id (f + 1)).defeq d a b).run lst
+theorem coreKnot_succ_defeq_split (mode eager lfe f d a b lst) :
+    ((coreKnot mode eager lfe id (f + 1)).defeq d a b).run lst
       = (((match lst.caches.defeqC[(a, b)]? with
             | some x => pure x
             | none => do
-                let x ← defeqBody mode (coreKnot mode lfe id f) lfe d a b
+                let x ← defeqBody mode eager (coreKnot mode eager lfe id f) lfe d a b
                 defeqSet a b x
                 pure x) : AM Bool)).run lst := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_defeq_hit (mode lfe f d a b lst x)
+theorem coreKnot_succ_defeq_hit (mode eager lfe f d a b lst x)
     (h : lst.caches.defeqC[(a, b)]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).defeq d a b).run lst = .ok (x, lst) := by
+    ((coreKnot mode eager lfe id (f + 1)).defeq d a b).run lst = .ok (x, lst) := by
   rw [coreKnot_succ_defeq_split, h]; rfl
 
-theorem coreKnot_succ_defeq_miss (mode lfe f d a b lst)
+theorem coreKnot_succ_defeq_miss (mode eager lfe f d a b lst)
     (h : lst.caches.defeqC[(a, b)]? = none) :
-    ((coreKnot mode lfe id (f + 1)).defeq d a b).run lst
+    ((coreKnot mode eager lfe id (f + 1)).defeq d a b).run lst
       = (((do
-            let x ← defeqBody mode (coreKnot mode lfe id f) lfe d a b
+            let x ← defeqBody mode eager (coreKnot mode eager lfe id f) lfe d a b
             defeqSet a b x
             pure x) : AM Bool)).run lst := by
   rw [coreKnot_succ_defeq_split, h]
 
 theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst o}
+    {pers vis st mode eager lane fu fe lfe depth a b lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o) :
+    (hrun : arena.core.knot_defeq pers vis st mode eager lane fu fe depth a b = ok o) :
     Sim₀ id pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeq
         (absU depth) (absEIdx a) (absEIdx b)) := by
   rw [arena.core.knot_defeq, ite_eq_right (absU_ne_zero hf)] at hrun
-  have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
+  have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeq
       (absU depth) (absEIdx a) (absEIdx b)
-      = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeq
+      = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).defeq
           (absU depth) (absEIdx a) (absEIdx b) := by
     by_cases hio : lane = arena.core.LANE_IO
     · rw [hio, laneKnot_io, coreKnotIO_succ_defeq]
-    · rw [laneKnot_of_ne _ _ _ hio]
+    · rw [laneKnot_of_ne _ _ _ _ hio]
   rw [show Sim₀ id pers lst o
-        ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
+        ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeq
           (absU depth) (absEIdx a) (absEIdx b))
       = Sim₀ id pers lst o
-        ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeq
+        ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).defeq
           (absU depth) (absEIdx a) (absEIdx b)) from by rw [htwin]]
-  have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
-      = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
+  have hlane : laneKnot (ConRon.Refine.absMode mode) eager lfe arena.core.LANE_FULL f
+      = coreKnot (ConRon.Refine.absMode mode) eager lfe id f := laneKnot_full _ _ _ _
   obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hprobe := defeq_probe_abs hrel hinv hop
@@ -304,14 +304,14 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
     rw [hoc] at hrun hprobe
     have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
     rw [← ho]
-    exact AOut₀.ok (coreKnot_succ_defeq_hit _ _ _ _ _ _ _ _ hprobe.symm)
+    exact AOut₀.ok (coreKnot_succ_defeq_hit _ _ _ _ _ _ _ _ _ hprobe.symm)
       hrel hinv
   | none =>
     rw [hoc] at hrun hprobe
-    have htw := (coreKnot_succ_defeq_miss (ConRon.Refine.absMode mode) lfe f
+    have htw := (coreKnot_succ_defeq_miss (ConRon.Refine.absMode mode) eager lfe f
       (absU depth) (absEIdx a) (absEIdx b) lst hprobe.symm).trans
-      (am_run_bind (defeqBody (ConRon.Refine.absMode mode)
-        (coreKnot (ConRon.Refine.absMode mode) lfe id f) lfe
+      (am_run_bind (defeqBody (ConRon.Refine.absMode mode) eager
+        (coreKnot (ConRon.Refine.absMode mode) eager lfe id f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) _ lst)
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -341,35 +341,35 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
 
 `knot_defeq_e` has no lane test: at `fuel ≠ 0` it enters the eager tower's
 memos, probes `defeq_c` at the ordered pair, on a miss runs `defeq_body` at
-`to_eager(mode)` and `LANE_FULL` one level down and records the verdict, and
+`eager = true` and `LANE_FULL` one level down and records the verdict, and
 leaves the eager memos on both exits.  The twin's slot is the same steps, and
 `coreKnotIO`'s is the full knot's at the same fuel, so the step is the
 `defeq` field's between `Probes.lean`'s `enter_eager_run` and
-`leave_eager_run`, with `BodyRel.defeq` at the eager mode. -/
+`leave_eager_run`, with `BodyRel.defeq` at `eager = true`. -/
 
-theorem coreKnotIO_succ_defeqE (mode lfe f d a b) :
-    (coreKnotIO mode lfe (f + 1)).defeqE d a b
-      = (coreKnot mode lfe id (f + 1)).defeqE d a b := by
+theorem coreKnotIO_succ_defeqE (mode eager lfe f d a b) :
+    (coreKnotIO mode eager lfe (f + 1)).defeqE d a b
+      = (coreKnot mode eager lfe id (f + 1)).defeqE d a b := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_defeqE_split (mode lfe f d a b lst) :
-    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
-      = ((enterEager mode.eager).run lst >>= fun p =>
+theorem coreKnot_succ_defeqE_split (mode eager lfe f d a b lst) :
+    ((coreKnot mode eager lfe id (f + 1)).defeqE d a b).run lst
+      = ((enterEager eager).run lst >>= fun p =>
           (((match p.2.caches.defeqC[(a, b)]? with
             | some x => do
                 leaveEager p.1
                 pure x
             | none => do
-                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                let x ← defeqBody mode true (coreKnot mode true lfe id f) lfe d a b
                 defeqSet a b x
                 leaveEager p.1
                 pure x) : AM Bool)).run p.2) := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_defeqE_hit (mode lfe f d a b lst lsv lst1 x)
-    (he : (enterEager mode.eager).run lst = .ok (lsv, lst1))
+theorem coreKnot_succ_defeqE_hit (mode eager lfe f d a b lst lsv lst1 x)
+    (he : (enterEager eager).run lst = .ok (lsv, lst1))
     (h : lst1.caches.defeqC[(a, b)]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
+    ((coreKnot mode eager lfe id (f + 1)).defeqE d a b).run lst
       = ((do leaveEager lsv; pure x : AM Bool)).run lst1 := by
   rw [coreKnot_succ_defeqE_split, he]
   show (((match lst1.caches.defeqC[(a, b)]? with
@@ -377,18 +377,18 @@ theorem coreKnot_succ_defeqE_hit (mode lfe f d a b lst lsv lst1 x)
                 leaveEager lsv
                 pure x
             | none => do
-                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                let x ← defeqBody mode true (coreKnot mode true lfe id f) lfe d a b
                 defeqSet a b x
                 leaveEager lsv
                 pure x) : AM Bool)).run lst1 = _
   rw [h]
 
-theorem coreKnot_succ_defeqE_miss (mode lfe f d a b lst lsv lst1)
-    (he : (enterEager mode.eager).run lst = .ok (lsv, lst1))
+theorem coreKnot_succ_defeqE_miss (mode eager lfe f d a b lst lsv lst1)
+    (he : (enterEager eager).run lst = .ok (lsv, lst1))
     (h : lst1.caches.defeqC[(a, b)]? = none) :
-    ((coreKnot mode lfe id (f + 1)).defeqE d a b).run lst
+    ((coreKnot mode eager lfe id (f + 1)).defeqE d a b).run lst
       = ((do
-            let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+            let x ← defeqBody mode true (coreKnot mode true lfe id f) lfe d a b
             defeqSet a b x
             leaveEager lsv
             pure x : AM Bool)).run lst1 := by
@@ -398,38 +398,34 @@ theorem coreKnot_succ_defeqE_miss (mode lfe f d a b lst lsv lst1)
                 leaveEager lsv
                 pure x
             | none => do
-                let x ← defeqBody mode.toEager (coreKnot mode.toEager lfe id f) lfe d a b
+                let x ← defeqBody mode true (coreKnot mode true lfe id f) lfe d a b
                 defeqSet a b x
                 leaveEager lsv
                 pure x) : AM Bool)).run lst1 = _
   rw [h]
 
 theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst o}
+    {pers vis st mode eager lane fu fe lfe depth a b lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_defeq_e pers vis st mode lane fu fe depth a b = ok o) :
+    (hrun : arena.core.knot_defeq_e pers vis st mode eager lane fu fe depth a b = ok o) :
     Sim₀ id pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeqE
         (absU depth) (absEIdx a) (absEIdx b)) := by
   rw [arena.core.knot_defeq_e, ite_eq_right (absU_ne_zero hf)] at hrun
-  have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+  have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeqE
       (absU depth) (absEIdx a) (absEIdx b)
-      = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeqE
+      = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).defeqE
           (absU depth) (absEIdx a) (absEIdx b) := by
     by_cases hio : lane = arena.core.LANE_IO
     · rw [hio, laneKnot_io, coreKnotIO_succ_defeqE]
-    · rw [laneKnot_of_ne _ _ _ hio]
+    · rw [laneKnot_of_ne _ _ _ _ hio]
   rw [show Sim₀ id pers lst o
-        ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeqE
+        ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeqE
           (absU depth) (absEIdx a) (absEIdx b))
       = Sim₀ id pers lst o
-        ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeqE
+        ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).defeqE
           (absU depth) (absEIdx a) (absEIdx b)) from by rw [htwin]]
-  obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hb1' : b1 = (ConRon.Refine.absMode mode).eager := by
-    cases mode <;> (simp only [kernel.env.eager, Result.ok.injEq] at hb1; rw [← hb1]; rfl)
-  subst hb1'
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨saved, st1⟩ := p
   obtain ⟨lsv, lst1, hen, hsv, hrel1, hinv1⟩ := enter_eager_run hrel hinv hp
@@ -441,7 +437,7 @@ theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
   cases hoc : op with
   | some x =>
     rw [hoc] at hrun hprobe
-    rw [coreKnot_succ_defeqE_hit _ _ _ _ _ _ _ _ _ _ hen hprobe.symm]
+    rw [coreKnot_succ_defeqE_hit _ _ _ _ _ _ _ _ _ _ _ hen hprobe.symm]
     obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have ho : (core.result.Result.Ok x, st2) = o := Result.ok_injective hrun
     rw [← ho]
@@ -451,15 +447,12 @@ theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
     rfl
   | none =>
     rw [hoc] at hrun hprobe
-    rw [coreKnot_succ_defeqE_miss _ _ _ _ _ _ _ _ _ hen hprobe.symm, am_run_bind]
-    obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hme' : ConRon.Refine.absMode me = (ConRon.Refine.absMode mode).toEager := by
-      cases mode <;> (simp only [kernel.env.to_eager, Result.ok.injEq] at hme; rw [← hme]; rfl)
+    rw [coreKnot_succ_defeqE_miss _ _ _ _ _ _ _ _ _ _ hen hprobe.symm, am_run_bind]
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, st2⟩ := p
     have hbody := hb.defeq hrel1 hinv1 hctx (absU_pred hf hi) hbd
-    rw [hme', laneKnot_full] at hbody
+    rw [laneKnot_full] at hbody
     cases r with
     | Err er =>
       have ho : (core.result.Result.Err er, st2) = o := Result.ok_injective hrun
@@ -488,42 +481,42 @@ theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
 
 /-! ## The `infer` field -/
 
-theorem coreKnotIO_succ_infer (mode lfe f d e) :
-    (coreKnotIO mode lfe (f + 1)).infer d e
-      = inferBodyIO (coreKnotIO mode lfe f) lfe d e := by
+theorem coreKnotIO_succ_infer (mode eager lfe f d e) :
+    (coreKnotIO mode eager lfe (f + 1)).infer d e
+      = inferBodyIO (coreKnotIO mode eager lfe f) lfe d e := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_infer_split (mode lfe f d e lst) :
-    ((coreKnot mode lfe id (f + 1)).infer d e).run lst
+theorem coreKnot_succ_infer_split (mode eager lfe f d e lst) :
+    ((coreKnot mode eager lfe id (f + 1)).infer d e).run lst
       = (((match lst.caches.inferC[e]? with
             | some x => pure x
             | none => do
-                let x ← inferBody (coreKnot mode lfe id f) lfe d e
+                let x ← inferBody (coreKnot mode eager lfe id f) lfe d e
                 inferSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_infer_hit (mode lfe f d e lst x)
+theorem coreKnot_succ_infer_hit (mode eager lfe f d e lst x)
     (h : lst.caches.inferC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).infer d e).run lst = .ok (x, lst) := by
+    ((coreKnot mode eager lfe id (f + 1)).infer d e).run lst = .ok (x, lst) := by
   rw [coreKnot_succ_infer_split, h]; rfl
 
-theorem coreKnot_succ_infer_miss (mode lfe f d e lst)
+theorem coreKnot_succ_infer_miss (mode eager lfe f d e lst)
     (h : lst.caches.inferC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).infer d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).infer d e).run lst
       = (((do
-            let x ← inferBody (coreKnot mode lfe id f) lfe d e
+            let x ← inferBody (coreKnot mode eager lfe id f) lfe d e
             inferSet e x
             pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_infer_split, h]
 
 theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
+    {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_infer pers vis st mode lane fu fe depth e = ok o) :
+    (hrun : arena.core.knot_infer pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).infer
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer, ite_eq_right (absU_ne_zero hf)] at hrun
   by_cases hio : lane = arena.core.LANE_IO
@@ -536,13 +529,13 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
     exact h2
   · rw [ite_eq_right hio] at hrun
     rw [show Sim₀ absEIdx pers lst o
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).infer
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst o
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).infer
-            (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hio]]
-    have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
-        = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).infer
+            (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ _ hio]]
+    have hlane : laneKnot (ConRon.Refine.absMode mode) eager lfe arena.core.LANE_FULL f
+        = coreKnot (ConRon.Refine.absMode mode) eager lfe id f := laneKnot_full _ _ _ _
     obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hprobe := infer_probe_abs hrel hinv hop
     cases hoc : op with
@@ -550,14 +543,14 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut₀.ok (coreKnot_succ_infer_hit _ _ _ _ _ _ _ hprobe.symm)
+      exact AOut₀.ok (coreKnot_succ_infer_hit _ _ _ _ _ _ _ _ hprobe.symm)
         hrel hinv
     | none =>
       rw [hoc] at hrun hprobe
-      have htw := (coreKnot_succ_infer_miss (ConRon.Refine.absMode mode) lfe f
+      have htw := (coreKnot_succ_infer_miss (ConRon.Refine.absMode mode) eager lfe f
         (absU depth) (absEIdx e) lst hprobe.symm).trans
         (am_run_bind (inferBody
-          (coreKnot (ConRon.Refine.absMode mode) lfe id f) lfe
+          (coreKnot (ConRon.Refine.absMode mode) eager lfe id f) lfe
           (absU depth) (absEIdx e)) _ lst)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -585,42 +578,42 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
 
 /-! ## The `inferIO` field -/
 
-theorem coreKnotIO_succ_inferIO (mode lfe f d e) :
-    (coreKnotIO mode lfe (f + 1)).inferIO d e
-      = inferBodyIO (coreKnotIO mode lfe f) lfe d e := by
+theorem coreKnotIO_succ_inferIO (mode eager lfe f d e) :
+    (coreKnotIO mode eager lfe (f + 1)).inferIO d e
+      = inferBodyIO (coreKnotIO mode eager lfe f) lfe d e := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_inferIO_split (mode lfe f d e lst) :
-    ((coreKnot mode lfe id (f + 1)).inferIO d e).run lst
+theorem coreKnot_succ_inferIO_split (mode eager lfe f d e lst) :
+    ((coreKnot mode eager lfe id (f + 1)).inferIO d e).run lst
       = (((match lst.caches.inferIOC[e]? with
             | some x => pure x
             | none => do
-                let x ← inferBodyIO ((coreKnot mode lfe id f).ioView) lfe d e
+                let x ← inferBodyIO ((coreKnot mode eager lfe id f).ioView) lfe d e
                 inferIOSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_inferIO_hit (mode lfe f d e lst x)
+theorem coreKnot_succ_inferIO_hit (mode eager lfe f d e lst x)
     (h : lst.caches.inferIOC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).inferIO d e).run lst = .ok (x, lst) := by
+    ((coreKnot mode eager lfe id (f + 1)).inferIO d e).run lst = .ok (x, lst) := by
   rw [coreKnot_succ_inferIO_split, h]; rfl
 
-theorem coreKnot_succ_inferIO_miss (mode lfe f d e lst)
+theorem coreKnot_succ_inferIO_miss (mode eager lfe f d e lst)
     (h : lst.caches.inferIOC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).inferIO d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).inferIO d e).run lst
       = (((do
-            let x ← inferBodyIO ((coreKnot mode lfe id f).ioView) lfe d e
+            let x ← inferBodyIO ((coreKnot mode eager lfe id f).ioView) lfe d e
             inferIOSet e x
             pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_inferIO_split, h]
 
 theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
+    {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_infer_io pers vis st mode lane fu fe depth e = ok o) :
+    (hrun : arena.core.knot_infer_io pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).inferIO
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer_io, ite_eq_right (absU_ne_zero hf)] at hrun
   by_cases hio : lane = arena.core.LANE_IO
@@ -633,14 +626,14 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
     exact h2
   · rw [ite_eq_right hio] at hrun
     rw [show Sim₀ absEIdx pers lst o
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).inferIO
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst o
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).inferIO
-            (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hio]]
-    have hlane : (laneKnot (ConRon.Refine.absMode mode) lfe
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).inferIO
+            (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ _ hio]]
+    have hlane : (laneKnot (ConRon.Refine.absMode mode) eager lfe
           arena.core.LANE_FULL f).ioView
-        = (coreKnot (ConRon.Refine.absMode mode) lfe id f).ioView := by
+        = (coreKnot (ConRon.Refine.absMode mode) eager lfe id f).ioView := by
       rw [laneKnot_full]
     obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hprobe := infer_io_probe_abs hrel hinv hop
@@ -649,14 +642,14 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut₀.ok (coreKnot_succ_inferIO_hit _ _ _ _ _ _ _ hprobe.symm)
+      exact AOut₀.ok (coreKnot_succ_inferIO_hit _ _ _ _ _ _ _ _ hprobe.symm)
         hrel hinv
     | none =>
       rw [hoc] at hrun hprobe
-      have htw := (coreKnot_succ_inferIO_miss (ConRon.Refine.absMode mode) lfe f
+      have htw := (coreKnot_succ_inferIO_miss (ConRon.Refine.absMode mode) eager lfe f
         (absU depth) (absEIdx e) lst hprobe.symm).trans
         (am_run_bind (inferBodyIO
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id f).ioView) lfe
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id f).ioView) lfe
           (absU depth) (absEIdx e)) _ lst)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -756,20 +749,20 @@ theorem whnf_stuck_tag_abs {e : arena.handle.EIdx} {b : Bool}
 
 /-! ## The `whnfCore` field -/
 
-theorem coreKnotIO_succ_whnfCore (mode lfe f c d e) :
-    (coreKnotIO mode lfe (f + 1)).whnfCore c d e
-      = (coreKnot mode lfe id (f + 1)).whnfCore c d e := by
+theorem coreKnotIO_succ_whnfCore (mode eager lfe f c d e) :
+    (coreKnotIO mode eager lfe (f + 1)).whnfCore c d e
+      = (coreKnot mode eager lfe id (f + 1)).whnfCore c d e := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_whnfCore_eq (mode lfe f c d e) :
-    (coreKnot mode lfe id (f + 1)).whnfCore c d e
+theorem coreKnot_succ_whnfCore_eq (mode eager lfe f c d e) :
+    (coreKnot mode eager lfe id (f + 1)).whnfCore c d e
       = (if whnfCoreStuckTag e then pure e
          else if c then do
            let s ← get
            match s.caches.whnfCoreCheapC[e]? with
            | some x => pure x
            | none => do
-               let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe true d e
+               let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe true d e
                whnfCoreCheapSet e x
                pure x
          else do
@@ -777,77 +770,77 @@ theorem coreKnot_succ_whnfCore_eq (mode lfe f c d e) :
            match s.caches.whnfCoreC[e]? with
            | some x => pure x
            | none => do
-               let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe false d e
+               let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe false d e
                whnfCoreSet e x
                pure x) := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_whnfCore_stuck (mode lfe f c d e lst)
+theorem coreKnot_succ_whnfCore_stuck (mode eager lfe f c d e lst)
     (hs : whnfCoreStuckTag e = true) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore c d e).run lst = .ok (e, lst) := by
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore c d e).run lst = .ok (e, lst) := by
   rw [coreKnot_succ_whnfCore_eq, ite_eq_left hs]; rfl
 
 /-! ### The full (`cheap = false`) memo -/
 
-theorem coreKnot_succ_whnfCore_split (mode lfe f d e lst)
+theorem coreKnot_succ_whnfCore_split (mode eager lfe f d e lst)
     (hs : whnfCoreStuckTag e = false) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore false d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore false d e).run lst
       = (((match lst.caches.whnfCoreC[e]? with
             | some x => pure x
             | none => do
-                let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe false d e
+                let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe false d e
                 whnfCoreSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_whnfCore_eq, ite_eq_right (by simp [hs]), ite_eq_right (by decide)]; rfl
 
-theorem coreKnot_succ_whnfCore_hit (mode lfe f d e lst x)
+theorem coreKnot_succ_whnfCore_hit (mode eager lfe f d e lst x)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore false d e).run lst = .ok (x, lst) := by
-  rw [coreKnot_succ_whnfCore_split _ _ _ _ _ _ hs, h]; rfl
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore false d e).run lst = .ok (x, lst) := by
+  rw [coreKnot_succ_whnfCore_split _ _ _ _ _ _ _ hs, h]; rfl
 
-theorem coreKnot_succ_whnfCore_miss (mode lfe f d e lst)
+theorem coreKnot_succ_whnfCore_miss (mode eager lfe f d e lst)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore false d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore false d e).run lst
       = (((do
-            let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe false d e
+            let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe false d e
             whnfCoreSet e x
             pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnfCore_split _ _ _ _ _ _ hs, h]
+  rw [coreKnot_succ_whnfCore_split _ _ _ _ _ _ _ hs, h]
 
 /-! ### The cheap (`cheap = true`) memo, its own table -/
 
-theorem coreKnot_succ_whnfCoreCheap_split (mode lfe f d e lst)
+theorem coreKnot_succ_whnfCoreCheap_split (mode eager lfe f d e lst)
     (hs : whnfCoreStuckTag e = false) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore true d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore true d e).run lst
       = (((match lst.caches.whnfCoreCheapC[e]? with
             | some x => pure x
             | none => do
-                let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe true d e
+                let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe true d e
                 whnfCoreCheapSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_whnfCore_eq, ite_eq_right (by simp [hs]), ite_eq_left rfl]; rfl
 
-theorem coreKnot_succ_whnfCoreCheap_hit (mode lfe f d e lst x)
+theorem coreKnot_succ_whnfCoreCheap_hit (mode eager lfe f d e lst x)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreCheapC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore true d e).run lst = .ok (x, lst) := by
-  rw [coreKnot_succ_whnfCoreCheap_split _ _ _ _ _ _ hs, h]; rfl
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore true d e).run lst = .ok (x, lst) := by
+  rw [coreKnot_succ_whnfCoreCheap_split _ _ _ _ _ _ _ hs, h]; rfl
 
-theorem coreKnot_succ_whnfCoreCheap_miss (mode lfe f d e lst)
+theorem coreKnot_succ_whnfCoreCheap_miss (mode eager lfe f d e lst)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreCheapC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).whnfCore true d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnfCore true d e).run lst
       = (((do
-            let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe true d e
+            let x ← whnfCoreBody mode (coreKnot mode eager lfe id f) lfe true d e
             whnfCoreCheapSet e x
             pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnfCoreCheap_split _ _ _ _ _ _ hs, h]
+  rw [coreKnot_succ_whnfCoreCheap_split _ _ _ _ _ _ _ hs, h]
 
 theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe cheap depth e lst o}
+    {pers vis st mode eager lane fu fe lfe cheap depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_whnf_core pers vis st mode lane fu fe cheap depth e = ok o) :
+    (hrun : arena.core.knot_whnf_core pers vis st mode eager lane fu fe cheap depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_whnf_core, ite_eq_right (absU_ne_zero hf)] at hrun
   obtain ⟨bt, hbt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -859,38 +852,38 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
     have ho : (core.result.Result.Ok e1, st) = o := Result.ok_injective hrun
     rw [← ho, dupId_eidx _ _ he1]
     have hsv : whnfCoreStuckTag (absEIdx e) = true := by rw [← hst]; exact hbv
-    have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
+    have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
         (absU depth) (absEIdx e)
-        = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore cheap
+        = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e) := by
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_whnfCore]
-      · rw [laneKnot_of_ne _ _ _ hio]
+      · rw [laneKnot_of_ne _ _ _ _ hio]
     rw [show Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore cheap
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e)) from by rw [htwin]]
-    exact AOut₀.ok (coreKnot_succ_whnfCore_stuck _ _ _ _ _ _ _ hsv) hrel hinv
+    exact AOut₀.ok (coreKnot_succ_whnfCore_stuck _ _ _ _ _ _ _ _ hsv) hrel hinv
   · rw [ite_eq_right hbv] at hrun
     have hsv : whnfCoreStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
-    have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
+    have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
         (absU depth) (absEIdx e)
-        = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore cheap
+        = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e) := by
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_whnfCore]
-      · rw [laneKnot_of_ne _ _ _ hio]
+      · rw [laneKnot_of_ne _ _ _ _ hio]
     rw [show Sim₀ absEIdx pers lst o
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst o
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore cheap
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e)) from by rw [htwin]]
-    have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
-        = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
+    have hlane : laneKnot (ConRon.Refine.absMode mode) eager lfe arena.core.LANE_FULL f
+        = coreKnot (ConRon.Refine.absMode mode) eager lfe id f := laneKnot_full _ _ _ _
     cases cheap with
     | false =>
       rw [ite_eq_right (by decide)] at hrun
@@ -901,14 +894,14 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut₀.ok (coreKnot_succ_whnfCore_hit _ _ _ _ _ _ _ hsv hprobe.symm)
+        exact AOut₀.ok (coreKnot_succ_whnfCore_hit _ _ _ _ _ _ _ _ hsv hprobe.symm)
           hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
-        have htw := (coreKnot_succ_whnfCore_miss (ConRon.Refine.absMode mode) lfe f
+        have htw := (coreKnot_succ_whnfCore_miss (ConRon.Refine.absMode mode) eager lfe f
           (absU depth) (absEIdx e) lst hsv hprobe.symm).trans
           (am_run_bind (whnfCoreBody (ConRon.Refine.absMode mode)
-            (coreKnot (ConRon.Refine.absMode mode) lfe id f) lfe false
+            (coreKnot (ConRon.Refine.absMode mode) eager lfe id f) lfe false
             (absU depth) (absEIdx e)) _ lst)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -942,14 +935,14 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut₀.ok (coreKnot_succ_whnfCoreCheap_hit _ _ _ _ _ _ _ hsv hprobe.symm)
+        exact AOut₀.ok (coreKnot_succ_whnfCoreCheap_hit _ _ _ _ _ _ _ _ hsv hprobe.symm)
           hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
-        have htw := (coreKnot_succ_whnfCoreCheap_miss (ConRon.Refine.absMode mode) lfe f
+        have htw := (coreKnot_succ_whnfCoreCheap_miss (ConRon.Refine.absMode mode) eager lfe f
           (absU depth) (absEIdx e) lst hsv hprobe.symm).trans
           (am_run_bind (whnfCoreBody (ConRon.Refine.absMode mode)
-            (coreKnot (ConRon.Refine.absMode mode) lfe id f) lfe true
+            (coreKnot (ConRon.Refine.absMode mode) eager lfe id f) lfe true
             (absU depth) (absEIdx e)) _ lst)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -977,61 +970,61 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
 
 /-! ## The `whnf` field -/
 
-theorem coreKnotIO_succ_whnf (mode lfe f d e) :
-    (coreKnotIO mode lfe (f + 1)).whnf d e
-      = (coreKnot mode lfe id (f + 1)).whnf d e := by
+theorem coreKnotIO_succ_whnf (mode eager lfe f d e) :
+    (coreKnotIO mode eager lfe (f + 1)).whnf d e
+      = (coreKnot mode eager lfe id (f + 1)).whnf d e := by
   rw [coreKnotIO]
 
-theorem coreKnot_succ_whnf_eq (mode lfe f d e) :
-    (coreKnot mode lfe id (f + 1)).whnf d e
+theorem coreKnot_succ_whnf_eq (mode eager lfe f d e) :
+    (coreKnot mode eager lfe id (f + 1)).whnf d e
       = (if whnfStuckTag e then pure e
          else do
            let s ← get
            match s.caches.whnfC[e]? with
            | some x => pure x
            | none => do
-               let x ← whnfBody (coreKnot mode lfe id f) lfe d e
+               let x ← whnfBody (coreKnot mode eager lfe id f) lfe d e
                whnfSet e x
                pure x) := by
   rw [coreKnot]; rfl
 
-theorem coreKnot_succ_whnf_stuck (mode lfe f d e lst)
+theorem coreKnot_succ_whnf_stuck (mode eager lfe f d e lst)
     (hs : whnfStuckTag e = true) :
-    ((coreKnot mode lfe id (f + 1)).whnf d e).run lst = .ok (e, lst) := by
+    ((coreKnot mode eager lfe id (f + 1)).whnf d e).run lst = .ok (e, lst) := by
   rw [coreKnot_succ_whnf_eq, ite_eq_left hs]; rfl
 
-theorem coreKnot_succ_whnf_split (mode lfe f d e lst)
+theorem coreKnot_succ_whnf_split (mode eager lfe f d e lst)
     (hs : whnfStuckTag e = false) :
-    ((coreKnot mode lfe id (f + 1)).whnf d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnf d e).run lst
       = (((match lst.caches.whnfC[e]? with
             | some x => pure x
             | none => do
-                let x ← whnfBody (coreKnot mode lfe id f) lfe d e
+                let x ← whnfBody (coreKnot mode eager lfe id f) lfe d e
                 whnfSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_whnf_eq, ite_eq_right (by simp [hs])]; rfl
 
-theorem coreKnot_succ_whnf_hit (mode lfe f d e lst x)
+theorem coreKnot_succ_whnf_hit (mode eager lfe f d e lst x)
     (hs : whnfStuckTag e = false) (h : lst.caches.whnfC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).whnf d e).run lst = .ok (x, lst) := by
-  rw [coreKnot_succ_whnf_split _ _ _ _ _ _ hs, h]; rfl
+    ((coreKnot mode eager lfe id (f + 1)).whnf d e).run lst = .ok (x, lst) := by
+  rw [coreKnot_succ_whnf_split _ _ _ _ _ _ _ hs, h]; rfl
 
-theorem coreKnot_succ_whnf_miss (mode lfe f d e lst)
+theorem coreKnot_succ_whnf_miss (mode eager lfe f d e lst)
     (hs : whnfStuckTag e = false) (h : lst.caches.whnfC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).whnf d e).run lst
+    ((coreKnot mode eager lfe id (f + 1)).whnf d e).run lst
       = (((do
-            let x ← whnfBody (coreKnot mode lfe id f) lfe d e
+            let x ← whnfBody (coreKnot mode eager lfe id f) lfe d e
             whnfSet e x
             pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnf_split _ _ _ _ _ _ hs, h]
+  rw [coreKnot_succ_whnf_split _ _ _ _ _ _ _ hs, h]
 
 theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
+    {pers vis st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o) :
+    (hrun : arena.core.knot_whnf pers vis st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+      ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_whnf, ite_eq_right (absU_ne_zero hf)] at hrun
   obtain ⟨bt, hbt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1042,38 +1035,38 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
     have ho : (core.result.Result.Ok e1, st) = o := Result.ok_injective hrun
     rw [← ho, dupId_eidx _ _ he1]
     have hsv : whnfStuckTag (absEIdx e) = true := by rw [← hst]; exact hbv
-    have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+    have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)
-        = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
+        = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnf
             (absU depth) (absEIdx e) := by
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_whnf]
-      · rw [laneKnot_of_ne _ _ _ hio]
+      · rw [laneKnot_of_ne _ _ _ _ hio]
     rw [show Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnf
             (absU depth) (absEIdx e)) from by rw [htwin]]
-    exact AOut₀.ok (coreKnot_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
+    exact AOut₀.ok (coreKnot_succ_whnf_stuck _ _ _ _ _ _ _ hsv) hrel hinv
   · rw [ite_eq_right hbv] at hrun
     have hsv : whnfStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
-    have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+    have htwin : (laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)
-        = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
+        = (coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnf
             (absU depth) (absEIdx e) := by
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_whnf]
-      · rw [laneKnot_of_ne _ _ _ hio]
+      · rw [laneKnot_of_ne _ _ _ _ hio]
     rw [show Sim₀ absEIdx pers lst o
-          ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+          ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
             (absU depth) (absEIdx e))
         = Sim₀ absEIdx pers lst o
-          ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
+          ((coreKnot (ConRon.Refine.absMode mode) eager lfe id (f + 1)).whnf
             (absU depth) (absEIdx e)) from by rw [htwin]]
-    have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
-        = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
+    have hlane : laneKnot (ConRon.Refine.absMode mode) eager lfe arena.core.LANE_FULL f
+        = coreKnot (ConRon.Refine.absMode mode) eager lfe id f := laneKnot_full _ _ _ _
     obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hprobe := whnf_probe_abs hrel hinv hop
     cases hoc : op with
@@ -1081,13 +1074,13 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut₀.ok (coreKnot_succ_whnf_hit _ _ _ _ _ _ _ hsv hprobe.symm)
+      exact AOut₀.ok (coreKnot_succ_whnf_hit _ _ _ _ _ _ _ _ hsv hprobe.symm)
         hrel hinv
     | none =>
       rw [hoc] at hrun hprobe
-      have htw := (coreKnot_succ_whnf_miss (ConRon.Refine.absMode mode) lfe f
+      have htw := (coreKnot_succ_whnf_miss (ConRon.Refine.absMode mode) eager lfe f
         (absU depth) (absEIdx e) lst hsv hprobe.symm).trans
-        (am_run_bind (whnfBody (coreKnot (ConRon.Refine.absMode mode) lfe id f)
+        (am_run_bind (whnfBody (coreKnot (ConRon.Refine.absMode mode) eager lfe id f)
           lfe (absU depth) (absEIdx e)) _ lst)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
