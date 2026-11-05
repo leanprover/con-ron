@@ -7,22 +7,18 @@ Task #97a, follow-up 4, second half.  `WFProofs.lean`'s last section gives
 stated there, because it is MONADIC: twenty walks in
 `AM = StateT AState (Except CheckError)`, not functions on an `EStore`.
 
-Task #97-P5-2 §11 item 4 names `promote` beside `internBind` and the three
-node interns as an `Ext` the refinement demands and the store layer does not
-supply, and `Bridge/Promote/Exact.lean`'s six-conjunct `promote*_spec`s each
-carried `Ext s.store s'.store` and a `PFrame` among their `sorry`s.  Those two
-conjuncts need **no hypothesis at all** — no `StoreWF`, no `PMemoOK`, no
-denotation — because the promotion's only state-changing primitives are the
-four `internPersistent*`, each of which appends and nothing else.  So they
-are proved here, unconditionally and once, and what was left to the bridge
-(proved there since) needs the invariant: `StoreWFP`, `PMemoOK`,
-`PersE`, and `denote (promote h) = denote h`.
+`Ext` and the frame (`Bridge/Promote/Memo.lean`'s `PFrame`) need **no hypothesis at
+all** — no `StoreWF`, no memo invariant, no denotation — because the promotion's only
+state-changing primitives are the four `internPersistent*`, each of which appends and
+nothing else.  So they are proved here, unconditionally and once, and what is left to
+the bridge (`Bridge/Promote/**`) is `denote (promote h) = denote h`, the persistence of
+the answer and the memo's invariant.
 
 ## The shape
 
 `AExt s s'` is the bundle: the arena extended, and the three non-store fields
 plus the scratch flag stood still.  That is exactly `Ext` ∧
-`Bridge/Promote/Exact.lean`'s `PFrame`, and the promotion's own module note
+`Bridge/Promote/Memo.lean`'s `PFrame`, and the promotion's own module note
 ("a promotion touches no memo table of `Monad.lean` at all") is what makes
 the second half true.
 
@@ -65,7 +61,7 @@ open ConLeche
 
 /-- con-leche: none — arena infrastructure; **one `AM` step that only
 appends**: the arena extends, and the memo tables, the caches, the pin table
-and the scratch flag stand still.  `Ext` plus `Bridge/Promote/Exact.lean`'s
+and the scratch flag stand still.  `Ext` plus `Bridge/Promote/Memo.lean`'s
 `PFrame`, as one predicate so that a caller's composition is one `trans` per
 step. -/
 structure AExt (s s' : AState) : Prop where

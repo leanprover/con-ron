@@ -28,12 +28,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-/-! ## The projection is idempotent -/
-
-/-- con-leche: none — arena infrastructure; dropping a dropped tier changes nothing. -/
-theorem EStore.dropScratch_idem (st : EStore) : st.dropScratch.dropScratch = st.dropScratch :=
-  rfl
-
 /-! ## A persistent intern, at the projection -/
 
 /-- con-leche: none — arena infrastructure; a name view with persistent children
@@ -450,6 +444,7 @@ theorem internPersistentE_pi {v : ENodeView} {s : AState} {r : EIdx} {s' : AStat
 
 /-! ## A view denotes -/
 
+/-- con-leche: none — arena infrastructure; under the rank, a handle with a view denotes. -/
 theorem denoteN_of_view' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
     ∀ (n : Nat) (i : NIdx), rk i < n → (st.view i).isSome = true →
       ∃ x, denoteN st i = some x := by
@@ -471,11 +466,14 @@ theorem denoteN_of_view' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
       obtain ⟨q, hq⟩ := ih p (by omega) hc.1
       exact ⟨.num q k, by simp [denoteNView, hq]⟩
 
+/-- con-leche: none — arena infrastructure; under the weak invariant, a handle with a
+view denotes. -/
 theorem denoteN_of_view {st : NStore} (h : NStoreWF' st) {i : NIdx}
     (hv : (st.view i).isSome = true) : ∃ x, denoteN st i = some x := by
   obtain ⟨rk, h⟩ := h
   exact denoteN_of_view' h _ i (Nat.lt_succ_self _) hv
 
+/-- con-leche: none — arena infrastructure; under the rank, a handle with a view denotes. -/
 theorem denoteL_of_view' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
     ∀ (n : Nat) (i : LIdx), rk i < n → (st.view i).isSome = true →
       ∃ x, denoteL st i = some x := by
@@ -509,6 +507,8 @@ theorem denoteL_of_view' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
       obtain ⟨x, hx⟩ := denoteN_of_view h.ns hc.1
       exact ⟨.param x, by simp [denoteLView, hx]⟩
 
+/-- con-leche: none — arena infrastructure; under the weak invariant, a handle with a
+view denotes. -/
 theorem denoteL_of_view {st : LStore} (h : LStoreWF' st) {i : LIdx}
     (hv : (st.view i).isSome = true) : ∃ x, denoteL st i = some x := by
   obtain ⟨rk, h⟩ := h
@@ -528,6 +528,7 @@ theorem denoteLs_of_view {st : LsStore} (h : LsStoreWF' st) {i : LsIdx} {us : Ls
     obtain ⟨as, has⟩ := ih (fun c hc => hel c (by simp [hc]))
     exact ⟨a :: as, by simp [denoteLList, ha, has, opt2]⟩
 
+/-- con-leche: none — arena infrastructure; under the rank, a handle with a view denotes. -/
 theorem denoteE_of_view' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
     ∀ (n : Nat) (i : EIdx), rk i < n → (st.view i).isSome = true →
       ∃ x, denoteE st i = some x := by
@@ -587,6 +588,8 @@ theorem denoteE_of_view' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
       obtain ⟨x, hx⟩ := hE e (by simp [ENodeView.echildren])
       exact ⟨.proj a k x, by simp [denoteEView, ha, hx, opt2]⟩
 
+/-- con-leche: none — arena infrastructure; under the weak invariant, a handle with a
+view denotes. -/
 theorem denoteE_of_view {st : EStore} (h : StoreWF' st) {i : EIdx}
     (hv : (st.view i).isSome = true) : ∃ x, denoteE st i = some x := by
   obtain ⟨rk, h⟩ := h
@@ -746,8 +749,8 @@ theorem EStore.persSizes_eq {a b : EStore} (h : a.persSizes = b.persSizes) :
   grind
 
 /-- con-leche: none — arena infrastructure; **the source is where a scratch run ended
-and the store is that state framed** (`Arena/Promote.lean`'s `scratchRun`, whose flag
-the start state's scratch tier being open makes the framed store's).
+and the store is that state framed** (`Arena/Promote.lean`'s `scratchRun`), the run
+having started with the scratch tier open, so that the framed store reads it.
 
 A scratch handle reads the run's tier under the start state's flag.  A persistent
 handle that denotes where the run ended has a view there, so by the sizes one in the

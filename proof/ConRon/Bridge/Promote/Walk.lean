@@ -40,6 +40,8 @@ variable {src : EStore}
 
 /-! ## The readers, as run equations -/
 
+/-- con-leche: none — arena infrastructure; a reader's run moves nothing and answers the
+view. -/
 theorem viewN_ok {h : NIdx} {s s' : AState} {v : NNodeView}
     (hr : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v := by
   cases hv : s.store.ns.view h with
@@ -54,6 +56,8 @@ theorem viewN_ok {h : NIdx} {s s' : AState} {v : NNodeView}
       pure, Except.bind, Except.pure, hv, ConRon.Bridge.fail_apply] at hr
     exact absurd hr (by simp)
 
+/-- con-leche: none — arena infrastructure; a reader's run moves nothing and answers the
+view. -/
 theorem viewL_ok {h : LIdx} {s s' : AState} {v : LNodeView}
     (hr : viewL h s = .ok (v, s')) : s' = s ∧ s.store.ls.view h = some v := by
   cases hv : s.store.ls.view h with
@@ -68,6 +72,8 @@ theorem viewL_ok {h : LIdx} {s s' : AState} {v : LNodeView}
       pure, Except.bind, Except.pure, hv, ConRon.Bridge.fail_apply] at hr
     exact absurd hr (by simp)
 
+/-- con-leche: none — arena infrastructure; a reader's run moves nothing and answers the
+view. -/
 theorem viewLs_ok {h : LsIdx} {s s' : AState} {v : LsNodeView}
     (hr : viewLs h s = .ok (v, s')) : s' = s ∧ s.store.lss.view h = some v := by
   cases hv : s.store.lss.view h with
@@ -82,6 +88,8 @@ theorem viewLs_ok {h : LsIdx} {s s' : AState} {v : LsNodeView}
       pure, Except.bind, Except.pure, hv, ConRon.Bridge.fail_apply] at hr
     exact absurd hr (by simp)
 
+/-- con-leche: none — arena infrastructure; a reader's run moves nothing and answers the
+view. -/
 theorem view_ok {h : EIdx} {s s' : AState} {v : ENodeView}
     (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v := by
   cases hv : s.store.view h with
@@ -98,6 +106,7 @@ theorem view_ok {h : EIdx} {s s' : AState} {v : ENodeView}
 
 /-! ## `promoteN` -/
 
+/-- con-leche: none — arena infrastructure; a name view's denotation survives an append. -/
 theorem denoteNView_ext {st st' : NStore} {w : NNodeView} {x : ConLeche.Name}
     (hd : denoteNView st w = some x) (hx : NExt st st') : denoteNView st' w = some x := by
   cases w with
@@ -111,6 +120,8 @@ theorem denoteNView_ext {st st' : NStore} {w : NNodeView} {x : ConLeche.Name}
     obtain ⟨q, hq, he⟩ := hd
     exact ⟨q, hx _ _ hq, he⟩
 
+/-- con-leche: none — arena infrastructure; a name view that denotes has children that
+decode. -/
 theorem NStore.ViewOK.of_denoteNView {st : NStore} {w : NNodeView} {x : ConLeche.Name}
     (hd : denoteNView st w = some x) : st.ViewOK w := by
   intro c hc
@@ -239,6 +250,8 @@ theorem promoteN_step {m m' : PMemo} {fuel : Nat} {h r : NIdx} {s s' : AState}
 
 /-! ## `promoteL` -/
 
+/-- con-leche: none — arena infrastructure; a level view that denotes has children that
+decode. -/
 theorem LStore.ViewOK.of_denoteLView {st : LStore} {w : LNodeView} {u : Level}
     (hd : denoteLView st w = some u) : st.ViewOK w := by
   have hL : ∀ {c : LIdx} {a : Level}, denoteL st c = some a → (st.view c).isSome = true := by
@@ -278,6 +291,7 @@ theorem LStore.ViewOK.of_denoteLView {st : LStore} {w : LNodeView} {u : Level}
     simp only [LNodeView.nchildren, List.mem_singleton] at hc; subst hc
     obtain ⟨v, hv⟩ := denoteN_view hq; rw [hv]; rfl
 
+/-- con-leche: none — arena infrastructure; a level view's denotation survives an append. -/
 theorem denoteLView_ext {st st' : LStore} {w : LNodeView} {u : Level}
     (hd : denoteLView st w = some u) (hx : LExt st st') : denoteLView st' w = some u := by
   cases w with
@@ -479,6 +493,8 @@ theorem promoteLList_step {fuel : Nat} : ∀ (us : List LIdx) {m m' : PMemo}
     · exact hp1
     · exact hp2 c hc
 
+/-- con-leche: none — arena infrastructure; a level list that denotes has elements that
+decode. -/
 theorem LsStore.ViewOK.of_denoteLList {st : LsStore} :
     ∀ {us : List LIdx} {xs : List Level}, denoteLList st.ls us = some xs → st.ViewOK us := by
   intro us
@@ -864,10 +880,13 @@ structure NameKept (src st' : EStore) (n n' : NIdx) : Prop where
   denote : ∀ x, denoteN src.ns n = some x → denoteN st'.ns n' = some x
   pers : PersN n → n' = n
 
+/-- con-leche: none — arena infrastructure; the answer's side of `NameKept` moves along
+an append. -/
 theorem NameKept.post {src st' st'' : EStore} {n n' : NIdx} (h : NameKept src st' n n')
     (hx : Ext st' st'') : NameKept src st'' n n' :=
   ⟨fun x hd => hx.lss.ls.ns _ _ (h.denote x hd), h.pers⟩
 
+/-- con-leche: none — arena infrastructure; a name promotion's `NameKept`. -/
 theorem promoteN_kept {m m' : PMemo} {fuel : Nat} {h r : NIdx} {s s' : AState}
     (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
     (hrun : promoteN m fuel h s = .ok ((m', r), s')) :

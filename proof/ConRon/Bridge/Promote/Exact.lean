@@ -10,7 +10,8 @@
 Three things are owed at every entry of `Arena/Promote.lean`, and they travel
 together because the recursion threads all three:
 
-1. **exactness** — the promoted handle denotes what the original denoted.
+1. **exactness** — the promoted handle denotes in the persistent projection, and
+   what the original denoted in the source it denotes there (`Kept`).
    This is the whole soundness content: the promotion is a change of
    REPRESENTATION and of nothing else, so an environment the fold promoted
    denotes the environment it denoted before;
@@ -19,25 +20,16 @@ together because the recursion threads all three:
    consumes: `PExt` transports a persistent denotation and nothing else, so
    without this clause the fold's environment would decode to nothing one step
    later;
-3. **the memo invariant** `PMemoOK` — every row of the promotion memo is a
-   promoted pair.  It is `Bridge/StateOK.lean`'s `MemoOK` shape with
-   persistence added and the pure function replaced by the identity: a
-   promotion computes nothing, it copies.
-
-`PMemoOK` is stated at the STORE and not at a pure function, which is what
-makes `.mono` across an `Ext` the only transport it needs: a row recorded
-before an append is still a promoted pair after it.
+3. **the memo invariant** `PMemoPi` — every row of the promotion memo is a
+   promoted pair.
 
 **How it is proved.**  The four handle-kind specs and the declaration layer's
 four are the walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and
-list inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s
-promote window invariant `StoreWF'`), and `promoteNew_spec` is
-`promoteCIList` plus the two index passes.  Its `IFEnvCoh fe'` conjunct needs
-`Bridge/Promote/Coh.lean`'s `promoteNew_cohX`, so `promoteNew_spec` itself
-lives there (`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
-`Bridge/Checker/**`'s per-declaration brackets read `promoteNew_spec`,
-`promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
-`promoteBracket_close`.
+list inductions over `Bridge/Promote/Proj.lean`'s promote-interns at the
+projection), and `promoteNew_pi` is `promoteCIList` plus the two index passes.
+Its `IFEnvCoh fe'` conjunct needs `Bridge/Promote/Coh.lean`'s
+`promoteNewConsts_cohX`, so `promoteNew_pi` itself lives there (`IFEnvCoh` is the
+EXTENSIONAL coherence — see its definition).
 -/
 module
 
@@ -68,18 +60,20 @@ promoted exactly**: an `opaque`'s value is not in the environment, so the
 checks the same term phase A installed.
 
 The proof is `promoteVG_step`. -/
-theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
-    {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cv = some c)
-    (hjv : denoteE s.store g.jv = some e)
+theorem promoteVG_pi {src : EStore} {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
+    {s s' : AState} (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
     (hrun : promoteVG m fuel g s = .ok ((m', g'), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersVG g' ∧ g'.kind = g.kind ∧
-      Frontend.denoteCV s'.store g'.cv = some c ∧
-      denoteE s'.store g'.jv = some e ∧ PFrame s s' := by
-  obtain ⟨a, b, -, c, d, e1, e2⟩ := promoteVG_step hwf hm hrun
-  have hx := promoteVG_aext m fuel g s (m', g') s' hrun
-  exact ⟨a, hx.ext, b, c, d, e1 _ hcv, e2 _ hjv, PFrame.of_aext hx⟩
+    PSrc src s'.store ∧ PMemoPi m' src s'.store ∧
+      Ext s.store.dropScratch s'.store.dropScratch ∧
+      PFrame s s' ∧ PersVG g' ∧ g'.kind = g.kind ∧
+      (∃ c, Frontend.denoteCV s'.store.dropScratch g'.cv = some c) ∧
+      (∃ e, denoteE s'.store.dropScratch g'.jv = some e) ∧
+      (∀ c, Frontend.denoteCV src g.cv = some c →
+        Frontend.denoteCV s'.store.dropScratch g'.cv = some c) ∧
+      (∀ e, denoteE src g.jv = some e → denoteE s'.store.dropScratch g'.jv = some e) := by
+  obtain ⟨a, b, c, d, e, ⟨f1, f2⟩, ⟨g1, g2⟩⟩ := promoteVG_step hs hm hrun
+  exact ⟨a, b, c, PFrame.of_aext (promoteVG_aext m fuel g s (m', g') s' hrun), d, e, f1, g1,
+    f2, g2⟩
 
 /-! ## The fold's entry
 
@@ -640,29 +634,54 @@ theorem promoteNewTables_consts {m m' : PMemo} {fuel kt : Nat} {fe fe' : IFEnv}
   · obtain ⟨ts', -, rfl⟩ := promoteNewTables_run_pos hk0 hrun
     exact ⟨rfl, rfl, rfl⟩
 
-/-! ## What the fold's step needs beside the spec
+/-! ## What the fold's step needs beside the denotation
 
-Three facts about the same run, stated separately so that
-`promoteNew_spec`'s statement stays the one its consumers were written
-against: the environment after the promotion still only PUSHED onto the one
-before the step (the install step's `Pushed fe fe'`), `IFEnvOK`'s
-`proj` clause survives it (the other half of "`IFEnvOK` at the pushed index"),
-and the bracket's closing `dropScratch` turns the promote window's invariant
-back into the strong one with every persistent denotation kept. -/
+The environment after the promotion still only PUSHED onto the one before the step
+(the install step's `Pushed fe fe'`), `IFEnvOK`'s `proj` clause survives it (the other
+half of "`IFEnvOK` at the pushed index"), and the bracket's closing `dropScratch`
+leaves the projection. -/
 
-/-- con-leche: none — arena infrastructure; the constants' promotion keeps the
-promote window's invariant and the memo's. -/
-theorem promoteNewConsts_wf {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+/-- con-leche: none — arena infrastructure; the constants' promotion keeps `PSrc` and
+the memo's invariant, and the projection only grows. -/
+theorem promoteNewConsts_step {src : EStore} {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
     (hrun : promoteNewConsts m fuel k fe s = .ok ((m', fe'), s')) :
-    StoreWF' s'.store ∧ PMemoOK m' s'.store := by
+    PSrc src s'.store ∧ PMemoPi m' src s'.store ∧
+      Ext s.store.dropScratch s'.store.dropScratch := by
   by_cases hk0 : k = 0
   · subst hk0
     obtain ⟨rfl, -, rfl⟩ := promoteNewConsts_run_zero hrun
-    exact ⟨hwf, hm⟩
+    exact ⟨hs, hm, Ext.refl _⟩
   · obtain ⟨cs', h1, -⟩ := promoteNewConsts_run_pos hk0 hrun
-    obtain ⟨hwf1, hm1, -⟩ := promoteCIList_step _ hwf hm h1
-    exact ⟨hwf1, hm1⟩
+    obtain ⟨hs1, hm1, hx1, -⟩ := promoteCIList_step _ hs hm h1
+    exact ⟨hs1, hm1, hx1⟩
+
+/-- con-leche: none — arena infrastructure; the tables' promotion keeps `PSrc` and the
+memo's invariant, and the projection only grows. -/
+theorem promoteNewTables_step {src : EStore} {m m' : PMemo} {fuel kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
+    (hrun : promoteNewTables m fuel kt fe s = .ok ((m', fe'), s')) :
+    PSrc src s'.store ∧ PMemoPi m' src s'.store ∧
+      Ext s.store.dropScratch s'.store.dropScratch := by
+  by_cases hk0 : kt = 0
+  · subst hk0
+    obtain ⟨rfl, -, rfl⟩ := promoteNewTables_run_zero hrun
+    exact ⟨hs, hm, Ext.refl _⟩
+  · obtain ⟨ts', h1, -⟩ := promoteNewTables_run_pos hk0 hrun
+    obtain ⟨hs1, hm1, hx1, -⟩ := promoteProjTables_step _ hs hm h1
+    exact ⟨hs1, hm1, hx1⟩
+
+/-- con-leche: none — arena infrastructure; **what any run of a step's promotion
+leaves, with no hypothesis on the environment.** -/
+theorem promoteNew_frame {src : EStore} {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
+    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) :
+    PSrc src s'.store ∧ PMemoPi m' src s'.store ∧
+      Ext s.store.dropScratch s'.store.dropScratch ∧ PFrame s s' := by
+  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
+  obtain ⟨hs1, hm1, hx1⟩ := promoteNewConsts_step hs hm h1
+  obtain ⟨hs2, hm2, hx2⟩ := promoteNewTables_step hs1 hm1 h2
+  exact ⟨hs2, hm2, hx1.trans hx2, PFrame.of_aext (promoteNew_aext m fuel k kt fe s (m', fe') s' hrun)⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the promotion
 keeps the step's environment a push onto the one before it**: the step's
@@ -684,32 +703,49 @@ theorem promoteNew_pushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
   · obtain ⟨cs', -, rfl⟩ := promoteNewConsts_run_pos hk0 h1
     exact ⟨cs', by simp only [hdrop]⟩
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the promotion keeps the
+step's tables a push onto the ones before it**: the step's tables are replaced by their
+promoted copies, the tail is untouched, and the constants' promotion does not touch the
+tables. -/
+theorem promoteNew_tpushed {m m' : PMemo} {fuel k kt : Nat} {fe0 fe fe' : IFEnv}
+    {s s' : AState} (hpush : TPushed fe0 fe)
+    (hk : kt = fe.env.tables.length - fe0.env.tables.length)
+    (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) : TPushed fe0 fe' := by
+  obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
+  obtain ⟨ht1, -⟩ := promoteNewConsts_tables h1
+  obtain ⟨-, hdrop, -⟩ := TPushed.split hpush hk
+  by_cases hk0 : kt = 0
+  · subst hk0
+    obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero h2
+    obtain ⟨new, hn⟩ := hpush
+    exact ⟨new, by rw [ht1, hn]⟩
+  · obtain ⟨ts', -, rfl⟩ := promoteNewTables_run_pos hk0 h2
+    exact ⟨ts', by simp only [ht1, hdrop]⟩
+
 /-- con-leche: none — arena infrastructure; **the projection tables survive
 the promotion**: every table of the promoted environment is well shaped, given
 that every table of the environment was before it.  (`IFEnvOK_of_denote`'s
 `hproj`, carried.) -/
-theorem promoteNew_projOK {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+theorem promoteNew_projOK {src : EStore} {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hs : PSrc src s.store) (hm : PMemoPi m src s.store)
     (hproj : ∀ t ∈ fe.env.tables, IProjTableOK t)
     (hrun : promoteNew m fuel k kt fe s = .ok ((m', fe'), s')) :
     ∀ t ∈ fe'.env.tables, IProjTableOK t := by
   obtain ⟨m1, fe1, s1, h1, h2⟩ := promoteNew_run hrun
   obtain ⟨ht1, -⟩ := promoteNewConsts_tables h1
-  have hx1 := (promoteNewConsts_aext m fuel k fe s (m1, fe1) s1 h1).ext
-  have hwf1 : StoreWF' s1.store := (promoteNewConsts_wf hwf hm h1).1
-  have hm1 : PMemoOK m1 s1.store := (promoteNewConsts_wf hwf hm h1).2
+  obtain ⟨hs1, hm1, -⟩ := promoteNewConsts_step hs hm h1
   rw [← ht1] at hproj
   by_cases hk0 : kt = 0
   · subst hk0
     obtain ⟨-, rfl, -⟩ := promoteNewTables_run_zero h2
     exact hproj
   · obtain ⟨ts', h3, rfl⟩ := promoteNewTables_run_pos hk0 h2
-    obtain ⟨-, -, -, -, hkept, -⟩ := promoteProjTables_step _ hwf1 hm1 h3
+    obtain ⟨-, -, -, -, hkept, -⟩ := promoteProjTables_step _ hs1 hm1 h3
     intro t' ht'
     rcases List.mem_append.mp ht' with h | h
     · -- a promoted table: the promotion of one of the step's own
-      have key : ∀ (xs xs' : List IProjTable), TblListKept s1.store s'.store xs xs' →
-          ∀ b' ∈ xs', ∃ b ∈ xs, PromotedTable s1.store s'.store b b' := by
+      have key : ∀ (xs xs' : List IProjTable), TblListKept src s'.store.dropScratch xs xs' →
+          ∀ b' ∈ xs', ∃ b ∈ xs, PromotedTable src s'.store.dropScratch b b' := by
         intro xs xs' hk
         induction hk with
         | nil => intro _ h; exact absurd h (by simp)
@@ -723,28 +759,20 @@ theorem promoteNew_projOK {m m' : PMemo} {fuel k kt : Nat} {fe fe' : IFEnv}
       exact (hproj t (List.mem_of_mem_take ht)).promoted hpt
     · exact hproj t' (List.mem_of_mem_drop h)
 
-/-- con-leche: none — arena infrastructure; **the promotion bracket closes**
-— Theorem 1's `bracket_close_w` (`Refine2/Checker/Shape.lean`, the Theorem 2
-side's bridge between its weak and strong relations), in the same shape: the
-bracket was OPENED at a well-formed boundary `s0`, everything between the
-opening `enterScratch` and the closing `dropScratch` only appended (`hext`),
-and the promotions left the promote window's invariant; the drop then gives
-the strong invariant back and every persistent denotation of the boundary. -/
-theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
-    (hwf : StoreWF' s.store) (hext : Ext s0.store.enableScratch s.store) :
+/-- con-leche: none — arena infrastructure; **the promotion bracket closes**: the drop
+answers the projection, which `PSrc` says is well formed and keeps every persistent
+denotation of the source. -/
+theorem promoteBracket_close {src : EStore} {s : AState} (hs : PSrc src s.store) :
     (dropScratch : AM Unit) s = .ok ((),
       { store := s.store.dropScratch, memos := s.memos, caches := Caches.empty,
         pins := s.pins }) ∧
-      StoreWF s.store.dropScratch ∧ PExt s0.store s.store.dropScratch ∧
-      PExt s.store s.store.dropScratch :=
-  ⟨rfl, StoreWF'.dropScratch_wf hwf,
-    ((PExt.enterScratch hwf0).trans (PExt.of_ext hext)).trans (PExt.dropScratch' hwf),
-    PExt.dropScratch' hwf⟩
+      StoreWF s.store.dropScratch ∧ PExt src s.store.dropScratch :=
+  ⟨rfl, hs.piWF, hs.pext⟩
 
 /-! ## Census -/
 
-/-- info: 'ConRon.Bridge.promoteVG_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteVG_spec
+/-- info: 'ConRon.Bridge.promoteVG_pi' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteVG_pi
 
 /-- info: 'ConRon.Bridge.promoteNew_pushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_pushed
