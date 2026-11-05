@@ -251,23 +251,23 @@ theorem whnfLoopFuel_eq :
 /-- con-leche: none — `reduceNat_spec` with its answer as an `Ans` atom
 (the same proposition; `Bridge/Grind.lean` §3) and its precondition as the
 named predicate `DenWS` on the subject's denotation term. -/
-theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK eager env fe s₀)
     (hdw : DenWS d (denoteE s₀.store e)) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot mode eager fe id fuel) fe d e
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot .verified eager fe id fuel) fe d e
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d x) d
+        Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled .verified eager env F d x) d
           s'.store r) (denoteE s₀.store e); ⊤⦄ :=
   reduceNat_spec hsim s₀ d e hok (denWS_exists hdw)
 
 /-- con-leche: none — `unfoldDefinition_spec` with its answer as an `Ans`
 atom and its precondition as `DenWS`. -/
 theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : AState)
-    (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
+    (d : Nat) (e : EIdx) (hok : CheckOK eager env fe s₀)
     (hdw : DenWS d (denoteE s₀.store e)) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ans (fun x => denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
           ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y)
@@ -281,15 +281,15 @@ an `Ans` atom about the subject's denotation: the loop is also
 called on handles the caller has only just made, whose denotation is not a
 parameter. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) :
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) :
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
-      CheckOK mode eager env fe s₀ → DenWS d (denoteE s₀.store i) →
+      CheckOK eager env fe s₀ → DenWS d (denoteE s₀.store i) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.whnfLoop (coreKnot mode eager fe id fuel) fe d n i
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+        ConRon.Arena.whnfLoop (coreKnot .verified eager fe id fuel) fe d n i
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Ans (fun e => ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-              ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d n e
+              ∃ F, ConLeche.whnfLoop (ConLeche.pureFns .verified eager env F) env d n e
                 = .ok v) (denoteE s₀.store i); ⊤⦄ := by
   intro n
   induction n with
@@ -303,7 +303,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     sym only [bridge_grind] =>
       vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
         hsim.whnfCore (c := false) (e := e), reduceNat_specA hsim,
-        unfoldDefinition_specA (mode := mode) (eager := eager) (fe := fe) henv (d := d), ih] <;> finish
+        unfoldDefinition_specA (eager := eager) (fe := fe) henv (d := d), ih] <;> finish
 
 /-! ## 4. The body theorem -/
 
@@ -325,10 +325,10 @@ for `whnfBody`**.
 `whnfLoop_spec` above is the `Nat` induction, `whnfLoopFuel_eq` is the
 entry, and `whnf_of_loop` is the bracket. -/
 theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode eager env fe fuel) :
-    BodySpec mode eager env fe (whnfBody (coreKnot mode eager fe id fuel) fe)
-      (ConLeche.whnf mode eager env) := by
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) :
+    BodySpec eager env fe (whnfBody (coreKnot .verified eager fe id fuel) fe)
+      (ConLeche.whnf .verified eager env) := by
   intro s₀ d i e hok hden hw
   -- the loop's answer, through the entry bracket
   sym only [bridge_grind] =>

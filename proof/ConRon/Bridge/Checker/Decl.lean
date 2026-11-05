@@ -12,7 +12,7 @@ nothing else, which is what keeps the per-declaration theorem — the one DESIGN
 `DeclOut` has eight clauses; the sixth is §8.2's:
 
     ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-      ConLeche.checkDecl μ (fueledOps μ F) pinsP env d = .ok env'
+      ConLeche.checkDecl .verified (fueledOps .verified F) pinsP env d = .ok env'
 
 The five before it are the plumbing the FOLD needs and the arm is the only
 place that can supply: the store invariant survives, the arena only grew, the
@@ -185,7 +185,7 @@ fold needs and only the arm can supply.
 `Ext` and not `PExt` here, deliberately: `checkDecl` appends and never drops,
 so the TOTAL extension holds, and `checkDeclStep` is where it weakens
 (`Bridge/Promote/Pers.lean`). -/
-structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
+structure DeclOut (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
   state : StateOK s'
   ext : Ext s.store s'.store
@@ -193,7 +193,7 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   coh : IFEnvCoh fe'
   pushed : Pushed fe fe'
   run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
+    ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
   /-- **the pushed environment is well formed**: what the bracket's close needs
   (`Bridge/Checker/Split.lean`'s `BodyOut.envWF`) and only the arm can
   supply.  Stated at every denotation, which `run` makes the one. -/
@@ -212,7 +212,7 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
 which every arm off the inductive route assembles by the same transcription;
 the last three clauses are derived from them once, in
 `Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
-structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
+structure DeclCore (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
   state : StateOK s'
   ext : Ext s.store s'.store
@@ -220,7 +220,7 @@ structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   coh : IFEnvCoh fe'
   pushed : Pushed fe fe'
   run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
+    ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
   /-- no table installed: the arms off the inductive route push constants
   only -/
   tables : fe'.env.tables = fe.env.tables

@@ -151,55 +151,33 @@ theorem etaCertFueled_body {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — **the
-certificate at the trusted mode**: the domains agree and the opened bodies
-agree; no λ/η tax. -/
-theorem etaCertFueled_trusted {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
-    (hn : y.ioNeutral = true)
-    (h1 : ConLeche.inferTypeIO mode eager env F d y = .ok tb)
-    (h2 : ConLeche.whnf mode eager env F d tb = .ok (.forallE ty₂ bd₂))
-    (h3 : ConLeche.isDefEqCore mode eager env F d ty₂ t = .ok true)
-    (h4 : ConLeche.isDefEqCore mode eager env F (d + 1)
-      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
-    (hv : mode.verifiedChecks = false) :
-    ConLeche.etaCertFueled mode eager env F d t x y = .ok true := by
-  have e1 : (ConLeche.pureFns mode eager env F).inferIO d y = .ok tb := h1
-  have e2 : (ConLeche.pureFns mode eager env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
-  have e3 : (ConLeche.pureFns mode eager env F).defeq d ty₂ t = .ok true := h3
-  have e4 : (ConLeche.pureFns mode eager env F).defeq (d + 1)
-      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
-  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, e4, hv,
-    bind, Except.bind, Bool.not_true, Bool.false_eq_true, ite_false, ite_true]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — **the
-certificate at the verified mode**: the domains and the opened bodies agree,
+certificate**: the domains and the opened bodies agree,
 and the verdict is the λ/η tax's — the λ body's FULL-grade type against the
 ∀'s codomain, both at the fresh variable (con-leche's task #342, T2). -/
 theorem etaCertFueled_tax {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ t₁ : Expr}
     {r : Bool}
     (hn : y.ioNeutral = true)
-    (h1 : ConLeche.inferTypeIO mode eager env F d y = .ok tb)
-    (h2 : ConLeche.whnf mode eager env F d tb = .ok (.forallE ty₂ bd₂))
-    (h3 : ConLeche.isDefEqCore mode eager env F d ty₂ t = .ok true)
-    (h4 : ConLeche.isDefEqCore mode eager env F (d + 1)
+    (h1 : ConLeche.inferTypeIO .verified eager env F d y = .ok tb)
+    (h2 : ConLeche.whnf .verified eager env F d tb = .ok (.forallE ty₂ bd₂))
+    (h3 : ConLeche.isDefEqCore .verified eager env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore .verified eager env F (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
-    (hv : mode.verifiedChecks = true)
-    (h5 : ConLeche.inferTypeCore mode eager env F (d + 1)
+    (h5 : ConLeche.inferTypeCore .verified eager env F (d + 1)
       (x.instantiate1 (.fvar d t)) = .ok t₁)
-    (h6 : ConLeche.isDefEqCore mode eager env F (d + 1) t₁
+    (h6 : ConLeche.isDefEqCore .verified eager env F (d + 1) t₁
       (bd₂.instantiate1 (.fvar d t)) = .ok r) :
-    ConLeche.etaCertFueled mode eager env F d t x y = .ok r := by
-  have e1 : (ConLeche.pureFns mode eager env F).inferIO d y = .ok tb := h1
-  have e2 : (ConLeche.pureFns mode eager env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
-  have e3 : (ConLeche.pureFns mode eager env F).defeq d ty₂ t = .ok true := h3
-  have e4 : (ConLeche.pureFns mode eager env F).defeq (d + 1)
+    ConLeche.etaCertFueled .verified eager env F d t x y = .ok r := by
+  have e1 : (ConLeche.pureFns .verified eager env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns .verified eager env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
+  have e3 : (ConLeche.pureFns .verified eager env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns .verified eager env F).defeq (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
-  have e5 : (ConLeche.pureFns mode eager env F).infer (d + 1)
+  have e5 : (ConLeche.pureFns .verified eager env F).infer (d + 1)
       (x.instantiate1 (.fvar d t)) = .ok t₁ := h5
-  have e6 : (ConLeche.pureFns mode eager env F).defeq (d + 1) t₁
+  have e6 : (ConLeche.pureFns .verified eager env F).defeq (d + 1) t₁
       (bd₂.instantiate1 (.fvar d t)) = .ok r := h6
   simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, e4, e5,
-    e6, hv, bind, Except.bind, Bool.not_true, Bool.false_eq_true, ite_false,
+    e6, CheckMode.verifiedChecks, bind, Except.bind, Bool.not_true, Bool.false_eq_true, ite_false,
     ite_true]
   cases r <;> rfl
 
@@ -306,16 +284,16 @@ induction**, at given denotations (`defEqListOp`'s answer).  The recursive
 call's lists are the tails of THESE denotations, so the induction hypothesis
 goes into `vcgen`'s list instantiated at them (rule for a
 parameter the program does not name). -/
-theorem defEqList_specA {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel) (d : Nat) :
+theorem defEqList_specA {fuel : Nat} (hsim : KnotSpec eager env fe fuel) (d : Nat) :
     ∀ (as bs : List EIdx) (xs ys : List Expr) (s₀ : AState),
-      CheckOK mode eager env fe s₀ →
+      CheckOK eager env fe s₀ →
       Frontend.denoteEList s₀.store as = some xs →
       Frontend.denoteEList s₀.store bs = some ys →
       (∀ x ∈ xs, Expr.WScoped d x) → (∀ y ∈ ys, Expr.WScoped d y) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧ SimBOp (defEqListOp mode eager env d xs ys) r; ⊤⦄ := by
+        ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d as bs
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ SimBOp (defEqListOp .verified eager env d xs ys) r; ⊤⦄ := by
   intro as
   induction as with
   | nil =>
@@ -348,28 +326,28 @@ theorem defEqList_specA {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel) (d
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
 induction**, in the ∃/∀ shape a caller whose state has moved needs (see the
 section note): `defEqList_specA` at the denotations it is handed. -/
-theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel) (d : Nat) :
+theorem defEqList_go {fuel : Nat} (hsim : KnotSpec eager env fe fuel) (d : Nat) :
     ∀ (as bs : List EIdx) (s₀ : AState),
-      CheckOK mode eager env fe s₀ →
+      CheckOK eager env fe s₀ →
       (∃ xs, Frontend.denoteEList s₀.store as = some xs ∧
         ∀ x ∈ xs, Expr.WScoped d x) →
       (∃ ys, Frontend.denoteEList s₀.store bs = some ys ∧
         ∀ y ∈ ys, Expr.WScoped d y) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+        ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d as bs
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
             Frontend.denoteEList s₀.store bs = some ys →
-            SimBOp (fun F => ConLeche.defEqListFueled mode eager env F d xs ys) r; ⊤⦄ := by
+            SimBOp (fun F => ConLeche.defEqListFueled .verified eager env F d xs ys) r; ⊤⦄ := by
   intro as bs s₀ hok ⟨xs, hxs, hwx⟩ ⟨ys, hys, hwy⟩
   -- the answer over `defEqListOp` (the same proposition)
-  show ⦃fun s => s = s₀⦄ ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+  show ⦃fun s => s = s₀⦄ ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d as bs
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
           Frontend.denoteEList s₀.store bs = some ys →
-          SimBOp (defEqListOp mode eager env d xs ys) r; ⊤⦄
+          SimBOp (defEqListOp .verified eager env d xs ys) r; ⊤⦄
   sym only [bridge_grind] =>
     vcgen [defEqList_specA hsim d as bs xs ys s₀ hok hxs hys hwx hwy] <;> finish
 
@@ -379,17 +357,17 @@ It is `defEqList_specA`, whose answer is the same proposition; the cons
 arm's fuel is the `max F₁ F₂` of the head's and the tail's, merged by
 con-leche's own `isDefEqCore_mono` and `Walks/Mono.lean`'s
 `defEqListFueled_mono`. -/
-theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (as bs : List EIdx) (xs ys : List Expr)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hda : Frontend.denoteEList s₀.store as = some xs)
     (hdb : Frontend.denoteEList s₀.store bs = some ys)
     (hwa : ∀ x ∈ xs, Expr.WScoped d x) (hwb : ∀ y ∈ ys, Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d as bs
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.defEqListFueled mode eager env F d xs ys)
+        SimBOp (fun F => ConLeche.defEqListFueled .verified eager env F d xs ys)
           r; ⊤⦄ :=
   defEqList_specA hsim d as bs xs ys s₀ hok hda hdb hwa hwb
 

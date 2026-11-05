@@ -386,10 +386,10 @@
    111  
    112  * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
    113    since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
-   114  * ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
+   114  * ~~`hk : CoreSpec Arena.checkFuel`~~ — Theorem 1's Core tier
    115    spec: a theorem since task #97-P3-Core round 6
    116    (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`);
-   117  * ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
+   117  * ~~`hind : IndSpec`~~ — Theorem 1's inductive tier spec:
    118    `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task #97-P3-Ind
    119    round 8 (the stage lemmas below still take it as a parameter);
    120  * ~~`hbytes`~~ — the prelude's bytes are con-leche's: not needed since task
@@ -1981,8 +1981,8 @@
    152  theorem Arena.checkDecl_bridge
    153      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
    154      {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-   155      (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-   156      (hok : FoldOK .verified env fe s) (hpins : PinsDenote s.store pins pinsP)
+   155      (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+   156      (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
    157      (hd : Frontend.denoteDecl s.store pd = some d)
    158      (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s')) :
 
@@ -1991,9 +1991,9 @@
     93      {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     94      {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     95      {s s' : AState}
-    96      (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    96      (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     97      (hpp : PersPinSets pins)
-    98      (hok : FoldOK .verified Env.empty (mkIFEnv IEnv.empty) s)
+    98      (hok : FoldOK Env.empty (mkIFEnv IEnv.empty) s)
     99      (hpins : PinsDenote s.store pins pinsP)
    100      (hpd : ∀ x ∈ ds.toList, PersDecl x)
    101      (hden : denoteDecls s.store ds.toList = some dsP)
@@ -2059,18 +2059,18 @@
     62  preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
     63  `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
     64  and keep its own hypothesis. -/
-    65  theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    66      (h : PStep s s') (hc : CheckOK μ false env fe s) : CoreStep μ env fe s s' :=
+    65  theorem PStep.toCore {env : Env} {fe : IFEnv} {s s' : AState}
+    66      (h : PStep s s') (hc : CheckOK false env fe s) : CoreStep env fe s s' :=
     67    ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
     68  
     69  /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
     70  statement**: the same at a function that calls the knot, so the invariant is
     71  `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
     72  inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
-    73  @[expose] def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
+    73  @[expose] def CSpec (env : Env) (fe : IFEnv) {α : Type}
     74      (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
-    75    ∀ (s₀ s' : AState) (r : α), CheckOK μ false env fe s₀ → P s₀.store →
-    76      c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
+    75    ∀ (s₀ s' : AState) (r : α), CheckOK false env fe s₀ → P s₀.store →
+    76      c s₀ = .ok (r, s') → CoreStep env fe s₀ s' ∧ R s'.store r
 
 == proof/ConRon/Bridge/Inductives/StructParts.lean#L125-L171
    125  /-! ## The spines -/
@@ -2123,51 +2123,50 @@
 
 == proof/ConRon/Bridge/Core/Knot.lean#L111-L128
    111  rule 8 — "the record of knot hypotheses costs nothing"). -/
-   112  structure KnotSpec (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv) (f : Nat) :
+   112  structure KnotSpec (eager : Bool) (env : Env) (fe : IFEnv) (f : Nat) :
    113      Prop where
    114    /-- Head normalization without delta, in either mode (`c` is the official
    115    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
    116    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   117      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+   117      CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
    118      Expr.WScoped d e →
-   119      ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).whnfCore c d i
-   120      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+   119      ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).whnfCore c d i
+   120      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
    121          s'.pins = s₀.pins ∧
-   122          SimE (fun F d e => ConLeche.whnfCore mode eager env F d e c) d e s'.store r; ⊤⦄
+   122          SimE (fun F d e => ConLeche.whnfCore .verified eager env F d e c) d e s'.store r; ⊤⦄
    123    /-- The full reduction loop. -/
    124    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   125      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+   125      CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
    126      Expr.WScoped d e →
-   127      ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).whnf d i
-   128      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+   127      ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).whnf d i
+   128      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
 
-== proof/ConRon/Bridge/Core/Induction.lean#L67-L92
-    67  theorem knot_spec_all {mode : CheckMode} {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env)
-    68      (hμ : mode.verifiedChecks = true) :
-    69      ∀ f {eager : Bool}, KnotSpec mode eager env fe f
-    70    | 0, eager => knotSpec_zero mode eager env fe
-    71    | f + 1, _ =>
-    72      { whnfCore := fun {c} s₀ d i e hok hden hw =>
-    73          memoWhnfCore_step henv
-    74            (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv hμ f) c) (c := c)
-    75            s₀ d i e hok hden hw
-    76        whnf := fun s₀ d i e hok hden hw =>
-    77          memoWhnf_step henv
-    78            (whnfBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw
-    79        infer := fun s₀ d i e hok hden hw =>
-    80          memoInfer_step henv
-    81            (inferBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw
-    82        defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
-    83          memoDefeq_step henv
-    84            (defeqBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i j a b hok hda
-    85            hdb hwa hwb
-    86        defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
-    87          memoDefeqE_step henv
-    88            (defeqBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i j a b hok hda
-    89            hdb hwa hwb
-    90        inferIO := fun s₀ d i e hok hden hw =>
-    91          memoInferIO_step henv
-    92            (inferBodyIO_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw }
+== proof/ConRon/Bridge/Core/Induction.lean#L67-L91
+    67  theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
+    68      ∀ f {eager : Bool}, KnotSpec eager env fe f
+    69    | 0, eager => knotSpec_zero eager env fe
+    70    | f + 1, _ =>
+    71      { whnfCore := fun {c} s₀ d i e hok hden hw =>
+    72          memoWhnfCore_step henv
+    73            (fun c => whnfCoreBody_spec henv (knot_spec_all henv f) c) (c := c)
+    74            s₀ d i e hok hden hw
+    75        whnf := fun s₀ d i e hok hden hw =>
+    76          memoWhnf_step henv
+    77            (whnfBody_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw
+    78        infer := fun s₀ d i e hok hden hw =>
+    79          memoInfer_step henv
+    80            (inferBody_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw
+    81        defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
+    82          memoDefeq_step henv
+    83            (defeqBody_spec henv (knot_spec_all henv f)) s₀ d i j a b hok hda
+    84            hdb hwa hwb
+    85        defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
+    86          memoDefeqE_step henv
+    87            (defeqBody_spec henv (knot_spec_all henv f)) s₀ d i j a b hok hda
+    88            hdb hwa hwb
+    89        inferIO := fun s₀ d i e hok hden hw =>
+    90          memoInferIO_step henv
+    91            (inferBodyIO_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw }
 
 == proof/ConRon/Refine2/AbsState.lean#L351-L365
    351    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
@@ -2456,10 +2455,10 @@
    111  
    112  * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
    113    since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
-   114  * ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
+   114  * ~~`hk : CoreSpec Arena.checkFuel`~~ — Theorem 1's Core tier
    115    spec: a theorem since task #97-P3-Core round 6
    116    (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`);
-   117  * ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
+   117  * ~~`hind : IndSpec`~~ — Theorem 1's inductive tier spec:
    118    `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task #97-P3-Ind
    119    round 8 (the stage lemmas below still take it as a parameter);
    120  * ~~`hbytes`~~ — the prelude's bytes are con-leche's: not needed since task

@@ -71,9 +71,9 @@ local grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.n
 /-! ## The comparands -/
 
 /-- con-leche: none — `internLevel` at the tier's invariant. -/
-theorem internLevel_specC (s₀ : AState) (u : Level) (hok : CheckOK mode eager env fe s₀) :
+theorem internLevel_specC (s₀ : AState) (u : Level) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ internLevel u
-    ⦃fun h s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun h s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         denoteL s'.store.ls h = some u; ⊤⦄ :=
   triple_mono (internLevel_spec s₀ u hok.state.wf)
     (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hd⟩ => ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hd⟩)
@@ -82,9 +82,9 @@ theorem internLevel_specC (s₀ : AState) (u : Level) (hok : CheckOK mode eager 
 rule's level comparands, `cvjLps.map fun p => Level.subst lps us (.param p)`. -/
 theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
     ∀ (ps : List NIdx) (s₀ : AState) (cs : List ConLeche.Name),
-      CheckOK mode eager env fe s₀ → Frontend.denoteNList s₀.store.ns ps = some cs →
+      CheckOK eager env fe s₀ → Frontend.denoteNList s₀.store.ns ps = some cs →
       ⦃fun s => s = s₀⦄ ConRon.Arena.substParamLevels ks vs ps
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           denoteLList s'.store.ls r =
             some (cs.map fun p => Level.subst ks vs (.param p)); ⊤⦄ := by
@@ -101,7 +101,7 @@ theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
     clear ih
     sym only [bridge_grind, denoteLList, List.map_cons, CheckOK.readN' hok] =>
       vcgen [ConRon.Arena.substParamLevels,
-        internLevel_specC (mode := mode) (eager := eager) (env := env) (fe := fe), step] <;> finish
+        internLevel_specC (eager := eager) (env := env) (fe := fe), step] <;> finish
 
 /-- the nested pin comparand -/
 @[expose] def pinCmpFn (xs : List Expr) (rP : Nat) (ks : List ConLeche.Name) (us : List Level)
@@ -114,13 +114,13 @@ leading-argument spine. -/
 theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
     (rP : Nat) (ksv : List ConLeche.Name) (usv : List Level) (xs : List Expr) :
     ∀ (pins : List EIdx) (s₀ : AState) (Ps : List Expr),
-      CheckOK mode eager env fe s₀ →
+      CheckOK eager env fe s₀ →
       Frontend.denoteNList s₀.store.ns lps = some ksv →
       denoteLs s₀.store.lss us = some usv →
       Frontend.denoteEList s₀.store args = some xs →
       Frontend.denoteEList s₀.store pins = some Ps →
       ⦃fun s => s = s₀⦄ ConRon.Arena.instSpinePins lps us args rP pins
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Frontend.denoteEList s'.store r = some (Ps.map (pinCmpFn xs rP ksv usv)); ⊤⦄ := by
   intro pins
@@ -167,11 +167,11 @@ the head view's name) and the index fact at it is read one round later, hence
 `ematch := 8` (seven rounds needed). -/
 theorem iotaCtorNeverProp_spec (s₀ : AState) (icvj : IConstantVal)
     (dcvj : ConstantVal) (us : LsIdx) (ls : List Level)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hdcvj : Frontend.denoteCV s₀.store icvj = some dcvj)
     (hls : denoteLs s₀.store.lss us = some ls) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.iotaCtorNeverProp fe icvj us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         r = ConLeche.iotaCtorNeverProp env.find? dcvj ls; ⊤⦄ := by
   sym only [bridge_grind, iotaCtorNeverProp_eq] =>
@@ -184,12 +184,12 @@ theorem iotaCtorNeverProp_spec (s₀ : AState) (icvj : IConstantVal)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:95-104 iotaCase3 — **THEOREM 1 for `iotaCase3`**. -/
 theorem iotaCase3_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     (icvj : IConstantVal) (dcvj : ConstantVal) (us : LsIdx) (ls : List Level)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hrl : Frontend.denoteRule s₀.store rl = some rl')
     (hdcvj : Frontend.denoteCV s₀.store icvj = some dcvj)
     (hls : denoteLs s₀.store.lss us = some ls) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.iotaCase3 fe rl icvj us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         r = ConLeche.iotaCase3 env.find? rl' dcvj ls; ⊤⦄ := by
   have hk := (rule_denote hrl).2.2.2.2.2.1
@@ -222,10 +222,10 @@ theorem piResAt_cons (x : Expr) (xs : List Expr) (e : Expr) :
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast — the
 substitution's answer as `Inst1Rel` on the three denotation terms. -/
-theorem instantiate1Fast_specR (s₀ : AState) (b w : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem instantiate1Fast_specR (s₀ : AState) (b w : EIdx) (hok : CheckOK eager env fe s₀)
     (hdb : (denoteE s₀.store b).isSome = true) (hdw : (denoteE s₀.store w).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiate1Fast coreWalkFuel b w 0
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ Inst1Rel (denoteE s₀.store w) (denoteE s₀.store b) (denoteE s'.store r); ⊤⦄ := by
   obtain ⟨B, hB⟩ := Option.isSome_iff_exists.mp hdb
   obtain ⟨W, hW⟩ := Option.isSome_iff_exists.mp hdw
@@ -236,10 +236,10 @@ theorem instantiate1Fast_specR (s₀ : AState) (b w : EIdx) (hok : CheckOK mode 
 `piResidual`**: the telescope residual along an argument spine, at whatever the
 telescope handle denotes. -/
 theorem piResidual_specA : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx)
-    (xs : List Expr), CheckOK mode eager env fe s₀ → (denoteE s₀.store h).isSome = true →
+    (xs : List Expr), CheckOK eager env fe s₀ → (denoteE s₀.store h).isSome = true →
     Frontend.denoteEList s₀.store as = some xs →
     ⦃fun s => s = s₀⦄ ConRon.Arena.piResidual h as
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         MapRel (piResAt xs) (denoteE s₀.store h) (denoteEO s'.store r); ⊤⦄ := by
   intro as
@@ -253,7 +253,7 @@ theorem piResidual_specA : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx)
     have step := fun s b => ih s b xs'
     clear ih
     sym only [bridge_grind, piResAt_cons] =>
-      vcgen [ConRon.Arena.piResidual, instantiate1Fast_specR (mode := mode) (eager := eager) (env := env) (fe := fe), step] <;> finish
+      vcgen [ConRon.Arena.piResidual, instantiate1Fast_specR (eager := eager) (env := env) (fe := fe), step] <;> finish
 
 /-- con-leche: none — a denoting rule's fields, as one equation. -/
 theorem denoteRule_eq {st : EStore} {rl : IRecRule} {rl' : RecRule}
@@ -270,13 +270,13 @@ theorem denoteRule_eq {st : EStore} {rl : IRecRule} {rl' : RecRule}
 `instSpinePins_spec` at whatever the pins denote (the caller's match binds them). -/
 theorem instSpinePins_specA (lps : List NIdx) (us : LsIdx) (args : List EIdx)
     (rP : Nat) (ksv : List ConLeche.Name) (usv : List Level) (xs : List Expr)
-    (pins : List EIdx) (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
+    (pins : List EIdx) (s₀ : AState) (hok : CheckOK eager env fe s₀)
     (hks : Frontend.denoteNList s₀.store.ns lps = some ksv)
     (hus : denoteLs s₀.store.lss us = some usv)
     (hxs : Frontend.denoteEList s₀.store args = some xs)
     (hPs : (Frontend.denoteEList s₀.store pins).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.instSpinePins lps us args rP pins
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         MapRel (List.map (pinCmpFn xs rP ksv usv)) (Frontend.denoteEList s₀.store pins)
           (Frontend.denoteEList s'.store r); ⊤⦄ := by
@@ -308,13 +308,13 @@ theorem recFireArgs_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     (lps : List NIdx) (us : LsIdx) (args : List EIdx) (rP : Nat)
     (ks : List ConLeche.Name) (vs : List Level) (cs : List ConLeche.Name)
     (xs : List Expr)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hrl : Frontend.denoteRule s₀.store rl = some rl')
     (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
     (hvs : denoteLs s₀.store.lss us = some vs)
     (hxs : Frontend.denoteEList s₀.store args = some xs) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.recFireArgs rl lps us args rP
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
           some (ConLeche.recFireComparands rl' ks vs cs xs rP).2; ⊤⦄ := by
@@ -331,7 +331,7 @@ theorem recFireArgs_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
       · simp at hf
     sym only [bridge_grind, recFireComparands_nested] =>
       vcgen [ConRon.Arena.recFireArgs,
-        instSpinePins_specA lps us args rP ks vs xs (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+        instSpinePins_specA lps us args rP ks vs xs (eager := eager) (env := env) (fe := fe)] <;> finish
   | plain =>
     rw [hfire] at hf
     obtain rfl : f = .plain := by simpa [Frontend.denoteFire] using hf.symm
@@ -342,9 +342,9 @@ theorem recFireArgs_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
 rule's level comparands, `lvls.map (Level.subst lps us)`. -/
 theorem substLevelsAt_spec (ks : List ConLeche.Name) (vs : List Level) :
     ∀ (lvls : List LIdx) (s₀ : AState) (L : List Level),
-      CheckOK mode eager env fe s₀ → denoteLList s₀.store.ls lvls = some L →
+      CheckOK eager env fe s₀ → denoteLList s₀.store.ls lvls = some L →
       ⦃fun s => s = s₀⦄ ConRon.Arena.substLevelsAt ks vs lvls
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           denoteLList s'.store.ls r = some (L.map (Level.subst ks vs)); ⊤⦄ := by
   intro lvls
@@ -360,7 +360,7 @@ theorem substLevelsAt_spec (ks : List ConLeche.Name) (vs : List Level) :
     clear ih
     sym only [bridge_grind, denoteLList, List.map_cons, CheckOK.readL' hok] =>
       vcgen [ConRon.Arena.substLevelsAt,
-        internLevel_specC (mode := mode) (eager := eager) (env := env) (fe := fe), step] <;> finish
+        internLevel_specC (eager := eager) (env := env) (fe := fe), step] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:906-920 recFireComparands — the
 level comparands, which do not read the argument spine. -/
@@ -394,10 +394,10 @@ theorem cmpLevels_plain (c : ConLeche.Name) (nf cp : Nat)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:906-920 recFireComparands —
 `substLevelsAt_spec` at whatever the level list denotes. -/
 theorem substLevelsAt_specA (ks : List ConLeche.Name) (vs : List Level)
-    (lvls : List LIdx) (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
+    (lvls : List LIdx) (s₀ : AState) (hok : CheckOK eager env fe s₀)
     (hL : (denoteLList s₀.store.ls lvls).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.substLevelsAt ks vs lvls
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         MapRel (List.map (Level.subst ks vs)) (denoteLList s₀.store.ls lvls)
           (denoteLList s'.store.ls r); ⊤⦄ := by
@@ -408,10 +408,10 @@ theorem substLevelsAt_specA (ks : List ConLeche.Name) (vs : List Level)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:906-920 recFireComparands —
 `substParamLevels_spec` at whatever the name list denotes. -/
 theorem substParamLevels_specA (ks : List ConLeche.Name) (vs : List Level)
-    (ps : List NIdx) (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
+    (ps : List NIdx) (s₀ : AState) (hok : CheckOK eager env fe s₀)
     (hcs : (Frontend.denoteNList s₀.store.ns ps).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.substParamLevels ks vs ps
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         MapRel (List.map (paramLvlFn ks vs)) (Frontend.denoteNList s₀.store.ns ps)
           (denoteLList s'.store.ls r); ⊤⦄ := by
@@ -428,13 +428,13 @@ theorem denoteLsView_eq (st : EStore) (v : LsNodeView) :
 theorem recFireLevels_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     (lps : List NIdx) (us : LsIdx) (cvjLps : List NIdx)
     (ks : List ConLeche.Name) (vs : List Level) (cs : List ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hrl : Frontend.denoteRule s₀.store rl = some rl')
     (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
     (hvs : denoteLs s₀.store.lss us = some vs)
     (hcs : Frontend.denoteNList s₀.store.ns cvjLps = some cs) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.recFireLevels rl lps us cvjLps
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteLs s'.store.lss r = some (cmpLevels rl' ks vs cs); ⊤⦄ := by
   obtain ⟨c, f, rr, _hc, hf, _hr, rfl⟩ := denoteRule_eq hrl
@@ -450,15 +450,15 @@ theorem recFireLevels_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
       · simp at hf
     sym only [bridge_grind, cmpLevels_nested, CheckOK.readN' hok, → CheckOK.readLs', lsViewOK_of_denoteLList,
         denoteLsView_eq] =>
-      vcgen [ConRon.Arena.recFireLevels, substLevelsAt_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-        internLsNode_okS (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+      vcgen [ConRon.Arena.recFireLevels, substLevelsAt_specA (eager := eager) (env := env) (fe := fe),
+        internLsNode_okS (eager := eager) (env := env) (fe := fe)] <;> finish
   | plain =>
     rw [hfire] at hf
     obtain rfl : f = .plain := by simpa [Frontend.denoteFire] using hf.symm
     sym only [bridge_grind, cmpLevels_plain, CheckOK.readN' hok, → CheckOK.readLs', lsViewOK_of_denoteLList,
         denoteLsView_eq] =>
-      vcgen [ConRon.Arena.recFireLevels, substParamLevels_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-        internLsNode_okS (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+      vcgen [ConRon.Arena.recFireLevels, substParamLevels_specA (eager := eager) (env := env) (fe := fe),
+        internLsNode_okS (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- `defEqList`'s answer at two optional subject lists -/
 @[expose] def DefEqLAns (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (r : Bool) :
@@ -472,15 +472,15 @@ theorem recFireLevels_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — `defEqList_specA` at
 whatever the two lists denote. -/
-theorem defEqList_specB {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel) (d : Nat)
-    (as bs : List EIdx) (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
+theorem defEqList_specB {fuel : Nat} (hsim : KnotSpec eager env fe fuel) (d : Nat)
+    (as bs : List EIdx) (s₀ : AState) (hok : CheckOK eager env fe s₀)
     (ha : OptAllWS d (Frontend.denoteEList s₀.store as))
     (hb : OptAllWS d (Frontend.denoteEList s₀.store bs)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d as bs
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d as bs
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        DefEqLAns mode eager env d r (Frontend.denoteEList s₀.store as)
+        DefEqLAns .verified eager env d r (Frontend.denoteEList s₀.store as)
           (Frontend.denoteEList s₀.store bs); ⊤⦄ := by
   cases hxs : Frontend.denoteEList s₀.store as with
   | none => rw [hxs] at ha; exact ha.elim
@@ -542,21 +542,21 @@ grind_pattern [bridge_grind] piResAt_WScoped => piResAt xs t, some e, Expr.WScop
 
 /-- con-leche: ConLeche/Kernel/Core.lean:282-288 iotaIndexOk — **THEOREM 1 for
 `iotaIndexOk`**: the canonical-index comparison of a firing redex. -/
-theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d mI rP cnP : Nat) (tyC : EIdx) (margs idx : List EIdx)
     (ty : Expr) (ms is : List Expr)
-    (hok : CheckOK mode eager env fe s₀) (hty : denoteE s₀.store tyC = some ty)
+    (hok : CheckOK eager env fe s₀) (hty : denoteE s₀.store tyC = some ty)
     (hms : Frontend.denoteEList s₀.store margs = some ms)
     (his : Frontend.denoteEList s₀.store idx = some is)
     (hwty : Expr.WScoped d ty) (hwms : AllWS d ms) (hwis : AllWS d is) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaIndexOk (coreKnot mode eager fe id fuel) fe d mI rP cnP tyC
+      ConRon.Arena.iotaIndexOk (coreKnot .verified eager fe id fuel) fe d mI rP cnP tyC
         margs idx
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (iotaIndexOkOp mode eager env d mI rP cnP ty ms is) r; ⊤⦄ := by
+        SimBOp (iotaIndexOkOp .verified eager env d mI rP cnP ty ms is) r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.iotaIndexOk, piResidual_specA (mode := mode) (eager := eager) (env := env) (fe := fe) (xs := ms), ExprOps.getAppArgs_spec,
+    vcgen [ConRon.Arena.iotaIndexOk, piResidual_specA (eager := eager) (env := env) (fe := fe) (xs := ms), ExprOps.getAppArgs_spec,
       defEqList_specB hsim] <;> finish
 
 /-! ### `iotaRec`'s pure side at its exits
@@ -791,36 +791,33 @@ theorem iotaFam_mono {F G d mI rP : Nat} {rl : RecRule} {cvj : ConstantVal}
         simp only [ite_true] at h ⊢
         exact iotaIndexOkFueled_mono hle h
 
-/-- con-leche: none — the family at the trusted mode, or off case 3. -/
+/-- con-leche: none — the family off case 3. -/
 theorem iotaFam_true {F d mI rP : Nat} {rl : RecRule} {cvj : ConstantVal}
     {usj : List Level} {cmp : List Level × List Expr} {margs args : List Expr}
-    (h : mode.verifiedChecks = false ∨
-      ConLeche.iotaCase3 env.find? rl cvj cmp.1 = false) :
-    iotaFam mode eager env F d mI rP rl cvj usj cmp margs args = .ok true := by
+    (h : ConLeche.iotaCase3 env.find? rl cvj cmp.1 = false) :
+    iotaFam .verified eager env F d mI rP rl cvj usj cmp margs args = .ok true := by
   unfold iotaFam
-  rcases h with h | h
-  · simp [h]; rfl
-  · simp [h]; rfl
+  simp [h, CheckMode.verifiedChecks]; rfl
 
 /-- con-leche: none — the family past case 3's test, as a function of the
 four verdicts. -/
 theorem iotaFam_fire {F d mI rP : Nat} {rl : RecRule} {cvj : ConstantVal}
     {usj : List Level} {cmp : List Level × List Expr} {margs args : List Expr}
     {b1 b2 b3 b4 : Bool}
-    (hv : mode.verifiedChecks = true)
     (hc : ConLeche.iotaCase3 env.find? rl cvj cmp.1 = true)
     (h1 : Level.isEquivList usj cmp.1 = some b1)
-    (h2 : b1 = true → ConLeche.defEqListFueled mode eager env F d
+    (h2 : b1 = true → ConLeche.defEqListFueled .verified eager env F d
       (margs.take rl.ctorParams) cmp.2 = .ok b2)
-    (h3 : b1 = true → b2 = true → ConLeche.iotaCertsFullFueled mode eager env F d
+    (h3 : b1 = true → b2 = true → ConLeche.iotaCertsFullFueled .verified eager env F d
       (cvj.type.instantiateLevelParams cvj.levelParams usj) margs = .ok b3)
-    (h4 : b1 = true → b2 = true → b3 = true → ConLeche.iotaIndexOkFueled mode eager
+    (h4 : b1 = true → b2 = true → b3 = true → ConLeche.iotaIndexOkFueled .verified eager
       env F d mI rP rl.ctorParams
       (cvj.type.instantiateLevelParams cvj.levelParams usj) margs
       ((args.take mI).drop rP) = .ok b4) :
-    iotaFam mode eager env F d mI rP rl cvj usj cmp margs args =
+    iotaFam .verified eager env F d mI rP rl cvj usj cmp margs args =
       .ok (b1 && b2 && b3 && b4) := by
   unfold iotaFam
+  have hv : CheckMode.verified.verifiedChecks = true := rfl
   rw [ite_eq_left hv, ite_eq_left hc]
   simp only [ConLeche.liftFueled, h1, bind, Except.bind, pure, Except.pure]
   cases b1
@@ -838,7 +835,7 @@ theorem iotaFam_fire {F d mI rP : Nat} {rl : RecRule} {cvj : ConstantVal}
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at a
 recursor. -/
-theorem env_rec_of_index {s : AState} (hok : CheckOK mode eager env fe s)
+theorem env_rec_of_index {s : AState} (hok : CheckOK eager env fe s)
     {c : NIdx} {cn : ConLeche.Name} {icv : IConstantVal} {mI rP : Nat}
     {rules : List IRecRule} (hn : denoteN s.store.ns c = some cn)
     (hfd : fe.find? c = some (.recInfo icv mI rP rules)) :
@@ -856,7 +853,7 @@ theorem env_rec_of_index {s : AState} (hok : CheckOK mode eager env fe s)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the MISS half at a
 recursor. -/
-theorem env_not_rec_of_index {s : AState} (hok : CheckOK mode eager env fe s)
+theorem env_not_rec_of_index {s : AState} (hok : CheckOK eager env fe s)
     {c : NIdx} {cn : ConLeche.Name} (hn : denoteN s.store.ns c = some cn)
     (hnd : ∀ v mI rP rs, fe.find? c ≠ some (.recInfo v mI rP rs)) :
     ∀ cv mI rP rs, env.find? cn ≠ some (.recInfo cv mI rP rs) := by
@@ -938,17 +935,16 @@ theorem simOOp_none {P : Nat → CheckM (Option Expr)} {d F : Nat} {st : EStore}
   ⟨none, rfl, fun _ hx => absurd hx (by simp), F, h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — **the ι case
-split's certificate family** (task #342 L10, S5c): off at the trusted mode,
-nothing at a K rule or a family never `Prop` at the comparand levels, and at
+split's certificate family** (task #342 L10, S5c): nothing at a K rule or a family never `Prop` at the comparand levels, and at
 a case-3 redex the level comparison, the parameter comparison, the
 constructor telescope at the full grade and the index comparison. -/
 theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec mode eager env fe fuel)
+    (hsim : KnotSpec eager env fe fuel)
     (s₁ : AState) (d : Nat) (icv icvj : IConstantVal)
     (us usj : LsIdx) (rl : IRecRule) (args margs : List EIdx)
     (mI rP : Nat) (ls lsj : List Level) (dcv dcvj : ConstantVal)
     (cjn : ConLeche.Name) (cnP cnF : Nat) (rl' : RecRule) (xs ms : List Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hls : denoteLs s₁.store.lss us = some ls)
     (hlsj : denoteLs s₁.store.lss usj = some lsj)
     (hdcv : Frontend.denoteCV s₁.store icv = some dcv)
@@ -961,25 +957,25 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hcmpW : ∀ z ∈ (ConLeche.recFireComparands rl' dcv.levelParams ls
       dcvj.levelParams xs rP).2, Expr.WScoped d z)
     (k : Bool → AM α) (Q : α → AState → Prop)
-    (hk : ∀ b s, (CheckOK mode eager env fe s ∧ Ext s₁.store s.store ∧
+    (hk : ∀ b s, (CheckOK eager env fe s ∧ Ext s₁.store s.store ∧
         s.pins = s₁.pins ∧
-        ∃ F, iotaFam mode eager env F d mI rP rl' dcvj lsj
+        ∃ F, iotaFam .verified eager env F d mI rP rl' dcvj lsj
           (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams
             xs rP) ms xs = .ok b) →
       ⦃fun s' => s' = s⦄ k b ⦃fun r s' => Q r s'; ⊤⦄) :
     ⦃fun s => s = s₁⦄ (do
-      let fam ← if mode.verifiedChecks then do
+      let fam ← if CheckMode.verified.verifiedChecks then do
         let cmpL ← ConRon.Arena.recFireLevels rl icv.levelParams us icvj.levelParams
         if ← ConRon.Arena.iotaCase3 fe rl icvj cmpL then do
           if ← ConRon.Arena.liftFueled "level comparison"
               (← ConRon.Arena.lvlsEq? usj cmpL) then do
             let cmpA ← ConRon.Arena.recFireArgs rl icv.levelParams us args rP
-            if ← ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d
+            if ← ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d
                 (margs.take rl.ctorParams) cmpA then do
               let tyC ← ConRon.Arena.constTyAt icvj usj
-              if ← ConRon.Arena.iotaCertsFull (coreKnot mode eager fe id fuel) fe d tyC
+              if ← ConRon.Arena.iotaCertsFull (coreKnot .verified eager fe id fuel) fe d tyC
                   margs then
-                ConRon.Arena.iotaIndexOk (coreKnot mode eager fe id fuel) fe d mI rP
+                ConRon.Arena.iotaIndexOk (coreKnot .verified eager fe id fuel) fe d mI rP
                   rl.ctorParams tyC margs ((args.take mI).drop rP)
               else pure false
             else pure false
@@ -992,10 +988,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
   obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
   obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
   have hnamej : dcvj.name = cjn := env_find_name hfindj
-  by_cases hv : mode.verifiedChecks = true
-  case neg =>
-    rw [ite_eq_right hv, pure_bind]
-    exact hk _ _ ⟨hok, Ext.refl _, rfl, 0, iotaFam_true (Or.inl (by simpa using hv))⟩
+  have hv : CheckMode.verified.verifiedChecks = true := rfl
   rw [ite_eq_left hv]
   refine triple_seq (recFireLevels_spec s₁ rl rl' icv.levelParams us
     icvj.levelParams dcv.levelParams ls dcvj.levelParams hok hrl' hlps hls
@@ -1014,7 +1007,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hc3f : ConLeche.iotaCase3 env.find? rl' dcvj (ConLeche.recFireComparands
         rl' dcv.levelParams ls dcvj.levelParams xs rP).1 = false := by
       rw [← hc3]; simpa using hc3t
-    exact hk _ _ ⟨hok3, hx13, hp13, 0, iotaFam_true (Or.inr hc3f)⟩
+    exact hk _ _ ⟨hok3, hx13, hp13, 0, iotaFam_true hc3f⟩
   rw [ite_eq_left hc3t]
   have hc3' : ConLeche.iotaCase3 env.find? rl' dcvj (ConLeche.recFireComparands
       rl' dcv.levelParams ls dcvj.levelParams xs rP).1 = true := by
@@ -1039,7 +1032,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hb1f : b1 = false := by simpa using hb1t
     subst hb1f
     refine hk _ _ ⟨hok4, hx14, hp14, 0, ?_⟩
-    rw [iotaFam_fire (b2 := false) (b3 := false) (b4 := false) hv hc3' h1
+    rw [iotaFam_fire (b2 := false) (b3 := false) (b4 := false) hc3' h1
       (fun h => by cases h) (fun h => by cases h) (fun h => by cases h)]
     rfl
   rw [ite_eq_left hb1t]
@@ -1055,7 +1048,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
   refine triple_seq (defEqList_spec hsim s6 d _ _ _ _ hok6 hmt hcA
     (fun z hz => hwms z (List.mem_of_mem_take hz)) hcmpW) ?_
   rintro y s7 ⟨hok7, hx7, hp7, F1, hF1⟩
-  have hF1' : ConLeche.defEqListFueled mode eager env F1 d (ms.take rl'.ctorParams)
+  have hF1' : ConLeche.defEqListFueled .verified eager env F1 d (ms.take rl'.ctorParams)
       (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs
         rP).2 = .ok y := by rw [hctp]; exact hF1
   have hx17 := hx16.trans hx7
@@ -1066,7 +1059,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hyf : y = false := by simpa using hyt
     subst hyf
     refine hk _ _ ⟨hok7, hx17, hp17, F1, ?_⟩
-    rw [iotaFam_fire (b1 := true) (b2 := false) (b3 := false) (b4 := false) hv
+    rw [iotaFam_fire (b1 := true) (b2 := false) (b3 := false) (b4 := false)
       hc3' h1 (fun _ => hF1') (fun _ h => by cases h) (fun _ h => by cases h)]
     rfl
   rw [ite_eq_left hyt]
@@ -1091,7 +1084,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hc2f : c2 = false := by simpa using hc2t
     subst hc2f
     refine hk _ _ ⟨hok9, hx19, hp19, max F1 F2, ?_⟩
-    rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := false) (b4 := false) hv
+    rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := false) (b4 := false)
       hc3' h1 (fun _ => defEqListFueled_mono (Nat.le_max_left _ _) hF1')
       (fun _ _ => iotaCertsFullFueled_mono (Nat.le_max_right _ _) hF2)
       (fun _ _ h => by cases h)]
@@ -1106,7 +1099,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (fun z hz => hwxs z (List.mem_of_mem_take (List.mem_of_mem_drop hz)))) ?_
   rintro c4 s10 ⟨hok10, hx10, hp10, F3, hF3⟩
   refine hk _ _ ⟨hok10, hx19.trans hx10, hp10.trans hp19, max F1 (max F2 F3), ?_⟩
-  rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := true) (b4 := c4) hv
+  rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := true) (b4 := c4)
     hc3' h1 (fun _ => defEqListFueled_mono (by omega) hF1')
     (fun _ _ => iotaCertsFullFueled_mono (by omega) hF2)
     (fun _ _ _ => by rw [hctp]; exact iotaIndexOkFueled_mono (by omega) hF3)]
@@ -1126,20 +1119,20 @@ head), so `getAppFn`/`getAppArgs` of `Expr.mkAppN h xs` are `h` and `xs`,
 which is the equation the hoist owes.  The count `n` is the whole held
 vector (`hn`): both callers pass `size`, and at a larger `n` the twin's
 arity guard reads `n` where con-leche's reads the spine. -/
-theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
+theorem iotaRecAt_spec {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (hd : EIdx) (sargs : Array EIdx) (n : Nat)
     (h : Expr) (xs : List Expr)
-    (hok : CheckOK mode eager env fe s₀) (hdh : denoteE s₀.store hd = some h)
+    (hok : CheckOK eager env fe s₀) (hdh : denoteE s₀.store hd = some h)
     (hnapp : ∀ f a, h ≠ .app f a)
     (hn : n = sargs.size)
     (hxs : Frontend.denoteEList s₀.store sargs.toList = some xs)
     (hw : Expr.WScoped d (Expr.mkAppN h xs)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaRecAt mode (coreKnot mode eager fe id fuel) fe d hd sargs n
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.iotaRecAt .verified (coreKnot .verified eager fe id fuel) fe d hd sargs n
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d (Expr.mkAppN h xs))
+        SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d (Expr.mkAppN h xs))
           d s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   subst hn
@@ -1170,7 +1163,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         have hlenlps := denoteNList_len hlps
         by_cases hne : sargs.size ≠ mI + 1
         · rw [ite_eq_left hne]
-          have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+          have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
               (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
             simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
               rw [hE2]; intro hg; exact hne (by rw [← hxl, hg.1])))
@@ -1201,7 +1194,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hgP : xs.length = mI + 1 ∧ ls.length = dcv.levelParams.length ∧
                 (Expr.peelPis (mI + 1) dcv.type).isSome = true :=
               ⟨by rw [hxl, hmI], by rw [hg.2.1, hlenlps], by rw [← hpi]; exact hg.2.2⟩
-            refine triple_seq (internE_ok_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
+            refine triple_seq (internE_ok_spec (eager := eager) (env := env) (fe := fe)
               s₀ (.bvar 0) hok viewOK_bvar) ?_
             rintro b0 s3 ⟨hok3, hx3, hp3, _⟩
             have hargs3 := denoteEList_ext hx3 _ _ hargs
@@ -1211,15 +1204,15 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hwmaj : Expr.WScoped d (xs.getD mI (.bvar 0)) := by
               simp only [List.getD, List.getElem?_eq_getElem hmI', Option.getD_some]
               exact hwargs _ (List.getElem_mem hmI')
-            refine triple_seq (prepareMajor_spec hμ hsim s3 d c rules _ cn drules _
+            refine triple_seq (prepareMajor_spec hsim s3 d c rules _ cn drules _
               hok3 (denoteRules_ext hx3 _ _ hdr) hmaj hwmaj) ?_
             rintro major s4 ⟨hok4, hx4, hp4, vmaj, hvmaj, hwvmaj, Fp, hFp⟩
             have hx04 := hx3.trans hx4
             have hp04 : s4.pins = s₀.pins := hp4.trans hp3
             have hwf4 := hok4.state.wf
-            have hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled mode eager env G d
+            have hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled .verified eager env G d
                 (Expr.mkAppN (.const cn ls) xs) =
-                iotaTail mode eager env G d ls dcv mI rP drules xs vmaj := by
+                iotaTail .verified eager env G d ls dcv mI rP drules xs vmaj := by
               intro G hG
               rw [iotaRecFueled_pre hE1 hfind (by rw [hE2]; exact hgP)
                 (by rw [hE2]; exact prepareMajorFueled_mono hG hFp), hE2]
@@ -1276,7 +1269,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     rintro fam s7 ⟨hok7, hx7, hp7, Ff, hFf⟩
                     have hx07 := hx04.trans hx7
                     have hp07 : s7.pins = s₀.pins := hp7.trans hp04
-                    have hval : ConLeche.iotaRecFueled mode eager env (max Fp Ff) d
+                    have hval : ConLeche.iotaRecFueled .verified eager env (max Fp Ff) d
                         (Expr.mkAppN (.const cn ls) xs) = .ok (if fam then
                           some (Expr.mkAppN
                             (rl'.rhs.instantiateLevelParams dcv.levelParams ls)
@@ -1308,10 +1301,10 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                       refine triple_seq (ExprOps.mkAppN_spec _ s8 rhs hok8.state
                         (by rw [hrhs]; rfl) (by rw [hB]; rfl)) ?_
                       rintro x s9 ⟨hst9, hx9, _, hc9, hp9, hrel⟩
-                      have hok9 : CheckOK mode eager env fe s9 := hok8.mono hst9 hx9 hc9 hp9
+                      have hok9 : CheckOK eager env fe s9 := hok8.mono hst9 hx9 hc9 hp9
                       have hxd := hrel _ _ hrhs hB
                       have hvw := ConLeche.iotaRec_WScoped henv hval hw
-                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                           (Expr.mkAppN (.const cn ls) xs)) d s9.store (some x) :=
                         ⟨_, by simp [denoteEO, hxd], fun y hy => by
                           cases hy; exact hvw, _, hval⟩
@@ -1320,19 +1313,19 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     · rw [ite_eq_right hft]
                       have hff : fam = false := by simpa using hft
                       subst hff
-                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                           (Expr.mkAppN (.const cn ls) xs)) d s7.store none :=
                         simOOp_none hval
                       exact triple_pure_at ⟨hok7, hx07, hp07, hfin⟩
                   · rw [ite_eq_right hl]
-                    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+                    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                         (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                       simOOp_none (F := Fp) (by
                         rw [hT _ (Nat.le_refl _)]
                         exact iotaTail_len hgfm hfindj hfind' (by rw [hmlen, hctp, hnf]; exact hl))
                     exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
                 next hrl =>
-                  have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+                  have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                       (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                     simOOp_none (F := Fp) (by
                       rw [hT _ (Nat.le_refl _)]
@@ -1340,7 +1333,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                   exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
               next hnd =>
                 have hnc := env_not_ctor_of_index hok4 hcjn (fun v p q h => hnd v p q h)
-                have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+                have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                     (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                   simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
                                             exact iotaTail_noctor hgfm hnc)
@@ -1348,13 +1341,13 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             all_goals
               dsimp only
               have hnc := denote_not_const hwf4 hvh hmh (by intro c us h; cases h)
-              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                   (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                 simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
                                           exact iotaTail_nohead hnc)
               exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
           · rw [ite_eq_right hg]
-            have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+            have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                 (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
               simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
                 rw [hE2]; intro hg'
@@ -1362,7 +1355,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
       next hnd =>
         have hnr := env_not_rec_of_index hok hcn (fun v mI rP rs h => hnd v mI rP rs h)
-        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
             (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
           simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)
         exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
@@ -1371,7 +1364,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     have hvt := EStore.tagOf_of_view hv
     have hnc := denote_not_const hwf hv hdh (by
       intro c us h; subst h; exact htag (by rw [hvt]; rfl))
-    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d
+    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
         (Expr.mkAppN h xs)) d s₀.store none :=
       simOOp_none (F := 0) (iotaRecFueled_nohead (by
         rw [Expr.getAppFn_mkAppN]

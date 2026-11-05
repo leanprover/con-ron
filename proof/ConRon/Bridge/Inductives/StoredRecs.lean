@@ -202,7 +202,7 @@ theorem storedClosed_run {s₀ s' : AState} {a b : EIdx} {x y : Expr} {r : Bool}
 
 section Knot
 
-variable {μ : CheckMode} {env : Env}
+variable {env : Env}
 
 /-! ## The stored type -/
 
@@ -210,15 +210,15 @@ variable {μ : CheckMode} {env : Env}
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:736 recDomsAtS_spec — the stored
 domains against the generated ones, binder by binder, both telescopes' types
 scoped at their own binders. -/
-theorem recDomsAt_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem recDomsAt_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec : ConLeche.Name) (sfvs gfvs : List EIdx) (sfvsP gfvsP : List Expr)
     (hcs : ∀ (i : Nat) (x : Expr), sfvsP[i]? = some x → Expr.WScoped i x.fvarTypeD)
     (hcg : ∀ (i : Nat) (x : Expr), gfvsP[i]? = some x → Expr.WScoped i x.fvarTypeD) :
-    ∀ (k j : Nat), CSpecF μ env fe
+    ∀ (k j : Nat), CSpecF env fe
       (fun st => Frontend.denoteEList st sfvs = some sfvsP ∧
         Frontend.denoteEList st gfvs = some gfvsP)
-      (Arena.recDomsAt μ fe sfvs gfvs j k) (fun _ _ _ => True)
-      (ConLeche.recDomsAt (fueledOpsM μ) env rec sfvsP gfvsP j k) := by
+      (Arena.recDomsAt .verified fe sfvs gfvs j k) (fun _ _ _ => True)
+      (ConLeche.recDomsAt (fueledOpsM .verified) env rec sfvsP gfvsP j k) := by
   intro k
   induction k with
   | zero =>
@@ -268,14 +268,14 @@ theorem recDomsAt_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : E
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:61-74 recTyOpened
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:754 recTyOpenedS_spec — the two
 telescopes opened at their own locals: the domains, then the residues. -/
-theorem recTyOpened_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem recTyOpened_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec : ConLeche.Name) (n : Nat) (sP gP : Expr) (hws : Expr.WScoped 0 sP)
     (hwg : Expr.WScoped 0 gP) (so go : Option (List EIdx × EIdx)) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => denoteOpen st so = some (ConLeche.openPisAtFvars n sP 0) ∧
         denoteOpen st go = some (ConLeche.openPisAtFvars n gP 0))
-      (Arena.recTyOpened μ fe n so go) (fun _ _ _ => True)
-      (ConLeche.recTyOpened (fueledOpsM μ) env rec n (ConLeche.openPisAtFvars n sP 0)
+      (Arena.recTyOpened .verified fe n so go) (fun _ _ _ => True)
+      (ConLeche.recTyOpened (fueledOpsM .verified) env rec n (ConLeche.openPisAtFvars n sP 0)
         (ConLeche.openPisAtFvars n gP 0)) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hso, hgo⟩ := hpre
@@ -320,14 +320,14 @@ theorem recTyOpened_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv :
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:790 recTyCheckS_spec — **the stored
 type's check**: closed, at the record's level parameters, resolving, inferred, a
 sort, and the generated one binder by binder up to the major. -/
-theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) (n : Nat) (s g : EIdx)
     (sP gP : Expr) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st s = some sP ∧
         denoteE st g = some gP)
-      (Arena.recTyCheck μ fe lps n s g) (fun _ _ _ => True)
-      (ConLeche.recTyCheck (fueledOpsM μ) .plain (mkFEnv env) rec lpsP n sP gP) := by
+      (Arena.recTyCheck .verified fe lps n s g) (fun _ _ _ => True)
+      (ConLeche.recTyCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP n sP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hlps, hs, hg⟩ := hpre
   simp only [Arena.recTyCheck] at hrun
@@ -380,14 +380,14 @@ theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:802 ruleAgreeS_spec — **one stored
 rule's check**. -/
-theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec ctor : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) (s g : EIdx)
     (sP gP : Expr) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st s = some sP ∧
         denoteE st g = some gP)
-      (Arena.ruleAgree μ fe lps s g) (fun _ _ _ => True)
-      (ConLeche.ruleAgree (fueledOpsM μ) .plain (mkFEnv env) rec ctor lpsP sP gP) := by
+      (Arena.ruleAgree .verified fe lps s g) (fun _ _ _ => True)
+      (ConLeche.ruleAgree (fueledOpsM .verified) .plain (mkFEnv env) rec ctor lpsP sP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hlps, hs, hg⟩ := hpre
   simp only [Arena.ruleAgree] at hrun
@@ -632,19 +632,19 @@ theorem storedRulesShape_run (rec : ConLeche.Name) :
 
 section Knot
 
-variable {μ : CheckMode} {env : Env}
+variable {env : Env}
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:154-163 storedRulesCheck
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:814 storedRulesCheckS_spec — each
 stored rule against the generated right-hand side at its position. -/
-theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) :
     ∀ (rs : List IRecRule) (rsP : List RecRule) (gs : List EIdx) (gsP : List Expr),
-      CSpecF μ env fe
+      CSpecF env fe
         (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
           Frontend.denoteRules st rs = some rsP ∧ Frontend.denoteEList st gs = some gsP)
-        (Arena.storedRulesCheck μ fe lps rs gs) (fun _ _ _ => True)
-        (ConLeche.storedRulesCheck (fueledOpsM μ) .plain (mkFEnv env) rec lpsP rsP gsP) := by
+        (Arena.storedRulesCheck .verified fe lps rs gs) (fun _ _ _ => True)
+        (ConLeche.storedRulesCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP rsP gsP) := by
   intro rs
   induction rs with
   | nil =>
@@ -707,13 +707,13 @@ theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (h
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:843 storedRecCompareS_spec — one
 recursor's comparison: its stored type unless it is the generated one, and its
 stored rules. -/
-theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rc : Arena.RecShape) (rcP : ConLeche.RecShape)
     (g : IConstantVal × Arena.TargetMajor × List EIdx)
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
-    CSpecF μ env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
-      (Arena.storedRecCompare μ fe rc g) (fun _ _ _ => True)
-      (ConLeche.storedRecCompare (fueledOpsM μ) .plain (mkFEnv env) rcP gP) := by
+    CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
+      (Arena.storedRecCompare .verified fe rc g) (fun _ _ _ => True)
+      (ConLeche.storedRecCompare (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, -, hmI, -, hrules⟩ := dRec_inv hrc
@@ -745,13 +745,13 @@ theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (h
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:174-183 storedRecCheck
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:875 storedRecCheckS_spec — **one
 recursor, stored against generated**. -/
-theorem storedRecCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem storedRecCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rc : Arena.RecShape) (rcP : ConLeche.RecShape)
     (g : IConstantVal × Arena.TargetMajor × List EIdx)
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
-    CSpecF μ env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
-      (Arena.storedRecCheck μ fe rc g) (fun _ _ _ => True)
-      (ConLeche.storedRecCheck (fueledOpsM μ) .plain (mkFEnv env) rcP gP) := by
+    CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
+      (Arena.storedRecCheck .verified fe rc g) (fun _ _ _ => True)
+      (ConLeche.storedRecCheck (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, hrP, hmI, -, hrules⟩ := dRec_inv hrc
@@ -780,14 +780,14 @@ theorem storedRecCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (hen
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:185-193 storedRecsCheck
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:882 storedRecsCheckS_spec — **THEOREM 1
 for the block's stored recursors against the generated ones**, record by record. -/
-theorem storedRecsCheck_spec (fe : IFEnv) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+theorem storedRecsCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape)
       (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
       (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)),
-      CSpecF μ env fe
+      CSpecF env fe
         (fun st => recs.mapM (dRec st) = some recsP ∧ out.mapM (dRecOut st) = some outP)
-        (Arena.storedRecsCheck μ fe recs out) (fun _ _ _ => True)
-        (ConLeche.storedRecsCheck (fueledOpsM μ) .plain (mkFEnv env) recsP outP) := by
+        (Arena.storedRecsCheck .verified fe recs out) (fun _ _ _ => True)
+        (ConLeche.storedRecsCheck (fueledOpsM .verified) .plain (mkFEnv env) recsP outP) := by
   intro recs
   induction recs with
   | nil =>

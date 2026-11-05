@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Core.EnsureSort` — the seventh entry point
 
 `Arena/Core.lean` has SEVEN entry points and `coreKnot` has six slots: `ensureSortCore` is built on
-top of the knot (`ensureSort (pureFnsA mode eager fe fuel) fe depth e`) rather than
+top of the knot (`ensureSort (pureFnsA .verified eager fe fuel) fe depth e`) rather than
 being one of its fields, so `Bridge/Core/Knot.lean`'s `KnotSpec` does not
 cover it — and the declaration front door calls it at every constant, so
 `Bridge/Checker/Hyp.lean` states `EnsureSortSpec` as a second named
@@ -94,14 +94,14 @@ the fuel every entry is called with).
 tier's `CoreSpec` is therefore fully discharged by the Core tier (the six
 body walks `KnotSpec` itself rests on are closed too). -/
 theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode false env fe f)
+    (hsim : KnotSpec false env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode false env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK false env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.ensureSortCore mode fe f d i
-    ⦃fun r s' => CheckOK mode false env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ensureSortCore .verified fe f d i
+    ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode false env) d e s'.store r; ⊤⦄ := by
+        SimL (ConLeche.ensureSortCore .verified false env) d e s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.ensureSortCore ConRon.Arena.pureFnsA
   -- both failing branches have native specs and leave no condition; the
   -- sort exit is `SimL.of_whnfSort`

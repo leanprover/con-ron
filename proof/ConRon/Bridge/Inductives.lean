@@ -33,7 +33,7 @@ A twin that calls the knot (`inferTypeCore`, `isDefEqCore`, `whnf`,
 grade: `CSpec`/`CSpecF`, invariant `CheckOK`, frame `CoreStep`, hypothesis
 `CoreSpec`.  Everything else is PURE grade: `PSpec`, `StateOK`, `PStep`.  A
 core-grade statement's pure side is the monad-generic con-leche function at
-`fueledOpsM μ`, related through `FOk`; the tier's final `FOk` becomes
+`fueledOpsM .verified`, related through `FOk`; the tier's final `FOk` becomes
 `IndSpec`'s `∃ F` by `checkDecl_datF`.
 -/
 module

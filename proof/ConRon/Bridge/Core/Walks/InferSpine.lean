@@ -83,15 +83,15 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
 `defeqArg`**: the argument's type against the domain, in the eager tower for
 an `eagerReduce _ _` argument and in the knot's own otherwise — one comparison
 at the argument's mode (con-leche's `defeqArg_def`, `argEager`). -/
-theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem defeqArg_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (a i j : EIdx) (x ta ty : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdi : denoteE s₀.store i = some ta) (hdj : denoteE s₀.store j = some ty)
     (hwi : Expr.WScoped d ta) (hwj : Expr.WScoped d ty) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqArg (coreKnot mode eager fe id fuel) d a i j
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqArg (coreKnot .verified eager fe id fuel) d a i j
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode (argEager eager x) env) d ta ty r; ⊤⦄ := by
+        SimV (ConLeche.isDefEqCore .verified (argEager eager x) env) d ta ty r; ⊤⦄ := by
   sym only [bridge_grind, argEager] =>
     vcgen [ConRon.Arena.defeqArg, isEagerReduce_spec s₀ a x hok hda,
       fun s₁ h1 h2 h3 => hsim.defeqE s₁ d i j ta ty h1 h2 h3 hwi hwj,
@@ -149,22 +149,22 @@ accumulator `acc` and the cursor `i` denotes con-leche's pure mirror
 `ConLeche.inferSpine` at some fuel, on the pending telescope `tyx`, the
 pending substitution `ws` and the remaining arguments `xs`.  Induction on
 the arguments left. -/
-theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (d : Nat) (args : Array EIdx) :
     ∀ (k : Nat) (ty : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState)
       (tyx : Expr) (ws xs : List Expr),
-      args.size - i = k → CheckOK mode eager env fe s₀ →
+      args.size - i = k → CheckOK eager env fe s₀ →
       denoteE s₀.store ty = some tyx → ExprOps.InstLVec s₀.store acc ws →
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferSpine (coreKnot mode eager fe id fuel) fe d ty acc
+        ConRon.Arena.inferSpine (coreKnot .verified eager fe id fuel) fe d ty acc
           args i
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-            ∃ F, ConLeche.inferSpine (pureFns mode eager env F) d tyx ws xs
+            ∃ F, ConLeche.inferSpine (pureFns .verified eager env F) d tyx ws xs
               = .ok v; ⊤⦄ := by
   intro k
   induction k with
@@ -293,23 +293,23 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
 carry of `inferSpineIO`**, `inferSpine_go` at the io grade (official
 `infer_only`): the record is `CoreFnsA.ioView` of the knot, and no argument is
 inferred or compared (con-leche's task #342: there are no licence or
-certificate arms, so no `verifiedChecks` premise either). -/
+certificate arms). -/
 theorem inferSpineIO_go {fuel : Nat}
-    (hsim : KnotSpec mode eager env fe fuel) (d : Nat) (args : Array EIdx) :
+    (hsim : KnotSpec eager env fe fuel) (d : Nat) (args : Array EIdx) :
     ∀ (k : Nat) (ty : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState)
       (tyx : Expr) (ws xs : List Expr),
-      args.size - i = k → CheckOK mode eager env fe s₀ →
+      args.size - i = k → CheckOK eager env fe s₀ →
       denoteE s₀.store ty = some tyx → ExprOps.InstLVec s₀.store acc ws →
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
         ConRon.Arena.inferSpineIO
-          (CoreFnsA.ioView (coreKnot mode eager fe id fuel)) fe d ty acc args i
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+          (CoreFnsA.ioView (coreKnot .verified eager fe id fuel)) fe d ty acc args i
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-            ∃ F, ConLeche.inferSpineIO (pureFns mode eager env F) d tyx ws xs
+            ∃ F, ConLeche.inferSpineIO (pureFns .verified eager env F) d tyx ws xs
               = .ok v; ⊤⦄ := by
   intro k
   induction k with
@@ -391,7 +391,7 @@ theorem inferSpineIO_go {fuel : Nat}
           rintro r s6 ⟨hok6, hx6, hp6, v, hv, hwv, F4, hF4⟩
           refine ⟨hok6, hx03.trans hx6, by rw [hp6, hp3, hp2],
             v, hv, hwv, max F1 F4, ?_⟩
-          have e0 : (pureFns mode eager env (max F1 F4)).whnf d
+          have e0 : (pureFns .verified eager env (max F1 F4)).whnf d
               (tyx.instantiateList ws) = .ok (.forallE edom ebody) :=
             ConLeche.whnf_mono (by omega) hF1
           rw [ConLeche.inferSpineIO_ne_pi _ _ hne]

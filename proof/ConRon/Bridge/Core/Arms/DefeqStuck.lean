@@ -46,7 +46,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {eager : Bool} {env : Env}
+variable {eager : Bool} {env : Env}
 
 section Arms
 
@@ -54,58 +54,58 @@ variable {fe : IFEnv} {fuel d : Nat} {s₀ s₁ : AState} {G : Nat → Bool → 
 
 /-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
 fallback arm**, at any pair the dispatch sends there. -/
-theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
-    (x' y' : Expr) (hok : CheckOK mode eager env fe s₁)
+theorem dqArm_stuck
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' : EIdx)
+    (x' y' : Expr) (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d x' y' =
-      ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d x' y')
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d x' y' =
+      ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d x' y')
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       x' y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
-      ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ :=
-  dq_stuck_exit hμ henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
+      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ :=
+  dq_stuck_exit henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
     (hG.imp fun F h r hr => h r (by rw [hred F]; exact hr))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the left**. -/
-theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' ty₁ bd₁ : EIdx)
+theorem dqArm_etaL
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' ty₁ bd₁ : EIdx)
     (t₁ c₁ y' : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.lam t₁ c₁))
     (hty : denoteE s₁.store ty₁ = some t₁)
     (hbd : denoteE s₁.store bd₁ = some c₁)
     (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d (.lam t₁ c₁)) (hwy : Expr.WScoped d y')
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
         (.lam t₁ c₁) y' =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode eager env F) env d t₁ c₁ y'
+      (ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F) env d t₁ c₁ y'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
+          ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
             (.lam t₁ c₁) y'))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.lam t₁ c₁) y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
-        let e ← ConRon.Arena.etaCert mode (coreKnot mode eager fe id fuel) fe d ty₁
+        let e ← ConRon.Arena.etaCert .verified (coreKnot .verified eager fe id fuel) fe d ty₁
           bd₁ b'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' t₁ c₁ y' hok hty hbd
     hy hwx hwy) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
-  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode eager env F)
+  have hE : Ev (fun F => ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F)
       env d t₁ c₁ y' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact dq_stuck_exit hμ henv hsim a' b' _ y' hok2 (hx₁.trans hx2) (hp2.trans hp₁)
+    exact dq_stuck_exit henv hsim a' b' _ y' hok2 (hx₁.trans hx2) (hp2.trans hp₁)
       (denote_ext hx hx2) (denote_ext hy hx2) hwx hwy
       ((hG.and hE).imp fun F ⟨h, h2⟩ r hr => h r (by
         rw [hred F]; simp only [bind, Except.bind, h2, Bool.false_eq_true,
@@ -117,40 +117,40 @@ theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the right**. -/
-theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' ty₂ bd₂ : EIdx)
+theorem dqArm_etaR
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' ty₂ bd₂ : EIdx)
     (x' t₂ c₂ : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x')
     (hy : denoteE s₁.store b' = some (.lam t₂ c₂))
     (hty : denoteE s₁.store ty₂ = some t₂)
     (hbd : denoteE s₁.store bd₂ = some c₂)
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d (.lam t₂ c₂))
-    (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hred : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
         x' (.lam t₂ c₂) =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode eager env F) env d t₂ c₂ x'
+      (ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F) env d t₂ c₂ x'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
+          ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
             x' (.lam t₂ c₂)))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       x' (.lam t₂ c₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
-        let e ← ConRon.Arena.etaCert mode (coreKnot mode eager fe id fuel) fe d ty₂
+        let e ← ConRon.Arena.etaCert .verified (coreKnot .verified eager fe id fuel) fe d ty₂
           bd₂ a'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' t₂ c₂ x' hok hty hbd
     hx hwy hwx) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
-  have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode eager env F)
+  have hE : Ev (fun F => ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F)
       env d t₂ c₂ x' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
   · simp only [Bool.false_eq_true, ↓reduceIte]
-    exact dq_stuck_exit hμ henv hsim a' b' x' _ hok2 (hx₁.trans hx2) (hp2.trans hp₁)
+    exact dq_stuck_exit henv hsim a' b' x' _ hok2 (hx₁.trans hx2) (hp2.trans hp₁)
       (denote_ext hx hx2) (denote_ext hy hx2) hwx hwy
       ((hG.and hE).imp fun F ⟨h, h2⟩ r hr => h r (by
         rw [hred F]; simp only [bind, Except.bind, h2, Bool.false_eq_true,
@@ -163,54 +163,54 @@ theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two free
 variables**: equal indices are defeq, else stuck. -/
-theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
+theorem dqArm_fvar
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' : EIdx)
     (i j : Nat) (t₁ t₂ : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.fvar i t₁))
     (hy : denoteE s₁.store b' = some (.fvar j t₂))
     (hwx : Expr.WScoped d (.fvar i t₁)) (hwy : Expr.WScoped d (.fvar j t₂))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.fvar i t₁) (.fvar j t₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (if (i == j) = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   split
   · rename_i h
     exact dq_pure_exit hok hx₁ hp₁ (hG.imp fun F hh => hh _ (by
       show (if (i == j) = true then _ else _) = _
       rw [ite_eq_left h]; rfl))
   · rename_i h
-    exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
+    exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r (by
         show (if (i == j) = true then _ else _) = _
         rw [ite_eq_right h]; exact hr))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two
 constants**: the same name at equivalent universe arguments, else stuck. -/
-theorem dqArm_const (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
+theorem dqArm_const
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' : EIdx)
     (n n' : NIdx) (us us' : LsIdx) (nm nm' : ConLeche.Name)
     (ls ls' : List ConLeche.Level)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.const nm ls))
     (hy : denoteE s₁.store b' = some (.const nm' ls'))
     (hn : denoteN s₁.store.ns n = some nm) (hn' : denoteN s₁.store.ns n' = some nm')
     (hus : denoteLs s₁.store.lss us = some ls)
     (hus' : denoteLs s₁.store.lss us' = some ls')
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.const nm ls) (.const nm' ls') = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (if n = n' then do
           let o ← lvlsEq? us us'
           let b ← ConRon.Arena.liftFueled "level comparison" o
           if b = true then pure true
-          else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+          else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hiff := n_eq_iff_pin hwf hn hn'
   have hwx : Expr.WScoped d (.const nm ls) := by simp [Expr.WScoped]
@@ -230,10 +230,10 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
       refine triple_seq (triple_pure_post (Q := fun r s => r = b ∧ s = s2) ⟨rfl, rfl⟩) ?_
       rintro bb s3 ⟨hbb, hs3⟩
       subst bb; subst s3
-      have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+      have hpure : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
           (.const nm ls) (.const nm' ls') =
           (if b = true then pure true else ConLeche.stuckIrrel
-            (ConLeche.pureFns mode eager env F) env d (.const nm ls) (.const nm' ls')) := by
+            (ConLeche.pureFns .verified eager env F) env d (.const nm ls) (.const nm' ls')) := by
         intro F
         exact (ite_eq_left h').trans (by rw [ho]; rfl)
       split
@@ -241,11 +241,11 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
         exact dq_pure_exit hok2 hx2 (hp2.trans hp₁) (hG.imp fun F hh => hh _ (by
           rw [hpure F, ite_eq_left hb]; rfl))
       · rename_i hb
-        exact dq_stuck_exit hμ henv hsim a' b' _ _ hok2 hx2 (hp2.trans hp₁)
+        exact dq_stuck_exit henv hsim a' b' _ _ hok2 hx2 (hp2.trans hp₁)
           (by rw [hst2]; exact hx) (by rw [hst2]; exact hy) hwx hwy
           (hG.imp fun F hh r hr => hh r (by rw [hpure F, ite_eq_right hb]; exact hr))
   · rename_i h
-    exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
+    exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r
         ((ite_eq_right (fun h' => h (hiff.mpr h'))).trans hr))
 
@@ -253,16 +253,16 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **a `String`
 literal against a unary `String.ofList` application, literal on the left**:
 the literal's constructor form against the application. -/
-theorem dqArm_strL (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' fo : EIdx)
+theorem dqArm_strL
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' fo : EIdx)
     (st : String) (ef ex : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.lit (.strVal st)))
     (hy : denoteE s₁.store b' = some (.app ef ex))
     (hf : denoteE s₁.store fo = some ef)
     (hwy : Expr.WScoped d (.app ef ex))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.lit (.strVal st)) (.app ef ex) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -274,11 +274,11 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
             let sup ← ConRon.Arena.strLitSupported fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
-              (coreKnot mode eager fe id fuel).defeq d c b'
-            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+              (coreKnot .verified eager fe id fuel).defeq d c b'
+            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -311,26 +311,26 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
-      exact dq_stuck_exit hμ henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
+      exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
           ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
             (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
   all_goals
-    exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
+    exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — the same,
 literal on the right. -/
-theorem dqArm_strR (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' fo : EIdx)
+theorem dqArm_strR
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' fo : EIdx)
     (st : String) (ef ex : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.app ef ex))
     (hy : denoteE s₁.store b' = some (.lit (.strVal st)))
     (hf : denoteE s₁.store fo = some ef)
     (hwx : Expr.WScoped d (.app ef ex))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.app ef ex) (.lit (.strVal st)) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -342,11 +342,11 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
             let sup ← ConRon.Arena.strLitSupported fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
-              (coreKnot mode eager fe id fuel).defeq d a' c
-            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+              (coreKnot .verified eager fe id fuel).defeq d a' c
+            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -379,26 +379,26 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
-      exact dq_stuck_exit hμ henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
+      exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
           ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
             (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
   all_goals
-    exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
+    exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two stuck
 applications**: spine-wise congruence (equal lengths, the heads, the
 argument lists), else stuck. -/
-theorem dqArm_app (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel) (a' b' : EIdx)
+theorem dqArm_app
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel) (a' b' : EIdx)
     (ef₁ ea₁ ef₂ ea₂ : Expr)
-    (hok : CheckOK mode eager env fe s₁)
+    (hok : CheckOK eager env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some (.app ef₁ ea₁))
     (hy : denoteE s₁.store b' = some (.app ef₂ ea₂))
     (hwx : Expr.WScoped d (.app ef₁ ea₁)) (hwy : Expr.WScoped d (.app ef₂ ea₂))
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
@@ -407,29 +407,29 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
         if aa.length = bb.length then do
           let fa ← getAppFn coreWalkFuel a'
           let fb ← getAppFn coreWalkFuel b'
-          let dq ← (coreKnot mode eager fe id fuel).defeq d fa fb
+          let dq ← (coreKnot .verified eager fe id fuel).defeq d fa fb
           if dq = true then do
-            let dl ← ConRon.Arena.defEqList (coreKnot mode eager fe id fuel) fe d aa bb
+            let dl ← ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d aa bb
             if dl = true then pure true
-            else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-          else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a' b')
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
-  have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d
+            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+          else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
+  have hpure : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) =
       (if (Expr.app ef₁ ea₁).getAppArgs.length =
           (Expr.app ef₂ ea₂).getAppArgs.length then
-        (ConLeche.isDefEqCore mode eager env F d (Expr.app ef₁ ea₁).getAppFn
+        (ConLeche.isDefEqCore .verified eager env F d (Expr.app ef₁ ea₁).getAppFn
             (Expr.app ef₂ ea₂).getAppFn >>= fun b =>
           if b = true then
-            (ConLeche.defEqList (ConLeche.pureFns mode eager env F) env d
+            (ConLeche.defEqList (ConLeche.pureFns .verified eager env F) env d
                 (Expr.app ef₁ ea₁).getAppArgs (Expr.app ef₂ ea₂).getAppArgs
               >>= fun b2 => if b2 = true then pure true
-                else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
+                else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
                   (.app ef₁ ea₁) (.app ef₂ ea₂))
-          else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
+          else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
             (.app ef₁ ea₁) (.app ef₂ ea₂))
-      else ConLeche.stuckIrrel (ConLeche.pureFns mode eager env F) env d
+      else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
         (.app ef₁ ea₁) (.app ef₂ ea₂)) := by
     intro F; cases ef₁ <;> rfl
   refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₁ a' hok.state
@@ -459,14 +459,14 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
     refine triple_seq (hsim.defeq s₁ d fa fb _ _ hok (hfa _ hx) (hfb _ hy)
       (Expr.WScoped.getAppFn hwx) (Expr.WScoped.getAppFn hwy)) ?_
     rintro dq s6 ⟨hok6, hx6, hp6, hdq⟩
-    have hD : Ev (fun F => ConLeche.isDefEqCore mode eager env F d
+    have hD : Ev (fun F => ConLeche.isDefEqCore .verified eager env F d
         (Expr.app ef₁ ea₁).getAppFn (Expr.app ef₂ ea₂).getAppFn = .ok dq) :=
       Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hdq
     have hx06 := hx₁.trans hx6
     have hp06 : s6.pins = s₀.pins := hp6.trans hp₁
     cases dq
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact dq_stuck_exit hμ henv hsim a' b' _ _ hok6 hx06 hp06 (denote_ext hx hx6)
+      exact dq_stuck_exit henv hsim a' b' _ _ hok6 hx06 hp06 (denote_ext hx hx6)
         (denote_ext hy hx6) hwx hwy ((hG.and hD).imp fun F ⟨hh, hd⟩ r hr =>
           hh r (by
             rw [hpure F, ite_eq_left hl']
@@ -477,14 +477,14 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
         (denoteEList_ext hx6 _ _ haa') (denoteEList_ext hx6 _ _ hbb')
         (Expr.WScoped.getAppArgs hwx) (Expr.WScoped.getAppArgs hwy)) ?_
       rintro dl s7 ⟨hok7, hx7, hp7, hdl⟩
-      have hL : Ev (fun F => ConLeche.defEqList (ConLeche.pureFns mode eager env F) env d
+      have hL : Ev (fun F => ConLeche.defEqList (ConLeche.pureFns .verified eager env F) env d
           (Expr.app ef₁ ea₁).getAppArgs (Expr.app ef₂ ea₂).getAppArgs = .ok dl) :=
         Ev.of_mono (fun hle h => defEqListFueled_mono hle h) hdl
       have hx07 := hx06.trans hx7
       have hp07 : s7.pins = s₀.pins := hp7.trans hp06
       cases dl
       · simp only [Bool.false_eq_true, ↓reduceIte]
-        exact dq_stuck_exit hμ henv hsim a' b' _ _ hok7 hx07 hp07 (denote_ext hx (hx6.trans hx7))
+        exact dq_stuck_exit henv hsim a' b' _ _ hok7 hx07 hp07 (denote_ext hx (hx6.trans hx7))
           (denote_ext hy (hx6.trans hx7)) hwx hwy
           ((hG.and hD |>.and hL).imp fun F ⟨⟨hh, hd⟩, hl2⟩ r hr => hh r (by
             rw [hpure F, ite_eq_left hl']
@@ -498,7 +498,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
             simp only [bind, Except.bind, hd, hl2, ↓reduceIte]
             rfl))
   · rename_i hl
-    exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
+    exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r (by
         rw [hpure F, ite_eq_right (fun h' => hl (hlen.mpr h'))]; exact hr))
 
@@ -508,18 +508,18 @@ end Arms
 for the stuck comparison**: the twin's `defeqStuck` against con-leche's, at an
 arbitrary pure goal `G` that follows eventually from con-leche's answer. -/
 theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode eager env fe fuel) (d : Nat)
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) (d : Nat)
     (s₀ s₁ : AState) (a' b' : EIdx) (x' y' : Expr)
-    (hok : CheckOK mode eager env fe s₁) (hx₁ : Ext s₀.store s₁.store)
+    (hok : CheckOK eager env fe s₁) (hx₁ : Ext s₀.store s₁.store)
     (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
     (G : Nat → Bool → Prop)
-    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F)
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F)
       env d x' y' = .ok r → G F r)) :
-    ⦃fun s => s = s₁⦄ ConRon.Arena.defeqStuck mode (coreKnot mode eager fe id fuel) fe d a' b'
-    ⦃fun r s' => DqPost mode eager env fe s₀ G r s'; ⊤⦄ := by
+    ⦃fun s => s = s₁⦄ ConRon.Arena.defeqStuck .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqStuck
   obtain ⟨va, hva⟩ := denoteE_view hx
@@ -531,159 +531,159 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
   rcases hA with ⟨i1⟩ | ⟨k1, t1, et1, ht1⟩ | ⟨u1, l1, hl1⟩ | ⟨n1, us1, nm1, ls1, hn1, hls1⟩ | ⟨f1, a1, ef1, ea1, hf1, ha1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, w1, bd1, et1, ew1, eb1, hty1, hw1, hbd1⟩ | ⟨lit1⟩ | ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
   · -- left: bvar
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: fvar
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_fvar hμ henv hsim a' b' k1 k2 et1 et2 hok hx₁ hp₁ hx hy hwx hwy hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_fvar henv hsim a' b' k1 k2 et1 et2 hok hx₁ hp₁ hx hy hwx hwy hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: sort
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: const
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_const hμ henv hsim a' b' n1 n2 us1 us2 nm1 nm2 ls1 ls2 hok hx₁ hp₁ hx hy hn1 hn2 hls1 hls2 hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_const henv hsim a' b' n1 n2 us1 us2 nm1 nm2 ls1 ls2 hok hx₁ hp₁ hx hy hn1 hn2 hls1 hls2 hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: app
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_app hμ henv hsim a' b' ef1 ea1 ef2 ea2 hok hx₁ hp₁ hx hy hwx hwy hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_app henv hsim a' b' ef1 ea1 ef2 ea2 hok hx₁ hp₁ hx hy hwx hwy hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
-      · exact dqArm_strR hμ henv hsim a' b' f1 sv2 ef1 ea1 hok hx₁ hp₁ hx hy hf1 hwx hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+      · exact dqArm_strR henv hsim a' b' f1 sv2 ef1 ea1 hok hx₁ hp₁ hx hy hf1 hwx hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
   · -- left: lam
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
   · -- left: forallE
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: letE
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: lit
     rcases lit1 with nv1 | sv1
     · -- Nat literal
       rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · rcases lit2 with nv2 | sv2
-        · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-        · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+        · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+        · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · -- String literal
       rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_strL hμ henv hsim a' b' f2 sv1 ef2 ea2 hok hx₁ hp₁ hx hy hf2 hwy hG
-      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_strL henv hsim a' b' f2 sv1 ef2 ea2 hok hx₁ hp₁ hx hy hf2 hwy hG
+      · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · rcases lit2 with nv2 | sv2
-        · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-        · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+        · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+        · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: proj
     rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_stuck henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
 
 end ConRon.Bridge.Core

@@ -140,9 +140,9 @@ grind_pattern [bridge_grind] typePins_cons_false_sim =>
 `ExprOps/Ranges.lean`'s `hasFvarFast_spec` at the tier's invariant
 (`CheckOK.mono`). -/
 theorem hasFvarFast_specC (fuel : Nat) (s₀ : AState) (e : EIdx)
-    (hok : CheckOK μ false env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
+    (hok : CheckOK false env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ hasFvarFast fuel e
-    ⦃fun r s' => CheckOK μ false env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK false env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
         RelV Expr.hasFvar s₀.store e r; ⊤⦄ :=
   triple_mono (ExprOps.hasFvarFast_spec fuel s₀ e hok.state hden)
     (fun _ _ ⟨hst, hc, hp, hr⟩ =>
@@ -153,9 +153,9 @@ theorem hasFvarFast_specC (fuel : Nat) (s₀ : AState) (e : EIdx)
 — `Bridge/Checker/Names.lean`'s `constsResolveFFast_run` as a triple, at the
 tier's invariant. -/
 theorem constsResolveFFast_specC (s₀ : AState) (e : EIdx)
-    (hok : CheckOK μ false env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
+    (hok : CheckOK false env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ constsResolveFFast fe e
-    ⦃fun r s' => CheckOK μ false env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK false env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
         RelV (Expr.constsResolve env) s₀.store e r; ⊤⦄ :=
   AM.triple_of_run_at fun r s' h => by
     obtain ⟨x, hd⟩ := Option.isSome_iff_exists.mp hden
@@ -175,38 +175,38 @@ theorem denoteEView_sort_eq (st : EStore) (u : LIdx) :
 stored type a type pin is compared against denotes con-leche's: the found
 constant's type, or the `Sort 0` the twin interns for an absent one. -/
 theorem typePinStored_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK μ false env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    (hok : CheckOK false env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
     ⦃fun s => s = s₀⦄ Arena.typePinStored fe n
-    ⦃fun r s' => CheckOK μ false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.typePinStored env nm); ⊤⦄ := by
   sym only [bridge_grind, typePinStored_eq, denoteCV_type, denoteEView_sort_eq] =>
     vcgen [Arena.typePinStored, Arena.zeroLevel, pinZeroLevel_spec s₀ hok.pins,
-      internE_specC (mode := μ) (eager := false) (env := env) (fe := fe)] <;> finish
+      internE_specC (eager := false) (env := env) (fe := fe)] <;> finish
 
 /-! ## The guard -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard — one
 type pin's guard answers con-leche's closure body at the pin's denotation. -/
 theorem typePinGuard_spec (s₀ : AState) (n : NIdx) (ty : EIdx) (nm : ConLeche.Name)
-    (T : Expr) (hok : CheckOK μ false env fe s₀) (hn : denoteN s₀.store.ns n = some nm)
+    (T : Expr) (hok : CheckOK false env fe s₀) (hn : denoteN s₀.store.ns n = some nm)
     (ht : denoteE s₀.store ty = some T) :
     ⦃fun s => s = s₀⦄ Arena.typePinGuard fe n ty
-    ⦃fun r s' => CheckOK μ false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         r = TypePinGuardP env nm T; ⊤⦄ := by
   sym only [bridge_grind, TypePinGuardP] =>
     vcgen [Arena.typePinGuard, typePinStored_spec s₀ n nm hok hn,
-      hasFvarFast_specC (μ := μ) (env := env) (fe := fe),
-      looseBVarsBoundedFast_specC (mode := μ) (eager := false) (env := env) (fe := fe),
-      constsResolveFFast_specC (μ := μ) (env := env) (fe := fe)] <;> finish
+      hasFvarFast_specC (env := env) (fe := fe),
+      looseBVarsBoundedFast_specC (eager := false) (env := env) (fe := fe),
+      constsResolveFFast_specC (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:311-321 divModPinGuard — the
 type-pin clause: the list of guards answers `typePinsGuardP` at the list's
 denotation. -/
 theorem typePinsGuard_spec :
     ∀ (tps : List (NIdx × EIdx)) (tpsP : List (ConLeche.Name × Expr)) (s₀ : AState),
-      CheckOK μ false env fe s₀ → TypePinsDenote s₀.store tps tpsP →
+      CheckOK false env fe s₀ → TypePinsDenote s₀.store tps tpsP →
       ⦃fun s => s = s₀⦄ Arena.typePinsGuard fe tps
-      ⦃fun r s' => CheckOK μ false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+      ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
           r = typePinsGuardP env tpsP; ⊤⦄ := by
   intro tps
   induction tps with
@@ -233,14 +233,14 @@ theorem typePinsGuard_spec :
 type pins compared**: each stored type against its pin by `KnotSpec.defeq`
 at depth 0, the answer con-leche's at some fuel.  Both sides of every
 comparison are closed (`hc`, which the variant's guard provides). -/
-theorem checkTypePins_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+theorem checkTypePins_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
     ∀ (tps : List (NIdx × EIdx)) (tpsP : List (ConLeche.Name × Expr)) (s₀ : AState),
-      CheckOK μ false env fe s₀ → TypePinsDenote s₀.store tps tpsP →
+      CheckOK false env fe s₀ → TypePinsDenote s₀.store tps tpsP →
       (∀ p ∈ tpsP, (ConLeche.typePinStored env p.1).hasFvar = false ∧
         p.2.hasFvar = false) →
-      ⦃fun s => s = s₀⦄ Arena.checkTypePins μ fe tps
-      ⦃fun r s' => CheckOK μ false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-          SimBOp (typePinsOp μ env tpsP) r; ⊤⦄ := by
+      ⦃fun s => s = s₀⦄ Arena.checkTypePins .verified fe tps
+      ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+          SimBOp (typePinsOp .verified env tpsP) r; ⊤⦄ := by
   have hknot := hk.knot env fe henv
   intro tps
   induction tps with
@@ -261,11 +261,11 @@ theorem checkTypePins_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
         ConLeche.Expr.WScoped.of_not_hasFvar (hc q (by simp)).2
       have step := fun s₁ hk hx =>
         ih qs s₁ hk (TypePinsDenote.mono hx _ _ h3) (fun r hr => hc r (by simp [hr]))
-      have dq : ∀ (s₁ : AState) (i : EIdx), CheckOK μ false env fe s₁ → Ext s₀.store s₁.store →
+      have dq : ∀ (s₁ : AState) (i : EIdx), CheckOK false env fe s₁ → Ext s₀.store s₁.store →
           denoteE s₁.store i = some (ConLeche.typePinStored env q.1) →
-          ⦃fun s => s = s₁⦄ Arena.isDefEqCore μ fe Arena.checkFuel 0 i p.2
-          ⦃fun x s' => CheckOK μ false env fe s' ∧ Ext s₁.store s'.store ∧ s'.pins = s₁.pins ∧
-            SimV (ConLeche.isDefEqCore μ false env) 0 (ConLeche.typePinStored env q.1) q.2 x; ⊤⦄ :=
+          ⦃fun s => s = s₁⦄ Arena.isDefEqCore .verified fe Arena.checkFuel 0 i p.2
+          ⦃fun x s' => CheckOK false env fe s' ∧ Ext s₁.store s'.store ∧ s'.pins = s₁.pins ∧
+            SimV (ConLeche.isDefEqCore .verified false env) 0 (ConLeche.typePinStored env q.1) q.2 x; ⊤⦄ :=
         fun s₁ i hk hx hi =>
           hknot.defeq s₁ 0 i p.2 (ConLeche.typePinStored env q.1) q.2 hk hi
             (denote_ext h2 hx) hw1 hw2

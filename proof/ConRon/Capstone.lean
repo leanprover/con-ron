@@ -111,10 +111,10 @@ Former hypotheses, now theorems or gone (DESIGN.md's task #97-COMPOSE and
 
 * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
   since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
-* ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
+* ~~`hk : CoreSpec Arena.checkFuel`~~ — Theorem 1's Core tier
   spec: a theorem since task #97-P3-Core round 6
   (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`);
-* ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
+* ~~`hind : IndSpec`~~ — Theorem 1's inductive tier spec:
   `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task #97-P3-Ind
   round 8 (the stage lemmas below still take it as a parameter);
 * ~~`hbytes`~~ — the prelude's bytes are con-leche's: not needed since task
@@ -171,7 +171,7 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE)) :
     sE.store.scratchOn = false ∧
-      FoldOK .verified Env.empty (mkIFEnv IEnv.empty) sE ∧
+      FoldOK Env.empty (mkIFEnv IEnv.empty) sE ∧
       PinsDenote sE.store ipins pins ∧ PersPinSets ipins ∧
       (∀ x ∈ ds.toList, PersDecl x) ∧
       ∃ dsP, denoteDecls sE.store ds.toList = some dsP := by
@@ -213,7 +213,7 @@ does (`Arena.PooledAccepts`, task #97-P5-POOL).  `stages_frame`, then
 `Arena.pooledAccepts_bridge`, then con-leche.  The environment denotes in the
 phase-A state, which the Rust's thawed store is related to. -/
 theorem stages_model (V : Type w) [ConLeche.SetTheory V]
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
@@ -284,7 +284,7 @@ pure fold accepts the stream), then `no_False_theorem_accepted_pure` — through
 the pure fold, because the pooled phase B is not one twin walk (task
 #97-P5-POOL). -/
 theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
@@ -314,7 +314,7 @@ phase A's `installFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
 ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
 the phase-A state back. -/
 theorem stages_storeWF
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
@@ -720,9 +720,9 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
     ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   -- Theorem 1's two tier specs, discharged (tasks #97-P3-Core, #97-P3-Ind)
-  have hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel :=
+  have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
-  have hind : ConRon.Bridge.IndSpec .verified :=
+  have hind : ConRon.Bridge.IndSpec :=
     ConRon.Bridge.Inductives.indSpec_of_bridge hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2
@@ -784,9 +784,9 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
           | .Err _ => fail .panic) st) = ok st') :
     False := by
   obtain ⟨est, hest, hst0⟩ := startState_init
-  have hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel :=
+  have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
-  have hind : ConRon.Bridge.IndSpec .verified :=
+  have hind : ConRon.Bridge.IndSpec :=
     ConRon.Bridge.Inductives.indSpec_of_bridge hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2

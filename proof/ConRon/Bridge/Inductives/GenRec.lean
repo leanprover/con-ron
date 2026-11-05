@@ -6,7 +6,7 @@ Theorem 1 for `Arena/Inductives/GenRec.lean` against con-leche's
 `ConLeche/Kernel/Inductives/GenRec.lean`: the generator (`ClassGen`, pure
 grade, its `Option`-valued twins answering TWO-SIDEDLY through `ROp`), then
 the stage (`classCtorOf` … `genRecCheck`, core grade against con-leche run at
-`fueledOpsM μ`, `CSpecF`), and the pass's classes (`checkBlockClasses`).
+`fueledOpsM .verified`, `CSpecF`), and the pass's classes (`checkBlockClasses`).
 
 The template is upstream's cached bridge `ConLeche/Verify/Cached/GenRecC.lean`
 (`genRecCheckS_simG` and the `…S_sim` lemmas above it): the same structure and
@@ -15,7 +15,7 @@ the same scoping facts (`ClassMajScoped`, `classConstOk_typeWF`,
 
 **The twin's deviations** (its module note), and what each costs here:
 
-* no `ShadowOps`: the pure side is `ShadowOps.ofOps (fueledOpsM μ)`, whose
+* no `ShadowOps`: the pure side is `ShadowOps.ofOps (fueledOpsM .verified)`, whose
   `opsAt`/`opsRuleR` are constant and whose `flush` is `pure ()`; the twin's
   flushes are `flushCaches`, which restore `CheckOK` at whichever index the
   state reads (`ReadOK.flush`);
@@ -1646,23 +1646,23 @@ theorem ROp_REL_getD {st : EStore} {x : Option (List Expr)} {o : Option (List EI
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:256-271 classNodesAgree —
 **node agreement at one recursive field** (K.53′), at every recorded entry of
 the constructor: the recorded field read at the same position, `targetK53`
-answering con-leche's at `fueledOpsM μ`.  Scoping as the cached bridge's
+answering con-leche's at `fueledOpsM .verified`.  Scoping as the cached bridge's
 `classNodesAgreeS_sim`. -/
-theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classNodesAgree_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (mc : Arena.TargetMajor) (McP : ConLeche.TargetMajor)
     (tele : List EIdx) (teleP : List Expr) (leaf : EIdx)
     (leafP : Expr) (fvs : List EIdx) (fvsP : List Expr) (i : Nat) (ctor : ConLeche.Name)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) (hMc : Cached.TargetMajScoped McP) :
     ∀ (es : List Arena.NestCtorNf) (esP : List ConLeche.NestCtorNf),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         dMajor st mc = some McP ∧ Frontend.denoteEList st tele = some teleP ∧
         denoteE st leaf = some leafP ∧ Frontend.denoteEList st fvs = some fvsP ∧
         es.mapM (dCtorNf st) = some esP)
-      (Arena.classNodesAgree μ fe p formerTys mc tele leaf fvs i es) (fun _ _ _ => True)
-      (ConLeche.classNodesAgree (fueledOpsM μ) env pP formerTysP McP teleP leafP fvsP i ctor
+      (Arena.classNodesAgree .verified fe p formerTys mc tele leaf fvs i es) (fun _ _ _ => True)
+      (ConLeche.classNodesAgree (fueledOpsM .verified) env pP formerTysP McP teleP leafP fvsP i ctor
         esP) := by
   intro es
   induction es with
@@ -1718,8 +1718,8 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **node agreement at every recursive field of the datum**: the field's
 telescope stripped, its leaf at the inductive hypothesis's class, then every
 entry (`classNodesAgree`).  Scoping as `classFieldsAgreeS_sim`. -/
-theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classFieldsAgree_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor)
     (fvs : List EIdx) (fvsP : List Expr) (es : List Arena.NestCtorNf)
@@ -1727,12 +1727,12 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
     ∀ (ks : List Arena.ClassField) (i : Nat),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         ms.mapM (dMajor st) = some MsP ∧ Frontend.denoteEList st fvs = some fvsP ∧
         es.mapM (dCtorNf st) = some esP)
-      (Arena.classFieldsAgree μ fe p formerTys ms fvs es i ks) (fun _ _ _ => True)
-      (ConLeche.classFieldsAgree (fueledOpsM μ) env pP formerTysP MsP fvsP ctor esP i
+      (Arena.classFieldsAgree .verified fe p formerTys ms fvs es i ks) (fun _ _ _ => True)
+      (ConLeche.classFieldsAgree (fueledOpsM .verified) env pP formerTysP MsP fvsP ctor esP i
         (ks.map cfOf)) := by
   intro ks
   induction ks with
@@ -1818,19 +1818,19 @@ theorem filter_nfs {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Na
 class's table (the first the DATUM), the minor premise's inductive hypotheses
 against the datum's recursive fields, node agreement at every entry, and the
 constructor's declared type at the class. -/
-theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classCtorOf_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
     (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor) (c : Nat)
     (cA : IConstantVal × Nat) (cAP : ConstantVal × Nat)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧ dCtor st cA = some cAP)
-      (Arena.classCtorOf μ fe p formerTys rd ms c cA) (fun st r v => dClassCtor st r = some v)
-      (ConLeche.classCtorOf (fueledOpsM μ) env pP formerTysP rdP MsP c cAP) := by
+      (Arena.classCtorOf .verified fe p formerTys rd ms c cA) (fun st r v => dClassCtor st r = some v)
+      (ConLeche.classCtorOf (fueledOpsM .verified) env pP formerTysP rdP MsP c cAP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hft, hrd, hms, hcA⟩ := hpre
   simp only [dCtor, Option.map_eq_some_iff] at hcA
@@ -1908,20 +1908,20 @@ theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:315-323 classCtorsOf —
 every constructor of class `c`. -/
-theorem classCtorsOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classCtorsOf_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
     (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor) (c : Nat)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧ dCtors st cs = some csP)
-      (Arena.classCtorsOf μ fe p formerTys rd ms c cs)
+      (Arena.classCtorsOf .verified fe p formerTys rd ms c cs)
       (fun st r v => r.mapM (dClassCtor st) = some v)
-      (ConLeche.classCtorsOf (fueledOpsM μ) env pP formerTysP rdP MsP c csP) := by
+      (ConLeche.classCtorsOf (fueledOpsM .verified) env pP formerTysP rdP MsP c csP) := by
   intro cs
   induction cs with
   | nil =>
@@ -1953,21 +1953,21 @@ theorem classCtorsOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:325-332 classesCtors —
 every class's constructors, from class `c` on. -/
-theorem classesCtors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classesCtors_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
     (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
     ∀ (l : List Arena.TargetMajor) (lP : List ConLeche.TargetMajor) (c : Nat),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧
         l.mapM (dMajor st) = some lP)
-      (Arena.classesCtors μ fe p formerTys rd ms c l)
+      (Arena.classesCtors .verified fe p formerTys rd ms c l)
       (fun st r v => r.mapM (fun xs => xs.mapM (dClassCtor st)) = some v)
-      (ConLeche.classesCtors (fueledOpsM μ) env pP formerTysP rdP MsP c lP) := by
+      (ConLeche.classesCtors (fueledOpsM .verified) env pP formerTysP rdP MsP c lP) := by
   intro l
   induction l with
   | nil =>
@@ -2027,20 +2027,20 @@ theorem classMajorOf_shape {fe : FEnv} {p : ConLeche.BlockShape}
 **every class checked as a major** over the canonical parameters: each
 answer denotes con-leche's, and every class is scoped (`ClassMajScoped`,
 the cached bridge's `classMajorsS_sim`). -/
-theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classMajors_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     (ctorsAs : List (List (IConstantVal × Nat))) (ctorsAsP : List (List (ConstantVal × Nat)))
     (pfvs : List EIdx) (pfvsP : List Expr) (hpl : pfvsP.length = pP.nP)
     (hp : ∀ x ∈ pfvsP, Expr.WScoped pP.nP x) :
     ∀ (keys : List Arena.ClassKey) (keysP : List ConLeche.ClassKey),
     (∀ key ∈ keysP, ∀ x ∈ key.ds, ∃ D, Expr.WScoped D x) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ ctorsAs.mapM (dCtors st) = some ctorsAsP ∧
         Frontend.denoteEList st pfvs = some pfvsP ∧ keys.mapM (dClassKey st) = some keysP)
-      (Arena.classMajors μ fe p ctorsAs pfvs keys)
+      (Arena.classMajors .verified fe p ctorsAs pfvs keys)
       (fun st r v => r.mapM (dMajor st) = some v ∧ ∀ M ∈ v, Cached.ClassMajScoped pP.nP M)
-      (ConLeche.classMajors (fueledOpsM μ) (mkFEnv env) pP ctorsAsP pfvsP keysP) := by
+      (ConLeche.classMajors (fueledOpsM .verified) (mkFEnv env) pP ctorsAsP pfvsP keysP) := by
   intro keys
   induction keys with
   | nil =>
@@ -2112,14 +2112,14 @@ namespace GR
 
 /-- con-leche: none — **`List.mapM` of a core-grade step against con-leche's
 `mapM` at `FueledM`** (the accumulator loop both sides run). -/
-theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
+theorem mapMLoop_cspecF {env : Env} {fe : IFEnv} {α αP β βP : Type}
     (d : EStore → α → Option αP) (hd : DExt d) (dR : EStore → β → Option βP) (hdR : DExt dR)
     (Q : EStore → Prop) (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
     (f : α → AM β) (g : αP → FueledM βP)
-    (hf : ∀ a aP, CSpecF μ env fe (fun st => Q st ∧ d st a = some aP) (f a)
+    (hf : ∀ a aP, CSpecF env fe (fun st => Q st ∧ d st a = some aP) (f a)
       (fun st r v => dR st r = some v) (g aP)) :
     ∀ (l : List α) (lP : List αP) (acc : List β) (accP : List βP),
-    CSpecF μ env fe (fun st => Q st ∧ l.mapM (d st) = some lP ∧ acc.mapM (dR st) = some accP)
+    CSpecF env fe (fun st => Q st ∧ l.mapM (d st) = some lP ∧ acc.mapM (dR st) = some accP)
       (List.mapM.loop f l acc) (fun st r v => r.mapM (dR st) = some v)
       (List.mapM.loop g lP accP) := by
   intro l
@@ -2146,13 +2146,13 @@ theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP
     exact ⟨c1.trans c2, v, hv, by simp only [List.mapM.loop]; exact FOk.bind hF hG⟩
 
 /-- con-leche: none — `mapMLoop_cspecF` from the empty accumulator. -/
-theorem mapM_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
+theorem mapM_cspecF {env : Env} {fe : IFEnv} {α αP β βP : Type}
     (d : EStore → α → Option αP) (hd : DExt d) (dR : EStore → β → Option βP) (hdR : DExt dR)
     (Q : EStore → Prop) (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
     (f : α → AM β) (g : αP → FueledM βP)
-    (hf : ∀ a aP, CSpecF μ env fe (fun st => Q st ∧ d st a = some aP) (f a)
+    (hf : ∀ a aP, CSpecF env fe (fun st => Q st ∧ d st a = some aP) (f a)
       (fun st r v => dR st r = some v) (g aP)) (l : List α) (lP : List αP) :
-    CSpecF μ env fe (fun st => Q st ∧ l.mapM (d st) = some lP)
+    CSpecF env fe (fun st => Q st ∧ l.mapM (d st) = some lP)
       (l.mapM f) (fun st r v => r.mapM (dR st) = some v) (lP.mapM g) := by
   intro s₀ s' r hok hpre hrun
   exact mapMLoop_cspecF d hd dR hdR Q hQ f g hf l lP [] [] s₀ s' r hok
@@ -2163,19 +2163,19 @@ end GR
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:346-353 classesNfs —
 **every class with its entries of the table**: the classes stay scoped
 (`classesNfsS_sim`). -/
-theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classesNfs_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (tbl : List Arena.NestCtorNf) (tblP : List ConLeche.NestCtorNf)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) :
     ∀ (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor),
     (∀ M ∈ MsP, Cached.TargetMajScoped M) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         tbl.mapM (dCtorNf st) = some tblP ∧ ms.mapM (dMajor st) = some MsP)
-      (Arena.classesNfs μ fe p formerTys tbl ms)
+      (Arena.classesNfs .verified fe p formerTys tbl ms)
       (fun st r v => r.mapM (dMajor st) = some v ∧ ∀ M ∈ v, Cached.TargetMajScoped M)
-      (ConLeche.classesNfs (fueledOpsM μ) env pP formerTysP tblP MsP) := by
+      (ConLeche.classesNfs (fueledOpsM .verified) env pP formerTysP tblP MsP) := by
   intro ms
   induction ms with
   | nil =>
@@ -2227,10 +2227,10 @@ theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **a class's former type**: a member's own (the `getD` fallback the interned
 `.bvar 0`), an outside class's stored former at the class's levels, read
 through the index (`IFEnvOK`). -/
-theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem classFormerTy_spec {env : Env} (fe : IFEnv)
     (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (m : Arena.TargetMajor)
     (mP : ConLeche.TargetMajor) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧ dMajor st m = some mP)
       (Arena.classFormerTy fe cvTas m) (fun st r v => denoteE st r = some v)
       (ConLeche.classFormerTy (m := FueledM) (mkFEnv env) cvTasP mP) := by
@@ -2286,12 +2286,12 @@ theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **a generated constant, checked**: the guards in the cited order (each exact,
 the index read through `IFEnvOK`), then its type inferred and a sort; the
 constant is closed (`WScoped 0`) and fresh. -/
-theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cP : ConstantVal) :
-    CSpecF μ env fe (fun st => Frontend.denoteCV st cv = some cP)
-      (Arena.classConstOk μ fe cv)
+theorem classConstOk_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cP : ConstantVal) :
+    CSpecF env fe (fun st => Frontend.denoteCV st cv = some cP)
+      (Arena.classConstOk .verified fe cv)
       (fun _ _ _ => Expr.WScoped 0 cP.type ∧ env.find? cP.name = none)
-      (ConLeche.classConstOk (fueledOpsM μ) (mkFEnv env) cP) := by
+      (ConLeche.classConstOk (fueledOpsM .verified) (mkFEnv env) cP) := by
   intro s₀ s' r hok hcv hrun
   obtain ⟨hnm, hlps, hty⟩ := Core.denoteCV_inv hcv
   simp only [Arena.classConstOk] at hrun
@@ -2374,15 +2374,15 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:380-387 classRecTyCheck —
 the generated type, checked as a constant and `isDefEq` to the stream's checked
 type. -/
-theorem classRecTyCheck_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classRecTyCheck_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (cvRi cvG : IConstantVal) (cvRiP cvGP : ConstantVal)
     (hRi : Expr.WScoped 0 cvRiP.type) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteCV st cvRi = some cvRiP ∧ Frontend.denoteCV st cvG = some cvGP)
-      (Arena.classRecTyCheck μ fe cvRi cvG)
+      (Arena.classRecTyCheck .verified fe cvRi cvG)
       (fun _ _ _ => Expr.WScoped 0 cvGP.type ∧ env.find? cvGP.name = none)
-      (ConLeche.classRecTyCheck (fueledOpsM μ) (mkFEnv env) cvRiP cvGP) := by
+      (ConLeche.classRecTyCheck (fueledOpsM .verified) (mkFEnv env) cvRiP cvGP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hRiD, hcvG⟩ := hpre
   simp only [Arena.classRecTyCheck] at hrun
@@ -2406,18 +2406,18 @@ rule prefix and major index the generated ones, the generated type checked as
 a constant under the record's name and level parameters, defeq to the
 stream's checked type (closed, as the cached bridge's `classRecTyOkS_sim`
 has it).  The generated constant denotes con-leche's, closed and fresh. -/
-theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classRecTyOk_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (k : Nat) (rc : Arena.RecShape)
     (rcP : ConLeche.RecShape) (cvRi : IConstantVal) (cvRiP : ConstantVal) (c : Nat)
     (hRi : Expr.WScoped 0 cvRiP.type) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dClassGen st g = some gP ∧ dRec st rc = some rcP ∧
         Frontend.denoteCV st cvRi = some cvRiP)
-      (Arena.classRecTyOk μ fe g k rc cvRi c)
+      (Arena.classRecTyOk .verified fe g k rc cvRi c)
       (fun st r v => Frontend.denoteCV st r = some v ∧ Expr.WScoped 0 v.type ∧
         env.find? v.name = none)
-      (ConLeche.classRecTyOk (fueledOpsM μ) (mkFEnv env) gP k rcP cvRiP c) := by
+      (ConLeche.classRecTyOk (fueledOpsM .verified) (mkFEnv env) gP k rcP cvRiP c) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hg, hrc, hRiD⟩ := hpre
   obtain ⟨hnP, -, hcls, -, hsl, -, -, -⟩ := dClassGen_inv hg
@@ -2463,17 +2463,17 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:409-418 classRecTysOk —
 every recursor's generated type, pairwise; the lists running out unevenly
 fail on both sides. -/
-theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem classRecTysOk_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (k : Nat) :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape) (cvs : List IConstantVal)
       (cvsP : List ConstantVal) (cls : List Nat), (∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dClassGen st g = some gP ∧ recs.mapM (dRec st) = some recsP ∧
         cvs.mapM (Frontend.denoteCV st) = some cvsP)
-      (Arena.classRecTysOk μ fe g k recs cvs cls)
+      (Arena.classRecTysOk .verified fe g k recs cvs cls)
       (fun st r v => r.mapM (Frontend.denoteCV st) = some v ∧ ∀ cv ∈ v, env.find? cv.name = none)
-      (ConLeche.classRecTysOk (fueledOpsM μ) (mkFEnv env) gP k recsP cvsP cls) := by
+      (ConLeche.classRecTysOk (fueledOpsM .verified) (mkFEnv env) gP k recsP cvsP cls) := by
   intro recs
   induction recs with
   | nil =>
@@ -2565,15 +2565,15 @@ con-leche: ConLeche/Cached/CheckerC.lean:90-116 sharedOpsRuleR — the check of 
 generated rule: closed, its level parameters the recursor's, resolved and typed
 at the rule-less recursors' environment, its λ-telescope `n` long, its λ-domains
 resolving at the constructors' view `feR.restrictTo visT`. -/
-theorem classRuleCheck_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
-    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+theorem classRuleCheck_spec {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec Arena.checkFuel) (henvR : EnvWF envR)
     (cvR : IConstantVal) (cvRP : ConstantVal) (n : Nat) (gen : EIdx)
     (genP : Expr) :
-    CSpecF μ envR feR
+    CSpecF envR feR
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         IFEnvOKS env₂ (feR.restrictTo visT) st)
-      (Arena.classRuleCheck μ visT feR cvR n gen) (fun _ _ _ => True)
-      (ConLeche.classRuleCheck (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (Arena.classRuleCheck .verified visT feR cvR n gen) (fun _ _ _ => True)
+      (ConLeche.classRuleCheck (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2614,8 +2614,8 @@ theorem classRuleCheck_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (
   obtain ⟨c5, w, -, -, hF5⟩ := infer_crun hk henvR c14.ok (denote_ext hgen c14.ext) hws k5
   -- the flush
   obtain ⟨u6, s6, k6, z10⟩ := AM.bind_ok z9
-  obtain ⟨hok6, hi6, hst6⟩ := (c5.ok.toR).flush (μ := μ) k6
-  have c56 : CoreStep μ envR feR s5 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hi6.pins⟩
+  obtain ⟨hok6, hi6, hst6⟩ := (c5.ok.toR).flush k6
+  have c56 : CoreStep envR feR s5 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hi6.pins⟩
   have c16 := (c14.trans c5).trans c56
   -- the λ-telescope
   obtain ⟨q, s7, k7, z11⟩ := AM.bind_ok z10
@@ -2652,15 +2652,15 @@ recursor's, resolving and inferred there — the flush after the inference
 (`sharedOpsRuleR`'s) restores the invariant at `feR` — its λ-telescope `n`
 long, its λ-domains resolving at the constructors' environment `env₂` (the
 view `feR.restrictTo visT`).  The rule is returned as generated. -/
-theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
-    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+theorem classRuleOk_spec {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec Arena.checkFuel) (henvR : EnvWF envR)
     (cvR : IConstantVal) (cvRP : ConstantVal) (n : Nat) (gen : EIdx)
     (genP : Expr) :
-    CSpecF μ envR feR
+    CSpecF envR feR
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         IFEnvOKS env₂ (feR.restrictTo visT) st)
-      (Arena.classRuleOk μ visT feR cvR n gen) (fun st r v => denoteE st r = some v)
-      (ConLeche.classRuleOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (Arena.classRuleOk .verified visT feR cvR n gen) (fun st r v => denoteE st r = some v)
+      (ConLeche.classRuleOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2676,19 +2676,19 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk — a
 recursor's generated rules, one per constructor of its class, the callee the
 family's recursor at the landing class (`classRecOf recCls cvGs`). -/
-theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
-    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+theorem classRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec Arena.checkFuel) (henvR : EnvWF envR)
     (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (recCls : List Nat)
     (cvGs : List IConstantVal) (cvGsP : List ConstantVal) (cvR : IConstantVal)
     (cvRP : ConstantVal) (c : Nat) :
     ∀ (xs : List Arena.ClassCtor) (xsP : List ConLeche.ClassCtor),
-    CSpecF μ envR feR
+    CSpecF envR feR
       (fun st => dClassGen st g = some gP ∧ cvGs.mapM (Frontend.denoteCV st) = some cvGsP ∧
         Frontend.denoteCV st cvR = some cvRP ∧ xs.mapM (dClassCtor st) = some xsP ∧
         IFEnvOKS env₂ (feR.restrictTo visT) st)
-      (Arena.classRulesOk μ visT feR g recCls cvGs cvR c xs)
+      (Arena.classRulesOk .verified visT feR g recCls cvGs cvR c xs)
       (fun st r v => Frontend.denoteEList st r = some v)
-      (ConLeche.classRulesOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvRP c xsP) := by
   intro xs
   induction xs with
@@ -2742,17 +2742,17 @@ theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vi
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:461-470 classRecsRulesOk —
 every recursor's generated rules, with its class; the walked lists are the
 tails of `cvGs` and `recCls` (the shorter decides). -/
-theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
-    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+theorem classRecsRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec Arena.checkFuel) (henvR : EnvWF envR)
     (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (recCls : List Nat)
     (cvGs : List IConstantVal) (cvGsP : List ConstantVal) :
     ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (cs : List Nat),
-    CSpecF μ envR feR
+    CSpecF envR feR
       (fun st => dClassGen st g = some gP ∧ cvGs.mapM (Frontend.denoteCV st) = some cvGsP ∧
         cvs.mapM (Frontend.denoteCV st) = some cvsP ∧ IFEnvOKS env₂ (feR.restrictTo visT) st)
-      (Arena.classRecsRulesOk μ visT feR g recCls cvGs cvs cs)
+      (Arena.classRecsRulesOk .verified visT feR g recCls cvGs cvs cs)
       (fun st r v => r.mapM (dRecOut st) = some v)
-      (ConLeche.classRecsRulesOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRecsRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvsP cs) := by
   intro cvs
   induction cvs with
@@ -2812,12 +2812,12 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:472-479 classStreamRecs —
 **the stream's recursor constants, checked** (`checkConstantVal`): each
-passes con-leche's `checkConstantValF` at `fueledOpsM μ` and is stored as
+passes con-leche's `checkConstantValF` at `fueledOpsM .verified` and is stored as
 declared, closed. -/
 theorem classStreamRecs_spec {env : Env} (fe : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env) :
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape),
-    CSpecF .verified env fe (fun st => recs.mapM (dRec st) = some recsP)
+    CSpecF env fe (fun st => recs.mapM (dRec st) = some recsP)
       (Arena.classStreamRecs .verified fe recs)
       (fun st r v => r.mapM (Frontend.denoteCV st) = some v ∧ ∀ cv ∈ v, Expr.WScoped 0 cv.type)
       (ConLeche.classStreamRecs (fueledOpsM .verified) (mkFEnv env) recsP) := by
@@ -3051,15 +3051,15 @@ con-leche: ConLeche/Cached/CheckerC.lean:128-134 shadowOpsC
 **THEOREM 1 for the GENERATED recursor stage**, at the constructors'
 environment `env₂` (index `fe₂`), on the pass's classes (`ClassMajScoped`)
 and table: an accepting twin run answers con-leche's `genRecCheck` at
-`ShadowOps.ofOps (fueledOpsM μ)` — the output family denotes con-leche's,
+`ShadowOps.ofOps (fueledOpsM .verified)` — the output family denotes con-leche's,
 every output recursor is fresh in `env₂`, and the returned index answers
 exactly as `fe₂` (the pushes popped: same list, same bound, same row at every
 key).  The rule stage's knot calls run at the rule-less recursors'
 environment (`consBlockRecsBare`, well formed by `envWF_consBlockRecsBare`);
 the flushes restore the invariant at whichever index the state reads, and the
-last one leaves `CheckOK μ false env₂ fe₂` (the `CoreStep` frame). -/
+last one leaves `CheckOK false env₂ fe₂` (the `CoreStep` frame). -/
 theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv₂ : EnvWF env₂)
+    (hk : CoreSpec Arena.checkFuel) (henv₂ : EnvWF env₂)
     (hcoh : IFEnvCoh fe₂) (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (nestedBit : Bool)
     (params : List EIdx) (paramsP : List Expr) (tbl : List Arena.NestCtorNf)
     (tblP : List ConLeche.NestCtorNf) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
@@ -3067,7 +3067,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
     (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (block : List IConstantInfo)
     (blockP : List ConstantInfo)
     (hMs : ∀ M ∈ MsP, Cached.ClassMajScoped pP.nP M) (hT : ∀ cv ∈ cvTasP, Expr.WScoped 0 cv.type) :
-    CSpecF .verified env₂ fe₂
+    CSpecF env₂ fe₂
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
         tbl.mapM (dCtorNf st) = some tblP ∧ dClassRead st rd = some rdP ∧
         ms.mapM (dMajor st) = some MsP ∧ cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧
@@ -3118,7 +3118,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
         (nestedBit || MsP.any (·.member.isNone))) = false := by
       rw [← hlarge]; simp only [Bool.not_eq_true] at hL; simp [hL]
     generalize hs3 : s2 = s3 at z3
-    have c13 : CoreStep .verified env₂ fe₂ s₀ s3 := hs3 ▸ c12
+    have c13 : CoreStep env₂ fe₂ s₀ s3 := hs3 ▸ c12
     have hcvRis3 : cvRis.mapM (Frontend.denoteCV s3.store) = some cvRisP := hs3 ▸ hcvRis
     have z4 := AM.pure_bind_ok z3
   all_goals
@@ -3239,7 +3239,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
     -- the flush into the rule-less recursors' environment
     obtain ⟨u11, s11, k11, z13⟩ := AM.bind_ok z12
     obtain ⟨hok11, hi11, hst11⟩ := (⟨c10.ok.state, c10.ok.pins, hfeR.1⟩ :
-      ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush (μ := .verified) k11
+      ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush k11
     -- the rules
     obtain ⟨out, s12, k12, z14⟩ := AM.bind_ok z13
     obtain ⟨c12', outP, hout, hF12⟩ := classRecsRulesOk_spec _ fe₂.visibleBelow hk henvR _ _
@@ -3253,11 +3253,11 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       rw [c12'.pins, hi11.pins, c110.pins]
     obtain ⟨hok13, hi13, hst13⟩ := (⟨c12'.ok.state, by
       exact hok.pins.mono hext12 hpins12, hok.ienv.mono hext12⟩ : ReadOK env₂ fe₂ s12).flush
-      (μ := .verified) k13
+      k13
     obtain ⟨hr15, hs15⟩ := AM.pure_ok z15
     subst hr15
     rw [← hs15] at hok13 hi13 hst13
-    have hframe : CoreStep .verified env₂ fe₂ s₀ s' :=
+    have hframe : CoreStep env₂ fe₂ s₀ s' :=
       ⟨hok13, by rw [hst13]; exact hext12, by rw [hi13.pins, hpins12]⟩
     have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP
         nestedBit paramsP tblP rdP MsP cvTasP blockP) outP := by
@@ -3314,10 +3314,10 @@ theorem classKeyCanon_spec (params : List EIdx) (paramsP : List Expr) (k : Arena
 class key, made checkable**: moved to the canonical parameters and closed over
 them (the guard exact, con-leche's `&&` per term).  Every parameter is scoped
 by the parameters (`classKeyOfS_sim`). -/
-theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat) (params : List EIdx)
+theorem classKeyOf_spec {env : Env} (fe : IFEnv) (nP : Nat) (params : List EIdx)
     (paramsP : List Expr) (hpl : paramsP.length = nP)
     (hp : ∀ x ∈ paramsP, Expr.WScoped nP x) (k : Arena.ClassKey) (kP : ConLeche.ClassKey) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteEList st params = some paramsP ∧ dClassKey st k = some kP)
       (Arena.classKeyOf nP params k)
       (fun st r v => dClassKey st r = some v ∧ ∀ x ∈ v.ds, Expr.WScoped nP x)
@@ -3377,12 +3377,12 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat) (pa
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:531 checkBlockClasses (the
 keys) — every class key made checkable, one after another. -/
-theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat) (params : List EIdx)
+theorem classKeysOf_spec {env : Env} (fe : IFEnv) (nP : Nat) (params : List EIdx)
     (paramsP : List Expr) (hpl : paramsP.length = nP)
     (hp : ∀ x ∈ paramsP, Expr.WScoped nP x) :
     ∀ (ks : List Arena.ClassKey) (ksP : List ConLeche.ClassKey) (acc : List Arena.ClassKey)
       (accP : List ConLeche.ClassKey), (∀ k ∈ accP, ∀ x ∈ k.ds, Expr.WScoped nP x) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteEList st params = some paramsP ∧
         ks.mapM (dClassKey st) = some ksP ∧ acc.mapM (dClassKey st) = some accP)
       (List.mapM.loop (Arena.classKeyOf nP params) ks acc)
@@ -3405,7 +3405,7 @@ theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat) (p
     obtain ⟨kP, ksP', rfl, hkd, hks'⟩ := mapM_option_cons_inv hks
     simp only [List.mapM.loop] at hrun
     obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨c1, bP, ⟨hb, hwb⟩, hF⟩ := classKeyOf_spec (μ := μ) (env := env) fe nP params paramsP hpl hp k kP
+    obtain ⟨c1, bP, ⟨hb, hwb⟩, hF⟩ := classKeyOf_spec (env := env) fe nP params paramsP hpl hp k kP
       s₀ s1 b hok ⟨hpar, hkd⟩ k1
     obtain ⟨c2, v, hv, hG⟩ := ih ksP' (b :: acc) (bP :: accP)
       (fun k' hk' => by
@@ -3441,19 +3441,19 @@ end GR
 checked as a major over the canonical parameters, exactly one class per
 member.  The reading and the classes denote con-leche's, every class scoped
 (`ClassMajScoped`, what `genRecCheck_spec` takes). -/
-theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv₁ : EnvWF env₁)
+theorem checkBlockClasses_spec {env₁ : Env} (fe₁ : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv₁ : EnvWF env₁)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (params : List EIdx)
     (paramsP : List Expr) (ctorsAs : List (List (IConstantVal × Nat)))
     (ctorsAsP : List (List (ConstantVal × Nat))) (hpl : paramsP.length = pP.nP)
     (hp : ∀ x ∈ paramsP, Expr.WScoped pP.nP x) :
-    CSpecF μ env₁ fe₁
+    CSpecF env₁ fe₁
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
         ctorsAs.mapM (dCtors st) = some ctorsAsP)
-      (Arena.checkBlockClasses μ fe₁ p params ctorsAs)
+      (Arena.checkBlockClasses .verified fe₁ p params ctorsAs)
       (fun st r v => dClassRead st r.1 = some v.1 ∧ r.2.mapM (dMajor st) = some v.2 ∧
         ∀ M ∈ v.2, Cached.ClassMajScoped pP.nP M)
-      (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) pP paramsP ctorsAsP) := by
+      (ConLeche.checkBlockClasses (fueledOpsM .verified) (mkFEnv env₁) pP paramsP ctorsAsP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, hcas⟩ := hpre
   obtain ⟨-, hrecs, hnP, -, -, -, -⟩ := dShape_inv hsh

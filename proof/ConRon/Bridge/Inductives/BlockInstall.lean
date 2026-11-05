@@ -12,7 +12,7 @@ on the stored constructors, the index sorts and the constructors' cons.
 `blockCapsAt` reads the result sort back through the CACHED `readLevelM`, whose
 answer is the denotation only under `ReadLCacheOK`, so it is `CSpec`, and so is
 `consBlockInds`, which calls it between its pushes.  Every stage that calls
-the knot is `CSpecF` against con-leche's function at `fueledOpsM μ` — the
+the knot is `CSpecF` against con-leche's function at `fueledOpsM .verified` — the
 template is upstream's cached bridge (`ConLeche/Verify/Cached/BlockRunC.lean`'s
 `checkBlockTeleS_sim` … `checkBlockIdxSortsS_sim`, `NestPosC.lean`'s
 `checkAbsCtorSortsS_sim`, `blockNestCtxS_sim`, `checkBlockPositivityS_sim`),
@@ -21,10 +21,10 @@ and every statement carries exactly the scoping facts those carry.
 
 **The formers' stage runs its knot calls at the ENTRY index** and pushes the
 formers only after the last of them, so `checkBlockInds_spec` is `CSpecF` at
-`env fe`: `CheckOK μ false env fe` still holds at the end.  Its answer carries the
+`env fe`: `CheckOK false env fe` still holds at the end.  Its answer carries the
 new index `fe₁` as an `InstRel` denoting `env₁`, and the index spec at `fe₁`
 (`IFEnvOKS`), which is what the caller's flush needs (`ReadOK.flush`) to get
-`CheckOK μ false env₁ fe₁`.
+`CheckOK false env₁ fe₁`.
 
 **Lists of records** are denoted by `List.mapM` of the record denotation
 (`Frontend.denoteCV`, `dCtors`, `denoteLLists`), as `BlockParts.lean`'s
@@ -155,9 +155,9 @@ theorem denoteLLists_ext {st st' : EStore} (hx : Ext st st') :
 /-- con-leche: none — a store-preserving read is a `CoreStep`
 (`Bridge/Checker/DivMod.lean`'s `CoreStep.of_store`, which this tier cannot
 import). -/
-theorem coreStep_of_store {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (hck : CheckOK μ false env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
-    (h3 : s'.pins = s.pins) : CoreStep μ env fe s s' :=
+theorem coreStep_of_store {env : Env} {fe : IFEnv} {s s' : AState}
+    (hck : CheckOK false env fe s) (h1 : s'.store = s.store) (h2 : s'.caches = s.caches)
+    (h3 : s'.pins = s.pins) : CoreStep env fe s s' :=
   ⟨hck.mono ⟨by rw [h1]; exact hck.state.wf⟩ (by rw [h1]; exact Ext.refl _) h2 h3,
     by rw [h1]; exact Ext.refl _, h3⟩
 
@@ -207,9 +207,9 @@ open BI
 sort is read back through the cached `readLevelM` (`readLevelM_denote_core`),
 and the default member's `etaCtor` is the zero handle, `.anonymous` under
 `PinsOK.anon`. -/
-theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem blockCapsAt_spec {env : Env} (fe : IFEnv)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (mi : Nat) (isRec : Bool) :
-    CSpec μ env fe (fun st => dShape st p = some pP)
+    CSpec env fe (fun st => dShape st p = some pP)
       (Arena.blockCapsAt p mi isRec)
       (fun st r => Frontend.denoteCaps st r = some (ConLeche.blockCapsAt pP mi isRec)) := by
   intro s₀ s' r hok hp hrun
@@ -466,12 +466,12 @@ theorem blockRawRec_spec (p : Arena.BlockParts) (pP : ConLeche.BlockParts) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:106-117 checkBlockTele
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
-One member's type former, against `checkBlockTele (fueledOpsM μ)`; the
+One member's type former, against `checkBlockTele (fueledOpsM .verified)`; the
 stored type is closed (`checkBlockTeleS_sim`'s answer). -/
 theorem checkBlockTele_specF {env : Env} (fe : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (nP : Nat) (ms : Arena.MemberShape) (msP : ConLeche.MemberShape) :
-    CSpecF .verified env fe
+    CSpecF env fe
       (fun st => dMember st ms = some msP ∧ denoteFEnv st fe = some env)
       (Arena.checkBlockTele .verified fe nP ms)
       (fun st r v => Frontend.denoteCV st r.1 = some v.1 ∧ denoteL st.ls r.2 = some v.2 ∧
@@ -526,10 +526,10 @@ con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:38-45 checkBlockTelesF
 The members' type formers, in block order; every stored type closed
 (`checkBlockTelesS_sim`). -/
 theorem checkBlockTeles_specF {env : Env} (fe : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (nP : Nat) :
     ∀ (mss : List Arena.MemberShape) (mssP : List ConLeche.MemberShape),
-    CSpecF .verified env fe
+    CSpecF env fe
       (fun st => mss.mapM (dMember st) = some mssP ∧ denoteFEnv st fe = some env)
       (Arena.checkBlockTeles .verified fe nP mss)
       (fun st r v => r.mapM (dCvL st) = some v ∧ ∀ x ∈ v, Expr.WScoped 0 x.1.type)
@@ -570,20 +570,20 @@ theorem checkBlockTeles_specF {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:128-142 checkBlockDomsAt
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:47-56 checkBlockDomsAtF
 **The parameter-domain agreement's comparison**, against
-`checkBlockDomsAt (fueledOpsM μ)`, the scoping hypotheses split as
+`checkBlockDomsAt (fueledOpsM .verified)`, the scoping hypotheses split as
 `checkBlockDomsAtS_sim`'s (`hc` for the opened variables' annotations, `ht`
 for the expected domains). -/
-theorem checkBlockDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (off : Nat)
+theorem checkBlockDomsAt_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (off : Nat)
     (fvs doms : List EIdx) (fvsP domsP : List Expr)
     (hc : ∀ (i : Nat) (x : Expr), fvsP[i]? = some x → Expr.WScoped (off + i) x.fvarTypeD)
     (ht : ∀ (i : Nat) (x : Expr), domsP[i]? = some x → Expr.WScoped (off + i) x) :
     ∀ (j : Nat),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteEList st fvs = some fvsP ∧
         Frontend.denoteEList st doms = some domsP)
-      (Arena.checkBlockDomsAt μ fe off fvs doms j) (fun _ _ _ => True)
-      (ConLeche.checkBlockDomsAt (fueledOpsM μ) env off fvsP domsP j) := by
+      (Arena.checkBlockDomsAt .verified fe off fvs doms j) (fun _ _ _ => True)
+      (ConLeche.checkBlockDomsAt (fueledOpsM .verified) env off fvsP domsP j) := by
   have hknot := hk.knot env fe henv
   intro j
   induction j with
@@ -609,9 +609,9 @@ theorem checkBlockDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     subst s3
     obtain ⟨c, s4, k4, hz4⟩ := AM.bind_ok hz3
     obtain ⟨hok4, hx4, hp4, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
+      (Q := fun r u => CheckOK false env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ false env) (off + j) aP.fvarTypeD bP r)
+        Core.SimV (ConLeche.isDefEqCore .verified false env) (off + j) aP.fvarTypeD bP r)
       rfl k4 (hknot.defeq s₀ (off + j) t b aP.fvarTypeD bP hok ht3 hdb (hc j aP haP)
         (ht j bP hbP))
     have fkd := FOk.isDefEq hsim
@@ -629,20 +629,20 @@ theorem checkBlockDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:144-164 checkBlockAgree
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:58-73 checkBlockAgreeF
 **Official's two agreements between the members**, against
-`checkBlockAgree (fueledOpsM μ)`, at closed stored types
+`checkBlockAgree (fueledOpsM .verified)`, at closed stored types
 (`checkBlockAgreeS_sim`'s `h0`/`hcvs`).  The sort comparison is `lvlEq?`,
 the cached `Level.isEquiv`. -/
-theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (nP : Nat)
+theorem checkBlockAgree_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (nP : Nat)
     (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal) (s0 : LIdx) (s0P : Level)
     (h0 : Expr.WScoped 0 cvTa₀P.type) :
     ∀ (cvs : List (IConstantVal × LIdx)) (cvsP : List (ConstantVal × Level)),
     (∀ x ∈ cvsP, Expr.WScoped 0 x.1.type) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => Frontend.denoteCV st cvTa₀ = some cvTa₀P ∧ denoteL st.ls s0 = some s0P ∧
         cvs.mapM (dCvL st) = some cvsP)
-      (Arena.checkBlockAgree μ fe nP cvTa₀ s0 cvs) (fun _ _ _ => True)
-      (ConLeche.checkBlockAgree (fueledOpsM μ) env nP cvTa₀P s0P cvsP) := by
+      (Arena.checkBlockAgree .verified fe nP cvTa₀ s0 cvs) (fun _ _ _ => True)
+      (ConLeche.checkBlockAgree (fueledOpsM .verified) env nP cvTa₀P s0P cvsP) := by
   intro cvs
   induction cvs with
   | nil =>
@@ -726,11 +726,11 @@ con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
 the caches of the ENTRY index `feC`, which the pushes do not touch.  The
 answer is `InstRel` (as `consSumCtors_spec`'s) and the index spec carried
 across the pushes. -/
-theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
+theorem consBlockInds_spec {env : Env} (feC : IFEnv)
     (p₁ : Arena.BlockShape) (p₁P : ConLeche.BlockShape) (isRec : Bool) :
     ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (i : Nat) (fe : IFEnv)
       (env' : Env), IFEnvCoh fe →
-    CSpec μ env feC
+    CSpec env feC
       (fun st => dShape st p₁ = some p₁P ∧ cvs.mapM (Frontend.denoteCV st) = some cvsP ∧
         denoteFEnv st fe = some env')
       (Arena.consBlockInds p₁ isRec cvs i fe)
@@ -778,18 +778,18 @@ theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:174-187 checkBlockInds
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
-**Stage 1**, against `checkBlockInds (fueledOpsM μ)`: the k formers checked
-and agreed at the ENTRY index (so `CheckOK μ false env fe` still holds at the end —
+**Stage 1**, against `checkBlockInds (fueledOpsM .verified)`: the k formers checked
+and agreed at the ENTRY index (so `CheckOK false env fe` still holds at the end —
 the frame is `CoreStep`), then consed.  The answer: the new index `fe₁` is an
 `InstRel` of `fe` denoting con-leche's `env₁`, the index spec holds at it
 (`IFEnvOKS`; with the state's `CheckOK` at `fe` this is the `ReadOK env₁ fe₁`
-the caller flushes into `CheckOK μ false env₁ fe₁`), the stored formers and the
+the caller flushes into `CheckOK false env₁ fe₁`), the stored formers and the
 completed shape denote con-leche's, and every stored former is closed
 (`checkBlockIndsS_sim`'s answer). -/
 theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (hcoh : IFEnvCoh fe) (p : Arena.BlockParts) (pP : ConLeche.BlockParts) (isRec : Bool) :
-    CSpecF .verified env fe
+    CSpecF env fe
       (fun st => dParts st p = some pP ∧ denoteFEnv st fe = some env)
       (Arena.checkBlockInds .verified fe p isRec)
       (fun st r v => InstRel fe (fun e => e = v.1) st r.1 ∧ IFEnvOKS v.1 r.1 st ∧
@@ -896,16 +896,16 @@ theorem BlockShape.nestCtx_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:199-210 checkBlockCtors
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
 **The constructors of every member**, against
-`checkBlockCtors (fueledOpsM μ) env₀ env pP (msP.zip cvsP)`: the twin's two
+`checkBlockCtors (fueledOpsM .verified) env₀ env pP (msP.zip cvsP)`: the twin's two
 side-by-side lists stop at the shorter, as `zip` does.  The formers' stored
 types are closed (`checkBlockCtorsS_sim`'s `hl`). -/
 theorem checkBlockCtors_specF {env : Env} (fe₀ fe : IFEnv)
-    (hk : CoreSpec .verified Arena.checkFuel) (henv : EnvWF env)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env₀ : Env) :
     ∀ (mss : List Arena.MemberShape) (mssP : List ConLeche.MemberShape)
       (cvs : List IConstantVal) (cvsP : List ConstantVal),
     (∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) →
-    CSpecF .verified env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ mss.mapM (dMember st) = some mssP ∧
         cvs.mapM (Frontend.denoteCV st) = some cvsP ∧
         denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
@@ -988,22 +988,22 @@ theorem checkBlockCtors_types {μ : CheckMode} {env₀ env : Env} {q : ConLeche.
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:228-250 checkAbsCtorSorts
 **The fields' universes at the holes**, against
-`checkAbsCtorSorts (fueledOpsM μ) env ctxP`, pairwise to the shorter list.
+`checkAbsCtorSorts (fueledOpsM .verified) env ctxP`, pairwise to the shorter list.
 The twin's `isProp` (read once by the caller) is con-leche's per-call
 `Level.isEquiv ctxP.sort .zero == some true` (`hprop`); the normal forms are
 scoped at the holes' depth (`checkAbsCtorSortsS_sim`'s `hos`). -/
-theorem checkAbsCtorSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkAbsCtorSorts_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (isProp : Bool)
     (hprop : isProp = (Level.isEquiv ctxP.sort .zero == some true)) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
       (os : List (List Arena.NestFieldKind × EIdx)) (osP : List (List ConLeche.NestFieldKind × Expr)),
     (∀ o ∈ osP, Expr.WScoped (ctxP.hiAt 0) o.2) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dCtx st ctxP.find? ctx = some ctxP ∧ dCtors st cs = some csP ∧
         os.mapM (dOut st) = some osP ∧ denoteFEnv st fe = some env)
-      (Arena.checkAbsCtorSorts μ fe ctx isProp cs os) (fun _ _ _ => True)
-      (ConLeche.checkAbsCtorSorts (fueledOpsM μ) env ctxP csP osP) := by
+      (Arena.checkAbsCtorSorts .verified fe ctx isProp cs os) (fun _ _ _ => True)
+      (ConLeche.checkAbsCtorSorts (fueledOpsM .verified) env ctxP csP osP) := by
   intro cs
   induction cs with
   | nil =>
@@ -1079,19 +1079,19 @@ theorem checkAbsCtorSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:252-258 checkAbsCtorSortsAll
 `checkAbsCtorSorts` on every member's constructors (`checkAbsCtorSortsAllS_sim`). -/
-theorem checkAbsCtorSortsAll_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkAbsCtorSortsAll_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (isProp : Bool)
     (hprop : isProp = (Level.isEquiv ctxP.sort .zero == some true)) :
     ∀ (css : List (List (IConstantVal × Nat))) (cssP : List (List (ConstantVal × Nat)))
       (oss : List (List (List Arena.NestFieldKind × EIdx)))
       (ossP : List (List (List ConLeche.NestFieldKind × Expr))),
     (∀ os ∈ ossP, ∀ o ∈ os, Expr.WScoped (ctxP.hiAt 0) o.2) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dCtx st ctxP.find? ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP ∧
         dOutss st oss = some ossP ∧ denoteFEnv st fe = some env)
-      (Arena.checkAbsCtorSortsAll μ fe ctx isProp css oss) (fun _ _ _ => True)
-      (ConLeche.checkAbsCtorSortsAll (fueledOpsM μ) env ctxP cssP ossP) := by
+      (Arena.checkAbsCtorSortsAll .verified fe ctx isProp css oss) (fun _ _ _ => True)
+      (ConLeche.checkAbsCtorSortsAll (fueledOpsM .verified) env ctxP cssP ossP) := by
   intro css
   induction css with
   | nil =>
@@ -1135,20 +1135,20 @@ theorem checkAbsCtorSortsAll_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:298-311 checkBlockIdxSorts
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:110-120 checkBlockIdxSortsF
 **Every member's index binders' universes**, against
-`checkBlockIdxSorts (fueledOpsM μ) env₁ pP (msP.zip cvsP)`, at closed stored
+`checkBlockIdxSorts (fueledOpsM .verified) env₁ pP (msP.zip cvsP)`, at closed stored
 formers (`checkBlockIdxSortsS_sim`'s `hl`). -/
-theorem checkBlockIdxSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockIdxSorts_specF {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) :
     ∀ (mss : List Arena.MemberShape) (mssP : List ConLeche.MemberShape)
       (cvs : List IConstantVal) (cvsP : List ConstantVal),
     (∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) →
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ mss.mapM (dMember st) = some mssP ∧
         cvs.mapM (Frontend.denoteCV st) = some cvsP ∧ denoteFEnv st fe = some env)
-      (Arena.checkBlockIdxSorts μ fe p mss cvs)
+      (Arena.checkBlockIdxSorts .verified fe p mss cvs)
       (fun st r v => denoteLLists st r = some v)
-      (ConLeche.checkBlockIdxSorts (fueledOpsM μ) env pP (mssP.zip cvsP)) := by
+      (ConLeche.checkBlockIdxSorts (fueledOpsM .verified) env pP (mssP.zip cvsP)) := by
   intro mss
   induction mss with
   | nil =>
@@ -1248,10 +1248,10 @@ theorem consBlockCtors_spec (st : EStore) (nP : Nat) :
 `blockNestCtxS_sim` states of it: the context's stored constants closed, the
 holes variables scoped at the holes' depth, the canonical variables scoped
 there and one per parameter. -/
-theorem blockNestCtx_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (henv : EnvWF env)
+theorem blockNestCtx_spec {env : Env} (fe : IFEnv) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (cvs : List IConstantVal)
     (cvsP : List ConstantVal) (hT : ∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ cvs.mapM (Frontend.denoteCV st) = some cvsP)
       (Arena.blockNestCtx fe p cvs)
       (fun st r v => dCtx st env.find? r.1 = some v.1 ∧ Frontend.denoteEList st r.2 = some v.2 ∧
@@ -1311,27 +1311,27 @@ theorem blockNestCtx_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (henv : EnvW
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:276-294 checkBlockPositivity
 **The block's positivity, on its stored constructors**, against
-`checkBlockPositivity (fueledOpsM μ) env env.find? pP cvsP ctorsAsP` (the
+`checkBlockPositivity (fueledOpsM .verified) env env.find? pP cvsP ctorsAsP` (the
 twin's lookup is the environment `fe`): the walk's context
 (`blockNestCtx_spec`), the uniform-occurrence check (`nestUniform_spec`), the
 root frame (`nestRoot_spec`), the fields' universes (`checkAbsCtorSortsAll`,
 the twin's `isProp` read once through `lvlEq?`).  The formers' and the
 constructors' stored types are closed (`checkBlockPositivityS_sim`'s `hT`,
 `hct`; `checkBlockInds_spec`'s answer and `checkBlockCtors_types`). -/
-theorem checkBlockPositivity_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkBlockPositivity_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockParts) (pP : ConLeche.BlockParts) (cvs : List IConstantVal)
     (cvsP : List ConstantVal) (ctorsAs : List (List (IConstantVal × Nat)))
     (ctorsAsP : List (List (ConstantVal × Nat)))
     (hT : ∀ cv ∈ cvsP, Expr.WScoped 0 cv.type)
     (hct : ∀ ctorsA ∈ ctorsAsP, ∀ c ∈ ctorsA, Expr.WScoped 0 c.1.type) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dParts st p = some pP ∧ cvs.mapM (Frontend.denoteCV st) = some cvsP ∧
         ctorsAs.mapM (dCtors st) = some ctorsAsP ∧ denoteFEnv st fe = some env)
-      (Arena.checkBlockPositivity μ fe p cvs ctorsAs)
+      (Arena.checkBlockPositivity .verified fe p cvs ctorsAs)
       (fun st r v => r.1.map (·.map (·.map kindOf)) = v.1 ∧
         r.2.1.mapM (Frontend.denoteEList st) = some v.2.1 ∧ dState st r.2.2 = some v.2.2)
-      (ConLeche.checkBlockPositivity (fueledOpsM μ) env env.find? pP cvsP ctorsAsP) := by
+      (ConLeche.checkBlockPositivity (fueledOpsM .verified) env env.find? pP cvsP ctorsAsP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hp, hcvs, hcas, hfe⟩ := hpre
   simp only [dParts, Option.map_eq_some_iff] at hp

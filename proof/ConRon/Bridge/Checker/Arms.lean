@@ -58,9 +58,9 @@ module is BELOW this one. -/
 
 /-- con-leche: none — the same at a `CoreStep`, which is what every core
 consumer hands back. -/
-theorem FoldOK.ofCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : FoldOK μ env fe s) (hc : CoreStep μ env fe s s') :
-    FoldOK μ env fe s' := h.step hc.ok hc.ext hc.pins
+theorem FoldOK.ofCore {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : FoldOK env fe s) (hc : CoreStep env fe s s') :
+    FoldOK env fe s' := h.step hc.ok hc.ext hc.pins
 
 /-! ## `DeclOut`'s environment and projection-table clauses, off the pure run
 
@@ -76,9 +76,9 @@ the `envWF` clause follows from the pure run (`checkDecl_wf_pure`) and the
 incoming `FoldOK`'s `EnvWF`, the table clauses from `DeclCore.tables`. -/
 theorem DeclCore.out {pinsP : List NatOpPinSet} {env : Env}
     {d : Declaration} {s : AState} {fe fe' : IFEnv} {s' : AState}
-    (hok : FoldOK .verified env fe s)
+    (hok : FoldOK env fe s)
     (hd : ∀ b nP, d = .indDecl b nP → (ConLeche.basisPinHit b).isSome = true)
-    (h : DeclCore .verified pinsP env d s fe fe' s') : DeclOut .verified pinsP env d s fe fe' s' := by
+    (h : DeclCore pinsP env d s fe fe' s') : DeclOut pinsP env d s fe fe' s' := by
   obtain ⟨env', F, hden, hF⟩ := h.run
   have hwf := checkDecl_wf_pure hF hok.envWF hd
   refine ⟨h.state, h.ext, h.pins, h.coh, h.pushed, h.run, fun e he => ?_,
@@ -356,7 +356,7 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
 
 The twin runs `checkDecl`'s three pin gates at `fe2.restrictTo
 fe.visibleBelow`, as the Rust does (`restrict(fe2, k_pre)`).  Every gate lemma
-is stated at the invariant `CheckOK μ false env fe`, which reads its index through
+is stated at the invariant `CheckOK false env fe`, which reads its index through
 `find?` only (`CheckOK.congr_find`), and the restricted push answers `fe`'s
 `find?` because the pushed name is fresh.  These three facts are the whole
 Theorem-1 cost of the twin change. -/
@@ -432,25 +432,25 @@ theorem checkDecl_bridge_defn
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {hint : ReducibilityHint} {c : ConstantVal} {x : Expr}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : Arena.checkDecl .verified pins fe (.defnDecl cv value hint) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.defnDecl c x hint) s fe fe' s' := by
+    DeclOut pinsP env (.defnDecl c x hint) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   -- the front door
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ :=
     checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
-  have hok1 : FoldOK .verified env fe s1 := hok.ofCore hstep1
+  have hok1 : FoldOK env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hstep2, hpush2, htb2, env2, F2, hst2, hpure2⟩ :=
     checkDefnVal_bridge hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 g2
-  have hok2 : FoldOK .verified env fe s2 := hok1.ofCore hstep2
+  have hok2 : FoldOK env fe s2 := hok1.ofCore hstep2
   have hcA2 : Frontend.denoteCV s2.store cv = some c :=
     denoteCV_ext hcA hstep2.ext
   have hnm2 : denoteN s2.store.ns cv.name = some c.name :=
@@ -470,13 +470,13 @@ theorem checkDecl_bridge_defn
       sX.pins = s.pins → denoteFEnv sX.store fe2 = some env2 →
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified FX) pinsP env
         (.defnDecl c x hint) = .ok env2 →
-      DeclOut .verified pinsP env (.defnDecl c x hint) s fe fe2 sX := by
+      DeclOut pinsP env (.defnDecl c x hint) s fe fe2 sX := by
     intro sX FX hst hx hp hden hpure
     exact DeclCore.out hok (fun _ _ h => nomatch h)
       { state := hst, ext := hx, pins := hp, coh := hst2.coh,
         pushed := hpush2, tables := htb2, run := ⟨env2, FX, hden, hpure⟩ }
   -- the `Nat.div`/`Nat.mod` gate, which both branches of the first gate end in
-  have tail : ∀ (sA : AState) (FA : Nat), FoldOK .verified env fe sA →
+  have tail : ∀ (sA : AState) (FA : Nat), FoldOK env fe sA →
       Ext s.store sA.store → sA.pins = s.pins →
       denoteN sA.store.ns cv.name = some c.name → StepOK env2 fe2 sA →
       (ConLeche.natDivModNames.contains c.name = false →
@@ -494,7 +494,7 @@ theorem checkDecl_bridge_defn
             (pure fe2 : AM IFEnv))
         else ((pure () : AM Unit) >>= fun _ => (pure fe2 : AM IFEnv)))
         sA = .ok (fe', s') →
-      DeclOut .verified pinsP env (.defnDecl c x hint) s fe fe' s' := by
+      DeclOut pinsP env (.defnDecl c x hint) s fe fe' s' := by
     intro sA FA hokA hextA hpinA hnmA hstA hno hyes rA
     obtain ⟨ds, sB, gB, rB⟩ := AM.bind_ok rA
     obtain ⟨eB, hds⟩ := natDivModNames_run hokA.check.pins gB
@@ -533,7 +533,7 @@ theorem checkDecl_bridge_defn
     obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok hg3
     obtain ⟨hst4, hx4, hc4, hp4, he5⟩ :=
       natOpGuard_run hok2.check.state hok2.check.pins hst2.ienv hnm2 g4
-    have hok4 : FoldOK .verified env fe s4 :=
+    have hok4 : FoldOK env fe s4 :=
       hok2.step (hok2.check.mono hst4 hx4 hc4 hp4) hx4 hp4
     have hnm4 : denoteN s4.store.ns cv.name = some c.name :=
       denoteN_ext hnm2 hx4
@@ -541,7 +541,7 @@ theorem checkDecl_bridge_defn
     obtain ⟨deps, s5, g5, r5⟩ := AM.bind_ok r4
     obtain ⟨hst5, hx5, hc5, hp5, hdeps⟩ :=
       natOpDeps_run hst4 hok4.check.pins hnm4 g5
-    have hok5 : FoldOK .verified env fe s5 :=
+    have hok5 : FoldOK env fe s5 :=
       hok4.step (hok4.check.mono hst5 hx5 hc5 hp5) hx5 hp5
     have hnm5 : denoteN s5.store.ns cv.name = some c.name :=
       denoteN_ext hnm4 hx5
@@ -549,7 +549,7 @@ theorem checkDecl_bridge_defn
     obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
     obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
       natOpStoredOkAll_run hst5 hok5.check.pins hie5.ienv hdeps g6
-    have hok6 : FoldOK .verified env fe s6 :=
+    have hok6 : FoldOK env fe s6 :=
       hok5.step (hok5.check.mono hst6 hx6 hc6 hp6) hx6 hp6
     have hnm6 : denoteN s6.store.ns cv.name = some c.name :=
       denoteN_ext hnm5 hx6
@@ -589,13 +589,13 @@ theorem checkDecl_bridge_defn
             obtain ⟨eqs, s7, g7, r8⟩ := AM.bind_ok r7
             obtain ⟨hst7, hx7, hc7, hp7, hdeq⟩ :=
               natOpEquations_run hst6 hok6.check.pins hnm6 g7
-            have hok7 : FoldOK .verified env fe s7 :=
+            have hok7 : FoldOK env fe s7 :=
               hok6.step (hok6.check.mono hst7 hx7 hc7 hp7) hx7 hp7
             obtain ⟨ps, s8, g8, r9⟩ := AM.bind_ok r8
             obtain ⟨hst8, hx8, hc8, hp8, hdps⟩ :=
               substConst0Pairs_run hst7 hok7.check.pins (denoteN_ext hnm6 hx7)
                 (denote_ext hjv hx7) hdeq g8
-            have hok8 : FoldOK .verified env fe s8 :=
+            have hok8 : FoldOK env fe s8 :=
               hok7.step (hok7.check.mono hst8 hx8 hc8 hp8) hx8 hp8
             obtain ⟨okb, s9, g9, r10⟩ := AM.bind_ok r9
             obtain ⟨hstepC, hcertOf⟩ :=
@@ -606,7 +606,7 @@ theorem checkDecl_bridge_defn
               AM.dunless_ok AM.Never.fail_any r10
             replace r11 := AM.pure_bind_ok r11
             obtain ⟨FC, hcert⟩ := hcertOf hy10
-            have hok9 : FoldOK .verified env fe s9 := hok8.ofCore hstepC
+            have hok9 : FoldOK env fe s9 := hok8.ofCore hstepC
             have hext09 : Ext s.store s9.store :=
               hext06.trans ((hx7.trans hx8).trans hstepC.ext)
             have hpin09 : s9.pins = s.pins := by
@@ -666,18 +666,18 @@ theorem checkDecl_bridge_thm
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : Arena.checkDecl .verified pins fe (.thmDecl cv value) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.thmDecl c x) s fe fe' s' := by
+    DeclOut pinsP env (.thmDecl c x) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ :=
     checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
-  have hok1 : FoldOK .verified env fe s1 := hok.ofCore hstep1
+  have hok1 : FoldOK env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   obtain ⟨hstep2, hpush2, htb2, env', F2, hstep, hpure2⟩ :=
     checkThmVal_bridge hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 r1
@@ -704,19 +704,19 @@ theorem checkDecl_bridge_opaque
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : Arena.checkDecl .verified pins fe (.opaqueDecl cv value) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.opaqueDecl c x) s fe fe' s' := by
+    DeclOut pinsP env (.opaqueDecl c x) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   -- the front door
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ :=
     checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
-  have hok1 : FoldOK .verified env fe s1 := hok.ofCore hstep1
+  have hok1 : FoldOK env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
@@ -725,7 +725,7 @@ theorem checkDecl_bridge_opaque
   have hx2 : Ext s1.store s2.store := hstep2.ext
   have hp2 : s2.pins = s1.pins := hstep2.pins
   have hst2 : StateOK s2 := hstep2.ok.state
-  have hok2 : FoldOK .verified env fe s2 := hok1.ofCore hstep2
+  have hok2 : FoldOK env fe s2 := hok1.ofCore hstep2
   have hnm2 : denoteN s2.store.ns cv.name = some c.name :=
     denoteN_ext (denoteCV_inv hcA).1 hx2
   have hv2 : denoteE s2.store value = some x := denote_ext hv1 hx2
@@ -802,11 +802,11 @@ three installing families, and `IFEnvCoh.push` / `Pushed.push` /
 theorem checkDecl_bridge_axiom
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl .verified pins fe (.axiomDecl cv) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.axiomDecl c) s fe fe' s' := by
+    DeclOut pinsP env (.axiomDecl c) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
   -- the `Quot.sound` record's own comparison, first
@@ -864,11 +864,11 @@ theorem checkDecl_bridge_axiom
     obtain ⟨hstep2, F2, hpure2⟩ :=
       checkConstantVal_bridge_of_fold hk hok hcv g2
     have hcA : Frontend.denoteCV s2.store cv = some c := denoteCV_ext hcv hstep2.ext
-    have hok2 : FoldOK .verified env fe s2 := hok.ofCore hstep2
+    have hok2 : FoldOK env fe s2 := hok.ofCore hstep2
     -- the standard-axiom shape test
     obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2
     obtain ⟨hst3, hx3, hc3, hp3, he3⟩ := stdAxiomOk_run hok2 hcA g3
-    have hok3 : FoldOK .verified env fe s3 :=
+    have hok3 : FoldOK env fe s3 :=
       hok2.step (hok2.check.mono hst3 hx3 hc3 hp3) hx3 hp3
     have hcA3 : Frontend.denoteCV s3.store cv = some c := denoteCV_ext hcA hx3
     have hnmA3 : denoteN s3.store.ns cv.name = some c.name :=
@@ -1032,13 +1032,13 @@ sides. -/
 theorem checkDecl_bridge_basis
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {kind : BasisKind}
-    (_hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (_hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hrun : Arena.checkDecl .verified pins fe (.basisDecl kind) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.basisDecl kind) s fe fe' s' := by
+    DeclOut pinsP env (.basisDecl kind) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
-    checkBasisDecl_bridge (μ := .verified) hok hrun
+    checkBasisDecl_bridge hok hrun
   exact DeclCore.out hok (fun _ _ h => nomatch h)
     { state := hst, ext := hx, pins := hp, coh := hcoh, pushed := hpush, tables := htb
       run := ⟨env', 0, hden, checkDecl_basis_pure hpure⟩ }
@@ -1056,22 +1056,22 @@ theorem checkDecl_bridge_ind
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {nP : Nat}
-    (_hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (_hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hb : Frontend.denoteCIList s.store block = some b)
     (hrun : Arena.checkDecl .verified pins fe (.indDecl block nP) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.indDecl b nP) s fe fe' s' := by
+    DeclOut pinsP env (.indDecl b nP) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨r, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hst1, hx1, hc1, hp1, hr1⟩ := basisPinHit_run hok.check.state hb g1
-  have hok1 : FoldOK .verified env fe s1 :=
+  have hok1 : FoldOK env fe s1 :=
     hok.step (hok.check.mono hst1 hx1 hc1 hp1) hx1 hp1
   have hb1 : Frontend.denoteCIList s1.store block = some b :=
     denoteCIList_mono hx1 _ _ hb
   cases r with
   | some kind =>
     obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
-      checkBasisDecl_bridge (μ := .verified) hok1 r1
+      checkBasisDecl_bridge hok1 r1
     have hd : ∀ b' nP', Declaration.indDecl b nP = .indDecl b' nP' →
         (ConLeche.basisPinHit b').isSome = true := by
       intro b' nP' h
@@ -1114,22 +1114,22 @@ theorem checkDecl_bridge_quot
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {k : QuotKind} {cv : IConstantVal}
     {c : ConstantVal}
-    (_hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (_hpins : PinsDenote s.store pins pinsP)
+    (_hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl .verified pins fe (.quotDecl k cv) s = .ok (fe', s')) :
-    DeclOut .verified pinsP env (.quotDecl k c) s fe fe' s' := by
+    DeclOut pinsP env (.quotDecl k c) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨b, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hst1, hx1, hc1, hp1, hb1⟩ := quotPinHit_run hok.check.state hcv g1
-  have hok1 : FoldOK .verified env fe s1 :=
+  have hok1 : FoldOK env fe s1 :=
     hok.step (hok.check.mono hst1 hx1 hc1 hp1) hx1 hp1
   rcases AM.ite_ok r1 with ⟨hb, hgood⟩ | ⟨_, hbad⟩
   · have hhit : ConLeche.quotPinHit k c = true := by rw [← hb1]; exact hb
     cases k with
     | type =>
       obtain ⟨hst, hx, hp, hcoh, hpush, htb, env', hden, hpure⟩ :=
-        checkBasisDecl_bridge (μ := .verified) hok1 hgood
+        checkBasisDecl_bridge hok1 hgood
       exact DeclCore.out hok (fun _ _ h => nomatch h)
         { state := hst
           ext := hx1.trans hx

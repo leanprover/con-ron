@@ -16,7 +16,7 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 * The twin has no `ShadowOps`: it calls the core at the `IFEnv` it is handed.
   Upstream's pure route runs `ShadowOps.ofOps ops`, whose `opsAt fe` is the
   constant `ops`, so every core-grade statement here is `CSpecF` against the
-  con-leche function at `fueledOpsM μ` (`Bridge/Inductives/Rel.lean`).
+  con-leche function at `fueledOpsM .verified` (`Bridge/Inductives/Rel.lean`).
 * `targetAbs` is ONE memoised walk; its statement is the STRUCTURAL
   `ConLeche.targetAbs` (con-leche's own `@[csimp]` swaps its memoised
   `targetAbsFast` in), with the memo invariant `TAMemoOK` at handle keys, as
@@ -38,7 +38,7 @@ knot or reads the readback caches (`instLPFast`, `lvlEq?`, `lvlsEq?`) is
 recursor's type) is a pure walk.
 The stored-family statements (`sumRules_spec`, `tgtStoredRules_spec`,
 `consBlockRecsTF_spec`) carry TWO environments: the knot's caches' (`CheckOK
-μ envC feC`) and the lookup index's (`IFEnvOK env fe`), because the rules are
+false envC feC`) and the lookup index's (`IFEnvOK env fe`), because the rules are
 read at the constructors' view while the caches serve whatever index the
 recursor stage ended on.
 -/
@@ -547,18 +547,18 @@ theorem targetCanonParams_spec (pfvs : List EIdx) (pfvsP : List Expr) (e : EIdx)
 namespace RC
 
 /-- con-leche: none — a pure-grade `PSpecP` step taken at the core grade. -/
-theorem pspecP_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
+theorem pspecP_core {env : Env} {fe : IFEnv} {α : Type}
     {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpecP P c R)
-    {s₀ s' : AState} {r : α} (hok : CheckOK μ false env fe s₀) (hp : P s₀.store)
-    (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
+    {s₀ s' : AState} {r : α} (hok : CheckOK false env fe s₀) (hp : P s₀.store)
+    (hrun : c s₀ = .ok (r, s')) : CoreStep env fe s₀ s' ∧ R s'.store r := by
   obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hs.toCore hok, hr⟩
 
 /-- con-leche: none — and a `PSpec` one. -/
-theorem pspec_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
+theorem pspec_core {env : Env} {fe : IFEnv} {α : Type}
     {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpec P c R)
-    {s₀ s' : AState} {r : α} (hok : CheckOK μ false env fe s₀) (hp : P s₀.store)
-    (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
+    {s₀ s' : AState} {r : α} (hok : CheckOK false env fe s₀) (hp : P s₀.store)
+    (hrun : c s₀ = .ok (r, s')) : CoreStep env fe s₀ s' ∧ R s'.store r := by
   obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hp hrun
   exact ⟨hs.toCore hok, hr⟩
 
@@ -674,12 +674,12 @@ theorem dCtorNf_inv {st : EStore} {n : Arena.NestCtorNf} {nP : ConLeche.NestCtor
   exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — `lvlsEq?` in run form at the core grade. -/
-theorem lvlsEq?_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
+theorem lvlsEq?_run {env : Env} {fe : IFEnv} {s₀ s' : AState}
     {us vs : LsIdx} {usP vsP : List Level} {r : Option Bool}
-    (hok : CheckOK μ false env fe s₀) (hu : denoteLs s₀.store.lss us = some usP)
+    (hok : CheckOK false env fe s₀) (hu : denoteLs s₀.store.lss us = some usP)
     (hv : denoteLs s₀.store.lss vs = some vsP)
     (hrun : Arena.lvlsEq? us vs s₀ = .ok (r, s')) :
-    CoreStep μ env fe s₀ s' ∧ r = Level.isEquivList usP vsP := by
+    CoreStep env fe s₀ s' ∧ r = Level.isEquivList usP vsP := by
   obtain ⟨h1, h2, h3, lus, lvs, hu', hv', hr⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (Core.lvlsEq?_spec s₀ us vs hok)
   rw [hu] at hu'; rw [hv] at hv'
@@ -694,26 +694,26 @@ end RC
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:310-329 targetParamsDefEq
 **Per-component parameter defeq**: both sides closed over the openers, moved
 to them and member-abstracted, then syntactically equal or inferred and
-defeq; the answer is con-leche's at `fueledOpsM μ`, with `absM` the
+defeq; the answer is con-leche's at `fueledOpsM .verified`, with `absM` the
 structural `targetAbs` at the denoted names, levels and holes.
 
 The scoping hypotheses are the cached bridge's (`targetParamsDefEqS_sim`,
 `ConLeche/Verify/Cached/TargetRecC.lean`): the openers scoped at the depth,
 and the abstraction preserving it. -/
-theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (d : Nat)
+theorem targetParamsDefEq_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (d : Nat)
     (names : List NIdx) (lvls : LsIdx) (holes pfvs : List EIdx)
     (namesP : List ConLeche.Name) (lvlsP : List Level) (holesP pfvsP : List Expr)
     (habs : ∀ e, Expr.WScoped d e → Expr.WScoped d (ConLeche.targetAbs namesP lvlsP holesP e))
     (hp : ∀ x ∈ pfvsP, Expr.WScoped d x) :
     ∀ (as bs : List EIdx) (asP bsP : List Expr),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => TAArgs names lvls holes namesP lvlsP holesP st ∧
         Frontend.denoteEList st pfvs = some pfvsP ∧
         Frontend.denoteEList st as = some asP ∧ Frontend.denoteEList st bs = some bsP)
-      (Arena.targetParamsDefEq μ fe d names lvls holes pfvs as bs)
+      (Arena.targetParamsDefEq .verified fe d names lvls holes pfvs as bs)
       (fun _ r v => r = v)
-      (ConLeche.targetParamsDefEq (fueledOpsM μ) env d
+      (ConLeche.targetParamsDefEq (fueledOpsM .verified) env d
         (ConLeche.targetAbs namesP lvlsP holesP) pfvsP asP bsP) := by
   have hknot := hk.knot env fe henv
   intro as
@@ -838,21 +838,21 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 the class's openers with the members abstracted to the holes on top.  The
 scoping hypotheses are the cached bridge's (`targetClassMatchS_sim`): the
 formers closed, the openers scoped by their own count. -/
-theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem targetClassMatch_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     (formerTys pfvs : List EIdx) (formerTysP pfvsP : List Expr)
     (us lvls : LsIdx) (usP lvlsP : List Level) (ds eds : List EIdx) (dsP edsP : List Expr)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hp : ∀ x ∈ pfvsP, Expr.WScoped pfvsP.length x) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         Frontend.denoteEList st pfvs = some pfvsP ∧ denoteLs st.lss us = some usP ∧
         Frontend.denoteEList st ds = some dsP ∧ denoteLs st.lss lvls = some lvlsP ∧
         Frontend.denoteEList st eds = some edsP)
-      (Arena.targetClassMatch μ fe p formerTys pfvs us ds lvls eds)
+      (Arena.targetClassMatch .verified fe p formerTys pfvs us ds lvls eds)
       (fun _ r v => r = v)
-      (ConLeche.targetClassMatch (fueledOpsM μ) env pP formerTysP pfvsP usP dsP lvlsP edsP) := by
+      (ConLeche.targetClassMatch (fueledOpsM .verified) env pP formerTysP pfvsP usP dsP lvlsP edsP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hft, hpf, hus, hds, hlv, heds⟩ := hpre
   simp only [Arena.targetClassMatch] at hrun
@@ -898,8 +898,8 @@ theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **The walk's recorded constructor normal forms of a class**: the entries of
 the class's constructors whose instantiation the class matches, the tail
 first. -/
-theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem targetMajorNfs_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     (formerTys pfvs : List EIdx) (formerTysP pfvsP : List Expr)
     (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
@@ -907,14 +907,14 @@ theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
     (hp : ∀ x ∈ pfvsP, Expr.WScoped pfvsP.length x) :
     ∀ (es : List Arena.NestCtorNf) (esP : List ConLeche.NestCtorNf),
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         Frontend.denoteEList st pfvs = some pfvsP ∧ denoteLs st.lss us = some usP ∧
         Frontend.denoteEList st ds = some dsP ∧ dCtors st ctors = some ctorsP ∧
         es.mapM (dCtorNf st) = some esP)
-      (Arena.targetMajorNfs μ fe p formerTys pfvs us ds ctors es)
+      (Arena.targetMajorNfs .verified fe p formerTys pfvs us ds ctors es)
       (fun st r v => r.mapM (dCtorNf st) = some v)
-      (ConLeche.targetMajorNfs (fueledOpsM μ) env pP formerTysP pfvsP usP dsP ctorsP esP) := by
+      (ConLeche.targetMajorNfs (fueledOpsM .verified) env pP formerTysP pfvsP usP dsP ctorsP esP) := by
   intro es
   induction es with
   | nil =>
@@ -980,10 +980,10 @@ theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **A constructor's type at the major's levels**: as stored at a member, the
 level instantiation at an outside inductive.  Core grade: `instLPFast`
 reads through the three readback caches `CheckOK` keeps sound. -/
-theorem targetCtorAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem targetCtorAt_spec {env : Env} (fe : IFEnv)
     (M : Arena.TargetMajor) (MP : ConLeche.TargetMajor) (c : IConstantVal)
     (cP : ConstantVal) :
-    CSpec μ env fe (fun st => dMajor st M = some MP ∧ Frontend.denoteCV st c = some cP)
+    CSpec env fe (fun st => dMajor st M = some MP ∧ Frontend.denoteCV st c = some cP)
       (Arena.targetCtorAt M c) (RE (ConLeche.targetCtorAt MP cP)) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hM, hc⟩ := hpre
@@ -1070,12 +1070,12 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:441-458 targetPinTys
 **An outside major's parameters, typed at the rule prefix**, in order.  The
 scoping hypothesis is the cached bridge's (`targetPinTysS_sim`). -/
-theorem targetPinTys_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (d : Nat) :
+theorem targetPinTys_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (d : Nat) :
     ∀ (xs : List EIdx) (xsP : List Expr), (∀ x ∈ xsP, Expr.WScoped d x) →
-    CSpecF μ env fe (fun st => Frontend.denoteEList st xs = some xsP)
-      (Arena.targetPinTys μ fe d xs) (fun _ _ _ => True)
-      (ConLeche.targetPinTys (fueledOpsM μ) env d xsP) := by
+    CSpecF env fe (fun st => Frontend.denoteEList st xs = some xsP)
+      (Arena.targetPinTys .verified fe d xs) (fun _ _ _ => True)
+      (ConLeche.targetPinTys (fueledOpsM .verified) env d xsP) := by
   intro xs
   induction xs with
   | nil =>
@@ -1100,13 +1100,13 @@ theorem targetPinTys_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 **The check at a resolved major**: nothing at a member; at an outside major
 its parameters typed at the rule prefix and the instantiation `I.{us} D⃗`
 typed there.  Scoping as the cached bridge's `targetMajorPinsS_sim`. -/
-theorem targetMajorPins_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (rP : Nat)
+theorem targetMajorPins_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (rP : Nat)
     (M : Arena.TargetMajor) (MP : ConLeche.TargetMajor)
     (hds : MP.member = none → ∀ x ∈ MP.ds, Expr.WScoped rP x) :
-    CSpecF μ env fe (fun st => dMajor st M = some MP)
-      (Arena.targetMajorPins μ fe rP M) (fun _ _ _ => True)
-      (ConLeche.targetMajorPins (fueledOpsM μ) env rP MP) := by
+    CSpecF env fe (fun st => dMajor st M = some MP)
+      (Arena.targetMajorPins .verified fe rP M) (fun _ _ _ => True)
+      (ConLeche.targetMajorPins (fueledOpsM .verified) env rP MP) := by
   intro s₀ s' r hok hM hrun
   obtain ⟨hind, hlv, hdsd, -, -, -, hmem, -, -⟩ := dMajor_inv hM
   simp only [Arena.targetMajorPins] at hrun
@@ -1142,10 +1142,10 @@ theorem targetMajorPins_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 result sort, read off the stored inductive at `mkFEnv env` (`CheckOK`'s index
 clause relates the twin's lookup).  Core grade for `instLPFast`'s caches; the
 pure side performs no operation. -/
-theorem targetOutsideInst_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem targetOutsideInst_spec {env : Env} (fe : IFEnv)
     (I : NIdx) (IP : ConLeche.Name) (us : LsIdx) (usP : List Level) (ds : List EIdx)
     (dsP : List Expr) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => denoteN st.ns I = some IP ∧ denoteLs st.lss us = some usP ∧
         Frontend.denoteEList st ds = some dsP)
       (Arena.targetOutsideInst fe I us ds)
@@ -1229,7 +1229,7 @@ end RC
 
 The rules are read at the CONSTRUCTORS' index (`fe.restrictTo vis₂` in
 `consBlockRecsTF`), while the knot's caches serve whatever index the recursor
-stage ended on.  So these statements carry two environments: `CheckOK μ false envC
+stage ended on.  So these statements carry two environments: `CheckOK false envC
 feC` for the caches (the frame is `CoreStep` there), and `IFEnvOK env fe` for
 the lookups the rules make — which is `recRuleBits_run`'s shape
 (`Bridge/Inductives/SumInstall.lean`). -/
@@ -1330,16 +1330,16 @@ end RC
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules —
 `sumRules_spec` (`Bridge/Inductives/SumInstall.lean`) with the LOOKUP index
 apart from the knot's: the rules read `fe` (`IFEnvOK env fe`), the caches serve
-`feC` (`CheckOK μ false envC feC`), as `recRuleBits_run` states it.  **Belongs in
+`feC` (`CheckOK false envC feC`), as `recRuleBits_run` states it.  **Belongs in
 `SumInstall.lean` beside `sumRules_spec`** (which is this at `feC := fe`). -/
-theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
+theorem sumRules_spec {envC env : Env} {feC : IFEnv} (fe : IFEnv)
     (recName : NIdx) (recNameP : ConLeche.Name) (nP : Nat) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
       (rhss : List EIdx) (rhssP : List Expr) (s₀ s' : AState) (r : List IRecRule),
-      CheckOK μ false envC feC s₀ → IFEnvOK env fe s₀ →
+      CheckOK false envC feC s₀ → IFEnvOK env fe s₀ →
       denoteCtors s₀.store cs = some csP → Frontend.denoteEList s₀.store rhss = some rhssP →
       Arena.sumRules fe recName nP cs rhss s₀ = .ok (r, s') →
-      CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r
+      CoreStep envC feC s₀ s' ∧ Frontend.denoteRules s'.store r
         = some (ConLeche.sumRules env.find? recNameP nP csP rhssP) := by
   intro cs
   induction cs with
@@ -1389,7 +1389,7 @@ theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEn
       simp only [Frontend.denoteRule, denoteCV_name hcv, hrhs]
       rfl
     obtain ⟨hfr, hrlr⟩ := recRuleBits_run hok hie hrl k2
-    have c2 : CoreStep μ envC feC s₀ s2 :=
+    have c2 : CoreStep envC feC s₀ s2 :=
       ⟨Core.CheckOK.ofReadbackFrame hok hfr, hfr.ext, hfr.pins⟩
     obtain ⟨rs, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨c3, hrs⟩ := ih restP rhss rhssP' s2 s3 rs c2.ok (hie.mono c2.ext)
@@ -1483,14 +1483,14 @@ theorem auxRuleFire_run (M : Arena.TargetMajor) (MP : ConLeche.TargetMajor) (rP 
 major's parameter count and constructors, every rule firing `auxRuleFire` at
 an OUTSIDE major.  The pure side at `find? := env.find?` for the lookup
 index's environment `env`; the caches at `feC`. -/
-theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
+theorem tgtStoredRules_spec {envC env : Env} {feC : IFEnv} (fe : IFEnv)
     (cv : IConstantVal) (cvP : ConstantVal) (rP : Nat) (M : Arena.TargetMajor)
     (MP : ConLeche.TargetMajor) (rhss : List EIdx) (rhssP : List Expr)
-    (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK μ false envC feC s₀)
+    (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK false envC feC s₀)
     (hie : IFEnvOK env fe s₀) (_hcv : Frontend.denoteCV s₀.store cv = some cvP)
     (hM : dMajor s₀.store M = some MP) (hrh : Frontend.denoteEList s₀.store rhss = some rhssP)
     (hrun : Arena.tgtStoredRules fe cv rP M rhss s₀ = .ok (r, s')) :
-    CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r =
+    CoreStep envC feC s₀ s' ∧ Frontend.denoteRules s'.store r =
       some (ConLeche.tgtStoredRules env.find? cvP rP MP rhssP) := by
   obtain ⟨-, -, -, hnpc, -, hctors, hmem, -, -⟩ := dMajor_inv hM
   simp only [Arena.tgtStoredRules] at hrun
@@ -1618,17 +1618,17 @@ recursor) is what keeps the view fixed while the recursors are pushed above
 it (`RC.restrictTo_push_find?`): a pushed name that shadowed a constructor-
 environment constant would hide it from the later rules' lookups, where
 con-leche's `find?` is the fixed `env₂.find?`. -/
-theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} (vis₂ : Nat)
+theorem consBlockRecsTF_spec {envC env₂ : Env} {feC : IFEnv} (vis₂ : Nat)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) :
     ∀ (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
       (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr))
       (m : Nat) (fe : IFEnv) (env : Env) (s₀ s' : AState) (fe' : IFEnv),
-      CheckOK μ false envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
+      CheckOK false envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
       vis₂ ≤ fe.visibleBelow → IFEnvCoh fe → denoteFEnv s₀.store fe = some env →
       dShape s₀.store p = some pP → out.mapM (dRecOut s₀.store) = some outP →
       (∀ t ∈ outP, env₂.find? t.1.name = none) →
       Arena.consBlockRecsTF vis₂ p m out fe s₀ = .ok (fe', s') →
-      CoreStep μ envC feC s₀ s' ∧
+      CoreStep envC feC s₀ s' ∧
         InstRel fe (fun e => e = consBlockRecsT env₂.find? pP m outP env)
           s'.store fe' := by
   intro out
@@ -1703,19 +1703,19 @@ to annotations, its class naming a member, and that class matching the
 callee's class per component.  The scoping hypotheses are the cached bridge's
 (`targetK53S_sim`): the formers closed and the callee's class scoped
 (`TargetMajScoped`). -/
-theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem targetK53_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (Mc : Arena.TargetMajor) (McP : ConLeche.TargetMajor)
     (tele : List EIdx) (teleP : List Expr)
     (majDom f : EIdx) (majDomP fP : Expr)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) (hMc : Cached.TargetMajScoped McP) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
         dMajor st Mc = some McP ∧ Frontend.denoteEList st tele = some teleP ∧
         denoteE st majDom = some majDomP ∧ denoteE st f = some fP)
-      (Arena.targetK53 μ fe p formerTys Mc tele majDom f) (fun _ r v => r = v)
-      (ConLeche.targetK53 (fueledOpsM μ) env pP formerTysP McP teleP majDomP fP) := by
+      (Arena.targetK53 .verified fe p formerTys Mc tele majDom f) (fun _ r v => r = v)
+      (ConLeche.targetK53 (fueledOpsM .verified) env pP formerTysP McP teleP majDomP fP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hft, hMc', htele, hmd, hf⟩ := hpre
   obtain ⟨-, hMlv, hMds, hMnpc, -, -, -, -, hMpf⟩ := dMajor_inv hMc'
@@ -2282,11 +2282,11 @@ block's levels and parameters, or an outside stored inductive (not `Quot`,
 its parameters closed over the recursor's, naming a member, in the block's
 universe).  The class record denotes con-leche's (`dMajor`); the pure side
 at `mkFEnv env` performs no operation. -/
-theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem targetMajorOf_spec {env : Env} (fe : IFEnv)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     (ctorsAs : List (List (IConstantVal × Nat))) (ctorsAsP : List (List (ConstantVal × Nat)))
     (pfvs fvs : List EIdx) (pfvsP fvsP : List Expr) (mty : EIdx) (mtyP : Expr) :
-    CSpecF μ env fe
+    CSpecF env fe
       (fun st => dShape st p = some pP ∧ ctorsAs.mapM (dCtors st) = some ctorsAsP ∧
         Frontend.denoteEList st pfvs = some pfvsP ∧ Frontend.denoteEList st fvs = some fvsP ∧
         denoteE st mty = some mtyP)

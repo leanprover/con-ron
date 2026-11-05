@@ -2011,14 +2011,14 @@ counts and the tree-shaped memo keys.
 con-leche's history report identifies (its `checkDeclStepC_run`, BridgeC:609,
 is the shape; everything right of the last `∧` is representation-free):
 
-    theorem Arena.checkDecl_bridge (hμ : μ.verifiedChecks = true)
-        (hok : StateOK st) (h : Arena.checkDecl μ pins pd st = .ok ((), st')) :
+    theorem Arena.checkDecl_bridge
+        (hok : StateOK st) (h : Arena.checkDecl .verified pins pd st = .ok ((), st')) :
         StateOK st' ∧ Ext st st' ∧
-        ∃ F, ConLeche.checkDecl μ (fueledOps μ F) pins (denoteEnv st) (denoteDecl st pd)
+        ∃ F, ConLeche.checkDecl .verified (fueledOps .verified F) pins (denoteEnv st) (denoteDecl st pd)
                = .ok (denoteEnv st')
 
 folded over the stream by con-ron's own `foldlM` lemma into
-`∃ F, checkDeclsPure μ (fueledOps μ F) pins (denoteDecls ds) = .ok (denoteEnv st')`,
+`∃ F, checkDeclsPure .verified (fueledOps .verified F) pins (denoteDecls ds) = .ok (denoteEnv st')`,
 which `checkDeclsPure_sound_of` consumes with zero model-tier work.  The
 parser tier states `denoteDecls (Arena.parse chunks) = parseChunks chunks`
 (exactness, as the frontend tier does today), and the capstones are the
@@ -71022,3 +71022,78 @@ order) where upstream reports first failure in fold order.
 **Size** (from master): Rust core +1 979 −1 116; driver +121 −167; twin +754 −428;
 Theorem 1 and Capstone +4 258 −3 206; Theorem 2 +1 387 −640; generated model
 +4 248 −2 747.
+
+### Task #140 — con-leche's task #453 in Theorem 1: the mode variable and `hμ` leave the Bridge (2026-11-05, Opus)
+
+Maintainer: match 453 (`hμ`).  With `CheckMode` just `verified | trusted`,
+`μ.verifiedChecks = true` says `μ = .verified`, so the variable and the
+hypothesis are noise in every statement about the verified checker.  Task #139
+had restated the 47 theorems upstream's statements forced; this finishes
+`proof/ConRon/Bridge/**`.  A cleanup: nothing measured.  `Refine/**`, `Refine2/**`
+(Theorem 2 holds at both modes), the twin and the Rust are untouched; the binary
+keeps `--trusted`.
+
+**Removed.**  Every `hμ`, every statement that could only hold at `.verified`.
+`CheckOK`, `CacheOK`, `ModeMemosOK`, `SavedOK`, `KnotSpec`, `BodySpec`,
+`BodySpecV`, `CoreStep`, `CoreSpec`, `EnsureSortSpec`, `IndSpec`, `IndWFSpec`,
+`FoldOK`, `DeclOut`, `DeclCore`, `CSpec`, `CSpecF`, `RunsC` and the other
+definitions over them have no mode argument; the theorems about them are at
+`.verified`.  `knot_spec_all` inducts over the fuel and the eager flag:
+
+    theorem knot_spec_all {env fe} (henv : EnvWF env) :
+        ∀ f {eager : Bool}, KnotSpec eager env fe f
+
+Mentions in `Bridge/**` and `Capstone.lean`, code only (comments masked):
+
+| | before | after |
+|---|---:|---:|
+| `hμ`, `_hμ` | 239 | 0 |
+| `μ` | 965 | 297 |
+| `mode` (the variable) | 2 930 | 1 143 |
+| binders `{μ : CheckMode}`, `{mode : CheckMode}` and explicit forms | 361 | 156 |
+
+`Core/Arms/DefeqStuck.lean`, 143 `hμ`, has no mode left.
+
+**How.**  A scripted pass (not committed): split every file into top-level
+commands, seed with the commands carrying `hμ` or mentioning the invariants above,
+close under references, and add a definition all of whose users are already at
+`.verified`.  In that set: binder and `hμ` dropped, the mode argument dropped from
+callees that lost it, `mode`/`μ` otherwise `.verified`.  Everything outside the
+set was left alone, and that is what stays general below.  The proofs kept their
+shape: after the pass, only these needed a hand.
+
+**What a removed hypothesis left behind.**
+* `majorK_spec`, `majorAnd_spec`: `CheckMode.verifiedChecks` in the `sym only`
+  list (`hμ` used to decide `majorKA`'s gate); `mtcK_fireR`, `mtcAnd_fireR`: the
+  same in their `simp only`.
+* `etaCertFueled_tax`, `iotaFam_fire`: their `hv : mode.verifiedChecks = true` was
+  `hμ` under another name, so they are at `.verified` too.
+  `etaCertFueled_trusted` is deleted, and the `verifiedChecks = false` branches of
+  `defeqLamsInner_spec`, `etaCert_spec` and `iotaFam_spec`, which could no
+  longer be reached.  `iotaFam_true` lost its `verifiedChecks = false` disjunct.
+* Calls at `Core.knot_spec_checkFuel … rfl` lost the `rfl`.  No generic inversion
+  of this library takes the gate as an argument, so no `hμ` became `rfl`.
+
+**Kept general in the mode**: 350 theorems, 46 definitions.  True at both modes
+with no hypothesis, because they say nothing of a certificate gate's outcome and
+mention no invariant above:
+* the fuel-monotonicity and step equations of con-leche's fueled functions and of
+  the twin's knot (`Core/Walks/Mono`, `Core/Memo`'s `coreKnot_*_succ`,
+  `Core/Walks/Nat`'s `reduceNatFueled_*`, `iotaFam_mono`, which case-splits on the
+  gate; `Core/Walks/IotaMajor`'s `mtc*`, `Core/Walks/Stuck`'s `*E`, and the small
+  pure-side definitions they are stated over);
+* the checker split, as upstream's `CheckerSplit`: `SplitInstall`, `PhaseA`,
+  `PhaseA.foldlM`, `checkValueGroup_of_facts`;
+* the pure side of the declaration arms and the block
+  (`Checker/Arms`' `checkDecl_*_pure`, `checkDecl_mono` and its family,
+  `Inductives/BlockWF`, `Inductives/Records`' `FOk.*`, `Checker/Nodup`,
+  `checkDeclsPure_prefix`).
+
+The wrappers that hand one of these a `(mode := .verified)` do so because its
+operation is a `fun` over the mode, which no pattern can bind (`Core/Memo`'s
+`SimE.of_whnfCoreStuck`, `Core/Arms/Infer`'s `SimE.of_constTy`).
+
+**Headlines.**  `model_exists`, `no_False_declaration` and their `_embedded` forms
+did not move; `Capstone.lean`'s stage lemmas take `CoreSpec Arena.checkFuel` and
+`IndSpec`.  OVERVIEW §7.3:
+`KnotSpec` is indexed by the fuel and the eager flag.

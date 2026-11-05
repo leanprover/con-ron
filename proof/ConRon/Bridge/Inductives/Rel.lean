@@ -8,7 +8,7 @@ run forms those stages share.
 
 * **The core grade**: `CSpec` (invariant `CheckOK`, frame
   `Bridge/Checker/Hyp.lean`'s `CoreStep`) and `CSpecF` (its answer related to
-  a con-leche function run at `fueledOpsM μ`, through `FOk`).  `PStep.toCore`
+  a con-leche function run at `fueledOpsM .verified`, through `FOk`).  `PStep.toCore`
   is the bridge from the pure grade.
 * **The install frame**: `InstStep`, `ReadOK`, `IFEnvOKS`, for runs that push
   constants and call the knot at the pushed index.
@@ -62,28 +62,28 @@ open ConLeche ConRon.Arena ConRon.Bridge
 preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
 `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
 and keep its own hypothesis. -/
-theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : PStep s s') (hc : CheckOK μ false env fe s) : CoreStep μ env fe s s' :=
+theorem PStep.toCore {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : PStep s s') (hc : CheckOK false env fe s) : CoreStep env fe s s' :=
   ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
 statement**: the same at a function that calls the knot, so the invariant is
 `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
 inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
-@[expose] def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
+@[expose] def CSpec (env : Env) (fe : IFEnv) {α : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
-  ∀ (s₀ s' : AState) (r : α), CheckOK μ false env fe s₀ → P s₀.store →
-    c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
+  ∀ (s₀ s' : AState) (r : α), CheckOK false env fe s₀ → P s₀.store →
+    c s₀ = .ok (r, s') → CoreStep env fe s₀ s' ∧ R s'.store r
 
 /-- con-leche: ConLeche/Verify/Cached/BlockRunC.lean:335 SimG — **the core
 grade against a monad-generic con-leche function** (task #105): the twin's
 answer is related by `R` to SOME value the pure side, run at the monotone
-fueled operations `fueledOpsM μ`, produces at some fuel (`FOk`,
+fueled operations `fueledOpsM .verified`, produces at some fuel (`FOk`,
 `Bridge/Inductives/Records.lean`).  Composing two such runs needs no
 monotonicity lemma of the composed functions: `FOk.bind` takes the maximum. -/
-@[expose] def CSpecF (μ : CheckMode) (env : Env) (fe : IFEnv) {α β : Type}
+@[expose] def CSpecF (env : Env) (fe : IFEnv) {α β : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → β → Prop) (p : FueledM β) : Prop :=
-  CSpec μ env fe P c (fun st r => ∃ v, R st r v ∧ FOk p v)
+  CSpec env fe P c (fun st r => ∃ v, R st r v ∧ FOk p v)
 
 /-! ## The install frame
 
@@ -108,8 +108,8 @@ theorem InstStep.trans {a b c : AState} (h₁ : InstStep a b) (h₂ : InstStep b
     InstStep a c :=
   ⟨h₂.state, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
 
-theorem _root_.ConRon.Bridge.CoreStep.toInst {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : CoreStep μ env fe s s') : InstStep s s' :=
+theorem _root_.ConRon.Bridge.CoreStep.toInst {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : CoreStep env fe s s') : InstStep s s' :=
   ⟨h.ok.state, h.ext, h.pins⟩
 
 theorem PStep.toInst {s s' : AState} (h : PStep s s') : InstStep s s' :=
@@ -127,8 +127,8 @@ structure ReadOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
   pins : PinsOK s
   ienv : IFEnvOK env fe s
 
-theorem _root_.ConRon.Bridge.CheckOK.toR {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (h : CheckOK μ false env fe s) : ReadOK env fe s :=
+theorem _root_.ConRon.Bridge.CheckOK.toR {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK false env fe s) : ReadOK env fe s :=
   ⟨h.state, h.pins, h.ienv⟩
 
 theorem ReadOK.mono {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe s)
@@ -139,9 +139,9 @@ theorem ReadOK.mono {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe 
 /-- con-leche: ConLeche/Cached/CheckerC.lean flushC — **the flush restores
 `CheckOK` at any index the state reads correctly**: the caches go, and the
 empty cache set is sound at every environment (`CacheOK.of_empty`). -/
-theorem ReadOK.flush {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+theorem ReadOK.flush {env : Env} {fe : IFEnv} {s s' : AState}
     (h : ReadOK env fe s) (hrun : Arena.flushCaches s = .ok ((), s')) :
-    CheckOK μ false env fe s' ∧ InstStep s s' ∧ s'.store = s.store := by
+    CheckOK false env fe s' ∧ InstStep s s' ∧ s'.store = s.store := by
   have e : Arena.flushCaches s = .ok ((), { s with caches := Caches.empty }) := rfl
   rw [e] at hrun
   obtain ⟨-, rfl⟩ := Prod.mk.inj (Except.ok.inj hrun)
@@ -707,8 +707,8 @@ theorem readLevelM_denote_L {s₀ s s' : AState} {h : LIdx} {u : Level}
   (Core.readLevelM_denote (q.cframe.readL hrl) hrun).1
 
 /-- con-leche: none — the same from the core grade's `CheckOK`. -/
-theorem readLevelM_denote_core {μ : CheckMode} {env : Env} {fe : IFEnv}
-    {s₀ s s' : AState} {h : LIdx} {u : Level} (hc : CheckOK μ false env fe s₀)
+theorem readLevelM_denote_core {env : Env} {fe : IFEnv}
+    {s₀ s s' : AState} {h : LIdx} {u : Level} (hc : CheckOK false env fe s₀)
     (q : PStep s₀ s) (hrun : readLevelM h s = .ok (u, s')) :
     denoteL s.store.ls h = some u :=
   readLevelM_denote_L hc.caches.readL q hrun
@@ -966,50 +966,50 @@ Each answer is an `FOk` of `fueledOpsM`'s operation, the frame a `CoreStep`. -/
 
 section Knot
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.whnf — the knot's
 `whnf` slot in run form, its answer an `FOk` of `fueledOpsM`'s. -/
-theorem whnf_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem whnf_crun (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ false env fe s) (he : denoteE s.store e = some eP)
+    (hok : CheckOK false env fe s) (he : denoteE s.store e = some eP)
     (hw : Expr.WScoped d eP)
-    (hrun : Arena.whnf μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).whnf env d eP) w := by
+    (hrun : Arena.whnf .verified fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
+      FOk ((fueledOpsM .verified).whnf env d eP) w := by
   obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.whnf μ false env) d eP u.store r)
+    (Q := fun r u => CheckOK false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      Core.SimE (ConLeche.whnf .verified false env) d eP u.store r)
     rfl hrun ((hk.knot env fe henv).whnf s d e eP hok he hw)
   exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.whnf hF⟩
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.inferType — the
 knot's `infer` slot in run form. -/
-theorem infer_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem infer_crun (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ false env fe s) (he : denoteE s.store e = some eP)
+    (hok : CheckOK false env fe s) (he : denoteE s.store e = some eP)
     (hw : Expr.WScoped d eP)
-    (hrun : Arena.inferTypeCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).inferType env d eP) w := by
+    (hrun : Arena.inferTypeCore .verified fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
+      FOk ((fueledOpsM .verified).inferType env d eP) w := by
   obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ false env) d eP u.store r)
+    (Q := fun r u => CheckOK false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      Core.SimE (ConLeche.inferTypeCore .verified false env) d eP u.store r)
     rfl hrun ((hk.knot env fe henv).infer s d e eP hok he hw)
   exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.inferType hF⟩
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.ensureSort — the
 seventh entry point in run form. -/
-theorem ensureSort_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem ensureSort_crun (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {s s' : AState} {d : Nat} {e : EIdx} {r : LIdx} {eP : Expr}
-    (hok : CheckOK μ false env fe s) (he : denoteE s.store e = some eP)
+    (hok : CheckOK false env fe s) (he : denoteE s.store e = some eP)
     (hw : Expr.WScoped d eP)
-    (hrun : Arena.ensureSortCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ u, denoteL s'.store.ls r = some u ∧
-      FOk ((fueledOpsM μ).ensureSort env d eP) u := by
+    (hrun : Arena.ensureSortCore .verified fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep env fe s s' ∧ ∃ u, denoteL s'.store.ls r = some u ∧
+      FOk ((fueledOpsM .verified).ensureSort env d eP) u := by
   obtain ⟨h1, h2, h3, u, hu, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      SimL (ConLeche.ensureSortCore μ false env) d eP u.store r)
+    (Q := fun r u => CheckOK false env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      SimL (ConLeche.ensureSortCore .verified false env) d eP u.store r)
     rfl hrun (hk.sort env fe henv s d e eP hok he hw)
   exact ⟨⟨h1, h2, h3⟩, u, hu, FOk.ensureSort hF⟩
 
@@ -1018,11 +1018,11 @@ executed level instantiation at the checking invariant (it writes the three
 readback caches, so the frame is a `CoreStep`). -/
 theorem instLPFast_cstep {s s' : AState}
     {ks : List NIdx} {us : LsIdx} {e r : EIdx} {ksv : List ConLeche.Name}
-    {usv : List Level} {eP : Expr} (hok : CheckOK μ false env fe s)
+    {usv : List Level} {eP : Expr} (hok : CheckOK false env fe s)
     (hks : Frontend.denoteNList s.store.ns ks = some ksv)
     (hus : denoteLs s.store.lss us = some usv) (he : denoteE s.store e = some eP)
     (hrun : Arena.instLPFast Arena.coreWalkFuel ks us e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep env fe s s' ∧
       denoteE s'.store r = some (eP.instantiateLevelParams ksv usv) := by
   obtain ⟨hst, hx, hL, hLs, hN, hc, hp, -, hrel⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun
@@ -1032,11 +1032,11 @@ theorem instLPFast_cstep {s s' : AState}
 
 /-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
 the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
-theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    {u v : LIdx} {uP vP : Level} {r : Option Bool} (hok : CheckOK μ false env fe s)
+theorem lvlEq?_crun {env : Env} {fe : IFEnv} {s s' : AState}
+    {u v : LIdx} {uP vP : Level} {r : Option Bool} (hok : CheckOK false env fe s)
     (hu : denoteL s.store.ls u = some uP) (hv : denoteL s.store.ls v = some vP)
     (hrun : Arena.lvlEq? u v s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ r = Level.isEquiv uP vP := by
+    CoreStep env fe s s' ∧ r = Level.isEquiv uP vP := by
   obtain ⟨h1, h2, h3, lu, lv, hlu, hlv, ha⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (Core.lvlEq?_spec s u v hok)
   rw [hu] at hlu; rw [hv] at hlv
@@ -1045,16 +1045,16 @@ theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot defeq,
 in run form**. -/
-theorem defeq_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
-    (hknot : Core.KnotSpec μ false env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
-    {a b : EIdx} {aP bP : Expr} {r : Bool} (hok : CheckOK μ false env fe s₀)
+theorem defeq_crun {env : Env} {fe : IFEnv}
+    (hknot : Core.KnotSpec false env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
+    {a b : EIdx} {aP bP : Expr} {r : Bool} (hok : CheckOK false env fe s₀)
     (ha : denoteE s₀.store a = some aP) (hb : denoteE s₀.store b = some bP)
     (hwa : Expr.WScoped d aP) (hwb : Expr.WScoped d bP)
-    (hrun : Arena.isDefEqCore μ fe Arena.checkFuel d a b s₀ = .ok (r, s')) :
-    CoreStep μ env fe s₀ s' ∧ FOk ((fueledOpsM μ).isDefEq env d aP bP) r := by
+    (hrun : Arena.isDefEqCore .verified fe Arena.checkFuel d a b s₀ = .ok (r, s')) :
+    CoreStep env fe s₀ s' ∧ FOk ((fueledOpsM .verified).isDefEq env d aP bP) r := by
   obtain ⟨h1, h2, h3, hF⟩ := AM.of_run (P := fun u => u = s₀)
-    (Q := fun x u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ false env) d aP bP x)
+    (Q := fun x u => CheckOK false env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
+      Core.SimV (ConLeche.isDefEqCore .verified false env) d aP bP x)
     rfl hrun (hknot.defeq s₀ d a b aP bP hok ha hb hwa hwb)
   exact ⟨⟨h1, h2, h3⟩, FOk.isDefEq hF⟩
 

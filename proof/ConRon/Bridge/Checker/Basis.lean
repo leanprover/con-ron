@@ -338,9 +338,9 @@ the inductive route where a step installs more than one constant.
 some eqA`) read through `IFEnvOK.hit` at the freshly interned `ConLeche.eqA`
 — `internCI_fresh` plus `pinAt_run`, and `denoteN`/`denoteCI` being functions
 is what identifies the two sides. -/
-theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
+theorem checkBasisDecl_bridge {env : Env}
     {fe fe' : IFEnv} {kind : BasisKind} {s s' : AState}
-    (hok : FoldOK μ env fe s)
+    (hok : FoldOK env fe s)
     (hrun : checkBasisDecl fe kind s = .ok (fe', s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
@@ -1071,9 +1071,9 @@ axioms' environment shape test is con-leche's.
 through the `RunsB` combinators — `pinAt_run` per pinned name, `IFEnvOK.findRel`
 per index lookup, `matchesPin_run` per shape
 comparison, and `IFEnvOK.find_beq_ind` for the `Eq` basis test. -/
-theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+theorem stdAxiomOk_run {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
+    (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
     (hrun : stdAxiomOk fe cvA s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
@@ -1144,9 +1144,9 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 `Lean.trustCompiler` environment shape test is con-leche's.
 
 **Proof:** exactly as `stdAxiomOk_run`. -/
-theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+theorem trustCompilerOk_run {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
+    (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
     (hrun : trustCompilerOk fe cvA s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
@@ -1175,9 +1175,9 @@ theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 **Proof:** `ofReduceOp_run`, the `Eq` basis
 test, then `reduceElemOk_run` / `reduceStoredOk_run` and the pinned type. -/
-theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+theorem ofReduceAxOk_run {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
+    (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
     (hrun : ofReduceAxOk fe cvA s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧

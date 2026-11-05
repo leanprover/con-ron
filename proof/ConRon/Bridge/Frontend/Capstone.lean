@@ -44,10 +44,10 @@ axiom of the environment — which is what makes "two named hypotheses" a
 checkable claim (`#print axioms` in `Bridge/Frontend/Axioms.lean` shows none
 of them):
 
-* `hk : CoreSpec .verified Arena.checkFuel` — the Core tier's
+* `hk : CoreSpec Arena.checkFuel` — the Core tier's
   (`Bridge/Core/**`; its `knot` field is already discharged by
   `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel`);
-* `hind : IndSpec .verified` — the Inductives tier's.
+* `hind : IndSpec` — the Inductives tier's.
 
 The inductive installer (`Arena/Inductives/**`, the uniform route) needs no
 premise of its own: `hind` alone covers it.
@@ -103,9 +103,9 @@ cache-neutral — see `Bridge/Frontend/Rel.lean`'s frame note — so "the tables
 are empty" does not survive a `ParseStep`, while `CacheOK` does, through
 `CheckOK.monoF`.  `CacheOK.of_empty` is what the driver reaches it with and is
 one line at each of the two call sites. -/
-theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
-    (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK μ false Env.empty s) :
-    FoldOK μ Env.empty (mkIFEnv IEnv.empty) s where
+theorem FoldOK_of_start {s : AState} (hok : StateOK s)
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK false Env.empty s) :
+    FoldOK Env.empty (mkIFEnv IEnv.empty) s where
   check :=
     { state := hok
       caches := hc

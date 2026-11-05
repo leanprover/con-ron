@@ -17,7 +17,7 @@ the same scoping side conditions (`WScoped` of every knot call's argument,
 `ConLeche/Verify/Inductives/NestScope.lean`), with handles DENOTING where the
 template has `v = w`.  The walk calls the knot (`whnf`, `inferTypeCore`,
 `ensureSortCore`), so the core-grade statements are `CSpecF` against the
-monad-generic con-leche function run at `fueledOpsM μ`, related through
+monad-generic con-leche function run at `fueledOpsM .verified`, related through
 `Records.lean`'s denotations (`dCtx`, `dProg`, `dState`, `dKey`, `kindOf`).
 The twin's deviations (its module note) are absorbed as follows:
 
@@ -679,7 +679,7 @@ theorem viewLsLen_run {s s' : AState} {h : LsIdx} {r : Option Nat}
 
 section InstType
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
 The instantiation's type former, checked as con-leche checks it: the index
@@ -688,7 +688,7 @@ count and the container's type at the key, and (con-leche's
 are. -/
 theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     (ctx : Arena.NestCtx) (hi : Nat) (key : Arena.NestKey) (keyP : ConLeche.NestKey) :
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧ dKey st key = some keyP)
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧ dKey st key = some keyP)
       (Arena.nestInstType fe ctx hi key)
       (fun st r v => r.1 = v.1 ∧ denoteE st r.2 = some v.2 ∧
         ∀ d, (∀ x ∈ keyP.ds, Expr.WScoped d x) → Expr.WScoped d v.2)
@@ -775,7 +775,7 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
       AM.of_run (P := fun t => t = s₈) rfl h17 (Core.lvlEq?_spec s₈ sL ctx.sort c8.ok)
     rw [hsL8] at hlu; obtain rfl := Option.some.inj hlu
     rw [hsort8] at hlvv; obtain rfl := Option.some.inj hlvv
-    have c9 : CoreStep μ env fe s₈ s₉ := ⟨c9o, by rw [c9s]; exact Ext.refl _, c9p⟩
+    have c9 : CoreStep env fe s₈ s₉ := ⟨c9o, by rw [c9s]; exact Ext.refl _, c9p⟩
     obtain ⟨ok, s₁₀, h19, h20⟩ := AM.bind_ok h18
     obtain ⟨ho3', hs10⟩ := liftFueled_ok h19
     rw [hs10] at h20
@@ -845,7 +845,7 @@ theorem dGrp_names {st : EStore} :
 
 section Grow
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1309-1316 nestGrowGroup
 A frame's group grown by the named containers, exactly con-leche's (the
@@ -857,7 +857,7 @@ theorem nestGrowGroup_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     ∀ (cs : List NIdx) (csP : List ConLeche.Name) (grp : List (NIdx × EIdx))
       (grpP : List (ConLeche.Name × Expr)),
       (∀ x ∈ grpP, ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d x.2) →
-      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+      CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
           Frontend.denoteNList st.ns cs = some csP ∧ dGrp st grp = some grpP)
         (Arena.nestGrowGroup fe ctx hi us ds cs grp)
@@ -1319,7 +1319,7 @@ theorem dHoles_grp {st : EStore} {us : LsIdx} {usP : List Level} {ds : List EIdx
 
 section Walk
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Verify/Cached/NestPosC.lean RecSimC — `nestPos`'s
 answer: the kind read, the walked form and the state denoting con-leche's, the
@@ -1331,15 +1331,15 @@ def RPos (dep : Nat) (st : EStore) (r : Arena.NestFieldKind × EIdx × Arena.Nes
 
 /-- con-leche: ConLeche/Verify/Cached/NestPosC.lean RecSimC — **`nestPos` at
 `fuel` is correct**: at a well-scoped input, an accepting twin run denotes a
-run of con-leche's `nestPos` at `fueledOpsM μ`. -/
-def NestPosSpec (μ : CheckMode) (env : Env) (fe : IFEnv) (ctx : Arena.NestCtx)
+run of con-leche's `nestPos` at `fueledOpsM .verified`. -/
+def NestPosSpec (env : Env) (fe : IFEnv) (ctx : Arena.NestCtx)
     (ctxP : ConLeche.NestCtx) (fuel : Nat) : Prop :=
   ∀ (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (dep kb : Nat) (e : EIdx)
     (eP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState), Expr.WScoped dep eP →
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
         dProg st prog = some progP ∧ denoteE st e = some eP ∧ dState st ns = some nsP)
-      (Arena.nestPos μ fe ctx fuel prog dep kb e ns) (RPos dep)
-      (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel progP dep kb eP nsP)
+      (Arena.nestPos .verified fe ctx fuel prog dep kb e ns) (RPos dep)
+      (ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel progP dep kb eP nsP)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1169-1186 nestFields
 A constructor's field telescope through the walk at fuel `F` (con-leche's
@@ -1347,23 +1347,23 @@ A constructor's field telescope through the walk at fuel `F` (con-leche's
 walked domain well scoped at its own depth, the result at the depth past the
 fields. -/
 theorem nestFields_spec {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} {F : Nat}
-    (hF : NestPosSpec μ env fe ctx ctxP F) (prog : List Arena.NestHole)
+    (hF : NestPosSpec env fe ctx ctxP F) (prog : List Arena.NestHole)
     (progP : List ConLeche.NestHole) (base : Nat) (err : ConLeche.CheckError) :
     ∀ (nF j : Nat) (cur : EIdx) (curP : Expr) (ns : Arena.NestState)
       (nsP : ConLeche.NestState) (ks : List Arena.NestFieldKind)
       (nds : List EIdx) (ndsP : List Expr),
       Expr.WScoped (base + j) curP →
-      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+      CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           dProg st prog = some progP ∧ denoteE st cur = some curP ∧
           dState st ns = some nsP ∧ Frontend.denoteEList st nds = some ndsP)
-        (Arena.nestFields μ fe ctx F prog base nF j cur ns ks nds)
+        (Arena.nestFields .verified fe ctx F prog base nF j cur ns ks nds)
         (fun st r v => r.1.map kindOf = ks.map kindOf ++ v.1 ∧
           Frontend.denoteEList st r.2.1 = some (ndsP ++ v.2.1) ∧ denoteE st r.2.2.1 = some v.2.2.1 ∧
           dState st r.2.2.2 = some v.2.2.2 ∧
           (∀ (i : Nat) (nd : Expr), v.2.1[i]? = some nd →
             Expr.WScoped (base + j + i) nd) ∧
           Expr.WScoped (base + j + v.2.1.length) v.2.2.1)
-        (ConLeche.nestFields (ConLeche.nestPos (fueledOpsM μ) env ctxP F) progP base err
+        (ConLeche.nestFields (ConLeche.nestPos (fueledOpsM .verified) env ctxP F) progP base err
           nF j curP nsP) := by
   intro nF
   induction nF with
@@ -1456,7 +1456,7 @@ theorem dCtx_fields {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
 
 section Ctors
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: none — the twin's `if _h : root then (do let F ← m; k F) else k
 fuel`, as ONE bind (the `do` elaborator duplicates the continuation into both
@@ -1471,13 +1471,13 @@ theorem dite_bind_AM {α β : Type} (b : Bool) (m : AM α) (a : α) (X : α → 
 denote con-leche's continuation `rec` (`hrec`), and the walk is correct at the
 fuel it runs at (`hps`).  The accumulator `outs` is the prefix of con-leche's
 answer; every walked form is well scoped at the frame's depth. -/
-theorem nestCtors_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestCtors_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (root : Bool) (fuel : Nat)
     (rec : Expr → List ConLeche.NestHole → Nat → Nat → Expr → ConLeche.NestState →
       FueledM (ConLeche.NestFieldKind × Expr × ConLeche.NestState))
     (hrec : ∀ crestP, rec crestP =
-      ConLeche.nestPos (fueledOpsM μ) env ctxP (if root then whnfWalkFuel crestP else fuel))
-    (hps : ∀ crestP, NestPosSpec μ env fe ctx ctxP (if root then whnfWalkFuel crestP else fuel))
+      ConLeche.nestPos (fueledOpsM .verified) env ctxP (if root then whnfWalkFuel crestP else fuel))
+    (hps : ∀ crestP, NestPosSpec env fe ctx ctxP (if root then whnfWalkFuel crestP else fuel))
     (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (hi : Nat) (us : LsIdx)
     (usP : List Level) (ds : List EIdx) (dsP : List Expr) (names : List NIdx)
     (namesP : List ConLeche.Name) (holes : List EIdx) (holesP : List Expr)
@@ -1488,16 +1488,16 @@ theorem nestCtors_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
       (outs : List (List Arena.NestFieldKind × EIdx))
       (outsP : List (List ConLeche.NestFieldKind × Expr)),
       (∀ c ∈ csP, c.1.type.hasFvar = false) →
-      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+      CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           dProg st prog = some progP ∧ denoteLs st.lss us = some usP ∧
           Frontend.denoteEList st ds = some dsP ∧
           Frontend.denoteNList st.ns names = some namesP ∧
           Frontend.denoteEList st holes = some holesP ∧ dCtors st cs = some csP ∧
           dState st ns = some nsP ∧ outs.mapM (dOut st) = some outsP)
-        (Arena.nestCtors μ fe ctx root fuel prog hi us ds names holes cs ns outs)
+        (Arena.nestCtors .verified fe ctx root fuel prog hi us ds names holes cs ns outs)
         (fun st r v => r.1.mapM (dOut st) = some (outsP ++ v.1) ∧ dState st r.2 = some v.2 ∧
           ∀ o ∈ v.1, Expr.WScoped hi o.2)
-        (ConLeche.nestCtors ctxP (fueledOpsM μ) env rec progP hi usP dsP namesP holesP csP
+        (ConLeche.nestCtors ctxP (fueledOpsM .verified) env rec progP hi usP dsP namesP holesP csP
           nsP) := by
   intro cs
   induction cs with
@@ -1698,7 +1698,7 @@ end Ctors
 
 section Frame
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: none — `List.mapIdx` of an index-blind function is `map`. -/
 theorem mapIdx_blind {α β : Type} (f : α → β) (l : List α) :
@@ -1733,21 +1733,21 @@ theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel
 **A container frame** (con-leche's `nestFrameS_sim`): the instantiation typed
 at the frame's depth, the group's constructors walked at the enclosing walk's
 fuel, with the frame's holes above `hi`. -/
-theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
-    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (ih : NestPosSpec env fe ctx ctxP fuel)
     (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (hi : Nat) (us : LsIdx)
     (usP : List Level) (ds : List EIdx) (dsP : List Expr) (nPc : Nat)
     (grp : List (NIdx × EIdx)) (grpP : List (ConLeche.Name × Expr)) (ns : Arena.NestState)
     (nsP : ConLeche.NestState)
     (hds : ∀ d ∈ dsP, Expr.WScoped hi d) (hg : ∀ x ∈ grpP, Expr.WScoped hi x.2) :
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
         dProg st prog = some progP ∧ denoteLs st.lss us = some usP ∧
         Frontend.denoteEList st ds = some dsP ∧ dGrp st grp = some grpP ∧
         dState st ns = some nsP)
-      (Arena.nestFrame μ fe ctx fuel prog hi us ds nPc grp ns)
+      (Arena.nestFrame .verified fe ctx fuel prog hi us ds nPc grp ns)
       (fun st r v => dState st r = some v)
-      (ConLeche.nestFrame ctxP (fueledOpsM μ) env (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel)
+      (ConLeche.nestFrame ctxP (fueledOpsM .verified) env (ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel)
         progP hi usP dsP nPc grpP nsP) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hprog, hus, hds', hgrp, hns⟩ := hp
@@ -1827,7 +1827,7 @@ theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
       (dHoles_grp (denoteLs_ext hus hx06) (denoteEList_ext hx06 _ _ hds') hi
         (dGrp_ext hx06 _ _ hgrp))
   obtain ⟨c7, v, ⟨-, hv2, -⟩, hFv⟩ := nestCtors_spec hk henv false fuel
-    (fun _ => ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) (fun _ => by simp)
+    (fun _ => ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) (fun _ => by simp)
     (fun _ => by simpa using ih) _ _ (hi + grpP.length) us usP ds dsP _ _ holes _
     (fun d hd => Expr.WScoped.mono (Nat.le_add_right _ _) (hds d hd))
     (Cached.frameHoles_wscoped hg) (by simp [Cached.frameHoles]) ctors vc ns nsP [] [] hvcl s₆ s₇ q c6.ok
@@ -1845,28 +1845,28 @@ end Frame
 
 section Cont
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1359-1382 nestContNew
 An instantiation's frame (con-leche's `nestContNewS_sim`): the group grown,
 the frame walked with the group in progress, the group cached when its
 parameters mention no frame hole. -/
-theorem nestContNew_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestContNew_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
-    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (ih : NestPosSpec env fe ctx ctxP fuel)
     (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
     (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
     (nPc : Nat) (cty : EIdx) (ctyP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState)
     (hds : ∀ d ∈ dsP, Expr.WScoped (ctxP.hiAt progP.length) d)
     (hni : ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d ctyP) :
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
         dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
         denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
         denoteE st cty = some ctyP ∧ dState st ns = some nsP)
-      (Arena.nestContNew μ fe ctx fuel prog kb n us ds nPc cty ns)
+      (Arena.nestContNew .verified fe ctx fuel prog kb n us ds nPc cty ns)
       (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
-      (ConLeche.nestContNew ctxP (fueledOpsM μ) env
-        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
+      (ConLeche.nestContNew ctxP (fueledOpsM .verified) env
+        (ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hprog, hn, hus, hds', hcty, hns⟩ := hp
   obtain ⟨-, -, hfind, -, -, -⟩ := dCtx_fields hctx
@@ -1944,22 +1944,22 @@ theorem nestContNew_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1384-1404 nestContKey
 The instantiation met (con-leche's `nestContKeyS_sim`): in progress, a cache
 hit, or a new frame — the same verdict. -/
-theorem nestContKey_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestContKey_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
-    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (ih : NestPosSpec env fe ctx ctxP fuel)
     (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
     (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
     (nPc : Nat) (cty : EIdx) (ctyP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState)
     (hds : ∀ d ∈ dsP, Expr.WScoped (ctxP.hiAt progP.length) d)
     (hni : ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d ctyP) :
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
         dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
         denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
         denoteE st cty = some ctyP ∧ dState st ns = some nsP)
-      (Arena.nestContKey μ fe ctx fuel prog kb n us ds nPc cty ns)
+      (Arena.nestContKey .verified fe ctx fuel prog kb n us ds nPc cty ns)
       (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
-      (ConLeche.nestContKey ctxP (fueledOpsM μ) env
-        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
+      (ConLeche.nestContKey ctxP (fueledOpsM .verified) env
+        (ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hprog, hn, hus, hds', hcty, hns⟩ := hp
   rw [Arena.nestContKey.eq_def] at hrun
@@ -2004,7 +2004,7 @@ end Cont
 
 section ContCase
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1406-1440 nestCont
 (the parameters' check) — no loose bound variable, no frame hole past the
@@ -2041,21 +2041,21 @@ theorem paramsLocal_spec (hp : Nat) (ds : List EIdx) (dsP : List Expr) :
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1406-1440 nestCont
 **The container case** (con-leche's `nestContS_sim`): the container's checks,
 its former, then the instantiation (`nestContKey_spec`). -/
-theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestCont_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
-    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (ih : NestPosSpec env fe ctx ctxP fuel)
     (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
     (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (args : List EIdx)
     (argsP : List Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState) {dep : Nat}
     (hargs : ∀ a ∈ argsP, Expr.WScoped dep a) :
-    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+    CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
         dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
         denoteLs st.lss us = some usP ∧ Frontend.denoteEList st args = some argsP ∧
         dState st ns = some nsP)
-      (Arena.nestCont μ fe ctx fuel prog kb n us args ns)
+      (Arena.nestCont .verified fe ctx fuel prog kb n us args ns)
       (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
-      (ConLeche.nestCont ctxP (fueledOpsM μ) env
-        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP argsP nsP) := by
+      (ConLeche.nestCont ctxP (fueledOpsM .verified) env
+        (ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) progP kb nP usP argsP nsP) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hprog, hn, hus, hargs', hns⟩ := hp
   obtain ⟨hcnames, hcnP, hfind, -, -, -⟩ := dCtx_fields hctx
@@ -2164,15 +2164,15 @@ end ContCase
 
 section PosFn
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
 **The positivity function, one fuel up** (con-leche's `nestPosS_sim`, its
 successor case): the reduct's cases — hole-free, a `Π`, a hole application, a
 container application (`nestCont_spec`) — each the same verdict. -/
-theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestPos_succ (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
-    (ih : NestPosSpec μ env fe ctx ctxP fuel) : NestPosSpec μ env fe ctx ctxP (fuel + 1) := by
+    (ih : NestPosSpec env fe ctx ctxP fuel) : NestPosSpec env fe ctx ctxP (fuel + 1) := by
   intro prog progP dep kb e eP ns nsP hw s₀ s' r hok hp hrun
   obtain ⟨hctx, hprog, he, hns⟩ := hp
   obtain ⟨hcnames, hcnP, hfind, -, -, -⟩ := dCtx_fields hctx
@@ -2389,11 +2389,11 @@ theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
 **THE POSITIVITY FUNCTION** (con-leche's `nestPosS_sim`): at every fuel, an
 accepting twin run at a well-scoped input denotes a run of con-leche's
-`nestPos` at `fueledOpsM μ` — the kind read, the walked form (well scoped at
+`nestPos` at `fueledOpsM .verified` — the kind read, the walked form (well scoped at
 the walk's depth) and the state. -/
-theorem nestPos_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestPos_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) :
-    ∀ fuel, NestPosSpec μ env fe ctx ctxP fuel := by
+    ∀ fuel, NestPosSpec env fe ctx ctxP fuel := by
   intro fuel
   induction fuel with
   | zero =>
@@ -2408,7 +2408,7 @@ end PosFn
 
 section Root
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
 (the cited `mapM`, one index) — member `mm`'s hole. -/
@@ -2553,7 +2553,7 @@ The root frame's canonical crest of a member constructor, exactly
 con-leche's. -/
 theorem nestRootCanon_spec (fnd : ConLeche.Name → Option ConstantInfo)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (cv : IConstantVal) (cvP : ConstantVal) :
-    CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
+    CSpec env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
       (Arena.nestRootCanon ctx cv) (ROp RE (ConLeche.nestRootCanon ctxP cvP)) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hcv⟩ := hp
@@ -2573,7 +2573,7 @@ Official's `check_uniform_ind_occs` at one constructor: exactly con-leche's
 verdict. -/
 theorem nestUniformOk_spec (fnd : ConLeche.Name → Option ConstantInfo)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (cv : IConstantVal) (cvP : ConstantVal) :
-    CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
+    CSpec env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
       (Arena.nestUniformOk ctx cv) (RV (ConLeche.nestUniformOk ctxP cvP)) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hcv⟩ := hp
@@ -2622,7 +2622,7 @@ theorem nestUniformOk_spec (fnd : ConLeche.Name → Option ConstantInfo)
 theorem nestUniformAll_spec (fnd : ConLeche.Name → Option ConstantInfo)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)),
-      CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ dCtors st cs = some csP)
+      CSpec env fe (fun st => dCtx st fnd ctx = some ctxP ∧ dCtors st cs = some csP)
         (cs.allM fun c => Arena.nestUniformOk ctx c.1)
         (RV (csP.all fun c => ConLeche.nestUniformOk ctxP c.1)) := by
   intro cs
@@ -2672,11 +2672,11 @@ accepting twin run is an accepting con-leche run. -/
 theorem nestUniform_spec (fnd : ConLeche.Name → Option ConstantInfo)
     (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
     ∀ (css : List (List (IConstantVal × Nat))) (cssP : List (List (ConstantVal × Nat))),
-      CSpecF μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
+      CSpecF env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
         (Arena.nestUniform ctx css) (fun _ _ _ => True)
         (ConLeche.nestUniform (m := FueledM) ctxP cssP) := by
   have hall : ∀ (css : List (List (IConstantVal × Nat))) (cssP : List (List (ConstantVal × Nat))),
-      CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
+      CSpec env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
         (Arena.nestUniform ctx css)
         (fun _ _ => ∀ cs ∈ cssP, ∀ c ∈ cs, ConLeche.nestUniformOk ctxP c.1 = true) := by
     intro css
@@ -2734,7 +2734,7 @@ end Root
 
 section Top
 
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+variable {env : Env} {fe : IFEnv}
 
 /-- con-leche: none — every member's outputs, denoted. -/
 @[expose] def dOutss (st : EStore) (oss : List (List (List Arena.NestFieldKind × EIdx))) :
@@ -2752,7 +2752,7 @@ theorem dOutss_ext : DExt dOutss := by
 through `nestCtors_spec` at the root key, each at the input-derived fuel of its
 crest (`nestPos_spec` at every fuel); the accumulator is the prefix of
 con-leche's answer, every walked form well scoped at `hiAt 0`. -/
-theorem nestRoot_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestRoot_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     (holes : List EIdx) (holesP : List Expr)
     (hholes : ∀ x ∈ holesP, Expr.WScoped (ctxP.hiAt 0) x)
@@ -2763,13 +2763,13 @@ theorem nestRoot_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
       (outs : List (List (List Arena.NestFieldKind × EIdx)))
       (outsP : List (List (List ConLeche.NestFieldKind × Expr))),
       (∀ cs ∈ cssP, ∀ c ∈ cs, c.1.type.hasFvar = false) →
-      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+      CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           Frontend.denoteEList st holes = some holesP ∧ css.mapM (dCtors st) = some cssP ∧
           dState st ns = some nsP ∧ dOutss st outs = some outsP)
-        (Arena.nestRoot μ fe ctx holes css ns outs)
+        (Arena.nestRoot .verified fe ctx holes css ns outs)
         (fun st r v => dOutss st r.1 = some (outsP ++ v.1) ∧ dState st r.2 = some v.2 ∧
           ∀ os ∈ v.1, ∀ o ∈ os, Expr.WScoped (ctxP.hiAt 0) o.2)
-        (ConLeche.nestRoot (fueledOpsM μ) env ctxP holesP cssP nsP) := by
+        (ConLeche.nestRoot (fueledOpsM .verified) env ctxP holesP cssP nsP) := by
   intro css
   induction css with
   | nil =>
@@ -2800,7 +2800,7 @@ theorem nestRoot_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     rw [hiAt_eq hctx] at hrun
     obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨c1, v1, ⟨hv1, hns1, hw1⟩, hF1⟩ := nestCtors_spec hk henv true 0
-      (fun crestP => ConLeche.nestPos (fueledOpsM μ) env ctxP (whnfWalkFuel crestP))
+      (fun crestP => ConLeche.nestPos (fueledOpsM .verified) env ctxP (whnfWalkFuel crestP))
       (fun _ => by simp) (fun crestP => by simpa using nestPos_spec hk henv hc _)
       [] [] (ctxP.hiAt 0) ctx.lvls _ ctx.params ctxP.params ctx.names ctxP.names holes holesP
       hpar hholes hlen cs csP ns nsP [] [] (hcl csP List.mem_cons_self) s₀ s₁ q hok
@@ -2898,15 +2898,15 @@ theorem seedFuel_spec :
 **The seeds walked** (con-leche's `nestSeedsS_sim`): each seed a container
 instance met at the empty frame stack (`nestContKey_spec`), at the fuel its
 parameters give. -/
-theorem nestSeeds_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem nestSeeds_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) :
     ∀ (ks : List (Arena.NestKey × Nat)) (ksP : List (ConLeche.NestKey × Nat))
       (ns : Arena.NestState) (nsP : ConLeche.NestState),
       (∀ k ∈ ksP, ∀ x ∈ k.1.ds, Expr.WScoped (ctxP.hiAt 0) x) →
-      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+      CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           ks.mapM (fun k => (dKey st k.1).map (·, k.2)) = some ksP ∧ dState st ns = some nsP)
-        (Arena.nestSeeds μ fe ctx ks ns) (fun st r v => dState st r = some v)
-        (ConLeche.nestSeeds (fueledOpsM μ) env ctxP ksP nsP) := by
+        (Arena.nestSeeds .verified fe ctx ks ns) (fun st r v => dState st r = some v)
+        (ConLeche.nestSeeds (fueledOpsM .verified) env ctxP ksP nsP) := by
   intro ks
   induction ks with
   | nil =>

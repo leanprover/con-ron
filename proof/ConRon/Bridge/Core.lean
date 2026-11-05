@@ -20,7 +20,7 @@ steps, one knot induction**:
 * `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq*}.lean` — rule 8's
   step-lemma inventory, one per exit of each PURE clause, plus that body's
   `BodySpec` theorem;
-* `Core/Induction.lean` — `knot_spec : ∀ f, KnotSpec mode eager env fe f`,
+* `Core/Induction.lean` — `knot_spec : ∀ f, KnotSpec eager env fe f`,
   `knot_spec_checkFuel` (what the Checker tier consumes) and the tier's
   `#print axioms` census;
 * `Core/EnsureSort.lean` — **the seventh entry point**, which is not a

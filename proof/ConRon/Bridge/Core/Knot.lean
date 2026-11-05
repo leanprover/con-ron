@@ -20,10 +20,10 @@ one knot induction**.  `KnotSpec` is `SSimC` with
 
 | con-leche | here |
 |---|---|
-| `CSOK mode eager env s` | `CheckOK mode eager env fe s` (`Bridge/StateOK.lean`) |
+| `CSOK mode eager env s` | `CheckOK eager env fe s` (`Bridge/StateOK.lean`) |
 | `RelC i e` (the cached tier's erasure) | `denoteE s₀.store i = some e` |
 | `SimC mode env s₀ (RelEC d) c p` | the `Std.WP` triple `⦃fun s => s = s₀⦄ c ⦃fun r s' => …; ⊤⦄` |
-| `(fueledFns mode eager env).whnfCore d e` | `∃ F, ConLeche.whnfCore mode eager env F d e = .ok v` |
+| `(fueledFns .verified eager env).whnfCore d e` | `∃ F, ConLeche.whnfCore mode eager env F d e = .ok v` |
 
 The `FueledM` wrapper con-leche uses to carry fuel monotonicity through a
 `bind` is not needed here, because the arena's side of every statement is a
@@ -39,7 +39,7 @@ Theorem 1 is an implication out of `= .ok …`.
 
 ## Why the pure side is `∃ F` and not a fixed fuel
 
-DESIGN §8.2: the bridge delivers `∃ F, ConLeche.checkDecl μ (fueledOps μ F) …`,
+DESIGN §8.2: the bridge delivers `∃ F, ConLeche.checkDecl .verified (fueledOps .verified F) …`,
 and `checkDeclsPure_sound_of` consumes it at any `F`.  The memo makes the
 existential unavoidable rather than merely convenient: a cache row records an
 answer the body computed at SOME earlier fuel, and re-deriving it at the
@@ -92,8 +92,8 @@ no handle. -/
 
 /-! ## The knot statement
 
-The slots of `ConRon.Arena.coreKnot mode eager fe id f` — which is
-`Arena/Core.lean`'s `pureFnsA mode eager fe f`, the MEMOIZED knot (deviation 5 of
+The slots of `ConRon.Arena.coreKnot .verified eager fe id f` — which is
+`Arena/Core.lean`'s `pureFnsA .verified eager fe f`, the MEMOIZED knot (deviation 5 of
 task #97c: the arena has one knot and the memo probes are inline in its
 slots) — against con-leche's fueled entry points of
 `ConLeche/Kernel/TypeChecker.lean`; the eager slot against the eager tower's
@@ -109,62 +109,62 @@ The record is what makes the arms writable: a body's theorem takes
 `KnotSpec f` as a hypothesis and `hsim.whnfCore` goes into `vcgen`'s spec
 list like any other `@[spec]` theorem (DESIGN `### Task #97s`,
 rule 8 — "the record of knot hypotheses costs nothing"). -/
-structure KnotSpec (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv) (f : Nat) :
+structure KnotSpec (eager : Bool) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop where
   /-- Head normalization without delta, in either mode (`c` is the official
   kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
   whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).whnfCore c d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).whnfCore c d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode eager env F d e c) d e s'.store r; ⊤⦄
+        SimE (fun F d e => ConLeche.whnfCore .verified eager env F d e c) d e s'.store r; ⊤⦄
   /-- The full reduction loop. -/
   whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).whnf d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).whnf d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnf mode eager env) d e s'.store r; ⊤⦄
+        SimE (ConLeche.whnf .verified eager env) d e s'.store r; ⊤⦄
   /-- Full-grade type inference. -/
   infer : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).infer d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).infer d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode eager env) d e s'.store r; ⊤⦄
+        SimE (ConLeche.inferTypeCore .verified eager env) d e s'.store r; ⊤⦄
   /-- Definitional equality, at the ORDERED pair the memo is keyed by. -/
   defeq : ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some a →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some a →
     denoteE s₀.store j = some b →
     Expr.WScoped d a → Expr.WScoped d b →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).defeq d i j
-    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).defeq d i j
+    ⦃fun x s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode eager env) d a b x; ⊤⦄
+        SimV (ConLeche.isDefEqCore .verified eager env) d a b x; ⊤⦄
   /-- The eager slot: definitional equality in the eager tower, i.e. the knot
   at `eager := true` (con-leche's `defeqE_def`: the slot IS the eager tower's
   `isDefEqCore`), run on the eager tower's own memos and leaving the
   caller's invariant at its flag. -/
   defeqE : ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some a →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some a →
     denoteE s₀.store j = some b →
     Expr.WScoped d a → Expr.WScoped d b →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).defeqE d i j
-    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).defeqE d i j
+    ⦃fun x s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode true env) d a b x; ⊤⦄
+        SimV (ConLeche.isDefEqCore .verified true env) d a b x; ⊤⦄
   /-- The io grade (con-leche's task #170): its own body, its own table. -/
   inferIO : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).inferIO d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).inferIO d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode eager env) d e s'.store r; ⊤⦄
+        SimE (ConLeche.inferTypeIO .verified eager env) d e s'.store r; ⊤⦄
 
 /-! ## The base case
 
@@ -174,8 +174,8 @@ vacuous — con-leche's `ssimC_zero`, which is six `SimC.throw`s. -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the knot at
 fuel `0` refines everything, because it returns nothing. -/
-theorem knotSpec_zero (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv) :
-    KnotSpec mode eager env fe 0 where
+theorem knotSpec_zero (eager : Bool) (env : Env) (fe : IFEnv) :
+    KnotSpec eager env fe 0 where
   whnfCore := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   whnf := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   infer := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
@@ -227,16 +227,16 @@ denoting subject `e`, the slot's `SimE` at `e`. -/
 /-- con-leche: none — a triple whose answer is a `Bool` about the
 denotations of two subjects, restated over the denotation terms
 (`PairAns`): the subjects' denotations are terms, not parameters. -/
-theorem pairAns_of_spec {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {m : AM Bool}
+theorem pairAns_of_spec {eager : Bool} {env : Env} {fe : IFEnv} {m : AM Bool}
     {P : Expr → Expr → Bool → Prop} {s₀ : AState} {a b : EIdx} {d : Nat}
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b))
     (h : ∀ x y, denoteE s₀.store a = some x → denoteE s₀.store b = some y →
       Expr.WScoped d x → Expr.WScoped d y →
       ⦃fun s => s = s₀⦄ m
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ P x y r; ⊤⦄) :
     ⦃fun s => s = s₀⦄ m
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ PairAns P (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   cases ha : denoteE s₀.store a with
   | none => rw [ha] at hda; exact hda.elim
@@ -249,37 +249,37 @@ theorem pairAns_of_spec {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEn
 
 /-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the `whnf` slot in
 answer shape. -/
-theorem KnotSpec.whnfS {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode eager env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).whnf d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        SlotAns (ConLeche.whnf mode eager env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+theorem KnotSpec.whnfS {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec eager env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
+    (hok : CheckOK eager env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).whnf d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.whnf .verified eager env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
   cases hd : denoteE s₀.store i with
   | none => rw [hd] at hw; exact hw.elim
   | some e => rw [hd] at hw; exact hsim.whnf s₀ d i e hok hd hw
 
 /-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the io-grade
 inference slot in answer shape. -/
-theorem KnotSpec.inferIOS {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode eager env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).inferIO d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        SlotAns (ConLeche.inferTypeIO mode eager env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+theorem KnotSpec.inferIOS {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec eager env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
+    (hok : CheckOK eager env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).inferIO d i
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.inferTypeIO .verified eager env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
   cases hd : denoteE s₀.store i with
   | none => rw [hd] at hw; exact hw.elim
   | some e => rw [hd] at hw; exact hsim.inferIO s₀ d i e hok hd hw
 
 /-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the `defeq` slot in
 answer shape (`PairAns` of `SimV`). -/
-theorem KnotSpec.defeqS {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode eager env fe f) (s₀ : AState) (d : Nat) (i j : EIdx)
-    (hok : CheckOK mode eager env fe s₀)
+theorem KnotSpec.defeqS {eager : Bool} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec eager env fe f) (s₀ : AState) (d : Nat) (i j : EIdx)
+    (hok : CheckOK eager env fe s₀)
     (hi : DenWS d (denoteE s₀.store i)) (hj : DenWS d (denoteE s₀.store j)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode eager fe id f).defeq d i j
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (SimV (ConLeche.isDefEqCore mode eager env) d) (denoteE s₀.store i)
+    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id f).defeq d i j
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (SimV (ConLeche.isDefEqCore .verified eager env) d) (denoteE s₀.store i)
           (denoteE s₀.store j) r; ⊤⦄ :=
   pairAns_of_spec hi hj fun a b ha hb hwa hwb => hsim.defeq s₀ d i j a b hok ha hb hwa hwb
 
@@ -299,32 +299,32 @@ common shape of the five handle-valued body theorems: at a knot record one
 fuel level down, the twin's body refines con-leche's fueled entry point at
 `f + 1`.
 
-The pure comparand is the fueled ENTRY (`ConLeche.whnfCore mode eager env (F + 1)`)
+The pure comparand is the fueled ENTRY (`ConLeche.whnfCore .verified eager env (F + 1)`)
 rather than con-leche's body applied to `fueledFns`, because
 `Verify/Knot.lean`'s `whnfCore_succ` identifies the two and the entry is what
 `CacheOK` is stated at. -/
-@[expose] def BodySpec (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv)
+@[expose] def BodySpec (eager : Bool) (env : Env) (fe : IFEnv)
     (body : Nat → EIdx → AM EIdx) (op : Nat → Nat → Expr → CheckM Expr) :
     Prop :=
   ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
     ⦃fun s => s = s₀⦄ body d i
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE op d e s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean defeqBodyC_sim — the same
 at the `Bool`-valued body, which takes two subjects. -/
-@[expose] def BodySpecV (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv)
+@[expose] def BodySpecV (eager : Bool) (env : Env) (fe : IFEnv)
     (body : Nat → EIdx → EIdx → AM Bool)
     (op : Nat → Nat → Expr → Expr → CheckM Bool) : Prop :=
   ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
-    CheckOK mode eager env fe s₀ → denoteE s₀.store i = some a →
+    CheckOK eager env fe s₀ → denoteE s₀.store i = some a →
     denoteE s₀.store j = some b →
     Expr.WScoped d a → Expr.WScoped d b →
     ⦃fun s => s = s₀⦄ body d i j
-    ⦃fun x s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun x s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimV op d a b x; ⊤⦄
 

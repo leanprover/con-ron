@@ -115,9 +115,9 @@ grind_pattern [bridge_grind] wscoped_exprFn => Expr.WScoped d x, exprFn x
 /-- con-leche: none — `Bridge/Specs.lean`'s `internE_spec` at the tier's
 invariant (`CheckOK.mono`), so that `grind` need not re-derive `CheckOK`. -/
 theorem internE_specC (s₀ : AState) (w : ENodeView)
-    (hok : CheckOK mode eager env fe s₀) (hv : s₀.store.ViewOK w) :
+    (hok : CheckOK eager env fe s₀) (hv : s₀.store.ViewOK w) :
     ⦃fun s => s = s₀⦄ internE w
-    ⦃fun h s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun h s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
   triple_mono (internE_spec s₀ w hok.state.wf hv)
     (fun _ _ ⟨hwf, hx, _, _, _, hc, hp, _, hd⟩ => ⟨hok.mono ⟨hwf⟩ hx hc hp, hx, hp, hd⟩)
@@ -158,7 +158,7 @@ environment's, as ONE relation: a miss is a miss and a hit denotes the hit. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's two halves at
 one denoted name, packaged as `OptCI`. -/
-theorem optCI_find {s : AState} (hok : CheckOK mode eager env fe s) {n : NIdx}
+theorem optCI_find {s : AState} (hok : CheckOK eager env fe s) {n : NIdx}
     {nm : ConLeche.Name} (hn : denoteN s.store.ns n = some nm) :
     OptCI s.store (fe.find? n) (env.find? nm) := by
   cases hf : fe.find? n with
@@ -280,7 +280,7 @@ theorem rawNatLit?_split (h : EIdx) : ConRon.Arena.rawNatLit? h = (do
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — **THEOREM 1
 for `rawNatLit?`**: the literal reading of a head normal form. -/
 theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store h = some x) :
+    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
   sym only [bridge_grind, rawNatLit?_eq] =>
@@ -290,7 +290,7 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
 shape: the reading of whatever the handle denotes, as an equation through
 `Option.map`. -/
 theorem rawNatLit?_specA (s₀ : AState) (h : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hd : (denoteE s₀.store h).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hd : (denoteE s₀.store h).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
     ⦃fun r s' => s' = s₀ ∧ (denoteE s₀.store h).map ConLeche.rawNatLit? = some r; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
@@ -336,7 +336,7 @@ theorem natBinOpB_iff (c : ConLeche.Name) : natBinOpB c = true ↔ NatBinOp c :=
 `natBinOpName`**: the binary literal acceleration's fourteen-way name test is
 con-leche's (`natBinOpB`). -/
 theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
     ⦃fun b s' => s' = s₀ ∧ b = natBinOpB nm; ⊤⦄ := by
   -- `splits := 20`: the fourteen-way pin-name test splits once per name
@@ -371,7 +371,7 @@ theorem natOpStored_eq (nm : ConLeche.Name) :
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — **THEOREM 1
 for `natOpStored`**: is the operation stored as a definition. -/
 theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
     ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
   sym only [bridge_grind, natOpStored_eq] =>
@@ -403,7 +403,7 @@ grind_pattern [bridge_grind] WfAt.some => WfAt b (some nm)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:602-612 natOpWfNames — **THEOREM
 1 for `natOpWfNames`**: the eight pinned handles answer con-leche's
 membership test at every denoted name. -/
-theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode eager env fe s₀) :
+theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natOpWfNames
     ⦃fun ws s' => s' = s₀ ∧ WfNames s₀.store.ns ws; ⊤⦄ := by
   -- `gen := 16`: the eight pin reads are chained, so the later names' denotations lie past the
@@ -433,13 +433,13 @@ theorem viewOK_const_of_denote {st : EStore} {n : NIdx} {us : LsIdx}
 /-- con-leche: none — **THEOREM 1 for `constE`**: the level-monomorphic
 constant at a denoted name. -/
 theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm []); ⊤⦄ := by
   sym only [bridge_grind, viewOK_const_of_denote] =>
     vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels,
-      internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+      internE_specC (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: none — the level-monomorphic constant at a name. -/
 @[expose] def const0 (nm : ConLeche.Name) : Expr := .const nm []
@@ -450,9 +450,9 @@ theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
 /-- con-leche: none — `constE_spec` in answer shape: the constant at
 whatever the name handle denotes. -/
 theorem constE_specA (s₀ : AState) (n : NIdx)
-    (hok : CheckOK mode eager env fe s₀) (hn : (denoteN s₀.store.ns n).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hn : (denoteN s₀.store.ns n).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store r = (denoteN s₀.store.ns n).map const0; ⊤⦄ := by
   obtain ⟨nm, hnm⟩ := Option.isSome_iff_exists.mp hn
   refine triple_mono (constE_spec s₀ n nm hok hnm) ?_
@@ -462,10 +462,10 @@ theorem constE_specA (s₀ : AState) (n : NIdx)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — **THEOREM 1
 for `natOpResult`**: the reduct of a binary operation on two literals. -/
 theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (a b : Nat) (hok : CheckOK mode eager env fe s₀)
+    (a b : Nat) (hok : CheckOK eager env fe s₀)
     (hn : denoteN s₀.store.ns c = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
   -- `splits := 20`: the fifteen-way pin-name dispatch splits once per name
@@ -487,8 +487,8 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
       ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight,
       ConRon.Arena.boolTrueName, ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
-      ConRon.Arena.pinBoolFalse, internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
-      constE_specA (mode := mode) (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (splits := 20)
+      ConRon.Arena.pinBoolFalse, internE_specC (eager := eager) (env := env) (fe := fe),
+      constE_specA (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (splits := 20)
 
 /-! ## 5. `natLitSupported` — the three stored-declaration shapes
 
@@ -545,7 +545,7 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
 for `natIndOk`**, at the index's lookup of a denoted name. -/
 theorem natIndOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk (fe.find? n)
     ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk (env.find? nm); ⊤⦄ := by
   have hrel := optCI_find hok hn
@@ -555,45 +555,45 @@ theorem natIndOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
 for `natZeroOk`**, at the index's lookup of a denoted name. -/
 theorem natZeroOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (fe.find? n)
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk (env.find? nm); ⊤⦄ := by
   have hrel := optCI_find hok hn
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat,
-      constE_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
+      constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
 for `natSuccOk`**, at the index's lookup of a denoted name. -/
 theorem natSuccOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (fe.find? n)
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk (env.find? nm); ⊤⦄ := by
   have hrel := optCI_find hok hn
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat,
-      constE_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
+      constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
 **THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
-theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode eager env fe s₀) :
+theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natLitSupported fe
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env; ⊤⦄ := by
   sym only [bridge_grind, ConLeche.natLitSupported] =>
     vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
       ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
-      natIndOk_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName),
-      natZeroOk_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natZeroName),
-      natSuccOk_spec (mode := mode) (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natSuccName),
+      natIndOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName),
+      natZeroOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natZeroName),
+      natSuccOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natSuccName),
       pinAt_specE] <;> finish
 
 /-! ## 6. `reduceNat`'s pure side at its exits
 
 con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
-`whnf` slot is `ConLeche.whnf mode eager env F`. -/
+`whnf` slot is `ConLeche.whnf .verified eager env F`. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ` on a
 literal-supported environment: the argument's head normal form, read. -/
@@ -1115,27 +1115,27 @@ grind_pattern [bridge_grind] natRed_wf_snd =>
 given subject, its answer `NatRed`: fifty verification conditions,
 one per exit and per callee precondition, each closed by `grind` from the
 exits of §7. -/
-theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr) (hok : CheckOK mode eager env fe s₀)
+theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr) (hok : CheckOK eager env fe s₀)
     (hden : denoteE s₀.store e = some x) (hwx : Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.reduceNat (coreKnot mode eager fe id fuel) fe d e
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ NatRed mode eager env d x s'.store r; ⊤⦄ := by
+      ConRon.Arena.reduceNat (coreKnot .verified eager fe id fuel) fe d e
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ NatRed .verified eager env d x s'.store r; ⊤⦄ := by
   -- `gen := 16`, `ematch := 10`: the callees are stated at `exprFn (exprFn x)`, behind the
   -- application spine and the knot's `whnf`, past the default generation and e-matching limits
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
-      KnotSpec.whnfS hsim, rawNatLit?_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-      natLitSupported_spec (mode := mode) (eager := eager) (env := env) (fe := fe),
-      natBinOpName_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
+      KnotSpec.whnfS hsim, rawNatLit?_specA (eager := eager) (env := env) (fe := fe),
+      natLitSupported_spec (eager := eager) (env := env) (fe := fe),
+      natBinOpName_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
-      natOpStored_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
+      natOpStored_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
-      natOpWfNames_spec (mode := mode) (eager := eager) (env := env) (fe := fe),
-      natOpResult_spec (mode := mode) (eager := eager) (env := env) (fe := fe)
+      natOpWfNames_spec (eager := eager) (env := env) (fe := fe),
+      natOpResult_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
-      internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (gen := 16) (ematch := 10)
+      internE_specC (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (gen := 16) (ematch := 10)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `reduceNat`**: the literal acceleration, run in the `whnf` loop before
@@ -1143,15 +1143,15 @@ delta-unfolding.  The divergence audit's D15 is preserved by the twin —
 the FIRST argument is head-normalised and, unless it is a literal, the step
 declines without touching the second — so the two call sequences agree and
 the proof is a straight walk (`reduceNat_specR`, by `vcgen` and `grind`). -/
-theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK eager env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.reduceNat (coreKnot mode eager fe id fuel) fe d e
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.reduceNat (coreKnot .verified eager fe id fuel) fe d e
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ x, denoteE s₀.store e = some x →
-          SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d x) d
+          SimOOp (fun F => ConLeche.reduceNatFueled .verified eager env F d x) d
             s'.store r; ⊤⦄ := by
   obtain ⟨x, hden, hwx⟩ := hdw
   refine triple_mono (reduceNat_specR hsim s₀ d e x hok hden hwx) ?_

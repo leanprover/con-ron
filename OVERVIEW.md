@@ -691,11 +691,11 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq` and the eager tower's `defeqE`) is one statement indexed by
-fuel, mode and eager flag,
+fuel and eager flag,
 [`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L111-L128),
 proved by induction on the fuel, over both flags at once (the eager slot runs
 the knot one level down with the flag set), in
-[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L67-L92).
+[`knot_spec_all`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L67-L91).
 
 ### 7.4 Theorem 2: the Rust refines the twin
 

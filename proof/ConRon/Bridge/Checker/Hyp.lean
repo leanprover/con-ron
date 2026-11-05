@@ -7,9 +7,9 @@ precedent is the original campaign's `conron.model_exists`
 (`proof/ConRon/RefineOld/Main.lean:174`), which carried `hk` and `hind` in the
 same position for the same reason.
 
-**`CoreSpec μ F` — the CORE tier's.**  Its main field is **`Bridge/Core/
+**`CoreSpec F` — the CORE tier's.**  Its main field is **`Bridge/Core/
 Knot.lean`'s own `KnotSpec`**, taken as written: the six slots of
-`ConRon.Arena.coreKnot mode false fe id f` against con-leche's six fueled entry
+`ConRon.Arena.coreKnot .verified false fe id f` against con-leche's six fueled entry
 points, at `CheckOK`/`Ext` with the `SimE`/`SimV` answer relations and the
 `Expr.WScoped d e` precondition.  Nothing of it is restated here —
 `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` is what discharges it, and
@@ -23,14 +23,14 @@ points, at `CheckOK`/`Ext` with the `SimE`/`SimV` answer relations and the
    (`Bridge/Checker/Inv.lean`) carries `EnvWF` as a clause — con-leche's own
    join point (`Verify/Cached/BridgeC.lean:609`) carries it too.
 2. **`ensureSortCore` is not a slot of `coreKnot`.**  `Arena/Core.lean` builds
-   it on top (`ensureSort (pureFnsA mode false fe fuel) fe depth e`) and the
+   it on top (`ensureSort (pureFnsA .verified false fe fuel) fe depth e`) and the
    declaration front door calls it at every constant, so `EnsureSortSpec` is a
    second field, in `Bridge/Core/Knot.lean`'s `BodySpec` shape.  It is one
    `whnf` call and a tag test, and `Bridge/Core/EnsureSort.lean` discharges
    it.
 
 **What the Core tier's frame does not say, and this tier needs.**
-`KnotSpec`'s postcondition is `CheckOK mode false env fe s' ∧ Ext s₀.store s'.store`.
+`KnotSpec`'s postcondition is `CheckOK false env fe s' ∧ Ext s₀.store s'.store`.
 `CheckOK` carries `PinsOK s'`, so the pin table still DENOTES — but the fold
 also needs `PersPins s'` (the pin handles are persistent), and that is
 transported by `s'.pins = s₀.pins` and nothing else.  No core entry writes
@@ -39,7 +39,7 @@ of `KnotSpec` and `EnsureSortSpec` ends `s'.pins = s₀.pins`, which is what
 lets the run-form proofs of `Bridge/Checker/Base.lean` and
 `Bridge/Checker/Arms.lean` conclude `CoreStep` at all.
 
-**`IndSpec μ` — the INDUCTIVES tier's**.  `checkDecl`'s `.indDecl` arm, past
+**`IndSpec` — the INDUCTIVES tier's**.  `checkDecl`'s `.indDecl` arm, past
 the pin recogniser (`checkIndRoute` below: the declared parameter count, then
 `checkBlock` on every block `blockParts?` reads and `checkShapeless` on the
 rest), has the whole of `Arena/Inductives/**` under it, and the arm is the
@@ -75,19 +75,19 @@ note explains. -/
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — what a core entry
 point leaves behind: the invariant at the same environment, an append, and an
 untouched pin table. -/
-structure CoreStep (μ : CheckMode) (env : Env) (fe : IFEnv) (s s' : AState) :
+structure CoreStep (env : Env) (fe : IFEnv) (s s' : AState) :
     Prop where
-  ok : CheckOK μ false env fe s'
+  ok : CheckOK false env fe s'
   ext : Ext s.store s'.store
   pins : s'.pins = s.pins
 
-theorem CoreStep.refl {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (h : CheckOK μ false env fe s) : CoreStep μ env fe s s :=
+theorem CoreStep.refl {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK false env fe s) : CoreStep env fe s s :=
   ⟨h, Ext.refl _, rfl⟩
 
-theorem CoreStep.trans {μ : CheckMode} {env : Env} {fe : IFEnv} {a b c : AState}
-    (h₁ : CoreStep μ env fe a b) (h₂ : CoreStep μ env fe b c) :
-    CoreStep μ env fe a c :=
+theorem CoreStep.trans {env : Env} {fe : IFEnv} {a b c : AState}
+    (h₁ : CoreStep env fe a b) (h₂ : CoreStep env fe b c) :
+    CoreStep env fe a c :=
   ⟨h₂.ok, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
 
 /-! ## The pre-insertion view
@@ -140,17 +140,17 @@ theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
   h.congr_lookup hf fun n => by simp only [IFEnv.rawTable?, ht]
 
 /-- con-leche: none — so does the whole checker invariant. -/
-theorem CheckOK.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
-    {s : AState} (h : CheckOK μ false env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
+theorem CheckOK.congr_find {env : Env} {fe fe' : IFEnv}
+    {s : AState} (h : CheckOK false env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
     (ht : fe'.tbls = fe.tbls) :
-    CheckOK μ false env fe' s :=
+    CheckOK false env fe' s :=
   ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht⟩
 
 /-- con-leche: none — and so does a core step's frame. -/
-theorem CoreStep.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
-    {s s' : AState} (h : CoreStep μ env fe s s')
+theorem CoreStep.congr_find {env : Env} {fe fe' : IFEnv}
+    {s s' : AState} (h : CoreStep env fe s s')
     (hf : ∀ n, fe'.find? n = fe.find? n) (ht : fe'.tbls = fe.tbls) :
-    CoreStep μ env fe' s s' :=
+    CoreStep env fe' s s' :=
   ⟨h.ok.congr_find hf ht, h.ext, h.pins⟩
 
 /-- con-leche: none — **a name the environment lacks, the index lacks**:
@@ -184,15 +184,15 @@ the declaration front door calls it at every constant, so this tier needs it.
 
 Stated in `BodySpec`'s shape — a `Std.WP` triple — like everything else the
 Core tier owns. -/
-@[expose] def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
+@[expose] def EnsureSortSpec (env : Env) (fe : IFEnv) (f : Nat) :
     Prop :=
   ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode false env fe s₀ → denoteE s₀.store i = some e →
+    CheckOK false env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ Arena.ensureSortCore mode fe f d i
-    ⦃fun r s' => CheckOK mode false env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ Arena.ensureSortCore .verified fe f d i
+    ⦃fun r s' => CheckOK false env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode false env) d e s'.store r; ⊤⦄
+        SimL (ConLeche.ensureSortCore .verified false env) d e s'.store r; ⊤⦄
 
 /-! ## The Core tier's theorem, as this tier uses it -/
 
@@ -203,9 +203,9 @@ entry point.
 
 The quantification is the fold's: its environment changes at every
 declaration while `Bridge/Core/Induction.lean`'s `knot_spec` fixes one. -/
-structure CoreSpec (mode : CheckMode) (f : Nat) : Prop where
-  knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode false env fe f
-  sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec mode env fe f
+structure CoreSpec (f : Nat) : Prop where
+  knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec false env fe f
+  sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec env fe f
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **the Core
 tier's half, discharged**: `Bridge/Core/Induction.lean`'s
@@ -215,26 +215,26 @@ Core tier is `EnsureSortSpec` and nothing else.
 The Core tier's statement and this tier's hypothesis are the same statement,
 and one line joins them. -/
 theorem CoreSpec.of_knot (hs : ∀ (env : Env) (fe : IFEnv), EnvWF env →
-      EnsureSortSpec .verified env fe Arena.checkFuel) :
-    CoreSpec .verified Arena.checkFuel :=
-  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv rfl, hs⟩
+      EnsureSortSpec env fe Arena.checkFuel) :
+    CoreSpec Arena.checkFuel :=
+  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv, hs⟩
 
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore — **the
 seventh entry point, discharged**: `Bridge/Core/EnsureSort.lean`'s
 `ensureSortCore_spec` IS this statement.  `SimL` there and `SimL` here are the
 same definition, which is why this is one term. -/
-theorem ensureSortSpec_of_knot {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {f : Nat} (hsim : Core.KnotSpec mode false env fe f) :
-    EnsureSortSpec mode env fe f :=
+theorem ensureSortSpec_of_knot {env : Env} {fe : IFEnv}
+    {f : Nat} (hsim : Core.KnotSpec false env fe f) :
+    EnsureSortSpec env fe f :=
   fun s₀ d i e hok hden hw => Core.ensureSortCore_spec hsim s₀ d i e hok hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **`CoreSpec`
 with NOTHING left to supply**: both fields come from `Bridge/Core`, so the
 capstone's Core-tier hypothesis is discharged outright. -/
 theorem CoreSpec.of_core :
-    CoreSpec .verified Arena.checkFuel :=
+    CoreSpec Arena.checkFuel :=
   CoreSpec.of_knot
-    (fun _ _ henv => ensureSortSpec_of_knot (Core.knot_spec_checkFuel henv rfl))
+    (fun _ _ henv => ensureSortSpec_of_knot (Core.knot_spec_checkFuel henv))
 
 /-! ## The inductive install -/
 
@@ -243,14 +243,14 @@ theorem CoreSpec.of_core :
 `Arena/CheckDecl.lean`'s `checkDecl` arm after the pin recogniser declined,
 verbatim: con-leche's uniform inductive route (DESIGN `### Task #105`).
 `checkDecl`'s `.indDecl` arm unfolds to it by `rfl`. -/
-@[expose] def checkIndRoute (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)
+@[expose] def checkIndRoute (fe : IFEnv) (block : List IConstantInfo)
     (nP : Nat) : AM IFEnv := do
   if !(← indParamsOk nP block) then
     fail (.invalid "number of parameters mismatch")
   else
     match ← blockParts? nP block with
-    | some p => checkBlock mode fe block p
-    | none => checkShapeless mode fe block
+    | some p => checkBlock .verified fe block p
+    | none => checkShapeless .verified fe block
 
 /-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:38 checkShapeless_ne_ok —
 **a block the recogniser does not read never installs**: the twin's
@@ -300,17 +300,17 @@ its own.
 
 No fold theorem reads `IndSpec`; they pass it down to `checkDecl_bridge_ind`,
 and `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` discharges it. -/
-structure IndSpec (μ : CheckMode) : Prop where
+structure IndSpec : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat}
       {pinsP : List NatOpPinSet},
-    FoldOK μ env fe s → Frontend.denoteCIList s.store block = some b →
+    FoldOK env fe s → Frontend.denoteCIList s.store block = some b →
     ConLeche.basisPinHit b = none →
-    checkIndRoute μ fe block nP s = .ok (fe', s') →
+    checkIndRoute fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧ TPushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
+        ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
           = .ok env' ∧ EnvWF env' ∧
         ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
 
@@ -330,12 +330,12 @@ directly.
 
 Since `IndSpec.run` concludes both clauses, `IndSpec.wf` below is a record
 projection. -/
-structure IndWFSpec (μ : CheckMode) : Prop where
+structure IndWFSpec : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat},
-    FoldOK μ env fe s → Frontend.denoteCIList s.store block = some b →
+    FoldOK env fe s → Frontend.denoteCIList s.store block = some b →
     ConLeche.basisPinHit b = none →
-    checkIndRoute μ fe block nP s = .ok (fe', s') →
+    checkIndRoute fe block nP s = .ok (fe', s') →
     (∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env') ∧
       ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
 
@@ -345,11 +345,11 @@ hypothesis the capstone already takes**.
 A projection of `IndSpec.run`, whose last two conjuncts are exactly
 `IndWFSpec.run`'s two clauses.  It is stated from `IndSpec` so that no
 statement above this tier changes: the capstones take
-`hind : IndSpec .verified`, and `IndSpec.run` carries both of `IndWFSpec.run`'s
+`hind : IndSpec`, and `IndSpec.run` carries both of `IndWFSpec.run`'s
 clauses, so this is a projection (`denoteFEnv` is a function, which turns the
 witnessed `EnvWF` into the universal one). -/
-theorem IndSpec.wf (hind : IndSpec .verified) :
-    IndWFSpec .verified := by
+theorem IndSpec.wf (hind : IndSpec) :
+    IndWFSpec := by
   refine ⟨fun {env fe fe' s s' block b nP} hok hb hpin hrun => ?_⟩
   obtain ⟨-, -, -, -, -, -, -, env', -, hden, -, hwf, hproj⟩ :=
     hind.run (pinsP := []) hok hb hpin hrun

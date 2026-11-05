@@ -87,17 +87,17 @@ comparison, `off + i` at the `i`-th pair).  `Bridge/Checker/Base.lean`'s
 `checkDefEqList_bridge` carries exactly the same two for exactly the same
 reason.  `checkStructDomsAt_specF` below is the form the constructors' stage
 (`checkSumCtor_spec`) consumes. -/
-theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (off : Nat)
+theorem checkStructDomsAt_spec {env : Env} (fe : IFEnv)
+    (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (off : Nat)
     (fvs doms : List EIdx) (fvsP domsP : List Expr) (j : Nat)
     (hws : ∀ i, i < j → ∀ a b, fvsP[i]? = some a → domsP[i]? = some b →
       Expr.WScoped (off + i) a.fvarTypeD ∧ Expr.WScoped (off + i) b) :
-    CSpec μ env fe
+    CSpec env fe
       (fun st => Frontend.denoteEList st fvs = some fvsP ∧
         Frontend.denoteEList st doms = some domsP ∧
         denoteFEnv st fe = some env)
-      (Arena.checkStructDomsAt μ fe off fvs doms j)
-      (fun _ _ => ∃ F, ConLeche.checkStructDomsAt (ConLeche.fueledOps μ F)
+      (Arena.checkStructDomsAt .verified fe off fvs doms j)
+      (fun _ _ => ∃ F, ConLeche.checkStructDomsAt (ConLeche.fueledOps .verified F)
         env off fvsP domsP j = (.ok () : CheckM Unit)) := by
   have hknot := hk.knot env fe henv
   induction j with
@@ -134,9 +134,9 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨c, s4, k4, hz4⟩ := AM.bind_ok hz3
     obtain ⟨hws1, hws2⟩ := hws j (Nat.lt_succ_self j) aP bP haP hbP
     obtain ⟨hok4, hx4, hp4, hsim⟩ := AM.of_run (P := fun u => u = s₀)
-      (Q := fun r u => CheckOK μ false env fe u ∧ Ext s₀.store u.store ∧
+      (Q := fun r u => CheckOK false env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ false env) (off + j) aP.fvarTypeD bP r)
+        Core.SimV (ConLeche.isDefEqCore .verified false env) (off + j) aP.fvarTypeD bP r)
       rfl k4 (hknot.defeq s₀ (off + j) t b aP.fvarTypeD bP hok ht hdb hws1 hws2)
     obtain ⟨F1, hF1⟩ := hsim
     obtain ⟨hc, hz5⟩ := AM.dunless_ok AM.Never.fail_any hz4

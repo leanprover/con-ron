@@ -8,7 +8,7 @@ con-leche proves the `Expr`-level identification of that batched walk with
 the chained one (`Verify/BetaSpine.lean`: the pure mirrors `whnfApp` /
 `betaPeel` and `whnfApp_sound`).  What this module owes is the **carry**: the
 twin's handle-level `whnfApp` / `betaPeel` denote the mirrors at
-`pureFns mode eager env F`, with `whnfCore` as the continuation.
+`pureFns .verified eager env F`, with `whnfCore` as the continuation.
 
 | walk | twin | con-leche mirror |
 |---|---|---|
@@ -188,11 +188,11 @@ cutoff hands back the spine's own node when the caller vouches for it
 (`same`), else interns the application; either way the answer denotes
 `.app F A`. -/
 theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
-    (f a : EIdx) (F A : Expr) (hok : CheckOK mode eager env fe s₀)
+    (f a : EIdx) (F A : Expr) (hok : CheckOK eager env fe s₀)
     (hf : denoteE s₀.store f = some F) (ha : denoteE s₀.store a = some A)
     (hsame : same = true → denoteE s₀.store node = some (.app F A)) :
     ⦃fun s => s = s₀⦄ internAppRebuilt node same f a
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (.app F A); ⊤⦄ := by
   unfold internAppRebuilt
   cases same with
@@ -239,21 +239,21 @@ theorem getAppFn_not_app : ∀ (e f a : Expr), e.getAppFn ≠ .app f a := by
 spine's head handle is a constant, else `none` off the tag (con-leche's
 `iotaArityOk` guard), against con-leche's `iotaRec` at `.app V A`. -/
 theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hμ : mode.verifiedChecks = true) (hsim : KnotSpec mode eager env fe fuel)
+    (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (hd a : EIdx) (vargs : Array EIdx) (V A : Expr)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hdh : denoteE s₀.store hd = some V.getAppFn)
     (hdv : Frontend.denoteEList s₀.store vargs.toList = some V.getAppArgs)
     (hda : denoteE s₀.store a = some A)
     (hw : Expr.WScoped d (.app V A)) :
     ⦃fun s => s = s₀⦄
       (if hd.tag == ETag.const then
-        ConRon.Arena.iotaRecAt mode (coreKnot mode eager fe id fuel) fe d hd
+        ConRon.Arena.iotaRecAt .verified (coreKnot .verified eager fe id fuel) fe d hd
           (vargs.push a) (vargs.push a).size
       else pure none : AM (Option EIdx))
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled mode eager env F d (.app V A)) d
+        SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d (.app V A)) d
           s'.store r; ⊤⦄ := by
   have happ : Expr.mkAppN V.getAppFn (V.getAppArgs ++ [A]) = .app V A := by
     rw [Expr.mkAppN_append_one, Expr.mkAppN_getApp]
@@ -263,7 +263,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         some (V.getAppArgs ++ [A]) := by
       simp only [Array.toList_push]
       exact ExprOps.denoteEList_snoc hda _ _ hdv
-    have h := iotaRecAt_spec hμ henv hsim s₀ d hd (vargs.push a) (vargs.push a).size
+    have h := iotaRecAt_spec henv hsim s₀ d hd (vargs.push a) (vargs.push a).size
       V.getAppFn (V.getAppArgs ++ [A]) hok hdh
       (fun f a => getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
     rw [happ] at h
@@ -379,10 +379,10 @@ a twin step outcome. -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:202 whnfAppW — the carry's
 postcondition at a step-returning walk whose pure side is `P`. -/
-@[expose] def StepPost (mode : CheckMode) (eager : Bool) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
+@[expose] def StepPost (eager : Bool) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
     (P : Nat → CheckM ConLeche.WhnfStep) (r : ConRon.Arena.WhnfStep) (s' : AState) :
     Prop :=
-  CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+  CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
   ∃ R, denoteStep s'.store r = some R ∧ StepWS d R ∧ ∃ F, P F = .ok R
 
 /-- con-leche: none — the argument vector of one batched spine walk, at a
@@ -451,10 +451,10 @@ theorem mem_of_drop {xs rest : List Expr} {i : Nat} {A : Expr}
 `instantiateListFast_spec` at the tier's invariant: `CheckOK` survives and the
 answer denotes the pure substitution. -/
 theorem instantiateListFast_ok_spec (s₀ : AState) (e : EIdx) (acc : Array EIdx)
-    (E : Expr) (ws : List Expr) (hok : CheckOK mode eager env fe s₀)
+    (E : Expr) (ws : List Expr) (hok : CheckOK eager env fe s₀)
     (hde : denoteE s₀.store e = some E) (hvec : ExprOps.InstLVec s₀.store acc ws) :
     ⦃fun s => s = s₀⦄ instantiateListFast coreWalkFuel e acc 0
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (E.instantiateList ws); ⊤⦄ :=
   triple_mono (ExprOps.instantiateListFast_spec coreWalkFuel s₀ e acc 0 ws
       hok.state hvec (by rw [hde]; rfl))
@@ -465,13 +465,13 @@ theorem instantiateListFast_ok_spec (s₀ : AState) (e : EIdx) (acc : Array EIdx
 `betaPeel` carry**, by induction on `args.size - i`. -/
 theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
     ∀ (k : Nat) (t : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState) (T : Expr)
-      (ws : List Expr), args.size - i = k → CheckOK mode eager env fe s₀ →
+      (ws : List Expr), args.size - i = k → CheckOK eager env fe s₀ →
       ArgsCtx d args xs s₀.store →
       denoteE s₀.store t = some T → ExprOps.InstLVec s₀.store acc ws →
       Expr.WScoped d (T.instantiateList ws) →
       ⦃fun s => s = s₀⦄ ConRon.Arena.betaPeel t acc args i
-      ⦃fun r s' => StepPost mode eager env fe d s₀
-          (fun F => mBP mode eager env F d T ws (xs.drop i)) r s'; ⊤⦄ := by
+      ⦃fun r s' => StepPost eager env fe d s₀
+          (fun F => mBP .verified eager env F d T ws (xs.drop i)) r s'; ⊤⦄ := by
   intro k
   induction k with
   | zero =>
@@ -538,8 +538,8 @@ theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
       refine triple_seq (ExprOps.mkAppNFrom_spec _ s1 e2 args i rfl
         hok1.state (by rw [hde2]; rfl) (by rw [hrest1]; rfl)) ?_
       rintro r s2 ⟨hst2, hx2, _, hc2, hp2, hrel⟩
-      have hpost : StepPost mode eager env fe d s₀
-          (fun F => mBP mode eager env F d T ws (xs.drop i)) (.cont r) s2 := by
+      have hpost : StepPost eager env fe d s₀
+          (fun F => mBP .verified eager env F d T ws (xs.drop i)) (.cont r) s2 := by
         refine ⟨hok1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, by rw [hp2, hp1],
           .cont (Expr.mkAppN (T.instantiateList ws) (A :: rest)),
           by simp [denoteStep, hrel _ _ hde2 hrest1],
@@ -558,20 +558,20 @@ theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
 carry**, by induction on `args.size - i`, over `betaPeel_carry` at a λ head
 and the held-spine ι step (`whnfApp_iotaStep_spec`) at any other. -/
 theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hμ : mode.verifiedChecks = true) (hsim : KnotSpec mode eager env fe fuel)
+    (hsim : KnotSpec eager env fe fuel)
     (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) :
     ∀ (k : Nat) (v hd : EIdx) (vargs : Array EIdx) (same : Bool) (i : Nat)
-      (s₀ : AState) (V : Expr), args.size - i = k → CheckOK mode eager env fe s₀ →
+      (s₀ : AState) (V : Expr), args.size - i = k → CheckOK eager env fe s₀ →
       SpineCtx d args nodes H0 xs s₀.store →
       denoteE s₀.store v = some V → Expr.WScoped d V →
       denoteE s₀.store hd = some V.getAppFn →
       Frontend.denoteEList s₀.store vargs.toList = some V.getAppArgs →
       (same = true → V = Expr.mkAppN H0 (xs.take i)) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.whnfApp mode (coreKnot mode eager fe id fuel) fe d v hd vargs same
+        ConRon.Arena.whnfApp .verified (coreKnot .verified eager fe id fuel) fe d v hd vargs same
           args nodes i
-      ⦃fun r s' => StepPost mode eager env fe d s₀
-          (fun F => mWA mode eager env F d V (xs.drop i)) r s'; ⊤⦄ := by
+      ⦃fun r s' => StepPost eager env fe d s₀
+          (fun F => mWA .verified eager env F d V (xs.drop i)) r s'; ⊤⦄ := by
   intro k
   induction k with
   | zero =>
@@ -632,7 +632,7 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
           rw [hctx.node hi hdrop', ← hsame hs])) ?_
       rintro ap s1 ⟨hok1, hx1, hp1, hdap⟩
       rw [ite_bind_fold]
-      refine triple_seq (whnfApp_iotaStep_spec henv hμ hsim s1 d hd args[i]
+      refine triple_seq (whnfApp_iotaStep_spec henv hsim s1 d hd args[i]
         vargs V A hok1 (denote_ext hdh hx1) (denoteEList_ext' hx1 hdva)
         (denote_ext hdA hx1) (wscoped_app hwV hwA)) ?_
       rintro step s2 ⟨hok2, hx2, hp2, ov, hov, hwov, F1, hF1⟩
@@ -682,8 +682,8 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
         refine triple_seq (ExprOps.mkAppNFrom_spec _ s2 e2 args (i + 1) rfl
           hok2.state (by rw [hdE2]; rfl) (by rw [hrest2]; rfl)) ?_
         rintro r s3 ⟨hst3, hx3, _, hc3, hp3, hrel⟩
-        have hpost : StepPost mode eager env fe d s₀
-            (fun F => mWA mode eager env F d V (xs.drop i)) (.cont r) s3 := by
+        have hpost : StepPost eager env fe d s₀
+            (fun F => mWA .verified eager env F d V (xs.drop i)) (.cont r) s3 := by
           refine ⟨hok2.mono hst3 hx3 hc3 hp3, hx02.trans hx3,
             by rw [hp3, hp2, hp1], .cont (Expr.mkAppN E2 rest),
             by simp [denoteStep, hrel _ _ hdE2 hrest2],

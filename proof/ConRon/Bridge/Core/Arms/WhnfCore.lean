@@ -12,7 +12,7 @@ run by the chained `whnfCoreBody` at some knot fuel.  So:
 
 | piece | twin | pure side |
 |---|---|---|
-| one step | `whnfCoreStep` | `whnfCoreStepW` at `pureFns mode eager env F` (`whnfCoreStep_spec`) |
+| one step | `whnfCoreStep` | `whnfCoreStepW` at `pureFns .verified eager env F` (`whnfCoreStep_spec`) |
 | the loop | `whnfCoreLoop` | `whnfCoreLoopM` (`whnfCoreLoop_spec`, induction on the budget) |
 | the body | `whnfCoreBody` | `whnfCore` (`whnfCoreBody_spec`, over `whnfCore_of_loopM`) |
 
@@ -145,14 +145,14 @@ theorem mStep_proj_some {c : Bool} {F d i : Nat} {sn : Name} {pe c' m : Expr}
 **THEOREM 1 for `whnfCoreStep`**: the twin's step denotes the mirror's
 outcome at some fuel. -/
 theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode eager env fe fuel) (c : Bool)
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) (c : Bool)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
     ⦃fun s => s = s₀⦄
-      whnfCoreStep mode (coreKnot mode eager fe id fuel) fe c d i
-    ⦃fun r s' => StepPost mode eager env fe d s₀ (fun F => mStep mode eager env c F d e)
+      whnfCoreStep .verified (coreKnot .verified eager fe id fuel) fe c d i
+    ⦃fun r s' => StepPost eager env fe d s₀ (fun F => mStep .verified eager env c F d e)
         r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
@@ -160,9 +160,9 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
   refine view_bind_triple hv ?_
   -- a value answers itself
   have hval : ∀ (e0 : Expr), e = e0 →
-      mStep mode eager env c 0 d e0 = .ok (.done e0) →
+      mStep .verified eager env c 0 d e0 = .ok (.done e0) →
       ⦃fun s => s = s₀⦄ (pure (ConRon.Arena.WhnfStep.done i) : AM _)
-      ⦃fun r s' => StepPost mode eager env fe d s₀ (fun F => mStep mode eager env c F d e)
+      ⦃fun r s' => StepPost eager env fe d s₀ (fun F => mStep .verified eager env c F d e)
           r s'; ⊤⦄ := by
     intro e0 he0 hst
     subst he0
@@ -207,11 +207,11 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
     dsimp only
     unfold whnfCoreStepProj
     have h1 : ⦃fun s => s = s₀⦄
-        (if c then (coreKnot mode eager fe id fuel).whnfCore true d pe
-          else (coreKnot mode eager fe id fuel).whnf d pe)
-        ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+        (if c then (coreKnot .verified eager fe id fuel).whnfCore true d pe
+          else (coreKnot .verified eager fe id fuel).whnf d pe)
+        ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
-            SimEOp (fun F => projScrut mode eager env c F d es) d s'.store r; ⊤⦄ := by
+            SimEOp (fun F => projScrut .verified eager env c F d es) d s'.store r; ⊤⦄ := by
       cases c
       · simp only [Bool.false_eq_true, ite_false]
         exact hsim.whnf s₀ d pe es hok hpe hwes
@@ -226,7 +226,7 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
     have hx02 : Ext s₀.store s2.store := hx1.trans hx2
     have hp02 : s2.pins = s₀.pins := hp2.trans hp1
     have hs' := projScrut_mono (Nat.le_max_left F1 F2) hF1
-    have hr' := ConLeche.reduceProjCore_mono (env := env) (mi := mode)
+    have hr' := ConLeche.reduceProjCore_mono (env := env) (mi := .verified)
       (Nat.le_max_right F1 F2) hF2
     cases o with
     | none =>
@@ -269,7 +269,7 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
       simpa [Expr.mkAppN] using (Option.some.inj hdv).symm
     have hden' := hden
     obtain ⟨ef, ea, rfl, _, _⟩ := denote_app_inv hwf hv hden'
-    refine triple_mono (whnfApp_carry henv hμ hsim d sp.2.1 sp.2.2
+    refine triple_mono (whnfApp_carry henv hsim d sp.2.1 sp.2.2
       (Expr.app ef ea).getAppFn (Expr.app ef ea).getAppArgs _ vh hv'.1 hv'.2
       (vh == sp.1) 0 s2 Vh rfl hok2 hctx hdv hwv hh1 hh2 hsame) ?_
     rintro r s' ⟨hck, hx, hp, R, hdR, hwR, F, hF⟩
@@ -283,22 +283,22 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
 for `whnfCoreLoop`**, by induction on the step budget: the twin's loop
 denotes the mirror loop `whnfCoreLoopM` at some fuel. -/
 theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode eager env fe fuel) (c : Bool) (d : Nat) :
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) (c : Bool) (d : Nat) :
     ∀ (n : Nat) (s₀ : AState) (i : EIdx) (e : Expr),
-      CheckOK mode eager env fe s₀ → denoteE s₀.store i = some e →
+      CheckOK eager env fe s₀ → denoteE s₀.store i = some e →
       Expr.WScoped d e →
       ⦃fun s => s = s₀⦄
-        whnfCoreLoop mode (coreKnot mode eager fe id fuel) fe c d n i
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+        whnfCoreLoop .verified (coreKnot .verified eager fe id fuel) fe c d n i
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-          Expr.WScoped d v ∧ ∃ F, ConLeche.whnfCoreLoopM mode
-            (ConLeche.pureFns mode eager env F) env c d n e = .ok v; ⊤⦄
+          Expr.WScoped d v ∧ ∃ F, ConLeche.whnfCoreLoopM .verified
+            (ConLeche.pureFns .verified eager env F) env c d n e = .ok v; ⊤⦄
   | 0, s₀, i, e, _, _, _ => by
     rw [whnfCoreLoop]; exact triple_fail
   | n + 1, s₀, i, e, hok, hden, hw => by
     rw [whnfCoreLoop]
-    refine triple_seq (whnfCoreStep_spec henv hμ hsim c s₀ d i e hok hden hw) ?_
+    refine triple_seq (whnfCoreStep_spec henv hsim c s₀ d i e hok hden hw) ?_
     rintro st s1 ⟨hok1, hx1, hp1, R, hdR, hwR, F1, hF1⟩
     cases st with
     | done v =>
@@ -308,19 +308,19 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
       subst_vars
       refine ⟨hok1, hx1, hp1, V, hdV, hwR, F1, ?_⟩
       simp only [ConLeche.whnfCoreLoopM]
-      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env F1) env c d e
+      rw [show ConLeche.whnfCoreStepW .verified (ConLeche.pureFns .verified eager env F1) env c d e
         = .ok (.done V) from hF1]
       rfl
     | cont e' =>
       simp only [denoteStep, Option.map_eq_some_iff] at hdR
       obtain ⟨E', hdE', rfl⟩ := hdR
       dsimp only
-      refine triple_mono (whnfCoreLoop_spec henv hμ hsim c d n s1 e' E' hok1 hdE'
+      refine triple_mono (whnfCoreLoop_spec henv hsim c d n s1 e' E' hok1 hdE'
         hwR) ?_
       rintro r s' ⟨hck, hx, hp, v, hdv, hwv, F2, hF2⟩
       refine ⟨hck, hx1.trans hx, by rw [hp, hp1], v, hdv, hwv, max F1 F2, ?_⟩
       simp only [ConLeche.whnfCoreLoopM]
-      rw [show ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env (max F1 F2))
+      rw [show ConLeche.whnfCoreStepW .verified (ConLeche.pureFns .verified eager env (max F1 F2))
           env c d e = .ok (.cont E') from mStep_mono (Nat.le_max_left _ _) hF1]
       exact loopM_mono (Nat.le_max_right _ _) hF2
 
@@ -329,13 +329,13 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
 loop at its own budget, and con-leche's `whnfCoreLoop_sound_body` for the
 chained side. -/
 theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode eager env fe fuel) (c : Bool) :
-    BodySpec mode eager env fe (whnfCoreBody mode (coreKnot mode eager fe id fuel) fe c)
-      (fun F d e => ConLeche.whnfCore mode eager env F d e c) := by
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) (c : Bool) :
+    BodySpec eager env fe (whnfCoreBody .verified (coreKnot .verified eager fe id fuel) fe c)
+      (fun F d e => ConLeche.whnfCore .verified eager env F d e c) := by
   intro s₀ d i e hok hden hw
   unfold ConRon.Arena.whnfCoreBody
-  refine triple_mono (whnfCoreLoop_spec henv hμ hsim c d _ s₀ i e hok hden hw) ?_
+  refine triple_mono (whnfCoreLoop_spec henv hsim c d _ s₀ i e hok hden hw) ?_
   rintro r s' ⟨hck, hx, hp, v, hdv, hwv, F, hF⟩
   exact ⟨hck, hx, hp, v, hdv, hwv, whnfCore_of_loopM hF⟩
 

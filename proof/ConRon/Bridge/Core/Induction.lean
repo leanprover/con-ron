@@ -22,7 +22,7 @@ the induction is here, and the six body walks are
 
 ## What the Checker tier gets
 
-`knot_spec … checkFuel : KnotSpec mode eager env fe ConRon.Arena.checkFuel` — the
+`knot_spec … checkFuel : KnotSpec eager env fe ConRon.Arena.checkFuel` — the
 hypothesis DESIGN §8.2's per-declaration bridge is written against, and the
 reason `Bridge/Checker/**` depends on the core only through a `KnotSpec`
 hypothesis.  `checkFuel` is con-leche's own number
@@ -64,47 +64,46 @@ everywhere, and at `f + 1` each slot is `memo_<slot>_step` applied to
 both flags at once (con-leche's `pureFns_mono_all`, `shiftClaims`): the eager
 slot at any flag is the body at `eager := true` over the knot at
 `eager := true` one level down. -/
-theorem knot_spec_all {mode : CheckMode} {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env)
-    (hμ : mode.verifiedChecks = true) :
-    ∀ f {eager : Bool}, KnotSpec mode eager env fe f
-  | 0, eager => knotSpec_zero mode eager env fe
+theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
+    ∀ f {eager : Bool}, KnotSpec eager env fe f
+  | 0, eager => knotSpec_zero eager env fe
   | f + 1, _ =>
     { whnfCore := fun {c} s₀ d i e hok hden hw =>
         memoWhnfCore_step henv
-          (fun c => whnfCoreBody_spec henv hμ (knot_spec_all henv hμ f) c) (c := c)
+          (fun c => whnfCoreBody_spec henv (knot_spec_all henv f) c) (c := c)
           s₀ d i e hok hden hw
       whnf := fun s₀ d i e hok hden hw =>
         memoWhnf_step henv
-          (whnfBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw
+          (whnfBody_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw
       infer := fun s₀ d i e hok hden hw =>
         memoInfer_step henv
-          (inferBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw
+          (inferBody_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw
       defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
         memoDefeq_step henv
-          (defeqBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i j a b hok hda
+          (defeqBody_spec henv (knot_spec_all henv f)) s₀ d i j a b hok hda
           hdb hwa hwb
       defeqE := fun s₀ d i j a b hok hda hdb hwa hwb =>
         memoDefeqE_step henv
-          (defeqBody_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i j a b hok hda
+          (defeqBody_spec henv (knot_spec_all henv f)) s₀ d i j a b hok hda
           hdb hwa hwb
       inferIO := fun s₀ d i e hok hden hw =>
         memoInferIO_step henv
-          (inferBodyIO_spec henv hμ (knot_spec_all henv hμ f)) s₀ d i e hok hden hw }
+          (inferBodyIO_spec henv (knot_spec_all henv f)) s₀ d i e hok hden hw }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — `knot_spec_all` at
 one flag. -/
-theorem knot_spec {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
-    ∀ f, KnotSpec mode eager env fe f :=
-  fun f => knot_spec_all henv hμ f
+theorem knot_spec {eager : Bool} {env : Env} {fe : IFEnv}
+    (henv : ConLeche.EnvWF env) :
+    ∀ f, KnotSpec eager env fe f :=
+  fun f => knot_spec_all henv f
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1960-1963 checkFuel — **what the
 Checker tier takes as its hypothesis**: the knot at the fuel the seven entry
 points of `Arena/Core.lean` are called with. -/
-theorem knot_spec_checkFuel {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
-    KnotSpec mode eager env fe ConRon.Arena.checkFuel :=
-  knot_spec henv hμ _
+theorem knot_spec_checkFuel {eager : Bool} {env : Env} {fe : IFEnv}
+    (henv : ConLeche.EnvWF env) :
+    KnotSpec eager env fe ConRon.Arena.checkFuel :=
+  knot_spec henv _
 
 /-! ## The axiom census
 

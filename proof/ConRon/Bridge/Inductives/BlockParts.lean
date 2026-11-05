@@ -170,9 +170,9 @@ theorem isProp_match_eq (v : Option Bool) :
 /-- con-leche: none — **`isProp`, read off `lvlEq? y zeroLevel`**: the
 verdict is `Level.isEquiv sP .zero` under `CheckOK` (the cache licence),
 carried along the pure steps before the call. -/
-theorem lvlEqZero_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+theorem lvlEqZero_run {env : Env} {fe : IFEnv}
     {s₀ s s₁ s' : AState} {y z : LIdx} {sP : Level} {v : Option Bool}
-    (hc : CheckOK μ false env fe s₀) (q : PStep s₀ s) (hy : denoteL s.store.ls y = some sP)
+    (hc : CheckOK false env fe s₀) (q : PStep s₀ s) (hy : denoteL s.store.ls y = some sP)
     (hz : Arena.zeroLevel s = .ok (z, s₁)) (hr : Arena.lvlEq? y z s₁ = .ok (v, s')) :
     PStep s₀ s' ∧ v = Level.isEquiv sP .zero := by
   obtain ⟨rfl, hzl⟩ := zeroLevel_run (hc.pins.mono q.ext q.pins) hz
@@ -187,9 +187,9 @@ theorem lvlEqZero_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 The record completed with the former stage's result sort.  **CORE grade**:
 `isProp` is `lvlEq?`'s verdict, the denotation only under `CheckOK` (the old
 tier's `withSort_spec` argument). -/
-theorem BlockShape.withSort_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem BlockShape.withSort_spec {env : Env} (fe : IFEnv)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (s : LIdx) (sP : Level) :
-    CSpec μ env fe (fun st => dShape st p = some pP ∧ denoteL st.ls s = some sP)
+    CSpec env fe (fun st => dShape st p = some pP ∧ denoteL st.ls s = some sP)
       (Arena.BlockShape.withSort p s)
       (fun st r => dShape st r = some (pP.withSort sP)) := by
   intro s₀ s' r hok hpre hrun
@@ -1525,13 +1525,13 @@ theorem members_denote {st : EStore} :
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
 — **the record, once the result sort is read**: `lvlEq?` (CORE: the cache
 licence), `paramLevels`, `blockGroups_spec`, `recsL_run`, the eliminator. -/
-theorem shapeTail_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
+theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (cvT0 cvR0 : IConstantVal) (cvT0P cvR0P : ConstantVal) (cvTs : List IConstantVal)
     (cvTsP : List ConstantVal) (cs : List (IConstantVal × Nat × Nat))
     (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
     (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (nIdxs : List Nat) (y : LIdx)
     {s₀ s s' : AState} {r : Option Arena.BlockShape}
-    (hc : CheckOK μ false env fe s₀) (q : PStep s₀ s)
+    (hc : CheckOK false env fe s₀) (q : PStep s₀ s)
     (hT0 : Frontend.denoteCV s.store cvT0 = some cvT0P)
     (hR0 : Frontend.denoteCV s.store cvR0 = some cvR0P)
     (hTs : cvTs.mapM (Frontend.denoteCV s.store) = some cvTsP)
@@ -1691,9 +1691,9 @@ theorem not_eq_beq_false {a b : Bool} (h : a = b) : (!a) = (b == false) := by
 — **the recogniser's run, inverted once**: the split (`blockSplit_spec`), the
 counts, the pins (reassociated: the twin reads the formers' two pins in one
 pass), the result sort's three arms, each into `shapeTail_run`. -/
-theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
+theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
-    (r : Option Arena.BlockShape) (hc : CheckOK μ false env fe s₀)
+    (r : Option Arena.BlockShape) (hc : CheckOK false env fe s₀)
     (hb : Frontend.denoteCIList s₀.store block = some blockP)
     (hrun : Arena.blockShape? nPd block s₀ = .ok (r, s')) :
     PStep s₀ s' ∧
@@ -1852,9 +1852,9 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
 **THE DISPATCH'S RECOGNISER** — `checkBlock` against `checkShapeless` routes
 on this, so its two-sidedness (`ROp`) is the soundness of the route choice.
 CORE grade, for `blockShape?`'s reason. -/
-theorem blockParts?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat)
+theorem blockParts?_spec {env : Env} (fe : IFEnv) (nP : Nat)
     (block : List IConstantInfo) (b : List ConstantInfo) :
-    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some b)
+    CSpec env fe (fun st => Frontend.denoteCIList st block = some b)
       (Arena.blockParts? nP block)
       (ROp (fun q st p => dParts st p = some q) (ConLeche.blockParts? nP b)) := by
   intro s₀ s' r hok hb hrun

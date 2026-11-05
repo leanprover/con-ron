@@ -79,7 +79,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
+variable {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. The five insert lemmas
 
@@ -206,52 +206,52 @@ theorem RuleRhsCacheOK.insert
 module closes: thirteen clauses that did not move plus the one that did. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC. -/
-theorem CacheOK.insertLvlEq {s : AState} (hc : CacheOK mode eager env s)
+theorem CacheOK.insertLvlEq {s : AState} (hc : CacheOK eager env s)
     {u v : LIdx} {lu lv : Level} {r : Bool}
     (hu : denoteL s.store.ls u = some lu)
     (hv : denoteL s.store.ls v = some lv)
     (heq : Level.isEquiv lu lv = some r) :
-    CacheOK mode eager env { s with caches := { s.caches with
+    CacheOK eager env { s with caches := { s.caches with
       lvlEqC := s.caches.lvlEqC.insert (u, v) r } } :=
   { hc with lvlEq := LvlEqCacheOK.insert hc.lvlEq hu hv heq }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC. -/
-theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK mode eager env s)
+theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK eager env s)
     {us vs : LsIdx} {lus lvs : List Level} {r : Bool}
     (hu : denoteLs s.store.lss us = some lus)
     (hv : denoteLs s.store.lss vs = some lvs)
     (heq : Level.isEquivList lus lvs = some r) :
-    CacheOK mode eager env { s with caches := { s.caches with
+    CacheOK eager env { s with caches := { s.caches with
       lvlsEqC := s.caches.lvlsEqC.insert (us, vs) r } } :=
   { hc with lvlsEq := LvlsEqCacheOK.insert hc.lvlsEq hu hv heq }
 
 /-- con-leche: none — `CacheOK` past the instantiated-constant TYPE cache's
 insert. -/
-theorem CacheOK.insertConstTy {s : AState} (hc : CacheOK mode eager env s)
+theorem CacheOK.insertConstTy {s : AState} (hc : CacheOK eager env s)
     {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
     {ci : ConstantInfo}
     (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
     (hf : env.find? nm = some ci)
     (hi : denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) :
-    CacheOK mode eager env { s with caches := { s.caches with
+    CacheOK eager env { s with caches := { s.caches with
       constTyC := s.caches.constTyC.insert (n, us) i } } :=
   { hc with constTy := ConstTyCacheOK.insert hc.constTy hn hus hf hi }
 
 /-- con-leche: none — `CacheOK` past the instantiated-constant VALUE cache's
 insert. -/
-theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK mode eager env s)
+theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK eager env s)
     {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
     {cv : ConstantVal} {value : Expr} {hint : ReducibilityHint}
     (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
     (hf : env.find? nm = some (.defnInfo cv value hint))
     (hi : denoteE s.store i = some (value.instantiateLevelParams cv.levelParams ls)) :
-    CacheOK mode eager env { s with caches := { s.caches with
+    CacheOK eager env { s with caches := { s.caches with
       constValC := s.caches.constValC.insert (n, us) i } } :=
   { hc with constVal := ConstValCacheOK.insert hc.constVal hn hus hf hi }
 
 /-- con-leche: none — `CacheOK` past the ι right-hand-side cache's insert. -/
-theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode eager env s)
+theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK eager env s)
     {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
@@ -260,7 +260,7 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode eager env s)
     (hf : env.find? rnv = some (.recInfo cv mi rp rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
     (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
-    CacheOK mode eager env { s with caches := { s.caches with
+    CacheOK eager env { s with caches := { s.caches with
       ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
   { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
 
@@ -281,27 +281,27 @@ and the order to the current one. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
 `CheckOK` past the level-verdict insert. -/
-theorem CheckOK.insertLvlEq {s : AState} (h : CheckOK mode eager env fe s)
+theorem CheckOK.insertLvlEq {s : AState} (h : CheckOK eager env fe s)
     {u v : LIdx} {lu lv : Level} {r : Bool}
     (hu : denoteL s.store.ls u = some lu) (hv : denoteL s.store.ls v = some lv)
     (heq : Level.isEquiv lu lv = some r) :
-    CheckOK mode eager env fe { s with caches := { s.caches with
+    CheckOK eager env fe { s with caches := { s.caches with
       lvlEqC := s.caches.lvlEqC.insert (u, v) r } } :=
   CheckOK.ofCache h (CacheOK.insertLvlEq h.caches hu hv heq) rfl rfl
 grind_pattern [bridge_grind] CheckOK.insertLvlEq =>
-  CheckOK mode eager env fe s, s.caches.lvlEqC.insert (u, v) r, Level.isEquiv lu lv
+  CheckOK eager env fe s, s.caches.lvlEqC.insert (u, v) r, Level.isEquiv lu lv
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
 the same at the level-list verdict cache. -/
-theorem CheckOK.insertLvlsEq {s : AState} (h : CheckOK mode eager env fe s)
+theorem CheckOK.insertLvlsEq {s : AState} (h : CheckOK eager env fe s)
     {us vs : LsIdx} {lus lvs : List Level} {r : Bool}
     (hu : denoteLs s.store.lss us = some lus) (hv : denoteLs s.store.lss vs = some lvs)
     (heq : Level.isEquivList lus lvs = some r) :
-    CheckOK mode eager env fe { s with caches := { s.caches with
+    CheckOK eager env fe { s with caches := { s.caches with
       lvlsEqC := s.caches.lvlsEqC.insert (us, vs) r } } :=
   CheckOK.ofCache h (CacheOK.insertLvlsEq h.caches hu hv heq) rfl rfl
 grind_pattern [bridge_grind] CheckOK.insertLvlsEq =>
-  CheckOK mode eager env fe s, s.caches.lvlsEqC.insert (us, vs) r, Level.isEquivList lus lvs
+  CheckOK eager env fe s, s.caches.lvlsEqC.insert (us, vs) r, Level.isEquivList lus lvs
 
 /-- con-leche: none — `CheckOK` past the instantiated-constant TYPE insert,
 the key's denotations at an earlier store `st₀`. -/
@@ -309,10 +309,10 @@ theorem CheckOK.insertConstTy {st₀ : EStore} {n : NIdx} {us : LsIdx}
     {nm : ConLeche.Name} {ls : List Level} {ci : ConstantInfo}
     (hn : denoteN st₀.ns n = some nm) (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? nm = some ci) {s : AState} {i : EIdx}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store)
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store)
     (hi : denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) :
-    CheckOK mode eager env fe { s with caches := { s.caches with
+    CheckOK eager env fe { s with caches := { s.caches with
       constTyC := s.caches.constTyC.insert (n, us) i } } :=
   CheckOK.ofCache h (CacheOK.insertConstTy h.caches (denoteN_ext hn hx)
     (denoteLs_ext hus hx) hf hi) rfl rfl
@@ -324,9 +324,9 @@ theorem CheckOK.insertConstVal {st₀ : EStore} {n : NIdx} {us : LsIdx}
     {hint : ReducibilityHint}
     (hn : denoteN st₀.ns n = some nm) (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? nm = some (.defnInfo cv value hint)) {s : AState} {i : EIdx}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store)
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store)
     (hi : denoteE s.store i = some (value.instantiateLevelParams cv.levelParams ls)) :
-    CheckOK mode eager env fe { s with caches := { s.caches with
+    CheckOK eager env fe { s with caches := { s.caches with
       constValC := s.caches.constValC.insert (n, us) i } } :=
   CheckOK.ofCache h (CacheOK.insertConstVal h.caches (denoteN_ext hn hx)
     (denoteLs_ext hus hx) hf hi) rfl rfl
@@ -339,9 +339,9 @@ theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? rnv = some (.recInfo cv mi rp rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState} {i : EIdx}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store)
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store)
     (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
-    CheckOK mode eager env fe { s with caches := { s.caches with
+    CheckOK eager env fe { s with caches := { s.caches with
       ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
   CheckOK.ofCache h (CacheOK.insertRuleRhs h.caches (denoteN_ext hr hx)
     (denoteN_ext hcn hx) (denoteLs_ext hus hx) hf hrl hi) rfl rfl
@@ -350,7 +350,7 @@ theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
 `Level.isEquiv`'s verdict at the two denotations (the clause at the probe), as
 an equation over the denotation terms: whatever the row holds, `opt2
 Level.isEquiv` of the two denotations is `some` of it. -/
-theorem CheckOK.lvlEq_hit {s : AState} (h : CheckOK mode eager env fe s) (u v : LIdx) :
+theorem CheckOK.lvlEq_hit {s : AState} (h : CheckOK eager env fe s) (u v : LIdx) :
     MapRel some (s.caches.lvlEqC[(u, v)]?)
       (opt2 Level.isEquiv (denoteL s.store.ls u) (denoteL s.store.ls v)) := by
   cases hhit : s.caches.lvlEqC[(u, v)]? with
@@ -359,11 +359,11 @@ theorem CheckOK.lvlEq_hit {s : AState} (h : CheckOK mode eager env fe s) (u v : 
     obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlEq (u, v) r hhit
     simp only [MapRel, hu, hv, opt2, he]
 grind_pattern [bridge_grind] CheckOK.lvlEq_hit =>
-  CheckOK mode eager env fe s, s.caches.lvlEqC[(u, v)]?
+  CheckOK eager env fe s, s.caches.lvlEqC[(u, v)]?
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the same at two
 universe-argument lists. -/
-theorem CheckOK.lvlsEq_hit {s : AState} (h : CheckOK mode eager env fe s) (us vs : LsIdx) :
+theorem CheckOK.lvlsEq_hit {s : AState} (h : CheckOK eager env fe s) (us vs : LsIdx) :
     MapRel some (s.caches.lvlsEqC[(us, vs)]?)
       (opt2 Level.isEquivList (denoteLs s.store.lss us) (denoteLs s.store.lss vs)) := by
   cases hhit : s.caches.lvlsEqC[(us, vs)]? with
@@ -372,7 +372,7 @@ theorem CheckOK.lvlsEq_hit {s : AState} (h : CheckOK mode eager env fe s) (us vs
     obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlsEq (us, vs) r hhit
     simp only [MapRel, hu, hv, opt2, he]
 grind_pattern [bridge_grind] CheckOK.lvlsEq_hit =>
-  CheckOK mode eager env fe s, s.caches.lvlsEqC[(us, vs)]?
+  CheckOK eager env fe s, s.caches.lvlsEqC[(us, vs)]?
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `constTy` clause) — a
 TYPE-cache HIT denotes the constant's type at the key's levels. -/
@@ -380,7 +380,7 @@ theorem CheckOK.constTy_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     {nm : ConLeche.Name} {ls : List Level} {ci : ConstantInfo}
     (hn : denoteN st₀.ns n = some nm) (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? nm = some ci) {s : AState}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store) :
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store) :
     Ans (fun i => denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) (s.caches.constTyC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := h.caches.constTy _ i hhit
@@ -395,7 +395,7 @@ theorem CheckOK.constVal_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     {hint : ReducibilityHint}
     (hn : denoteN st₀.ns n = some nm) (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? nm = some (.defnInfo cv val hint)) {s : AState}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store) :
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store) :
     Ans (fun i => denoteE s.store i = some (val.instantiateLevelParams cv.levelParams ls))
       (s.caches.constValC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ := h.caches.constVal _ i hhit
@@ -413,7 +413,7 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     (hus : denoteLs st₀.lss us = some ls)
     (hf : env.find? rnv = some (.recInfo cv mi rp rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState}
-    (h : CheckOK mode eager env fe s) (hx : st₀ ≤ s.store) :
+    (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store) :
     Ans (fun i => denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls))
       (s.caches.ruleRhsC[(rn, cn, us)]?) := fun i hhit => by
   obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
@@ -432,34 +432,34 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
 /-- con-leche: none — `CheckOK`'s level-readback table: the first
 readback's precondition, passed to `sym` at the walk's initial state (as a
 registered forward rule it would fire at every `CheckOK` of every walk). -/
-theorem CheckOK.readL' {s : AState} (h : CheckOK mode eager env fe s) :
+theorem CheckOK.readL' {s : AState} (h : CheckOK eager env fe s) :
     ReadLCacheOK s.caches.readLC s.store := h.caches.readL
 
 /-- con-leche: none — the same at the level-list readback table. -/
-theorem CheckOK.readLs' {s : AState} (h : CheckOK mode eager env fe s) :
+theorem CheckOK.readLs' {s : AState} (h : CheckOK eager env fe s) :
     ReadLsCacheOK s.caches.readLsC s.store := h.caches.readLs
 
 /-- con-leche: none — `CheckOK` past ONE level readback (`readLevelM_spec`'s
 frame conjuncts and its table's invariant); its pattern is the readback's
 cache record, which names both states, and the invariant before. -/
-theorem CheckOK.ofReadL {s0 s1 : AState} (h : CheckOK mode eager env fe s0)
+theorem CheckOK.ofReadL {s0 s1 : AState} (h : CheckOK eager env fe s0)
     (hst : s1.store = s0.store) (hm : s1.memos = s0.memos) (hp : s1.pins = s0.pins)
     (hc : s1.caches = { s0.caches with readLC := s1.caches.readLC })
-    (hL : ReadLCacheOK s1.caches.readLC s1.store) : CheckOK mode eager env fe s1 :=
+    (hL : ReadLCacheOK s1.caches.readLC s1.store) : CheckOK eager env fe s1 :=
   CheckOK.ofReadbackFrame h (ReadbackFrame.ofReadL hst hm hp hc hL)
 grind_pattern [bridge_grind] CheckOK.ofReadL =>
   -- the readback's cache record (it names both states); the ascription is
   -- needed (`_tmp/corpus/vcgen-grind/struct-update-pattern.lean`)
-  ({ s0.caches with readLC := s1.caches.readLC } : Caches), CheckOK mode eager env fe s0
+  ({ s0.caches with readLC := s1.caches.readLC } : Caches), CheckOK eager env fe s0
 
 /-- con-leche: none — the same past one level-LIST readback. -/
-theorem CheckOK.ofReadLs {s0 s1 : AState} (h : CheckOK mode eager env fe s0)
+theorem CheckOK.ofReadLs {s0 s1 : AState} (h : CheckOK eager env fe s0)
     (hst : s1.store = s0.store) (hm : s1.memos = s0.memos) (hp : s1.pins = s0.pins)
     (hc : s1.caches = { s0.caches with readLsC := s1.caches.readLsC })
-    (hL : ReadLsCacheOK s1.caches.readLsC s1.store) : CheckOK mode eager env fe s1 :=
+    (hL : ReadLsCacheOK s1.caches.readLsC s1.store) : CheckOK eager env fe s1 :=
   CheckOK.ofReadbackFrame h (ReadbackFrame.ofReadLs hst hm hp hc hL)
 grind_pattern [bridge_grind] CheckOK.ofReadLs =>
-  ({ s0.caches with readLsC := s1.caches.readLsC } : Caches), CheckOK mode eager env fe s0
+  ({ s0.caches with readLsC := s1.caches.readLsC } : Caches), CheckOK eager env fe s0
 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — **THEOREM 1
 for `lvlEq?`**.
@@ -477,9 +477,9 @@ verdict needs the negative half: `IProjEntry.fireOk` fires the projection
 rule when the structure sort is NOT provably zero, so a one-directional spec
 would leave the `none` case unrelatable (`Bridge/Inductives/SumParts.lean`
 reads `lvlEq?_spec` at both signs). -/
-theorem lvlEq?_specA (s₀ : AState) (u v : LIdx) (hok : CheckOK mode eager env fe s₀) :
+theorem lvlEq?_specA (s₀ : AState) (u v : LIdx) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlEq? u v
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         opt2 Level.isEquiv (denoteL s₀.store.ls u) (denoteL s₀.store.ls v) = some r; ⊤⦄ := by
   sym only [bridge_grind, CheckOK.readL' hok] =>
@@ -488,9 +488,9 @@ theorem lvlEq?_specA (s₀ : AState) (u v : LIdx) (hok : CheckOK mode eager env 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — `lvlEq?_specA`
 with the two denotations named, for the term-mode callers that destructure
 it. -/
-theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode eager env fe s₀) :
+theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlEq? u v
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
@@ -502,9 +502,9 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode eager env f
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 **THEOREM 1 for `lvlsEq?`**: `lvlEq?_specA` at two universe-argument lists. -/
 theorem lvlsEq?_specA (s₀ : AState) (us vs : LsIdx)
-    (hok : CheckOK mode eager env fe s₀) :
+    (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlsEq? us vs
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         opt2 Level.isEquivList (denoteLs s₀.store.lss us) (denoteLs s₀.store.lss vs) =
           some r; ⊤⦄ := by
@@ -514,9 +514,9 @@ theorem lvlsEq?_specA (s₀ : AState) (us vs : LsIdx)
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 `lvlsEq?_specA` with the two denotations named. -/
 theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
-    (hok : CheckOK mode eager env fe s₀) :
+    (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlsEq? us vs
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
@@ -536,7 +536,7 @@ the two into `CheckOK` past the call; the insert is the one above. -/
 record equation names the three readback tables it moves and frames the other
 eleven, so the eleven transport along `Ext` and the three are the call's own
 conjuncts. -/
-theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode eager env fe s₀)
+theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK eager env fe s₀)
     (hst : StateOK s') (hx : Ext s₀.store s'.store)
     (hL : ReadLCacheOK s'.caches.readLC s'.store)
     (hLs : ReadLsCacheOK s'.caches.readLsC s'.store)
@@ -544,7 +544,7 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode eager env fe s�
     (hc : s'.caches = { s₀.caches with
       readLC := s'.caches.readLC, readNC := s'.caches.readNC,
       readLsC := s'.caches.readLsC })
-    (hp : s'.pins = s₀.pins) : CheckOK mode eager env fe s' where
+    (hp : s'.pins = s₀.pins) : CheckOK eager env fe s' where
   state := hst
   caches :=
     { whnfCore := by rw [hc]; exact hok.caches.whnfCore.mono hx
@@ -565,7 +565,7 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode eager env fe s�
   pins := hok.pins.mono hx hp
   ienv := hok.ienv.mono hx
 grind_pattern [bridge_grind] CheckOK.ofInstLP =>
-  CheckOK mode eager env fe s₀, ReadNCacheOK s'.caches.readNC s'.store
+  CheckOK eager env fe s₀, ReadNCacheOK s'.caches.readNC s'.store
 
 /-- con-leche: none — the field-by-field inversion of `denoteCV`, which
 is where `cv.levelParams` on the two sides meet (the three
@@ -594,13 +594,13 @@ instantiated-constant TYPE cache), on
 `Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` with its cache frame. -/
 theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (nm : ConLeche.Name) (ls : List Level) (ci : ConstantInfo)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hn : denoteN s₀.store.ns cv.name = some nm)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hf : env.find? nm = some ci)
     (hcv : Frontend.denoteCV s₀.store cv = some ci.toConstantVal) :
     ⦃fun s => s = s₀⦄ constTyAt cv us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (ci.toConstantVal.type.instantiateLevelParams
@@ -618,14 +618,14 @@ expensive half, and the reason `unfoldDefinition` is not free). -/
 theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (value : EIdx) (us : LsIdx) (nm : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (val : Expr) (hint : ReducibilityHint)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hn : denoteN s₀.store.ns n = some nm)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hlps : Frontend.denoteNList s₀.store.ns lps = some cv.levelParams)
     (hval : denoteE s₀.store value = some val)
     (hfd : env.find? nm = some (.defnInfo cv val hint)) :
     ⦃fun s => s = s₀⦄ constValAt n lps value us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (val.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
@@ -644,14 +644,14 @@ through `getAppFn`/`view` — `unfoldDefinition` — leaves no metavariable in t
 side goal.  Four lines over the unprimed form and the functionality of each
 denotation. -/
 theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
-    (value : EIdx) (us : LsIdx) (hok : CheckOK mode eager env fe s₀)
+    (value : EIdx) (us : LsIdx) (hok : CheckOK eager env fe s₀)
     (hpre : ∃ nm ls cv val hint, denoteN s₀.store.ns n = some nm ∧
       denoteLs s₀.store.lss us = some ls ∧
       Frontend.denoteNList s₀.store.ns lps = some cv.levelParams ∧
       denoteE s₀.store value = some val ∧
       env.find? nm = some (.defnInfo cv val hint)) :
     ⦃fun s => s = s₀⦄ constValAt n lps value us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ nm ls cv val hint, denoteN s₀.store.ns n = some nm →
           denoteLs s₀.store.lss us = some ls →
@@ -668,7 +668,7 @@ side at the recursor's universe instantiation). -/
 theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (rhs : EIdx) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (mi rp : Nat) (rules : List RecRule) (rl : RecRule)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hr : denoteN s₀.store.ns recName = some rnv)
     (hc : denoteN s₀.store.ns ctor = some cnv)
     (hus : denoteLs s₀.store.lss us = some ls)
@@ -677,7 +677,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (hfr : env.find? rnv = some (.recInfo cv mi rp rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) :
     ⦃fun s => s = s₀⦄ ruleRhsAt recName ctor lps rhs us
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (rl.rhs.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by

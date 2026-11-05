@@ -1092,11 +1092,11 @@ which is why flushing is sound and why the bridge only ever needs
 `CacheOK.of_empty`. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the EMPTY cache set
-satisfies every clause, at every mode and every environment.  This is the
+satisfies every clause, at every environment.  This is the
 whole content of the flush's soundness: a dropped row is a cache miss and
 nothing else. -/
-theorem CacheOK.of_empty {mode : CheckMode} {env : Env} {s : AState}
-    (h : s.caches = Caches.empty) : CacheOK mode false env s where
+theorem CacheOK.of_empty {env : Env} {s : AState}
+    (h : s.caches = Caches.empty) : CacheOK false env s where
   whnfCore := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   whnfCoreCheap := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   whnf := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk

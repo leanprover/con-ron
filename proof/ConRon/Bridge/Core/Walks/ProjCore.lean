@@ -161,7 +161,7 @@ certificate at optional subjects (one equation at `some`). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — `projCertAt_spec`
 in answer shape: the certificate at whatever the handles denote. -/
-theorem projCertAt_specA (s₀ : AState) (hok : CheckOK mode eager env fe s₀)
+theorem projCertAt_specA (s₀ : AState) (hok : CheckOK eager env fe s₀)
     (verified : Bool) (c : NIdx) (args : List EIdx)
     (hc : (denoteN s₀.store.ns c).isSome = true)
     (hargs : (Frontend.denoteEList s₀.store args).isSome = true) :
@@ -186,21 +186,21 @@ local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
 /-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — the walk
 in answer shape (`ProjCoreAns`). -/
 theorem reduceProjCore_specA {fuel : Nat}
-    (hsim : KnotSpec mode eager env fe fuel)
+    (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (c : EIdx)
     (nm : Name) (ce : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
+    (hok : CheckOK eager env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
     (hden : denoteE s₀.store c = some ce) (hw : Expr.WScoped d ce) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.reduceProjCore mode (coreKnot mode eager fe id fuel) fe d sn k c
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ProjCoreAns mode eager env d nm k ce s'.store r; ⊤⦄ := by
+      ConRon.Arena.reduceProjCore .verified (coreKnot .verified eager fe id fuel) fe d sn k c
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ProjCoreAns .verified eager env d nm k ce s'.store r; ⊤⦄ := by
   sym only [bridge_grind, Option.getD_some] =>
     vcgen [ConRon.Arena.reduceProjCore, projLitToCtor_spec hsim (x := ce),
       ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec, viewLsLen_spec,
-      IProjEntry.fireOk_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-      internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
-      projCertAt_specA (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+      IProjEntry.fireOk_specA (eager := eager) (env := env) (fe := fe),
+      internE_specC (eager := eager) (env := env) (fe := fe),
+      projCertAt_specA (eager := eager) (env := env) (fe := fe)] <;> finish
 
 end Walk
 
@@ -213,16 +213,16 @@ walk both `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`
 consume (`reduceProjCore_specA`; `ProjCoreAns` is `SimOOp` at the pure
 call). -/
 theorem reduceProjCore_spec {fuel : Nat} (_henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec mode eager env fe fuel)
+    (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (c : EIdx)
     (nm : Name) (ce : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
+    (hok : CheckOK eager env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
     (hden : denoteE s₀.store c = some ce) (hw : Expr.WScoped d ce) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.reduceProjCore mode (coreKnot mode eager fe id fuel) fe d sn k c
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.reduceProjCore .verified (coreKnot .verified eager fe id fuel) fe d sn k c
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.reduceProjCoreFueled mode eager env F d nm k ce) d
+        SimOOp (fun F => ConLeche.reduceProjCoreFueled .verified eager env F d nm k ce) d
           s'.store r; ⊤⦄ :=
   reduceProjCore_specA hsim s₀ d sn k c nm ce hok hsn hden hw
 

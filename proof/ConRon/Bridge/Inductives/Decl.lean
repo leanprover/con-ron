@@ -188,7 +188,7 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:180-200 checkDecl (the
 `.indDecl` arm) — at a block the basis recogniser refused and whose declared
 parameter count checks out, `checkDecl` IS the recogniser's dispatch.  Stated
-at `fueledOpsM μ`, where the tier's answers live (`FOk`). -/
+at `fueledOpsM .verified`, where the tier's answers live (`FOk`). -/
 theorem checkDecl_ind_route {μ : CheckMode} {pins : List NatOpPinSet} {env : Env}
     {b : List ConstantInfo} {nP : Nat}
     (hpin : ConLeche.basisPinHit b = none)
@@ -217,11 +217,11 @@ then the uniform route (`checkBlock_bridge`) or the decline
 theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
     {s s' : AState} {block : List IConstantInfo} {b : List ConstantInfo}
     {nP : Nat} {pinsP : List NatOpPinSet}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s)
     (hb : Frontend.denoteCIList s.store block = some b)
     (hpin : ConLeche.basisPinHit b = none)
-    (hrun : checkIndRoute .verified fe block nP s = .ok (fe', s')) :
+    (hrun : checkIndRoute fe block nP s = .ok (fe', s')) :
     IndOut fe fe' s s' (fun env' => ∃ F,
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP) = .ok env') := by
   simp only [checkIndRoute] at hrun
@@ -236,7 +236,7 @@ theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
   simp only [Bool.not_true, Bool.false_eq_true, ite_false] at h2
   -- the recogniser
   obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
-  have hck₁ : CheckOK .verified false env fe s₁ := (hstep1.toCore hok.check).ok
+  have hck₁ : CheckOK false env fe s₁ := (hstep1.toCore hok.check).ok
   have hb₁ : Frontend.denoteCIList s₁.store block = some b :=
     denoteCIList_mono hstep1.ext _ _ hb
   obtain ⟨hstep2, hr2⟩ := blockParts?_spec fe nP block b s₁ s₂ o hck₁ hb₁ h3
@@ -268,7 +268,7 @@ theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
 `.indDecl` arm) — **`Bridge/Checker/Hyp.lean`'s `IndSpec`, discharged**: a
 record projection of `checkIndRoute_bridge` (`IndOut`'s clauses are
 `IndSpec.run`'s, `ProjOut`'s two halves its `TPushed` and table clauses). -/
-theorem indSpec_of_bridge (hk : CoreSpec .verified Arena.checkFuel) : IndSpec .verified := by
+theorem indSpec_of_bridge (hk : CoreSpec Arena.checkFuel) : IndSpec := by
   refine ⟨fun {env fe fe' s s' block b nP pinsP} hok hb hpin hrun => ?_⟩
   have out := checkIndRoute_bridge (pinsP := pinsP) hk hok hb hpin hrun
   obtain ⟨env', hden, F, hrunP⟩ := out.denote

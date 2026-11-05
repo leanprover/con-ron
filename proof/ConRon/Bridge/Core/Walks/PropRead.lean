@@ -235,18 +235,18 @@ theorem ProjFound.none {st : EStore} {o : Option ProjEntry} (H : ProjFound st no
 grind_pattern [bridge_grind] ProjFound.none => ProjFound st none o
 
 /-- con-leche: none — `readNamesM` at the tier's invariant (`CheckOK.ofReadbackFrame`). -/
-theorem readNamesM_specC (s₀ : AState) (hs : List NIdx) (hok : CheckOK mode eager env fe s₀) :
+theorem readNamesM_specC (s₀ : AState) (hs : List NIdx) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ readNamesM hs
-    ⦃fun xs s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun xs s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
         Frontend.denoteNList s₀.store.ns hs = some xs; ⊤⦄ :=
   triple_mono (readNamesM_spec s₀ hs hok.caches.readN)
     (fun _ _ ⟨hst, hm, hp, hc, hd, hN⟩ =>
       ⟨CheckOK.ofReadbackFrame hok (ReadbackFrame.ofReadN hst hm hp hc hN), hst, hp, hd⟩)
 
 /-- con-leche: none — `readLevelsM` at the tier's invariant. -/
-theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK mode eager env fe s₀) :
+theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ readLevelsM h
-    ⦃fun us s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+    ⦃fun us s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
         denoteLs s₀.store.lss h = some us; ⊤⦄ :=
   triple_mono (readLevelsM_spec s₀ h hok.caches.readLs)
     (fun _ _ ⟨hst, hm, hp, hc, hd, hLs⟩ =>
@@ -523,7 +523,7 @@ projection certificate's arity read it too). -/
 /-- con-leche: ConLeche/Kernel/PropRead.lean:50-54 Expr.binderDom — **THEOREM
 1 for `binderDom`**, in answer shape.  Read-only, structural on `k`. -/
 theorem binderDom_specA (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store h).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store h).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.binderDom k h
     ⦃fun r s' => s' = s₀ ∧
         denoteEO s₀.store r = (denoteE s₀.store h).map (Expr.binderDom k); ⊤⦄ := by
@@ -544,7 +544,7 @@ for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
 fuel `0`; `; ⊤` claims nothing of a failure, so the equation is unconditional
 on success. -/
 theorem numArgs_specA (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store h).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store h).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.numArgs fuel h
     ⦃fun n s' => s' = s₀ ∧ (denoteE s₀.store h).map Expr.numArgs = some n; ⊤⦄ := by
   induction fuel with
@@ -561,7 +561,7 @@ theorem numArgs_specA (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
 for `residualPW`**, in answer shape (the residual is `peelPisW`'s answer).
 The level is read back with `readLevel`, which leaves the state alone. -/
 theorem residualPW_specA (s₀ : AState) (r : Option EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hd : (denoteEO s₀.store r).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hd : (denoteEO s₀.store r).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.residualPW r
     ⦃fun pw s' => s' = s₀ ∧ (denoteEO s₀.store r).map ConLeche.residualPW = some pw; ⊤⦄ := by
   obtain ⟨ox, hox⟩ := Option.isSome_iff_exists.mp hd
@@ -573,7 +573,7 @@ theorem residualPW_specA (s₀ : AState) (r : Option EIdx)
 /-- con-leche: ConLeche/Kernel/PropRead.lean:73-79 lamProj? — **THEOREM 1 for
 `lamProj?`**.  Read-only; the arena's walk is fueled and fails at fuel `0`. -/
 theorem lamProj?_specA (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store h).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store h).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.lamProj? fuel k h
     ⦃fun r s' => s' = s₀ ∧ (denoteE s₀.store h).map (ConLeche.lamProj? k) = some r; ⊤⦄ := by
   induction fuel with
@@ -591,7 +591,7 @@ theorem lamProj?_specA (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
 1 for `unwrapIdDefs`**, in answer shape: the answer denotes con-leche's
 unwrapping at the environment's lookup. -/
 theorem unwrapIdDefs_specA (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store e).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store e).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.unwrapIdDefs fe fuel n e
     ⦃fun r s' => s' = s₀ ∧
         denoteE s₀.store r = (denoteE s₀.store e).map (ConLeche.unwrapIdDefs env.find? n); ⊤⦄ := by
@@ -607,13 +607,13 @@ theorem unwrapIdDefs_specA (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EId
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
     sym only [bridge_grind, unwrapIdDefs_succ_eq] =>
       vcgen [ConRon.Arena.unwrapIdDefs, ExprOps.getAppFn_spec fuel, viewConstName_spec,
-        lamProj?_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel,
+        lamProj?_specA (eager := eager) (env := env) (fe := fe) fuel,
         ExprOps.getAppArgs_spec fuel, ih] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — **THEOREM 1
 for `peelPisW`**, in answer shape. -/
 theorem peelPisW_specA (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (e : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store e).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store e).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.peelPisW fe fuel k e
     ⦃fun r s' => s' = s₀ ∧
         denoteEO s₀.store r = (denoteE s₀.store e).map (ConLeche.peelPisW env.find? k); ⊤⦄ := by
@@ -624,13 +624,13 @@ theorem peelPisW_specA (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (e : EIdx),
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
     sym only [bridge_grind, peelPisW_zero_eq] =>
       vcgen [ConRon.Arena.peelPisW,
-        unwrapIdDefs_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel] <;> finish
+        unwrapIdDefs_specA (eager := eager) (env := env) (fe := fe) fuel] <;> finish
   | succ k ih =>
     intro s₀ e hok hd
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
     sym only [bridge_grind, peelPisW_succ_eq] =>
       vcgen [ConRon.Arena.peelPisW,
-        unwrapIdDefs_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel, ih] <;> finish
+        unwrapIdDefs_specA (eager := eager) (env := env) (fe := fe) fuel, ih] <;> finish
 
 
 /-! ## 4. The head readers -/
@@ -654,40 +654,40 @@ theorem substPWAt_split (lps : List NIdx) (us : LsIdx) (pw : PropWhen) :
 use's universe arguments, with the cutoff hoisted over the readbacks. -/
 theorem substPWAt_specX (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     (pw : PropWhen) (ks : List ConLeche.Name) (vs : List Level)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
     (hvs : denoteLs s₀.store.lss us = some vs) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.substPWAt lps us pw
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = some (Level.substPW ks vs pw); ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [substPWAt_split, readNamesM_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
-      readLevelsM_specC (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+    vcgen [substPWAt_split, readNamesM_specC (eager := eager) (env := env) (fe := fe),
+      readLevelsM_specC (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:112-131 headTypePW — **THEOREM 1
 for `headTypePW`** at the head's and the telescope root's denotations. -/
 theorem headTypePW_specX (fuel : Nat) (s₀ : AState) (root : EIdx) (rx : Expr) (d : Nat)
-    (h : EIdx) (x : Expr) (n : Nat) (hok : CheckOK mode eager env fe s₀)
+    (h : EIdx) (x : Expr) (n : Nat) (hok : CheckOK eager env fe s₀)
     (hroot : denoteE s₀.store root = some rx) (hx : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headTypePW fe fuel root d h n
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.headTypePW env.find? rx d x n; ⊤⦄ := by
   sym only [bridge_grind, headTypePW_eq, residualPW_none_eq] =>
     vcgen [ConRon.Arena.headTypePW,
-      peelPisW_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel,
-      residualPW_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-      substPWAt_specX (mode := mode) (eager := eager) (env := env) (fe := fe)
+      peelPisW_specA (eager := eager) (env := env) (fe := fe) fuel,
+      residualPW_specA (eager := eager) (env := env) (fe := fe),
+      substPWAt_specX (eager := eager) (env := env) (fe := fe)
         (ks := (cValP (env.find? (exprConstName x))).levelParams) (vs := exprConstLevels x),
-      binderDom_specA (mode := mode) (eager := eager) (env := env) (fe := fe)] <;> finish
+      binderDom_specA (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:136-140 typeSortPWGo — **THEOREM
 1 for `typeSortPWGo`**, by induction on the fuel, at the type's and the root's
 denotations. -/
 theorem typeSortPWGo_specX (root : EIdx) (rx : Expr) (fuel : Nat) : ∀ (s₀ : AState)
-    (R : EIdx) (x : Expr) (d : Nat), CheckOK mode eager env fe s₀ →
+    (R : EIdx) (x : Expr) (d : Nat), CheckOK eager env fe s₀ →
     denoteE s₀.store R = some x → denoteE s₀.store root = some rx →
     ⦃fun s => s = s₀⦄ ConRon.Arena.typeSortPWGo fe root fuel R d
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.typeSortPWGo env.find? rx x d; ⊤⦄ := by
   induction fuel with
   | zero =>
@@ -701,28 +701,28 @@ theorem typeSortPWGo_specX (root : EIdx) (rx : Expr) (fuel : Nat) : ∀ (s₀ : 
     clear ih
     sym only [bridge_grind, typeSortPWGo_eq] =>
       vcgen [ConRon.Arena.typeSortPWGo, ExprOps.getAppFn_spec fuel,
-        numArgs_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel,
-        headTypePW_specX (mode := mode) (eager := eager) (env := env) (fe := fe) fuel (rx := rx)
+        numArgs_specA (eager := eager) (env := env) (fe := fe) fuel,
+        headTypePW_specX (eager := eager) (env := env) (fe := fe) fuel (rx := rx)
           (x := x.getAppFn), step] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:148-150 typeSortPW — **THEOREM 1
 for `typeSortPW`**, in answer shape. -/
 theorem typeSortPW_specA (fuel : Nat) (s₀ : AState) (T : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hT : (denoteE s₀.store T).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hT : (denoteE s₀.store T).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.typeSortPW fe fuel T
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         (denoteE s₀.store T).map (ConLeche.typeSortPW env.find?) = some r; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hT
   sym only [bridge_grind, ConLeche.typeSortPW] =>
     vcgen [ConRon.Arena.typeSortPW,
-      typeSortPWGo_specX (mode := mode) (eager := eager) (env := env) (fe := fe) T x fuel (x := x)] <;> finish
+      typeSortPWGo_specX (eager := eager) (env := env) (fe := fe) T x fuel (x := x)] <;> finish
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj? —
 `findProjAt` with its answer as `ProjFound` (found together, and a found
 entry's body denotes the environment's). -/
 theorem projFoundAt {s : AState} {T : NIdx} {i : Nat} {Tn : ConLeche.Name}
-    (hok : CheckOK mode eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (hok : CheckOK eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
     ProjFound s.store (fe.findProj? T i) (env.findProj? Tn i) := by
   obtain ⟨hsome, hnone⟩ := IFEnv.findProj?_spec T i Tn hok hT
   cases hr : fe.findProj? T i with
@@ -743,12 +743,12 @@ def ProjFoundAt (env : Env) (st : EStore) (r : Option IProjEntry) (i : Nat) :
 
 /-- con-leche: none — `projFoundAt` keyed by the invariant and the arena's
 lookup. -/
-theorem projFoundAt' {s : AState} (hok : CheckOK mode eager env fe s) (T : NIdx) (i : Nat) :
+theorem projFoundAt' {s : AState} (hok : CheckOK eager env fe s) (T : NIdx) (i : Nat) :
     ProjFoundAt env s.store (fe.findProj? T i) i (denoteN s.store.ns T) := by
   cases hT : denoteN s.store.ns T with
   | none => trivial
   | some Tn => exact projFoundAt hok hT
-grind_pattern [bridge_grind] projFoundAt' => CheckOK mode eager env fe s, fe.findProj? T i
+grind_pattern [bridge_grind] projFoundAt' => CheckOK eager env fe s, fe.findProj? T i
 
 /-- con-leche: none — `ProjFoundAt` at a denoting handle. -/
 theorem ProjFoundAt.some {st : EStore} {r : Option IProjEntry} {i : Nat}
@@ -759,14 +759,14 @@ grind_pattern [bridge_grind] ProjFoundAt.some => ProjFoundAt env st r i (some Tn
 /-- con-leche: ConLeche/Kernel/PropRead.lean:156-183 headProofPW — **THEOREM 1
 for `headProofPW`** at the head's denotation. -/
 theorem headProofPW_specX (fuel : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hx : denoteE s₀.store h = some x) :
+    (hok : CheckOK eager env fe s₀) (hx : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headProofPW fe fuel h
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.headProofPW env.find? env.findTable? x; ⊤⦄ := by
   sym only [bridge_grind, headProofPW_eq] =>
     vcgen [ConRon.Arena.headProofPW,
-      typeSortPW_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel,
-      substPWAt_specX (mode := mode) (eager := eager) (env := env) (fe := fe)
+      typeSortPW_specA (eager := eager) (env := env) (fe := fe) fuel,
+      substPWAt_specX (eager := eager) (env := env) (fe := fe)
         (ks := (cValP (env.find? (exprConstName x))).levelParams) (vs := exprConstLevels x)] <;>
       finish
 
@@ -775,9 +775,9 @@ for `proofPW`**, in answer shape: `annotPwLam` calls it on the knot's
 `annotate` answer, and `notProofFast` / `isProofFast` on `propIrrel`'s
 subjects. -/
 theorem proofPW_specA (fuel : Nat) : ∀ (s₀ : AState) (a : EIdx),
-    CheckOK mode eager env fe s₀ → (denoteE s₀.store a).isSome = true →
+    CheckOK eager env fe s₀ → (denoteE s₀.store a).isSome = true →
     ⦃fun s => s = s₀⦄ ConRon.Arena.proofPW fe fuel a
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         (denoteE s₀.store a).map (ConLeche.proofPW env.find? env.findTable?) = some r; ⊤⦄ := by
   induction fuel with
@@ -790,7 +790,7 @@ theorem proofPW_specA (fuel : Nat) : ∀ (s₀ : AState) (a : EIdx),
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
     sym only [bridge_grind, proofPW_eq] =>
       vcgen [ConRon.Arena.proofPW,
-        headProofPW_specX (mode := mode) (eager := eager) (env := env) (fe := fe) fuel (x := x), ih] <;> finish
+        headProofPW_specX (eager := eager) (env := env) (fe := fe) fuel (x := x), ih] <;> finish
 
 /-! ## 5. The two arms
 
@@ -802,28 +802,28 @@ much as the positive one. -/
 1 for `notProofFast`**, in answer shape (`propIrrel` calls it on its two
 subjects, which callers reach through `whnfCore` answers). -/
 theorem notProofFast_specA (fuel : Nat) (s₀ : AState) (a : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hd : (denoteE s₀.store a).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hd : (denoteE s₀.store a).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.notProofFast fe fuel a
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         (denoteE s₀.store a).map (ConLeche.notProofFast env.find? env.findTable?) = some b; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
   sym only [bridge_grind, notProofFast_eq] =>
     vcgen [ConRon.Arena.notProofFast,
-      proofPW_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel] <;> finish
+      proofPW_specA (eager := eager) (env := env) (fe := fe) fuel] <;> finish
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast — **THEOREM
 1 for `isProofFast`**, in answer shape. -/
 theorem isProofFast_specA (fuel : Nat) (s₀ : AState) (a : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hd : (denoteE s₀.store a).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hd : (denoteE s₀.store a).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isProofFast fe fuel a
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         (denoteE s₀.store a).map (ConLeche.isProofFast env.find? env.findTable?) = some b; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
   sym only [bridge_grind, isProofFast_eq] =>
     vcgen [ConRon.Arena.isProofFast,
-      proofPW_specA (mode := mode) (eager := eager) (env := env) (fe := fe) fuel] <;> finish
+      proofPW_specA (eager := eager) (env := env) (fe := fe) fuel] <;> finish
 
 /-- con-leche: none — an answer through `Option.map` at a denoting subject. -/
 theorem map_eq_some_at {α β : Type} {o : Option α} {f : α → β} {r : β} {x : α}
@@ -935,16 +935,16 @@ theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
 both Bool outcomes of each guard transfer — and the slow path is
 the `inferIO` slot twice and `KnotSpec.whnf'` once per side, the zero pin
 and `lvlEq?_spec`, over a six-way fuel merge. -/
-theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.propIrrel (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.propIrrel (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.propIrrelFueled mode eager env F d x y) r; ⊤⦄ := by
+        SimBOp (fun F => ConLeche.propIrrelFueled .verified eager env F d x y) r; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.propIrrel
   -- the two fast arms

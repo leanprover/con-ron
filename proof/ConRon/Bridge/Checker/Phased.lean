@@ -93,9 +93,9 @@ theorem Arena.pooledAccepts_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     {s s' : AState}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     (hpp : PersPinSets pins)
-    (hok : FoldOK .verified Env.empty (mkIFEnv IEnv.empty) s)
+    (hok : FoldOK Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)
     (hpd : ∀ x ∈ ds.toList, PersDecl x)
     (hden : denoteDecls s.store ds.toList = some dsP)

@@ -1819,8 +1819,8 @@ theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
 every lookup the program makes, keyed by the invariant and the lookup: ONE
 fact per lookup. -/
-theorem indexAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : CheckOK mode eager env fe s) (c : NIdx) :
+theorem indexAt {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : CheckOK eager env fe s) (c : NIdx) :
     IndexAt env fe s.store c (denoteN s.store.ns c) := by
   cases hn : denoteN s.store.ns c with
   | none => trivial
@@ -1836,7 +1836,7 @@ theorem indexAt {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv} {s : 
     show IndexCI s.store (fe.find? c) (env.find? nm')
     rw [hf, hfind]
     exact indexAt_hit hci
-grind_pattern [bridge_grind] indexAt => CheckOK mode eager env fe s, fe.find? c
+grind_pattern [bridge_grind] indexAt => CheckOK eager env fe s, fe.find? c
 
 /-- con-leche: none — `IndexAt` at a denoting handle, `IndexCI` spelled out (an
 equation unfolding `IndexCI` would cost every reader of the index one more

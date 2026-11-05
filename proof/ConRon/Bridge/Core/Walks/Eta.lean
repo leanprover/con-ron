@@ -38,7 +38,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
+variable {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. Small facts about the denotations -/
 
@@ -78,7 +78,7 @@ function is the slot walk from slot 0. -/
 is a table entry in the arena exactly where it is in the environment
 (`findProjAt`). -/
 theorem towerSlotsAllGo_eq {s : AState} (T : NIdx) (Tn : ConLeche.Name)
-    (hok : CheckOK mode eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (hok : CheckOK eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
     ∀ (n j : Nat), ConRon.Arena.towerSlotsAllGo fe T n j = towerSlotsFrom env Tn n j := by
   intro n
   induction n with
@@ -107,13 +107,13 @@ def TowerAt (env : Env) (fe : IFEnv) (T : NIdx) (nF : Nat) : Option ConLeche.Nam
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — **THEOREM
 1 for `towerSlotsAll`**: an equation with con-leche's slot walk. -/
-theorem towerSlotsAllAt {s : AState} (hok : CheckOK mode eager env fe s) (T : NIdx) (nF : Nat) :
+theorem towerSlotsAllAt {s : AState} (hok : CheckOK eager env fe s) (T : NIdx) (nF : Nat) :
     TowerAt env fe T nF (denoteN s.store.ns T) := by
   cases hT : denoteN s.store.ns T with
   | none => trivial
   | some Tn => exact towerSlotsAllGo_eq T Tn hok hT nF 0
 grind_pattern [bridge_grind] towerSlotsAllAt =>
-  CheckOK mode eager env fe s, ConRon.Arena.towerSlotsAll fe T nF
+  CheckOK eager env fe s, ConRon.Arena.towerSlotsAll fe T nF
 
 /-- con-leche: none — `TowerAt` at a denoting handle. -/
 theorem TowerAt.some {T : NIdx} {nF : Nat} {Tn : ConLeche.Name}
@@ -124,7 +124,7 @@ grind_pattern [bridge_grind] TowerAt.some => TowerAt env fe T nF (some Tn)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — the same,
 with con-leche's function on the right. -/
 theorem towerSlotsAll_spec {s : AState} (T : NIdx) (Tn : ConLeche.Name)
-    (nF : Nat) (hok : CheckOK mode eager env fe s)
+    (nF : Nat) (hok : CheckOK eager env fe s)
     (hT : denoteN s.store.ns T = some Tn) :
     ConRon.Arena.towerSlotsAll fe T nF = ConLeche.towerSlotsAll env Tn nF := by
   rw [towerSlotsAll_eq]; exact towerSlotsAllGo_eq T Tn hok hT nF 0
@@ -151,10 +151,10 @@ is the projections from slot 0. -/
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:730-736 etaProjs — **THEOREM 1
 for the `.proj` half**, the counted recursion `projNodesGo`. -/
 theorem projNodesGo_specA (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (y : Expr) :
-    ∀ (n j : Nat) (s₀ : AState), CheckOK mode eager env fe s₀ →
+    ∀ (n j : Nat) (s₀ : AState), CheckOK eager env fe s₀ →
       denoteN s₀.store.ns T = some Tn → denoteE s₀.store b = some y →
       ⦃fun s => s = s₀⦄ ConRon.Arena.projNodesGo T b n j
-      ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Frontend.denoteEList s'.store r = some (projsFrom Tn y n j); ⊤⦄ := by
   intro n
@@ -165,23 +165,23 @@ theorem projNodesGo_specA (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (y : Expr) 
   | succ n ih =>
     intro j s₀ hok hT hb
     sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.projNodesGo, internE_specC (mode := mode) (eager := eager) (env := env) (fe := fe),
+      vcgen [ConRon.Arena.projNodesGo, internE_specC (eager := eager) (env := env) (fe := fe),
         ih] <;> finish
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:723-724 etaProjs — **THEOREM 1
 for `etaProjs`**: the handles the twin fabricates denote con-leche's list. -/
 theorem etaProjs_spec (s₀ : AState) (T : NIdx) (b : EIdx) (nF : Nat)
     (Tn : ConLeche.Name) (y : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
+    (hok : CheckOK eager env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
     (hb : denoteE s₀.store b = some y) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.etaProjs T b nF
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
           some (ConLeche.etaProjs Tn y nF); ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.etaProjs,
-      projNodesGo_specA (mode := mode) (eager := eager) (env := env) (fe := fe) (Tn := Tn) (y := y)] <;> finish
+      projNodesGo_specA (eager := eager) (env := env) (fe := fe) (Tn := Tn) (y := y)] <;> finish
 
 /-- con-leche: none — the fabricated projections are well-scoped wherever
 the stuck side is. -/

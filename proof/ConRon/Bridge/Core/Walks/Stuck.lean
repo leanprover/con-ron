@@ -22,7 +22,7 @@ the `fun` hidden from `grind`).  A chain of knot calls is one named run
 keyed by its handles (`SortRun`, `TyRun`, `TyRunH`), and each exit of the
 pure side is a lemma over those runs, the fuel merge inside it.
 
-**Two preconditions, and why.**  (2) `EnvWF env`, on `structUnitCert` /
+**Two restrictions, and why.**  (2) `EnvWF env`, on `structUnitCert` /
 `structEtaCert` and so on `stuckIrrel`: the family certificate runs
 `iotaCerts` on an instantiated STORED type, and `iotaCerts_spec` needs it
 well-scoped — con-leche's `const_ty_hasFvar`, whose hypothesis is `EnvWF`.
@@ -31,9 +31,8 @@ well-scoped — con-leche's `const_ty_hasFvar`, whose hypothesis is `EnvWF`.
 on `mode.certs` — the EXECUTED core's `Cached/CoreC.lean:437/440/508` —
 where con-leche's spec body runs it unconditionally.  At `mode.certs =
 false` the twin answers `true` where the spec may answer `false`, so the
-statements take `hμ : mode.verifiedChecks = true`, which every body theorem
-of this tier has in hand (`certs_of_verifiedChecks`, con-leche's
-`Verify/BetaGate.lean:126`).
+statements are at `.verified`, as every body theorem of this tier is
+(`certs_of_verifiedChecks`, con-leche's `Verify/BetaGate.lean:126`).
 -/
 module
 
@@ -204,9 +203,9 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
 the reserved list in triple form: `Walks/Reserved.lean`'s
 `reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (the pin-table read `pinReserved`) read through
 `AM.triple_of_run_at`. -/
-theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode eager env fe s₀) :
+theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.reservedBasisNames
-    ⦃fun hs s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun hs s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteNList s'.store.ns hs =
           some ConLeche.reservedBasisNames; ⊤⦄ :=
@@ -218,7 +217,7 @@ theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode eager env fe
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
 an inductive. -/
-theorem env_ind_of_index {s : AState} (hok : CheckOK mode eager env fe s)
+theorem env_ind_of_index {s : AState} (hok : CheckOK eager env fe s)
     {T : NIdx} {Tn : ConLeche.Name} {icv : IConstantVal} {icaps : IIndCaps}
     (hn : denoteN s.store.ns T = some Tn)
     (hfd : fe.find? T = some (.indInfo icv icaps)) :
@@ -236,7 +235,7 @@ theorem env_ind_of_index {s : AState} (hok : CheckOK mode eager env fe s)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the MISS half at an
 inductive. -/
-theorem env_not_ind_of_index {s : AState} (hok : CheckOK mode eager env fe s)
+theorem env_not_ind_of_index {s : AState} (hok : CheckOK eager env fe s)
     {T : NIdx} {Tn : ConLeche.Name} (hn : denoteN s.store.ns T = some Tn)
     (hnd : ∀ v caps, fe.find? T ≠ some (.indInfo v caps)) :
     ∀ cv caps, env.find? Tn ≠ some (.indInfo cv caps) :=
@@ -265,7 +264,7 @@ theorem etaCtorShape_eq (x : Expr) :
 1 for `etaCtorShape`**, the constructor-shape test `structEtaCert` runs
 FIRST (the divergence audit's D13): an equation with con-leche's reader. -/
 theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x) :
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.etaCtorShape fe a
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.etaCtorShape env x; ⊤⦄ := by
   sym only [bridge_grind, etaCtorShape_eq] =>
@@ -470,18 +469,18 @@ the guard (`EtaGuard`, identified by name injectivity and
 (`defEqList_spec`) and the fields (`etaProjs_spec`, `defEqList_spec`).  The
 pure side is `structEtaCertWith_exits`, one statement per exit over
 `structEtaCertWith_tail`. -/
-theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
-    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
+theorem structEtaCertWith_spec {fuel : Nat}
+    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) (hdw : denoteE s₀.store wtb = some w)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y)
     (hww : Expr.WScoped d w) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCertWith (coreKnot mode eager fe id fuel) fe d a b wtb
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.structEtaCertWith (coreKnot .verified eager fe id fuel) fe d a b wtb
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.structEtaCertWithFueled mode eager env F d x y w)
+        SimBOp (fun F => ConLeche.structEtaCertWithFueled .verified eager env F d x y w)
           r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨rk, hrk⟩ := hok.state.wf
@@ -587,7 +586,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
               Expr.WScoped.getAppArgs hww
             refine triple_ite (fun hgT => ?_) (fun hgF => ?_)
             · have hgP := hguard.mp hgT
-              have hEx := fun F => structEtaCertWith_exits (mode := mode) (eager := eager) (F := F)
+              have hEx := fun F => structEtaCertWith_exits (mode := .verified) (eager := eager) (F := F)
                 (d := d) (y := y) hgf hfindc hlenP hgw hfindT hgP
               -- stage 6: the two level lists
               refine triple_seq (lvlsEq?_spec s5 us us' hok5) ?_
@@ -647,26 +646,26 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
                   (fun h => hgF (hguard.mpr h))⟩
           next hnd =>
             have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
-            have hres : ConLeche.structEtaCertWithFueled mode eager env 0 d x y w =
+            have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
                 .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
             exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
         all_goals
-          have hres : ConLeche.structEtaCertWithFueled mode eager env 0 d x y w =
+          have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
               .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
                 (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
           dsimp only
           exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
       · rw [ite_eq_right hlenT]
-        have hres : ConLeche.structEtaCertWithFueled mode eager env 0 d x y w =
+        have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
             .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
         exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      have hres : ConLeche.structEtaCertWithFueled mode eager env 0 d x y w =
+      have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
           .ok false := structEtaCertWith_noctor hgf hnc
       exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
   all_goals
-    have hres : ConLeche.structEtaCertWithFueled mode eager env 0 d x y w =
+    have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
         .ok false := structEtaCertWith_nohead
           (denote_not_const hwf hvh hdd (by intro c us h; cases h))
     dsimp only
@@ -677,7 +676,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape —
 `etaCtorShape_spec` at whatever the handle denotes. -/
 theorem etaCtorShape_specA (s₀ : AState) (a : EIdx)
-    (hok : CheckOK mode eager env fe s₀) (hda : (denoteE s₀.store a).isSome = true) :
+    (hok : CheckOK eager env fe s₀) (hda : (denoteE s₀.store a).isSome = true) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.etaCtorShape fe a
     ⦃fun r s' => s' = s₀ ∧ (denoteE s₀.store a).map (ConLeche.etaCtorShape env) = some r; ⊤⦄ := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hda
@@ -687,15 +686,15 @@ theorem etaCtorShape_specA (s₀ : AState) (a : EIdx)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith —
 `structEtaCertWith_spec` in answer shape. -/
-theorem structEtaCertWith_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b wtb : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem structEtaCertWith_specA {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (a b wtb : EIdx) (hok : CheckOK eager env fe s₀)
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b))
     (hdw : DenWS d (denoteE s₀.store wtb)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCertWith (coreKnot mode eager fe id fuel) fe d a b wtb
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        TripleAns (EtaWithE mode eager env d) (denoteE s₀.store a) (denoteE s₀.store b)
+      ConRon.Arena.structEtaCertWith (coreKnot .verified eager fe id fuel) fe d a b wtb
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        TripleAns (EtaWithE .verified eager env d) (denoteE s₀.store a) (denoteE s₀.store b)
           (denoteE s₀.store wtb) r; ⊤⦄ := by
   cases ha : denoteE s₀.store a with
   | none => rw [ha] at hda; exact hda.elim
@@ -707,7 +706,7 @@ theorem structEtaCertWith_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
   | none => rw [hw] at hdw; exact hdw.elim
   | some w =>
   rw [ha] at hda; rw [hb] at hdb; rw [hw] at hdw
-  exact structEtaCertWith_spec hμ henv hsim s₀ d a b wtb x y w hok ha hb hw hda hdb hdw
+  exact structEtaCertWith_spec henv hsim s₀ d a b wtb x y w hok ha hb hw hda hdb hdw
 
 /-- con-leche: ConLeche/Kernel/Core.lean:413-425 structEtaCert — the shape
 test fails. -/
@@ -739,17 +738,17 @@ grind_pattern [bridge_grind] EtaCertE.with =>
 
 /-- con-leche: ConLeche/Kernel/Core.lean:450-473 structEtaCert — the walk in
 answer shape (`PairAns` of `EtaCertE`). -/
-theorem structEtaCert_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem structEtaCert_specA {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK eager env fe s₀)
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCert (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (EtaCertE mode eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
+      ConRon.Arena.structEtaCert (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (EtaCertE .verified eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.structEtaCert, etaCtorShape_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
-      KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim, structEtaCertWith_specA hμ henv hsim] <;>
+    vcgen [ConRon.Arena.structEtaCert, etaCtorShape_specA (eager := eager) (env := env) (fe := fe),
+      KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim, structEtaCertWith_specA henv hsim] <;>
       finish
 
 /-! ### `structUnitCert` in answer shape -/
@@ -910,21 +909,21 @@ for `structUnitCert`**, in answer shape (`PairAns` of `UnitCertE`): `a` and
 `getAppFn` and the head's `view`, the index (`IndexAt`), `getAppArgs`, the
 reserved names, `viewLsLen`, the guard (`unitGuard`), `isForallE` and the
 knot's `defeq`. -/
-theorem structUnitCert_specA {fuel : Nat} (_hμ : mode.verifiedChecks = true)
-    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem structUnitCert_specA {fuel : Nat}
+    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK eager env fe s₀)
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structUnitCert (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (UnitCertE mode eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
+      ConRon.Arena.structUnitCert (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (UnitCertE .verified eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   -- `gen := 12`: the guard reads the head, the index and the arguments of the
   -- answer of an answer (`inferIO`, then `whnf`, then `getAppFn`/`getAppArgs`),
   -- past the default generation limit
   sym (gen := 12) only [bridge_grind] =>
     vcgen [ConRon.Arena.structUnitCert, KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim,
       ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
-      reservedBasisNames_spec (mode := mode) (eager := eager) (env := env) (fe := fe), viewLsLen_spec,
+      reservedBasisNames_spec (eager := eager) (env := env) (fe := fe), viewLsLen_spec,
       KnotSpec.defeqS hsim] <;> finish
 
 /-! ### `proofIrrel` in answer shape -/
@@ -1045,16 +1044,16 @@ grind_pattern [bridge_grind] PIrrelE.sorts =>
 /-- con-leche: ConLeche/Kernel/Core.lean:327-341 proofIrrel — the walk in
 answer shape (`PairAns` of `PIrrelE`): `inferIO`/`whnf` twice per side, the
 zero pin, `lvlEq?` and `liftFueled`, over the three exits above. -/
-theorem proofIrrel_specA {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode eager env fe s₀)
+theorem proofIrrel_specA {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK eager env fe s₀)
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.proofIrrel (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (PIrrelE mode eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
+      ConRon.Arena.proofIrrel (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (PIrrelE .verified eager env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.proofIrrel, ConRon.Arena.zeroLevel, KnotSpec.inferIOS hsim,
-      KnotSpec.whnfS hsim, pinZeroLevel_spec, lvlEq?_specA (mode := mode) (eager := eager) (env := env) (fe := fe),
+      KnotSpec.whnfS hsim, pinZeroLevel_spec, lvlEq?_specA (eager := eager) (env := env) (fe := fe),
       liftFueled_spec] <;> finish
 
 /-! ## 2. The pure side: `stuckIrrel` at its four exits -/
@@ -1170,37 +1169,36 @@ three certifies, so proof irrelevance decides. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the walk in
 answer shape (`StuckE`). -/
-theorem stuckIrrel_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
+theorem stuckIrrel_specA {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ StuckE mode eager env d x y r; ⊤⦄ := by
+      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ StuckE .verified eager env d x y r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.stuckIrrel, structEtaCert_specA hμ henv hsim,
-      structUnitCert_specA hμ henv hsim, proofIrrel_specA hsim] <;> finish
+    vcgen [ConRon.Arena.stuckIrrel, structEtaCert_specA henv hsim,
+      structUnitCert_specA henv hsim, proofIrrel_specA hsim] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **THEOREM 1 for
 `stuckIrrel`**, the fallback at two stuck terms: structure-η in both
 directions, then the unit certificate, then proof irrelevance
-(`stuckIrrel_specA`; `StuckE` is `SimBOp` at the pure call).  The
-precondition `hμ` is the module note's. -/
-theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode eager env fe fuel)
+(`stuckIrrel_specA`; `StuckE` is `SimBOp` at the pure call). -/
+theorem stuckIrrel_spec {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.stuckIrrel (coreKnot mode eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
+      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.stuckIrrelFueled mode eager env F d x y) r; ⊤⦄ :=
-  stuckIrrel_specA hμ henv hsim s₀ d a b x y hok hda hdb hwa hwb
+        SimBOp (fun F => ConLeche.stuckIrrelFueled .verified eager env F d x y) r; ⊤⦄ :=
+  stuckIrrel_specA henv hsim s₀ d a b x y hok hda hdb hwa hwb
 
 /-! ## 4. The axiom census -/
 

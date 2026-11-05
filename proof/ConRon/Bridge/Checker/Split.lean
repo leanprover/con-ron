@@ -111,14 +111,14 @@ The proof runs the eight guards of
 inference and the sort test — con-leche's own `installHeader` is
 `checkConstantVal` minus exactly those two calls.  No core call, so the frame
 is the core frame with no core step in it. -/
-theorem installHeader_bridge {μ : CheckMode} {env : Env}
+theorem installHeader_bridge {env : Env}
     {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : installHeader fe cv s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep env fe s s' ∧
       ConLeche.installHeader (m := CheckM) env c = .ok () := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
-  have hck0 : CheckOK μ false env fe s := hok.check
+  have hck0 : CheckOK false env fe s := hok.check
   simp only [Arena.installHeader] at hrun
   -- 1. the duplicate-declaration guard
   obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
@@ -132,7 +132,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   -- 2. the reserved-name guard
   obtain ⟨rs, s2, g2r, r2⟩ := AM.bind_ok r1
   obtain ⟨hp2, hrs⟩ := reservedBasisNames_run hck0.state.wf hck0.pins g2r
-  have hck2 : CheckOK μ false env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
+  have hck2 : CheckOK false env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
   have hnm2 : denoteN s2.store.ns cv.name = some c.name := denoteN_ext hnm hp2.ext
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
@@ -163,7 +163,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : c.type.looseBVarsBounded 0 = true := by
     rw [← h5r c.type hty2]; exact hlbb
-  have hck5 : CheckOK μ false env fe s5 :=
+  have hck5 : CheckOK false env fe s5 :=
     hck2.mono ⟨by rw [h5st]; exact hck2.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
       h5c h5p
   have hnm5 : denoteN s5.store.ns cv.name = some c.name := by rw [h5st]; exact hnm2
@@ -184,7 +184,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
     cases hb : b6 with
     | false => rfl
     | true => rw [hb] at hfv; exact absurd rfl hfv
-  have hck6 : CheckOK μ false env fe s6 :=
+  have hck6 : CheckOK false env fe s6 :=
     hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
       h6c h6p
   have hnm6 : denoteN s6.store.ns cv.name = some c.name := by rw [h6st]; exact hnm5
@@ -199,7 +199,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : c.type.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
-  have hck8 : CheckOK μ false env fe s8 :=
+  have hck8 : CheckOK false env fe s8 :=
     hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
@@ -210,7 +210,7 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail _) r14
   have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
-  have hck9 : CheckOK μ false env fe s9 :=
+  have hck9 : CheckOK false env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
   -- 8. the answer
@@ -276,8 +276,8 @@ value's inference runs, by the tier's rule: never carry a branch-dependent
 invariant along the rest of a do-block. -/
 theorem checkValueGroup_bridge {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
-    {s s' : AState} (hk : CoreSpec .verified Arena.checkFuel)
-    (henv : EnvWF env) (hck : CheckOK .verified false env fe s)
+    {s s' : AState} (hk : CoreSpec Arena.checkFuel)
+    (henv : EnvWF env) (hck : CheckOK false env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cv = some gP.cv)
@@ -285,7 +285,7 @@ theorem checkValueGroup_bridge {env : Env}
     (hwsty : Expr.WScoped 0 gP.cv.type)
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : checkValueGroup .verified fe g s = .ok ((), s')) :
-    CoreStep .verified env fe s s' ∧ ∃ F,
+    CoreStep env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) env gP = .ok () := by
   have hknot := hk.knot env fe henv
   have hsortS := hk.sort env fe henv
@@ -297,7 +297,7 @@ theorem checkValueGroup_bridge {env : Env}
   -- 1. the header's inference
   obtain ⟨stype, s1, ga, ra⟩ := AM.bind_ok hrun
   obtain ⟨hcka, hxa, hpa, hsima⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s.store t.store ∧
+    (Q := fun r t => CheckOK false env fe t ∧ Ext s.store t.store ∧
       t.pins = s.pins ∧
       Core.SimE (ConLeche.inferTypeCore .verified false env) 0 gP.cv.type t.store r)
     rfl ga (hknot.infer s 0 g.cv.type gP.cv.type hck hty0 hwsty)
@@ -305,7 +305,7 @@ theorem checkValueGroup_bridge {env : Env}
   -- 2. the sort
   obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
   obtain ⟨hckb, hxb, hpb, hsimb⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s1.store t.store ∧
+    (Q := fun r t => CheckOK false env fe t ∧ Ext s1.store t.store ∧
       t.pins = s1.pins ∧ SimL (ConLeche.ensureSortCore .verified false env) 0 sty t.store r)
     rfl gb (hsortS s1 0 stype sty hcka hsty hwssty)
   obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
@@ -319,7 +319,7 @@ theorem checkValueGroup_bridge {env : Env}
   -- conversion, at whatever the arm knows about the value.  (The same rule:
   -- no branch-dependent invariant along the rest of the block.)
   have tail : ∀ (sA : AState),
-      CheckOK .verified false env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
+      CheckOK false env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
       Expr.WScoped 0 gP.jv →
       (gP.kind = ConLeche.ValueKind.thm →
         ConLeche.installValueGuards (m := CheckM) env gP.cv gP.jv = .ok ()) →
@@ -330,13 +330,13 @@ theorem checkValueGroup_bridge {env : Env}
         unless ← Arena.isDefEqCore .verified fe Arena.checkFuel 0 vtype g.cv.type do
           Arena.fail (.invalid s!"type mismatch in {g.kind.word}"))
         sA = .ok ((), s') →
-      CoreStep .verified env fe s s' ∧ ∃ F,
+      CoreStep env fe s s' ∧ ∃ F,
         ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) env gP = .ok () := by
     intro sA hckA hxA hpA hwsy hIV3 hLV3 rc
     have hyA : denoteE sA.store g.jv = some gP.jv := denote_ext hjv2 hxA
     obtain ⟨vtype, s7, gh, rh⟩ := AM.bind_ok rc
     obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = sA)
-      (Q := fun r t => CheckOK .verified false env fe t ∧ Ext sA.store t.store ∧
+      (Q := fun r t => CheckOK false env fe t ∧ Ext sA.store t.store ∧
         t.pins = sA.pins ∧
         Core.SimE (ConLeche.inferTypeCore .verified false env) 0 gP.jv t.store r)
       rfl gh (hknot.infer sA 0 g.jv gP.jv hckA hyA hwsy)
@@ -346,7 +346,7 @@ theorem checkValueGroup_bridge {env : Env}
     obtain ⟨-, -, hty7⟩ := denoteCV_inv hcv7
     obtain ⟨b8, s8, gi, ri⟩ := AM.bind_ok rh
     obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
-      (Q := fun r t => CheckOK .verified false env fe t ∧ Ext s7.store t.store ∧
+      (Q := fun r t => CheckOK false env fe t ∧ Ext s7.store t.store ∧
         t.pins = s7.pins ∧
         Core.SimV (ConLeche.isDefEqCore .verified false env) 0 vt gP.cv.type r)
       rfl gi (hknot.defeq s7 0 vtype g.cv.type vt gP.cv.type hck7 hvt7 hty7
@@ -377,7 +377,7 @@ theorem checkValueGroup_bridge {env : Env}
     obtain ⟨o, s5, gf, re⟩ := AM.bind_ok rd
     obtain ⟨hckd, hstd, hpd, lu, lv, hlu, hlv, hod⟩ := AM.of_run
       (P := fun t => t = s2)
-      (Q := fun r t => CheckOK .verified false env fe t ∧ t.store = s2.store ∧
+      (Q := fun r t => CheckOK false env fe t ∧ t.store = s2.store ∧
         t.pins = s2.pins ∧ ∃ lu lv, denoteL s2.store.ls u = some lu ∧
           denoteL s2.store.ls z = some lv ∧ r = ConLeche.Level.isEquiv lu lv)
       rfl gf (Core.lvlEq?_spec s2 u z hckb)
@@ -636,8 +636,8 @@ entry of the suffix could be shadowed by an earlier entry with the same
 handle, which the index would answer with instead.  It arrives as con-leche's
 own NAME uniqueness and `denoteCIList_nodup` transports it to HANDLE
 uniqueness through `denoteN_inj`. -/
-theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
+theorem IFEnvOK_restrictTo {env : Env} {fe : IFEnv}
+    {s : AState} {k : Nat} (hok : FoldOK env fe s)
     (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :
     IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
   have hwf := hok.check.state.wf
@@ -1005,8 +1005,8 @@ theorem PhaseA.nodup {pinsP : List NatOpPinSet}
 /-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
 `IFEnvOK_restrictTo` at ANY bound: past the index's size the restriction
 hides nothing and the prefix is the whole environment. -/
-theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
+theorem IFEnvOK_prefix {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
     IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
   by_cases hk : k ≤ fe.visibleBelow
   · exact IFEnvOK_restrictTo hok hnd hk
@@ -1071,15 +1071,15 @@ the memo the promotion starts from (`promoteVG`'s, in phase A's split arms);
 `hext` is everything between the opening `enterScratch` and the promotion,
 which only appended; the body ended at `sb`, and whatever ran between it and
 the promotion (`promoteVG`, or nothing) only appended too. -/
-theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEnv}
+theorem bracketClose_foldOK {env env' : Env} {fe fe1 fe' : IFEnv}
     {s0 sb s2 s3 : AState} {m m' : PMemo} {fuel : Nat}
-    (hok : FoldOK μ env fe s0) (hb : BodyOut env' fe fe1 sb)
+    (hok : FoldOK env fe s0) (hb : BodyOut env' fe fe1 sb)
     (hxb : Ext sb.store s2.store)
     (hwf2 : StoreWF' s2.store) (hm : PMemoOK m s2.store)
     (hext : Ext s0.store.enableScratch s2.store) (hpins : s2.pins = s0.pins)
     (hrun : promoteNew m fuel (fe1.visibleBelow - fe.visibleBelow)
       (fe1.env.tables.length - fe.env.tables.length) fe1 s2 = .ok ((m', fe'), s3)) :
-    FoldOK μ env' fe'
+    FoldOK env' fe'
         ({ store := s3.store.dropScratch, memos := s3.memos, caches := Caches.empty,
            pins := s3.pins } : AState) ∧
       PExt s0.store s3.store.dropScratch ∧ Pushed fe fe' ∧
@@ -1126,9 +1126,9 @@ theorem envExt_of_pushed {st : EStore} {fe fe1 : IFEnv} {env env' : Env}
 /-- con-leche: none — the bracket's opening (`flushCaches`, `enterScratch`)
 keeps the boundary invariant: the caches are empty, the store is the same up
 to the (empty) scratch tier, and everything `FoldOK` names is persistent. -/
-theorem FoldOK.enter {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : FoldOK μ env fe s) :
-    FoldOK μ env fe
+theorem FoldOK.enter {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK env fe s) :
+    FoldOK env fe
       ({ store := s.store.enableScratch, memos := Memos.empty,
          caches := Caches.empty, pins := s.pins } : AState) := by
   have hwf := hok.check.state.wf
@@ -1188,8 +1188,8 @@ arms prove the two clauses off their pure run (`DeclCore.out`,
 theorem Arena.checkDecl_wfProj
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env' : Env}
     {fe fe' : IFEnv} {pd : IDeclaration} {d : Declaration} {s s' : AState}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s)
     (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s'))
@@ -1208,8 +1208,8 @@ distinctness from the pure fold's (`checkDecl_nodup`). -/
 theorem Arena.installStepGo_full
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s1) (hnd : NodupNames env)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s1) (hnd : NodupNames env)
     (hpins : PinsDenote s1.store pins pinsP)
     (hd : Frontend.denoteDecl s1.store pd = some d)
     (hrun : Arena.checkDecl .verified pins fe pd s1 = .ok (fe1, s2)) :
@@ -1249,8 +1249,8 @@ theorem Arena.installStepGo_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
     {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s1) (hnd : NodupNames env)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s1) (hnd : NodupNames env)
     (hpins : PinsDenote s1.store pins pinsP)
     (hd : Frontend.denoteDecl s1.store pd = some d)
     (hrun : Arena.installStepGo .verified pins fe pd s1 = .ok ((fe1, vg?), s2)) :
@@ -1454,13 +1454,13 @@ theorem Arena.installStep_split
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s) (hnd : NodupNames env)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s) (hnd : NodupNames env)
     (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
     (hpd : PersDecl pd) (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.installStep .verified pins i fe pend pd s = .ok ((fe', pend'), s')) :
-    ∃ env', FoldOK .verified env' fe' s' ∧ PExt s.store s'.store ∧
+    ∃ env', FoldOK env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
       s'.caches = Caches.empty ∧ (∃ new, env'.consts = new ++ env.consts) ∧
       TblExt env env' ∧
@@ -1582,16 +1582,16 @@ The proof: `Arena.installStep_split` and an induction over the records, the
 relation carried across each bracket by `PendRel.listRel_mono`. -/
 theorem Arena.installFold_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     (hpp : PersPinSets pins) :
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (env : Env) (i i' : Nat)
       (fe fe' : IFEnv) (pend pend' : Array PendingCheck)
       (pendP : List (Env × ConLeche.ValueGroup)) (s s' : AState),
-      FoldOK .verified env fe s → NodupNames env → PinsDenote s.store pins pinsP →
+      FoldOK env fe s → NodupNames env → PinsDenote s.store pins pinsP →
       (∀ x ∈ ds, PersDecl x) → denoteDecls s.store ds = some dsP →
       ListRel (PendRel s.store env) pend.toList pendP →
       Arena.installFold .verified pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
-      ∃ env' pendP', FoldOK .verified env' fe' s' ∧ PExt s.store s'.store ∧
+      ∃ env' pendP', FoldOK env' fe' s' ∧ PExt s.store s'.store ∧
         PhaseA .verified pinsP env dsP env' pendP' ∧
         ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
         (ds = [] → s' = s) ∧ (ds ≠ [] → s'.caches = Caches.empty) := by
@@ -1643,7 +1643,7 @@ theorem Arena.installFold_bridge
         | true =>
         obtain ⟨hok0, hx0, hc0, hp0⟩ :=
           andPinOk_run hok.check.state hok.check.pins ha hP
-        have hok' : FoldOK .verified env fe s₀ :=
+        have hok' : FoldOK env fe s₀ :=
           hok.step (hok.check.mono hok0 hx0 hc0 hp0) hx0 hp0
         have hx0' : PExt s.store s₀.store := PExt.of_ext hx0
         have hpins0 := PinsDenote.pmono hx0' _ _ hpp hpins
@@ -1725,7 +1725,7 @@ scratch tier by `IFEnvOK.pmono`, `checkValueGroup_bridge` at `envK`, then the
 bracket with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch`
 and `FoldOK` across them.
 
-**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ false envK s`.**
+**Why `hcE : s.caches = Caches.empty` and not `CacheOK false envK s`.**
 `checkPending` opens with `enterScratch`, which REPLACES the
 scratch tier by an empty one and keeps the caches; a cache row valid at `s`
 whose handles are scratch handles names nothing — or, once the check interns
@@ -1735,8 +1735,8 @@ stronger fact: every `checkPending` follows a `dropScratch`
 (`checkPendingList_bridge`'s `hc`). -/
 theorem Arena.checkPending_prefix {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
-    (hk : CoreSpec .verified Arena.checkFuel)
-    (hok : FoldOK .verified env fe s) (hpers : PersVG pc.vg)
+    (hk : CoreSpec Arena.checkFuel)
+    (hok : FoldOK env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
     (hcE : s.caches = Caches.empty) {envK : Env} (henvK : EnvWF envK)
     (hfind : ∀ nm, (env.prefixTo pc.vis).find? nm = envK.find? nm)
@@ -1747,7 +1747,7 @@ theorem Arena.checkPending_prefix {env : Env}
     (hwsty : Expr.WScoped 0 gP.cv.type)
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending .verified fe pc s = .ok ((), s')) :
-    FoldOK .verified env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
+    FoldOK env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
       ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) envK gP = .ok () := by
   have hwf := hok.check.state.wf
   simp only [Arena.checkPending] at hrun
@@ -1762,7 +1762,7 @@ theorem Arena.checkPending_prefix {env : Env}
   -- the opening: the prefix view's invariant, carried into the fresh scratch tier
   have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
   have hwf1 := (EStore.enableScratch_spec hwf).1
-  have hck1 : CheckOK .verified false envK (fe.restrictTo pc.vis)
+  have hck1 : CheckOK false envK (fe.restrictTo pc.vis)
       { store := s.store.enableScratch, memos := Memos.empty, caches := s.caches,
         pins := s.pins } :=
     { state := ⟨hwf1⟩
@@ -1800,14 +1800,14 @@ The proof: `Arena.checkPending_prefix` and an induction over the records;
 each check leaves the caches empty (`dropScratch`), which is the next check's
 `CacheOK` at ITS prefix. -/
 theorem Arena.checkPendingList_bridge {env : Env} {fe : IFEnv}
-    (hk : CoreSpec .verified Arena.checkFuel)
+    (hk : CoreSpec Arena.checkFuel)
     (hnd : NodupNames env) :
     ∀ (pend : List PendingCheck) (pendP : List (Env × ConLeche.ValueGroup))
-      (s s' : AState), FoldOK .verified env fe s →
+      (s s' : AState), FoldOK env fe s →
       ListRel (PendRel s.store env) pend pendP →
       (pend ≠ [] → s.caches = Caches.empty) →
       Arena.checkPendingList .verified fe pend s = .ok (.ok (), s') →
-      FoldOK .verified env fe s' ∧ PExt s.store s'.store ∧
+      FoldOK env fe s' ∧ PExt s.store s'.store ∧
         ∀ p ∈ pendP, ∃ F,
           ConLeche.checkValueGroup (ConLeche.fueledOps .verified F) p.1 p.2 = .ok () := by
   intro pend

@@ -3,10 +3,10 @@
 
 DESIGN.md §8.2's per-declaration statement.
 
-    theorem Arena.checkDecl_bridge (hμ : μ.verifiedChecks = true)
-        (hok : StateOK st) (h : Arena.checkDecl μ pins pd st = .ok ((), st')) :
+    theorem Arena.checkDecl_bridge
+        (hok : StateOK st) (h : Arena.checkDecl .verified pins pd st = .ok ((), st')) :
         StateOK st' ∧ Ext st st' ∧
-        ∃ F, ConLeche.checkDecl μ (fueledOps μ F) pins (denoteEnv st) (denoteDecl st pd)
+        ∃ F, ConLeche.checkDecl .verified (fueledOps .verified F) pins (denoteEnv st) (denoteDecl st pd)
                = .ok (denoteEnv st')
 
 **`denoteEnv` is a function of the STORE and the INDEX, and it is partial.**
@@ -152,11 +152,11 @@ total extension holds here and weakens one level up. -/
 theorem Arena.checkDecl_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hok : FoldOK .verified env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s')) :
-    DeclOut .verified pinsP env d s fe fe' s' := by
+    DeclOut pinsP env d s fe fe' s' := by
   cases pd with
   | axiomDecl v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd

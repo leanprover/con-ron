@@ -54,9 +54,9 @@ theorem blockLargeElimAllowed_spec (p : Arena.BlockShape) (pP : ConLeche.BlockSh
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockRec.lean:82-84 blockLargeElimAllowed
 — the core-grade corollary: `CheckOK` carries the readback cache's licence. -/
-theorem blockLargeElimAllowed_cspec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem blockLargeElimAllowed_cspec {env : Env} (fe : IFEnv)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (nested : Bool) :
-    CSpec μ env fe (fun st => dShape st p = some pP) (Arena.blockLargeElimAllowed p nested)
+    CSpec env fe (fun st => dShape st p = some pP) (Arena.blockLargeElimAllowed p nested)
       (RV (ConLeche.blockLargeElimAllowed pP nested)) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hstep, hr⟩ :=

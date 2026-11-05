@@ -90,7 +90,7 @@ grind_pattern [bridge_grind] EntryFields.some => EntryFields st en (some p)
 with its answer as `ProjAns`, at the lookup, the environment's lookup and a
 handle denoting its name (`findProjAt`'s keys). -/
 theorem projAnsAt {s : AState} {T : NIdx} {i : Nat} {Tn : ConLeche.Name}
-    (hok : CheckOK mode eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    (hok : CheckOK eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
     ProjAns s.store (fe.findProj? T i) (env.findProj? Tn i) := by
   have h6 := findProjAt (i := i) hok hT
   cases r : fe.findProj? T i with
@@ -101,7 +101,7 @@ theorem projAnsAt {s : AState} {T : NIdx} {i : Nat} {Tn : ConLeche.Name}
     obtain ⟨p, hp, hq⟩ := h6
     exact ⟨hp.trans hq, by rw [← hq]; rfl⟩
 grind_pattern [bridge_grind] projAnsAt =>
-  CheckOK mode eager env fe s, fe.findProj? T i, env.findProj? Tn i where
+  CheckOK eager env fe s, fe.findProj? T i, env.findProj? Tn i where
   guard denoteN s.store.ns T = some Tn
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
@@ -109,11 +109,11 @@ grind_pattern [bridge_grind] projAnsAt =>
 their denotations (`projOf`, `Option.getD`): no record or list variable for
 `grind` to bind. -/
 theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
-    (hok : CheckOK mode eager env fe s₀)
+    (hok : CheckOK eager env fe s₀)
     (hden : (denoteProjEntry s₀.store entry).isSome = true)
     (hus : (denoteLs s₀.store.lss us).isSome = true) :
     ⦃fun s => s = s₀⦄ entry.fireOk us
-    ⦃fun b s' => CheckOK mode eager env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         b = (projOf (denoteProjEntry s₀.store entry)).fireOk
           ((denoteLs s₀.store.lss us).getD []); ⊤⦄ := by
@@ -203,17 +203,17 @@ theorem projLitToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
 for `projLitToCtor`**: a string-literal scrutinee expands to its reduced
 constructor form before the projection table is consulted (answer
 `ProjLitAns`, `SimEOp` at the pure call). -/
-theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode eager env fe fuel)
+theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode eager env fe s₀) (hden : denoteE s₀.store h = some x)
+    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store h = some x)
     (hw : Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.projLitToCtor (coreKnot mode eager fe id fuel) fe d h
-    ⦃fun r s' => CheckOK mode eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ProjLitAns mode eager env d x s'.store r; ⊤⦄ := by
+      ConRon.Arena.projLitToCtor (coreKnot .verified eager fe id fuel) fe d h
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ProjLitAns .verified eager env d x s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [projLitToCtor_split, strLitSupported_spec (mode := mode) (eager := eager) (env := env) (fe := fe),
-      strLitToConstructor_spec (mode := mode) (eager := eager) (env := env) (fe := fe),
+    vcgen [projLitToCtor_split, strLitSupported_spec (eager := eager) (env := env) (fe := fe),
+      strLitToConstructor_spec (eager := eager) (env := env) (fe := fe),
       KnotSpec.whnfS hsim] <;> finish
 
 section Census

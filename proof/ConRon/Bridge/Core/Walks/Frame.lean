@@ -94,8 +94,8 @@ theorem ReadbackFrame.ext {s₀ s' : AState} (h : ReadbackFrame s₀ s') :
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC (the
 frame half) — **the ten clauses that did not move**, recovered from the
 one equation, plus the three that did, carried by the frame itself. -/
-theorem CacheOK.ofReadbackFrame {mode : CheckMode} {eager : Bool} {env : Env} {s s' : AState}
-    (h : CacheOK mode eager env s) (hf : ReadbackFrame s s') : CacheOK mode eager env s'
+theorem CacheOK.ofReadbackFrame {eager : Bool} {env : Env} {s s' : AState}
+    (h : CacheOK eager env s) (hf : ReadbackFrame s s') : CacheOK eager env s'
     where
   whnfCore := by rw [hf.caches, hf.store]; exact h.whnfCore
   whnfCoreCheap := by rw [hf.caches, hf.store]; exact h.whnfCoreCheap
@@ -116,9 +116,9 @@ theorem CacheOK.ofReadbackFrame {mode : CheckMode} {eager : Bool} {env : Env} {s
 /-- con-leche: none — **`CheckOK` across a readback frame**: the store, the
 pins and the environment index did not move, so only the cache clause has
 content.  This is the theorem every non-slot walk of the tier ends on. -/
-theorem CheckOK.ofReadbackFrame {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK mode eager env fe s) (hf : ReadbackFrame s s') :
-    CheckOK mode eager env fe s' :=
+theorem CheckOK.ofReadbackFrame {eager : Bool} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK eager env fe s) (hf : ReadbackFrame s s') :
+    CheckOK eager env fe s' :=
   CheckOK.ofCache h (CacheOK.ofReadbackFrame h.caches hf) hf.store hf.pins
 
 /-! ## 3. The frame from `Bridge/Specs.lean`'s three readback specs

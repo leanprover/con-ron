@@ -631,14 +631,14 @@ tier runs from a boundary — so the rule is about the right-hand side of a `:`
 and about `DeclOut`-shaped records, and nothing else.
 
 **Why `StepOK` carries `IFEnvOK` and not `CheckOK`.**  `CheckOK` carries
-`CacheOK mode false env s`, the fourteen caches read AT an environment, and an
+`CacheOK false env s`, the fourteen caches read AT an environment, and an
 install grows the environment: the entries a `whnf`/`infer`/`defeq` cache
 holds were computed at `env` and say nothing at `env.push c`.  That is
 precisely why `checkDeclStep`'s bracket OPENS with `flushCaches`.  So a value
 check that has just installed a constant cannot hand back `CheckOK` at the
 extended environment and must not claim to; what it does know is the four
 clauses below, and the invariant at the pre-insertion environment — which it
-hands back separately, as `CoreStep μ env fe s s'`.  Putting `CheckOK` in
+hands back separately, as `CoreStep env fe s s'`.  Putting `CheckOK` in
 `StepOK` would be the `PersIFEnv` defect again, one field over. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK
@@ -674,9 +674,9 @@ con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
 that make a step's output usable by the NEXT step — the environment denotes as
 a function, its index is its list's index (con-leche's `fe = mkFEnv fe.env`),
 and everything handed on is persistent. -/
-structure FoldOK (μ : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
+structure FoldOK (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
-  check : CheckOK μ false env fe s
+  check : CheckOK false env fe s
   envWF : EnvWF env
   /-- every table of the index's list is well shaped (`IFEnvOK_of_denote`'s
   `hproj`, which the bracket's close re-derives the index spec from) -/
@@ -693,8 +693,8 @@ hypothesis is `FoldOK` passes to one whose hypothesis is `StepOK`.
 (`FoldOK.step` is taken — `Bridge/Checker/Arms.lean` uses it for "carry
 `FoldOK` across a step that only appends" — so this one is spelled the way
 Lean spells a parent projection.) -/
-theorem FoldOK.toStepOK {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (h : FoldOK μ env fe s) : StepOK env fe s where
+theorem FoldOK.toStepOK {env : Env} {fe : IFEnv} {s : AState}
+    (h : FoldOK env fe s) : StepOK env fe s where
   ienv := h.check.ienv
   envWF := h.envWF
   coh := h.coh
@@ -707,10 +707,10 @@ index and the pin handles, and both transport.
 
 It lives here rather than in `Bridge/Checker/Arms.lean` because
 `DeclVal.lean`'s `checkThmVal_bridge`, two modules lower, uses it. -/
-theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : FoldOK μ env fe s) (hck : CheckOK μ false env fe s')
+theorem FoldOK.step {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : FoldOK env fe s) (hck : CheckOK false env fe s')
     (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
-    FoldOK μ env fe s' where
+    FoldOK env fe s' where
   check := hck
   envWF := h.envWF
   tblShape := h.tblShape
