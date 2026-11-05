@@ -64819,7 +64819,7 @@ def arena.checker.install_step
     ok (core.result.Result.Err e, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_push_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 895:0-902:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 897:0-904:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_push_all
   (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
@@ -64840,7 +64840,7 @@ def arena.inductives.stored_install.stored_push_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_ctors]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 707:0-714:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 709:0-716:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_ctors
   (n_p : Std.U64) (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
@@ -64861,7 +64861,7 @@ def arena.inductives.stored_install.stored_ctors
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tables]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 660:0-701:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 662:0-703:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tables
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65140,7 +65140,7 @@ def arena.inductives.stored_install.stored_recs
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_tail]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 721:0-761:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 723:0-763:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_tail
   (st : arena.monad.AState) (p : arena.inductives.block_parts.BlockShape)
@@ -65189,10 +65189,10 @@ def arena.inductives.stored_install.stored_tail
     ok (r, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_drop]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 615:0-623:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 615:0-625:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_drop
-  (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+  (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (i : Std.Usize)
   (out : alloc.vec.Vec arena.handle.EIdx) :
   Result (alloc.vec.Vec arena.handle.EIdx)
   := do
@@ -65200,13 +65200,19 @@ def arena.inductives.stored_install.stored_drop
   if i >= i1
   then ok out
   else
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.EIdx) xs i
-    let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
-    let out1 ← alloc.vec.Vec.push out e1
-    let i2 ← i + 1#usize
-    arena.inductives.stored_install.stored_drop xs i2 out1
+    let i2 ← lift (UScalar.cast .U64 i)
+    if i2 < n
+    then
+      let i3 ← i + 1#usize
+      arena.inductives.stored_install.stored_drop xs n i3 out
+    else
+      let e ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          arena.handle.EIdx) xs i
+      let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
+      let out1 ← alloc.vec.Vec.push out e1
+      let i3 ← i + 1#usize
+      arena.inductives.stored_install.stored_drop xs n i3 out1
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::M_STORED_GUARDS]
@@ -65266,9 +65272,8 @@ def arena.inductives.stored_install.stored_guards_run
             arena.expr_ops.get_app_args pers st2 arena.core.CORE_WALK_FUEL e1
           match r2 with
           | core.result.Result.Ok args =>
-            let i1 ← lift (UScalar.cast .Usize p.n_p)
             let idx_args ←
-              arena.inductives.stored_install.stored_drop args i1
+              arena.inductives.stored_install.stored_drop args p.n_p 0#usize
                 (alloc.vec.Vec.new arena.handle.EIdx)
             let (r3, st3) ←
               arena.inductives.sum_install.check_struct_field_sorts_i pers
@@ -65421,7 +65426,7 @@ def arena.inductives.stored_install.stored_guards
     ok (core.result.Result.Ok (alloc.vec.Vec.new arena.handle.LIdx), st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_guards_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 630:0-654:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 632:0-656:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_guards_all
   (st : arena.monad.AState) (mode : kernel.env.CheckMode)
@@ -65466,7 +65471,7 @@ def arena.inductives.stored_install.stored_guards_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_parts_push]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 834:0-852:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 836:0-854:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_parts_push
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65494,7 +65499,7 @@ def arena.inductives.stored_install.stored_parts_push
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::inductives::stored_install::rec_names]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 779:0-787:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 781:0-789:1
     Visibility: public -/
 def arena.inductives.stored_install.rec_names
   (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) (i : Std.Usize)
@@ -65516,7 +65521,7 @@ def arena.inductives.stored_install.rec_names
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_names_free]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 766:0-774:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 768:0-776:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_names_free
   (pers : arena.store.PersTier) (vis : Std.U64) (fe : arena.env.IFEnv)
@@ -65715,7 +65720,7 @@ def arena.inductives.stored_install.M_SCRATCH_OPEN : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_parts]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 793:0-828:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 795:0-830:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_parts
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65810,7 +65815,7 @@ def arena.env.i_constant_info_names_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_install]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 861:0-891:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 863:0-893:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)

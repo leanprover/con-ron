@@ -194,8 +194,8 @@ theorem i_rec_rules_beq_p_aux {a b : alloc.vec.Vec arena.env.IRecRule} (n : Nat)
         rw [List.drop_eq_getElem_cons hbl]
         obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨-, hx'⟩ := ExprOps.vecIndexAt hx
-        obtain ⟨-, hy'⟩ := ExprOps.vecIndexAt hy
+        obtain ⟨hbx, hx'⟩ := ExprOps.vecIndexAt hx
+        obtain ⟨hby, hy'⟩ := ExprOps.vecIndexAt hy
         subst hx' hy'
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         simp only [List.map_cons, listBeqBy]
@@ -219,10 +219,9 @@ theorem i_constant_info_beq_p_abs {a b : arena.env.IConstantInfo} {o : Bool}
     o = (absIConstantInfo a).beqP (absIConstantInfo b) := by
   unfold arena.inductives.stored_install.i_constant_info_beq_p at h
   cases a <;> cases b <;> simp only [absIConstantInfo, IConstantInfo.beqP] at h ⊢ <;>
-    first
+    try first
       | exact (Result.ok_injective h).symm
       | exact i_constant_val_beq_p_abs h
-      | skip
   case DefnInfo.DefnInfo x v hh y w hh2 =>
     simp only [Bool.and_assoc]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -278,8 +277,19 @@ theorem i_proj_table_beq_p_abs {a b : arena.env.IProjTable} {o : Bool}
   refine and_step (t := decide (a.num_fields = b.num_fields)) (by simpa using h) fun _ h => ?_
   obtain ⟨b4, hb4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h4 : b4 = (absLIdx a.struct_sort == absLIdx b.struct_sort) := by
-    have := lidx_eq2_abs hb4
-    cases b4 <;> simp_all
+    rw [arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at hb4
+    rw [← Result.ok_injective hb4]
+    by_cases hab : a.struct_sort = b.struct_sort
+    · rw [hab]; simp
+    · have h1 : a.struct_sort.word ≠ b.struct_sort.word := by
+        intro hc
+        apply hab
+        cases ha : a.struct_sort
+        cases hb' : b.struct_sort
+        simp_all
+      have h2 : absLIdx a.struct_sort ≠ absLIdx b.struct_sort :=
+        fun hc => hab (absLIdx_inj hc)
+      simp [h1, h2]
   rw [← h4]
   refine and_step h fun _ h => ?_
   obtain ⟨b5, hb5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -914,13 +924,14 @@ theorem stored_recs_aux {P} (vis2 : Std.U64)
 /-! ## The guards -/
 
 /-- `stored_drop` is the twin's `drop`, from the cursor on. -/
-theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
+theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k : Nat) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) {o}, xs.val.length - i.val = k →
-      arena.inductives.stored_install.stored_drop xs i out = ok o →
-      absEIdxL o = absEIdxL out ++ (xs.val.drop i.val).map absEIdx := by
+      n.val ≤ i.val ∨ out.val = [] →
+      arena.inductives.stored_install.stored_drop xs n i out = ok o →
+      absEIdxL o = absEIdxL out ++ ((xs.val.drop i.val).drop (n.val - i.val)).map absEIdx := by
   induction k using Nat.strong_induction_on with
   | _ k ih =>
-    intro i out o hk h
+    intro i out o hk hout h
     rw [arena.inductives.stored_install.stored_drop.eq_def] at h
     dsimp only at h
     have hl := alloc.vec.Vec.len_val xs
@@ -931,27 +942,49 @@ theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
       simp [List.drop_eq_nil_of_le hle]
     · rw [ite_eq_right hge] at h
       have hlt : i.val < xs.val.length := by scalar_tac
-      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt hx
-      subst hx
-      obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hi1v : i1.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi1
-      have hrec := ih (xs.val.length - i1.val) (by omega) i1 o1 rfl h
-      rw [hrec, hi1v]
-      have hyv : y = xs.val[i.val] := dupId_eidx _ _ hy
-      rw [absEIdxL, ConRon.Refine.vec_push_val ho1, hyv, List.drop_eq_getElem_cons hlt]
-      simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
-        List.singleton_append, absEIdxL]
+      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hcv : c.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hc
+        rw [← hc, usize_cast_u64_val]
+      by_cases hn : c < n
+      · rw [ite_eq_left hn] at h
+        have hin : i.val < n.val := by rw [← hcv]; exact (Std.UScalar.lt_equiv _ _).mp hn
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi1
+        have hrec := ih (xs.val.length - i1.val) (by omega) i1 out rfl (by
+          rcases hout with h1 | h1
+          · omega
+          · exact Or.inr h1) h
+        rw [hrec, hi1v, List.drop_drop]
+        congr 3
+        omega
+      · rw [ite_eq_right hn] at h
+        have hin : n.val ≤ i.val := by
+          have : ¬ c.val < n.val := fun h' => hn ((Std.UScalar.lt_equiv _ _).mpr h')
+          omega
+        obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt hx
+        subst hx
+        obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi1
+        have hrec := ih (xs.val.length - i1.val) (by omega) i1 o1 rfl (Or.inl (by omega)) h
+        rw [hrec, hi1v]
+        have hyv : y = xs.val[i.val] := dupId_eidx _ _ hy
+        rw [absEIdxL, ConRon.Refine.vec_push_val ho1, hyv, show n.val - i.val = 0 by omega,
+          List.drop_zero, List.drop_eq_getElem_cons hlt, show n.val - (i.val + 1) = 0 by omega,
+          List.drop_zero]
+        simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+          List.singleton_append, absEIdxL]
 
-@[lockstep] theorem stored_drop_spec (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
-    LSP (arena.inductives.stored_install.stored_drop xs i (alloc.vec.Vec.new _))
-      (fun o => TwinEq ((absEIdxL xs).drop i.val) (absEIdxL o)) := by
+@[lockstep] theorem stored_drop_spec (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.inductives.stored_install.stored_drop xs n 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absEIdxL xs).drop (absU n)) (absEIdxL o)) := by
   intro o h
-  have := stored_drop_abs xs _ i _ rfl h
+  have := stored_drop_abs xs n _ 0#usize _ rfl (Or.inr rfl) h
   rw [TwinEq, this]
-  simp [absEIdxL, alloc.vec.Vec.new, List.map_drop]
+  simp [absEIdxL, alloc.vec.Vec.new, absU, List.map_drop]
 
 @[local lockstep_simp] private theorem unwrapOr_some' {α : Type} (x : α) (e : CheckError) :
     unwrapOr (some x) e = pure x := rfl
@@ -967,7 +1000,9 @@ theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
       (arena.inductives.stored_install.stored_guards_run pers st mode rf p c) lst
       (storedGuardsRun (ConRon.Refine.absMode mode) lf (absBlockShape p)
         (absIConstantVal c.1, absU c.2)) := by
-  sorry
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.stored_install.stored_guards_run, storedGuardsRun]
+  lockstep
 
 /-- `stored_guards`: the walk in a scratch bracket of its own; a failure is no guards. -/
 theorem stored_guards_refines {P st lst} {mode : kernel.env.CheckMode}
@@ -1910,7 +1945,7 @@ what the block found. -/
           obtain ⟨i, hi, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
           cases Result.ok_injective hm
           have hR := stored_push_all_rel decls hw _ 0#usize rf lf rfl hfe hi
-          simp only [Std.UScalar.val, List.drop_zero] at hR
+          simp only [Std.UScalar.val] at hR
           refine ⟨_, lst2, rfl, ⟨?_, ?_⟩, hrel2, hinv2⟩
           · simpa [absICIL] using hR
           · refine foldl_push_ext _ _ (EnvExt.refl hok) fun c hc => hok.free ?_

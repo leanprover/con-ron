@@ -586,7 +586,7 @@ pub fn stored_guards_run(
             Ok(Some(xq)) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &xq.1) {
                 Err(e) => Err(e),
                 Ok(args) => {
-                    let idx_args: Vec<EIdx> = stored_drop(&args, p.n_p as usize, Vec::new());
+                    let idx_args: Vec<EIdx> = stored_drop(&args, p.n_p, 0, Vec::new());
                     match sum_install::check_struct_field_sorts_i(
                         pers,
                         fe1.visible_below,
@@ -612,13 +612,15 @@ pub fn stored_guards_run(
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
 /// Lean twin: the cited `xq.2.getAppArgs.drop p.nP`.
-pub fn stored_drop(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
+pub fn stored_drop(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i >= xs.len() {
         out
+    } else if (i as u64) < n {
+        stored_drop(xs, n, i + 1, out)
     } else {
         let mut o: Vec<EIdx> = out;
         o.push(xs[i].dup2());
-        stored_drop(xs, i + 1, o)
+        stored_drop(xs, n, i + 1, o)
     }
 }
 
