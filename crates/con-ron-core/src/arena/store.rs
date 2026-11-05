@@ -2982,7 +2982,7 @@ impl EStore {
 
     /// con-leche: none — the phase boundary, which con-leche has no tier to make
     /// Lean twin: none — the twin's worker store is the phase-A store with its
-    /// scratch tier closed (`AState.worker`, `Arena/Phased.lean`).
+    /// scratch tier closed (`AState.worker`, `Arena/Checker.lean`).
     /// **A phase-B worker's store** (task #98-FREEZE): the empty store,
     /// frozen — read through the `PersTier` the boundary froze, and every
     /// append a scratch append.  The empty tier its own `freeze` hands back is

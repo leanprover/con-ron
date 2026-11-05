@@ -498,7 +498,7 @@ mod tests {
         }
     }
 
-    /// Phase B as a pure walk (the twin's `checkPendingList`,
+    /// Phase B as a pure walk (a test's own, beside the twin's `checkJobList`,
     /// `Arena/Checker.lean`): every record checked by the verified
     /// `checker::check_pending` at its own prefix view, a failure tagged with
     /// the record's fold position.  The oracle the pool is checked against;

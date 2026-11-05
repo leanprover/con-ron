@@ -327,17 +327,6 @@ def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
   scratchRun (checkValueGroup mode (fe.restrictTo pc.vis) pc.vg)
   dropScratch
 
-/-- con-leche: ConLeche/Cached/Installed.lean:308-315 checkPendingList — phase
-B as a pure walk: every record checked from a fresh memo state, a failure
-tagged with the record's fold position. -/
-def checkPendingList (mode : CheckMode) (fe : IFEnv) :
-    List PendingCheck → AM (Except (CheckError × Nat) Unit)
-  | [] => pure (.ok ())
-  | pc :: rest => fun s =>
-    match checkPending mode fe pc s with
-    | .ok ((), s') => checkPendingList mode fe rest s'
-    | .error e => .ok (.error (e, pc.pos), AState.abandoned)
-
 /-! ## The block jobs, and the check phase's jobs in fold order -/
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree

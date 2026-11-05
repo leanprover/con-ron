@@ -250,7 +250,6 @@ theorem checkValueGroup_of_facts {μ : CheckMode} {F : Nat} {env : Env}
       ↓reduceIte, hjv hk, hvt, hde]
   · simp only [ite_eq_right hk, hvt, hde, ↓reduceIte]
 
-
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup —
 **the check half of a value declaration**, at the environment the constant was
 installed at.
@@ -741,7 +740,7 @@ theorem IFEnvOK_restrictTo {env : Env} {fe : IFEnv}
 
 /-! ## The two-phase fold
 
-`installThenCheck` is phase A (`installFold`) then phase B (`checkPendingList`),
+`installThenCheck` is phase A (`installFold`) then phase B (`checkJobList`),
 and `checkDeclsPure` is ONE fold of `checkDecl`.  The bridge between them is
 con-leche's `checkDecl_of_split_*` (`Verify/CheckerSplit.lean`): a separable
 value declaration's install halves at `env`, plus its check half at the SAME
@@ -770,10 +769,6 @@ inductive ListRel {α β : Type} (R : α → β → Prop) : List α → List β 
   | nil : ListRel R [] []
   | cons {a : α} {b : β} {l : List α} {l' : List β} :
       R a b → ListRel R l l' → ListRel R (a :: l) (b :: l')
-
-theorem ListRel.nil_right {α β : Type} {R : α → β → Prop} {l : List α}
-    (h : ListRel R l []) : l = [] := by
-  cases h; rfl
 
 /-- con-leche: none — the handle record's kind is the pure record's, in the
 disjunctive form `checkValueGroup_bridge` takes (the arena and con-leche each
@@ -1057,12 +1052,6 @@ structure BodyOut (env' : Env) (fe fe1 : IFEnv) (s2 : AState) : Prop where
   proj : ∀ t ∈ fe1.env.tables, IProjTableOK t
   distinct : NamesDistinct s2.store
     (fe1.env.consts.take (fe1.visibleBelow - fe.visibleBelow))
-
-/-- con-leche: none — distinct names stay distinct across an append. -/
-theorem NamesDistinct.mono {st st' : EStore} {cs : List IConstantInfo}
-    (h : NamesDistinct st cs) (hx : Ext st st') : NamesDistinct st' cs :=
-  List.Pairwise.imp (fun ⟨x, y, h1, h2, h3⟩ =>
-    ⟨x, y, denoteN_ext h1 hx, denoteN_ext h2 hx, h3⟩) h
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the bracket closes onto a boundary**: from `FoldOK` at the step's opening boundary `s0`

@@ -759,16 +759,6 @@ theorem promoteNew_projOK {src : EStore} {m m' : PMemo} {fuel k kt : Nat} {fe fe
       exact (hproj t (List.mem_of_mem_take ht)).promoted hpt
     · exact hproj t' (List.mem_of_mem_drop h)
 
-/-- con-leche: none — arena infrastructure; **the promotion bracket closes**: the drop
-answers the projection, which `PSrc` says is well formed and keeps every persistent
-denotation of the source. -/
-theorem promoteBracket_close {src : EStore} {s : AState} (hs : PSrc src s.store) :
-    (dropScratch : AM Unit) s = .ok ((),
-      { store := s.store.dropScratch, memos := s.memos, caches := Caches.empty,
-        pins := s.pins }) ∧
-      StoreWF s.store.dropScratch ∧ PExt src s.store.dropScratch :=
-  ⟨rfl, hs.piWF, hs.pext⟩
-
 /-! ## Census -/
 
 /-- info: 'ConRon.Bridge.promoteVG_pi' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -779,8 +769,5 @@ theorem promoteBracket_close {src : EStore} {s : AState} (hs : PSrc src s.store)
 
 /-- info: 'ConRon.Bridge.promoteNew_projOK' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteNew_projOK
-
-/-- info: 'ConRon.Bridge.promoteBracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteBracket_close
 
 end ConRon.Bridge

@@ -6,7 +6,7 @@ start state back, so everything here holds of ANY run, with no spec of what ran 
 hypothesis on the environment it ran at.  Two facts:
 
 * `Store` level: a framed run projects to the projection it started from
-  (`dropScratch_frameFrom`), and a bracket opened on a store and closed again is that
+  (by definition), and a bracket opened on a store and closed again is that
   store's projection.
 * **A job's start state is the worker's, whatever ran before it**
   (`checkJobList_each`): each job ends with the worker's store, pins and empty caches,
@@ -15,7 +15,7 @@ hypothesis on the environment it ran at.  Two facts:
 -/
 module
 
-public import ConRon.Arena.Phased
+public import ConRon.Arena.Checker
 public import ConRon.Bridge.Promote.Pers
 
 public section
@@ -44,23 +44,6 @@ theorem scratchRun_ok {α : Type} {c : AM α} {s₀ s' : AState} {a : α}
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨s₁, rfl, by simpa using hs, rfl⟩
     · exact nomatch h
-
-/-- con-leche: none — the projection of a framed store is the projection of what it
-was framed from. -/
-theorem dropScratch_frameFrom (st s₀ : EStore) :
-    (st.frameFrom s₀).dropScratch = s₀.dropScratch := rfl
-
-/-- con-leche: none — opening a bracket and projecting is projecting. -/
-theorem dropScratch_enableScratch (st : EStore) :
-    st.enableScratch.dropScratch = st.dropScratch := rfl
-
-/-- con-leche: none — the projection is idempotent. -/
-theorem dropScratch_dropScratch (st : EStore) :
-    st.dropScratch.dropScratch = st.dropScratch := rfl
-
-/-- con-leche: none — opening a bracket on a projection is opening it on the store. -/
-theorem enableScratch_dropScratch (st : EStore) :
-    st.dropScratch.enableScratch = st.enableScratch := rfl
 
 /-- con-leche: none — `enterScratch`, inverted. -/
 theorem enterScratch_inv {s s₁ : AState} {u : Unit}

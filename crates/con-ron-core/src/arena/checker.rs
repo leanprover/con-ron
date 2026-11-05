@@ -673,7 +673,7 @@ pub fn check_pending(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:343-350 pushesAgree` — the checked
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:332-339 pushesAgree` — the checked
 /// install's pushed constants against the base's slots, from slot `i` of the job's
 /// layer on.
 pub fn consts_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> bool {
@@ -692,7 +692,7 @@ pub fn consts_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> boo
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:343-350 pushesAgree` — the tables
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:332-339 pushesAgree` — the tables
 /// likewise.
 pub fn tables_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> bool {
     if i >= w.env.tables.len() {
@@ -713,7 +713,7 @@ pub fn tables_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> boo
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:343-350 pushesAgree` — **the checked
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:332-339 pushesAgree` — **the checked
 /// install pushed what the stored install pushed**: the job's own layer holds
 /// exactly its pushes, in install order, and so does the recorded range of the
 /// base.
@@ -725,7 +725,7 @@ pub fn pushes_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck) -> bool {
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:352-363 blockCheck` — **the block's job**:
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:341-352 blockCheck` — **the block's job**:
 /// its checked install at an empty layer over the frozen base at the block's
 /// counter, from fresh caches and an empty scratch tier, and the comparison of
 /// its pushes with the stored install's.  A difference is an internal error: the
@@ -763,7 +763,7 @@ pub fn block_check(
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:217-221 blockFailure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:365-373 blockFailure` — **the first failing
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:354-362 blockFailure` — **the first failing
 /// block job from `i` on**, in fold order, with its position.
 pub fn block_failure(
     pers: &PersTier,
@@ -783,7 +783,7 @@ pub fn block_failure(
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:384-410 phaseAFailure` — **the verdict of a
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:373-399 phaseAFailure` — **the verdict of a
 /// phase A that failed at record `i` with `e`**: the first failing block job before
 /// it; else, at a block past its `And` pin, that block's own job (a name was taken,
 /// or the store gave out); else `e`.
@@ -828,7 +828,7 @@ pub fn phase_a_failure(
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:384-410 phaseAFailure` — the failing record's
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:373-399 phaseAFailure` — the failing record's
 /// own job, when it is a block that passed its `And` pin: no pushes recorded, so a
 /// checked install that passes is the internal error it should be.
 pub fn phase_a_own_job(
@@ -861,7 +861,7 @@ pub fn phase_a_own_job(
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:255-276 runJob
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:417-435 runJob` — **run a job**: a block job
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:406-424 runJob` — **run a job**: a block job
 /// (`j.0`) or a recorded value check, by its index in its array, on a worker's
 /// state; the error tagged with its fold position.  `fe` is the empty layer every
 /// value check reads the frozen base through.
@@ -894,7 +894,7 @@ pub fn run_job(
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:450-454 jobOrder` — **the jobs in fold order**:
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:439-443 jobOrder` — **the jobs in fold order**:
 /// the recorded checks and the block checks, each array sorted by position, merged
 /// (a block before a record at a larger position).
 pub fn job_order(pend: &Vec<PendingCheck>, d: &Vec<BlockCheck>) -> Vec<(bool, u64)> {
@@ -902,7 +902,7 @@ pub fn job_order(pend: &Vec<PendingCheck>, d: &Vec<BlockCheck>) -> Vec<(bool, u6
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:437-448 jobOrderGo` — the merge, from
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:426-437 jobOrderGo` — the merge, from
 /// positions `a` and `b`.
 pub fn job_order_go(
     pend: &Vec<PendingCheck>,
@@ -997,7 +997,7 @@ pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) {
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
-/// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
+/// persistent tier where it is (`AState.worker`, `Arena/Checker.lean`).
 /// **The persistent tier and the installed index out of phase A and into a
 /// value**: the four persistent tables and `fe` move into one `PersTier` handed
 /// back `frozen`, for the phase-B workers to read (`fe` is what `ifenv_find` reads
@@ -1058,7 +1058,7 @@ pub fn check_layer() -> IFEnv {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:375-382 AState.worker` — the twin's
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:364-371 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
 /// moved here by task #97-P5-Driver): the empty store, FROZEN
@@ -1078,7 +1078,7 @@ pub fn worker_state(pins: &Pins) -> AState {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — **the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
 /// which, at the driver's call, is the persistent one.
@@ -1106,7 +1106,7 @@ pub fn intern_all_pins(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
@@ -1126,7 +1126,7 @@ pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the five
 /// kinds the startup walk interns, in the twin's order.
 pub fn all_basis_kinds() -> Vec<BasisKind> {
     let mut ks: Vec<BasisKind> = Vec::with_capacity(5);
@@ -1139,7 +1139,7 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the
 /// standard and compiler-trust axiom pins, in the twin's order.
 pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::std_axioms::iff_a(pers, st) {
@@ -1158,7 +1158,7 @@ pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
 pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::std_axioms::nonempty_intro_a(pers, st) {
@@ -1177,7 +1177,7 @@ pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the
 /// compiler-trust shapes and the two reduce pins.
 pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::true_cv_a(pers, st) {
@@ -1196,7 +1196,7 @@ pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the
 /// four `reduce*`/`ofReduce*` shapes and the two pinned defining expressions.
 pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::reduce_nat_cv_a(pers, st) {
@@ -1222,7 +1222,7 @@ pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), Ch
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:501-531 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:490-520 internAllPins` — the
 /// reserved names the guards compare by handle.
 pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::core::reserved_basis_names(st) {

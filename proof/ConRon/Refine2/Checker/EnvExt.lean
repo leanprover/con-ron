@@ -212,12 +212,6 @@ theorem Post.fail {α : Type} {e : CheckError} {Q : α → Prop} :
   intro s r s' hr
   cases hr
 
-theorem Post.ite {α : Type} {c : Prop} [Decidable c] {a b : AM α} {Q : α → Prop}
-    (ha : c → Post a Q) (hb : ¬ c → Post b Q) : Post (if c then a else b) Q := by
-  split
-  · exact ha ‹_›
-  · exact hb ‹_›
-
 /-- A failure, whatever follows it. -/
 theorem Post.fail_bind {α β : Type} {e : CheckError} {k : α → AM β} {Q : β → Prop} :
     Post (Arena.fail e >>= k) Q :=
@@ -382,19 +376,6 @@ theorem installStepGo_ext {A : IFEnv} (hA : EnvOK A) (mode : ConLeche.CheckMode)
   | quotDecl k cv => exact hod _ hd
 
 /-! ## A block read as stored -/
-
-theorem Post.scratchRun {α : Type} {c : AM α} {Q : α → Prop} (h : Post c Q) :
-    Post (Arena.scratchRun c) Q := by
-  intro s r s' hr
-  unfold Arena.scratchRun at hr
-  cases hc : c s with
-  | error e => simp [hc] at hr
-  | ok p =>
-    obtain ⟨a, s1⟩ := p
-    simp only [hc] at hr
-    split at hr
-    · cases hr; exact h s _ s1 hc
-    · cases hr
 
 theorem storedTry_post {α β : Type} {run : AM α} {keep : α → AM β} {Q : β → Prop}
     (hk : ∀ a, Post (keep a) Q) :

@@ -314,22 +314,6 @@ site. -/
 theorem IFEnvInv.visBound {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     rf.visible_below.val ≤ rf.env.consts.val.length + rf.base_below.val := h.2.1
 
-/-- **Every position the index stores fits a `usize`** — task #97-P5-Core-2's
-`CoreCtx.idxPos`, which `ifenv_find_abs` is the only consumer of.
-
-It is an INVARIANT and not a platform assumption, and the write sites are why:
-every position ever stored is a `Vec` index or a `Vec` length cast up from
-`usize` — `arena::env::mk_ifenv_go` stores `i as u64` for the cursor `i`,
-`ifenv_push` and `ifenv_push_temp` store `fe.env.consts.len() as u64`,
-`arena::promote::index_promoted` stores `(j - 1) as u64` for its `usize`
-cursor, and `ifenv_pop_temp` puts back a row it took OUT of the index.  There
-is no other writer.  So the `pos as usize` in `ifenv_find` — which Aeneas
-models as a truncating cast — is the identity at every reachable row, and
-the Rust needs no test it does not already have. -/
-theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
-  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2.1 n p hp) rf.env.consts.property)
-
 /-- **Every position the index stores is IN RANGE of the constant list** —
 task #97-P5-Checker round 3's strengthening of the clause above, and the one
 `ifenv_push` needs.
@@ -396,12 +380,6 @@ theorem IFEnvRelI.inv {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.en
 /-- `IFEnvOwn` and the invariant: phase A's pair, at the promotion. -/
 def IFEnvOwnI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
   IFEnvOwn rf lf ∧ IFEnvInv rf
-
-theorem IFEnvOwnI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvOwnI rf lf) :
-    IFEnvOwn rf lf := h.1
-
-theorem IFEnvOwnI.inv {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvOwnI rf lf) :
-    IFEnvInv rf := h.2
 
 /-- **A tier whose environment base is empty**: phase A's readers, the stand-in
 `PersTier::empty` and the tier a bracket freezes out of an owned store. -/

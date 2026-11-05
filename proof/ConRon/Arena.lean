@@ -63,7 +63,6 @@ public import ConRon.Arena.Inductives.StoredInstall
 public import ConRon.Arena.CheckDecl
 public import ConRon.Arena.InductivesTest
 public import ConRon.Arena.Checker
-public import ConRon.Arena.Phased
 public import ConRon.Arena.CheckerTest
 public import ConRon.Arena.Frontend.NatOpGround
 -- the driver: no proof imports it, so the root does, to keep it in `lake build`

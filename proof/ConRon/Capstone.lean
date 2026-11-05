@@ -123,7 +123,7 @@ Former hypotheses, now theorems or gone (DESIGN.md's task #97-COMPOSE and
   #97-P5-Front (`Refine2/Frontend/Scan/Spec.lean`'s `scanSpec`);
 * ~~`hpers`, `hest`, `hst0`~~ — the start state and tier were universally
   quantified with three equations; since task #98-HEADLINE they are the
-  constants `startState`/`emptyTier` (`startState_eq`, `emptyTier_eq`);
+  constants `startState`/`emptyTier` (`startState_eq`);
 * `hdec` is now `hpins`, the premise for the binary's pin step: the pin list
   is what the verified decoder read, at any text (as con-leche's theorems
   hold at every pin list); `model_exists_embedded` /
@@ -416,7 +416,8 @@ end Rust
 (`bin/con-ron.rs:370`).  The Aeneas model of each is a `Result` that is
 `ok`; `startState` and `emptyTier` are those values, written out (task
 #98-H8): every table and map empty, every flag down, no pins.  `startState_eq`
-and `emptyTier_eq` check them against the Aeneas model by unfolding it.  So
+checks the first against the Aeneas model by unfolding it, for `startState_init`, which
+the proof reads; `emptyTier` is read off `PersTier::empty` by eye.  So
 the headlines' first premise starts from them rather than from universally
 quantified states with equations about them. -/
 
@@ -454,8 +455,7 @@ def emptyETables : arena.store.ETables :=
 
 /-- **The binary's persistent tier**, `&PersTier::empty()`
 (`bin/con-ron.rs:370`): the tier every stage up to phase B is handed — not
-frozen, its four table sets, every table empty, and the empty environment layer
-(`emptyTier_eq`). -/
+frozen, its four table sets, every table empty, and the empty environment layer. -/
 def emptyTier : arena.store.PersTier :=
   { frozen := false, n := emptyNTables, l := emptyLTables, ls := emptyLsTables,
     e := emptyETables, env := layer00 }
@@ -506,12 +506,6 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.core_state.ModeMemos.empty, arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
     arena.handle.EIdx.of_word, bind_ok]
-  rfl
-
-theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
-  simp only [arena.store.PersTier.empty, arena.env.ifenv_layer, arena.env.i_env_empty,
-    arena.store.Tbl.empty, arena.store.ETables.empty, arena.store.LsTables.empty,
-    arena.store.LTables.empty, arena.store.NTables.empty, ron.hashmap2.HashMap2.new, bind_ok]
   rfl
 
 /-- `startState` is `AState::init(EStore::empty())`, the form `rust_stages`

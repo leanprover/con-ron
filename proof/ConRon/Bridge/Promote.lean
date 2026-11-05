@@ -20,7 +20,7 @@ dropScratch`, and the memo invariant.  This is that tier.
   handle-kind promotions and the declaration layer above them, run forwards over `PSrc`
   (`promoteE_pi`, `promoteL_pi`, `promoteLList_pi`);
 * `Bridge/Promote/Exact.lean` — `promoteVG_pi`, `promoteNew_frame`, `promoteNew_pushed`,
-  `promoteNew_tpushed`, `promoteNew_projOK`, `promoteBracket_close`;
+  `promoteNew_tpushed`, `promoteNew_projOK`;
 * `Bridge/Promote/Coh.lean` — the fold's entries `promoteNew_pi` and
   `promoteNew_stored`, with the index coherence after `promoteNew` at the
   extensional definition the promotion can meet (DESIGN

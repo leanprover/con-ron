@@ -700,12 +700,6 @@ theorem PSrc.self {st : EStore} (h : StoreWF st.dropScratch) : PSrc st.dropScrat
   persL := fun _ _ _ hd => hd
   persN := fun _ _ _ hd => hd
 
-/-- con-leche: none — arena infrastructure; a framed state's projection is the start
-state's: `frameFrom` took the persistent tables from it, and `dropScratch` empties the
-rest. -/
-theorem EStore.dropScratch_frameFrom (st s₀ : EStore) :
-    (st.frameFrom s₀).dropScratch = s₀.dropScratch := rfl
-
 /-- con-leche: none — arena infrastructure; a name-tier read in range of one array set
 is in range of another of the same sizes. -/
 theorem NTables.get_isSome_of_sizes {t t' : NTables} {i : NIdx} (hs : t.sizes = t'.sizes)

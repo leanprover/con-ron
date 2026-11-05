@@ -379,9 +379,6 @@ theorem PushChain.pushTable {fe r : IFEnv} (h : PushChain fe r) (t : IProjTable)
     PushChain fe (r.pushTable t) :=
   ⟨h.coh.pushTable t, h.pushed.trans (Pushed.pushTable r t), h.tpushed.trans (TPushed.pushTable r t)⟩
 
-theorem PushChain.trans {a b c : IFEnv} (h₁ : PushChain a b) (h₂ : PushChain b c) : PushChain a c :=
-  ⟨h₂.coh, h₁.pushed.trans h₂.pushed, h₁.tpushed.trans h₂.tpushed⟩
-
 theorem consSumCtors_chain {nP : Nat} {fe₀ : IFEnv} :
     ∀ (cs : List (IConstantVal × Nat)) (fe : IFEnv), PushChain fe₀ fe →
       PushChain fe₀ (consSumCtors nP cs fe) := by

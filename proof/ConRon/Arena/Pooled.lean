@@ -1,13 +1,13 @@
 module
 
-public import ConRon.Arena.Phased
+public import ConRon.Arena.Checker
 
 @[expose] public section
 
 /-!
 # `ConRon.Arena.Pooled` — phase B as the binary's pool runs it
 
-**Task #97-P5-POOL.**  A module of its own, beside `Arena/Phased.lean`, so
+**Task #97-P5-POOL.**  A module of its own, beside `Arena/Checker.lean`, so
 that it is imported only by the two tiers that state the pool
 (`Refine2/Checker/Phased.lean`, `Bridge/Checker/Phased.lean`) and not by the
 `ConRon.Arena` aggregator, which half of the proof imports.

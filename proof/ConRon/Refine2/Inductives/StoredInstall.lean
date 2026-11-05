@@ -149,14 +149,6 @@ theorem i_rec_rule_beq_p_abs {a b : arena.env.IRecRule} {o : Bool}
   rw [beq_eq_decide]
   exact (Result.ok_injective h).symm
 
-theorem listBeqBy_map {α β : Type} (f : β → β → Bool) (g : α → β) :
-    ∀ (xs ys : List α), listBeqBy f (xs.map g) (ys.map g) =
-      listBeqBy (fun a b => f (g a) (g b)) xs ys
-  | [], [] => rfl
-  | [], _ :: _ => rfl
-  | _ :: _, [] => rfl
-  | x :: xs, y :: ys => by simp [listBeqBy, listBeqBy_map f g xs ys]
-
 theorem i_rec_rules_beq_p_aux {a b : alloc.vec.Vec arena.env.IRecRule} (n : Nat) :
     ∀ (i : Std.Usize) {o : Bool}, a.val.length - i.val + (b.val.length - i.val) = n →
       arena.inductives.stored_install.i_rec_rules_beq_p a b i = ok o →
@@ -985,11 +977,7 @@ theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k 
   rw [TwinEq, this]
   simp [absEIdxL, alloc.vec.Vec.new, absU, List.map_drop]
 
-@[local lockstep_simp] private theorem unwrapOr_some' {α : Type} (x : α) (e : CheckError) :
-    unwrapOr (some x) e = pure x := rfl
-
-@[local lockstep_simp] private theorem unwrapOr_none' {α : Type} (e : CheckError) :
-    unwrapOr (none : Option α) e = fail e := rfl
+attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapOr_none'
 
 @[lockstep] theorem stored_guards_run_ls {E₀ pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

@@ -1621,86 +1621,6 @@ theorem install_fold_refines {pers st lst} {v}
         (absIDeclLFrom ds i)) :=
   install_fold_aux _ rfl hrel hinv hpers hpe hF hrun
 
-/-- **`install_prefix` ⊑ `installFold` over the records before `n`**: the failure path's
-reinstall, the fold stopped at a bound. -/
-theorem install_prefix_refines (m : Nat) :
-    ∀ {pers st lst v} {mode : kernel.env.CheckMode}
-      {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-      {p : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck ×
-        alloc.vec.Vec arena.checker.BlockCheck}
-      {ds : alloc.vec.Vec arena.env.IDeclaration} {i n : Std.Usize} {o},
-      ds.val.length - i.val = m →
-      AStateRel₀ pers st lst → AStateInv pers st → pers.frozen = false → PersEnvEmpty pers →
-      FoldR pers p v →
-      arena.checker.install_prefix pers st mode pins p ds i n = ok o →
-      SimFold (FoldR pers) pers lst o
-        (installFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) v
-          ((absIDeclLFrom ds i).take (n.val - i.val))) := by
-  induction m using Nat.strong_induction_on with
-  | _ m ih =>
-    intro pers st lst v mode pins p ds i n o hm hrel hinv hpers hpe hF hrun
-    rw [arena.checker.install_prefix.eq_def] at hrun
-    dsimp only at hrun
-    have hl := alloc.vec.Vec.len_val ds
-    by_cases hge : i ≥ alloc.vec.Vec.len ds
-    · rw [ite_eq_left hge] at hrun
-      have hlen : ds.val.length ≤ i.val := by scalar_tac
-      have ho := Result.ok_injective hrun
-      subst ho
-      simp only [absIDeclLFrom, List.drop_eq_nil_of_le hlen, List.map_nil, List.take_nil,
-        installFold, SimFold]
-      exact ⟨v, lst, rfl, hF, hrel, hinv⟩
-    · rw [ite_eq_right hge] at hrun
-      have hlt : i.val < ds.val.length := by scalar_tac
-      by_cases hgn : i ≥ n
-      · rw [ite_eq_left hgn] at hrun
-        have hle : n.val ≤ i.val := by scalar_tac
-        have ho := Result.ok_injective hrun
-        subst ho
-        simp only [show n.val - i.val = 0 by omega, List.take_zero, installFold, SimFold]
-        exact ⟨v, lst, rfl, hF, hrel, hinv⟩
-      · rw [ite_eq_right hgn] at hrun
-        have hin : i.val < n.val := by scalar_tac
-        obtain ⟨d, hidx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hd : ds.val[i.val] = d := by
-          have hg := ConRon.Refine.ExprOps.vec_index_getElem? hidx
-          rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
-        obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hA := install_decl_step_refines (v := v) (p := p) (pd := d)
-          hrel hinv hpers hpe hF hq
-        obtain ⟨qr, qst⟩ := q
-        simp only [SimFold] at hA ⊢
-        simp only [absIDeclLFrom, List.drop_eq_getElem_cons hlt, hd, List.map_cons,
-          show n.val - i.val = (n.val - (i.val + 1)) + 1 by omega, List.take_succ_cons,
-          installFold, am_run_bind]
-        cases hqr : qr with
-        | Err pr =>
-          rw [hqr] at hA hrun
-          have ho := Result.ok_injective hrun
-          subst ho
-          intro k hk
-          obtain ⟨le, lst1, hx, hlk⟩ := hA k hk
-          exact ⟨le, lst1, by rw [hx]; rfl, hlk⟩
-        | Ok q' =>
-          rw [hqr] at hA hrun
-          obtain ⟨v', lst1, hx, hv, hrel1, hinv1⟩ := hA
-          obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
-          have hrec := ih (ds.val.length - i2.val) (by omega) (i := i2) (p := q')
-            (v := v') rfl hrel1 hinv1 hpers hpe hv hrun
-          simp only [SimFold, absIDeclLFrom, hi2v] at hrec
-          rw [hx]
-          cases hor : o.1 with
-          | Err pr =>
-            rw [hor] at hrec
-            intro k hk
-            obtain ⟨le, lst2, hy, hlk⟩ := hrec k hk
-            exact ⟨le, lst2, by rw [← hy]; rfl, hlk⟩
-          | Ok r =>
-            rw [hor] at hrec
-            obtain ⟨w, lst2, hy, hw, hrel2, hinv2⟩ := hrec
-            exact ⟨w, lst2, by rw [← hy]; rfl, hw, hrel2, hinv2⟩
-
 /-! ## Phase B: the check walk
 
 **The representation clause between records** (task #98-FREEZE): phase B's
@@ -2276,7 +2196,6 @@ theorem intern_all_pins_refines {pers st lst}
   rw [← internAllPinsPortSpec_eq]
   exact intern_all_pins_port_refines hrel hinv hwf hrun
 
-
 /-! ## The axiom census
 
 **The spine is closed, leaves included** (task #97-MILESTONE, `arena`
@@ -2300,9 +2219,6 @@ leaves are compositions of their BODIES (`check_decl_refines`,
 
 /-- info: 'ConRon.Refine2.install_decl_step_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms install_decl_step_refines
-
-/-- info: 'ConRon.Refine2.install_prefix_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms install_prefix_refines
 
 /-- info: 'ConRon.Refine2.all_basis_kinds_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms all_basis_kinds_refines

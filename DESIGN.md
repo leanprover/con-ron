@@ -71272,9 +71272,9 @@ said, and `stored_frame_ok` is its use.  `AErrSim.scratchRun` is the failing hal
 `AErrSim.exists_err`, for all four kinds; a caught failure compares the two answers, each built
 from values the failed run cannot touch, so no frame over `Err` is needed.  `SimFold`'s `Err`
 arm keeps its shape.  `run_job_refines` is stated at the accept only (`SimIdle` on the block
-job is two-sided), since `h8` is all `Ok`.  `install_prefix_refines` and `block_failure_refines`
-are proved.  **`phase_a_failure` and `phase_a_own_job` are not**: no accept reaches them, and
-`h6` does not need them.  They could not be lockstep as they stand: the Rust reinstalls on the
+job is two-sided), since `h8` is all `Ok`.  **The failure path of phase A (`phase_a_failure`, `phase_a_own_job`,
+`install_prefix`, `block_failure`) is not proved**: no accept reaches it, and `h6` does not need
+it.  They could not be lockstep as they stand: the Rust reinstalls on the
 state the failure left and the twin from the state phase A began at, so it would need the frame
 over `Err` the design avoids.  A verdict of a rejection is outside Theorem 2's statement.
 
@@ -71361,8 +71361,7 @@ blocks = ok order`) and `hlayer` (`check_layer = ok layer`).  `h6` answers `(n, 
 blocks)`, `h7` is `freeze_tier st6.store fe`, and `h8` is `ParallelAll order.length
 (worker_state st6.pins) (jobStep tier .Verified layer pend blocks order)`, the contract's
 own name rather than its `∃ ws` written out.  `RustDenotes` reads `fe` by `IFEnvOwn`.
-`stages_storeWF` reads the frame and needs neither tier hypothesis.  `emptyTier_eq`, which the
-module note had named with no theorem behind it, exists now.
+`stages_storeWF` reads the frame and needs neither tier hypothesis.
 
 **The theorems owe** (as this section was written, before they were touched): the twin
 statements above, `Refine2/Checker/Phased.lean`'s `PoolAccepts`,
