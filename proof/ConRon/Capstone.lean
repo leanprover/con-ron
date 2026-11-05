@@ -224,13 +224,13 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
     (hE : internAllPins pins sD = .ok (ipins, sE))
     (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
     ∃ env', denoteFEnv sF.store fe' = some env' ∧
-      Nonempty (ConLeche.Model.EnvModelM V .verified env') := by
+      Nonempty (ConLeche.Model.EnvModelM V env') := by
   obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
     stages_frame hA hB hC hD hE
   obtain ⟨env', F', hdenF, hpure⟩ :=
-    Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
+    Arena.pooledAccepts_bridge hk hind hpps hfold hipins hpd hden hF
   exact ⟨env', hdenF,
-    ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) rfl hpure⟩
+    ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) hpure⟩
 
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **the
 stages' stream carries the file's `False` theorem**: after the first five
@@ -303,7 +303,7 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
   rw [hden] at hden'
   cases hden'
   obtain ⟨env', F', -, hpure⟩ :=
-    Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
+    Arena.pooledAccepts_bridge hk hind hpps hfold hipins hpd hden hF
   exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V hmem hty hpure
 
 /-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
@@ -329,7 +329,7 @@ theorem stages_storeWF
     stages_frame hA hB hC hD hE
   obtain ⟨n, pend, -, hA', -⟩ := hF
   obtain ⟨env₁, pendP, hok₁, -⟩ :=
-    Arena.installFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
+    Arena.installFold_bridge hk hind hpps ds.toList dsP Env.empty 0 n
       (mkIFEnv IEnv.empty) fe' #[] pend [] sE sF hfold List.nodup_nil hipins hpd hden
       .nil hA'
   exact hok₁.check.state.wf
@@ -721,9 +721,9 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨est, hest, hst0⟩ := startState_init
   -- Theorem 1's two tier specs, discharged (tasks #97-P3-Core, #97-P3-Ind)
   have hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel :=
-    ConRon.Bridge.CoreSpec.of_core rfl
+    ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec .verified :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
+    ConRon.Bridge.Inductives.indSpec_of_bridge hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
@@ -785,9 +785,9 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     False := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   have hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel :=
-    ConRon.Bridge.CoreSpec.of_core rfl
+    ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec .verified :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
+    ConRon.Bridge.Inductives.indSpec_of_bridge hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))

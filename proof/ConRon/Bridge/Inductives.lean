@@ -21,6 +21,7 @@ discharges the hypothesis `Hyp.lean` names `IndSpec` (`indSpec_of_bridge`).
 | `BlockParts`, `BlockRec` | the recogniser (two-sided) and the elimination guard |
 | `BlockInstall` | the formers', constructors' and positivity stages |
 | `ClassRead`, `RecCheck`, `GenRec` | the recursor pre-pass, class kit and generated recursor stage |
+| `StoredRecs` | `storedRecsCheck_spec`: the stored recursors against the generated ones |
 | `BlockTail` | `checkBlock_bridge`: the pass and the tail, producing `IndOut` |
 | `Decl` | `checkIndRoute_bridge` and `indSpec_of_bridge` |
 | `Axioms` | the trust census |
@@ -53,6 +54,7 @@ public import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.ClassRead
 public import ConRon.Bridge.Inductives.RecCheck
 public import ConRon.Bridge.Inductives.GenRec
+public import ConRon.Bridge.Inductives.StoredRecs
 public import ConRon.Bridge.Inductives.BlockTail
 public import ConRon.Bridge.Inductives.Decl
 public import ConRon.Bridge.Inductives.Axioms

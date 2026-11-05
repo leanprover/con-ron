@@ -3346,7 +3346,7 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nP : Nat) (pa
         obtain ⟨q2, -, rfl⟩ := fvarB_pstep q1.ok (denote_ext he q1.ext) j2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok y2
         exact ⟨q1.trans q2, by simp [hb]⟩)
-    k2.ds ds s1 s2 cl p1.ok trivial hds k2' 
+    k2.ds ds s1 s2 cl p1.ok trivial hds k2'
   obtain ⟨hcl, z3⟩ := AM.dunless_ok AM.Never.fail_any z2
   replace z3 := AM.pure_bind_ok z3
   have hkc' : ds = (ConLeche.classKeyCanon paramsP kP).ds := by rw [← hkc]

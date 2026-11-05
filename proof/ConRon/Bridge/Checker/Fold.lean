@@ -149,7 +149,7 @@ con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
 `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
 `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
 total extension holds here and weakens one level up. -/
-theorem Arena.checkDecl_bridge 
+theorem Arena.checkDecl_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)

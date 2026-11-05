@@ -993,9 +993,9 @@ theorem SplitInstall.tables {μ : CheckMode} {F : Nat} {env env' : Env}
   rcases h with ⟨_, _, _, -, -, -, -, -, -, -, rfl⟩ | ⟨_, _, -, -, -, -, -, rfl⟩ |
     ⟨_, _, -, -, -, -, -, -, -, rfl⟩ <;> rfl
 
-theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
+theorem PhaseA.nodup {pinsP : List NatOpPinSet}
     {env : Env} {ds : List Declaration} {env' : Env}
-    {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA μ pinsP env ds env' pend) :
+    {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA .verified pinsP env ds env' pend) :
     NodupNames env → NodupNames env' := by
   induction h with
   | nil => exact id
@@ -1185,7 +1185,7 @@ denotation, and `proj`, whose old tables are the incoming index's
 arms prove the two clauses off their pure run (`DeclCore.out`,
 `Bridge/Checker/Arms.lean`), except the unpinned inductive route, which is
 `IndSpec.wf` (`Bridge/Checker/Hyp.lean`), owed by the Inductives tier. -/
-theorem Arena.checkDecl_wfProj 
+theorem Arena.checkDecl_wfProj
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env' : Env}
     {fe fe' : IFEnv} {pd : IDeclaration} {d : Declaration} {s s' : AState}
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
@@ -1205,7 +1205,7 @@ theorem Arena.checkDecl_wfProj
 `checkDeclStepC` arm) — **the full arm of the step body**: `Arena.checkDecl`'s
 `DeclOut`, `Arena.checkDecl_wfProj`'s two clauses, and the pushed names'
 distinctness from the pure fold's (`checkDecl_nodup`). -/
-theorem Arena.installStepGo_full 
+theorem Arena.installStepGo_full
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
@@ -1245,7 +1245,7 @@ The proof: for the three split arms, `installHeader_bridge`,
 `installValueGuards_bridge` and `StepOK`'s push lemmas at one pushed
 constant; for every other arm, `Arena.installStepGo_full`, which reaches
 `Arena.checkDecl_wfProj`. -/
-theorem Arena.installStepGo_bridge 
+theorem Arena.installStepGo_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
     {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
@@ -1450,7 +1450,7 @@ fold's name uniqueness (`checkDecl_nodup`).  The fold has it (`PhaseA.nodup`
 from the empty environment, carried by `Arena.installFold_bridge`).  **And
 `hpd : PersDecl pd`**: the record must be persistent for its denotation to survive the opening
 `enterScratch`; the fold carries it (`Arena.installFold_bridge`'s `hpd`). -/
-theorem Arena.installStep_split 
+theorem Arena.installStep_split
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
@@ -1580,7 +1580,7 @@ owed checks are the arena's pending records, related one for one.
 
 The proof: `Arena.installStep_split` and an induction over the records, the
 relation carried across each bracket by `PendRel.listRel_mono`. -/
-theorem Arena.installFold_bridge 
+theorem Arena.installFold_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hpp : PersPinSets pins) :

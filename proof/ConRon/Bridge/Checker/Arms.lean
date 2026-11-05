@@ -428,7 +428,7 @@ The chain: `checkConstantVal_bridge` → `checkDefnVal_bridge` →
 `natOpEquations_run`, `substConst0Pairs_run`, `certifyNatEqs_bridge`) →
 `natDivModNames_run` → `checkDivModPin_bridge`, with `max` over four fuels and
 con-leche's `*_datF` monotonicity at each. -/
-theorem checkDecl_bridge_defn 
+theorem checkDecl_bridge_defn
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {hint : ReducibilityHint} {c : ConstantVal} {x : Expr}
@@ -662,7 +662,7 @@ arm).
 
 **Proof:** `checkConstantVal_bridge` and
 `checkThmVal_bridge`, at one fuel. -/
-theorem checkDecl_bridge_thm 
+theorem checkDecl_bridge_thm
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
@@ -700,7 +700,7 @@ theorem checkDecl_bridge_thm
 **Proof:** the front door, the value check, and the
 compiler-trust gate behind a `contains` test that `denoteNList_contains` makes
 con-leche's. -/
-theorem checkDecl_bridge_opaque 
+theorem checkDecl_bridge_opaque
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
@@ -799,7 +799,7 @@ positively-declined standard shapes and `sorryAx`.
 `checkConstantVal_bridge` for the front door, the three shape tests for the
 three installing families, and `IFEnvCoh.push` / `Pushed.push` /
 `denoteFEnv_push` for what an install does to the environment. -/
-theorem checkDecl_bridge_axiom 
+theorem checkDecl_bridge_axiom
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
     (hk : CoreSpec .verified Arena.checkFuel)
@@ -1029,7 +1029,7 @@ arm) — the fold's own pinned-block record.
 
 **Proof:** the arm IS `checkBasisDecl`, on both
 sides. -/
-theorem checkDecl_bridge_basis 
+theorem checkDecl_bridge_basis
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {kind : BasisKind}
     (_hk : CoreSpec .verified Arena.checkFuel)
@@ -1052,7 +1052,7 @@ arm) — **the one arm this tier does not own**.  The recogniser
 then `checkBasisDecl_bridge` on the pinned route and `IndSpec.run` verbatim on
 the other — the only one of the seven whose remaining content is a
 *hypothesis* rather than a proof. -/
-theorem checkDecl_bridge_ind 
+theorem checkDecl_bridge_ind
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {nP : Nat}
@@ -1110,7 +1110,7 @@ the pinned block whole.
 `checkBasisDecl_bridge` for the `.type` record's install; the other four
 kinds install nothing, so their `Pushed` is `refl` and their environment is
 the one they arrived at. -/
-theorem checkDecl_bridge_quot 
+theorem checkDecl_bridge_quot
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {k : QuotKind} {cv : IConstantVal}
     {c : ConstantVal}

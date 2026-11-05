@@ -783,7 +783,7 @@ theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
         intro m s₁ s₂ b hok1 hp1 hrun1
         exact filterM_pstep dCtor dCtor_ext
           (fun st => Frontend.denoteNList st.ns names = some namesP ∧
-            denoteLs st.lss lvls = some (lpsP.map Level.param)) 
+            denoteLs st.lss lvls = some (lpsP.map Level.param))
           (fun hx h => ⟨denoteNListE_ext hx _ _ h.1, denoteLs_ext h.2 hx⟩) _ _
           (by
             intro c cP t₀ t' bb hokt hpt hct hrunt

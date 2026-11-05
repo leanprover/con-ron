@@ -89,7 +89,7 @@ con-leche's `checkDeclsPure` accepts the denoted stream at the environment
 `fe'` denotes in the phase-A state `s'`.  `installThenCheckPhased_bridge`'s
 hypotheses verbatim; phase B is the per-list `checkPendingList_bridge`,
 gathered record by record. -/
-theorem Arena.pooledAccepts_bridge 
+theorem Arena.pooledAccepts_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     {s s' : AState}

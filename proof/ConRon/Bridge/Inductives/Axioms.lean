@@ -18,6 +18,7 @@ import ConRon.Bridge.Inductives.BlockInstall
 import ConRon.Bridge.Inductives.SumInstall
 import ConRon.Bridge.Inductives.StructInstall
 import ConRon.Bridge.Inductives.RecCheck
+import ConRon.Bridge.Inductives.StoredRecs
 import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.BlockWF
 import ConRon.Bridge.Inductives.BlockTail
@@ -49,6 +50,8 @@ namespace ConRon.Bridge.Inductives
 -- the recursor stage
 #print axioms targetMajorOf_spec
 #print axioms consBlockRecsTF_spec
+#print axioms storedRecsCheck_spec
+#print axioms checkBlockTailStored_of
 #print axioms checkBlockClasses_spec
 #print axioms genRecCheck_spec
 -- the route, and the tier's theorem
