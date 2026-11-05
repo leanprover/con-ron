@@ -4269,7 +4269,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// proof/ConRon/Arena/Store.lean:504-507 EStore.dropScratch
+    /// proof/ConRon/Arena/Store.lean:509-512 EStore.dropScratch
     /// **A closed store made of a tier alone**: the tier's tables, empty scratch
     /// tiers, the flags off.  `thaw`'s answer, read off nothing of the store it
     /// would be called on, for the state a failed run left

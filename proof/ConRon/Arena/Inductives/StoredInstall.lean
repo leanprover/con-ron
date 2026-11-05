@@ -299,8 +299,10 @@ def namesFree (fe : IFEnv) (ns : List NIdx) : Bool :=
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
 **A block the recogniser reads**: its names distinct and free; the formers read and
 pushed with their capability records; the guards at the formers' environment; and
-the last bracket. -/
+the last bracket.  The test of the scratch flag never fails: what it buys is that what
+the recogniser answered is persistent, so it survives the reading's brackets. -/
 def storedParts (mode : CheckMode) (fe : IFEnv) (p₀ : BlockParts) : AM IFEnv := do
+  if (← get).store.scratchOn then fail (.internal "install: the scratch tier is open")
   let names := p₀.shape.memberNames ++ p₀.shape.allCtors.map (·.1.name) ++
     p₀.shape.recs.map (·.cvR.name)
   if !nameNodup names || !namesFree fe names then

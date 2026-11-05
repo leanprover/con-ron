@@ -79,6 +79,11 @@ use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"install: the scratch tier is open"`, as code points: a block's reading starts
+/// with the tier closed, which the test never finds otherwise.
+pub const M_SCRATCH_OPEN: [u32; 33] = [105, 110, 115, 116, 97, 108, 108, 58, 32, 116, 104, 101, 32, 115, 99, 114, 97, 116, 99, 104, 32, 116, 105, 101, 114, 32, 105, 115, 32, 111, 112, 101, 110];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"install: a predicted slot did not match"`, as code points: the error of a
 /// block one of whose names is taken, if its job does not reject it.
 pub const M_SLOT_TAKEN: [u32; 39] = [
@@ -769,7 +774,7 @@ pub fn stored_names_free(pers: &PersTier, vis: u64, fe: &IFEnv, ns: &Vec<NIdx>, 
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — the
 /// recursors' names from `i` on, appended.
 pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= rs.len() {
@@ -782,7 +787,7 @@ pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — **a
 /// block the recogniser reads**: its names distinct and free, the formers read,
 /// and the rest (`stored_parts_push`).
 pub fn stored_parts(
@@ -792,6 +797,9 @@ pub fn stored_parts(
     fe: IFEnv,
     p0: &BlockParts,
 ) -> Result<IFEnv, CheckError> {
+    if st.store.scratch_on {
+        return fail(CheckError::Internal(code_points(&M_SCRATCH_OPEN)));
+    }
     let names: Vec<NIdx> = rec_names(
         &p0.shape.recs,
         0,
@@ -820,7 +828,7 @@ pub fn stored_parts(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-316 storedParts` — past
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — past
 /// the formers' reading: pushed with their capability records, the guards, and
 /// the last bracket.
 pub fn stored_parts_push(
@@ -844,7 +852,7 @@ pub fn stored_parts_push(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:318-335 storedInstall` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:320-337 storedInstall` — **the
 /// stored install of a block** on `fe`.  A block matching a basis pin pushes the
 /// pin's constants, a block the recogniser does not read pushes nothing, and
 /// every other block its reading, each part at its record as declared where the
