@@ -71260,9 +71260,18 @@ at the projection of its start state, so a worker's accepted list is each job's 
 profile inlines `pins_dup` and the leaf decodes.  It is not nothing, as was hoped; 115 k runs
 times two small `Vec` copies would be of that order.
 
-**Rejected**: a frame proved by walking the ~800 definitions phase A reaches, and guarding the
-stored install so `EnvWF` holds with no job (`NestedRead`, the capability arities and the table
-bodies would all need runtime checks upstream does not have).
+**Not taken**: a frame proved by walking the ~800 definitions phase A reaches (each step
+trivial; size and elaboration time are the cost).  Also not taken, by the maintainer's decision
+with the restore already working: guarding the stored install so `EnvWF` holds with no job.
+`EnvWF` is syntactic, and definitions already establish it in phase A (`installHeader`,
+`installValueGuards`), so the circularity above exists only because a stored block arrives
+unguarded.
+
+**To reconsider at the sync that moves more logic out of install into the checks** (coming
+upstream, maintainer, 2026-11-05).  `EnvWF` is what con-leche's proof needs to thread it all
+together.  A predicate for precisely the syntactic invariants con-ron's own code needs in order to
+work properly may be valuable, with a better way to establish them: right away during parsing, or
+a quick dedicated pass.  That could retire `scratchRun` and its flag tests.
 
 **Status.**  `lake build ConRonBridge` is green.  `Capstone.lean` waits on Theorem 2's
 `PoolAccepts`: its twin section is restated and checked apart (`stages_storeWF` now reads the
