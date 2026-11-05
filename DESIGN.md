@@ -71097,3 +71097,121 @@ operation is a `fun` over the mode, which no pattern can bind (`Core/Memo`'s
 did not move; `Capstone.lean`'s stage lemmas take `CoreSpec Arena.checkFuel` and
 `IndSpec`.  OVERVIEW §7.3:
 `KnotSpec` is indexed by the fuel and the eager flag.
+
+### Task #141 — upstream's stored install and block jobs: an inductive block's checked install moves to the check phase (2026-11-05, Opus)
+
+**What #139 got wrong.**  It skipped `Cached/StoredInstall.lean` and the executed
+half of `Verify/Cached/Defer.lean` as "the parallel install's engineering".  They
+are not: upstream's task #431 moves a block's checked install out of the install
+phase into the check phase at every job count, and the check phase is the one
+con-ron parallelises.  Maintainer: this moves work to where the pool is, and "we
+don't want to diverge from con-leche without a very good reason".  Upstream's
+ruling, which this ports: "the checkLoop does the checks, for defs and inductives
+alike; one should not be able to tell from the code that there ever was a combined
+install+check".  The install POOL (`ParInstall.lean`'s workers) is the part that
+really is parallel-install engineering, and stays out; see the open question below.
+
+**The shape.**
+
+* **Phase A**: an inductive block is installed AS STORED
+  (`arena/inductives/stored_install.rs`, function for function with upstream):
+  nothing generated, no positivity walk; the only inference is a structure's field
+  sorts, the only reduction a def-headed former's telescope.  A part that cannot be
+  read is pushed as declared or left out.  The step records a `BlockCheck`: block,
+  `n_p`, position, counter, and the slots of constants and tables it pushed.
+* **Phase B**: `job_order` merges the value checks and the block jobs in fold order.
+  `run_job` runs one; `block_check` runs `check_ind_decl` at an empty layer over the
+  frozen base and compares its pushes with the recorded slots
+  (`i_constant_info_beq_p`, upstream's `beqP` family, a term being a handle).  A
+  difference is an internal error, exit 3, the verdict line naming the block.
+* **`--jobs=1` is the install of `--jobs=<n>` with no other path**: the pool on one
+  worker.  `check_decl`'s `.indDecl` arm is what a job calls; `check_decls_pure`
+  stays as the theorem's shape.
+* **A phase-A failure** is reported at the first failing block job before it
+  (`phase_a_failure`, `blockFailure`), so such a run still runs those jobs.  A block
+  one of whose names is taken stops phase A before pushing anything, and its own job
+  is the verdict (`commitLoop`'s slot check; `M_SLOT_TAKEN` if the job passes).
+
+**The environment has two tiers, like the store.**  `freeze_tier(ar, fe)` moves the
+index into `PersTier.env`; `thaw_tier` hands it back.  An `IFEnv` is a layer: phase
+A's has an empty base (`base_below = 0`); a value check reads through one shared
+empty layer (`check_layer`, no bound of its own); a block job's is
+`ifenv_layer(pos, pos)`, whose pushes take the counters the stored install's did
+and which sees the base below the block only.  `ifenv_find` reads the own layer,
+then the base below `min(vis, base_below)` (upstream's `FBase.below`), with one
+length test as the fast path: a value check's probes never touch an empty map.
+`ifenv_raw_table` is gated on the base's visibility of the structure as
+`FBase.findTable?` is: without that the job's own structure would find its stored
+table and report "projection table taken".  Both lookups return a borrow from
+either layer; that extracts as it stands (Aeneas erases shared borrows), no other
+shape was needed.  Four readers and the 18 functions that had none gain `pers`.
+
+**The twin keeps one environment value per job, and no base.**  `BlockCheck.view`
+is upstream's field: `{ fe with env := IEnv.empty }`, `fe` as the block found it, so
+that what the job pushes is `W'.env`, and `pushesAgree` reads as upstream's.  A
+value check reads `fe.restrictTo pc.vis` as before, with `fe` the final environment.
+The restricted-final-environment reading of a block job, which the task allowed,
+does not work: the final `tbls` holds the job's own stored tables, whatever the
+visibility, and the job's temporary pops restore rows of later records.  The
+abstraction Theorem 2 owes is "own layer, then base below the counter" = "the
+view": it rests on no install overwriting a row, which holds (a block's names are
+free, `install_header` and the checked steps reject a duplicate).  In the twin the
+view pins the index once per block, so the next push copies it; the twin is not the
+binary, and on `Init` it costs a copy per block (604).
+
+**A failed inference is a value, and the state comes back.**  Nothing in the core
+caught an `Err` before.  Upstream's `run {}` is a pure function from a fresh memo;
+here the store is threaded, so `stored_tele_slow` and `stored_guards` each run in a
+scratch bracket of their own, the persistent tier a `&` parameter, and the `Err` arm
+(`stored_abandon`) empties scratch, memos and caches and restores the pins, a state
+written from nothing the failed run could touch.  The twin's `storedTry` keeps the
+state the bracket opened at, which costs it only shallow copies, as `pers` is not
+written before the promotion.  `Sim₀`'s `AErrSim` is two-sided, so Theorem 2 can
+follow the catch: a Rust `Err` is a twin error.  The rest of the reading runs in one
+bracket at the end (`stored_tail`), which promotes what the block pushed.  The store's
+own failures are not caught.  The recogniser runs with the scratch tier off: what it
+interns is persistent, as the persistent count shows (`Init`, 6 124 657 at the
+boundary, master's number).
+
+**Phase A's failure path reinstalls.**  `install_step` consumes the index, so a
+failing step loses what the jobs read.  Threading it back through every arm of
+`check_decl` would change every signature below it for a path no theorem is about
+(`h6` is an accept); `phase_a_failure` installs the records before the failure once
+more instead, on the state the failure left, then freezes and walks the jobs.  A
+rejection need not be fast.  The twin does the same from the state phase A began at.
+`install_fold` is unchanged in shape but for the accumulator; the prefix is
+`install_prefix`.
+
+**Phase A stays sequential: an open question.**  Upstream runs the install on a pool;
+con-ron does not.  What is left to parallelise is small: on `Init` phase A is 0.42 s
+of an 18 s run at one job (one run, for scale only), 604 blocks read as stored and
+57 315 records guarded.  Whether it is worth it at Mathlib scale needs that run's
+phase line, which the landing run prints (`con-ron: done: parse …, install …`).
+
+**Findings**: `provenance-skip.txt` loses `Cached/StoredInstall.lean` and `FBase`,
+`FBase.find?`, `FBase.findTable?`.  `baseShard`, `baseGet?` and `ProjTable.lastOf?`
+stay skipped (the port's base is one map, not shards of slots).  Verdicts: fixtures
+agree at both job counts, and the two orderings no fixture shows were checked by
+hand on `ind_rule_binder_bad` with a record added: a failing definition BEFORE the
+bad block now reports the definition (master: the block, the difference #139
+recorded); a non-standard axiom after it reports the block; a repeated good block
+reports `duplicate declaration` at the repeat.
+
+**Measured** (`Init`, one run each, `perf stat -e instructions:u`, all accepting
+57 919): master's binary `--jobs=1` 188 176 544 413; this branch `--jobs=1`
+191 020 149 214 (**+1.51 %**), `--jobs=4` 192 211 732 104.  Phase B's jobs are 57 896,
+604 of them blocks (master: 57 292 checks).  A `perf record` comparison puts no one
+function behind the difference; `ifenv_find`, now out of line, reads +3.5 G against
+smaller drops in its callers, and marking it `#[inline]` changed nothing measurable
+(191.01 G), so the hint is not kept.  The Mathlib run is the coordinator's, at landing.
+
+**Gates of this task** (the theorems not built): `cargo test`, lint, provenance,
+twin-lines, `extract.sh --check`; `diff-e2e --timeout=60`, `--jobs=4` and `--trusted`
+640/640 each, display 9/9, command line 10/10; verdict lines (timing removed) equal at
+jobs 1 and 4 on all 690 `.ndjson` fixtures under con-leche's `tests/` and
+`_tmp/arena-tests`; `lake build ConRonArena con-ron-lean`, and `con-ron-lean` 640/640,
+command line 10/10, display 6/9 (the same three as task #139).
+
+**The theorems owe** (none of them is touched here, and they do not build): the twin
+statements above, `Refine2/Checker/Phased.lean`'s `PoolAccepts`,
+`Arena/Pooled.lean`'s `PooledAccepts`, and the capstone's `h6`…`h8`.
