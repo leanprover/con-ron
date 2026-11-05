@@ -71214,55 +71214,60 @@ command line 10/10, display 6/9 (the same three as task #139).
 
 #### Theorem 1
 
-**Status: blocked on a decision; nothing proved yet.**  The planned fold statement,
-upstream's Bool barrier over a static "all block jobs passed", does not carry over as
-it stands.  Upstream's steps are pure functions; here the store is threaded, and that
-makes the induction circular in two places.
+**The fold.**  Upstream's Bool barrier, as the twin runs it.  `Arena.installFold_bridge`
+takes "every block job in `D'` was accepted by `s'.worker`" as a static premise over the
+final state, and inducts in fold order.  At step `i` it holds `FoldOK` at `i`.  A non-block
+step is proved as before.  A block step takes its evidence from its job at the final state:
+`Arena.blockCheck_bridge` runs `checkDecl_bridge` at the view, and `pushesAgree` makes the
+stored install's pushes the job's (`Arena.installBlockStep_bridge`), so the prefix extends.
+`storedInstall` is not proved correct, as upstream's is not.
 
-* **Phase A's suffix.**  The evidence for the block at position `i` is a run of its
-  job on a store built after all of phase A.  `checkDecl_bridge` at that store needs
-  `FoldOK` there, hence `PExt s_i.store t.store`, hence the frame of every later
-  phase-A step.  Those steps' walks have no spec until block `i` is discharged:
-  `CoreSpec.knot` takes `EnvWF env`, and a stored constant is unguarded.  So the frame
-  has to hold of a walk at an environment nothing is known about.  Soundness really
-  rests on it: a walk that corrupted the persistent tier would change what the stream
-  denotes.
-* **A worker's job list.**  `PooledAccepts`' lists are in any order.  The state a job
-  starts from is known only through the previous job's spec, and that spec needs the
-  prefix facts of a block whose job may come later in the same list.
+**The store threads, so the frame had to come first.**  A job runs on a store built after
+all of phase A, and a walk in a later phase-A step runs at an environment holding a stored
+block not yet checked, where `CoreSpec` says nothing.  So relating step `i`'s store to the
+job's needs a frame of code with no specification.  The frame is by construction:
 
-Both need one fact with no semantic hypothesis, for everything phase A and the jobs
-reach: run in the scratch tier, the code leaves `store.dropScratch` and the pins alone
-and keeps the scratch flags on.  Writing it as `store.dropScratch` is what makes it
-cheap: the tracked store is the persistent tier, so no invariant is needed about the
-scratch tier or about the values a walk holds, and the proof is a walk over the
-definitions, with no reasoning about values.  It makes every job's start state the
-same as `s'.worker`'s up to the memos.  A spike reached named leaves on the
-`instantiate1` family with a sealed predicate and a reducible-only tactic, but did not
-finish: one proof still timed out, and the primitives were stubbed.
+* **`Arena.scratchRun`** (`Arena/Promote.lean`) ends a scratch run with the persistent tables
+  at every level, the flags and the pins of its start state, whatever ran.  It wraps
+  `installStepGo` before promotion, `storedTry`'s run, `storedTail`'s pushes and each job.  The
+  Rust has the tier by `&` and saves and restores the rest (`scratch_save`, `scratch_restore`).
+* **Promotion reads its persistent leaf** (`view`, `viewN`, `viewL`, `viewLs`, twin and Rust),
+  so nothing is assumed of what a scratch run answered.  `Bridge/Promote` is restated over the
+  projection `st.dropScratch` and a source store (`PSrc`, `PMemoPi`); nothing in it needs the
+  scratch tier well formed.
+* **The job's view keeps `fe.env`**; `pushesAgree` compares the prefix past its length.  Twin
+  only.  So `FoldOK` holds at the view and `checkDecl_bridge` applies as it stands.
 
-**What that fact does not cover: `promote*`'s persistent leaf.**  `promoteE` and its
-three siblings return a persistent-tagged handle unread.  `storedTry`'s `keep` promotes
-what `whnfTelescope` and `checkStructFieldSortsI` answered at the unverified
-environment, so a dangling persistent-tagged child would land in the persistent tier
-and `StoreWF` would fail.  The real walks never build one, but saying so means tracking
-handle validity through the knot.  The alternative is a `view` on the leaf, in twin and
-Rust, which never fails in practice and makes promotion unconditional.  Not
-lockstep-neutral, so it is the maintainer's call.
+`installFold_frame` (`Bridge/Checker/StoredFrame.lean`) is the result: an accepting phase A is a
+persistent extension with pins and well-formedness kept, reading no environment.  Each job ends
+at the projection of its start state, so a worker's accepted list is each job's accept from
+`s'.worker` in any order (`checkJobList_worker_each`): no list-order argument is left.
 
-**The view.**  `BlockCheck.view` has an empty `env` over `fe`'s index, so `IFEnvCoh`
-fails at it, and the Inductives tier's theorems take `IFEnvCoh` and `denoteFEnv`.  No
-code a job reaches reads `fe.env` (`Arena/CheckDecl.lean`'s `checkDeclStep` is the one
-reader outside `installStep`, and a job does not call it), so upstream's `Twin` holds,
-but proving it is a second walk over the functions taking an `IFEnv`, with
-`IFEnv.popTemp`'s `tail` needing care.  The alternative is a twin change: the view keeps
-`fe.env` and `pushesAgree` compares the new prefix.  That moves the delta into
-Theorem 2's relation for the job's layer.
+**Two additions beyond the first ruling, both found by the proof.**
 
-**Rejected**: guarding the stored install so that `EnvWF` holds with no job.  The rules'
-`NestedRead`, the capability arities and the table bodies would all need runtime
-checks upstream does not have.
+* `scratchRun` **fails if a persistent array grew** (`EStore.persSizes`).  Twin only: the Rust
+  cannot reach it, the tier being by `&`, so Theorem 2 owes that the sizes agree.  The
+  specifications conclude `Ext`, which does not say the persistent tier stood still.  Without
+  the test, a handle that denotes where a specified run ended need not be in range of the
+  framed tables, and a later promotion could give that index another node, so a promoted
+  term's denotation could not be read off the run's (`PSrc.of_run`).
+* `storedParts` and the pinned arm of `storedInstall` **test the scratch flag** (twin and Rust
+  alike, never failing).  The recogniser's specification says the store grew, not that it stayed
+  in the persistent tier, and its answer must survive the reading's brackets.
 
-**The theorems owe** (none of them is touched here, and they do not build): the twin
+**Measured** (`Init`, `--jobs=1`, one run each, `instructions:u`): 191 007 764 536 at
+`073a61c0`, 191 465 567 212 at the final binary, **+0.24 %**, attribution not established: the
+profile inlines `pins_dup` and the leaf decodes.  It is not nothing, as was hoped; 115 k runs
+times two small `Vec` copies would be of that order.
+
+**Rejected**: a frame proved by walking the ~800 definitions phase A reaches, and guarding the
+stored install so `EnvWF` holds with no job (`NestedRead`, the capability arities and the table
+bodies would all need runtime checks upstream does not have).
+
+**Status.**  `lake build ConRonBridge` is green.  `Capstone.lean` waits on Theorem 2's
+`PoolAccepts`: its twin section is restated and checked apart (`stages_storeWF` now reads the
+frame and needs neither tier hypothesis), `h6`, `h7`, `h8` are not yet.
+
+**The theorems owe** (as this section was written, before they were touched): the twin
 statements above, `Refine2/Checker/Phased.lean`'s `PoolAccepts`,
 `Arena/Pooled.lean`'s `PooledAccepts`, and the capstone's `h6`…`h8`.

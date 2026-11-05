@@ -309,12 +309,10 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
 /-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
 Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no
 fact about the twin's store (task #97-T2-AUDIT); the headline states the full
-`AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's:
-phase A's `installFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
-ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
-the phase-A state back. -/
+`AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's: phase A's frame
+(`installFold_frame`), which reads no environment, and the pooled fold hands the
+phase-A state back. -/
 theorem stages_storeWF
-    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
@@ -327,12 +325,10 @@ theorem stages_storeWF
     StoreWF sF.store := by
   obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
     stages_frame hA hB hC hD hE
-  obtain ⟨n, pend, -, hA', -⟩ := hF
-  obtain ⟨env₁, pendP, hok₁, -⟩ :=
-    Arena.installFold_bridge hk hind hpps ds.toList dsP Env.empty 0 n
-      (mkIFEnv IEnv.empty) fe' #[] pend [] sE sF hfold List.nodup_nil hipins hpd hden
-      .nil hA'
-  exact hok₁.check.state.wf
+  obtain ⟨n, pend, D, -, hA', -⟩ := hF
+  obtain ⟨hR, -, -⟩ := installFold_frame ds.toList dsP _ _ sE sF
+    ⟨hfold.check, hfold.persPins⟩ hpd hden hA'
+  exact hR.bdy.check.state.wf
 
 end Twin
 
@@ -729,7 +725,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   obtain ⟨env, hden, ⟨hmod⟩⟩ := stages_model V hk hind hA hB hC hD hE hF
   -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
-  have hwfF := stages_storeWF hk hind hA hB hC hD hE hF
+  have hwfF := stages_storeWF hA hB hC hD hE hF
   exact ⟨env, ⟨sF, lfe, hrelF.of₀ hwfF, hfe, hden⟩,
     ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
 
