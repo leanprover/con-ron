@@ -1556,6 +1556,51 @@ theorem gr_classFeR_go_pop (p : BlockShape) :
 
 theorem gr_usize_ext {a b : Std.Usize} (h : a.val = b.val) : a = b := by scalar_tac
 
+/-- **One more pop**: if the rows pushed after this one pop back to the index this push
+produced, then with this row popped too they pop back to the index it started from. -/
+theorem gr_pop_step {rf rf1 rfK : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
+    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)}
+    {prevs prevs1 prevsK : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64))}
+    {Q : List (arena.handle.NIdx × Option (Std.U64 × Std.U64))} (hfinv : IFEnvInv rf)
+    (hpq : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (hn : arena.env.i_constant_info_name ci = ok n)
+    (hprevs1v : prevs1.val = prevs.val ++ [(n, prev)]) (hQ : prevsK.val = prevs1.val ++ Q)
+    (ih3 : ∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
+      j.val = prevs1.val.length + Q.length →
+      arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
+      ∃ rfY, RFEq rfY rf1 ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs1.val.length →
+        arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out) :
+    ∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
+      j.val = prevs.val.length + (Q.length + 1) →
+      arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
+      ∃ rfY, RFEq rfY rf ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs.val.length →
+        arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out := by
+  intro rfX hX hXi j out hj hpop
+  obtain ⟨rfY', hY', hYi', hpop'⟩ := ih3 rfX hX hXi j out
+    (by rw [hj, hprevs1v]; simp; omega) hpop
+  obtain ⟨jj, hjj⟩ : ∃ jj : Std.Usize, jj.val = prevs.val.length + 1 :=
+    ⟨UScalar.ofNatCore (ty := .Usize) (prevs.val.length + 1) (by
+      have := prevsK.property; rw [hQ, hprevs1v] at this; simp at this
+      scalar_tac), UScalar.ofNatCore_val_eq _⟩
+  have hp2 := hpop' jj (by rw [hjj, hprevs1v]; simp)
+  rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_right (by scalar_tac)] at hp2
+  obtain ⟨i1, hi1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+  have hi1v := ConRon.Refine.Nat.usub_val hi1
+  have hget : prevsK.val[i1.val]? = some (n, prev) := by
+    rw [hQ, hprevs1v, show i1.val = prevs.val.length by simp at hi1v; omega]
+    simp
+  rw [gr_vec_index_eq hget, bind_ok] at hp2
+  obtain ⟨pv, hpv, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+  have hpvv : pv = prev := by
+    cases prev <;> simp only [Result.ok.injEq] at hpv <;> exact hpv.symm
+  subst hpvv
+  simp only [bind_ok] at hp2
+  obtain ⟨fe1, hfe1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+  obtain ⟨hR1, hI1⟩ := gr_pop_push hfinv hpq hn hY' hYi' hfe1
+  refine ⟨fe1, hR1, hI1, fun j' hj' => ?_⟩
+  rw [gr_usize_ext (show j'.val = i1.val by simp at hi1v; omega)]
+  exact hp2
+
 theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64) :
     ∀ (q : Nat) (m : Std.Usize) (rf : arena.env.IFEnv) (lf : IFEnv)
@@ -1653,33 +1698,10 @@ theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
         rfl
       rw [hrec] at ih1
       exact ih1
-    · intro rfX hX hXi j out hj hpop
-      obtain ⟨rfY', hY', hYi', hpop'⟩ := ih3 rfX hX hXi j out
-        (by rw [hj, hprevs1v]; simp; omega) hpop
-      -- one more pop: the row this push displaced
-      obtain ⟨jj, hjj⟩ : ∃ jj : Std.Usize, jj.val = prevs.val.length + 1 :=
-        ⟨UScalar.ofNatCore (ty := .Usize) (prevs.val.length + 1) (by
-          have := prevsK.property; rw [hQ, hprevs1v] at this; simp at this
-          scalar_tac), UScalar.ofNatCore_val_eq _⟩
-      have hp2 := hpop' jj (by rw [hjj, hprevs1v]; simp)
-      rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_right (by scalar_tac)] at hp2
-      obtain ⟨i1, hi1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-      have hi1v := ConRon.Refine.Nat.usub_val hi1
-      have hget : prevsK.val[i1.val]? = some (n', prev) := by
-        rw [hQ, hprevs1v, show i1.val = prevs.val.length by simp at hi1v; omega]
-        simp
-      rw [gr_vec_index_eq hget, bind_ok] at hp2
-      obtain ⟨pv, hpv, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-      have hpvv : pv = prev := by
-        cases prev <;> simp only [Result.ok.injEq] at hpv <;> exact hpv.symm
-      subst hpvv
-      simp only [bind_ok] at hp2
-      obtain ⟨fe1, hfe1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-      obtain ⟨hR1, hI1⟩ := gr_pop_push hfe.inv hpq (by
-        simp only [arena.env.i_constant_info_name]; exact hn') hY' hYi' hfe1
-      refine ⟨fe1, hR1, hI1, fun j' hj' => ?_⟩
-      rw [gr_usize_ext (show j'.val = i1.val by simp at hi1v; omega)]
-      exact hp2
+    · rw [← hQl]
+      exact gr_pop_step hfe.inv hpq (by
+        simp only [arena.env.i_constant_info_name]; exact hn') hprevs1v hQ
+        (fun rfX hX hXi j out hj hpop => ih3 rfX hX hXi j out (by rw [hj, hQl]) hpop)
 
 /-- **The rule-less recursors pushed, and popped again**: the pushed index is
 the twin's `classFeR`, and whatever the pops return is related to the twin's
