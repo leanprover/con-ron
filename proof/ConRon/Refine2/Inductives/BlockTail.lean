@@ -32,8 +32,8 @@ open ConRon.Arena
 open Lockstep
 
 /-- The pass's record: the environment related, every other field abstracted. -/
-structure BlockPassRel (r : arena.inductives.block_tail.BlockPass) (q : BlockPass) : Prop where
-  env1 : IFEnvRelI pers _ r.env1 q.env1
+structure BlockPassRel (pers : arena.store.PersTier) (E₀ : IEnv) (r : arena.inductives.block_tail.BlockPass) (q : BlockPass) : Prop where
+  env1 : IFEnvRelI pers E₀ r.env1 q.env1
   cvTas : q.cvTas = absICVL r.cv_tas
   p : q.p = absBlockParts r.p
   ctorsAs : q.ctorsAs = absCtorsLL r.ctors_as
@@ -63,7 +63,7 @@ attribute [local lockstep_inline] arena.inductives.block_tail.check_block_pass_c
     {p0 : arena.inductives.block_parts.BlockParts} {is_rec : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers BlockPassRel
+    LS pers (BlockPassRel pers E₀)
       (arena.inductives.block_tail.check_block_pass pers st mode rf p0 is_rec) lst
       (checkBlockPass (ConRon.Refine.absMode mode) lf (absBlockParts p0) is_rec) := by
   rw [arena.inductives.block_tail.check_block_pass, checkBlockPass]
@@ -199,12 +199,12 @@ theorem ifenv_push_temp_rec_ls {pers : arena.store.PersTier} {E₀ : IEnv} {rf :
 
 /-- What the pushes hand on: the index related, the displaced rows counted, the port's pops
 undoing them, and the twin's pops restoring what the pushes started from. -/
-structure TempRel (rf : arena.env.IFEnv) (lf : IFEnv)
+structure TempRel (pers : arena.store.PersTier) (E₀ : IEnv) (rf : arena.env.IFEnv) (lf : IFEnv)
     (prevs : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64)))
     (prevsL : List (NIdx × Option (Nat × IConstantInfo))) (q : Nat)
     (a : arena.env.IFEnv × alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64)))
     (b : IFEnv × List (NIdx × Option (Nat × IConstantInfo))) : Prop where
-  rel : IFEnvRelI pers _ a.1 b.1
+  rel : IFEnvRelI pers E₀ a.1 b.1
   count : ∃ Q, a.2.val = prevs.val ++ Q ∧ Q.length = q
   pops : ∀ rfX, RFEq rfX a.1 → IdxInv rfX → ∀ (j : Std.Usize) out,
     j.val = prevs.val.length + q →
@@ -227,7 +227,7 @@ theorem cons_block_recs_temp_aux {E₀ : IEnv} {pers} (vis2 : Std.U64)
       (prevsL : List (NIdx × Option (Nat × IConstantInfo))),
       out.val.length - m.val = q → IFEnvRelI pers E₀ rf lf →
       AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (TempRel rf lf prevs prevsL q)
+      LS pers (TempRel pers E₀ rf lf prevs prevsL q)
         (arena.inductives.block_tail.cons_block_recs_temp pers vis2 st p m out rf prevs) lst
         (consBlockRecsTemp (absU vis2) (absBlockShape p) (absU m)
           ((out.val.drop m.val).map absRecOut) lf prevsL) := by
@@ -333,7 +333,7 @@ the comparison, the pops, a flush, and the stored recursors consed. -/
     {block : alloc.vec.Vec arena.env.IConstantInfo}
     {r : arena.inductives.block_tail.BlockPass} {q : BlockPass}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hq : BlockPassRel r q) :
+    (hq : BlockPassRel pers E₀ r q) :
     LS pers (IFEnvRelI pers E₀)
       (arena.inductives.block_tail.check_block_tail pers st mode block r) lst
       (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q) := by
@@ -344,7 +344,7 @@ the comparison, the pops, a flush, and the stored recursors consed. -/
   rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
   lockstep
   simp only [absCtorsLL, absBlockParts_shape, Lockstep.usize_zero_val', List.drop_zero] at *
-  obtain ⟨⟨_, _, hvb, _, _⟩, _⟩ := ‹IFEnvRelI _ (consBlockCtors _ _ _)›
+  obtain ⟨⟨_, _, hvb, _, _⟩, _⟩ := ‹IFEnvRelI _ _ _ (consBlockCtors _ _ _)›
   have hout : ∀ v, absRuleOutL v = v.val.map absRecOut := fun _ => rfl
   simp only [absBlockShape] at hvb ⊢
   rw [hvb, hout]

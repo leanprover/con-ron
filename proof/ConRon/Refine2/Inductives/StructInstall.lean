@@ -188,7 +188,7 @@ structure stored, its table free, the table pushed. -/
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LSR pers IFEnvRelI pers E₀ (arena.inductives.struct_install.check_struct_proj_table_push pers t c lps n_p
+    LSR pers (IFEnvRelI pers E₀) (arena.inductives.struct_install.check_struct_proj_table_push pers t c lps n_p
         n_f res_sort guards bodies rf) st lst
       (checkStructProjTablePushSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
         (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards)
@@ -216,7 +216,7 @@ projection table, pushed after its structure. -/
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI pers E₀ (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
+    LS pers (IFEnvRelI pers E₀) (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
       (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards)
         (absIConstantVal cv_ca) lf) := by

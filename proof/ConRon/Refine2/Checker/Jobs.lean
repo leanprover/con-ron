@@ -42,9 +42,6 @@ theorem ifenv_layer_eq {v b : Std.U64} {w : arena.env.IFEnv}
   simp only [arena.env.ifenv_layer, arena.env.i_env_empty, ron.hashmap2.HashMap2.new, bind_ok] at h
   exact (Result.ok_injective h).symm
 
-theorem layer_inv (v b : Std.U64) (hv : v.val = 0 ∨ True) :
-    IFEnvInv { layer00 with visible_below := v, base_below := b } ∨ True := Or.inr trivial
-
 /-- `EnvExt` read at a row of the later environment: what the earlier one holds is the
 later one's below its counter. -/
 theorem EnvExt.row_below {a b : IFEnv} (h : EnvExt a b) (ha : EnvOK a) (n : NIdx) :
@@ -135,5 +132,433 @@ theorem layer_rel {tier : arena.store.PersTier} {lf view : IFEnv} {v : Std.U64}
   · intro k s hs
     rw [show ConRon.Refine.HashMap2.toFun _ k = _ from tnone.2.2 k] at hs
     cases hs
+
+/-! ## A value check's layer -/
+
+/-- **A value check's layer against the whole environment**: its own layer is empty,
+every row of the base is below the largest counter, and a table's structure has a row. -/
+theorem check_layer_rel {tier : arena.store.PersTier} {lf : IFEnv} {layer : arena.env.IFEnv}
+    (hb : BaseOK tier) (hown : IFEnvOwn tier.env lf) (hok : EnvOK lf)
+    (hL : arena.checker.check_layer = ok layer) :
+    IFEnvRel tier lf.env layer (lf.restrictTo 0) ∧ IFEnvInv layer := by
+  rw [arena.checker.check_layer] at hL
+  obtain rfl := ifenv_layer_eq hL
+  have hnone := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
+  have tnone := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.tbls) rfl
+  have hrow : ∀ n, baseRow tier core.num.U64.MAX n = lf.idx[absNIdx n]? := by
+    intro n
+    rw [← hown.idx n, baseRow]
+    cases hp : ConRon.Refine.HashMap2.toFun tier.env.idx n with
+    | none => rfl
+    | some p =>
+      simp only [Option.bind_some, rowOf]
+      cases hc : tier.env.env.consts.val[p.2.val]? with
+      | none => simp
+      | some ci =>
+        have hr : lf.idx[absNIdx n]? = some (absU p.1, absIConstantInfo ci) := by
+          rw [← hown.idx n, hp]; simp [hc]
+        have h1 := hok.rows _ _ hr
+        have h2 : lf.visibleBelow ≤ Std.U64.max := by
+          rw [hown.visibleBelow]; exact tier.env.visible_below.hBounds
+        have h3 : absU p.1 < absU core.num.U64.MAX := by
+          sorry
+        simp [h3]
+  refine ⟨⟨?_, fun n => ?_, ?_, by simp [layer00], ?_, fun n => ?_, ?_, hb⟩, ?_⟩
+  · simp [overEnv, layer00, IFEnv.restrictTo]
+  · simp only [layerRow, hnone.2.2 n]
+    exact hrow n
+  · simp [IFEnv.restrictTo, absU, layer00]
+  · intro k p hp
+    rw [show ConRon.Refine.HashMap2.toFun _ k = _ from hnone.2.2 k] at hp
+    cases hp
+  · simp only [layerTbl, tnone.2.2 n, baseTbl, hrow n]
+    show _ = lf.tbls[absNIdx n]?
+    cases hr : lf.idx[absNIdx n]? with
+    | none =>
+      simp only [Option.isSome_none, Bool.false_eq_true, ite_false]
+      cases ht : lf.tbls[absNIdx n]? with
+      | none => rfl
+      | some t =>
+        have := hok.tblRow _ t ht
+        rw [hr] at this
+        cases this
+    | some r =>
+      simp only [Option.isSome_some, ite_true]
+      exact hown.tbls n
+  · intro k s hs
+    rw [show ConRon.Refine.HashMap2.toFun _ k = _ from tnone.2.2 k] at hs
+    cases hs
+  · refine ⟨hnone.1, by simp [layer00], fun n p hp => ?_, tnone.1, fun n q hq => ?_⟩
+    · rw [show ConRon.Refine.HashMap2.toFun _ n = _ from hnone.2.2 n] at hp; cases hp
+    · rw [show ConRon.Refine.HashMap2.toFun _ n = _ from tnone.2.2 n] at hq; cases hq
+
+/-! ## A block's job -/
+
+/-- A recorded job against the twin's, at the frozen tier. -/
+structure JobRel (tier : arena.store.PersTier) (b : arena.checker.BlockCheck) (tb : BlockCheck) :
+    Prop where
+  layer : ∀ w, arena.env.ifenv_layer b.vis b.vis = ok w → IFEnvRelI tier tb.view.env w tb.view
+  block : tb.block = b.block.val.map absIConstantInfo
+  nP : tb.nP = absU b.n_p
+  pos : tb.pos = absU b.pos
+  clo : b.c_lo.val ≤ b.c_hi.val
+  chi : b.c_hi.val ≤ tier.env.env.consts.val.length
+  tlo : b.t_lo.val ≤ b.t_hi.val
+  thi : b.t_hi.val ≤ tier.env.env.tables.val.length
+  L : tb.L = ((tier.env.env.consts.val.drop b.c_lo.val).take (b.c_hi.val - b.c_lo.val)).map
+    absIConstantInfo
+  Q : tb.Q = ((tier.env.env.tables.val.drop b.t_lo.val).take (b.t_hi.val - b.t_lo.val)).map
+    absIProjTable
+
+theorem listBeqBy_length {α : Type} {f : α → α → Bool} :
+    ∀ {xs ys : List α}, xs.length ≠ ys.length → listBeqBy f xs ys = false
+  | [], [], h => absurd rfl h
+  | [], _ :: _, _ => rfl
+  | _ :: _, [], _ => rfl
+  | _ :: _, _ :: _, h => by
+    simp only [listBeqBy]
+    rw [listBeqBy_length (by simpa using h)]
+    simp
+
+/-- `consts_agree` from slot `i` on is `listBeqBy` of the rest, when the two ranges have
+the same length. -/
+theorem consts_agree_abs {tier : arena.store.PersTier} {w : arena.env.IFEnv}
+    {b : arena.checker.BlockCheck} (hw : ∀ c ∈ w.env.consts.val, IConstantInfoWF c)
+    (hb : ∀ c ∈ tier.env.env.consts.val, IConstantInfoWF c)
+    (hlen : w.env.consts.val.length = b.c_hi.val - b.c_lo.val)
+    (hhi : b.c_hi.val ≤ tier.env.env.consts.val.length) (hlo : b.c_lo.val ≤ b.c_hi.val) (n : Nat) :
+    ∀ (i : Std.Usize) {o : Bool}, w.env.consts.val.length - i.val = n →
+      arena.checker.consts_agree tier w b i = ok o →
+      o = listBeqBy IConstantInfo.beqP ((w.env.consts.val.drop i.val).map absIConstantInfo)
+        (((tier.env.env.consts.val.drop b.c_lo.val).take (b.c_hi.val - b.c_lo.val)).drop i.val
+          |>.map absIConstantInfo) := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro i o hn h
+    rw [arena.checker.consts_agree.eq_def] at h
+    dsimp only at h
+    have hl := alloc.vec.Vec.len_val w.env.consts
+    by_cases hge : i ≥ alloc.vec.Vec.len w.env.consts
+    · have hle : w.env.consts.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le hle, List.drop_eq_nil_of_le (by simp; omega)]
+      rfl
+    · have hlt : i.val < w.env.consts.val.length := by scalar_tac
+      rw [ite_eq_right hge] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hfit : b.c_lo.val ≤ Std.Usize.max :=
+        le_trans (le_trans hlo hhi) tier.env.env.consts.property
+      have hi2v : i2.val = b.c_lo.val := by
+        rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hfit]
+        exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
+      obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hsv : s.val = b.c_lo.val + i.val := by
+        rw [ConRon.Refine.HashMap.uscalar_add_eq hs, hi2v]
+      have hslt : s.val < tier.env.env.consts.val.length := by omega
+      have hsb : s < alloc.vec.Vec.len tier.env.env.consts := by
+        apply (Std.UScalar.lt_equiv _ _).mpr
+        rw [alloc.vec.Vec.len_val]; exact hslt
+      rw [ite_eq_left hsb] at h
+      obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ii1, hii1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨-, hii⟩ := ConRon.Refine2.ExprOps.vecIndexAt hii
+      obtain ⟨-, hii1⟩ := ConRon.Refine2.ExprOps.vecIndexAt hii1
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbeq := i_constant_info_beq_p_abs (hw ii (by rw [← hii]; exact List.getElem_mem _))
+        (hb ii1 (by rw [← hii1]; exact List.getElem_mem _)) hb1
+      have hdw : w.env.consts.val.drop i.val = ii :: w.env.consts.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hii]
+      have hdb : ((tier.env.env.consts.val.drop b.c_lo.val).take (b.c_hi.val - b.c_lo.val)).drop i.val
+          = ii1 :: ((tier.env.env.consts.val.drop b.c_lo.val).take
+            (b.c_hi.val - b.c_lo.val)).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by simp; omega)]
+        congr 1
+        rw [← hii1]
+        simp [List.getElem_take, List.getElem_drop, hsv]
+      rw [hdw, hdb, List.map_cons, List.map_cons]
+      simp only [listBeqBy]
+      rw [← hbeq]
+      cases b1 with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
+        simpa using (Result.ok_injective h).symm
+      | true =>
+        simp only [↓reduceIte] at h
+        obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi4v : i4.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi4
+        have := ih (w.env.consts.val.length - i4.val) (by omega) i4 rfl h
+        rw [hi4v] at this
+        simpa using this
+
+/-- `tables_agree` likewise. -/
+theorem tables_agree_abs {tier : arena.store.PersTier} {w : arena.env.IFEnv}
+    {b : arena.checker.BlockCheck}
+    (hlen : w.env.tables.val.length = b.t_hi.val - b.t_lo.val)
+    (hhi : b.t_hi.val ≤ tier.env.env.tables.val.length) (hlo : b.t_lo.val ≤ b.t_hi.val) (n : Nat) :
+    ∀ (i : Std.Usize) {o : Bool}, w.env.tables.val.length - i.val = n →
+      arena.checker.tables_agree tier w b i = ok o →
+      o = listBeqBy IProjTable.beqP ((w.env.tables.val.drop i.val).map absIProjTable)
+        (((tier.env.env.tables.val.drop b.t_lo.val).take (b.t_hi.val - b.t_lo.val)).drop i.val
+          |>.map absIProjTable) := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro i o hn h
+    rw [arena.checker.tables_agree.eq_def] at h
+    dsimp only at h
+    have hl := alloc.vec.Vec.len_val w.env.tables
+    by_cases hge : i ≥ alloc.vec.Vec.len w.env.tables
+    · have hle : w.env.tables.val.length ≤ i.val := by scalar_tac
+      rw [ite_eq_left hge] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le hle, List.drop_eq_nil_of_le (by simp; omega)]
+      rfl
+    · have hlt : i.val < w.env.tables.val.length := by scalar_tac
+      rw [ite_eq_right hge] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hfit : b.t_lo.val ≤ Std.Usize.max :=
+        le_trans (le_trans hlo hhi) tier.env.env.tables.property
+      have hi2v : i2.val = b.t_lo.val := by
+        rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hfit]
+        exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
+      obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hsv : s.val = b.t_lo.val + i.val := by
+        rw [ConRon.Refine.HashMap.uscalar_add_eq hs, hi2v]
+      have hslt : s.val < tier.env.env.tables.val.length := by omega
+      have hsb : s < alloc.vec.Vec.len tier.env.env.tables := by
+        apply (Std.UScalar.lt_equiv _ _).mpr
+        rw [alloc.vec.Vec.len_val]; exact hslt
+      rw [ite_eq_left hsb] at h
+      obtain ⟨tt, htt, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨-, htt⟩ := ConRon.Refine2.ExprOps.vecIndexAt htt
+      obtain ⟨-, hit⟩ := ConRon.Refine2.ExprOps.vecIndexAt hit
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbeq := i_proj_table_beq_p_abs hb1
+      have hdw : w.env.tables.val.drop i.val = it :: w.env.tables.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hlt, hit]
+      have hdb : ((tier.env.env.tables.val.drop b.t_lo.val).take (b.t_hi.val - b.t_lo.val)).drop i.val
+          = tt :: ((tier.env.env.tables.val.drop b.t_lo.val).take
+            (b.t_hi.val - b.t_lo.val)).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by simp; omega)]
+        congr 1
+        rw [← htt]
+        simp [List.getElem_take, List.getElem_drop, hsv]
+      rw [hdw, hdb, List.map_cons, List.map_cons]
+      simp only [listBeqBy]
+      rw [← hbeq]
+      cases b1 with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
+        simpa using (Result.ok_injective h).symm
+      | true =>
+        simp only [↓reduceIte] at h
+        obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi4v : i4.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi4
+        have := ih (w.env.tables.val.length - i4.val) (by omega) i4 rfl h
+        rw [hi4v] at this
+        simpa using this
+
+/-- `pushes_agree` ⊑ `pushesAgree`, at what the job's own layer holds. -/
+theorem pushes_agree_abs {tier : arena.store.PersTier} {w : arena.env.IFEnv}
+    {b : arena.checker.BlockCheck} {tb : BlockCheck} {W' : IFEnv} {o : Bool}
+    (hJ : JobRel tier b tb) (hW : IFEnvRel tier tb.view.env w W')
+    (hb : BaseOK tier) (h : arena.checker.pushes_agree tier w b = ok o) :
+    o = pushesAgree tb.view W' tb.L tb.Q := by
+  have hc : (W'.env.consts.take (W'.env.consts.length - tb.view.env.consts.length)).reverse
+      = w.env.consts.val.map absIConstantInfo := by
+    rw [hW.env]
+    simp [overEnv]
+  have ht : (W'.env.tables.take (W'.env.tables.length - tb.view.env.tables.length)).reverse
+      = w.env.tables.val.map absIProjTable := by
+    rw [hW.env]
+    simp [overEnv]
+  rw [pushesAgree, hc, ht, hJ.L, hJ.Q]
+  rw [arena.checker.pushes_agree] at h
+  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hi1v : i1.val = w.env.consts.val.length := by
+    simp only [lift, Result.ok.injEq] at hi1
+    subst hi1
+    rw [usize_cast_u64_val']
+    simp [alloc.vec.Vec.len]
+  have hi2v : i2.val = b.c_hi.val - b.c_lo.val := ConRon.Refine.HashMap.uscalar_sub_eq hi2
+  by_cases he1 : i1 = i2
+  · rw [ite_eq_left he1] at h
+    have hlc : w.env.consts.val.length = b.c_hi.val - b.c_lo.val := by rw [← hi1v, he1, hi2v]
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi3v : i3.val = w.env.tables.val.length := by
+      simp only [lift, Result.ok.injEq] at hi3
+      subst hi3
+      rw [usize_cast_u64_val']
+      simp [alloc.vec.Vec.len]
+    have hi5v : i5.val = b.t_hi.val - b.t_lo.val := ConRon.Refine.HashMap.uscalar_sub_eq hi5
+    by_cases he2 : i3 = i5
+    · rw [ite_eq_left he2] at h
+      have hlt : w.env.tables.val.length = b.t_hi.val - b.t_lo.val := by rw [← hi3v, he2, hi5v]
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h1 := consts_agree_abs hW.envWF hb.envWF hlc hJ.chi hJ.clo _ 0#usize rfl hb1
+      simp only [Std.Usize.ofNat_val_eq, List.drop_zero] at h1
+      rw [← h1]
+      cases b1 with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
+        simpa using (Result.ok_injective h).symm
+      | true =>
+        simp only [↓reduceIte] at h
+        have h2 := tables_agree_abs hlt hJ.thi hJ.tlo _ 0#usize rfl h
+        simp only [Std.Usize.ofNat_val_eq, List.drop_zero] at h2
+        simpa using h2
+    · rw [ite_eq_right he2] at h
+      cases Result.ok_injective h
+      have hne : w.env.tables.val.length ≠ b.t_hi.val - b.t_lo.val := by
+        intro hc'
+        exact he2 (UScalar.eq_imp _ _ (by rw [hi3v, hi5v, hc']))
+      rw [listBeqBy_length (f := IProjTable.beqP) (by
+        simp only [List.length_map, List.length_take, List.length_drop]
+        have := hJ.thi
+        omega)]
+      simp
+  · rw [ite_eq_right he1] at h
+    cases Result.ok_injective h
+    have hne : w.env.consts.val.length ≠ b.c_hi.val - b.c_lo.val := by
+      intro hc'
+      exact he1 (UScalar.eq_imp _ _ (by rw [hi1v, hi2v, hc']))
+    rw [listBeqBy_length (f := IConstantInfo.beqP) (by
+      simp only [List.length_map, List.length_take, List.length_drop]
+      have := hJ.chi
+      omega)]
+    simp
+
+/-- **`block_check` ⊑ `blockCheck`**: the block's checked install at an empty layer over
+the frozen base, framed, and the comparison of its pushes with the stored install's.
+A difference is an internal error on both sides.  Nothing the job builds outlives it. -/
+theorem block_check_refines {tier st lst} {mode : kernel.env.CheckMode}
+    {lpins : List INatOpPinSet} {b : arena.checker.BlockCheck} {tb : BlockCheck} {o}
+    (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
+    (hJ : JobRel tier b tb)
+    (hrun : arena.checker.block_check tier st mode b = ok o) :
+    SimIdle tier lst o (blockCheck (ConRon.Refine.absMode mode) lpins tb) := by
+  rw [arena.checker.block_check] at hrun
+  obtain ⟨st1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (enter_record_sim hidle hinv h1).apply
+  obtain ⟨f, hf, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe := hJ.layer w0 hw0
+  obtain ⟨⟨r, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := check_ind_decl_refines hrel1 hinv1 hfe.rel hfe.inv h2
+  obtain ⟨st3, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [SimRel₀, AOutRel₀] at hS
+  have hbody : checkDecl (ConRon.Refine.absMode mode) lpins tb.view (.indDecl tb.block tb.nP)
+      = checkIndDeclArmSpec (ConRon.Refine.absMode mode) tb.view (absICIL b.block) (absU b.n_p) := by
+    rw [checkDecl_indDecl, hJ.block, hJ.nP]
+    rfl
+  simp only [SimIdle, blockCheck, am_run_bind, hx1, except_ok_bind, hbody]
+  cases r with
+  | Err e =>
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨st4, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases Result.ok_injective hv
+    cases Result.ok_injective hrun
+    exact AErrSim.bind (AErrSim.scratchRun hS) _
+  | Ok wf =>
+    obtain ⟨W', lst2a, hx2a, hW, hrel2a, hinv2a⟩ := hS
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ :=
+      stored_frame_ok htf hrel1 hinv1 hrel2a hinv2a hf h3 hx2a
+    simp only [hx2, except_ok_bind]
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨b1, hb1, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+    have hag := pushes_agree_abs hJ hW.rel hfe.rel.base hb1
+    rw [← hag]
+    cases b1 with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte] at hv
+      obtain ⟨sl, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨v1, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨st4, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
+      obtain rfl : v = _ := (Result.ok_injective hv).symm
+      exact AErrSim.internal rfl
+    | true =>
+      simp only [↓reduceIte] at hv
+      cases Result.ok_injective hv
+      obtain ⟨st4, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
+      obtain ⟨lst3, hx3, hidle3, hinv3⟩ := leave_record_rel hrel2 hinv2 htf h4
+      have hd : (dropScratch : AM Unit).run lst2
+          = .ok ((), { lst2 with store := lst2.store.dropScratch, caches := Caches.empty }) := rfl
+      rw [hd] at hx3
+      cases hx3
+      exact ⟨_, rfl, hidle3, hinv3, lst2.store, rfl⟩
+
+/-! ## The jobs, and their order -/
+
+/-- A job, as the twin's. -/
+def absJob (j : Bool × Std.U64) : Job := (j.1, absU j.2)
+
+/-- **What the driver hands the pool**: the check layer, the records, the block jobs. -/
+structure JobsRel (tier : arena.store.PersTier) (layer : arena.env.IFEnv)
+    (pend : alloc.vec.Vec arena.checker.PendingCheck)
+    (d : alloc.vec.Vec arena.checker.BlockCheck) (lf : IFEnv) (lp : Array PendingCheck)
+    (lD : Array BlockCheck) : Prop where
+  layer : IFEnvRel tier lf.env layer (lf.restrictTo 0)
+  layerInv : IFEnvInv layer
+  pend : lp = (absPendingCheckL pend).toArray
+  jobs : List.Forall₂ (JobRel tier) d.val lD.toList
+
+theorem checkPending_restrict0 (mode : ConLeche.CheckMode) (lf : IFEnv) (pc : PendingCheck) :
+    checkPending mode (lf.restrictTo 0) pc = checkPending mode lf pc := rfl
+
+/-- **`run_job` ⊑ `runJob`, accepting**: a job the Rust ran to `Ok` the twin ran to `.ok`,
+between two idle states. -/
+theorem run_job_refines {tier layer pend d lf lp lD st lst st'}
+    {mode : kernel.env.CheckMode} {lpins : List INatOpPinSet} {j : Bool × Std.U64}
+    (hJ : JobsRel tier layer pend d lf lp lD)
+    (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
+    (hrun : arena.checker.run_job tier st mode layer pend d j = ok (.Ok (), st')) :
+    ∃ lst', runJob (ConRon.Refine.absMode mode) lpins lf lp lD (absJob j) lst = .ok (.ok (), lst') ∧
+      AIdle tier st' lst' ∧ AStateInv tier st' := by
+  obtain ⟨jb, ji⟩ := j
+  rw [arena.checker.run_job] at hrun
+  dsimp only at hrun
+  cases jb with
+  | true =>
+    simp only [↓reduceIte] at hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    sorry
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    sorry
+
+/-- `job_order_go` is the twin's merge, on the abstracted arrays. -/
+theorem job_order_go_abs {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {d : alloc.vec.Vec arena.checker.BlockCheck} {lD : Array BlockCheck}
+    (hD : List.Forall₂ (fun (b : arena.checker.BlockCheck) (tb : BlockCheck) => tb.pos = absU b.pos)
+      d.val lD.toList) (n : Nat) :
+    ∀ (a b : Std.Usize) (acc : alloc.vec.Vec (Bool × Std.U64)) {r},
+      pend.val.length - a.val + (d.val.length - b.val) = n →
+      arena.checker.job_order_go pend d a b acc = ok r →
+      r.val.map absJob = (jobOrderGo (absPendingCheckL pend).toArray lD a.val b.val
+        (acc.val.map absJob).toArray).toList := by
+  sorry
+
+/-- **What the fold hands the pool, at the frozen tier**: every job related. -/
+theorem jobs_rel {ar : arena.store.EStore} {fe layer : arena.env.IFEnv} {lf : IFEnv}
+    {pend : alloc.vec.Vec arena.checker.PendingCheck} {d : alloc.vec.Vec arena.checker.BlockCheck}
+    {lp : Array PendingCheck} {lD : Array BlockCheck} {order : alloc.vec.Vec (Bool × Std.U64)}
+    (hown : IFEnvOwn fe lf) (hinv : IFEnvInv fe) (hok : EnvOK lf)
+    (hD : List.Forall₂ (BlockAt lf) d.val lD.toList)
+    (hL : arena.checker.check_layer = ok layer)
+    (hO : arena.checker.job_order pend d = ok order)
+    (hp : lp = (absPendingCheckL pend).toArray) :
+    JobsRel (tierWith ar fe) layer pend d lf lp lD ∧
+      (jobOrder lp lD).toList = order.val.map absJob := by
+  sorry
 
 end ConRon.Refine2

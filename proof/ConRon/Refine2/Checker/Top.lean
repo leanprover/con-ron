@@ -173,7 +173,7 @@ open Lockstep in
     {kind : kernel.env.BasisKind}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI pers E₀ (arena.checker.check_basis_decl_install pers st rf kind) lst
+    LS pers (IFEnvRelI pers E₀) (arena.checker.check_basis_decl_install pers st rf kind) lst
       (do installBasisDecls lf (← BasisKind.declsA (ConRon.Refine.absBasisKind kind))) :=
   LS.ofSimRel₀ fun _ h => check_basis_decl_install_refines hrel hinv hfe.rel hfe.inv h
 
@@ -428,7 +428,7 @@ open Lockstep in
     {cv_a : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI pers E₀ (arena.check_decl.check_axiom_decl_rest pers st rf cv_a) lst
+    LS pers (IFEnvRelI pers E₀) (arena.check_decl.check_axiom_decl_rest pers st rf cv_a) lst
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_rest_refines hrel hinv hfe.rel hfe.inv h
 
@@ -450,7 +450,7 @@ open Lockstep in
     {cv_a : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI pers E₀ (arena.check_decl.check_axiom_decl_of_reduce pers st rf cv_a) lst
+    LS pers (IFEnvRelI pers E₀) (arena.check_decl.check_axiom_decl_of_reduce pers st rf cv_a) lst
       (checkAxiomDeclOfReduceSpec lf (absIConstantVal cv_a)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_of_reduce_refines hrel hinv hfe.rel hfe.inv h
 
@@ -472,7 +472,7 @@ open Lockstep in
     {cv_a : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI pers E₀ (arena.check_decl.check_axiom_decl_trust pers st rf cv_a) lst
+    LS pers (IFEnvRelI pers E₀) (arena.check_decl.check_axiom_decl_trust pers st rf cv_a) lst
       (checkAxiomDeclTrustSpec lf (absIConstantVal cv_a)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_trust_refines hrel hinv hfe.rel hfe.inv h
 
