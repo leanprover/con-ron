@@ -1800,6 +1800,12 @@ index handed back related to the twin's popped one, the rules alike. -/
 /-- info: 'ConRon.Refine2.gen_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms gen_rec_check_ls
 
+/-- info: 'ConRon.Refine2.class_rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_rec_ty_check_ls
+
+/-- info: 'ConRon.Refine2.class_rule_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_rule_check_ls
+
 /-- info: 'ConRon.Refine2.check_block_classes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_block_classes_ls
 

@@ -307,8 +307,6 @@ theorem cons_block_recs_temp_aux {pers} (vis2 : Std.U64)
   rw [hn, List.nil_append]
   exact hT
 
-attribute [local lockstep_simp] grPop
-
 /-- `check_block_tail_stored` ⊑ `checkBlockTailStored`: the generated install pushed, a flush,
 the comparison, the pops, a flush, and the stored recursors consed. -/
 @[lockstep] theorem check_block_tail_stored_ls {pers st lst} {mode : kernel.env.CheckMode}

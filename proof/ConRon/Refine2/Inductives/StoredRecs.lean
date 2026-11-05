@@ -473,6 +473,48 @@ theorem stored_out_abs (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShap
 
 /-! ## The axiom census -/
 
+/-- info: 'ConRon.Refine2.rec_doms_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_doms_at_ls
+
+/-- info: 'ConRon.Refine2.rec_ty_opened_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_ty_opened_ls
+
+/-- info: 'ConRon.Refine2.stored_closed_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_closed_ls
+
+/-- info: 'ConRon.Refine2.rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_ty_check_ls
+
+/-- info: 'ConRon.Refine2.rule_agree_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rule_agree_ls
+
+/-- info: 'ConRon.Refine2.stored_nested_pins_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_nested_pins_ls
+
+/-- info: 'ConRon.Refine2.stored_nested_bvars_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_nested_bvars_ls
+
+/-- info: 'ConRon.Refine2.stored_nested_dom_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_nested_dom_ls
+
+/-- info: 'ConRon.Refine2.stored_nested_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_nested_ok_ls
+
+/-- info: 'ConRon.Refine2.stored_fire_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_fire_of_ls
+
+/-- info: 'ConRon.Refine2.stored_rules_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rules_shape_ls
+
+/-- info: 'ConRon.Refine2.stored_rules_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rules_check_ls
+
+/-- info: 'ConRon.Refine2.stored_rec_compare_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rec_compare_ls
+
+/-- info: 'ConRon.Refine2.stored_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rec_check_ls
+
 /-- info: 'ConRon.Refine2.stored_recs_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_recs_check_ls
 
