@@ -1423,7 +1423,7 @@ theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' :
     rw [hl.2.2.2, ← htbls n]
     simp only [layerTbl, tblOf, hTb, hT, hB]
   · intro k s hs; rw [hTb] at hs; rw [hT]; exact htk k s hs
-  · rw [hv, hc]; exact hbound
+  · rw [hv, hc, hB]; exact hbound
   · intro n p hp; rw [ht] at hp; rw [hc]; exact hrange n p hp
   · rw [hTb]; exact htinv
   · intro n s hs; rw [hTb] at hs; rw [hT]; exact htrange n s hs

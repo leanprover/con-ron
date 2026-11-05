@@ -955,9 +955,8 @@ theorem stored_drop_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k 
           rcases hout with h1 | h1
           · omega
           · exact Or.inr h1) h
-        rw [hrec, hi1v, List.drop_drop]
-        congr 3
-        omega
+        rw [hrec, hi1v, List.drop_drop, List.drop_drop,
+          show i.val + 1 + (n.val - (i.val + 1)) = i.val + (n.val - i.val) by omega]
       · rw [ite_eq_right hn] at h
         have hin : n.val ≤ i.val := by
           have : ¬ c.val < n.val := fun h' => hn ((Std.UScalar.lt_equiv _ _).mpr h')
