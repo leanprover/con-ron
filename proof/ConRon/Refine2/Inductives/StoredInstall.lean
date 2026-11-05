@@ -1955,4 +1955,9 @@ what the block found. -/
             have := List.all_eq_true.mp hbe.symm c.name (List.mem_map_of_mem hc)
             simpa using this
 
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.stored_install_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_install_ls
+
 end ConRon.Refine2

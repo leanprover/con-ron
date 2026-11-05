@@ -219,9 +219,9 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
 
 /-! ## The fold -/
 
-private theorem mk_ifenv_empty_refines' {pers : arena.store.PersTier} {E₀ : IEnv} {e f}
+private theorem mk_ifenv_empty_refines' {e f}
     (he : arena.env.i_env_empty = ok e) (hf : arena.env.mk_ifenv e = ok f) :
-    IFEnvRel pers E₀ f (mkIFEnv IEnv.empty) ∧ IFEnvInv f := by
+    IFEnvOwn f (mkIFEnv IEnv.empty) ∧ IFEnvInv f := by
   rw [arena.env.i_env_empty] at he
   have he' : e =
       { consts := alloc.vec.Vec.new arena.env.IConstantInfo,
@@ -277,11 +277,9 @@ pool's trust.  The driver instantiates it with two calls into the verified crate
 order[k]` (`jobStep`).
 
 `PoolAccepts` is the driver's fold, accepted: phase A, the jobs' order, the freeze, the
-check layer and `ParallelAll` over the jobs.  `PoolAccepts.toParts` turns the claims into
-the shape the proof consumes (`PoolAcceptsParts`: per worker, an accepting fold of
-`run_job` from one `worker_state` over the jobs it ran, together covering them), and
-`pool_accepts_refines` walks that into the twin's `PooledAccepts` with no argument about
-a worker's history. -/
+check layer and `ParallelAll` over the jobs.  `pool_accepts_refines` walks each worker's
+fold of `run_job`, from its one `worker_state`, into the twin's `PooledAccepts` with no
+argument about a worker's history. -/
 
 /-- **A fold with every step `Ok`**: `step` from `s` over `ks` in order,
 threading the state, every call answering `.Ok ()`. -/
@@ -501,5 +499,8 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   · intro lw hlw
     obtain ⟨w, hwm, rfl⟩ := List.mem_map.mp hlw
     exact hrecf w hwm
+
+/-- info: 'ConRon.Refine2.pool_accepts_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pool_accepts_refines
 
 end ConRon.Refine2

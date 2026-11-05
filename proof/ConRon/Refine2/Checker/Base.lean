@@ -50,11 +50,10 @@ call graph and no wider: `check_value_group`, `check_value_group_value`,
 `check_value_group_tail`, `install_value_guards`, `install_value_guards_tail`
 (`arena::checker_split`) and `consts_resolve_f_{go,node,two,fast}`
 (`arena::checker_base`).  The rest of the closure is `arena::core`'s, where
-the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (its `fenv` clause
-is now `IFEnvRel fe (lfe.restrictTo (absU fe.visible_below))`, so the counter
-is the `vis` clause's business alone) — and `arena::prop_read`'s five readers
-and `arena::env::ifenv_find_proj`, which have no `Refine2` tier yet and must
-take the general form when they get one.
+the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (lookups only, through the
+layer and the tier, so the counter is the `vis` clause's business alone) — and
+`arena::prop_read`'s five readers and `arena::env::ifenv_find_proj`, which take the general
+form.
 
 Every OTHER `hvis` of this tier and of `Refine2/Checker/DeclCheck.lean` is
 sound as it stands: those functions are phase A's, where the port really is

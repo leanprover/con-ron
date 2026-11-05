@@ -71212,6 +71212,89 @@ jobs 1 and 4 on all 690 `.ndjson` fixtures under con-leche's `tests/` and
 `_tmp/arena-tests`; `lake build ConRonArena con-ron-lean`, and `con-ron-lean` 640/640,
 command line 10/10, display 6/9 (the same three as task #139).
 
+#### Theorem 2
+
+**The relation is on lookups, with one ghost.**  `IFEnvRel pers E₀ rf lf`: `lf.env` is the
+layer's pushes over `E₀` (`overEnv`), and `lf.idx`, `lf.tbls` answer what the own layer then
+the base answer (`layerRow`, `layerTbl`, gated by `baseRow`, `baseTbl`).  `E₀` is the ruling's
+`view.env`: the twin's job keeps `fe.env`, the Rust layer starts empty, and nothing but
+`pushes_agree` reads the difference.  The three tiers are the same statement:
+
+| run | Rust | twin | `E₀` |
+|---|---|---|---|
+| phase A | `pers.env` empty, `base_below = 0` | `fe` | `IEnv.empty` |
+| value check | `check_layer()` over the frozen `fe` | `fe.restrictTo 0`, read at `pc.vis` | `fe.env` |
+| block job | `ifenv_layer(vis, vis)` over the frozen `fe` | `view` | `view.env` |
+
+The old field-for-field relation survives as `IFEnvOwn`, which the promotion uses (it writes
+at slots) and which `Refine2/Checker/Jobs.lean` reads the frozen tier's fields through.
+`CoreCtx` holds lookups only.  So the core tier, `DeclCheck` and the checked installs gained
+the two arguments and nothing else: a mechanical pass, plus `ifenv_find_abs` and
+`ifenv_raw_table_abs` once.
+
+**The phase-A fact lives in the fold, not on the theorem.**  "No install overwrites a row"
+is `EnvExt a b` over the twin's `IFEnv`s (`Refine2/Checker/EnvExt.lean`), with `EnvOK` its
+well-formedness, proved on the TWIN's phase-A step (`Post` over `AM`, one lemma per arm:
+`installStepGo_ext`, `storedTail_pushes`, `EnvExt.promoteNew`).  `FoldR` carries `EnvOK` and,
+per recorded job, `BlockAt` (`view` extends to the current environment; the slot ranges read
+the twin's `L`, `Q`).  There is no hypothesis on `ds`, and `h6`…`h8` gain nothing for it.
+
+**What the Rust had to change.**  Four divergences, each fixed in the Rust and none by an
+invariant:
+
+* `ifenv_raw_table` and `ifenv_table_base` read the layer's bound, not the caller's `vis`: a
+  block job's own structure must not see its stored table, and a value check reads `tbls`
+  whole.  The twin's map has no `vis` either.
+* `index_promoted` and `promote_installed_tables` `assert!` that a slot's name does not move.
+  Promotion rewrites a slot and re-indexes it, and the twin erases by name first, so a name
+  that changed would have left a row behind on one side only.  A promoted term's name is the
+  same interned persistent name, so the assert never fires: `diff-e2e` agrees (0 timeouts,
+  0 errors, display 9/9, command line 10/10), and `promote.rs`'s tests use persistent names
+  with a `should_panic` for the other kind.  The proof reads them as `KeptC`, `KeptT`.  An
+  `assert!` is what lets `Err` keep its meaning here: panics are outside `Result ok`.
+* `stored_abandon` builds a fresh store from the tier (`EStore::of_tier`), fresh memos and
+  caches, and the saved pins, not a reset of the failed run's tables.  A reset needs their
+  `Inv`, which an `Err` does not provide.  Its cost is a few allocations on a path that
+  rejects; nothing is measured here.
+* `stored_drop` takes `n` as `u64`, and compares its cursor cast up, where it cast `n` down:
+  a truncation at `usize` would not have been the twin's `drop`.
+
+`IFEnvInv`'s counter clause is `vis ≤ |consts| + base_below`, a job's layer starting at `vis`
+with no constants.  `install_step` and `stored_tail` now get `k ≤ |consts|` from `EnvExt.newC`.
+
+**The frame of the bracket is the tier being `&`.**  `Refine2/Core/Frame.lean`: the twin's
+`scratchRun` restores the persistent tables, flags and pins, and fails if an array grew; the
+abstraction of the Rust's tier is the saved `pers`, so `persSizes` agree, `scratchRun_ok` holds,
+and the restored pins and flag are the saved values on both sides.  One lemma, as the ruling
+said, and `stored_frame_ok` is its use.  `AErrSim.scratchRun` is the failing half.
+
+**Failure paths.**  `AErrSim` carries every `Err` through `stored_try` by `AErrSim.bind_run` and
+`AErrSim.exists_err`, for all four kinds; a caught failure compares the two answers, each built
+from values the failed run cannot touch, so no frame over `Err` is needed.  `SimFold`'s `Err`
+arm keeps its shape.  `run_job_refines` is stated at the accept only (`SimIdle` on the block
+job is two-sided), since `h8` is all `Ok`.  `install_prefix_refines` and `block_failure_refines`
+are proved.  **`phase_a_failure` and `phase_a_own_job` are not**: no accept reaches them, and
+`h6` does not need them.  They could not be lockstep as they stand: the Rust reinstalls on the
+state the failure left and the twin from the state phase A began at, so it would need the frame
+over `Err` the design avoids.  A verdict of a rejection is outside Theorem 2's statement.
+
+**The pool.**  `PoolAccepts` follows `PooledAccepts`: `∃ t n pend d order tier est layer`, with
+`job_order`, `freeze_tier st'.store fe`, `check_layer`, and `ParallelAll order.length
+(worker_state st'.pins) (jobStep tier mode layer pend d order)`.  `jobs_rel` also gives that
+every index in `order` fits a `usize` (the merge casts them up), which `run_job`'s cast down
+needs: a fact about the Rust's own merge.
+
+**Elaboration.**  `simp only [am_run_bind]` over a body holding the literal `coreWalkFuel`
+produced a proof the kernel rejects with "deep recursion" (`stored_tele_slow_refines`).
+`generalize hF : coreWalkFuel = F` before the walk, and `AErrSim.bind_run` / `run_bind_ok`
+instead of the rewrite, avoid it.
+
+**Status.**  `lake build ConRonRefine2` is green, no sorry; the census rows of `stored_install_ls`,
+`install_decl_step_refines`, `block_check_refines`, `run_job_refines`, `jobs_rel` and
+`pool_accepts_refines` print the three standard axioms.  `Capstone.lean` is Theorem 1's to adapt:
+`emptyTier` gains `env := layer00`, `h6`…`h8` take the new shapes, `IFEnvRel fe lfe` reads
+`IFEnvOwn fe lfe`.
+
 #### Theorem 1
 
 **The fold.**  Upstream's Bool barrier, as the twin runs it.  `Arena.installFold_bridge`

@@ -58,6 +58,8 @@ import ConRon.Refine2.Checker.Spec
 import ConRon.Refine2.Checker.Base
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Checker.Top
+import ConRon.Refine2.Checker.Jobs
+import ConRon.Refine2.Checker.Phased
 import ConRon.Refine2.Checker.Init
 import ConRon.Refine2.Checker.PinsWF
 import ConRon.Refine2.Inductives.Top

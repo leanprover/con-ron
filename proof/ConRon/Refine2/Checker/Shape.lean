@@ -297,8 +297,10 @@ so `k ≤ fe'.visibleBelow ≤ |fe'.consts|` is exactly the hypothesis the call
 site needs.  That finding predicted the clause would be *"Theorem 1's to
 carry"*; it is cheaper than that, because the port's own `IFEnv` maintains it:
 `mk_ifenv` sets the counter to the list's length and `ifenv_push` grows both
-by one.  It belongs here, beside the index's `Inv`, for the same reason the
-index's does.
+by one.  A layer over a frozen base starts at `ifenv_layer(v, b)` with an empty list, so
+the bound counts what it sits above: `base_below`, which is `v` on a block job's layer and
+`u64::MAX` on a value check's.  It belongs here, beside the index's `Inv`, for the same
+reason the index's does.
 
 **The table map's two clauses** are the index's first and third at `tbls`:
 its `Inv`, and every slot it stores in range of `env.tables` (`mk_tbls_go`

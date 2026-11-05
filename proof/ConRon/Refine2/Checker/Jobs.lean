@@ -2,13 +2,14 @@
 # `ConRon.Refine2.Checker.Jobs` — Theorem 2 for the check phase's jobs
 
 A value check and a block job, each on a worker's state, over the frozen tier; the
-merge that orders them.  `arena::checker`'s `consts_agree`, `tables_agree`,
-`pushes_agree`, `block_check`, `run_job`, `job_order` against `Arena/Checker.lean`.
+merge that orders them.  `arena::checker`'s `ifenv_layer`, `check_layer`, `consts_agree`,
+`tables_agree`, `pushes_agree`, `block_check`, `run_job`, `block_failure`, `job_order`
+against `Arena/Checker.lean`.
 
 ## The tiers
 
 The twin has one environment value per job.  The Rust reads an own layer, then the
-frozen base.  What makes the two answer alike is `FoldEnd`, what the fold hands over:
+frozen base.  What makes the two answer alike is `JobsRel`, from what the fold hands over:
 
 * a value check's layer, `check_layer()`, against the whole environment restricted to
   `0` (the reader's bound is the record's counter), every row of the base visible;
@@ -500,6 +501,82 @@ theorem block_check_refines {tier st lst} {mode : kernel.env.CheckMode}
       cases hx3
       exact ⟨_, rfl, hidle3, hinv3, lst2.store, rfl⟩
 
+theorem forall₂_get {α β : Type} {R : α → β → Prop} :
+    ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → ∀ i (h : i < l₁.length),
+      ∃ y, l₂[i]? = some y ∧ R l₁[i] y
+  | _, _, .nil, _, h => by simp at h
+  | _, _, .cons hr _, 0, _ => ⟨_, rfl, hr⟩
+  | _, _, .cons _ ht, i + 1, h => forall₂_get ht i (by simpa using h)
+
+/-- A list at an index it holds: the element, and the rest. -/
+private theorem drop_of_getElem? {α : Type} {l : List α} {i : Nat} {x : α} (h : l[i]? = some x) :
+    l.drop i = x :: l.drop (i + 1) := by
+  obtain ⟨hlt, e⟩ := List.getElem?_eq_some_iff.mp h
+  rw [List.drop_eq_getElem_cons hlt, e]
+
+/-- **`block_failure` ⊑ `blockFailure`, from the cursor on**: the first failing job of a
+list, its position attached.  Reached only from a phase A that failed. -/
+theorem block_failure_refines {tier : arena.store.PersTier} {mode : kernel.env.CheckMode}
+    {lpins : List INatOpPinSet} {d : alloc.vec.Vec arena.checker.BlockCheck}
+    {lD : List BlockCheck} (hJ : List.Forall₂ (JobRel tier) d.val lD)
+    (htf : tier.frozen = true) (n : Nat) :
+    ∀ (i : Std.Usize) {st lst o}, d.val.length - i.val = n →
+      AIdle tier st lst → AStateInv tier st →
+      arena.checker.block_failure tier st mode d i = ok o →
+      match o.1 with
+      | none => ∃ lst', blockFailure (ConRon.Refine.absMode mode) lpins (lD.drop i.val) lst
+          = .ok (none, lst')
+      | some p => ∀ k, absAErrKind p.1 = some k → ∃ le,
+          blockFailure (ConRon.Refine.absMode mode) lpins (lD.drop i.val) lst
+            = .ok (some (le, absU p.2), AState.abandoned) ∧ lAErrKind le = some k := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro i st lst o hn hidle hinv hrun
+    rw [arena.checker.block_failure.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val d
+    by_cases hge : i ≥ alloc.vec.Vec.len d
+    · rw [ite_eq_left hge] at hrun
+      have hle : d.val.length ≤ i.val := by scalar_tac
+      have ho := Result.ok_injective hrun
+      subst ho
+      have hnil : lD.drop i.val = [] :=
+        List.drop_eq_nil_of_le (by rw [← hJ.length_eq]; exact hle)
+      rw [hnil]
+      exact ⟨lst, rfl⟩
+    · rw [ite_eq_right hge] at hrun
+      have hlt : i.val < d.val.length := by scalar_tac
+      obtain ⟨bc, hbc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb, hbcE⟩ := ConRon.Refine2.ExprOps.vecIndexAt hbc
+      subst hbcE
+      obtain ⟨tb, htb, hrel⟩ := forall₂_get hJ i.val hlt
+      have hdrop := drop_of_getElem? htb
+      obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hS := block_check_refines (lpins := lpins) hidle hinv htf hrel h1
+      simp only [SimIdle] at hS
+      rw [hdrop]
+      cases r with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        intro k hk
+        obtain ⟨le, hle, hlk⟩ := hS k hk
+        have hle' : blockCheck (ConRon.Refine.absMode mode) lpins tb lst = .error le := hle
+        refine ⟨le, ?_, hlk⟩
+        simp only [blockFailure, hle', hrel.pos]
+      | Ok u =>
+        obtain ⟨lst', hx, hi', hv', -⟩ := hS
+        have hx' : blockCheck (ConRon.Refine.absMode mode) lpins tb lst = .ok ((), lst') := hx
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have hrec := ih (d.val.length - i2.val) (by omega) i2 rfl hi' hv' hrun
+        rw [hi2v] at hrec
+        have hstep : blockFailure (ConRon.Refine.absMode mode) lpins (tb :: lD.drop (i.val + 1)) lst
+            = blockFailure (ConRon.Refine.absMode mode) lpins (lD.drop (i.val + 1)) lst' := by
+          simp only [blockFailure, hx']
+        rw [hstep]
+        exact hrec
+
 /-! ## The jobs, and their order -/
 
 /-- A job, as the twin's. -/
@@ -517,13 +594,6 @@ structure JobsRel (tier : arena.store.PersTier) (layer : arena.env.IFEnv)
 
 theorem checkPending_restrict0 (mode : ConLeche.CheckMode) (lf : IFEnv) (pc : PendingCheck) :
     checkPending mode (lf.restrictTo 0) pc = checkPending mode lf pc := rfl
-
-theorem forall₂_get {α β : Type} {R : α → β → Prop} :
-    ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → ∀ i (h : i < l₁.length),
-      ∃ y, l₂[i]? = some y ∧ R l₁[i] y
-  | _, _, .nil, _, h => by simp at h
-  | _, _, .cons hr _, 0, _ => ⟨_, rfl, hr⟩
-  | _, _, .cons _ ht, i + 1, h => forall₂_get ht i (by simpa using h)
 
 /-- A cast that fits, at an index read. -/
 private theorem cast_val {i : Std.U64} {x : Std.Usize} (hi : i.val ≤ Std.Usize.max)
@@ -806,5 +876,19 @@ theorem jobs_rel {ar : arena.store.EStore} {fe layer : arena.env.IFEnv} {lf : IF
     refine ⟨?_, h2⟩
     rw [h1, jobOrder]
     simp [alloc.vec.Vec.with_capacity]
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.block_check_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_check_refines
+
+/-- info: 'ConRon.Refine2.run_job_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms run_job_refines
+
+/-- info: 'ConRon.Refine2.jobs_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms jobs_rel
+
+/-- info: 'ConRon.Refine2.block_failure_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_failure_refines
 
 end ConRon.Refine2
