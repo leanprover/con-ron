@@ -1284,7 +1284,7 @@ theorem rc_rec_shape_dup_id (r : arena.inductives.block_parts.RecShape) :
   obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+  rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv, Lockstep.PC2.i_rec_rules_dup_ls _ _ hv]
 
 /-- `recs_by_target` keeps the recursors whose major is a member iff `own`. -/
 theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)

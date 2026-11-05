@@ -129,7 +129,7 @@ theorem rec_shape_dup_abs {r o : arena.inductives.block_parts.RecShape}
   obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
-  simp only [absRecShape, i_constant_val_dup_abs hiv, absEIdxL, eidx_vec_dup_val hv]
+  simp only [absRecShape, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
 
 theorem members_dup_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.MemberShape),
@@ -1240,7 +1240,7 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
         (do
           let r ← (absRecsLFrom rs i).mapM fun r => do
             let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
-            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)
+            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : RecShape)
           pure (out.val.map absRecShape ++ r)) := by
   refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
     (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
@@ -1249,7 +1249,7 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
         (do
           let r ← (absRecsLFrom rs i).mapM fun r => do
             let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
-            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)
+            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : RecShape)
           pure (out.val.map absRecShape ++ r))) ?_ ?_
   · intro i out hn lst hrel hinv
     apply LSR.of_LS
@@ -1280,7 +1280,7 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
       st lst
       ((absRecsL rs).mapM fun r => do
         let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
-        pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)) := by
+        pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : RecShape)) := by
   have h := rec_shapes_ls (pers := pers) (st := st) names rs 0#usize (alloc.vec.Vec.new _) lst
     hrel hinv
   simp only [absRecsLFrom_zero, Lockstep.vec_new_val', List.map_nil, List.nil_append, bind_pure] at h
@@ -1453,7 +1453,7 @@ def bsTail (nPd : Nat) (cvTs : List IConstantVal) (cs : List (IConstantVal × Na
     fun a => ⟨a.1.1, a.1.2, a.2⟩
   let recsL ← rs.mapM fun r => do
     let tgt ← recTargetOf names r.2.1 r.1.type
-    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)
+    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : RecShape)
   elimTwin members recsL nPd s isProp rl0 lps
 
 section sort

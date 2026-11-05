@@ -66,7 +66,7 @@ def absMemberShape (m : arena.inductives.block_parts.MemberShape) : MemberShape 
   ⟨absIConstantVal m.cv_t, absU m.n_idx, absCtorsL m.ctors⟩
 
 def absRecShape (r : arena.inductives.block_parts.RecShape) : RecShape :=
-  ⟨absIConstantVal r.cv_r, absU r.r_p, absU r.m_i, absU r.tgt, absEIdxL r.rhss⟩
+  ⟨absIConstantVal r.cv_r, absU r.r_p, absU r.m_i, absU r.tgt, r.rules.val.map absIRecRule⟩
 
 def absBlockShape (p : arena.inductives.block_parts.BlockShape) : BlockShape :=
   ⟨p.members.val.map absMemberShape, p.recs.val.map absRecShape, absU p.n_p,

@@ -906,7 +906,7 @@ reads. -/
   rw [arena.inductives.gen_rec.check_block_classes, checkBlockClasses]
   lockstep
 
-/-! ## The rules: `domains_resolve`, `class_rule_ok` (`_tail` inline) -/
+/-! ## The rules: `domains_resolve`, `class_rule_check` (`_tail` inline), `class_rule_ok` -/
 
 theorem domains_resolve_aux {pers} {vis_t : Std.U64}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
@@ -948,9 +948,21 @@ from the cursor on. -/
           fun b => constsResolveFFast (lf.restrictTo (absU vis_t)) b) :=
   fun i st lst => domains_resolve_aux hfe rbs _ i st lst rfl
 
-attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_ok_tail
+attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_check_tail
 
-/-- `class_rule_ok` (with `class_rule_ok_tail` inline) ⊑ `classRuleOk`. -/
+/-- `class_rule_check` (with `class_rule_check_tail` inline) ⊑ `classRuleCheck`. -/
+@[lockstep] theorem class_rule_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (hvr : absU vis_r = lf.visibleBelow)
+    (cv_r : arena.env.IConstantVal) (n : Std.U64) (gen : arena.handle.EIdx) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.gen_rec.class_rule_check pers st mode vis_t vis_r rf cv_r n gen) lst
+      (classRuleCheck (ConRon.Refine.absMode mode) (absU vis_t) lf (absIConstantVal cv_r)
+        (absU n) (absEIdx gen)) := by
+  rw [arena.inductives.gen_rec.class_rule_check, classRuleCheck]
+  lockstep
+
+/-- `class_rule_ok` ⊑ `classRuleOk`: the check, then the generated rule. -/
 @[lockstep] theorem class_rule_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (hvr : absU vis_r = lf.visibleBelow)
@@ -962,7 +974,7 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_ok_tail
   rw [arena.inductives.gen_rec.class_rule_ok, classRuleOk]
   lockstep
 
-/-! ## `class_const_ok` (`_type` inline), `class_rec_ty_ok`, `class_rec_tys_ok` -/
+/-! ## `class_const_ok` (`_type` inline), `class_rec_ty_check`, `class_rec_ty_ok`, `class_rec_tys_ok` -/
 
 attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
 
@@ -988,6 +1000,18 @@ theorem gr_absRecShape_cvR (r : arena.inductives.block_parts.RecShape) :
 
 attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecShape_mI
   gr_absRecShape_cvR
+
+/-- `class_rec_ty_check` ⊑ `classRecTyCheck`. -/
+@[lockstep] theorem class_rec_ty_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (cv_ri cv_g : arena.env.IConstantVal) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.gen_rec.class_rec_ty_check pers st mode rf cv_ri cv_g) lst
+      (classRecTyCheck (ConRon.Refine.absMode mode) lf (absIConstantVal cv_ri)
+        (absIConstantVal cv_g)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.gen_rec.class_rec_ty_check, classRecTyCheck]
+  lockstep
 
 /-- `class_rec_ty_ok` ⊑ `classRecTyOk`. -/
 @[lockstep] theorem class_rec_ty_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
