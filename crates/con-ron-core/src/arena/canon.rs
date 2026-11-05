@@ -430,7 +430,7 @@ pub fn i_constant_val_canon_eq(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:128-154 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:92-118 RecRuleFire
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:180-194 canonRulesEq` — the
 /// derived `BEq` on a rule's firing mode, which the record comparison below
 /// needs and `arena::env` does not carry (it has the copy only).
@@ -697,21 +697,21 @@ pub fn canon_eq_list(
 // the instance is spelled out here.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:121-126 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:85-90 ConstantVal
 /// Lean twin: `proof/ConRon/Arena/Env.lean:54-60 IConstantVal` — the cited
 /// `deriving DecidableEq`, field by field.
 pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:156-187 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:120-151 RecRule
 /// Lean twin: `proof/ConRon/Arena/Env.lean:72-83 IRecRule` — the cited
 /// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
 pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
     i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:156-187 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:120-151 RecRule
 /// A rule list compared elementwise.
 pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     if i >= a.len() && i >= b.len() {
@@ -725,7 +725,7 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:232-279 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:196-243 IndCaps
 /// Lean twin: `proof/ConRon/Arena/Env.lean:87-108 IIndCaps` — the cited
 /// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -742,7 +742,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:353-370 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:317-334 ConstantInfo
 /// Lean twin: `proof/ConRon/Arena/Env.lean:150-160 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned

@@ -127,7 +127,7 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:250-252 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:256-258 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -152,7 +152,8 @@ pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> 
     Ok(got)
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:34-37 ConLeche.CheckError.exitCode
+/// con-leche: ConLeche/Driver/CheckMain.lean:31-38 ConLeche.CheckError.exitCode
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::exit_code_refines, then delete this line
 /// The cited three codes, plus the port's own fourth constructor
 /// (`core_types::CheckError::Native`, DESIGN.md §3's ruling of 2026-09-13):
 /// a failure with no con-leche counterpart — a machine-word limit, a width
@@ -206,6 +207,7 @@ pub fn verdict_word(code: u8) -> &'static str {
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
 /// con-leche: Main.lean:360-428 run
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::default_jobs_refines, then delete this line
 /// The `--jobs` default, which con-leche reads in `run` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped
@@ -222,7 +224,7 @@ pub fn default_jobs() -> u64 {
     }
 }
 
-/// con-leche: Main.lean:65-88 jobsCount
+/// con-leche: ConLeche/Driver/Cli.lean:71-94 jobsCount
 /// The worker count: a decimal numeral of at least 1, `1` being the sequential
 /// lane (one worker, no shared counter and no result table).  `0` and a
 /// non-numeral are usage errors (exit 3), as in con-leche, so a script that
@@ -244,7 +246,7 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
     }
 }
 
-/// con-leche: Main.lean:52-63 progressStride
+/// con-leche: ConLeche/Driver/Cli.lean:58-69 progressStride
 /// The progress heartbeat's stride: no flag is off; bare `--progress` is
 /// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
 /// for no heartbeat — are usage errors: a run's output must be readable off
@@ -326,8 +328,8 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:254-264 declCLabel
-/// con-leche: ConLeche/Driver/Run.lean:41-45 declCName
+/// con-leche: ConLeche/Cached/ParsedC.lean:260-270 declCLabel
+/// con-leche: ConLeche/Driver/CheckMain.lean:46-50 declCName
 /// A record's display label, `crate::driver::decl_label`'s seven arms with
 /// the names READ BACK out of the store: a handle is not a name until the
 /// store is asked, which is the one thing every rendering in this crate has to
@@ -365,7 +367,8 @@ pub fn name_of(pers: &PersTier, ar: &EStore, h: &con_ron_core::arena::handle::NI
     }
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::mark_persistent_note_refines, then delete this line
 /// **`--no-mark-persistent`: accepted, and a no-op** — and here for a stronger
 /// reason than `crate::driver::mark_persistent_note`'s.  con-leche's mark
 /// turns off the Lean runtime's reference counting on the installed
@@ -383,7 +386,8 @@ pub fn mark_persistent_note() -> &'static str {
      immutable in phase B (DESIGN.md section 8.5)"
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::workers_for_refines, then delete this line
 /// The worker count a run reports and the pool spawns: `max 1 (min jobs
 /// pend.size)`, which is `workers_for` and nothing else —
 /// the two binaries cannot drift on what `--jobs=<n>` means (task #97-P6-6b;
@@ -401,8 +405,10 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 // The two phases (`Main.lean:67-141 installLoop`, `:160-191 checkLoop`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// What a caller wants to know between the steps of the fold —
 /// `crate::driver::PhaseObserver` over the arena's records, with the store
 /// passed to every method because a handle is not a label until the store is
@@ -412,11 +418,13 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 /// `con_ron_core::arena::checker::InstallHook`, which every observer also
 /// implements (task #97-P5-Driver).
 pub trait PhaseObserver {
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
     /// Phase A failed at fold position `pos`.
     fn install_failed(&mut self, _pos: u64, _total: usize) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_done_refines, then delete this line
     /// The phase boundary: every record installed, `pend` checks pending, and
     /// the store as phase A left it — the node counts are the one number P6
     /// asked this line for, because they are what the install ADDED to the
@@ -428,12 +436,14 @@ pub trait PhaseObserver {
     /// end of the run.
     fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
     /// The worker count phase B is about to run on, so that the summary
     /// reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:147-178 checkOne
+    /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// Does this observer print a line per check?  The driver asks ONCE, before
     /// the pool spawns: off, no worker touches the completed-count atomic or the
     /// observer lock at all, which is the difference between a plain pooled
@@ -442,20 +452,24 @@ pub trait PhaseObserver {
         false
     }
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+    /// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// After the `done`-th of `m` recorded checks completed.
     fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
     /// Phase B failed at fold position `pos`.
     fn check_failed(&mut self, _pos: u64) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_done_refines, then delete this line
     /// Every recorded check passed.
     fn check_done(&mut self, _m: usize) {}
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::Silent_refines, then delete this line
 /// The observer a plain run (no `--progress`) hands the driver: it prints
 /// nothing and wants no check lines, so no worker touches the completed-count
 /// atomic or the observer lock at all.  ONE lane serves both runs since task
@@ -463,18 +477,23 @@ pub trait PhaseObserver {
 /// did not would be a second computation.
 pub struct Silent;
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl PhaseObserver for Silent {}_refines, then delete this line
 impl PhaseObserver for Silent {}
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl InstallHook for Silent_refines, then delete this line
 impl InstallHook for Silent {
     /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// Nothing.
     fn install_before(&self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
-/// con-leche: ConLeche/Driver/CheckPool.lean:147-178 checkOne
+/// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_line_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_line_refines, then delete this line
 /// The heartbeat's line after phase B's `k`-th record, on the worker that
 /// checked it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
 /// spelling of the cited `stride > 0` guard inside `checkOne`: off, no worker
@@ -508,6 +527,7 @@ fn check_line<O: PhaseObserver>(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:383-407 collectChecks
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::phase_b_verdict_refines, then delete this line
 /// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
 /// by its record's fold position, and the pool's own failures (a missing
 /// result, a panicked worker) as internal errors — exit 3, never a verdict on
@@ -528,8 +548,9 @@ pub fn phase_b_verdict(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The driver**: the two-phase fold with the boundary visible — a straight
 /// line of calls, with the observer's lines between them and the pool for
 /// phase B (tasks #97-P5-Driver, #98-POOL).  Each step is one premise of the capstone:
@@ -628,8 +649,10 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
 // The progress heartbeat (`--progress[=<stride>]`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
-/// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::Heartbeat_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::Heartbeat_refines, then delete this line
 /// **The heartbeat**, `crate::driver::Heartbeat`'s line shapes with
 /// `con-ron: ` for the prefix:
 ///
@@ -659,11 +682,13 @@ pub struct Heartbeat {
     pub workers: usize,
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl Heartbeat_refines, then delete this line
 /// The heartbeat's own lines: the parse's, and the closing summary the failure
 /// and success arms share.
 impl Heartbeat {
     /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::new_refines, then delete this line
     /// A heartbeat at `stride` (0 for none), starting now.
     pub fn new(stride: u64, t0: Instant) -> Heartbeat {
         Heartbeat {
@@ -681,6 +706,7 @@ impl Heartbeat {
     }
 
     /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
     /// `con-ron: parse done: …`, the heartbeat's first line.  Records
     /// `t_parse`, so the summary can price the parse whatever happens next.
     pub fn parse_done(
@@ -709,7 +735,8 @@ impl Heartbeat {
         );
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::summary_refines, then delete this line
     /// The `done:` summary — the three phase durations and the worker count.
     fn summary(&self, check_ms: Option<u128>) {
         if self.stride == 0 {
@@ -737,10 +764,12 @@ impl Heartbeat {
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl InstallHook for Heartbeat_refines, then delete this line
 /// The heartbeat's install line, as phase A's hook: it reads the clock and
 /// the store and writes nothing but standard error.
 impl InstallHook for Heartbeat {
     /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// `con-ron: install <i>/<N> <decl> t=<s>s`, before the install.
     fn install_before(
         &self,
@@ -762,11 +791,14 @@ impl InstallHook for Heartbeat {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
-/// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+/// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
+/// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// The heartbeat as an observer of the two phases.
 impl PhaseObserver for Heartbeat {
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
     /// `con-ron: install failed at <i>/<N> …`, then the summary.
     fn install_failed(&mut self, pos: u64, total: usize) {
         if self.stride > 0 {
@@ -782,7 +814,8 @@ impl PhaseObserver for Heartbeat {
         self.summary(None);
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::install_done_refines, then delete this line
     /// `con-ron: install done: <N>/<N> …, <M> checks pending …`.
     fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize) {
         self.t_install = self.now();
@@ -804,19 +837,22 @@ impl PhaseObserver for Heartbeat {
         }
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
     /// The cited `workers`, for the summary's last field.
     fn phase_b_workers(&mut self, workers: usize) {
         self.workers = workers;
     }
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:147-178 checkOne
+    /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
     /// The heartbeat prints a check line exactly when it has a stride.
     fn wants_check_lines(&self) -> bool {
         self.stride > 0
     }
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+    /// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// `con-ron: check <done>/<M> <kind> <name> t=<s>s`, after the check.
     fn check_after(
         &mut self,
@@ -838,7 +874,8 @@ impl PhaseObserver for Heartbeat {
         }
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
     /// `con-ron: check failed at fold position <i> …`, then the summary.
     fn check_failed(&mut self, pos: u64) {
         let now = self.now();
@@ -853,7 +890,8 @@ impl PhaseObserver for Heartbeat {
         self.summary(Some(now - self.t_install));
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
+    /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::check_done_refines, then delete this line
     /// `con-ron: check done: <M>/<M> …`, then the summary.
     fn check_done(&mut self, m: usize) {
         let now = self.now();
@@ -875,6 +913,7 @@ impl PhaseObserver for Heartbeat {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::verdict_accept_refines, then delete this line
 /// **The accept line**, `crate::driver::verdict_accept`'s with this
 /// binary's name: `records` is the FILE's declaration-record count — what the
 /// parse produced — and nothing the preparation does moves it.  It is not the
@@ -890,6 +929,7 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::verdict_failure_refines, then delete this line
 /// The failure line: the error, the declaration it names and its FOLD
 /// position, the mode, the elapsed time.  There is no second pass — the fold's
 /// error carries the position, so the label is read off the record array the
@@ -935,6 +975,7 @@ pub fn verdict_failure(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::HandleSource_refines, then delete this line
 /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
 /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
 /// first empty read is the end of the input.  A failed read ends the input
@@ -953,8 +994,10 @@ pub struct HandleSource<'a, R: Read> {
 }
 
 /// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::impl<'a, R: Read> ChunkSource for HandleSource<'a, R>_refines, then delete this line
 impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
     /// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::next_chunk_refines, then delete this line
     /// One read of up to `chunk` bytes; empty at the end or on a failure.
     fn next_chunk(&mut self) -> Vec<u8> {
         if self.err.is_some() {
@@ -978,6 +1021,7 @@ impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
 }
 
 /// con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::parse_export_handle_d_refines, then delete this line
 /// Streaming direct parse off an open reader, into the persistent tier of
 /// `ar`: the VERIFIED reader loop `export_c::parse_source` over the handle
 /// (task #97-P5-Driver moved the loop into the core; what is left here is
@@ -998,6 +1042,7 @@ pub fn parse_export_handle_d<R: Read>(
 }
 
 /// con-leche: ConLeche/Frontend/Stream.lean:320-323 parseExportStreamS
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove driver::parse_export_stream_d_refines, then delete this line
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d(
     pers: &PersTier,

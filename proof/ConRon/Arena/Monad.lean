@@ -45,7 +45,7 @@ open ConLeche
 
 /-! ## The error -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError — the checker's
+/-- con-leche: ConLeche/Kernel/Error.lean:15-34 CheckError — the checker's
 error, verbatim (census class (P)), plus the fourth constructor the arena
 needs: DESIGN §8.3's handle word runs out at 2^30 `app` or 2^26 other nodes per constructor per
 tier and the checker `throw`s `native` there, exactly as the Rust port's
@@ -135,7 +135,7 @@ structure AState where
   pins : Pins
 
 /-- con-leche: ConLeche/Cached/StateC.lean:157-159 CheckCM
-con-leche: ConLeche/Kernel/Core.lean:77 CheckM
+con-leche: ConLeche/Kernel/Error.lean:42 CheckM
 The one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing
 else"). -/
@@ -144,7 +144,7 @@ abbrev AM := StateT AState (Except CheckError)
 /-- con-leche: none — the initial state over a given arena. -/
 def AState.init (st : EStore) : AState := ⟨st, .empty, .empty, .empty⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError — **the one failure
+/-- con-leche: ConLeche/Kernel/Error.lean:15-34 CheckError — **the one failure
 primitive of (B)**.  Every failure site goes through this `def`, so the
 Rust has one function to match (`arena::monad::fail`) and Theorem 2 one
 `@[lockstep]` lemma (`Refine2/Tactic/Prims.lean`'s `fail_spec`) for all of

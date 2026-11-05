@@ -259,7 +259,7 @@ def classGenRecTy (g : ClassGen) (c : Nat) : AM (Option EIdx) := do
     let r ← closeTelescope bs 0 body
     pure (some r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:521-526 classRecOf
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:533-538 classRecOf
 The recursor a call at class `t` names: the family's first recursor at that
 class (`recCls` the pre-pass's reading, `cvGs` the generated constants).
 Placed ahead of `classGenRule`, which the Rust specialises to it. -/
@@ -527,7 +527,8 @@ def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM Unit :
   let stype ← inferTypeCore mode fe checkFuel 0 cv.type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:380-399 classRecTyOk
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:389-405 classRecTyOk
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classRecTyOk_bridge, then delete this line
 **One recursor's generated type, checked and compared**: the record's member,
 rule prefix and major index are the generated ones; the generated type is
 checked as a constant under the record's name and level parameters and must
@@ -549,7 +550,8 @@ def classRecTyOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) (rc : 
     else fail (.invalid "generated recursor: the type of  is not the generated one \
       (official: invalid recursor)")
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:401-410 classRecTysOk
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:407-416 classRecTysOk
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classRecTysOk_bridge, then delete this line
 Every recursor's generated type, pairwise with the stream's checked types and
 the recursors' classes; the lists running out unevenly is internal. -/
 def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
@@ -561,8 +563,9 @@ def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
   | [], _, _ => pure []
   | _, _, _ => fail (.internal "generated recursor: recursor list")
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:412-433 classRuleOk
-con-leche: ConLeche/Cached/CheckerC.lean:89-115 sharedOpsRuleR
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:439-444 classRuleOk
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classRuleOk_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:90-116 sharedOpsRuleR
 **One generated rule, installed as generated**: closed, its level parameters
 the recursor's, resolving and typed at the rule-less recursors' environment
 `feR` (`sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n`
@@ -591,7 +594,8 @@ def classRuleOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (cvR : IConstantVa
       fail (← unresolvedConstsError "the domains of a generated rule of" gen)
     pure gen
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:435-446 classRulesOk
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:446-457 classRulesOk
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classRulesOk_bridge, then delete this line
 A recursor's generated rules, one per constructor of its class. -/
 def classRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen)
     (recCls : List Nat) (cvGs : List IConstantVal) (cvR : IConstantVal)
@@ -607,7 +611,8 @@ def classRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen)
       let rs ← classRulesOk mode visT feR g recCls cvGs cvR c xs
       pure (r :: rs)
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-457 classRecsRulesOk
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:459-468 classRecsRulesOk
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classRecsRulesOk_bridge, then delete this line
 Every recursor's generated rules, with its class (the shorter of the two
 lists decides, as the cited zip does).  `recCls` and `cvGs` are the whole
 lists `classRecOf` reads; the two walked lists are their tails. -/
@@ -622,7 +627,8 @@ def classRecsRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen
     pure ((cvG, m, rhss) :: rest)
   | _, _ => pure []
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:459-466 classStreamRecs
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:470-478 classStreamRecs
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove GenRec.classStreamRecs_bridge, then delete this line
 The stream's recursor constants, checked (`checkConstantValF`). -/
 def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List IConstantVal)
   | [] => pure []
@@ -631,14 +637,14 @@ def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List
     let cvs ← classStreamRecs mode fe rcs
     pure (rc.cvR :: cvs)
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:468-471 classKeyCanon
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:480-483 classKeyCanon
 A class key's parameters moved to the block's canonical parameter
 variables. -/
 def classKeyCanon (params : List EIdx) (k : ClassKey) : AM ClassKey := do
   let ds ← k.ds.mapM (targetCanonParams params)
   pure { k with ds := ds }
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:481-486 classSeeds
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:493-498 classSeeds
 The seeds: every OUTSIDE class in the positivity check's representation
 (`nestSeedOf`), in order. -/
 def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (List (NestKey × Nat))
@@ -651,7 +657,7 @@ def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (Li
       let rest ← classSeeds ctx holes ms
       pure (sd :: rest)
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:488-499 classKeyOf
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:500-511 classKeyOf
 **A class key, made checkable**: moved to the canonical parameter variables,
 its parameters closed over them (the Rust's `params_closed`, the `bvarB`
 read first). -/
@@ -665,7 +671,7 @@ def classKeyOf (nP : Nat) (params : List EIdx) (k : ClassKey) : AM ClassKey := d
       recursor's parameters")
   pure k2
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:501-519 checkBlockClasses
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:513-531 checkBlockClasses
 **The classes, read and checked** at the formers' environment `fe`: the
 pre-pass on the stream's raw recursor types, every class key made checkable,
 every class checked as a major over the canonical parameters, exactly one
@@ -687,7 +693,7 @@ def checkBlockClasses (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (params :
         class per member (official: invalid recursor)")
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
-con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:343-351 consBlockRecsBare
+con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:344-352 consBlockRecsBare
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:141-146 consBlockRecsBareF
 **The rule-less generated recursors consed onto the constructors'
 environment**, pushed TEMPORARILY (the module note): each recursor `m` at its
@@ -705,8 +711,8 @@ where
       let fe2 := fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) [])
       go (m + 1) rest fe2 (prevs ++ [(cv.name, prev)])
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:528-570 genRecCheck
-con-leche: ConLeche/Cached/CheckerC.lean:117-124 shadowOpsC
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:540-582 genRecCheck
+con-leche: ConLeche/Cached/CheckerC.lean:118-125 shadowOpsC
 **The generated recursor stage**, at the constructors' environment `fe`, on
 the classes and the positivity check's table: the pins, the stream's recursor
 types checked, the elimination guard, the classes' table entries and

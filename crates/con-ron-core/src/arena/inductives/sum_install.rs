@@ -684,8 +684,10 @@ pub fn idx_args_resolve(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-162 checkSumCtors
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-114 checkSumCtorsF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-163 checkSumCtors
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove sum_install::check_sum_ctors_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-115 checkSumCtorsF
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove sum_install::check_sum_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:180-194 checkSumCtors`
 /// — stage 2, all constructors' types, at the environment holding the type
 /// former.  Lean conses on the way out; the port pushes on the way in.
@@ -759,8 +761,8 @@ pub fn check_sum_ctors(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:164-167 consSumCtors
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:116-119 consSumCtorsF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:165-168 consSumCtors
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:117-120 consSumCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:196-202 consSumCtors`
 /// — the constructors' conses, in order (the first constructor deepest).
 /// Pure: the index push touches no term.
@@ -773,7 +775,7 @@ pub fn cons_sum_ctors(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:169-180 sumRules
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:170-181 sumRules
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:204-215 sumRules`
 /// — the stored rules: constructor `j`'s with the generated right-hand side
 /// `j`, `.plain` (the major is the family at the recursor's parameters), with

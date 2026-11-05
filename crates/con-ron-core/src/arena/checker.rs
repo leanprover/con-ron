@@ -138,7 +138,7 @@ pub fn check_basis_decl_install(
 // The two-phase fold the binary runs (`Checker.lean:210-341` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:85-93 PendingCheck
+/// con-leche: ConLeche/Cached/Installed.lean:91-99 PendingCheck
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:107-115 PendingCheck` — a
 /// phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag) and
@@ -149,7 +149,7 @@ pub struct PendingCheck {
     pub vis: u64,
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — phase
 /// A's step BODY: guard-and-install for the three value kinds, the ordinary
 /// step `check_decl` for everything else.  The four arms are four functions,
@@ -181,7 +181,7 @@ pub fn install_step_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — **phase
 /// A's step, bracketed**; `i` is the fold position the record is tagged with.
 ///
@@ -242,7 +242,7 @@ pub fn install_step(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — the
 /// bracket's `some vg` arm: the seam promoted first and the environment at the
 /// SAME memo, then the tier dropped and the record pushed.
@@ -283,7 +283,7 @@ pub fn install_step_promote(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// `.defnDecl` arm: a pin-certified operation takes the ordinary step (its
 /// check is not separable from its install), everything else is guarded,
@@ -316,8 +316,8 @@ pub fn install_step_defn(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:125-131 installGuardsC
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:131-137 installGuardsC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// `.defnDecl` arm's guards (`installGuardsC`: the header's, then the value's)
 /// and its push: the constant is stored AS DECLARED.  The environment counter
@@ -352,7 +352,7 @@ pub fn install_step_defn_install(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's guards
 /// only; the value is recorded raw and never touched here (phase B guards it),
@@ -379,7 +379,7 @@ pub fn install_step_thm(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its identity
 /// certificate is part of its install), everything else is guarded, installed
@@ -407,8 +407,8 @@ pub fn install_step_opaque(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:125-131 installGuardsC
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:131-137 installGuardsC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// opaque arm's guards and push.  **An `opaque`'s value is not in the
 /// environment**: the arm pushes `.axiomInfo cv` and hands the VALUE to the
@@ -439,7 +439,7 @@ pub fn install_step_opaque_install(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:133-171 installStepC
+/// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
 /// which records nothing pending.
@@ -457,7 +457,7 @@ pub fn install_step_other(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:173-194 installDeclStep
+/// con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:216-243 installDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
@@ -495,7 +495,7 @@ pub fn install_decl_step(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:245-256 installFold` — phase A
 /// as a fold over the records, as an index recursion threading the accumulator
 /// by value.  (Task #119: was `annot_fold`.)
@@ -518,7 +518,8 @@ pub fn install_fold(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:252-270 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::check_pending_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:258-274 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
@@ -562,6 +563,7 @@ pub fn check_pending(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::InstallHook_refines, then delete this line
 /// What the driver prints between phase A's steps (the `--progress`
 /// heartbeat's install line), as a trait the verified fold calls: the hook
 /// takes the state by SHARED reference and returns nothing, so it cannot
@@ -571,11 +573,12 @@ pub fn check_pending(
 /// the implementations live in the unverified crate.
 pub trait InstallHook {
     /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+    /// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::install_before_refines, then delete this line
     /// Before record `pos` of `total` is installed.
     fn install_before(&self, pers: &PersTier, ar: &EStore, pos: u64, total: usize, d: &IDeclaration);
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
 /// Lean twin: none — `install_fold` with the driver's hook; the twin has no
 /// hook and the refinement is `install_fold`'s, through the equation
 /// `install_fold_hooked_eq` (`Refine2/Checker/Phased.lean`).
@@ -604,7 +607,7 @@ pub fn install_fold_hooked<H: InstallHook>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:429-446 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
 /// Lean twin: none — the fold's start triple, `(0, mkIFEnv IEnv.empty, #[])`,
 /// which `installThenCheck` writes inline.
 /// Phase A's starting accumulator, so that the driver builds it with the same
@@ -667,7 +670,8 @@ pub fn pins_dup(p: &Pins) -> Pins {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:180-196 checkWorker
+/// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:33-40 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,

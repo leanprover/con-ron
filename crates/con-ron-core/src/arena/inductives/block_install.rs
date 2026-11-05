@@ -314,7 +314,9 @@ pub fn block_raw_rec(pers: &PersTier, st: &AState, p: &BlockParts) -> Result<boo
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:111-122 checkBlockTele
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:122-135 checkBlockTele` —
 /// one member's type former: the constant check, official's telescope loop
 /// and the result sort, without the environment cons.
@@ -510,7 +512,9 @@ pub fn tele_vals(cvs: &Vec<(IConstantVal, LIdx)>, i: usize, out: Vec<IConstantVa
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:179-192 checkBlockInds
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_inds_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_inds_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:196-213 checkBlockInds` —
 /// **stage 1**: the k type formers, checked, agreed and consed — official's
 /// `declare_inductive_types`, which puts every former in the environment
@@ -584,7 +588,8 @@ pub fn shape_nest_ctx(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:204-215 checkBlockCtors
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:204-216 checkBlockCtors
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove block_install::check_block_ctors_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:228-241 checkBlockCtors` —
 /// the constructors of every member from `i` on (the member's former
@@ -638,7 +643,7 @@ pub fn check_block_ctors(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:233-255 checkAbsCtorSorts
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:234-256 checkAbsCtorSorts
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:243-262 checkAbsCtorSorts` —
 /// **the fields' universes at the holes**: each constructor's positivity
 /// normal form within the block's level parameters (internal), its fields
@@ -695,7 +700,7 @@ pub fn check_abs_ctor_sorts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:257-263 checkAbsCtorSortsAll
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:258-264 checkAbsCtorSortsAll
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:264-272 checkAbsCtorSortsAll`
 /// — `checkAbsCtorSorts` on every member's constructors from `i` on; the
 /// block's `isEquiv sort 0 == some true` read once.
@@ -721,7 +726,7 @@ pub fn check_abs_ctor_sorts_all(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:265-279 blockNestCtx
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:266-280 blockNestCtx
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:274-288 blockNestCtx` — **the
 /// walk's context** of a block: the canonical parameter variables are the
 /// first former's opened telescope, the lookup the environment `fe`, with the
@@ -807,7 +812,7 @@ pub fn split_nfs(os: &Vec<(Vec<NestFieldKind>, EIdx)>, i: usize, out: Vec<EIdx>)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:281-299 checkBlockPositivity
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:282-300 checkBlockPositivity
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:290-306 checkBlockPositivity`
 /// — **the block's positivity, on its stored constructors**, at the walk's
 /// context: official's uniform-occurrence check, the root frame from the
@@ -858,7 +863,7 @@ pub fn check_block_positivity(
 // Stage 2: the tail
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:303-316 checkBlockIdxSorts
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:304-317 checkBlockIdxSorts
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:110-120 checkBlockIdxSortsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:310-324 checkBlockIdxSorts` —
 /// every member's INDEX binders' universes from `i` on, read (no bound is
@@ -910,7 +915,7 @@ pub fn check_block_idx_sorts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:318-322 consBlockCtors
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:319-323 consBlockCtors
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 consBlockCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:326-332 consBlockCtors` —
 /// the members' constructors consed from member `i` on, in block order.

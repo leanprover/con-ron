@@ -1611,7 +1611,7 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:522-539 consBlockRecsTF` — **the
 /// checked family consed through the index, at its majors**: each recursor
 /// with its rules at ITS major, the rules' lookups (`find?`) at the

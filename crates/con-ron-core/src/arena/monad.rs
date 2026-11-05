@@ -340,7 +340,7 @@ impl AState {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError
+/// con-leche: ConLeche/Kernel/Error.lean:15-34 CheckError
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:147-152 fail` — **the one failure
 /// primitive of (C)**, as it is of (B).
 ///

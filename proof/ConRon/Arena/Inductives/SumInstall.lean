@@ -177,8 +177,10 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     idxArgs nF
   pure (cvCa, sorts)
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-162 checkSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-114 checkSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-163 checkSumCtors
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-115 checkSumCtorsF
+-- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
 def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
@@ -193,15 +195,15 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
       cvTa cs
     pure ((cvCa, c.2) :: rest, sorts :: srest)
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:164-167 consSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:116-119 consSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:165-168 consSumCtors
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:117-120 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest).  Pure: the
 index push touches no term. -/
 def consSumCtors (nP : Nat) : List (IConstantVal × Nat) → IFEnv → IFEnv
   | [], fe => fe
   | c :: cs, fe => consSumCtors nP cs (fe.push (.ctorInfo c.1 nP c.2))
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:169-180 sumRules
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:170-181 sumRules
 The stored rules: constructor `j`'s with the generated right-hand side `j`,
 `.plain` (the major is the family at the recursor's parameters), with the two
 rescue bits `recRuleBits` reads off the block's own store. -/

@@ -78,6 +78,7 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: Main.lean:91-312 usage
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -209,6 +210,7 @@ does not recognise declines (exit 2), naming it.  The binary reads no
 environment variable.";
 
 /// con-leche: Main.lean:314-328 Args
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -223,6 +225,7 @@ struct Args {
 }
 
 /// con-leche: Main.lean:330-358 parseArgs
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -343,7 +346,9 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:47-65 parseInput
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
@@ -539,7 +544,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
     exit_after_verdict(code)
 }
 
-/// con-leche: Main.lean:430-487 main
+/// con-leche: Main.lean:33-93 main
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::exit_after_verdict_refines, then delete this line
 /// con-leche task #336: **exit
 /// right after the verdict, without freeing the heap**.  Returning would drop
 /// the store, the parsed and prepared declarations and the environment on the
@@ -554,7 +560,9 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: Main.lean:360-428 run
-/// con-leche: Main.lean:430-487 main
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::main_refines, then delete this line
+/// con-leche: Main.lean:33-93 main
+/// con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did
