@@ -1303,9 +1303,9 @@ mod tests {
         use crate::arena::env::{ifenv_find_table, ifenv_push_table, IProjTable};
         let mut st = AState::init(EStore::empty());
         let fe0: IFEnv = mk_ifenv(i_env_empty());
+        let n = nm(&PersTier::empty(), &mut st, "BrandNewStruct");
+        assert!(n.is_persistent(), "the fixture's name is the stream's");
         let mut tier = enter_scratch(&mut st);
-        let n = nm(&tier, &mut st, "BrandNewStruct");
-        assert!(!n.is_persistent(), "the fixture's name must be scratch");
         let ty = cst(&tier, &mut st, "T");
         let c = nm(&tier, &mut st, "BrandNewStruct.mk");
         let z = ok(intern_l_node(&tier, &mut st, LNodeView::Zero));
@@ -1334,15 +1334,14 @@ mod tests {
                 guards,
             },
         );
-        assert!(ifenv_find_table(&PersTier::empty(), fe2.visible_below, &fe2, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find_table(&PersTier::empty(), fe2.visible_below, &fe2, &n).is_some(), "found under its key");
         assert!(ifenv_find_table(&PersTier::empty(), 0, &fe2, &n).is_none(), "hidden where its structure is");
         let (_, fe3) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 1, fe2));
         assert_eq!(fe3.env.tables.len(), 1);
         let n2: NIdx = fe3.env.tables[0].struct_name.dup2();
-        assert!(n2.is_persistent(), "the stored structure name is persistent now");
+        assert!(n2.eq2(&n), "the stored structure name has not moved");
         assert!(n2.eq2(&env::i_constant_info_name(&fe3.env.consts[0])), "the structure's own");
-        assert!(ifenv_find_table(&PersTier::empty(), fe3.visible_below, &fe3, &n2).is_some(), "found under the new key");
-        assert!(fe3.tbls.get(&n).is_none(), "and the stale scratch row is gone");
+        assert!(ifenv_find_table(&PersTier::empty(), fe3.visible_below, &fe3, &n2).is_some(), "found under its key");
         assert!(fe3.env.tables[0].bodies[0].is_persistent(), "the bodies are persistent too");
         drop_scratch(&mut st, tier);
     }
@@ -1351,10 +1350,9 @@ mod tests {
     fn promote_new_repairs_the_index() {
         let mut st = AState::init(EStore::empty());
         let fe0: IFEnv = mk_ifenv(i_env_empty());
+        let n = nm(&PersTier::empty(), &mut st, "brandNew");
+        assert!(n.is_persistent(), "the fixture's name is the stream's");
         let mut tier = enter_scratch(&mut st);
-        // a constant whose NAME is new, so the name handle is a scratch one
-        let n = nm(&tier, &mut st, "brandNew");
-        assert!(!n.is_persistent(), "the fixture's name must be scratch");
         let ty = cst(&tier, &mut st, "T");
         let fe1: IFEnv = ifenv_push(
             fe0,
@@ -1364,18 +1362,13 @@ mod tests {
                 ty,
             }),
         );
-        assert!(ifenv_find(&PersTier::empty(), fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find(&PersTier::empty(), fe1.visible_below, &fe1, &n).is_some(), "found under its key");
         let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 0, fe1));
         assert_eq!(fe2.env.consts.len(), 1);
         assert_eq!(fe2.visible_below, 1);
         let n2: NIdx = env::i_constant_info_name(&fe2.env.consts[0]);
-        assert!(n2.is_persistent(), "the stored name is persistent now");
-        assert!(!n2.eq2(&n), "and it moved");
-        assert!(ifenv_find(&PersTier::empty(), fe2.visible_below, &fe2, &n2).is_some(), "found under the new key");
-        assert!(
-            ifenv_find(&PersTier::empty(), fe2.visible_below, &fe2, &n).is_none(),
-            "and the stale scratch row is gone"
-        );
+        assert!(n2.eq2(&n), "the stored name has not moved");
+        assert!(ifenv_find(&PersTier::empty(), fe2.visible_below, &fe2, &n2).is_some(), "found under its key");
         match &fe2.env.consts[0] {
             IConstantInfo::AxiomInfo(cv) => {
                 assert!(cv.ty.is_persistent(), "the type is persistent too")
@@ -1383,6 +1376,26 @@ mod tests {
             _ => panic!("the fixture is an axiom"),
         }
         drop_scratch(&mut st, tier);
+    }
+
+    /// A name that would move is the one thing the promotion refuses.
+    #[test]
+    #[should_panic]
+    fn promote_new_refuses_a_scratch_name() {
+        let mut st = AState::init(EStore::empty());
+        let fe0: IFEnv = mk_ifenv(i_env_empty());
+        let mut tier = enter_scratch(&mut st);
+        let n = nm(&tier, &mut st, "brandNew");
+        let ty = cst(&tier, &mut st, "T");
+        let fe1: IFEnv = ifenv_push(
+            fe0,
+            IConstantInfo::AxiomInfo(IConstantVal {
+                name: n.dup2(),
+                level_params: Vec::new(),
+                ty,
+            }),
+        );
+        let _ = promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 0, fe1);
     }
 
     /// `k = 0` is the identity, which is the bracket's own fast path for a
