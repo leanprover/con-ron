@@ -64819,7 +64819,7 @@ def arena.checker.install_step
     ok (core.result.Result.Err e, st4)
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_push_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 892:0-899:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 895:0-902:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_push_all
   (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
@@ -65810,7 +65810,7 @@ def arena.env.i_constant_info_names_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stored_install::stored_install]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 861:0-888:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stored_install.rs', lines 861:0-891:1
     Visibility: public -/
 def arena.inductives.stored_install.stored_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65837,25 +65837,37 @@ def arena.inductives.stored_install.stored_install
       let (r1, st2) ← arena.basis.basis_kind_decls_a pers st1 kind
       match r1 with
       | core.result.Result.Ok decls =>
-        let names ←
-          arena.env.i_constant_info_names_from decls 0#usize (alloc.vec.Vec.new
-            arena.handle.NIdx)
-        let b ←
-          arena.inductives.stored_install.stored_names_free pers
-            fe.visible_below fe names 0#usize
-        if b
+        if st2.store.scratch_on
         then
-          let i ←
-            arena.inductives.stored_install.stored_push_all decls 0#usize fe
-          ok (core.result.Result.Ok i, st2)
-        else
           let s ←
-            lift (Array.to_slice arena.inductives.stored_install.M_SLOT_TAKEN)
+            lift (Array.to_slice
+              arena.inductives.stored_install.M_SCRATCH_OPEN)
           let v ← kernel.core_types.code_points s
           let r2 ←
             arena.monad.fail arena.env.IFEnv
               (kernel.core_types.CheckError.Internal v)
           ok (r2, st2)
+        else
+          let names ←
+            arena.env.i_constant_info_names_from decls 0#usize
+              (alloc.vec.Vec.new arena.handle.NIdx)
+          let b ←
+            arena.inductives.stored_install.stored_names_free pers
+              fe.visible_below fe names 0#usize
+          if b
+          then
+            let i ←
+              arena.inductives.stored_install.stored_push_all decls 0#usize fe
+            ok (core.result.Result.Ok i, st2)
+          else
+            let s ←
+              lift (Array.to_slice
+                arena.inductives.stored_install.M_SLOT_TAKEN)
+            let v ← kernel.core_types.code_points s
+            let r2 ←
+              arena.monad.fail arena.env.IFEnv
+                (kernel.core_types.CheckError.Internal v)
+            ok (r2, st2)
       | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 

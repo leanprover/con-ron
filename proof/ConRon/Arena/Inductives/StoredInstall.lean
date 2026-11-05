@@ -327,6 +327,7 @@ def storedInstall (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) (
   match ← basisPinHit block with
   | some kind => do
     let decls ← BasisKind.declsA kind
+    if (← get).store.scratchOn then fail (.internal "install: the scratch tier is open")
     if !namesFree fe (decls.map (·.name)) then
       fail (.internal "install: a predicted slot did not match")
     else

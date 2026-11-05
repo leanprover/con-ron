@@ -852,7 +852,7 @@ pub fn stored_parts_push(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:320-337 storedInstall` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:320-338 storedInstall` — **the
 /// stored install of a block** on `fe`.  A block matching a basis pin pushes the
 /// pin's constants, a block the recogniser does not read pushes nothing, and
 /// every other block its reading, each part at its record as declared where the
@@ -871,6 +871,9 @@ pub fn stored_install(
         Ok(Some(kind)) => match basis::basis_kind_decls_a(pers, st, &kind) {
             Err(e) => Err(e),
             Ok(decls) => {
+                if st.store.scratch_on {
+                    return fail(CheckError::Internal(code_points(&M_SCRATCH_OPEN)));
+                }
                 let names: Vec<NIdx> = env::i_constant_info_names_from(&decls, 0, Vec::new());
                 if !stored_names_free(pers, fe.visible_below, &fe, &names, 0) {
                     fail(CheckError::Internal(code_points(&M_SLOT_TAKEN)))
