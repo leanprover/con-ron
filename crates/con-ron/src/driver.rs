@@ -36,16 +36,17 @@
 //!    is in the PERSISTENT cons table before any declaration's check can
 //!    intern one into a tier that is about to vanish.  Its result — the
 //!    interned pin list — is the fold's parameter.
-//! 3. **Phase B's bracket is `check_pending`'s**, which turns the scratch tier
-//!    on and drops it.  A driver that checked records itself without it would
-//!    grow the scratch tier without bound; the loop below calls it once per
-//!    record and nothing else opens a tier.
-//! 4. **`--jobs=<n>` runs [`crate::pool`]** (task #97-P6-6b), which is
+//! 3. **Phase B's bracket is `run_job`'s** (`check_pending`'s and
+//!    `block_check`'s), which empties the scratch tier around each job.  A
+//!    driver that checked records itself without it would grow the scratch tier
+//!    without bound; the pool calls it once per job and nothing else opens a
+//!    tier.
+//! 4. **Phase B runs on [`crate::pool`] at every `--jobs=<n>`**, which is
 //!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
-//!    is immutable in phase B, so it is shared by reference, and each worker
-//!    owns a scratch tier, its own caches and a copy of the pin handles.
-//!    Phase B reads `fe` and the pending list and writes only the per-record
-//!    state, which is what lets the pool slot in where the `while` is.
+//!    and the installed index are immutable in phase B, so they are shared by
+//!    reference, and each worker owns a scratch tier, its own caches and a copy
+//!    of the pin handles.  `--jobs=1` is the same install and the same jobs on
+//!    one worker.
 //!
 //! ## The read loop
 //!
@@ -67,6 +68,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use con_ron_core::arena::checker;
+use con_ron_core::arena::checker::BlockCheck;
 use con_ron_core::arena::checker::InstallHook;
 use con_ron_core::arena::checker::PendingCheck;
 use con_ron_core::arena::checker_split::ValueKind;
@@ -397,13 +399,12 @@ pub trait PhaseObserver {
     /// The phase boundary: every record installed, `pend` checks pending, and
     /// the store as phase A left it — the node counts are the one number P6
     /// asked this line for, because they are what the install ADDED to the
-    /// persistent tier on top of the parse's.  Since task #97-P6-2 phase A
-    /// runs in the SCRATCH tier and promotes what the environment keeps, so
-    /// the figure to compare with the Lean twin's (`Init`: **6 508 719**, the
-    /// parse's 6 137 973 plus 370 746) is the PERSISTENT one, printed beside
-    /// the total; phase B promotes nothing, so it is also the count at the
-    /// end of the run.
-    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize) {}
+    /// persistent tier on top of the parse's.  Phase A runs in the SCRATCH tier
+    /// and promotes what the environment keeps, so the figure to compare with
+    /// the Lean twin's is the PERSISTENT one, printed beside the total; phase B
+    /// promotes nothing, so it is also the count at the end of the run.  `pend`
+    /// counts every job of phase B, `blocks` of them inductive blocks.
+    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize, _blocks: usize) {}
 
     /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
     /// The worker count phase B is about to run on, so that the summary
@@ -420,8 +421,8 @@ pub trait PhaseObserver {
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
-    /// After the `done`-th of `m` recorded checks completed.
-    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
+    /// After the `done`-th of `m` jobs completed.
+    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _job: &JobRef) {}
 
     /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
     /// Phase B failed at fold position `pos`.
@@ -452,8 +453,8 @@ impl InstallHook for Silent {
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:110-135 checkHeartbeat
 /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-/// The heartbeat's line after phase B's `k`-th record, on the worker that
-/// checked it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
+/// The heartbeat's line after phase B's `k`-th job, on the worker that
+/// ran it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
 /// spelling of the cited `stride > 0` guard inside `checkOne`: off, no worker
 /// touches the counter or the observer lock at all.
 ///
@@ -471,7 +472,7 @@ fn check_line<O: PhaseObserver>(
     tier: &PersTier,
     w: &AState,
     m: usize,
-    pc: &PendingCheck,
+    job: &JobRef,
 ) {
     if heartbeat {
         // A poisoned lock means another worker panicked while printing; the
@@ -479,28 +480,67 @@ fn check_line<O: PhaseObserver>(
         if let Ok(mut g) = lock.lock() {
             g.0 += 1;
             let n = g.0;
-            g.1.check_after(tier, &w.store, n, m, pc);
+            g.1.check_after(tier, &w.store, n, m, job);
         }
     }
 }
 
+/// con-leche: ConLeche/Driver/CheckPool.lean:82-89 Jobs
+/// Which job a heartbeat line is about: a recorded value check or a block's.
+pub enum JobRef<'a> {
+    /// A recorded value check.
+    Value(&'a PendingCheck),
+    /// A block's checked install.
+    Block(&'a BlockCheck),
+}
+
+/// con-leche: ConLeche/Driver/CheckPool.lean:99-108 jobLabel
+/// A job's label: its kind and its name.  A block is named by its first constant.
+pub fn job_label(pers: &PersTier, ar: &EStore, job: &JobRef) -> String {
+    match job {
+        JobRef::Value(pc) => format!(
+            "{} {}",
+            value_kind_word(&pc.vg.kind),
+            name_of(pers, ar, &pc.vg.cv.name)
+        ),
+        JobRef::Block(b) => match b.block.first() {
+            Some(ci) => format!("inductive {}", name_of(pers, ar, &ienv::i_constant_info_name(ci))),
+            None => "inductive".to_string(),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Driver/CheckPool.lean:137-141 runAt
+/// Job `k` of the order, as a `JobRef`.
+fn job_at<'a>(order: &[(bool, u64)], pend: &'a [PendingCheck], blocks: &'a [BlockCheck], k: usize) -> JobRef<'a> {
+    if order[k].0 {
+        JobRef::Block(&blocks[order[k].1 as usize])
+    } else {
+        JobRef::Value(&pend[order[k].1 as usize])
+    }
+}
+
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
-/// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
-/// by its record's fold position, and the pool's own failures (a missing
-/// result, a panicked worker) as internal errors — exit 3, never a verdict on
-/// the input.
+/// Phase B's answer as a verdict: `parallel_all`'s first failing job, whose error
+/// carries its fold position, and the pool's own failures (a missing result, a
+/// panicked worker) as internal errors — exit 3, never a verdict on the input.
 pub fn phase_b_verdict(
+    order: &[(bool, u64)],
     pend: &[PendingCheck],
-    r: Result<(), ParallelError<CheckError>>,
+    blocks: &[BlockCheck],
+    r: Result<(), ParallelError<(CheckError, u64)>>,
 ) -> Result<(), (CheckError, u64)> {
     let internal = |msg: String| con_ron_core::kernel::core_types::internal(msg.chars().map(|c| c as u32).collect());
     match r {
         Ok(()) => Ok(()),
-        Err(ParallelError::Step(k, e)) => Err((e, pend[k].pos)),
-        Err(ParallelError::Missing(k)) => Err((
-            internal(format!("check phase: record {} was never checked", k)),
-            pend[k].pos,
-        )),
+        Err(ParallelError::Step(_, e)) => Err(e),
+        Err(ParallelError::Missing(k)) => {
+            let pos = match job_at(order, pend, blocks, k) {
+                JobRef::Value(pc) => pc.pos,
+                JobRef::Block(b) => b.pos,
+            };
+            Err((internal(format!("check phase: job {} was never run", k)), pos))
+        }
         Err(ParallelError::Panicked) => Err((internal("check phase: a worker panicked".to_string()), 0)),
     }
 }
@@ -509,34 +549,37 @@ pub fn phase_b_verdict(
 /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
 /// **The driver**: the two-phase fold with the boundary visible — a straight
 /// line of calls, with the observer's lines between them and the pool for
-/// phase B (tasks #97-P5-Driver, #98-POOL).  Each step is one premise of the capstone:
+/// phase B, at every job count.  Each step is one premise of the capstone:
 ///
 /// | step | here | the capstone's premise |
 /// |---|---|---|
 /// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
-/// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
-/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
-/// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
+/// | boundary | `checker::freeze_tier(&mut st.store, fe)` | the same call's value |
+/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]), …)` | `h8`: index lists `ws` covering `0..order.len`, each `w` a `foldlM` of `run_job` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
+/// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store and hands `fe` back (`freeze_tier_ok`) |
 ///
 /// `init` and `step` are calls into the verified crate; `parallel_all` is the
 /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
-/// `ParallelAll`: on `Ok`, every record was checked by some worker,
-/// each worker folding `check_pending` over the records it claimed on ONE
-/// `worker_state`.  Everything else here is the observer, which only ever
-/// holds `&` the state (the hook of phase A by the trait's own signature, the
-/// other lines through `&st.store` and the worker's `&AState`), so it cannot
-/// change an outcome.
+/// `ParallelAll`: on `Ok`, every job was run by some worker, each worker folding
+/// `run_job` over the jobs it claimed on ONE `worker_state`.  Everything else
+/// here is the observer, which only ever holds `&` the state (the hook of phase
+/// A by the trait's own signature, the other lines through `&st.store` and the
+/// worker's `&AState`), so it cannot change an outcome.
 ///
-/// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
-/// owns its persistent tier and appends to it; at the boundary
-/// `checker::freeze_tier` moves the four stores' persistent tables out into
-/// one `PersTier`, handed back `frozen`: every read through it goes to those
-/// tables, and a worker's own store is frozen (`checker::worker_state`), so
-/// every append there is a scratch append (task #98-FREEZE).  The
-/// installed index goes to the workers by reference, since `check_pending`
-/// takes the visibility bound as a scalar — so `n` workers share one
-/// environment and one term DAG and own nothing but a scratch tier, their
-/// caches and a copy of the pin handles (`checker::worker_state`).
+/// **Phase A failing** runs the block jobs before it (`checker::phase_a_failure`):
+/// a stored block is checked only by its job, and a failure past it may be that
+/// block's doing, so the verdict is the first failing job's.  **Phase B** merges
+/// the value checks and the block jobs in fold order (`checker::job_order`), and
+/// the pool reports the least failing index, so the first failure in fold order
+/// is the verdict at every job count.
+///
+/// **The boundary is where the tier is FROZEN.**  Phase A owns its persistent
+/// tier and its index and appends to them; at the boundary `checker::freeze_tier`
+/// moves the four stores' persistent tables and the index into one `PersTier`,
+/// handed back `frozen`: every read through it goes to those tables, and a
+/// worker's own store is frozen (`checker::worker_state`), so every append there
+/// is a scratch append.  So `n` workers share one environment and one term DAG and
+/// own nothing but a scratch tier, their caches and a copy of the pin handles.
 pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     pers: &PersTier,
     st: &mut AState,
@@ -549,34 +592,37 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     let total = ds.len();
     // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
     let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
-        Err(e) => {
-            obs.install_failed(e.1, total);
-            return Err(e);
+        Err((e, i)) => {
+            let f = checker::phase_a_failure(pers, st, mode, pins, ds, e, i);
+            obs.install_failed(f.1, total);
+            return Err(f);
         }
         Ok(p) => p,
     };
-    let (_n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
-    let m = pend.len();
-    obs.install_done(pers, &st.store, total, m);
+    let (_n_installed, fe, pend, blocks): (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) = p;
+    let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
+    let m = order.len();
+    obs.install_done(pers, &st.store, total, m, blocks.len());
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
-    // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
-    // value every worker reads (the doc comment above).  `st` keeps its
+    // THE PHASE BOUNDARY: the persistent tier and the index leave the state and
+    // become a value every worker reads (the doc comment above).  `st` keeps its
     // (empty) store, its tables moved out, so the observer can still read a
     // label back through the tier.  (ConRon.Capstone: h7)
-    let tier: PersTier = checker::freeze_tier(&mut st.store);
-    // PHASE B: `check_pending` at every record, on `workers` threads, each
-    // folding it over the records it claims on ONE `worker_state` — the
-    // verdict and the record a rejection names are the one-worker walk's at
-    // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
+    let tier: PersTier = checker::freeze_tier(&mut st.store, fe);
+    let layer: IFEnv = checker::check_layer();
+    // PHASE B: `run_job` at every job, on `workers` threads, each folding it over
+    // the jobs it claims on ONE `worker_state` — the verdict and the record a
+    // rejection names are the one-worker walk's at every `--jobs` (the least
+    // failing index).  (ConRon.Capstone: h8)
     let heartbeat = obs.wants_check_lines();
     let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
     let r = parallel_all(
         m,
         workers,
         || checker::worker_state(&st.pins),
-        |w: &mut AState, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
-        |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &pend[k]),
+        |w: &mut AState, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
+        |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &job_at(&order, &pend, &blocks, k)),
     );
     let obs: &mut O = match lock.into_inner() {
         Ok((_, o)) => o,
@@ -588,8 +634,8 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // gone out of scope answers `None` to every one of them (the first
     // version of this printed `at theorem ?` where the tip printed `at
     // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
-    checker::thaw_tier(&mut st.store, tier);
-    match phase_b_verdict(&pend, r) {
+    let fe: IFEnv = checker::thaw_tier(&mut st.store, tier);
+    match phase_b_verdict(&order, &pend, &blocks, r) {
         Err((e, pos)) => {
             obs.check_failed(pos);
             Err((e, pos))
@@ -613,7 +659,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
 /// ```text
 /// con-ron: parse done: <N> fold records — … t=<s>s (parse <s>s)
 /// con-ron: install <i>/<N> <decl> t=<s>s
-/// con-ron: install done: <N>/<N> declarations installed, <M> checks pending t=<s>s (install <s>s)
+/// con-ron: install done: <N>/<N> declarations installed, <M> checks pending (<B> of them inductive blocks) t=<s>s (install <s>s)
 /// con-ron: check <done>/<M> <kind> <name> t=<s>s
 /// con-ron: check done: <M>/<M> t=<s>s (check <s>s)
 /// con-ron: done: parse <p>s, install <i>s, check <c>s, <n> worker t=<s>s
@@ -761,16 +807,17 @@ impl PhaseObserver for Heartbeat {
 
     /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
     /// `con-ron: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize) {
+    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize, blocks: usize) {
         self.t_install = self.now();
         if self.stride > 0 {
             eprintln!(
                 "con-ron: install done: {}/{} declarations installed, {} checks \
-                 pending; store {} expression ({} persistent), {} level, {} name nodes \
-                 t={}s (install {}s)",
+                 pending ({} of them inductive blocks); store {} expression ({} persistent), \
+                 {} level, {} name nodes t={}s (install {}s)",
                 total,
                 total,
                 pend,
+                blocks,
                 ar.node_count(pers),
                 ar.pers_count(pers),
                 ar.ls().node_count(pers),
@@ -801,15 +848,14 @@ impl PhaseObserver for Heartbeat {
         ar: &EStore,
         done: usize,
         m: usize,
-        pc: &PendingCheck,
+        job: &JobRef,
     ) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
             eprintln!(
-                "con-ron: check {}/{} {} {} t={}s",
+                "con-ron: check {}/{} {} t={}s",
                 done,
                 m,
-                value_kind_word(&pc.vg.kind),
-                name_of(pers, ar, &pc.vg.cv.name),
+                job_label(pers, ar, job),
                 ms_secs(self.now())
             );
         }
@@ -1085,14 +1131,14 @@ mod tests {
         };
         assert_eq!(name_of(empty, &st.store, &n), "add");
         // frozen: the store's own tables are out and the tier answers
-        let tier = checker::freeze_tier(&mut st.store);
+        let tier = checker::freeze_tier(&mut st.store, checker::check_layer());
         assert!(tier.frozen);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);
         assert_eq!(name_of(&tier, &w.store, &n), "add");
         // thawed: the store is what phase A left
-        checker::thaw_tier(&mut st.store, tier);
+        let _ = checker::thaw_tier(&mut st.store, tier);
         assert!(!st.store.scratch_on);
         assert_eq!(name_of(empty, &st.store, &n), "add");
     }

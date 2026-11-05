@@ -700,6 +700,7 @@ pub fn unknown_const_error(st: &mut AState, n: &NIdx) -> Result<CheckError, Chec
 /// to right.
 #[allow(clippy::too_many_arguments)]
 pub fn proj_indexed_struct_like(
+    pers: &PersTier,
     vis: u64,
     fe: &IFEnv,
     t: &NIdx,
@@ -710,10 +711,10 @@ pub fn proj_indexed_struct_like(
     if !t.eq2(sn) {
         false
     } else {
-        match env::ifenv_find(vis, fe, t) {
+        match env::ifenv_find(pers, vis, fe, t) {
             Some(IConstantInfo::IndInfo(_, caps)) => {
                 if caps.ctors.len() == 1 && caps.nparams < n_args {
-                    match env::ifenv_find(vis, fe, &caps.ctors[0]) {
+                    match env::ifenv_find(pers, vis, fe, &caps.ctors[0]) {
                         Some(IConstantInfo::CtorInfo(_, _, n_f)) => i < *n_f,
                         _ => false,
                     }
@@ -734,6 +735,7 @@ pub fn proj_indexed_struct_like(
 /// (`lean4#14977`); everything else is official's reject.  `has_table` is the
 /// cited `(findTable? T).isSome`, read by the caller.
 pub fn proj_miss_error(
+    pers: &PersTier,
     vis: u64,
     fe: &IFEnv,
     has_table: bool,
@@ -744,7 +746,7 @@ pub fn proj_miss_error(
 ) -> CheckError {
     if has_table {
         CheckError::Invalid(code_points(&M_RANGE))
-    } else if proj_indexed_struct_like(vis, fe, t, sn, i, n_args) {
+    } else if proj_indexed_struct_like(pers, vis, fe, t, sn, i, n_args) {
         CheckError::NotImplemented(code_points(&M_INDEXED_PROJ))
     } else {
         CheckError::Invalid(code_points(&M_INVALID_PROJ))
@@ -800,7 +802,7 @@ pub fn is_ctor_app(
         Ok(h) => if h.tag() == ETAG_CONST {
             match view_const_name(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some(c) => match env::ifenv_find(vis, fe, &c) {
+                Some(c) => match env::ifenv_find(pers, vis, fe, &c) {
                     Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
                     Some(_) => Ok(false),
                     None => Ok(false),
@@ -853,7 +855,7 @@ pub fn iota_ctor_never_prop(
                 if h.tag() == ETAG_CONST {
                     match view_const_name(pers, st, &h) {
                         None => fail_dangling_e(),
-                        Some(t) => match env::ifenv_find(vis, fe, &t) {
+                        Some(t) => match env::ifenv_find(pers, vis, fe, &t) {
                             Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                                 let lps: Vec<NIdx> = env::nidx_vec_dup(&cvt0.level_params);
                                 let caps: IIndCaps = env::i_ind_caps_dup(caps0);
@@ -921,7 +923,7 @@ pub fn unfold_definition(
         Ok(h) => if h.tag() == ETAG_CONST {
             match view_const(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some((n, us)) => match env::ifenv_find(vis, fe, &n) {
+                Some((n, us)) => match env::ifenv_find(pers, vis, fe, &n) {
                     Some(IConstantInfo::DefnInfo(cv, value, _)) => {
                         let lps: Vec<NIdx> = env::nidx_vec_dup(&cv.level_params);
                         let val: EIdx = value.dup2();
@@ -971,7 +973,7 @@ pub fn unfoldable_head(
         Ok(h) => if h.tag() == ETAG_CONST {
             match view_const(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some((n, us)) => match env::ifenv_find(vis, fe, &n) {
+                Some((n, us)) => match env::ifenv_find(pers, vis, fe, &n) {
                     Some(IConstantInfo::DefnInfo(cv, _, _)) => {
                         let k = cv.level_params.len();
                         match view_ls_len(pers, st, &us) {
@@ -1004,7 +1006,7 @@ pub fn head_hint(
         Ok(h) => if h.tag() == ETAG_CONST {
             match view_const_name(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some(n) => match env::ifenv_find(vis, fe, &n) {
+                Some(n) => match env::ifenv_find(pers, vis, fe, &n) {
                     Some(IConstantInfo::DefnInfo(_, _, hint)) => {
                         Ok(crate::kernel::env::reducibility_hint_dup(hint))
                     }
@@ -1214,17 +1216,17 @@ pub fn nat_lit_supported(
 ) -> Result<bool, CheckError>  {
     match pin_nat(st) {
         Err(e) => Err(e),
-        Ok(nt) => match nat_ind_ok(st, env::ifenv_find(vis, fe, &nt)) {
+        Ok(nt) => match nat_ind_ok(st, env::ifenv_find(pers, vis, fe, &nt)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match pin_nat_zero(st) {
                 Err(e) => Err(e),
-                Ok(nz) => match nat_zero_ok(pers, st, env::ifenv_find(vis, fe, &nz)) {
+                Ok(nz) => match nat_zero_ok(pers, st, env::ifenv_find(pers, vis, fe, &nz)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match pin_nat_succ(st) {
                         Err(e) => Err(e),
-                        Ok(ns) => nat_succ_ok(pers, st, env::ifenv_find(vis, fe, &ns)),
+                        Ok(ns) => nat_succ_ok(pers, st, env::ifenv_find(pers, vis, fe, &ns)),
                     },
                 },
             },
@@ -1236,8 +1238,8 @@ pub fn nat_lit_supported(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:519-565 constsResolve` — `(fe.find?
 /// n).isSome`, as its own function so the two literal arms below read as the
 /// twin's conjunctions do.
-pub fn stored(vis: u64, fe: &IFEnv, n: &NIdx) -> bool {
-    match env::ifenv_find(vis, fe, n) {
+pub fn stored(pers: &PersTier, vis: u64, fe: &IFEnv, n: &NIdx) -> bool {
+    match env::ifenv_find(pers, vis, fe, n) {
         Some(_) => true,
         None => false,
     }
@@ -1248,14 +1250,14 @@ pub fn stored(vis: u64, fe: &IFEnv, n: &NIdx) -> bool {
 /// `.lit (.natVal _)` arm's three `find?`s, as its own function
 /// (`con_ron_core::kernel::core_k::nat_trio_stored`'s reason: the `String`
 /// arm repeats them).
-pub fn nat_trio_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nat_trio_stored(pers: &PersTier, vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
     match pin_nat(st) {
         Err(e) => Err(e),
         Ok(nt) => match pin_nat_zero(st) {
             Err(e) => Err(e),
             Ok(nz) => match pin_nat_succ(st) {
                 Err(e) => Err(e),
-                Ok(ns) => Ok(stored(vis, fe, &nt) && stored(vis, fe, &nz) && stored(vis, fe, &ns)),
+                Ok(ns) => Ok(stored(pers, vis, fe, &nt) && stored(pers, vis, fe, &nz) && stored(pers, vis, fe, &ns)),
             },
         },
     }
@@ -1264,7 +1266,7 @@ pub fn nat_trio_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, Ch
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:204-229 Expr.constsResolve
 /// Lean twin: `proof/ConRon/Arena/Core.lean:519-565 constsResolve` — the
 /// `.lit (.strVal _)` arm's seven further `find?`s.
-pub fn str_support_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn str_support_stored(pers: &PersTier, vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
     match pin_string(st) {
         Err(e) => Err(e),
         Ok(a1) => match pin_string_of_list(st) {
@@ -1279,13 +1281,13 @@ pub fn str_support_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool,
                             Err(e) => Err(e),
                             Ok(a6) => match pin_char_of_nat(st) {
                                 Err(e) => Err(e),
-                                Ok(a7) => Ok(stored(vis, fe, &a1)
-                                    && stored(vis, fe, &a2)
-                                    && stored(vis, fe, &a3)
-                                    && stored(vis, fe, &a4)
-                                    && stored(vis, fe, &a5)
-                                    && stored(vis, fe, &a6)
-                                    && stored(vis, fe, &a7)),
+                                Ok(a7) => Ok(stored(pers, vis, fe, &a1)
+                                    && stored(pers, vis, fe, &a2)
+                                    && stored(pers, vis, fe, &a3)
+                                    && stored(pers, vis, fe, &a4)
+                                    && stored(pers, vis, fe, &a5)
+                                    && stored(pers, vis, fe, &a6)
+                                    && stored(pers, vis, fe, &a7)),
                             },
                         },
                     },
@@ -1316,20 +1318,20 @@ pub fn consts_resolve(
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(true),
             Ok(ENodeView::Sort(_)) => Ok(true),
-            Ok(ENodeView::Lit(Literal::NatVal(_))) => nat_trio_stored(vis, st, fe),
+            Ok(ENodeView::Lit(Literal::NatVal(_))) => nat_trio_stored(pers, vis, st, fe),
             // **Both halves run**: the twin's `.strVal` arm `pin`s all ten
             // names and *then* takes one conjunction, so short-circuiting the
             // string half would leave seven names uninterned and the store
             // behind the twin's (see the evaluation-order note in DESIGN.md's
             // task #97-P4c section).
-            Ok(ENodeView::Lit(Literal::StrVal(_))) => match nat_trio_stored(vis, st, fe) {
+            Ok(ENodeView::Lit(Literal::StrVal(_))) => match nat_trio_stored(pers, vis, st, fe) {
                 Err(e) => Err(e),
-                Ok(nats) => match str_support_stored(vis, st, fe) {
+                Ok(nats) => match str_support_stored(pers, vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(strs) => Ok(nats && strs),
                 },
             },
-            Ok(ENodeView::Const(n, _)) => Ok(stored(vis, fe, &n)),
+            Ok(ENodeView::Const(n, _)) => Ok(stored(pers, vis, fe, &n)),
             Ok(ENodeView::FVar(_, ty)) => consts_resolve(pers, vis, st, fe, fuel - 1, &ty),
             Ok(ENodeView::App(f, a)) => match consts_resolve(pers, vis, st, fe, fuel - 1, &f) {
                 Err(e) => Err(e),
@@ -1360,7 +1362,7 @@ pub fn consts_resolve(
                 }
             }
             Ok(ENodeView::Proj(s, _, sub)) => {
-                if stored(vis, fe, &s) {
+                if stored(pers, vis, fe, &s) {
                     consts_resolve(pers, vis, st, fe, fuel - 1, &sub)
                 } else {
                     Ok(false)
@@ -2020,22 +2022,22 @@ pub fn str_lit_supported_rest(
 ) -> Result<bool, CheckError>  {
     match pin_list(st) {
         Err(e) => Err(e),
-        Ok(li) => match list_ty_ok(pers, st, env::ifenv_find(vis, fe, &li)) {
+        Ok(li) => match list_ty_ok(pers, st, env::ifenv_find(pers, vis, fe, &li)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match pin_list_nil(st) {
                 Err(e) => Err(e),
-                Ok(ln) => match list_nil_ty_ok(pers, st, env::ifenv_find(vis, fe, &ln)) {
+                Ok(ln) => match list_nil_ty_ok(pers, st, env::ifenv_find(pers, vis, fe, &ln)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match pin_list_cons(st) {
                         Err(e) => Err(e),
-                        Ok(lc) => match list_cons_ty_ok(pers, st, env::ifenv_find(vis, fe, &lc)) {
+                        Ok(lc) => match list_cons_ty_ok(pers, st, env::ifenv_find(pers, vis, fe, &lc)) {
                             Err(e) => Err(e),
                             Ok(false) => Ok(false),
                             Ok(true) => match pin_char(st) {
                                 Err(e) => Err(e),
-                                Ok(ch) => match char_ty_ok(st, env::ifenv_find(vis, fe, &ch)) {
+                                Ok(ch) => match char_ty_ok(st, env::ifenv_find(pers, vis, fe, &ch)) {
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
                                     Ok(true) => {
@@ -2044,7 +2046,7 @@ pub fn str_lit_supported_rest(
                                             Ok(co) => char_of_nat_ty_ok(
                                                 pers,
                                                 st,
-                                                env::ifenv_find(vis, fe, &co),
+                                                env::ifenv_find(pers, vis, fe, &co),
                                             ),
                                         }
                                     }
@@ -2074,12 +2076,12 @@ pub fn str_lit_supported(
         Ok(false) => Ok(false),
         Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
-            Ok(stn) => match string_ty_ok(st, env::ifenv_find(vis, fe, &stn)) {
+            Ok(stn) => match string_ty_ok(st, env::ifenv_find(pers, vis, fe, &stn)) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => match pin_string_of_list(st) {
                     Err(e) => Err(e),
-                    Ok(sl) => match string_of_list_ty_ok(pers, st, env::ifenv_find(vis, fe, &sl)) {
+                    Ok(sl) => match string_of_list_ty_ok(pers, st, env::ifenv_find(pers, vis, fe, &sl)) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => str_lit_supported_rest(pers, vis, st, fe),
@@ -3109,7 +3111,7 @@ pub fn nat_op_deps_stored(
     if i >= ns.len() {
         Ok(true)
     } else {
-        match env::ifenv_find(vis, fe, &ns[i]) {
+        match env::ifenv_find(pers, vis, fe, &ns[i]) {
             Some(IConstantInfo::DefnInfo(cv, _, _)) => {
                 if cv.level_params.len() == 0 {
                     nat_op_deps_stored(pers, vis, st, fe, ns, i + 1)
@@ -3158,7 +3160,7 @@ pub fn bool_ctor_ok(
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError>  {
-    match env::ifenv_find(vis, fe, n) {
+    match env::ifenv_find(pers, vis, fe, n) {
         Some(ci) => {
             let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
             if cv.level_params.len() == 0 {
@@ -3355,7 +3357,7 @@ pub fn nat_op_cod(
                                 if !e.eq2(&bc) {
                                     Ok(false)
                                 } else {
-                                    bool_ty_ok(vis, st, fe, &bn)
+                                    bool_ty_ok(pers, vis, st, fe, &bn)
                                 }
                             }
                         },
@@ -3378,12 +3380,13 @@ pub fn nat_op_cod(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1147-1166 natOpCod` — the stored
 /// `Bool` declaration at no level parameters and type `Sort 1`.
 pub fn bool_ty_ok(
+    pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     bn: &NIdx,
 ) -> Result<bool, CheckError>  {
-    match env::ifenv_find(vis, fe, bn) {
+    match env::ifenv_find(pers, vis, fe, bn) {
         Some(ci) => {
             let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
             match sort_one(st) {
@@ -3475,7 +3478,7 @@ pub fn nat_op_stored_ok(
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(vis, fe, n) {
+    match env::ifenv_find(pers, vis, fe, n) {
         Some(IConstantInfo::DefnInfo(cv, _, _)) => {
             if cv.level_params.len() == 0 {
                 let ty: EIdx = cv.ty.dup2();
@@ -3495,8 +3498,8 @@ pub fn nat_op_stored_ok(
 /// reduction-time test for a certified `Nat` operation** (con-leche's task #161
 /// item B3): is `c` stored as a definition at all?  The full `natOpGuard` is
 /// carried by the install fold invariant.
-pub fn nat_op_stored(vis: u64, fe: &IFEnv, c: &NIdx) -> bool {
-    match env::ifenv_find(vis, fe, c) {
+pub fn nat_op_stored(pers: &PersTier, vis: u64, fe: &IFEnv, c: &NIdx) -> bool {
+    match env::ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::DefnInfo(_, _, _)) => true,
         Some(_) => false,
         None => false,
@@ -3781,7 +3784,7 @@ pub fn reduce_nat_bin(
                 match nat_bin_op_name(st, c) {
                     Err(er) => Err(er),
                     Ok(bin) => {
-                        if bin && nat_op_stored(vis, fe, c) {
+                        if bin && nat_op_stored(pers, vis, fe, c) {
                             match knot_whnf(pers, vis, st, mode, eager, lane, fuel, fe, depth, a) {
                                 Err(er) => Err(er),
                                 Ok(wa) => match raw_nat_lit(pers, st, &wa) {
@@ -4288,12 +4291,12 @@ pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1425-1433 towerSlotsAllGo` — the
 /// slot walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN.md
 /// §3.4's rule turns the closure into a counted recursion.
-pub fn tower_slots_all_go(vis: u64, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> bool {
+pub fn tower_slots_all_go(pers: &PersTier, vis: u64, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> bool {
     if n == 0 {
         true
     } else {
-        match env::ifenv_find_proj(vis, fe, t, j) {
-            Some(_) => tower_slots_all_go(vis, fe, t, n - 1, j + 1),
+        match env::ifenv_find_proj(pers, vis, fe, t, j) {
+            Some(_) => tower_slots_all_go(pers, vis, fe, t, n - 1, j + 1),
             None => false,
         }
     }
@@ -4303,8 +4306,8 @@ pub fn tower_slots_all_go(vis: u64, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> boo
 /// con-leche: ConLeche/Kernel/FEnv.lean:262-264 FEnv.towerSlotsAllF
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1435-1439 towerSlotsAll` — are all
 /// `nF` projection slots of `T` table entries?
-pub fn tower_slots_all(vis: u64, fe: &IFEnv, t: &NIdx, n_f: u64) -> bool {
-    tower_slots_all_go(vis, fe, t, n_f, 0)
+pub fn tower_slots_all(pers: &PersTier, vis: u64, fe: &IFEnv, t: &NIdx, n_f: u64) -> bool {
+    tower_slots_all_go(pers, vis, fe, t, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:734-739 etaProjs
@@ -4447,7 +4450,7 @@ pub fn struct_eta_cert_at(
         Ok(hd) => if hd.tag() == ETAG_CONST {
             match view_const(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some((t, us2)) => match env::ifenv_find(vis, fe, &t) {
+                Some((t, us2)) => match env::ifenv_find(pers, vis, fe, &t) {
                     Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                         let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
                         let caps: IIndCaps = env::i_ind_caps_dup(caps0);
@@ -4458,7 +4461,7 @@ pub fn struct_eta_cert_at(
                                 Ok(reserved) => match view_ls(pers, st, &us2) {
                                     Err(e) => Err(e),
                                     Ok(uslen) => {
-                                        let sl: bool = tower_slots_all(vis, fe, &t, caps.eta_fields);
+                                        let sl: bool = tower_slots_all(pers, vis, fe, &t, caps.eta_fields);
                                         if caps.eta
                                             && caps.eta_ctor.eq2(c)
                                             && !env::nidx_vec_contains(&reserved, &t)
@@ -4532,7 +4535,7 @@ pub fn struct_eta_cert_with(
         Ok(hd) => if hd.tag() == ETAG_CONST {
             match view_const(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
+                Some((c, us)) => match env::ifenv_find(pers, vis, fe, &c) {
                     Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
                         let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
                         let want: u64 = *cn_p + *cn_f;
@@ -4579,7 +4582,7 @@ pub fn eta_ctor_shape(
         Ok(hd) => if hd.tag() == ETAG_CONST {
             match view_const_name(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some(c) => match env::ifenv_find(vis, fe, &c) {
+                Some(c) => match env::ifenv_find(pers, vis, fe, &c) {
                     Some(IConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
                         let want: u64 = *cn_p + *cn_f;
                         match get_app_args(pers, st, CORE_WALK_FUEL, a) {
@@ -4693,7 +4696,7 @@ pub fn struct_unit_cert(
                 Ok(hd) => if hd.tag() == ETAG_CONST {
                     match view_const(pers, st, &hd) {
                         None => fail_dangling_e(),
-                        Some((t, us2)) => match env::ifenv_find(vis, fe, &t) {
+                        Some((t, us2)) => match env::ifenv_find(pers, vis, fe, &t) {
                             Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                                 let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
                                 let caps: IIndCaps = env::i_ind_caps_dup(caps0);
@@ -4944,7 +4947,7 @@ pub fn and_rescue_slots_go(
     if n == 0 {
         Ok(true)
     } else {
-        match env::ifenv_find_proj(vis, fe, an, j) {
+        match env::ifenv_find_proj(pers, vis, fe, an, j) {
             Some(entry) => match proj_entry_fire_ok(pers, st, &entry, ust) {
                 Err(e) => Err(e),
                 Ok(fok) => {
@@ -5232,7 +5235,7 @@ pub fn major_to_ctor_eta_keys(
             if !env::nidx_vec_contains(&reserved, t)
                 && !env::nidx_vec_contains(&reserved, &caps.eta_ctor)
             {
-                if tower_slots_all(vis, fe, t, caps.eta_fields) {
+                if tower_slots_all(pers, vis, fe, t, caps.eta_fields) {
                     major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major)
                 } else {
                     Ok(major.dup2())
@@ -5456,7 +5459,7 @@ pub fn major_to_ctor(
                 let ctor: NIdx = rules[0].ctor.dup2();
                 let k: bool = rules[0].k;
                 let eta: bool = rules[0].eta;
-                match env::ifenv_find(vis, fe, &ctor) {
+                match env::ifenv_find(pers, vis, fe, &ctor) {
                     Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _)) => {
                         let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                         let cn_p: u64 = *cn_p0;
@@ -5468,7 +5471,7 @@ pub fn major_to_ctor(
                                     match view_const_name(pers, st, &hd) {
                                         None => fail_dangling_e(),
                                         Some(t) => {
-                                            match env::ifenv_find(vis, fe, &t) {
+                                            match env::ifenv_find(pers, vis, fe, &t) {
                                                 Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                                                     let cvt: IConstantVal =
                                                         env::i_constant_val_dup(cvt0);
@@ -5585,7 +5588,7 @@ pub fn rec_rule_k_of(
     fe: &IFEnv,
     ctor: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(vis, fe, ctor) {
+    match env::ifenv_find(pers, vis, fe, ctor) {
         Some(IConstantInfo::CtorInfo(cvj, _, cn_f0)) => {
             let ty: EIdx = cvj.ty.dup2();
             let cn_f: u64 = *cn_f0;
@@ -5596,7 +5599,7 @@ pub fn rec_rule_k_of(
                     Ok(hd) => if hd.tag() == ETAG_CONST {
                         match view_const_name(pers, st, &hd) {
                             None => fail_dangling_e(),
-                            Some(t) => match env::ifenv_find(vis, fe, &t) {
+                            Some(t) => match env::ifenv_find(pers, vis, fe, &t) {
                                 Some(IConstantInfo::IndInfo(_, caps)) => {
                                     Ok(caps.rule_k && cn_f == 0)
                                 }
@@ -5627,7 +5630,7 @@ pub fn rec_rule_eta_of(
     fe: &IFEnv,
     ctor: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(vis, fe, ctor) {
+    match env::ifenv_find(pers, vis, fe, ctor) {
         Some(IConstantInfo::CtorInfo(cvj, _, _)) => {
             let ty: EIdx = cvj.ty.dup2();
             let cvj_lps: Vec<NIdx> = env::nidx_vec_dup(&cvj.level_params);
@@ -5638,7 +5641,7 @@ pub fn rec_rule_eta_of(
                     Ok(hd) => if hd.tag() == ETAG_CONST {
                         match view_const_name(pers, st, &hd) {
                             None => fail_dangling_e(),
-                            Some(t) => match env::ifenv_find(vis, fe, &t) {
+                            Some(t) => match env::ifenv_find(pers, vis, fe, &t) {
                                 Some(IConstantInfo::IndInfo(cvt, caps)) => {
                                     Ok(caps.eta
                                         && caps.eta_ctor.eq2(ctor)
@@ -6216,7 +6219,7 @@ pub fn iota_rec_major(
         Ok(hd) => if hd.tag() == ETAG_CONST {
             match view_const(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some((cj, usj)) => match env::ifenv_find(vis, fe, &cj) {
+                Some((cj, usj)) => match env::ifenv_find(pers, vis, fe, &cj) {
                     Some(IConstantInfo::CtorInfo(cvj0, _, _)) => {
                         let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                         match find_rule(rules, &cj, 0) {
@@ -6281,7 +6284,7 @@ pub fn iota_rec_at(
     if hd.tag() == ETAG_CONST {
         match view_const(pers, st, hd) {
             None => fail_dangling_e(),
-            Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
+            Some((c, us)) => match env::ifenv_find(pers, vis, fe, &c) {
                 Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
                     let m_i: u64 = *m_i0;
                     // **The arity test hoisted over the copies** (task
@@ -6397,7 +6400,7 @@ pub fn proj_cert(
     c: &NIdx,
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(vis, fe, c) {
+    match env::ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
             let ty: EIdx = cvc0.ty.dup2();
             tele_arity_ok(pers, st, &ty, args)
@@ -6452,7 +6455,7 @@ pub fn reduce_proj_core(
 ) -> Result<Option<EIdx>, CheckError> {
     match proj_lit_to_ctor(pers, vis, st, mode, eager, lane, fuel, fe, depth, c) {
         Err(e) => Err(e),
-        Ok(ep) => match env::ifenv_find_proj(vis, fe, sn, i) {
+        Ok(ep) => match env::ifenv_find_proj(pers, vis, fe, sn, i) {
             Some(entry) => reduce_proj_core_at(pers, vis, st, mode, fe, i, &ep, &entry),
             None => Ok(None),
         },
@@ -7183,7 +7186,7 @@ pub fn infer_const(
     n: &NIdx,
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
-    match env::ifenv_find(vis, fe, n) {
+    match env::ifenv_find(pers, vis, fe, n) {
         None => match unknown_const_error(st, n) {
             Err(e) => Err(e),
             Ok(err) => fail(err),
@@ -7329,7 +7332,7 @@ pub fn infer_proj(
                     match view_const(pers, st, &hd) {
                         None => fail_dangling_e(),
                         Some((t, us)) => {
-                            match env::ifenv_find_proj(vis, fe, &t, i) {
+                            match env::ifenv_find_proj(pers, vis, fe, &t, i) {
                                 Some(entry) => {
                                     infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
                                 }
@@ -7360,10 +7363,10 @@ pub fn infer_proj_miss(
     sn: &NIdx,
     i: u64,
 ) -> Result<EIdx, CheckError> {
-    let has_table: bool = env::ifenv_find_table(vis, fe, t).is_some();
+    let has_table: bool = env::ifenv_find_table(pers, vis, fe, t).is_some();
     match get_app_args(pers, st, CORE_WALK_FUEL, te) {
         Err(e) => Err(e),
-        Ok(targs) => fail(proj_miss_error(vis, fe, has_table, t, sn, i, targs.len() as u64)),
+        Ok(targs) => fail(proj_miss_error(pers, vis, fe, has_table, t, sn, i, targs.len() as u64)),
     }
 }
 

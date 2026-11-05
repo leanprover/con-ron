@@ -29,7 +29,7 @@
 //! (`checker::intern_all_pins`), and the resulting `Vec<IDeclaration>` goes to
 //! the two-phase fold, `con_ron::driver::check_decls_driver` — phase A
 //! (`checker::install_fold_hooked`), the frozen tier, and the worker pool over
-//! `checker::check_pending` for its phase B.
+//! `checker::run_job` for its phase B.
 //!
 //! Exit codes are con-leche's (`Driver/CheckMain.lean`'s `exitCode`): 0 accepted, 1 rejected, 2
 //! declined, 3 usage/malformed/internal — `con_ron::driver::exit_code`, the

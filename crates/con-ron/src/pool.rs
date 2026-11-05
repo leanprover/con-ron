@@ -10,9 +10,9 @@
 //! business (`driver::check_decls_driver`):
 //!
 //! ```text
-//! parallel_all(pend.len(), workers,
+//! parallel_all(order.len(), workers,
 //!              || checker::worker_state(&st.pins),
-//!              |w, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
+//!              |w, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
 //!              <the heartbeat line>)
 //! ```
 //!
@@ -37,10 +37,10 @@
 //! builds `checker::worker_state(pins)` — an EMPTY store, FROZEN
 //! (`EStore::empty_frozen`: every append a scratch append), its own `Memos`
 //! and `Caches`, and a COPY of
-//! the driver's `Pins` — and its `step` borrows the frozen `&PersTier` and
-//! the installed `&IFEnv` (by reference: `check_pending` takes the record's
-//! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
-//! at all — task #97-P6-6b).
+//! the driver's `Pins` — and its `step` borrows the frozen `&PersTier`, which
+//! holds the installed index.  A value check reads it at its prefix bound, a
+//! scalar (`pc.vis`), through one shared empty layer; a block job pushes into a
+//! layer of its own over it.  So a worker costs no environment copy at all.
 //!
 //! ## THE TRUSTED CLAIM, and the whole of it
 //!
@@ -53,17 +53,17 @@
 //! statement about this module's control flow only — nothing about what
 //! `init` and `step` compute.  With the driver's closures it is the
 //! capstone's pool premise `h8` (task #98-H8 states it inline: index lists
-//! `ws` covering `0..pend.len`, and for each `w` in `ws` a `foldlM` of
-//! `check_pending` over `w` from `worker_state pins`, accepting), which the
+//! `ws` covering `0..order.len`, and for each `w` in `ws` a `foldlM` of
+//! `run_job` over `w` from `worker_state pins`, accepting), which the
 //! proof relates, worker by worker, to the twin (`PoolAccepts.toParts`,
 //! `pool_accepts_refines`).
 //!
 //! The claim is deliberately weaker than what the code does (task #98-H8):
 //! the counter below hands each index to exactly ONE worker and a worker's
 //! claims INCREASE, but the contract promises neither — the proof needs only
-//! coverage, since each record is checked against its own prefix environment
-//! and the twin's grouping theorem (`checkPendingList_grouping`) holds for any
-//! order, any split and any repetition.  The argument:
+//! coverage, since each job reads only its own prefix environment and the
+//! twin's grouping theorem holds for any order, any split and any repetition.
+//! The argument:
 //!
 //! * **A claim is a `fetch_add` on one counter.**  Each value `0, 1, 2, …` is
 //!   handed to exactly one caller, so every index in `0..n` is claimed (by
@@ -298,10 +298,11 @@ mod tests {
     use con_ron_core::arena::store::PersTier;
     use con_ron_core::kernel::core_types::CheckError;
     use con_ron_core::kernel::env::CheckMode;
+    use crate::driver::JobRef;
     use crate::driver::PhaseObserver;
+    use con_ron_core::arena::checker::BlockCheck;
     use con_ron_core::arena::checker_split::ValueGroup;
     use con_ron_core::arena::checker_split::ValueKind;
-    use con_ron_core::arena::env as ienv;
     use con_ron_core::arena::env::IConstantVal;
     use con_ron_core::arena::monad;
     use con_ron_core::arena::store::EStore;
@@ -319,11 +320,13 @@ mod tests {
         pers: &PersTier,
         mode: &CheckMode,
         fe: &IFEnv,
-        pend: &[PendingCheck],
+        pend: &Vec<PendingCheck>,
         pins: &Pins,
         workers: usize,
         obs: &Mutex<&mut O>,
     ) -> RecordResult {
+        let blocks: Vec<BlockCheck> = Vec::new();
+        let order: Vec<(bool, u64)> = checker::job_order(pend, &blocks);
         let heartbeat = match obs.lock() {
             Ok(g) => g.wants_check_lines(),
             Err(_) => false,
@@ -333,17 +336,17 @@ mod tests {
             pend.len(),
             workers,
             || checker::worker_state(pins),
-            |w: &mut AState, k| checker::check_pending(pers, w, mode, fe, &pend[k]),
+            |w: &mut AState, k| checker::run_job(pers, w, mode, fe, pend, &blocks, &order[k]),
             |w: &AState, k| {
                 if heartbeat {
                     let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                     if let Ok(mut g) = obs.lock() {
-                        g.check_after(pers, &w.store, n, pend.len(), &pend[k]);
+                        g.check_after(pers, &w.store, n, pend.len(), &JobRef::Value(&pend[k]));
                     }
                 }
             },
         );
-        crate::driver::phase_b_verdict(pend, r)
+        crate::driver::phase_b_verdict(&order, pend, &blocks, r)
     }
 
     /// **The contract, generically**: a state that records the indices it
@@ -470,7 +473,7 @@ mod tests {
             });
         }
         let pins = checker::pins_dup(&st.pins);
-        let tier = checker::freeze_tier(&mut st.store);
+        let tier = checker::freeze_tier(&mut st.store, checker::check_layer());
         (tier, pins, pend)
     }
 
@@ -480,7 +483,7 @@ mod tests {
     #[test]
     fn pool_reports_the_first_failure_at_every_jobs() {
         let (tier, pins, pend) = fixture(&[true, true, false, true, false, true]);
-        let fe: IFEnv = ienv::mk_ifenv(ienv::i_env_empty());
+        let fe: IFEnv = checker::check_layer();
         let mode = CheckMode::Verified;
         for workers in [1usize, 2, 3, 4, 8] {
             let mut obs = Silent;
@@ -531,7 +534,7 @@ mod tests {
             vec![false, true],
             vec![true, true, true, true, true, false],
         ];
-        let fe: IFEnv = ienv::mk_ifenv(ienv::i_env_empty());
+        let fe: IFEnv = checker::check_layer();
         let mode = CheckMode::Verified;
         for oks in lists {
             let (tier, pins, pend) = fixture(&oks);
@@ -558,7 +561,7 @@ mod tests {
     #[test]
     fn pool_accepts_a_clean_list_at_every_jobs() {
         let (tier, pins, pend) = fixture(&[true; 9]);
-        let fe: IFEnv = ienv::mk_ifenv(ienv::i_env_empty());
+        let fe: IFEnv = checker::check_layer();
         let mode = CheckMode::Verified;
         for workers in [1usize, 2, 3, 4, 8, 16] {
             let mut obs = Silent;
@@ -571,14 +574,35 @@ mod tests {
         }
     }
 
+    /// `jobOrder`: the two arrays merged by position, a block before a record at
+    /// a larger position, every job once.
+    #[test]
+    fn jobs_merge_in_fold_order() {
+        let (_, _, pend) = fixture(&[true, true, true]);
+        let at = |pos: u64| BlockCheck {
+            block: Vec::new(),
+            n_p: 0,
+            pos,
+            vis: 0,
+            c_lo: 0,
+            c_hi: 0,
+            t_lo: 0,
+            t_hi: 0,
+        };
+        // the records are at positions 0, 1, 2
+        let blocks: Vec<BlockCheck> = vec![at(1), at(9)];
+        let order = checker::job_order(&pend, &blocks);
+        assert_eq!(order, vec![(false, 0), (false, 1), (true, 0), (false, 2), (true, 1)]);
+    }
+
     /// The empty list: no worker has anything to claim, and the walk accepts.
     #[test]
     fn pool_on_no_records_accepts() {
         let (tier, pins, _) = fixture(&[]);
-        let fe: IFEnv = ienv::mk_ifenv(ienv::i_env_empty());
+        let fe: IFEnv = checker::check_layer();
         let mut obs = Silent;
         let lock = Mutex::new(&mut obs);
-        assert!(check_pool(&tier, &CheckMode::Verified, &fe, &[], &pins, 4, &lock).is_ok());
+        assert!(check_pool(&tier, &CheckMode::Verified, &fe, &Vec::new(), &pins, 4, &lock).is_ok());
     }
 
     /// `mergeResults` merges by index whatever order the arrays arrive in, and
@@ -587,10 +611,12 @@ mod tests {
     #[test]
     fn merge_is_by_index_and_a_gap_is_internal() {
         let (_, _, pend) = fixture(&[true, true, true]);
+        let blocks: Vec<BlockCheck> = Vec::new();
+        let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
         let tab = merge_results(3, vec![vec![(2, Ok(())), (0, Ok(()))], vec![(1, Ok(()))]]);
-        assert!(crate::driver::phase_b_verdict(&pend, first_failure(tab)).is_ok());
+        assert!(crate::driver::phase_b_verdict(&order, &pend, &blocks, first_failure(tab)).is_ok());
         let gap = merge_results(3, vec![vec![(0, Ok(())), (2, Ok(()))]]);
-        match crate::driver::phase_b_verdict(&pend, first_failure(gap)) {
+        match crate::driver::phase_b_verdict(&order, &pend, &blocks, first_failure(gap)) {
             Ok(()) => panic!("a gap in the table is never an accept"),
             Err((e, pos)) => {
                 assert_eq!(crate::driver::exit_code(&e), 3);

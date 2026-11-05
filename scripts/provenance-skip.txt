@@ -303,13 +303,10 @@ ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the 
 # is how often a Lean array is copied, never a verdict.
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/FEnv.lean FBase The parallel install's frozen base layer of predicted slots (task #329); empty on every environment the serial install threads, and the port has no parallel install.
 ConLeche/Kernel/FEnv.lean baseShard The base layer's shard choice; as `FBase`.
 ConLeche/Kernel/FEnv.lean baseGet? The base layer's sharded lookup; as `FBase`.
-ConLeche/Kernel/FEnv.lean FBase.find? The base layer's lookup; as `FBase` (`find?` falls through to it on an index miss, which on the serial install's environments answers `none`).
 ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
 ConLeche/Kernel/FEnv.lean markLinear The identity that sets the Lean runtime's linearity bit on the index (task #331); the port's index is a Rust value with no reference count.
-ConLeche/Kernel/FEnv.lean FBase.findTable? The base layer's table lookup (task #362); as `FBase.find?` (`rawTable?` falls through to it on a miss, which on the serial install's environments answers `none`).
 ConLeche/Kernel/FEnv.lean ProjTable.lastOf? The base layer's read of a record slot's tables, for `FBase.findTable?`; as `FBase`.
 ConLeche/Kernel/FEnv.lean pushTables The parallel commit's install of a record's tables (`FEnv.pushDelta`, task #362); the port has no parallel install, and its block install installs one table at a time (`env::ifenv_push_table`), as con-leche's `checkBlockTablesF` does.
 ConLeche/Kernel/Inductives/BlockInstallF.lean FEnv.pushDelta A parallel-install record's whole effect for the commit (task #362); as `pushTables`.
@@ -323,7 +320,6 @@ ConLeche/Cached/InstallSkel.lean * The parallel install's predicted-slot skeleto
 # Task #139, con-leche sync to 7cb7a45c
 # ---------------------------------------------------------------------------
 
-ConLeche/Cached/StoredInstall.lean * The syntactic install of con-leche's parallel phase A (tasks #411, #431): it pushes a block as stored and defers the checked step to a job of the check phase. con-ron installs sequentially and checks a block inline in phase A, which is the spec fold `checkDecls`' own step, so there is no syntactic reading to compare.
 ConLeche/Cached/CoreC.lean knotZeroI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.
 ConLeche/Cached/CoreC.lean knotLevelI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.
 ConLeche/Cached/CoreC.lean knotPlainI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.

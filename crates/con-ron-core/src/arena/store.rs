@@ -79,6 +79,7 @@ use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::ron::hashmap::Hashable;
 
 use crate::arena::core_state::reset_map;
+use crate::arena::env::{ifenv_layer, IFEnv};
 use std::vec::Vec;
 
 use crate::arena::handle::e_tag_is_bind;
@@ -1255,6 +1256,10 @@ pub struct PersTier {
     pub l: LTables,
     pub ls: LsTables,
     pub e: ETables,
+    /// The installed environment's frozen base (`arena::env`'s `IFEnv` note):
+    /// `checker::freeze_tier` moves phase A's index here, so every phase-B
+    /// worker reads one by reference.  An empty layer in every other tier.
+    pub env: IFEnv,
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:365-373 EStore
@@ -1270,6 +1275,7 @@ impl PersTier {
             l: LTables::empty(),
             ls: LsTables::empty(),
             e: ETables::empty(),
+            env: ifenv_layer(0, 0),
         }
     }
 
@@ -4259,7 +4265,7 @@ impl EStore {
         let e: ETables = core::mem::replace(&mut self.pers, ETables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        PersTier { frozen: true, n, l, ls, e }
+        PersTier { frozen: true, n, l, ls, e, env: ifenv_layer(0, 0) }
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:

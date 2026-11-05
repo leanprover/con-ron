@@ -11,11 +11,13 @@
 //!   DESIGN.md §8.2's Theorem 1 folds `checkDecl` over the stream.  One step
 //!   per record, install and check together.
 //! * **`install_then_check`** is what the BINARY runs: phase A installs every
-//!   record, guarding its header and its value but not inferring; phase B
-//!   checks each recorded declaration against the PREFIX VIEW it was installed
-//!   at.  con-leche proves the two are the same accept
-//!   (`fullyChecked_checkDecls`); the arena's two call the same `checkDecl`
-//!   pieces, which is what keeps them the same computation.
+//!   record, guarding its header and its value but not inferring, and pushes an
+//!   inductive block as stored (`inductives::stored_install`); phase B runs the
+//!   jobs, in fold order: each recorded declaration's check against the PREFIX
+//!   VIEW it was installed at, and each block's checked install, compared with
+//!   its stored pushes (`block_check`).  con-leche proves the two are the same
+//!   accept (`fullyChecked_checkDecls`); the arena's two call the same
+//!   `checkDecl` pieces, which is what keeps them the same computation.
 //!
 //! ## Every step is bracketed
 //!
@@ -28,7 +30,9 @@
 //! infer and inference interns: `promote` copies exactly what leaves the step
 //! — the installed constants and the pending record — to the persistent tier
 //! before the drop (see `install_step`).
-//! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.
+//! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.  An
+//! inductive block's stored install has brackets of its own
+//! (`inductives::stored_install`'s note).
 //!
 //! ## The pins are interned at startup
 //!
@@ -50,7 +54,9 @@ use crate::arena::core::{
 use crate::arena::decl_check::install_basis_decls;
 use crate::arena::env::{
     i_constant_val_dup, i_env_empty, mk_ifenv, IConstantInfo, IConstantVal, IDeclaration, IFEnv,
+    IProjTable,
 };
+use crate::arena::inductives::stored_install;
 use crate::arena::handle::EIdx;
 use crate::arena::monad::{fail, AState};
 use crate::arena::nat_op_pin_set::{intern_pin_sets, INatOpPinSet};
@@ -84,6 +90,25 @@ pub const M_QUOT_BASIS_EQ: [u32; 43] = [
 pub const M_AND_PIN: [u32; 32] = [
     96, 65, 110, 100, 96, 32, 109, 117, 115, 116, 32, 98, 101, 32, 116, 104, 101, 32, 115,
     116, 97, 110, 100, 97, 114, 100, 32, 96, 65, 110, 100, 96
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"inductive block : the stored install's constants or tables are not the checked install's"`, as code points — the cited message with the block's name dropped
+/// (§3.1); the verdict line names the record.
+pub const M_PUSHES_DIFFER: [u32; 88] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 32, 58, 32, 116, 104, 101, 32, 115, 116, 111, 114, 101, 100, 32, 105, 110, 115, 116, 97, 108, 108, 39, 115, 32, 99, 111, 110, 115, 116, 97, 110, 116, 115, 32, 111, 114, 32, 116, 97, 98, 108, 101, 115, 32, 97, 114, 101, 32, 110, 111, 116, 32, 116, 104, 101, 32, 99, 104, 101, 99, 107, 101, 100, 32, 105, 110, 115, 116, 97, 108, 108, 39, 115
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"check phase: no such block check"`, as code points.
+pub const M_NO_BLOCK_CHECK: [u32; 32] = [
+    99, 104, 101, 99, 107, 32, 112, 104, 97, 115, 101, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 98, 108, 111, 99, 107, 32, 99, 104, 101, 99, 107
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"check phase: no such record"`, as code points.
+pub const M_NO_RECORD: [u32; 27] = [
+    99, 104, 101, 99, 107, 32, 112, 104, 97, 115, 101, 58, 32, 110, 111, 32, 115, 117, 99, 104, 32, 114, 101, 99, 111, 114, 100
 ];
 
 // ---------------------------------------------------------------------------
@@ -130,7 +155,7 @@ pub fn check_basis_decl_install(
 ) -> Result<IFEnv, CheckError> {
     match basis_kind_decls_a(pers, st, kind) {
         Err(e) => Err(e),
-        Ok(decls) => install_basis_decls(fe, &decls, 0),
+        Ok(decls) => install_basis_decls(pers, fe, &decls, 0),
     }
 }
 
@@ -139,7 +164,7 @@ pub fn check_basis_decl_install(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Installed.lean:91-99 PendingCheck
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:107-115 PendingCheck` — a
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:120-128 PendingCheck` — a
 /// phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag) and
 /// the environment counter at the install.
@@ -150,7 +175,7 @@ pub struct PendingCheck {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — phase
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — phase
 /// A's step BODY: guard-and-install for the three value kinds, the ordinary
 /// step `check_decl` for everything else.  The four arms are four functions,
 /// so every one of them is a tail call.  (Task #119, con-leche task #342
@@ -182,7 +207,7 @@ pub fn install_step_go(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — **phase
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:170-227 installStep` — **phase
 /// A's step, bracketed**; `i` is the fold position the record is tagged with.
 ///
 /// **The bracket** (DESIGN.md §8.3, "Phase A runs in the scratch tier too,
@@ -198,9 +223,7 @@ pub fn install_step_go(
 /// pending record (`promote_vg`, at the
 /// SAME memo).  A persistent handle promotes to itself, so a record that
 /// installs what the parse already built — every value kind since task #119,
-/// whose install half interns nothing — pays one tier-bit test per handle;
-/// the blocks the ordinary step installs (inductives, the basis) still build
-/// terms.  The flush stays where con-leche puts it, at the head
+/// whose install half interns nothing — pays one tier-bit test per handle.  The flush stays where con-leche puts it, at the head
 /// (`installGuardsC` and the `.thmDecl` arm's own `flushC`, and
 /// `checkDeclStepC`'s), so every phase-A record starts with EMPTY caches.
 pub fn install_step(
@@ -243,7 +266,7 @@ pub fn install_step(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:170-227 installStep` — the
 /// bracket's `some vg` arm: the seam promoted first and the environment at the
 /// SAME memo, then the tier dropped and the record pushed.
 #[allow(clippy::too_many_arguments)]
@@ -284,7 +307,7 @@ pub fn install_step_promote(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// `.defnDecl` arm: a pin-certified operation takes the ordinary step (its
 /// check is not separable from its install), everything else is guarded,
 /// installed and recorded as pending.
@@ -318,7 +341,7 @@ pub fn install_step_defn(
 
 /// con-leche: ConLeche/Cached/Installed.lean:131-137 installGuardsC
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// `.defnDecl` arm's guards (`installGuardsC`: the header's, then the value's)
 /// and its push: the constant is stored AS DECLARED.  The environment counter
 /// the pending record carries is the BRACKET's (task #97-P6-2).
@@ -353,7 +376,7 @@ pub fn install_step_defn_install(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's guards
 /// only; the value is recorded raw and never touched here (phase B guards it),
 /// so phase A never enters a theorem's body.
@@ -380,7 +403,7 @@ pub fn install_step_thm(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its identity
 /// certificate is part of its install), everything else is guarded, installed
 /// **as an axiom** — an opaque's value being a discarded witness — and recorded
@@ -409,7 +432,7 @@ pub fn install_step_opaque(
 
 /// con-leche: ConLeche/Cached/Installed.lean:131-137 installGuardsC
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// opaque arm's guards and push.  **An `opaque`'s value is not in the
 /// environment**: the arm pushes `.axiomInfo cv` and hands the VALUE to the
 /// pending record alone, which is why the bracket promotes the `ValueGroup`
@@ -440,7 +463,7 @@ pub fn install_step_opaque_install(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:117-155 installStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:130-168 installStepGo` — the
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
 /// which records nothing pending.
 pub fn install_step_other(
@@ -457,36 +480,106 @@ pub fn install_step_other(
     }
 }
 
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:51-57 BlockCheck
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:229-241 BlockCheck` — **a block's job of the
+/// check phase**: the block, its parameter count, its fold position (the error
+/// tag), the counter it was installed at, and what the stored install pushed: the
+/// slots `c_lo .. c_hi` of the environment's constants and `t_lo .. t_hi` of its
+/// tables.  The twin carries the view it runs at and the pushes as values; here
+/// they are the frozen base read below `vis` and a range of it.
+pub struct BlockCheck {
+    pub block: Vec<IConstantInfo>,
+    pub n_p: u64,
+    pub pos: u64,
+    pub vis: u64,
+    pub c_lo: u64,
+    pub c_hi: u64,
+    pub t_lo: u64,
+    pub t_hi: u64,
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:121-127 installStepG
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:243-257 installBlockStep` — **phase A's
+/// step on an inductive block**: the stored install, whose push ranges the job
+/// records.  No value check is recorded: the block's verdict is its job's.  The
+/// caches go on the way out too, because a block the recogniser does not read has
+/// no bracket: every phase-A step leaves them empty.
+#[allow(clippy::too_many_arguments)]
+pub fn install_block_step(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    i: u64,
+    fe: IFEnv,
+    jobs: Vec<BlockCheck>,
+    block: &Vec<IConstantInfo>,
+    n_p: u64,
+) -> Result<(IFEnv, Vec<BlockCheck>), CheckError> {
+    let vis: u64 = fe.visible_below;
+    let c_lo: u64 = fe.env.consts.len() as u64;
+    let t_lo: u64 = fe.env.tables.len() as u64;
+    flush_caches(st);
+    match stored_install::stored_install(pers, st, mode, fe, block, n_p) {
+        Err(e) => Err(e),
+        Ok(fe2) => {
+            flush_caches(st);
+            let c_hi: u64 = fe2.env.consts.len() as u64;
+            let t_hi: u64 = fe2.env.tables.len() as u64;
+            let mut d: Vec<BlockCheck> = jobs;
+            d.push(BlockCheck {
+                block: crate::arena::env::i_constant_infos_dup(block),
+                n_p,
+                pos: i,
+                vis,
+                c_lo,
+                c_hi,
+                t_lo,
+                t_hi,
+            });
+            Ok((fe2, d))
+        }
+    }
+}
+
 /// con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:216-243 installDeclStep` — phase
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:108-110 deferredBlock?
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:259-294 installDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
-/// declaration that failed.  (Task #119: was `annot_decl_step`.)
+/// declaration that failed.  An inductive block is installed as stored
+/// (`install_block_step`), every other record by its ordinary step.
 ///
 /// **The `And` pin comes first** (con-leche's ANDPIN, `basis::and_pin_ok`): a
 /// record that declares `And`, `And.intro` or `And.rec` and is not the
 /// toolchain's `And` block is rejected here, whatever its kind, ahead of the
 /// kind dispatch and outside the scratch bracket.
 ///
-/// Deviation: the twin restores the PRE-step state on a failure (it is written
-/// as a state function); a failure aborts the whole fold here, so nothing reads
-/// the state afterwards and no snapshot is taken.
+/// Deviation: the twin hands back the empty state on a failure (it is written as
+/// a state function); here the state stays with the caller.
 pub fn install_decl_step(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
-    p: (u64, IFEnv, Vec<PendingCheck>),
+    p: (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>),
     pd: &IDeclaration,
-) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
+) -> Result<(u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>), (CheckError, u64)> {
     let i: u64 = p.0;
     match crate::arena::basis::and_pin_ok(pers, st, pd) {
         Err(e) => Err((e, i)),
         Ok(ok_and) => {
             if ok_and {
-                match install_step(pers, st, mode, pins, i, p.1, p.2, pd) {
-                    Err(e) => Err((e, i)),
-                    Ok(q) => Ok((i + 1, q.0, q.1)),
+                match pd {
+                    IDeclaration::IndDecl(block, n_p) => {
+                        match install_block_step(pers, st, mode, i, p.1, p.3, block, *n_p) {
+                            Err(e) => Err((e, i)),
+                            Ok(q) => Ok((i + 1, q.0, p.2, q.1)),
+                        }
+                    }
+                    _ => match install_step(pers, st, mode, pins, i, p.1, p.2, pd) {
+                        Err(e) => Err((e, i)),
+                        Ok(q) => Ok((i + 1, q.0, q.1, p.3)),
+                    },
                 }
             } else {
                 Err((CheckError::Invalid(code_points(&M_AND_PIN)), i))
@@ -496,18 +589,18 @@ pub fn install_decl_step(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:245-256 installFold` — phase A
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:296-307 installFold` — phase A
 /// as a fold over the records, as an index recursion threading the accumulator
-/// by value.  (Task #119: was `annot_fold`.)
+/// by value.
 pub fn install_fold(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
-    p: (u64, IFEnv, Vec<PendingCheck>),
+    p: (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>),
     ds: &Vec<IDeclaration>,
     i: usize,
-) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
+) -> Result<(u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>), (CheckError, u64)> {
     if i >= ds.len() {
         Ok(p)
     } else {
@@ -518,8 +611,32 @@ pub fn install_fold(
     }
 }
 
+/// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:296-307 installFold` at `ds.take n`
+/// (`phaseAFailure`) — `install_fold` over the records `i .. n`.
+#[allow(clippy::too_many_arguments)]
+pub fn install_prefix(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    p: (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>),
+    ds: &Vec<IDeclaration>,
+    i: usize,
+    n: usize,
+) -> Result<(u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>), (CheckError, u64)> {
+    if i >= ds.len() || i >= n {
+        Ok(p)
+    } else {
+        match install_decl_step(pers, st, mode, pins, p, &ds[i]) {
+            Err(e) => Err(e),
+            Ok(q) => install_prefix(pers, st, mode, pins, q, ds, i + 1, n),
+        }
+    }
+}
+
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:258-274 checkPending` —
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:309-325 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
 ///
@@ -547,6 +664,265 @@ pub fn check_pending(
 }
 
 // ---------------------------------------------------------------------------
+// The block jobs, and the check phase's jobs in fold order
+// (`ConLeche/Verify/Cached/Defer.lean`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:340-345 pushesAgree` — the checked
+/// install's pushed constants against the base's slots, from slot `i` of the job's
+/// layer on.
+pub fn consts_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> bool {
+    if i >= w.env.consts.len() {
+        true
+    } else {
+        let s: usize = b.c_lo as usize + i;
+        if s < pers.env.env.consts.len()
+            && stored_install::i_constant_info_beq_p(&w.env.consts[i], &pers.env.env.consts[s])
+        {
+            consts_agree(pers, w, b, i + 1)
+        } else {
+            false
+        }
+    }
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:340-345 pushesAgree` — the tables
+/// likewise.
+pub fn tables_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck, i: usize) -> bool {
+    if i >= w.env.tables.len() {
+        true
+    } else {
+        let s: usize = b.t_lo as usize + i;
+        if s < pers.env.env.tables.len() {
+            let t: &IProjTable = &pers.env.env.tables[s];
+            if stored_install::i_proj_table_beq_p(&w.env.tables[i], t) {
+                tables_agree(pers, w, b, i + 1)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:340-345 pushesAgree` — **the checked
+/// install pushed what the stored install pushed**: the job's own layer holds
+/// exactly its pushes, in install order, and so does the recorded range of the
+/// base.
+pub fn pushes_agree(pers: &PersTier, w: &IFEnv, b: &BlockCheck) -> bool {
+    w.env.consts.len() as u64 == b.c_hi - b.c_lo
+        && w.env.tables.len() as u64 == b.t_hi - b.t_lo
+        && consts_agree(pers, w, b, 0)
+        && tables_agree(pers, w, b, 0)
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:347-358 blockCheck` — **the block's job**:
+/// its checked install at an empty layer over the frozen base at the block's
+/// counter, from fresh caches and an empty scratch tier, and the comparison of
+/// its pushes with the stored install's.  A difference is an internal error: the
+/// stored reading is not the checked install's, a defect of the reader, not of
+/// the stream.  Nothing the job builds outlives it: the tier and the layer go.
+pub fn block_check(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    b: &BlockCheck,
+) -> Result<(), CheckError> {
+    enter_record(st);
+    let r: Result<IFEnv, CheckError> = crate::arena::check_decl::check_ind_decl(
+        pers,
+        st,
+        mode,
+        crate::arena::env::ifenv_layer(b.vis, b.vis),
+        &b.block,
+        b.n_p,
+    );
+    let v: Result<(), CheckError> = match r {
+        Err(e) => Err(e),
+        Ok(w) => {
+            if pushes_agree(pers, &w, b) {
+                Ok(())
+            } else {
+                fail(CheckError::Internal(code_points(&M_PUSHES_DIFFER)))
+            }
+        }
+    };
+    leave_record(st);
+    v
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:217-221 blockFailure
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:360-368 blockFailure` — **the first failing
+/// block job from `i` on**, in fold order, with its position.
+pub fn block_failure(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    d: &Vec<BlockCheck>,
+    i: usize,
+) -> Option<(CheckError, u64)> {
+    if i >= d.len() {
+        None
+    } else {
+        match block_check(pers, st, mode, &d[i]) {
+            Err(e) => Some((e, d[i].pos)),
+            Ok(()) => block_failure(pers, st, mode, d, i + 1),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:379-405 phaseAFailure` — **the verdict of a
+/// phase A that failed at record `i` with `e`**: the first failing block job before
+/// it; else, at a block past its `And` pin, that block's own job (a name was taken,
+/// or the store gave out); else `e`.
+///
+/// The failing step took the environment with it, and the environment is what the
+/// jobs read, so the records before `i` are installed once more, on the state the
+/// failure left: a step is a function of the index and the record.  Con-leche's
+/// commit loop holds its index across the step; a rejection need not be fast, and
+/// this keeps the accepting path's index threaded by value.
+pub fn phase_a_failure(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    ds: &Vec<IDeclaration>,
+    e: CheckError,
+    i: u64,
+) -> (CheckError, u64) {
+    match install_prefix(pers, st, mode, pins, fold_start(), ds, 0, i as usize) {
+        Err(e2) => e2,
+        Ok(q) => {
+            let own: Option<BlockCheck> = phase_a_own_job(pers, st, ds, i, &q.1);
+            let tier: PersTier = freeze_tier(&mut st.store, q.1);
+            let mut w: AState = worker_state(&st.pins);
+            let r: Option<(CheckError, u64)> = match block_failure(&tier, &mut w, mode, &q.3, 0) {
+                Some(f) => Some(f),
+                None => match own {
+                    None => None,
+                    Some(b) => match block_check(&tier, &mut w, mode, &b) {
+                        Err(e2) => Some((e2, i)),
+                        Ok(()) => None,
+                    },
+                },
+            };
+            let _ = thaw_tier(&mut st.store, tier);
+            match r {
+                Some(f) => f,
+                None => (e, i),
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:379-405 phaseAFailure` — the failing record's
+/// own job, when it is a block that passed its `And` pin: no pushes recorded, so a
+/// checked install that passes is the internal error it should be.
+pub fn phase_a_own_job(
+    pers: &PersTier,
+    st: &mut AState,
+    ds: &Vec<IDeclaration>,
+    i: u64,
+    fe: &IFEnv,
+) -> Option<BlockCheck> {
+    if (i as usize) < ds.len() {
+        match &ds[i as usize] {
+            IDeclaration::IndDecl(block, n_p) => match crate::arena::basis::and_pin_ok(pers, st, &ds[i as usize]) {
+                Ok(true) => Some(BlockCheck {
+                    block: crate::arena::env::i_constant_infos_dup(block),
+                    n_p: *n_p,
+                    pos: i,
+                    vis: fe.visible_below,
+                    c_lo: fe.env.consts.len() as u64,
+                    c_hi: fe.env.consts.len() as u64,
+                    t_lo: fe.env.tables.len() as u64,
+                    t_hi: fe.env.tables.len() as u64,
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:255-276 runJob
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:412-430 runJob` — **run a job**: a block job
+/// (`j.0`) or a recorded value check, by its index in its array, on a worker's
+/// state; the error tagged with its fold position.  `fe` is the empty layer every
+/// value check reads the frozen base through.
+pub fn run_job(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    pend: &Vec<PendingCheck>,
+    d: &Vec<BlockCheck>,
+    j: &(bool, u64),
+) -> Result<(), (CheckError, u64)> {
+    if j.0 {
+        if (j.1 as usize) < d.len() {
+            match block_check(pers, st, mode, &d[j.1 as usize]) {
+                Err(e) => Err((e, d[j.1 as usize].pos)),
+                Ok(()) => Ok(()),
+            }
+        } else {
+            Err((CheckError::Internal(code_points(&M_NO_BLOCK_CHECK)), 0))
+        }
+    } else if (j.1 as usize) < pend.len() {
+        match check_pending(pers, st, mode, fe, &pend[j.1 as usize]) {
+            Err(e) => Err((e, pend[j.1 as usize].pos)),
+            Ok(()) => Ok(()),
+        }
+    } else {
+        Err((CheckError::Internal(code_points(&M_NO_RECORD)), 0))
+    }
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:445-449 jobOrder` — **the jobs in fold order**:
+/// the recorded checks and the block checks, each array sorted by position, merged
+/// (a block before a record at a larger position).
+pub fn job_order(pend: &Vec<PendingCheck>, d: &Vec<BlockCheck>) -> Vec<(bool, u64)> {
+    job_order_go(pend, d, 0, 0, Vec::with_capacity(pend.len() + d.len()))
+}
+
+/// con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:432-443 jobOrderGo` — the merge, from
+/// positions `a` and `b`.
+pub fn job_order_go(
+    pend: &Vec<PendingCheck>,
+    d: &Vec<BlockCheck>,
+    a: usize,
+    b: usize,
+    acc: Vec<(bool, u64)>,
+) -> Vec<(bool, u64)> {
+    let mut o: Vec<(bool, u64)> = acc;
+    if a < pend.len() {
+        if b < d.len() && d[b].pos < pend[a].pos {
+            o.push((true, b as u64));
+            job_order_go(pend, d, a, b + 1, o)
+        } else {
+            o.push((false, a as u64));
+            job_order_go(pend, d, a + 1, b, o)
+        }
+    } else if b < d.len() {
+        o.push((true, b as u64));
+        job_order_go(pend, d, a, b + 1, o)
+    } else {
+        o
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The driver's fold: the phase boundary and phase B on a worker
 // (task #97-P5-Driver)
 //
@@ -556,7 +932,7 @@ pub fn check_pending(
 // sequential piece of that is here, in the verified crate:
 //
 //   install_fold_hooked     phase A (`install_fold`, plus a read-only hook)
-//   freeze_tier             the boundary
+//   freeze_tier             the boundary, and the index with it
 //   worker_state            a phase-B worker's state over the frozen tier
 //   thaw_tier               the boundary undone
 // ---------------------------------------------------------------------------
@@ -576,8 +952,8 @@ pub trait InstallHook {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
-/// Lean twin: none — `install_fold` with the driver's hook; the twin has no
-/// hook and the refinement is `install_fold`'s, through the equation
+/// Lean twin: none — `install_fold` over every record, with the driver's hook; the
+/// twin has no hook and the refinement is `install_fold`'s, through the equation
 /// `install_fold_hooked_eq` (`Refine2/Checker/Phased.lean`).
 /// **Phase A as the driver runs it**: `install_fold` step for step, with
 /// `h.install_before` called before each record.  The hook reads the store and
@@ -588,11 +964,11 @@ pub fn install_fold_hooked<H: InstallHook>(
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
-    p: (u64, IFEnv, Vec<PendingCheck>),
+    p: (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>),
     ds: &Vec<IDeclaration>,
     i: usize,
     h: &H,
-) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
+) -> Result<(u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>), (CheckError, u64)> {
     if i >= ds.len() {
         Ok(p)
     } else {
@@ -605,26 +981,24 @@ pub fn install_fold_hooked<H: InstallHook>(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
-/// Lean twin: none — the fold's start triple, `(0, mkIFEnv IEnv.empty, #[])`,
+/// Lean twin: none — the fold's start, `(0, mkIFEnv IEnv.empty, #[], #[])`,
 /// which `installThenCheck` writes inline.
 /// Phase A's starting accumulator, so that the driver builds it with the same
 /// call the verified fold does.
-pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>) {
-    (0, mk_ifenv(i_env_empty()), Vec::new())
+pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) {
+    (0, mk_ifenv(i_env_empty()), Vec::new(), Vec::new())
 }
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
 /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
-/// **The persistent tier out of the store and into a value** (task
-/// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
-/// persistent tables move into one `PersTier` handed back `frozen`, for the
-/// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
-/// store's scratch tiers and flags are untouched (a worker's store is its own,
-/// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
-/// is gone), and `thaw_tier` puts the tables back where they were.  The
-/// driver's store is not read between the two.
-pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+/// **The persistent tier and the installed index out of phase A and into a
+/// value**: the four persistent tables and `fe` move into one `PersTier` handed
+/// back `frozen`, for the phase-B workers to read (`fe` is what `ifenv_find` reads
+/// below an own layer).  A pure MOVE: the store's scratch tiers and flags are
+/// untouched (a worker's store is its own, `worker_state`), and `thaw_tier` puts
+/// everything back where it was.  The driver's store is not read between the two.
+pub fn freeze_tier(ar: &mut EStore, fe: IFEnv) -> PersTier {
     let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
     let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
     let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
@@ -635,21 +1009,23 @@ pub fn freeze_tier(ar: &mut EStore) -> PersTier {
         l,
         ls,
         e,
+        env: fe,
     }
 }
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the inverse of `freeze_tier`, which has none either.
-/// **`freeze_tier` inverted**: the tables back into the store, so that
-/// everything after phase B — the verdict line's label, the failing record's
-/// name, the receipts — reads the handles it was given.
-/// `thaw_tier(ar, freeze_tier(ar))` leaves the store exactly as it found it
-/// (`Refine2/Checker/Phased.lean`'s `freeze_tier_ok`).
-pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
+/// **`freeze_tier` inverted**: the tables back into the store and the index back
+/// to the caller, so that everything after phase B — the verdict line's label,
+/// the failing record's name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar, fe))` leaves the store exactly as it found it
+/// and answers `fe` (`Refine2/Checker/Phased.lean`'s `freeze_tier_ok`).
+pub fn thaw_tier(ar: &mut EStore, tier: PersTier) -> IFEnv {
     ar.lss.ls.ns.pers = tier.n;
     ar.lss.ls.pers = tier.l;
     ar.lss.pers = tier.ls;
     ar.pers = tier.e;
+    tier.env
 }
 
 /// con-leche: none — the pin table is handles, so a copy is a copy of words
@@ -667,8 +1043,16 @@ pub fn pins_dup(p: &Pins) -> Pins {
     }
 }
 
+/// con-leche: ConLeche/Kernel/FEnv.lean:113-136 FEnv
+/// Lean twin: none — the twin's value check reads one environment
+/// (`fe.restrictTo pc.vis`).  **The layer every value check reads the frozen base
+/// through**: empty, and with no bound of its own (`arena::env::ifenv_layer`).
+pub fn check_layer() -> IFEnv {
+    crate::arena::env::ifenv_layer(0, u64::MAX)
+}
+
 /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-/// Lean twin: `proof/ConRon/Arena/Phased.lean:33-40 AState.worker` — the twin's
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:370-377 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
 /// moved here by task #97-P5-Driver): the empty store, FROZEN
@@ -688,7 +1072,7 @@ pub fn worker_state(pins: &Pins) -> AState {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — **the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
 /// which, at the driver's call, is the persistent one.
@@ -716,7 +1100,7 @@ pub fn intern_all_pins(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
@@ -736,7 +1120,7 @@ pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the five
 /// kinds the startup walk interns, in the twin's order.
 pub fn all_basis_kinds() -> Vec<BasisKind> {
     let mut ks: Vec<BasisKind> = Vec::with_capacity(5);
@@ -749,7 +1133,7 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the
 /// standard and compiler-trust axiom pins, in the twin's order.
 pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::std_axioms::iff_a(pers, st) {
@@ -768,7 +1152,7 @@ pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
 pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::std_axioms::nonempty_intro_a(pers, st) {
@@ -787,7 +1171,7 @@ pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the
 /// compiler-trust shapes and the two reduce pins.
 pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::true_cv_a(pers, st) {
@@ -806,7 +1190,7 @@ pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the
 /// four `reduce*`/`ofReduce*` shapes and the two pinned defining expressions.
 pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::reduce_nat_cv_a(pers, st) {
@@ -832,7 +1216,7 @@ pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), Ch
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — the
 /// reserved names the guards compare by handle.
 pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::core::reserved_basis_names(st) {

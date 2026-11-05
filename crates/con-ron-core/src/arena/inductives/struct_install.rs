@@ -181,7 +181,7 @@ pub fn check_struct_proj_table(
                     if !(bodies.len() as u64 == n_f && scoped_ok) {
                         fail(core_types::internal(code_points(&M_TBL_SCOPE)))
                     } else {
-                        check_struct_proj_table_push(t, c, lps, n_p, n_f, res_sort, guards, bodies, fe)
+                        check_struct_proj_table_push(pers, t, c, lps, n_p, n_f, res_sort, guards, bodies, fe)
                     }
                 }
             },
@@ -241,6 +241,7 @@ pub fn proj_bodies_scoped(
 /// taken, and then the table is installed.
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table_push(
+    pers: &PersTier,
     t: &NIdx,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -251,9 +252,9 @@ pub fn check_struct_proj_table_push(
     bodies: Vec<EIdx>,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    if env::ifenv_find(fe.visible_below, &fe, t).is_none() {
+    if env::ifenv_find(pers, fe.visible_below, &fe, t).is_none() {
         fail(core_types::internal(code_points(&M_TBL_ORPHAN)))
-    } else if env::ifenv_find_table(fe.visible_below, &fe, t).is_some() {
+    } else if env::ifenv_find_table(pers, fe.visible_below, &fe, t).is_some() {
         fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
     } else {
         let tbl = IProjTable {

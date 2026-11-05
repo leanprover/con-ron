@@ -1324,14 +1324,14 @@ mod tests {
                 guards,
             },
         );
-        assert!(ifenv_find_table(fe2.visible_below, &fe2, &n).is_some(), "found under the scratch key");
-        assert!(ifenv_find_table(0, &fe2, &n).is_none(), "hidden where its structure is");
+        assert!(ifenv_find_table(&PersTier::empty(), fe2.visible_below, &fe2, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find_table(&PersTier::empty(), 0, &fe2, &n).is_none(), "hidden where its structure is");
         let (_, fe3) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 1, fe2));
         assert_eq!(fe3.env.tables.len(), 1);
         let n2: NIdx = fe3.env.tables[0].struct_name.dup2();
         assert!(n2.is_persistent(), "the stored structure name is persistent now");
         assert!(n2.eq2(&env::i_constant_info_name(&fe3.env.consts[0])), "the structure's own");
-        assert!(ifenv_find_table(fe3.visible_below, &fe3, &n2).is_some(), "found under the new key");
+        assert!(ifenv_find_table(&PersTier::empty(), fe3.visible_below, &fe3, &n2).is_some(), "found under the new key");
         assert!(fe3.tbls.get(&n).is_none(), "and the stale scratch row is gone");
         assert!(fe3.env.tables[0].bodies[0].is_persistent(), "the bodies are persistent too");
         drop_scratch(&mut st, tier);
@@ -1354,16 +1354,16 @@ mod tests {
                 ty,
             }),
         );
-        assert!(ifenv_find(fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find(&PersTier::empty(), fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
         let (_, fe2) = ok(promote_new(&mut tier, &st, PMemo::empty(), CORE_WALK_FUEL, 1, 0, fe1));
         assert_eq!(fe2.env.consts.len(), 1);
         assert_eq!(fe2.visible_below, 1);
         let n2: NIdx = env::i_constant_info_name(&fe2.env.consts[0]);
         assert!(n2.is_persistent(), "the stored name is persistent now");
         assert!(!n2.eq2(&n), "and it moved");
-        assert!(ifenv_find(fe2.visible_below, &fe2, &n2).is_some(), "found under the new key");
+        assert!(ifenv_find(&PersTier::empty(), fe2.visible_below, &fe2, &n2).is_some(), "found under the new key");
         assert!(
-            ifenv_find(fe2.visible_below, &fe2, &n).is_none(),
+            ifenv_find(&PersTier::empty(), fe2.visible_below, &fe2, &n).is_none(),
             "and the stale scratch row is gone"
         );
         match &fe2.env.consts[0] {

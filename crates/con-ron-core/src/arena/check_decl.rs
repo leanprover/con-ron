@@ -337,7 +337,7 @@ pub fn check_structural_nat_pin_eqs(
     k_pre: u64,
     n: &NIdx,
 ) -> Result<IFEnv, CheckError> {
-    match defn_value(fe2.visible_below, &fe2, n) {
+    match defn_value(pers, fe2.visible_below, &fe2, n) {
         None => fail(CheckError::Internal(code_points(&M_NAT_NOT_STORED))),
         Some(value2) => match nat_op_equations(pers, st, 0, n) {
             Err(e) => Err(e),

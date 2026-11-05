@@ -413,7 +413,7 @@ pub fn consts_resolve_f_node(
         }
         ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &sub) {
             Err(e) => Err(e),
-            Ok(b) => Ok(ifenv_find(vis, fe, &s).is_some() && b),
+            Ok(b) => Ok(ifenv_find(pers, vis, fe, &s).is_some() && b),
         },
         _ => Ok(false),
     }
@@ -693,7 +693,7 @@ pub fn check_constant_val_guards(
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<(), CheckError> {
-    if ifenv_find(vis, fe, &cv.name).is_some() {
+    if ifenv_find(pers, vis, fe, &cv.name).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         match reserved_basis_names(st) {

@@ -1572,7 +1572,7 @@ pub fn class_former_ty(
                 intern_e_bvar(pers, st, 0)
             }
         }
-        None => match positivity::ind_cv_of(fe.visible_below, fe, &m.ind) {
+        None => match positivity::ind_cv_of(pers, fe.visible_below, fe, &m.ind) {
             None => fail(core_types::internal(code_points(&M_FORMER))),
             Some(cv) => expr_ops::inst_lp_fast(pers, st, CORE_WALK_FUEL, &cv.level_params, &m.lvls, &cv.ty),
         },
@@ -1618,7 +1618,7 @@ pub fn class_const_ok(
     cv: &IConstantVal,
 ) -> Result<(), CheckError> {
     let vis: u64 = fe.visible_below;
-    if env::ifenv_find(vis, fe, &cv.name).is_some() {
+    if env::ifenv_find(pers, vis, fe, &cv.name).is_some() {
         fail(core_types::invalid(code_points(&M_DUP_DECL)))
     } else {
         match core::reserved_basis_names(st) {
@@ -2068,11 +2068,11 @@ pub fn class_key_canon(
 /// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:151-160 classNPcOf` — an
 /// inductive's parameter count as the pre-pass reads it: the block's at a
 /// member, the stored `IndCaps`' otherwise (`0` at no inductive).
-pub fn class_n_pc_of(p: &BlockShape, fe: &IFEnv, i_name: &NIdx) -> u64 {
+pub fn class_n_pc_of(pers: &PersTier, p: &BlockShape, fe: &IFEnv, i_name: &NIdx) -> u64 {
     if positivity::names_contain(&shape_member_names(p), i_name, 0) {
         p.n_p
     } else {
-        match env::ifenv_find(fe.visible_below, fe, i_name) {
+        match env::ifenv_find(pers, fe.visible_below, fe, i_name) {
             Some(IConstantInfo::IndInfo(_, caps)) => caps.nparams,
             _ => 0,
         }

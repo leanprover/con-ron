@@ -159,7 +159,7 @@ pub fn eq_basis_pinned(
         Err(e) => Err(e),
         Ok(en) => match eq_a(pers, st) {
             Err(e) => Err(e),
-            Ok(ea) => match ifenv_find(vis, fe, &en) {
+            Ok(ea) => match ifenv_find(pers, vis, fe, &en) {
                 Some(ci) => Ok(i_constant_info_beq(ci, &ea)),
                 None => Ok(false),
             },
@@ -181,7 +181,7 @@ pub fn iff_pinned(
 ) -> Result<bool, CheckError>  {
     match iff_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_i, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_i);
                 match iff_a(pers, st) {
@@ -215,7 +215,7 @@ pub fn iff_intro_pinned(
 ) -> Result<bool, CheckError>  {
     match iff_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ii, n_p, n_f)) => {
                 if *n_p == 2 && *n_f == 2 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ii);
@@ -245,7 +245,7 @@ pub fn iff_rec_pinned(
 ) -> Result<bool, CheckError>  {
     match iff_rec_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::RecInfo(cv_ir, m_i, r_p, _)) => {
                 if *m_i == 4 && *r_p == 4 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ir);
@@ -274,7 +274,7 @@ pub fn nonempty_pinned(
 ) -> Result<bool, CheckError>  {
     match nonempty_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_n, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_n);
                 match nonempty_a(pers, st) {
@@ -299,7 +299,7 @@ pub fn nonempty_intro_pinned(
 ) -> Result<bool, CheckError>  {
     match nonempty_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ni, n_p, n_f)) => {
                 if *n_p == 1 && *n_f == 1 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ni);
@@ -328,7 +328,7 @@ pub fn nonempty_rec_pinned(
 ) -> Result<bool, CheckError>  {
     match nonempty_rec_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::RecInfo(cv_nr, m_i, r_p, _)) => {
                 if *m_i == 3 && *r_p == 3 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_nr);
@@ -521,7 +521,7 @@ pub fn true_pinned(
 ) -> Result<bool, CheckError>  {
     match true_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_t, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_t);
                 match true_cv_a(pers, st) {
@@ -546,7 +546,7 @@ pub fn true_intro_pinned(
 ) -> Result<bool, CheckError>  {
     match true_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(vis, fe, &n) {
+        Ok(n) => match ifenv_find(pers, vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ti, n_p, n_f)) => {
                 if *n_p == 0 && *n_f == 0 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ti);
@@ -611,7 +611,7 @@ pub fn reduce_stored_ok(
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    match ifenv_find(vis, fe, c) {
+    match ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::AxiomInfo(cv_r)) => {
             let cv = crate::arena::env::i_constant_val_dup(cv_r);
             match reduce_op_cv_a(pers, st, c) {
@@ -643,7 +643,7 @@ pub fn reduce_elem_ok(
                     Err(e) => Err(e),
                     Ok(nn) => match nat_a(pers, st) {
                         Err(e) => Err(e),
-                        Ok(na) => match ifenv_find(vis, fe, &nn) {
+                        Ok(na) => match ifenv_find(pers, vis, fe, &nn) {
                             Some(ci) => Ok(i_constant_info_beq(ci, &na)),
                             None => Ok(false),
                         },
@@ -667,7 +667,7 @@ pub fn reduce_elem_ok_bool(
 ) -> Result<bool, CheckError>  {
     match bool_name(st) {
         Err(e) => Err(e),
-        Ok(bn) => match ifenv_find(vis, fe, &bn) {
+        Ok(bn) => match ifenv_find(pers, vis, fe, &bn) {
             Some(IConstantInfo::IndInfo(cv_b, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_b);
                 match bool_cv_a(pers, st) {
@@ -1017,7 +1017,7 @@ pub fn type_pin_stored(
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<EIdx, CheckError> {
-    match ifenv_find(vis, fe, n) {
+    match ifenv_find(pers, vis, fe, n) {
         Some(ci) => Ok(i_constant_info_to_constant_val(ci).ty),
         None => match zero_level(st) {
             Err(e) => Err(e),
@@ -2177,7 +2177,7 @@ pub fn bool_ctor_typed(
     fe2: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError> {
-    match ifenv_find(vis, fe2, n) {
+    match ifenv_find(pers, vis, fe2, n) {
         Some(ci) => {
             let c = i_constant_info_dup(ci);
             {
@@ -2271,7 +2271,7 @@ pub fn type_pin_guard(
     n: &NIdx,
     ty: &EIdx,
 ) -> Result<bool, CheckError> {
-    if ifenv_find(vis, fe, n).is_some() {
+    if ifenv_find(pers, vis, fe, n).is_some() {
         match type_pin_stored(pers, vis, st, fe, n) {
             Err(e) => Err(e),
             Ok(stored) => match has_fvar_fast(pers, st, CORE_WALK_FUEL, &stored) {
@@ -2717,7 +2717,7 @@ pub fn check_div_mod_pin(
             if !g {
                 fail(CheckError::NotImplemented(code_points(&M_DIVMOD_ENV)))
             } else {
-                match defn_value(fe2.visible_below, &fe2, c) {
+                match defn_value(pers, fe2.visible_below, &fe2, c) {
                     None => fail(CheckError::Internal(code_points(&M_DIVMOD_NOT_STORED))),
                     Some(value2) => {
                         check_div_mod_pin_at_pre(pers, st, mode, pins, fe2, k_pre, c, value2)
@@ -2765,8 +2765,8 @@ pub fn check_div_mod_pin_at_pre(
 /// twin's `match fe2.find? c with | some (.defnInfo _ value' _)`: the stored
 /// definition's value, COPIED before the state is taken mutably (task #14's
 /// rule).
-pub fn defn_value(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
-    match ifenv_find(vis, fe, c) {
+pub fn defn_value(pers: &PersTier, vis: u64, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
+    match ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::DefnInfo(_, v, _)) => Some(v.dup2()),
         _ => None,
     }
@@ -3131,10 +3131,11 @@ pub fn check_opaque_val(
 /// install one pinned basis declaration (duplicate-checked), returning the
 /// pushed index.
 pub fn install_basis_decl(
+    pers: &PersTier,
     fe: IFEnv,
     ci: IConstantInfo,
 ) -> Result<IFEnv, CheckError> {
-    if ifenv_find(fe.visible_below, &fe, &crate::arena::env::i_constant_info_name(&ci)).is_some() {
+    if ifenv_find(pers, fe.visible_below, &fe, &crate::arena::env::i_constant_info_name(&ci)).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         Ok(ifenv_push(fe, ci))
@@ -3145,6 +3146,7 @@ pub fn install_basis_decl(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:842-846 installBasisDecls` —
 /// an explicit list recursion (§3.4), threading the index by value.
 pub fn install_basis_decls(
+    pers: &PersTier,
     fe: IFEnv,
     decls: &Vec<IConstantInfo>,
     i: usize,
@@ -3152,9 +3154,9 @@ pub fn install_basis_decls(
     if i >= decls.len() {
         Ok(fe)
     } else {
-        match install_basis_decl(fe, i_constant_info_dup(&decls[i])) {
+        match install_basis_decl(pers, fe, i_constant_info_dup(&decls[i])) {
             Err(e) => Err(e),
-            Ok(fe2) => install_basis_decls(fe2, decls, i + 1),
+            Ok(fe2) => install_basis_decls(pers, fe2, decls, i + 1),
         }
     }
 }

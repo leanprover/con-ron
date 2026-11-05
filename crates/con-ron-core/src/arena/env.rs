@@ -619,9 +619,16 @@ pub fn i_env_empty() -> IEnv {
 /// Lean twin: `proof/ConRon/Arena/Env.lean:225-234 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
-/// `push` hands out.  con-leche's `base` and `ovl` fields (task #329) are not
-/// ported: both are empty on every environment its install threads (see
-/// `ifenv_find`).
+/// `push` hands out.  con-leche's `ovl` field is not ported (see `ifenv_find`).
+///
+/// **The environment has two tiers, like the store.**  An `IFEnv` is one
+/// LAYER: phase A threads one by value and pushes into it; `freeze_tier` moves
+/// it into the `PersTier`, where it is the frozen BASE every phase-B worker
+/// reads by reference; and a phase-B job's `fe` is a layer of its own over that
+/// base, empty until the job pushes (`ifenv_layer`).  `ifenv_find` and the
+/// table lookups read the own layer first, then the base below `base_below`:
+/// con-leche's worker view (`FEnv.base`, whose entries are visible below
+/// `FBase.below`), with the frozen tier as the base.
 ///
 /// **The READERS take the bound as a scalar** (`vis: u64`, task #97-P6-6b),
 /// and this field is what phase A — which threads the record by value and
@@ -658,6 +665,11 @@ pub struct IFEnv {
     pub idx: HashMap<NIdx, (u64, u64)>,
     pub visible_below: u64,
     pub tbls: HashMap<NIdx, u64>,
+    /// The frozen base's entries are visible to this layer below this counter
+    /// and no further (con-leche's `FBase.below`): a block job's position, the
+    /// largest counter for a value check's layer, `0` for phase A's own, which
+    /// has no base.
+    pub base_below: u64,
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:138-147 mkFEnvGo
@@ -693,6 +705,24 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
         idx: p.1,
         visible_below: p.0,
         tbls: t,
+        base_below: 0,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:113-136 FEnv
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:229-241 BlockCheck` — **an empty layer
+/// over the frozen base**: nothing of its own, the next counter `vis` and the
+/// base visible below `below`.  A block job's is `ifenv_layer(pos, pos)`, so its
+/// pushes take the counters the stored install's did and the stored install's
+/// entries stay hidden; a value check's is `ifenv_layer(0, u64::MAX)`, whose
+/// bound is the `vis` it is read at.
+pub fn ifenv_layer(vis: u64, below: u64) -> IFEnv {
+    IFEnv {
+        env: i_env_empty(),
+        idx: HashMap::new(),
+        visible_below: vis,
+        tbls: HashMap::new(),
+        base_below: below,
     }
 }
 
@@ -713,27 +743,56 @@ pub fn mk_tbls_go(ts: &Vec<IProjTable>, i: usize, m: HashMap<NIdx, u64>) -> Hash
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:163-182 FEnv.find?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:258-263 IFEnv.find?` — indexed
-/// lookup, bounded by the visibility counter.  con-leche's `FEnv` also
-/// carries a frozen base layer and an overlay (task #329: the parallel
-/// install's worker views, and the inductive block's rule-less recursors as a
-/// view sharing the index); both are empty on every environment its install
-/// threads, where `find?` is this lookup.  The port has neither: its block
-/// install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`).
+/// lookup, bounded by the visibility counter: the own layer, and on a miss the
+/// frozen base (`ifenv_find_base`).  con-leche's `FEnv` also carries an overlay
+/// (the inductive block's rule-less recursors as a view sharing the index),
+/// which the port has not: its block install pushes and pops in place
+/// (`ifenv_push_temp`/`ifenv_pop_temp`).
 ///
-/// **The bound is a PARAMETER and not the record's field** (task #97-P6-6b).
-/// The twin reads `fe.visibleBelow`; the Rust reads `vis`, because phase B's
-/// `n` workers hold ONE `&IFEnv` between them and each checks its record at
-/// its own prefix view (`pc.vis`).  Splitting the scalar out of the index is
-/// what makes that possible: `check_pending` no longer takes the index by
-/// value to restrict it, so a worker copies no environment at all.  Every
-/// caller that still threads an environment BY VALUE — phase A's installs —
-/// passes that record's own `visible_below`, so the function's answer is the
-/// twin's `FEnv.find?` verbatim wherever the twin is what runs.
-pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
-    match fe.idx.get(n) {
+/// **The bound is a PARAMETER and not the record's field.**  The twin reads
+/// `fe.visibleBelow`; the Rust reads `vis`, because phase B's `n` workers hold
+/// ONE frozen base between them and each checks its record at its own prefix
+/// view (`pc.vis`).  Every caller that threads an environment BY VALUE passes
+/// that record's own `visible_below`.
+///
+/// **A layer with no constant of its own goes straight to the base**, which is
+/// every value check's every probe: one length test, no probe of an empty map.
+pub fn ifenv_find<'a>(
+    pers: &'a PersTier,
+    vis: u64,
+    fe: &'a IFEnv,
+    n: &NIdx,
+) -> Option<&'a IConstantInfo> {
+    if fe.env.consts.len() == 0 {
+        ifenv_find_base(pers, vis, fe.base_below, n)
+    } else {
+        match fe.idx.get(n) {
+            Some(e) => {
+                if e.0 < vis && (e.1 as usize) < fe.env.consts.len() {
+                    Some(&fe.env.consts[e.1 as usize])
+                } else {
+                    None
+                }
+            }
+            None => ifenv_find_base(pers, vis, fe.base_below, n),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:67-73 FBase.find?
+/// Lean twin: none — the twin's job reads one `IFEnv` (`BlockCheck.view`,
+/// `Arena/Checker.lean`).  **The base layer's lookup**: a frozen entry's constant,
+/// visible below both the reader's bound and the layer's.
+pub fn ifenv_find_base<'a>(
+    pers: &'a PersTier,
+    vis: u64,
+    below: u64,
+    n: &NIdx,
+) -> Option<&'a IConstantInfo> {
+    match pers.env.idx.get(n) {
         Some(e) => {
-            if e.0 < vis && (e.1 as usize) < fe.env.consts.len() {
-                Some(&fe.env.consts[e.1 as usize])
+            if e.0 < vis && e.0 < below && (e.1 as usize) < pers.env.env.consts.len() {
+                Some(&pers.env.env.consts[e.1 as usize])
             } else {
                 None
             }
@@ -781,10 +840,15 @@ pub fn ifenv_push_table(fe: IFEnv, t: IProjTable) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:241-246 rawTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:295-299 IFEnv.rawTable?` — the table map's
-/// lookup, ungated.  con-leche falls through to the base layer on a miss; the
-/// port has none (`IFEnv`'s note), so a miss is `None`.
-pub fn ifenv_raw_table<'a>(fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
+/// Lean twin: `proof/ConRon/Arena/Env.lean:295-299 IFEnv.rawTable?` — the table
+/// map's lookup: the own layer, and on a miss the frozen base
+/// (`ifenv_table_base`).
+pub fn ifenv_raw_table<'a>(
+    pers: &'a PersTier,
+    vis: u64,
+    fe: &'a IFEnv,
+    t: &NIdx,
+) -> Option<&'a IProjTable> {
     match fe.tbls.get(t) {
         Some(s) => {
             if (*s as usize) < fe.env.tables.len() {
@@ -793,7 +857,32 @@ pub fn ifenv_raw_table<'a>(fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
                 None
             }
         }
-        None => None,
+        None => ifenv_table_base(pers, vis, fe.base_below, t),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:88-94 FBase.findTable?
+/// Lean twin: none — as `ifenv_find_base`.  **The base layer's table lookup**:
+/// `t`'s table, visible where the base shows the constant `t`.
+pub fn ifenv_table_base<'a>(
+    pers: &'a PersTier,
+    vis: u64,
+    below: u64,
+    t: &NIdx,
+) -> Option<&'a IProjTable> {
+    if ifenv_find_base(pers, vis, below, t).is_some() {
+        match pers.env.tbls.get(t) {
+            Some(s) => {
+                if (*s as usize) < pers.env.env.tables.len() {
+                    Some(&pers.env.env.tables[*s as usize])
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
+    } else {
+        None
     }
 }
 
@@ -801,9 +890,14 @@ pub fn ifenv_raw_table<'a>(fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
 /// Lean twin: `proof/ConRon/Arena/Env.lean:301-305 IFEnv.findTable?` — **the table
 /// lookup**: `t`'s table, visible exactly where the constant `t` is, so a
 /// prefix view (`vis`) hides a table by hiding its structure.
-pub fn ifenv_find_table<'a>(vis: u64, fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
-    if ifenv_find(vis, fe, t).is_some() {
-        ifenv_raw_table(fe, t)
+pub fn ifenv_find_table<'a>(
+    pers: &'a PersTier,
+    vis: u64,
+    fe: &'a IFEnv,
+    t: &NIdx,
+) -> Option<&'a IProjTable> {
+    if ifenv_find(pers, vis, fe, t).is_some() {
+        ifenv_raw_table(pers, vis, fe, t)
     } else {
         None
     }
@@ -900,8 +994,8 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
 /// con-leche: ConLeche/Kernel/FEnv.lean:256-260 FEnv.findProj?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:307-312 IFEnv.findProj?` — indexed
 /// projection-table lookup: the structure's table, viewed at field `i`.
-pub fn ifenv_find_proj(vis: u64, fe: &IFEnv, t: &NIdx, i: u64) -> Option<IProjEntry> {
-    match ifenv_find_table(vis, fe, t) {
+pub fn ifenv_find_proj(pers: &PersTier, vis: u64, fe: &IFEnv, t: &NIdx, i: u64) -> Option<IProjEntry> {
+    match ifenv_find_table(pers, vis, fe, t) {
         Some(tbl) => {
             if i < tbl.num_fields {
                 Some(i_proj_table_entry(tbl, i))

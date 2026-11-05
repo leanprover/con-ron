@@ -1113,8 +1113,8 @@ pub fn nest_ctor_entry(
 /// the `indInfo` lookup, its recorded parameter count and constructor names
 /// read out (so no loan into the environment spans the constructor
 /// lookups, extraction rule 1).
-pub fn ind_caps_ctors(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<(u64, Vec<NIdx>)> {
-    match env::ifenv_find(vis, fe, c) {
+pub fn ind_caps_ctors(pers: &PersTier, vis: u64, fe: &IFEnv, c: &NIdx) -> Option<(u64, Vec<NIdx>)> {
+    match env::ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::IndInfo(_, caps)) => Some((caps.nparams, env::nidx_vec_dup(&caps.ctors))),
         _ => None,
     }
@@ -1160,7 +1160,7 @@ pub fn nest_ctor_entry_of(
     c: &NIdx,
     n: &NIdx,
 ) -> Result<Option<(IConstantVal, u64, u64)>, CheckError> {
-    match env::ifenv_find(vis, fe, n) {
+    match env::ifenv_find(pers, vis, fe, n) {
         Some(ci) => nest_ctor_entry(pers, st, c, ci),
         None => Ok(None),
     }
@@ -1197,7 +1197,7 @@ pub fn nest_container(
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<Option<(u64, Vec<(IConstantVal, u64)>)>, CheckError> {
-    match ind_caps_ctors(vis, fe, c) {
+    match ind_caps_ctors(pers, vis, fe, c) {
         None => Ok(None),
         Some((n_params, ns)) => match nest_container_ctors(pers, st, vis, fe, c, &ns, 0, Vec::new()) {
             Err(e) => Err(e),
@@ -1893,8 +1893,8 @@ pub fn nest_crest(
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:712-748 nestInstType` — the
 /// `indInfo` lookup of the container, its constant read out.
-pub fn ind_cv_of(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<IConstantVal> {
-    match env::ifenv_find(vis, fe, c) {
+pub fn ind_cv_of(pers: &PersTier, vis: u64, fe: &IFEnv, c: &NIdx) -> Option<IConstantVal> {
+    match env::ifenv_find(pers, vis, fe, c) {
         Some(IConstantInfo::IndInfo(cv, _)) => Some(env::i_constant_val_dup(cv)),
         _ => None,
     }
@@ -1916,7 +1916,7 @@ pub fn nest_inst_type(
     key: &NestKey,
 ) -> Result<(u64, EIdx), CheckError> {
     match checker_base::unwrap_or(
-        ind_cv_of(ctx.vis, fe, &key.cname),
+        ind_cv_of(pers, ctx.vis, fe, &key.cname),
         core_types::internal(code_points(&M_VANISHED)),
     ) {
         Err(e) => Err(e),
@@ -2410,8 +2410,8 @@ pub fn ctor_pairs_append(
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:784-790 nestBlockOf` — the
 /// recorded block of the inductive `C` (`IndCaps.all`): `[]` when none is
 /// recorded.
-pub fn nest_block_of(ctx: &NestCtx, fe: &IFEnv, c: &NIdx) -> Vec<NIdx> {
-    match env::ifenv_find(ctx.vis, fe, c) {
+pub fn nest_block_of(pers: &PersTier, ctx: &NestCtx, fe: &IFEnv, c: &NIdx) -> Vec<NIdx> {
+    match env::ifenv_find(pers, ctx.vis, fe, c) {
         Some(IConstantInfo::IndInfo(_, caps)) => env::nidx_vec_dup(&caps.all),
         _ => Vec::new(),
     }
@@ -2439,8 +2439,8 @@ pub fn frame_mates_from(ns: &Vec<NIdx>, c: &NIdx, i: usize, out: Vec<NIdx>) -> V
 /// recorded block, each once.  (`eraseDups` then `filter` keeps the first
 /// occurrence of every name that is not `C`, which is what the one pass
 /// keeps.)
-pub fn nest_frame_mates(ctx: &NestCtx, fe: &IFEnv, c: &NIdx) -> Vec<NIdx> {
-    let all: Vec<NIdx> = nest_block_of(ctx, fe, c);
+pub fn nest_frame_mates(pers: &PersTier, ctx: &NestCtx, fe: &IFEnv, c: &NIdx) -> Vec<NIdx> {
+    let all: Vec<NIdx> = nest_block_of(pers, ctx, fe, c);
     frame_mates_from(&all, c, 0, Vec::new())
 }
 
@@ -2454,7 +2454,7 @@ pub fn nest_arity(
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<u64, CheckError> {
-    match ind_cv_of(ctx.vis, fe, c) {
+    match ind_cv_of(pers, ctx.vis, fe, c) {
         None => Ok(0),
         Some(cv) => match pi_binders(pers, st, CORE_WALK_FUEL, &cv.ty, Vec::new()) {
             Err(e) => Err(e),
@@ -2806,7 +2806,7 @@ pub fn nest_cont_new(
     match nest_walk_stack(pers, st, ctx, prog, ds) {
         Err(e) => Err(e),
         Ok(wp) => {
-            let mates: Vec<NIdx> = nest_frame_mates(ctx, fe, n);
+            let mates: Vec<NIdx> = nest_frame_mates(pers, ctx, fe, n);
             let mut grp0: Vec<(NIdx, EIdx)> = Vec::new();
             grp0.push((n.dup2(), cty.dup2()));
             let hw: u64 = hi_at(ctx, wp.len() as u64);
@@ -3201,7 +3201,7 @@ pub fn nest_holes(
     if mm >= ctx.names.len() {
         Ok(Some(out))
     } else {
-        match ind_cv_of(ctx.vis, fe, &ctx.names[mm]) {
+        match ind_cv_of(pers, ctx.vis, fe, &ctx.names[mm]) {
             None => Ok(None),
             Some(cv) => match inst_pis_with(pers, st, &ctx.params, 0, &cv.ty) {
                 Err(e) => Err(e),

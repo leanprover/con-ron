@@ -371,7 +371,7 @@ pub fn class_read_slot(
                                             Some((i_name, us)) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &mdom) {
                                                 Err(e) => Err(e),
                                                 Ok(args) => {
-                                                    let n: u64 = class_n_pc_of(p, fe, &i_name);
+                                                    let n: u64 = class_n_pc_of(pers, p, fe, &i_name);
                                                     Ok(Some(ClassSlot::Motive(ClassKey {
                                                         ind: i_name,
                                                         lvls: us,

@@ -21,6 +21,7 @@
 //! | `struct_parts` | `Inductives/StructParts.lean` |
 //! | `struct_install` | `Inductives/StructInstall.lean`, `StructInstallF.lean` |
 //! | `sum_install` | `Inductives/SumInstall.lean`, `SumInstallF.lean` |
+//! | `stored_install` | `ConLeche/Cached/StoredInstall.lean` |
 //!
 //! **`StructInstallF.lean`/`SumInstallF.lean`'s `F`-suffixed names had no
 //! caller** (task #105 sweep): the arena has ONE environment type (task
@@ -44,6 +45,7 @@ pub mod block_rec;
 pub mod rec_check;
 pub mod class_read;
 pub mod gen_rec;
+pub mod stored_install;
 pub mod stored_recs;
 pub mod block_install;
 pub mod block_parts;

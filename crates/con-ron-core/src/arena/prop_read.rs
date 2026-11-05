@@ -201,7 +201,7 @@ pub fn unwrap_id_defs(
             Ok(hd) => if hd.tag() == ETAG_CONST {
                 match view_const_name(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some(c) => match env::ifenv_find(vis, fe, &c) {
+                Some(c) => match env::ifenv_find(pers, vis, fe, &c) {
                     Some(IConstantInfo::DefnInfo(_, v0, _)) => {
                         let v: EIdx = v0.dup2();
                         match lam_proj(pers, st, fuel, 0, &v) {
@@ -326,7 +326,7 @@ pub fn head_type_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(vis, fe, &i) {
+        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(pers, vis, fe, &i) {
             Some(ci) => {
                 let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
                 match view_ls_len(pers, st, &us) {
@@ -441,7 +441,7 @@ pub fn head_proof_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
+        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(pers, vis, fe, &c) {
             Some(ci) => {
                 let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
                 match view_ls_len(pers, st, &us) {
@@ -465,7 +465,7 @@ pub fn head_proof_pw(
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::ForallE(_, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
-        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(vis, fe, &s, i) {
+        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(pers, vis, fe, &s, i) {
             Some(entry) => match type_sort_pw(pers, vis, st, fe, fuel, &entry.body) {
                 Err(e) => Err(e),
                 Ok(Some(pw)) => {

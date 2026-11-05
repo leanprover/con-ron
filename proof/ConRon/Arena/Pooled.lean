@@ -19,31 +19,31 @@ open ConLeche
 
 /-! ## The pool, as the twin sees it
 
-The binary's phase B is not one walk but a POOL: the pending records are
-shared among workers, and each worker checks the records it claimed, in
-order, on ONE state it built with `worker_state` and threads through them.
-`PooledAccepts` is that shape on the twin side: phase A accepted, and a
-family of record lists — one per worker — covering every pending record,
-each accepted by `checkPendingList` from the phase-A state's worker.  It
-says nothing about which worker ran which record or about any worker's
-history, because nothing downstream needs it: Theorem 1 turns each list's
-accept into con-leche's per-record pure accepts, each at its record's own
-prefix environment, and those assemble the pure fold whatever the split
+The binary's phase B is not one walk but a POOL: the jobs (the pending records'
+value checks and the blocks' checked installs, `jobOrder`) are shared among
+workers, and each worker runs the jobs it claimed, in order, on ONE state it built
+with `worker_state` and threads through them.  `PooledAccepts` is that shape on
+the twin side: phase A accepted, and a family of job lists — one per worker —
+covering every job, each accepted by `checkJobList` from the phase-A state's
+worker.  It says nothing about which worker ran which job or about any worker's
+history, because nothing downstream needs it: Theorem 1 turns each list's accept
+into con-leche's per-job accepts, each at its job's own environment, and those
+assemble the pure fold whatever the split
 (`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge`). -/
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool — **the pooled fold, accepted**:
-phase A (`installFold`) accepted with environment `fe` and pending records
-`pend`, ending in `s'`; and `parts`, one record list per worker, each drawn
-from `pend`, together covering it, each accepted by `checkPendingList` from
+phase A (`installFold`) accepted with environment `fe`, pending records `pend` and
+block jobs `D`, ending in `s'`; and `parts`, one job list per worker, each drawn
+from `jobOrder pend D`, together covering it, each accepted by `checkJobList` from
 `s'.worker`.  The twin of the Rust's `PoolAccepts`
 (`Refine2/Checker/Phased.lean`). -/
 def PooledAccepts (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) (s : AState) (fe : IFEnv) (s' : AState) : Prop :=
-  ∃ (n : Nat) (pend : Array PendingCheck) (parts : List (List PendingCheck)),
-    installFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList s
-      = .ok (.ok (n, fe, pend), s') ∧
-    (∀ pc ∈ pend.toList, ∃ w ∈ parts, pc ∈ w) ∧
-    (∀ w ∈ parts, ∀ pc ∈ w, pc ∈ pend.toList) ∧
-    (∀ w ∈ parts, ∃ s'', checkPendingList mode fe w s'.worker = .ok (.ok (), s''))
+  ∃ (n : Nat) (pend : Array PendingCheck) (D : Array BlockCheck) (parts : List (List Job)),
+    installFold mode pins (0, mkIFEnv IEnv.empty, #[], #[]) ds.toList s
+      = .ok (.ok (n, fe, pend, D), s') ∧
+    (∀ j ∈ (jobOrder pend D).toList, ∃ w ∈ parts, j ∈ w) ∧
+    (∀ w ∈ parts, ∀ j ∈ w, j ∈ (jobOrder pend D).toList) ∧
+    (∀ w ∈ parts, ∃ s'', checkJobList mode pins fe pend D w s'.worker = .ok (.ok (), s''))
 
 end ConRon.Arena

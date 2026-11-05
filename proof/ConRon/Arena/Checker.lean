@@ -14,14 +14,25 @@ con-leche has both, and so does (B), because they are different things:
   `checkDeclsPure_sound_of` consumes it, and DESIGN §8.2's Theorem 1 folds
   `checkDecl` over the stream.  One step per record, install and check
   together.
-* **`installThenCheck`** is what the BINARY runs
-  (`ConLeche/Cached/Installed.lean:450-455`, whose `checkDecls` is the
-  driver's own algorithm): phase A installs every record, guarding its
-  header and its value but not inferring; phase B checks each recorded
-  declaration against the PREFIX VIEW it was installed at.  con-leche proves
-  the two are the same accept (`fullyChecked_checkDecls`); the arena's two
-  call the same `checkDecl` pieces, which is what keeps them the same
-  computation.
+* **`installThenCheck`** is what the BINARY runs (con-leche's driver,
+  `ConLeche/Driver/Run.lean`'s `checkDeclsIO`): phase A installs every record,
+  guarding its header and its value but not inferring, and pushes an inductive
+  block as stored (`Arena/Inductives/StoredInstall.lean`); phase B runs the jobs
+  in fold order: each recorded declaration's check against the PREFIX VIEW it was
+  installed at, and each block's checked install at the environment it was
+  installed at, compared with its stored pushes (`blockCheck`).  con-leche proves
+  the two are the same accept (`fullyChecked_checkDecls`, `Verify/Cached/Defer.lean`);
+  the arena's two call the same `checkDecl` pieces, which is what keeps them the
+  same computation.
+
+**The twin has one environment value per job, and no base.**  The Rust's phase-B
+environment has two tiers: phase A's index frozen into the `PersTier`, and an own
+layer per job (`arena::env`'s `IFEnv` note, `arena::checker::block_check`).  Here a
+value check reads `fe.restrictTo pc.vis` as it always has, and a block job holds
+its own `IFEnv` (`BlockCheck.view`): `fe` as the block found it, with an empty
+`env`, so that what the job pushes is `W'.env`.  A lookup answers the same on the
+two: the own layer, then the base below the block's counter, is `fe`'s index at
+the block, because no install overwrites a row (a taken name stops phase A).
 
 ## Every declaration is bracketed, in both folds
 
@@ -51,9 +62,10 @@ must be one algorithm under it and differ only in their phase structure.
 What is NOT bracketed is `checkDecl` itself — a bracket belongs to a FOLD
 STEP, and `checkDecl` is also called from inside one (`installStepGo`'s
 fall-through clause, for the kinds whose check is not separable from their
-install: axioms, basis and quotient blocks, inductive blocks and the
-`Nat`-operation and `reduce*` pin gates).  Those install what they check, and
-the enclosing step promotes the whole installed block.
+install: axioms, basis and quotient blocks and the `Nat`-operation and `reduce*`
+pin gates).  Those install what they check, and the enclosing step promotes the
+whole installed block.  An inductive block's stored install has brackets of its
+own (`Arena/Inductives/StoredInstall.lean`'s note).
 
 ## The pins are interned at startup
 
@@ -70,6 +82,7 @@ the tier boundary.
 module
 
 public import ConRon.Arena.CheckDecl
+public import ConRon.Arena.Inductives.StoredInstall
 
 @[expose] public section
 
@@ -213,10 +226,42 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep — phase
-A's step with the position carried and the error tagged: a failing step
-reports the `CheckError` together with `i`, the fold position of the
-declaration that failed.
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:51-57 BlockCheck
+**A block's job of the check phase**: the view its checked install runs at (the
+environment as the block found it, with an empty `env`, so that what the job pushes
+is the view's own), the block, its parameter count, its fold position (the error
+tag), and what the stored install pushed: the constants `L` and the tables `Q`, in
+install order. -/
+structure BlockCheck where
+  view : IFEnv
+  block : List IConstantInfo
+  nP : Nat
+  pos : Nat
+  L : List IConstantInfo
+  Q : List IProjTable
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:121-127 installStepG
+**Phase A's step on an inductive block**: the stored install, whose pushes the job
+records.  No value check is recorded: the block's verdict is its job's.  The caches
+go on the way out too, because a block the recogniser does not read has no bracket:
+every phase-A step leaves them empty. -/
+def installBlockStep (mode : CheckMode) (i : Nat) (fe : IFEnv) (D : Array BlockCheck)
+    (block : List IConstantInfo) (nP : Nat) : AM (IFEnv × Array BlockCheck) := do
+  let nc := fe.env.consts.length
+  let nt := fe.env.tables.length
+  flushCaches
+  let fe₂ ← storedInstall mode fe block nP
+  flushCaches
+  let L := (fe₂.env.consts.take (fe₂.env.consts.length - nc)).reverse
+  let Q := (fe₂.env.tables.take (fe₂.env.tables.length - nt)).reverse
+  pure (fe₂, D.push ⟨{ fe with env := IEnv.empty }, block, nP, i, L, Q⟩)
+
+/-- con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
+con-leche: ConLeche/Verify/Cached/Defer.lean:108-110 deferredBlock?
+Phase A's step with the position carried and the error tagged: a failing step
+reports the `CheckError` together with `i`, the fold position of the declaration
+that failed.  An inductive block is installed as stored (`installBlockStep`), every
+other record by its ordinary step.
 
 **The `And` pin comes first** (con-leche's ANDPIN, `andPinOk`): a record that
 declares `And`, `And.intro` or `And.rec` and is not the toolchain's `And`
@@ -231,13 +276,19 @@ verdict); (B) has ONE monad (DESIGN §8.4), so the tag is produced as a VALUE by
 the step's own outcome — the treatment task #97e gives the parser's two
 position-carrying failures. -/
 def installDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
-    (p : Nat × IFEnv × Array PendingCheck) (pd : IDeclaration) :
-    AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck)) := fun s =>
+    (p : Nat × IFEnv × Array PendingCheck × Array BlockCheck) (pd : IDeclaration) :
+    AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck × Array BlockCheck)) := fun s =>
   match andPinOk pd s with
   | .ok (true, s₁) =>
-    match installStep mode pins p.1 p.2.1 p.2.2 pd s₁ with
-    | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
-    | .error e => .ok (.error (e, p.1), AState.abandoned)
+    match pd with
+    | .indDecl block nP =>
+      match installBlockStep mode p.1 p.2.1 p.2.2.2 block nP s₁ with
+      | .ok ((fe', D'), s') => .ok (.ok (p.1 + 1, fe', p.2.2.1, D'), s')
+      | .error e => .ok (.error (e, p.1), AState.abandoned)
+    | _ =>
+      match installStep mode pins p.1 p.2.1 p.2.2.1 pd s₁ with
+      | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend', p.2.2.2), s')
+      | .error e => .ok (.error (e, p.1), AState.abandoned)
   | .ok (false, _) =>
     .ok (.error (.invalid "`And` must be the standard `And`", p.1), AState.abandoned)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
@@ -246,9 +297,9 @@ def installDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def installFold (mode : CheckMode) (pins : List INatOpPinSet)
-    (p : Nat × IFEnv × Array PendingCheck) :
+    (p : Nat × IFEnv × Array PendingCheck × Array BlockCheck) :
     List IDeclaration →
-    AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck))
+    AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck × Array BlockCheck))
   | [] => pure (.ok p)
   | d :: ds => do
     match ← installDeclStep mode pins p d with
@@ -284,18 +335,147 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .ok ((), s') => checkPendingList mode fe rest s'
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls — **the
-declaration fold the binary runs**: install every record (phase A), check
-every recorded declaration (phase B), return the environment.  The `× Nat` of
-the error is the failure's POSITION in the fold. -/
+/-! ## The block jobs, and the check phase's jobs in fold order -/
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
+**The checked install pushed `L` and `Q`** onto a view whose own environment is
+empty: its constants and tables, in install order, compared pointer-first. -/
+def pushesAgree (W' : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : Bool :=
+  listBeqBy IConstantInfo.beqP W'.env.consts.reverse L &&
+    listBeqBy IProjTable.beqP W'.env.tables.reverse Q
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
+**The block's job**: its checked install at the view, from fresh caches and an empty
+scratch tier, and the comparison of its pushes with the stored install's.  A
+difference is an internal error: the stored reading is not the checked install's, a
+defect of the reader, not of the stream.  Nothing the job builds outlives it.  The
+message drops con-leche's interpolated block name (§3.1). -/
+def blockCheck (mode : CheckMode) (pins : List INatOpPinSet) (b : BlockCheck) : AM Unit := do
+  enterScratch
+  let W' ← checkDecl mode pins b.view (.indDecl b.block b.nP)
+  unless pushesAgree W' b.L b.Q do
+    fail (.internal "inductive block : the stored install's constants or tables are not the checked install's")
+  dropScratch
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:217-221 blockFailure
+**The first failing block job**, in fold order, with its position. -/
+def blockFailure (mode : CheckMode) (pins : List INatOpPinSet) :
+    List BlockCheck → AM (Option (CheckError × Nat))
+  | [] => pure none
+  | b :: rest => fun s =>
+    match blockCheck mode pins b s with
+    | .ok ((), s') => blockFailure mode pins rest s'
+    | .error e => .ok (some (e, b.pos), AState.abandoned)
+
+/-- con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker — **a phase-B worker's state**:
+the phase-A state with the scratch tier closed and empty, and fresh memos and
+caches.  The Rust's `worker_state` builds the same thing over the FROZEN tier
+(an empty store whose reads go to the `PersTier`); the twin has one store and
+reads its persistent tier where it is. -/
+def AState.worker (s : AState) : AState :=
+  { s with store := s.store.dropScratch, memos := Memos.empty,
+           caches := Caches.empty }
+
+/-- con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+**The verdict of a phase A that failed at record `i` with `e`**: the first failing
+block job before it; else, at a block past its `And` pin, that block's own job (a
+name was taken, or the store gave out); else `e`.  `s` is the state phase A started
+from: a failing step takes the state with it, and the Rust installs the records
+before `i` once more too. -/
+def phaseAFailure (mode : CheckMode) (pins : List INatOpPinSet) (ds : List IDeclaration)
+    (e : CheckError) (i : Nat) (s : AState) : CheckError × Nat :=
+  match installFold mode pins (0, mkIFEnv IEnv.empty, #[], #[]) (ds.take i) s with
+  | .ok (.ok (_, fe, _, D), s') =>
+    let w := s'.worker
+    match blockFailure mode pins D.toList w with
+    | .ok (some f, _) => f
+    | .ok (none, w') =>
+      match ds[i]? with
+      | some (.indDecl block nP) =>
+        match andPinOk (.indDecl block nP) w' with
+        | .ok (true, w'') =>
+          match blockCheck mode pins
+              ⟨{ fe with env := IEnv.empty }, block, nP, i, [], []⟩ w'' with
+          | .error e₂ => (e₂, i)
+          | .ok _ => (e, i)
+        | _ => (e, i)
+      | _ => (e, i)
+    | .error e₂ => (e₂, i)
+  | .ok (.error f, _) => f
+  | .error e₂ => (e₂, i)
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:243 Job
+A job: a recorded value check (`false`) or a block job (`true`), by its index in
+its array. -/
+abbrev Job := Bool × Nat
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:255-276 runJob
+**Run a job**, the error tagged with its fold position. -/
+def runJob (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (pend : Array PendingCheck) (D : Array BlockCheck) (j : Job) :
+    AM (Except (CheckError × Nat) Unit) := fun s =>
+  if j.1 then
+    match D[j.2]? with
+    | some b =>
+      match blockCheck mode pins b s with
+      | .ok ((), s') => .ok (.ok (), s')
+      | .error e => .ok (.error (e, b.pos), AState.abandoned)
+    | none => .ok (.error (.internal "check phase: no such block check", 0), AState.abandoned)
+  else
+    match pend[j.2]? with
+    | some pc =>
+      match checkPending mode fe pc s with
+      | .ok ((), s') => .ok (.ok (), s')
+      | .error e => .ok (.error (e, pc.pos), AState.abandoned)
+    | none => .ok (.error (.internal "check phase: no such record", 0), AState.abandoned)
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+The merge behind `jobOrder`, from positions `a` and `b`. -/
+def jobOrderGo (pend : Array PendingCheck) (D : Array BlockCheck) (a b : Nat)
+    (acc : Array Job) : Array Job :=
+  if ha : a < pend.size then
+    if hb : b < D.size then
+      if D[b].pos < pend[a].pos then jobOrderGo pend D a (b + 1) (acc.push (true, b))
+      else jobOrderGo pend D (a + 1) b (acc.push (false, a))
+    else jobOrderGo pend D (a + 1) b (acc.push (false, a))
+  else if b < D.size then jobOrderGo pend D a (b + 1) (acc.push (true, b))
+  else acc
+termination_by (pend.size - a) + (D.size - b)
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+**The jobs in fold order**: the recorded checks and the block checks, each array
+sorted by position, merged (a block before a record at a larger position). -/
+def jobOrder (pend : Array PendingCheck) (D : Array BlockCheck) : Array Job :=
+  jobOrderGo pend D 0 0 (Array.mkEmpty (pend.size + D.size))
+
+/-- con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
+Phase B as a walk: every job in turn, on one state, the first failure the answer.
+A worker's fold over the jobs it claimed (`PooledAccepts`, `Arena/Pooled.lean`). -/
+def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (pend : Array PendingCheck) (D : Array BlockCheck) :
+    List Job → AM (Except (CheckError × Nat) Unit)
+  | [] => pure (.ok ())
+  | j :: rest => fun s =>
+    match runJob mode pins fe pend D j s with
+    | .ok (.ok (), s') => checkJobList mode pins fe pend D rest s'
+    | .ok (.error e, s') => .ok (.error e, s')
+    | .error e => .error e
+
+/-- con-leche: ConLeche/Driver/Run.lean:87-210 checkDeclsIO
+**The declaration fold the binary runs**: install every record (phase A), run every
+job (phase B), return the environment.  A failure of phase A is reported at the
+first failing block job before it (`phaseAFailure`).  The `× Nat` of the error is the
+failure's POSITION in the fold. -/
 def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
-    (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IFEnv) := do
-  match ← installFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList with
-  | .error e => pure (.error e)
-  | .ok (_, fe, pend) =>
-    match ← checkPendingList mode fe pend.toList with
-    | .error e => pure (.error e)
-    | .ok () => pure (.ok fe)
+    (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IFEnv) := fun s =>
+  match installFold mode pins (0, mkIFEnv IEnv.empty, #[], #[]) ds.toList s with
+  | .ok (.error (e, i), s₁) => .ok (.error (phaseAFailure mode pins ds.toList e i s), s₁)
+  | .ok (.ok (_, fe, pend, D), s₁) =>
+    match checkJobList mode pins fe pend D (jobOrder pend D).toList s₁ with
+    | .ok (.ok (), s₂) => .ok (.ok fe, s₂)
+    | .ok (.error e, s₂) => .ok (.error e, s₂)
+    | .error e => .error e
+  | .error e => .error e
 
 /-- con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls — the fold's
 failure, with its POSITION rendered into the message.  con-leche's driver

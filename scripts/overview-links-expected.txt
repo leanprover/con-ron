@@ -131,22 +131,22 @@
     12  //!                                       bits 25…0    index
     13  //! ```
 
-== crates/con-ron-core/src/arena/store.rs#L1179-L1193
-  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
-  1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1181  /// cons tables.
-  1182  pub struct ETables {
-  1183      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1184      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1185      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1186      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1187      pub apps: Tbl<AppNode, EIdx, u64>,
-  1188      pub lams: Tbl<BindNode, EIdx, u64>,
-  1189      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1190      pub lets: Tbl<LetNode, EIdx, u64>,
-  1191      pub lits: Tbl<LitNode, EIdx, u64>,
-  1192      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1193  }
+== crates/con-ron-core/src/arena/store.rs#L1180-L1194
+  1180  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
+  1181  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1182  /// cons tables.
+  1183  pub struct ETables {
+  1184      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1185      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1186      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1187      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1188      pub apps: Tbl<AppNode, EIdx, u64>,
+  1189      pub lams: Tbl<BindNode, EIdx, u64>,
+  1190      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1191      pub lets: Tbl<LetNode, EIdx, u64>,
+  1192      pub lits: Tbl<LitNode, EIdx, u64>,
+  1193      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1194  }
 
 == crates/con-ron/src/bin/con-ron.rs#L86-L172
     86  const USAGE: &str = "\
@@ -684,157 +684,157 @@
    404      }
    405  }
 
-== crates/con-ron-core/src/arena/store.rs#L1179-L1193
-  1179  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
-  1180  /// One tier of the expression store: ten arrays, ten derived columns, ten
-  1181  /// cons tables.
-  1182  pub struct ETables {
-  1183      pub bvars: Tbl<BVarNode, EIdx, u64>,
-  1184      pub fvars: Tbl<FVarNode, EIdx, u64>,
-  1185      pub sorts: Tbl<SortNode, EIdx, u64>,
-  1186      pub consts: Tbl<ConstNode, EIdx, u64>,
-  1187      pub apps: Tbl<AppNode, EIdx, u64>,
-  1188      pub lams: Tbl<BindNode, EIdx, u64>,
-  1189      pub foralls: Tbl<BindNode, EIdx, u64>,
-  1190      pub lets: Tbl<LetNode, EIdx, u64>,
-  1191      pub lits: Tbl<LitNode, EIdx, u64>,
-  1192      pub projs: Tbl<ProjNode, EIdx, u64>,
-  1193  }
+== crates/con-ron-core/src/arena/store.rs#L1180-L1194
+  1180  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:351-363 ETables
+  1181  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1182  /// cons tables.
+  1183  pub struct ETables {
+  1184      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1185      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1186      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1187      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1188      pub apps: Tbl<AppNode, EIdx, u64>,
+  1189      pub lams: Tbl<BindNode, EIdx, u64>,
+  1190      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1191      pub lets: Tbl<LetNode, EIdx, u64>,
+  1192      pub lits: Tbl<LitNode, EIdx, u64>,
+  1193      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1194  }
 
-== crates/con-ron-core/src/arena/store.rs#L3624-L3659
-  3624  
-  3625      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:482-502 EStore.intern
-  3626      /// Hash-cons an expression node: probe the persistent cons table, then the
-  3627      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
-  3628      /// The cap test is the Lean's `capOK` turned into the `Native` decline
-  3629      /// §8.3 puts here.
-  3630      ///
-  3631      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
-  3632      /// whole sequence over the `ENodeView`, and each of its four steps
-  3633      /// dispatched on the view's tag again and built the node record again:
-  3634      /// the persistent probe built it (inside `ETables::find`), the scratch
-  3635      /// probe built it a second time, `der_of_view` re-dispatched to compute
-  3636      /// the derived word, and `ETables::push` re-dispatched and built it a
-  3637      /// third time to append it.  So the tag is read once here and the ten per-constructor
-  3638      /// paths below each build their record ONCE and hand the same `&r` to the
-  3639      /// two probes, to the capacity test and to the push — the same clauses in
-  3640      /// the same order, with the dispatch and the two rebuilds gone.
-  3641      ///
-  3642      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
-  3643      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
-  3644      /// each of them `rfl` after the `match`.
-  3645      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
-  3646          match v {
-  3647              ENodeView::BVar(i) => self.intern_bvar(pers, i),
-  3648              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
-  3649              ENodeView::Sort(u) => self.intern_sort(pers, u),
-  3650              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
-  3651              ENodeView::App(f, a) => self.intern_app(pers, f, a),
-  3652              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
-  3653              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
-  3654              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
-  3655              ENodeView::Lit(l) => self.intern_lit(pers, l),
-  3656              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
-  3657          }
-  3658      }
-  3659  
+== crates/con-ron-core/src/arena/store.rs#L3630-L3665
+  3630  
+  3631      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:482-502 EStore.intern
+  3632      /// Hash-cons an expression node: probe the persistent cons table, then the
+  3633      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
+  3634      /// The cap test is the Lean's `capOK` turned into the `Native` decline
+  3635      /// §8.3 puts here.
+  3636      ///
+  3637      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
+  3638      /// whole sequence over the `ENodeView`, and each of its four steps
+  3639      /// dispatched on the view's tag again and built the node record again:
+  3640      /// the persistent probe built it (inside `ETables::find`), the scratch
+  3641      /// probe built it a second time, `der_of_view` re-dispatched to compute
+  3642      /// the derived word, and `ETables::push` re-dispatched and built it a
+  3643      /// third time to append it.  So the tag is read once here and the ten per-constructor
+  3644      /// paths below each build their record ONCE and hand the same `&r` to the
+  3645      /// two probes, to the capacity test and to the push — the same clauses in
+  3646      /// the same order, with the dispatch and the two rebuilds gone.
+  3647      ///
+  3648      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
+  3649      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
+  3650      /// each of them `rfl` after the `match`.
+  3651      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+  3652          match v {
+  3653              ENodeView::BVar(i) => self.intern_bvar(pers, i),
+  3654              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
+  3655              ENodeView::Sort(u) => self.intern_sort(pers, u),
+  3656              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
+  3657              ENodeView::App(f, a) => self.intern_app(pers, f, a),
+  3658              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
+  3659              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
+  3660              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
+  3661              ENodeView::Lit(l) => self.intern_lit(pers, l),
+  3662              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
+  3663          }
+  3664      }
+  3665  
 
-== crates/con-ron-core/src/arena/store.rs#L3909-L3956
-  3909      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
-  3910          let r: AppNode = AppNode { f, a };
-  3911          let sk: bool = if self.scratch_on {
-  3912              if r.f.is_persistent() {
-  3913                  !r.a.is_persistent()
-  3914              } else {
-  3915                  true
-  3916              }
-  3917          } else {
-  3918              false
-  3919          };
-  3920          let hit: Option<EIdx> = if sk {
-  3921              None
-  3922          } else if pers.frozen {
-  3923              pers.e.apps.find(&r)
-  3924          } else {
-  3925              self.pers.apps.find(&r)
-  3926          };
-  3927          match hit {
-  3928              Some(hp) => Ok(hp),
-  3929              None => {
-  3930                  if self.scratch_on {
-  3931                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
-  3932                      match at.1 {
-  3933                          Some(hs) => Ok(hs),
-  3934                          None => {
-  3935                              if self.scr.apps.full_wide() {
-  3936                                  Err(CheckError::Native(code_points(&M_E_CAP)))
-  3937                              } else {
-  3938                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3939                                  let h: EIdx =
-  3940                                      EIdx::pack_wide(TIER_S, self.scr.apps.size() as u32);
-  3941                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
-  3942                                  Ok(h)
-  3943                              }
-  3944                          }
-  3945                      }
-  3946                  } else if self.pers.apps.full_wide() {
-  3947                      Err(CheckError::Native(code_points(&M_E_CAP)))
-  3948                  } else {
-  3949                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3950                      let h: EIdx = EIdx::pack_wide(TIER_P, self.pers.apps.size() as u32);
-  3951                      self.pers.apps.push(r, d, h.dup2());
-  3952                      Ok(h)
-  3953                  }
-  3954              }
-  3955          }
-  3956      }
+== crates/con-ron-core/src/arena/store.rs#L3915-L3962
+  3915      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
+  3916          let r: AppNode = AppNode { f, a };
+  3917          let sk: bool = if self.scratch_on {
+  3918              if r.f.is_persistent() {
+  3919                  !r.a.is_persistent()
+  3920              } else {
+  3921                  true
+  3922              }
+  3923          } else {
+  3924              false
+  3925          };
+  3926          let hit: Option<EIdx> = if sk {
+  3927              None
+  3928          } else if pers.frozen {
+  3929              pers.e.apps.find(&r)
+  3930          } else {
+  3931              self.pers.apps.find(&r)
+  3932          };
+  3933          match hit {
+  3934              Some(hp) => Ok(hp),
+  3935              None => {
+  3936                  if self.scratch_on {
+  3937                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
+  3938                      match at.1 {
+  3939                          Some(hs) => Ok(hs),
+  3940                          None => {
+  3941                              if self.scr.apps.full_wide() {
+  3942                                  Err(CheckError::Native(code_points(&M_E_CAP)))
+  3943                              } else {
+  3944                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3945                                  let h: EIdx =
+  3946                                      EIdx::pack_wide(TIER_S, self.scr.apps.size() as u32);
+  3947                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
+  3948                                  Ok(h)
+  3949                              }
+  3950                          }
+  3951                      }
+  3952                  } else if self.pers.apps.full_wide() {
+  3953                      Err(CheckError::Native(code_points(&M_E_CAP)))
+  3954                  } else {
+  3955                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3956                      let h: EIdx = EIdx::pack_wide(TIER_P, self.pers.apps.size() as u32);
+  3957                      self.pers.apps.push(r, d, h.dup2());
+  3958                      Ok(h)
+  3959                  }
+  3960              }
+  3961          }
+  3962      }
 
 == proof/ConRon/Arena/WFProofs.lean#L1126-L1127
   1126  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1127      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L10424-L10464
- 10424  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10425  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3699 flushCaches` — **what
- 10426  /// the per-declaration bracket does to the caches**: it drops them whole,
- 10427  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
- 10428  /// this point.
- 10429  ///
- 10430  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
- 10431  /// rows whose key AND value are persistent — which is sound and strictly more
- 10432  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
- 10433  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
- 10434  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
- 10435  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
- 10436  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
- 10437  /// its eleven journals — P3 needs it to state that flushing is sound.
- 10438  pub fn flush_caches(st: &mut AState) {
- 10439      st.caches.reset();
- 10440  }
- 10441  
- 10442  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10443  /// Lean twin: `proof/ConRon/Arena/Core.lean:3701-3709 dropScratch` — drop the
- 10444  /// scratch tier of the store and the cache entries that name it, in one
- 10445  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 10446  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 10447  /// store is owned and scratch-off again.
- 10448  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 10449      flush_caches(st);
- 10450      st.store.thaw(tier);
- 10451  }
- 10452  
- 10453  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10454  /// Lean twin: `proof/ConRon/Arena/Core.lean:3711-3718 enterScratch` — turn the
- 10455  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 10456  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 10457  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 10458  /// are handed back as the `PersTier` every read inside the bracket goes
- 10459  /// through and promotion writes, and every append inside it is a scratch
- 10460  /// append.
- 10461  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 10462      st.memos.reset();
- 10463      st.store.freeze()
- 10464  }
+== crates/con-ron-core/src/arena/core.rs#L10427-L10467
+ 10427  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+ 10428  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3699 flushCaches` — **what
+ 10429  /// the per-declaration bracket does to the caches**: it drops them whole,
+ 10430  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
+ 10431  /// this point.
+ 10432  ///
+ 10433  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
+ 10434  /// rows whose key AND value are persistent — which is sound and strictly more
+ 10435  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
+ 10436  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
+ 10437  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
+ 10438  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
+ 10439  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
+ 10440  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 10441  pub fn flush_caches(st: &mut AState) {
+ 10442      st.caches.reset();
+ 10443  }
+ 10444  
+ 10445  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 10446  /// Lean twin: `proof/ConRon/Arena/Core.lean:3701-3709 dropScratch` — drop the
+ 10447  /// scratch tier of the store and the cache entries that name it, in one
+ 10448  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 10449  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 10450  /// store is owned and scratch-off again.
+ 10451  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 10452      flush_caches(st);
+ 10453      st.store.thaw(tier);
+ 10454  }
+ 10455  
+ 10456  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 10457  /// Lean twin: `proof/ConRon/Arena/Core.lean:3711-3718 enterScratch` — turn the
+ 10458  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 10459  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 10460  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 10461  /// are handed back as the `PersTier` every read inside the bracket goes
+ 10462  /// through and promotion writes, and every append inside it is a scratch
+ 10463  /// append.
+ 10464  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 10465      st.memos.reset();
+ 10466      st.store.freeze()
+ 10467  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -878,42 +878,143 @@
     39  //!   `ron::HashMap` returned, which is `frontend::proj_rec`'s spelling for its
     40  //!   `seen` set and `arena::expr_ops`' for the three memoized scope walks;
 
-== crates/con-ron-core/src/arena/checker.rs#L616-L638
-   616  /// con-leche: none — the phase boundary, which con-leche has no tier to make
-   617  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
-   618  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
-   619  /// **The persistent tier out of the store and into a value** (task
-   620  /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
-   621  /// persistent tables move into one `PersTier` handed back `frozen`, for the
-   622  /// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
-   623  /// store's scratch tiers and flags are untouched (a worker's store is its own,
-   624  /// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
-   625  /// is gone), and `thaw_tier` puts the tables back where they were.  The
-   626  /// driver's store is not read between the two.
-   627  pub fn freeze_tier(ar: &mut EStore) -> PersTier {
-   628      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
-   629      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
-   630      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
-   631      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
-   632      PersTier {
-   633          frozen: true,
-   634          n,
-   635          l,
-   636          ls,
-   637          e,
-   638      }
+== crates/con-ron-core/src/arena/checker.rs#L992-L1014
+   992  /// con-leche: none — the phase boundary, which con-leche has no tier to make
+   993  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
+   994  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
+   995  /// **The persistent tier and the installed index out of phase A and into a
+   996  /// value**: the four persistent tables and `fe` move into one `PersTier` handed
+   997  /// back `frozen`, for the phase-B workers to read (`fe` is what `ifenv_find` reads
+   998  /// below an own layer).  A pure MOVE: the store's scratch tiers and flags are
+   999  /// untouched (a worker's store is its own, `worker_state`), and `thaw_tier` puts
+  1000  /// everything back where it was.  The driver's store is not read between the two.
+  1001  pub fn freeze_tier(ar: &mut EStore, fe: IFEnv) -> PersTier {
+  1002      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+  1003      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+  1004      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+  1005      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+  1006      PersTier {
+  1007          frozen: true,
+  1008          n,
+  1009          l,
+  1010          ls,
+  1011          e,
+  1012          env: fe,
+  1013      }
+  1014  }
 
-== crates/con-ron-core/src/arena/store.rs#L1249-L1258
-  1249  pub struct PersTier {
-  1250      /// This is a frozen store's tier: a store read through it reads its
-  1251      /// persistent tables HERE.  `false` only for the empty stand-in an owned
-  1252      /// store is handed (`PersTier::empty`), which is never read.
-  1253      pub frozen: bool,
-  1254      pub n: NTables,
-  1255      pub l: LTables,
-  1256      pub ls: LsTables,
-  1257      pub e: ETables,
-  1258  }
+== crates/con-ron-core/src/arena/store.rs#L1211-L1263
+  1211  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:365-373 EStore
+  1212  /// **The persistent tier of all four stores, as one value `n` phase-B workers
+  1213  /// read by reference** — DESIGN.md §8.3's "the persistent tier is immutable in
+  1214  /// phase B, each worker owns a scratch tier — no atomics anywhere", made
+  1215  /// expressible.
+  1216  ///
+  1217  /// Each store keeps its own `pers` field, which is the tier the PARSE and
+  1218  /// phase A's setup append to, and ONE flag, `scratch_on`.  **A store is in
+  1219  /// one of two states, and "frozen" and "scratch on" are the same thing** (task
+  1220  /// #98-FREEZE):
+  1221  ///
+  1222  /// * **owned, scratch off** (the parse, the setup, between phase A's
+  1223  ///   declaration brackets): read through the EMPTY stand-in tier
+  1224  ///   (`PersTier::empty`, `frozen` false), so every persistent read and every
+  1225  ///   append goes to the owned field;
+  1226  /// * **frozen, scratch on** (inside a declaration bracket, and a phase-B
+  1227  ///   worker for its whole life): the owned field is empty — `freeze` moved it
+  1228  ///   into a `PersTier` whose `frozen` bit is set — and the store is read
+  1229  ///   through that tier, so every persistent read goes to it; every append is
+  1230  ///   a SCRATCH append, so no append can reach a frozen persistent tier, by
+  1231  ///   construction and not by a guard.
+  1232  ///
+  1233  /// Which tables a persistent read goes to is therefore the READER's to say
+  1234  /// (`frozen`), not the store's: the choice is made by a value that is fixed
+  1235  /// for the whole of a bracket or a worker, whatever runs inside it.  `freeze`
+  1236  /// hands out a frozen tier and turns the scratch tier on; `thaw` takes it back
+  1237  /// and turns it off; `empty_frozen` is a worker's store.  Promotion — the one
+  1238  /// writer of the persistent tier inside a bracket — writes the frozen tier
+  1239  /// itself, through `&mut PersTier` (`PersTier::intern_*`).
+  1240  ///
+  1241  /// **Why a shared PARAMETER and not a field of the state.**  Task #97-P6-6
+  1242  /// measured a region inside the threaded `&mut` state eight ways: a bare
+  1243  /// `&u64` field on `AState` costs five function bodies Aeneas cannot
+  1244  /// translate and the same borrow inside the four stores costs sixteen, while
+  1245  /// everything else this split needs — the two-tier layout, the flag, the
+  1246  /// value-returning readers below — extracts at zero errors.  So the sharing
+  1247  /// arrives as an ordinary shared parameter, the shape `fe: &IFEnv` and `mode:
+  1248  /// &CheckMode` already have, and the twin's monad becomes `ReaderT PersTier
+  1249  /// (StateT AState (Except CheckError))`.
+  1250  pub struct PersTier {
+  1251      /// This is a frozen store's tier: a store read through it reads its
+  1252      /// persistent tables HERE.  `false` only for the empty stand-in an owned
+  1253      /// store is handed (`PersTier::empty`), which is never read.
+  1254      pub frozen: bool,
+  1255      pub n: NTables,
+  1256      pub l: LTables,
+  1257      pub ls: LsTables,
+  1258      pub e: ETables,
+  1259      /// The installed environment's frozen base (`arena::env`'s `IFEnv` note):
+  1260      /// `checker::freeze_tier` moves phase A's index here, so every phase-B
+  1261      /// worker reads one by reference.  An empty layer in every other tier.
+  1262      pub env: IFEnv,
+  1263  }
+
+== crates/con-ron-core/src/arena/env.rs#L618-L673
+   618  /// con-leche: ConLeche/Kernel/FEnv.lean:98-136 FEnv
+   619  /// Lean twin: `proof/ConRon/Arena/Env.lean:225-234 IFEnv` — the environment
+   620  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
+   621  /// `< visible_below` are visible; `visible_below` doubles as the next counter
+   622  /// `push` hands out.  con-leche's `ovl` field is not ported (see `ifenv_find`).
+   623  ///
+   624  /// **The environment has two tiers, like the store.**  An `IFEnv` is one
+   625  /// LAYER: phase A threads one by value and pushes into it; `freeze_tier` moves
+   626  /// it into the `PersTier`, where it is the frozen BASE every phase-B worker
+   627  /// reads by reference; and a phase-B job's `fe` is a layer of its own over that
+   628  /// base, empty until the job pushes (`ifenv_layer`).  `ifenv_find` and the
+   629  /// table lookups read the own layer first, then the base below `base_below`:
+   630  /// con-leche's worker view (`FEnv.base`, whose entries are visible below
+   631  /// `FBase.below`), with the frozen tier as the base.
+   632  ///
+   633  /// **The READERS take the bound as a scalar** (`vis: u64`, task #97-P6-6b),
+   634  /// and this field is what phase A — which threads the record by value and
+   635  /// pushes into it — passes them.  Phase B passes `pc.vis` and never touches
+   636  /// the record, which is what lets `n` workers share one `&IFEnv`.
+   637  ///
+   638  /// **The index row is `(counter, SLOT)` and not `(counter, IConstantInfo)`**
+   639  /// (task #97-P6-5, lever 1).  The twin's row carries the constant itself,
+   640  /// which in Lean is a shared value; in Rust it was a SECOND full copy of
+   641  /// every stored constant — `env.consts[s]` and `idx[name].1` held the same
+   642  /// record twice, both of them deep — and `ifenv_dup` therefore copied the
+   643  /// environment twice, each copy a `Vec<NIdx>` malloc per constant.  The
+   644  /// Mathlib profile of task #97-P6-5 put that at **19 % of the whole run**
+   645  /// (72 % of the install phase), because `arena::inductives` copies the
+   646  /// environment three times per inductive block and Mathlib has 6 720 of them
+   647  /// over a 691 128-entry environment.
+   648  ///
+   649  /// The row is now the constant's SLOT in `env.consts`, so the map is a POD
+   650  /// and `dup` is a slot memcpy.  Every writer keeps the two in step —
+   651  /// `ifenv_push` pushes then indexes, `promote::index_promoted` writes the
+   652  /// slot back and re-indexes it, `promote::erase_installed` only removes — and
+   653  /// `ifenv_find` reads `env.consts[s]`.  The refinement relation for `IFEnv`
+   654  /// says `idx[n] = (c, s) ∧ consts[s] = ci` where the twin says
+   655  /// `idx[n] = (c, ci)`; no twin clause moves and `find?` answers the same
+   656  /// constant (task #97-P6-5's twin ledger).
+   657  ///
+   658  /// **The table map `tbls` is built the same way, for the same reason**: its
+   659  /// row is the table's slot in `env.tables`, where the twin's (con-leche's
+   660  /// `Std.HashMap Name ProjTable`) is the table.  It has no counter: a table is
+   661  /// visible exactly where its structure is (`ifenv_find_table`), so the prefix
+   662  /// views — phase B's `pc.vis` — need nothing of their own for it.
+   663  pub struct IFEnv {
+   664      pub env: IEnv,
+   665      pub idx: HashMap<NIdx, (u64, u64)>,
+   666      pub visible_below: u64,
+   667      pub tbls: HashMap<NIdx, u64>,
+   668      /// The frozen base's entries are visible to this layer below this counter
+   669      /// and no further (con-leche's `FBase.below`): a block job's position, the
+   670      /// largest counter for a value check's layer, `0` for phase A's own, which
+   671      /// has no base.
+   672      pub base_below: u64,
+   673  }
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L235
    173  /// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
@@ -1474,35 +1575,35 @@
     49  //! module's tests, where it still checks `pick_idx` against the specification
     50  //! on every `cargo test`.
 
-== crates/con-ron-core/src/arena/checker.rs#L685-L712
-   685  // ---------------------------------------------------------------------------
-   686  // The startup walk (`Checker.lean:343-373` of the twin)
-   687  // ---------------------------------------------------------------------------
-   688  
-   689  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-   690  /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-   691  /// Lean twin: `proof/ConRon/Arena/Checker.lean:316-346 internAllPins` — **the
-   692  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
-   693  /// a stream record against, interned into the tier that is live at the call —
-   694  /// which, at the driver's call, is the persistent one.
-   695  ///
-   696  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
-   697  /// `quot_pin_hit` compare against, the STORED ones `check_basis_decl`
-   698  /// installs), the standard and compiler-trust axiom pins, the reserved names
-   699  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
-   700  /// interned form is the checker's pin-list parameter (con-leche's task #304).
-   701  pub fn intern_all_pins(
-   702      pers: &PersTier,
-   703      st: &mut AState,
-   704      pins: &Vec<NatOpPinSet>,
-   705  ) -> Result<Vec<INatOpPinSet>, CheckError> {
-   706      match intern_all_basis(pers, st, 0) {
-   707          Err(e) => Err(e),
-   708          Ok(()) => match intern_all_axiom_pins(pers, st) {
-   709              Err(e) => Err(e),
-   710              Ok(()) => match intern_all_names(st) {
-   711                  Err(e) => Err(e),
-   712                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
+== crates/con-ron-core/src/arena/checker.rs#L1073-L1100
+  1073  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+  1074  /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+  1075  /// Lean twin: `proof/ConRon/Arena/Checker.lean:496-526 internAllPins` — **the
+  1076  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
+  1077  /// a stream record against, interned into the tier that is live at the call —
+  1078  /// which, at the driver's call, is the persistent one.
+  1079  ///
+  1080  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
+  1081  /// `quot_pin_hit` compare against, the STORED ones `check_basis_decl`
+  1082  /// installs), the standard and compiler-trust axiom pins, the reserved names
+  1083  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
+  1084  /// interned form is the checker's pin-list parameter (con-leche's task #304).
+  1085  pub fn intern_all_pins(
+  1086      pers: &PersTier,
+  1087      st: &mut AState,
+  1088      pins: &Vec<NatOpPinSet>,
+  1089  ) -> Result<Vec<INatOpPinSet>, CheckError> {
+  1090      match intern_all_basis(pers, st, 0) {
+  1091          Err(e) => Err(e),
+  1092          Ok(()) => match intern_all_axiom_pins(pers, st) {
+  1093              Err(e) => Err(e),
+  1094              Ok(()) => match intern_all_names(st) {
+  1095                  Err(e) => Err(e),
+  1096                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
+  1097              },
+  1098          },
+  1099      }
+  1100  }
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
@@ -1548,49 +1649,49 @@
     29  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
     30  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron/src/driver.rs#L915-L956
-   915  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   916  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
-   917  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
-   918  /// first empty read is the end of the input.  A failed read ends the input
-   919  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
-   920  /// place of whatever the parse of the truncated input said — so a read error
-   921  /// is exit 3, never a verdict, as before the loop moved.
-   922  pub struct HandleSource<'a, R: Read> {
-   923      /// The open reader.
-   924      pub h: &'a mut R,
-   925      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
-   926      pub chunk: usize,
-   927      /// The nonempty buffers handed out so far, for the heartbeat.
-   928      pub chunks: u64,
-   929      /// The first read failure, if any.
-   930      pub err: Option<std::io::Error>,
-   931  }
-   932  
-   933  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   934  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
-   935      /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   936      /// One read of up to `chunk` bytes; empty at the end or on a failure.
-   937      fn next_chunk(&mut self) -> Vec<u8> {
-   938          if self.err.is_some() {
-   939              return Vec::new();
-   940          }
-   941          let mut buf: Vec<u8> = vec![0u8; self.chunk];
-   942          match read_up_to(self.h, &mut buf) {
-   943              Ok(n) => {
-   944                  buf.truncate(n);
-   945                  if n > 0 {
-   946                      self.chunks += 1;
-   947                  }
-   948                  buf
-   949              }
-   950              Err(e) => {
-   951                  self.err = Some(e);
-   952                  Vec::new()
-   953              }
-   954          }
-   955      }
-   956  }
+== crates/con-ron/src/driver.rs#L961-L1002
+   961  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
+   962  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
+   963  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
+   964  /// first empty read is the end of the input.  A failed read ends the input
+   965  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
+   966  /// place of whatever the parse of the truncated input said — so a read error
+   967  /// is exit 3, never a verdict, as before the loop moved.
+   968  pub struct HandleSource<'a, R: Read> {
+   969      /// The open reader.
+   970      pub h: &'a mut R,
+   971      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
+   972      pub chunk: usize,
+   973      /// The nonempty buffers handed out so far, for the heartbeat.
+   974      pub chunks: u64,
+   975      /// The first read failure, if any.
+   976      pub err: Option<std::io::Error>,
+   977  }
+   978  
+   979  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
+   980  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
+   981      /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
+   982      /// One read of up to `chunk` bytes; empty at the end or on a failure.
+   983      fn next_chunk(&mut self) -> Vec<u8> {
+   984          if self.err.is_some() {
+   985              return Vec::new();
+   986          }
+   987          let mut buf: Vec<u8> = vec![0u8; self.chunk];
+   988          match read_up_to(self.h, &mut buf) {
+   989              Ok(n) => {
+   990                  buf.truncate(n);
+   991                  if n > 0 {
+   992                      self.chunks += 1;
+   993                  }
+   994                  buf
+   995              }
+   996              Err(e) => {
+   997                  self.err = Some(e);
+   998                  Vec::new()
+   999              }
+  1000          }
+  1001      }
+  1002  }
 
 == crates/con-ron-core/src/arena/checker.rs#L1-L41
      1  //! `arena::checker` — the declaration fold, over handles.
@@ -1606,203 +1707,315 @@
     11  //!   DESIGN.md §8.2's Theorem 1 folds `checkDecl` over the stream.  One step
     12  //!   per record, install and check together.
     13  //! * **`install_then_check`** is what the BINARY runs: phase A installs every
-    14  //!   record, guarding its header and its value but not inferring; phase B
-    15  //!   checks each recorded declaration against the PREFIX VIEW it was installed
-    16  //!   at.  con-leche proves the two are the same accept
-    17  //!   (`fullyChecked_checkDecls`); the arena's two call the same `checkDecl`
-    18  //!   pieces, which is what keeps them the same computation.
-    19  //!
-    20  //! ## Every step is bracketed
+    14  //!   record, guarding its header and its value but not inferring, and pushes an
+    15  //!   inductive block as stored (`inductives::stored_install`); phase B runs the
+    16  //!   jobs, in fold order: each recorded declaration's check against the PREFIX
+    17  //!   VIEW it was installed at, and each block's checked install, compared with
+    18  //!   its stored pushes (`block_check`).  con-leche proves the two are the same
+    19  //!   accept (`fullyChecked_checkDecls`); the arena's two call the same
+    20  //!   `checkDecl` pieces, which is what keeps them the same computation.
     21  //!
-    22  //! DESIGN.md §8.3: "Persistent = parse + installed environment; scratch = one
-    23  //! declaration's check."  Both phases and both folds run each record inside
-    24  //! `enter_scratch` … `drop_scratch`.  Phase B's `check_pending` brackets
-    25  //! `check_value_group`, and every node it appends goes with the tier.  Phase
-    26  //! A's `install_step` brackets the install too (the fallback
-    27  //! `install_step_other` included), because the ordinary step's installers
-    28  //! infer and inference interns: `promote` copies exactly what leaves the step
-    29  //! — the installed constants and the pending record — to the persistent tier
-    30  //! before the drop (see `install_step`).
-    31  //! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.
-    32  //!
-    33  //! ## The pins are interned at startup
-    34  //!
-    35  //! `intern_all_pins` is DESIGN.md §8.6 P2d's one-time tree walk, and it is what
-    36  //! makes every later `pin`/`intern_ci` of the same datum return the PERSISTENT
-    37  //! handle whatever tier is live (§8.3: `intern` probes the persistent table
-    38  //! first).  Without it a reserved name first interned inside a scratch tier
-    39  //! would compare unequal to the stream's own persistent copy of it, which is
-    40  //! the one way hash-consing can go wrong across the tier boundary.
-    41  
+    22  //! ## Every step is bracketed
+    23  //!
+    24  //! DESIGN.md §8.3: "Persistent = parse + installed environment; scratch = one
+    25  //! declaration's check."  Both phases and both folds run each record inside
+    26  //! `enter_scratch` … `drop_scratch`.  Phase B's `check_pending` brackets
+    27  //! `check_value_group`, and every node it appends goes with the tier.  Phase
+    28  //! A's `install_step` brackets the install too (the fallback
+    29  //! `install_step_other` included), because the ordinary step's installers
+    30  //! infer and inference interns: `promote` copies exactly what leaves the step
+    31  //! — the installed constants and the pending record — to the persistent tier
+    32  //! before the drop (see `install_step`).
+    33  //! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.  An
+    34  //! inductive block's stored install has brackets of its own
+    35  //! (`inductives::stored_install`'s note).
+    36  //!
+    37  //! ## The pins are interned at startup
+    38  //!
+    39  //! `intern_all_pins` is DESIGN.md §8.6 P2d's one-time tree walk, and it is what
+    40  //! makes every later `pin`/`intern_ci` of the same datum return the PERSISTENT
+    41  //! handle whatever tier is live (§8.3: `intern` probes the persistent table
 
-== crates/con-ron-core/src/arena/checker.rs#L184-L240
-   184  /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
-   185  /// Lean twin: `proof/ConRon/Arena/Checker.lean:157-214 installStep` — **phase
-   186  /// A's step, bracketed**; `i` is the fold position the record is tagged with.
-   187  ///
-   188  /// **The bracket** (DESIGN.md §8.3, "Phase A runs in the scratch tier too,
-   189  /// with promotion", task #97-P6-2):
-   190  ///
-   191  /// ```text
-   192  /// flush_caches; enter_scratch; <the step>; promote; drop_scratch
-   193  /// ```
-   194  ///
-   195  /// `promote` (`arena::promote`) is the memoised structural copy scratch →
-   196  /// persistent, run on **exactly what leaves the step**: the `k` constants and
-   197  /// the `kt` projection tables the step installed (`promote_new`) and the
-   198  /// pending record (`promote_vg`, at the
-   199  /// SAME memo).  A persistent handle promotes to itself, so a record that
-   200  /// installs what the parse already built — every value kind since task #119,
-   201  /// whose install half interns nothing — pays one tier-bit test per handle;
-   202  /// the blocks the ordinary step installs (inductives, the basis) still build
-   203  /// terms.  The flush stays where con-leche puts it, at the head
-   204  /// (`installGuardsC` and the `.thmDecl` arm's own `flushC`, and
-   205  /// `checkDeclStepC`'s), so every phase-A record starts with EMPTY caches.
-   206  pub fn install_step(
-   207      _pers: &PersTier,
-   208      st: &mut AState,
-   209      mode: &CheckMode,
-   210      pins: &Vec<INatOpPinSet>,
-   211      i: u64,
-   212      fe: IFEnv,
-   213      pend: Vec<PendingCheck>,
-   214      pd: &IDeclaration,
-   215  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-   216      let vis: u64 = fe.visible_below;
-   217      let nt: u64 = fe.env.tables.len() as u64;
-   218      flush_caches(st);
-   219      let mut tier: PersTier = enter_scratch(st);
-   220      match install_step_go(&tier, st, mode, pins, fe, pd) {
-   221          Err(e) => {
-   222              drop_scratch(st, tier);
-   223              Err(e)
-   224          }
-   225          Ok((fe2, vg_opt)) => {
-   226              let k: u64 = fe2.visible_below - vis;
-   227              let kt: u64 = fe2.env.tables.len() as u64 - nt;
-   228              match vg_opt {
-   229                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, kt, fe2) {
-   230                      Err(e) => {
-   231                          drop_scratch(st, tier);
-   232                          Err(e)
-   233                      }
-   234                      Ok((_, fe3)) => {
-   235                          drop_scratch(st, tier);
-   236                          Ok((fe3, pend))
-   237                      }
-   238                  },
-   239                  Some(vg) => install_step_promote(tier, st, i, vis, k, kt, fe2, pend, vg),
-   240              }
+== crates/con-ron-core/src/arena/checker.rs#L209-L266
+   209  /// con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC
+   210  /// Lean twin: `proof/ConRon/Arena/Checker.lean:170-227 installStep` — **phase
+   211  /// A's step, bracketed**; `i` is the fold position the record is tagged with.
+   212  ///
+   213  /// **The bracket** (DESIGN.md §8.3, "Phase A runs in the scratch tier too,
+   214  /// with promotion", task #97-P6-2):
+   215  ///
+   216  /// ```text
+   217  /// flush_caches; enter_scratch; <the step>; promote; drop_scratch
+   218  /// ```
+   219  ///
+   220  /// `promote` (`arena::promote`) is the memoised structural copy scratch →
+   221  /// persistent, run on **exactly what leaves the step**: the `k` constants and
+   222  /// the `kt` projection tables the step installed (`promote_new`) and the
+   223  /// pending record (`promote_vg`, at the
+   224  /// SAME memo).  A persistent handle promotes to itself, so a record that
+   225  /// installs what the parse already built — every value kind since task #119,
+   226  /// whose install half interns nothing — pays one tier-bit test per handle.  The flush stays where con-leche puts it, at the head
+   227  /// (`installGuardsC` and the `.thmDecl` arm's own `flushC`, and
+   228  /// `checkDeclStepC`'s), so every phase-A record starts with EMPTY caches.
+   229  pub fn install_step(
+   230      _pers: &PersTier,
+   231      st: &mut AState,
+   232      mode: &CheckMode,
+   233      pins: &Vec<INatOpPinSet>,
+   234      i: u64,
+   235      fe: IFEnv,
+   236      pend: Vec<PendingCheck>,
+   237      pd: &IDeclaration,
+   238  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+   239      let vis: u64 = fe.visible_below;
+   240      let nt: u64 = fe.env.tables.len() as u64;
+   241      flush_caches(st);
+   242      let mut tier: PersTier = enter_scratch(st);
+   243      match install_step_go(&tier, st, mode, pins, fe, pd) {
+   244          Err(e) => {
+   245              drop_scratch(st, tier);
+   246              Err(e)
+   247          }
+   248          Ok((fe2, vg_opt)) => {
+   249              let k: u64 = fe2.visible_below - vis;
+   250              let kt: u64 = fe2.env.tables.len() as u64 - nt;
+   251              match vg_opt {
+   252                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, kt, fe2) {
+   253                      Err(e) => {
+   254                          drop_scratch(st, tier);
+   255                          Err(e)
+   256                      }
+   257                      Ok((_, fe3)) => {
+   258                          drop_scratch(st, tier);
+   259                          Ok((fe3, pend))
+   260                      }
+   261                  },
+   262                  Some(vg) => install_step_promote(tier, st, i, vis, k, kt, fe2, pend, vg),
+   263              }
+   264          }
+   265      }
+   266  }
 
-== crates/con-ron-core/src/arena/checker.rs#L536-L547
-   536  pub fn check_pending(
-   537      pers: &PersTier,
-   538      st: &mut AState,
-   539      mode: &CheckMode,
-   540      fe: &IFEnv,
-   541      pc: &PendingCheck,
-   542  ) -> Result<(), CheckError> {
-   543      enter_record(st);
-   544      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
-   545      leave_record(st);
-   546      r
-   547  }
+== crates/con-ron-core/src/arena/inductives/stored_install.rs#L1-L50
+     1  //! `arena::inductives::stored_install` — the stored install of an inductive
+     2  //! block, and the comparison of what an install pushes.
+     3  //!
+     4  //! The Rust twin of `proof/ConRon/Arena/Inductives/StoredInstall.lean`, which
+     5  //! is `ConLeche/Cached/StoredInstall.lean` over handles.  Phase A pushes an
+     6  //! inductive block **as the input stores it**: every constant and table is read
+     7  //! off the block's records, and nothing is generated.  The block's checked
+     8  //! install runs later, as a job of the check phase (`checker::block_check`),
+     9  //! and compares what it pushes with what this install pushed; a difference is
+    10  //! an internal error (this reading is wrong, the stream is not).
+    11  //!
+    12  //! What is read, and from where (the checked install's own functions on the
+    13  //! same inputs wherever one exists):
+    14  //!
+    15  //! * the formers: each at its telescope, with `block_caps_at` at official's
+    16  //!   `is_rec` and member 0's result sort.  The telescope is the stored type
+    17  //!   where that is a syntactic telescope ending in a sort, else the reduced
+    18  //!   telescope official's `whnf` loop reads;
+    19  //! * the constructors as declared;
+    20  //! * the recursors: each at its stored type, its stored right-hand sides, its
+    21  //!   rules' metadata by `tgt_stored_rules` at the record's major;
+    22  //! * the projection tables: the bodies by substitution, the guards (the
+    23  //!   fields' sorts) inferred here by the constructor stage's own walk.
+    24  //!
+    25  //! Where a part cannot be read it is pushed at its record as declared (a
+    26  //! former, a recursor's rules) or left out (a table): the block is one the
+    27  //! checked install rejects, and its job reports it.
+    28  //!
+    29  //! ## The twin's deviations
+    30  //!
+    31  //! * **The reading's two inferences each have a scratch bracket of their own**
+    32  //!   (`stored_tele_slow`, `stored_guards`): a failed inference is a VALUE here,
+    33  //!   `None` or no guards, and the run goes on, so the state after one must be
+    34  //!   the state it started from.  The bracket gives exactly that: nothing writes
+    35  //!   the persistent tier inside it, its `Err` arm (`stored_abandon`) empties the
+    36  //!   scratch tier, the memos and the caches and puts the pins back, and what an
+    37  //!   accepted inference leaves is promoted before the drop.  Everything else of
+    38  //!   the reading runs in one bracket at its end (`stored_tail`), which promotes
+    39  //!   the block's new constants and tables as `install_step`'s does.
+    40  //! * **A term comparison is handle equality**, since a term is hash-consed
+    41  //!   across the tiers: con-leche's pointer-first `Expr` equality with no
+    42  //!   fallback.  The comparisons are one function per type: there are no
+    43  //!   closures, so `listBeqBy` is a walk per list.
+    44  //! * **The store's own failures stay failures** (a full handle space, a
+    45  //!   dangling handle): they are what `Native`/`Internal` are for, a stop of
+    46  //!   phase A at this record (`checker::phase_a_failure`).
+    47  //! * **A name already taken stops phase A here** (`M_SLOT_TAKEN`), before
+    48  //!   anything is pushed, and the block's job is run for the verdict:
+    49  //!   `ParInstall.lean`'s `commitLoop`, at the slot that does not match.
+    50  
 
-== crates/con-ron/src/driver.rs#L507-L600
-   507  
-   508  /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
-   509  /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
-   510  /// **The driver**: the two-phase fold with the boundary visible — a straight
-   511  /// line of calls, with the observer's lines between them and the pool for
-   512  /// phase B (tasks #97-P5-Driver, #98-POOL).  Each step is one premise of the capstone:
-   513  ///
-   514  /// | step | here | the capstone's premise |
-   515  /// |---|---|---|
-   516  /// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
-   517  /// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
-   518  /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
-   519  /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
-   520  ///
-   521  /// `init` and `step` are calls into the verified crate; `parallel_all` is the
-   522  /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
-   523  /// `ParallelAll`: on `Ok`, every record was checked by some worker,
-   524  /// each worker folding `check_pending` over the records it claimed on ONE
-   525  /// `worker_state`.  Everything else here is the observer, which only ever
-   526  /// holds `&` the state (the hook of phase A by the trait's own signature, the
-   527  /// other lines through `&st.store` and the worker's `&AState`), so it cannot
-   528  /// change an outcome.
-   529  ///
-   530  /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
-   531  /// owns its persistent tier and appends to it; at the boundary
-   532  /// `checker::freeze_tier` moves the four stores' persistent tables out into
-   533  /// one `PersTier`, handed back `frozen`: every read through it goes to those
-   534  /// tables, and a worker's own store is frozen (`checker::worker_state`), so
-   535  /// every append there is a scratch append (task #98-FREEZE).  The
-   536  /// installed index goes to the workers by reference, since `check_pending`
-   537  /// takes the visibility bound as a scalar — so `n` workers share one
-   538  /// environment and one term DAG and own nothing but a scratch tier, their
-   539  /// caches and a copy of the pin handles (`checker::worker_state`).
-   540  pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
-   541      pers: &PersTier,
-   542      st: &mut AState,
-   543      mode: &CheckMode,
-   544      pins: &Vec<INatOpPinSet>,
-   545      ds: &Vec<IDeclaration>,
-   546      jobs: u64,
-   547      obs: &mut O,
-   548  ) -> Result<IFEnv, (CheckError, u64)> {
-   549      let total = ds.len();
-   550      // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
-   551      let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
-   552          Err(e) => {
-   553              obs.install_failed(e.1, total);
-   554              return Err(e);
-   555          }
-   556          Ok(p) => p,
-   557      };
-   558      let (_n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
-   559      let m = pend.len();
-   560      obs.install_done(pers, &st.store, total, m);
-   561      let workers = workers_for(jobs, m);
-   562      obs.phase_b_workers(workers);
-   563      // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
-   564      // value every worker reads (the doc comment above).  `st` keeps its
-   565      // (empty) store, its tables moved out, so the observer can still read a
-   566      // label back through the tier.  (ConRon.Capstone: h7)
-   567      let tier: PersTier = checker::freeze_tier(&mut st.store);
-   568      // PHASE B: `check_pending` at every record, on `workers` threads, each
-   569      // folding it over the records it claims on ONE `worker_state` — the
-   570      // verdict and the record a rejection names are the one-worker walk's at
-   571      // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
-   572      let heartbeat = obs.wants_check_lines();
-   573      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
-   574      let r = parallel_all(
-   575          m,
-   576          workers,
-   577          || checker::worker_state(&st.pins),
-   578          |w: &mut AState, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
-   579          |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &pend[k]),
-   580      );
-   581      let obs: &mut O = match lock.into_inner() {
-   582          Ok((_, o)) => o,
-   583          Err(e) => e.into_inner().1,
-   584      };
-   585      // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
-   586      // declaration label, the failing record's name, the receipts — reads a
-   587      // handle back out of `st`, and a state left frozen over a tier that has
-   588      // gone out of scope answers `None` to every one of them (the first
-   589      // version of this printed `at theorem ?` where the tip printed `at
-   590      // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
-   591      checker::thaw_tier(&mut st.store, tier);
-   592      match phase_b_verdict(&pend, r) {
-   593          Err((e, pos)) => {
-   594              obs.check_failed(pos);
-   595              Err((e, pos))
-   596          }
-   597          Ok(()) => {
-   598              obs.check_done(m);
-   599              Ok(fe)
-   600          }
+== crates/con-ron-core/src/arena/checker.rs#L638-L664
+   638  /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
+   639  /// Lean twin: `proof/ConRon/Arena/Checker.lean:309-325 checkPending` —
+   640  /// **phase B's check of one record**, against the prefix view
+   641  /// `fe.restrictTo pc.vis`.
+   642  ///
+   643  /// **This is (C)'s per-declaration bracket** (DESIGN.md §8.3), on a store that
+   644  /// is ALREADY frozen (task #98-FREEZE): the bracket only empties the scratch
+   645  /// tier and the memos (`enter_record`), `check_value_group` runs the inference
+   646  /// and the conversion against `pers`, and the scratch tier is emptied again
+   647  /// (`leave_record`).  Deviation: the twin's `throw` skips its `dropScratch`
+   648  /// and the caller restores the pre-record state instead; the port empties the
+   649  /// tier on BOTH paths, which lands in the same place without a snapshot.
+   650  ///
+   651  /// **The index comes in by REFERENCE and the twin's `restrictTo` is the scalar
+   652  /// `pc.vis`** (task #97-P6-6b), which is what lets `n` workers share it.
+   653  pub fn check_pending(
+   654      pers: &PersTier,
+   655      st: &mut AState,
+   656      mode: &CheckMode,
+   657      fe: &IFEnv,
+   658      pc: &PendingCheck,
+   659  ) -> Result<(), CheckError> {
+   660      enter_record(st);
+   661      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
+   662      leave_record(st);
+   663      r
+   664  }
+
+== crates/con-ron-core/src/arena/checker.rs#L723-L757
+   723  /// con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
+   724  /// Lean twin: `proof/ConRon/Arena/Checker.lean:347-358 blockCheck` — **the block's job**:
+   725  /// its checked install at an empty layer over the frozen base at the block's
+   726  /// counter, from fresh caches and an empty scratch tier, and the comparison of
+   727  /// its pushes with the stored install's.  A difference is an internal error: the
+   728  /// stored reading is not the checked install's, a defect of the reader, not of
+   729  /// the stream.  Nothing the job builds outlives it: the tier and the layer go.
+   730  pub fn block_check(
+   731      pers: &PersTier,
+   732      st: &mut AState,
+   733      mode: &CheckMode,
+   734      b: &BlockCheck,
+   735  ) -> Result<(), CheckError> {
+   736      enter_record(st);
+   737      let r: Result<IFEnv, CheckError> = crate::arena::check_decl::check_ind_decl(
+   738          pers,
+   739          st,
+   740          mode,
+   741          crate::arena::env::ifenv_layer(b.vis, b.vis),
+   742          &b.block,
+   743          b.n_p,
+   744      );
+   745      let v: Result<(), CheckError> = match r {
+   746          Err(e) => Err(e),
+   747          Ok(w) => {
+   748              if pushes_agree(pers, &w, b) {
+   749                  Ok(())
+   750              } else {
+   751                  fail(CheckError::Internal(code_points(&M_PUSHES_DIFFER)))
+   752              }
+   753          }
+   754      };
+   755      leave_record(st);
+   756      v
+   757  }
+
+== crates/con-ron/src/driver.rs#L548-L648
+   548  /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
+   549  /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+   550  /// **The driver**: the two-phase fold with the boundary visible — a straight
+   551  /// line of calls, with the observer's lines between them and the pool for
+   552  /// phase B, at every job count.  Each step is one premise of the capstone:
+   553  ///
+   554  /// | step | here | the capstone's premise |
+   555  /// |---|---|---|
+   556  /// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
+   557  /// | boundary | `checker::freeze_tier(&mut st.store, fe)` | the same call's value |
+   558  /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]), …)` | `h8`: index lists `ws` covering `0..order.len`, each `w` a `foldlM` of `run_job` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
+   559  /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store and hands `fe` back (`freeze_tier_ok`) |
+   560  ///
+   561  /// `init` and `step` are calls into the verified crate; `parallel_all` is the
+   562  /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
+   563  /// `ParallelAll`: on `Ok`, every job was run by some worker, each worker folding
+   564  /// `run_job` over the jobs it claimed on ONE `worker_state`.  Everything else
+   565  /// here is the observer, which only ever holds `&` the state (the hook of phase
+   566  /// A by the trait's own signature, the other lines through `&st.store` and the
+   567  /// worker's `&AState`), so it cannot change an outcome.
+   568  ///
+   569  /// **Phase A failing** runs the block jobs before it (`checker::phase_a_failure`):
+   570  /// a stored block is checked only by its job, and a failure past it may be that
+   571  /// block's doing, so the verdict is the first failing job's.  **Phase B** merges
+   572  /// the value checks and the block jobs in fold order (`checker::job_order`), and
+   573  /// the pool reports the least failing index, so the first failure in fold order
+   574  /// is the verdict at every job count.
+   575  ///
+   576  /// **The boundary is where the tier is FROZEN.**  Phase A owns its persistent
+   577  /// tier and its index and appends to them; at the boundary `checker::freeze_tier`
+   578  /// moves the four stores' persistent tables and the index into one `PersTier`,
+   579  /// handed back `frozen`: every read through it goes to those tables, and a
+   580  /// worker's own store is frozen (`checker::worker_state`), so every append there
+   581  /// is a scratch append.  So `n` workers share one environment and one term DAG and
+   582  /// own nothing but a scratch tier, their caches and a copy of the pin handles.
+   583  pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
+   584      pers: &PersTier,
+   585      st: &mut AState,
+   586      mode: &CheckMode,
+   587      pins: &Vec<INatOpPinSet>,
+   588      ds: &Vec<IDeclaration>,
+   589      jobs: u64,
+   590      obs: &mut O,
+   591  ) -> Result<IFEnv, (CheckError, u64)> {
+   592      let total = ds.len();
+   593      // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
+   594      let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
+   595          Err((e, i)) => {
+   596              let f = checker::phase_a_failure(pers, st, mode, pins, ds, e, i);
+   597              obs.install_failed(f.1, total);
+   598              return Err(f);
+   599          }
+   600          Ok(p) => p,
+   601      };
+   602      let (_n_installed, fe, pend, blocks): (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) = p;
+   603      let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
+   604      let m = order.len();
+   605      obs.install_done(pers, &st.store, total, m, blocks.len());
+   606      let workers = workers_for(jobs, m);
+   607      obs.phase_b_workers(workers);
+   608      // THE PHASE BOUNDARY: the persistent tier and the index leave the state and
+   609      // become a value every worker reads (the doc comment above).  `st` keeps its
+   610      // (empty) store, its tables moved out, so the observer can still read a
+   611      // label back through the tier.  (ConRon.Capstone: h7)
+   612      let tier: PersTier = checker::freeze_tier(&mut st.store, fe);
+   613      let layer: IFEnv = checker::check_layer();
+   614      // PHASE B: `run_job` at every job, on `workers` threads, each folding it over
+   615      // the jobs it claims on ONE `worker_state` — the verdict and the record a
+   616      // rejection names are the one-worker walk's at every `--jobs` (the least
+   617      // failing index).  (ConRon.Capstone: h8)
+   618      let heartbeat = obs.wants_check_lines();
+   619      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
+   620      let r = parallel_all(
+   621          m,
+   622          workers,
+   623          || checker::worker_state(&st.pins),
+   624          |w: &mut AState, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
+   625          |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &job_at(&order, &pend, &blocks, k)),
+   626      );
+   627      let obs: &mut O = match lock.into_inner() {
+   628          Ok((_, o)) => o,
+   629          Err(e) => e.into_inner().1,
+   630      };
+   631      // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
+   632      // declaration label, the failing record's name, the receipts — reads a
+   633      // handle back out of `st`, and a state left frozen over a tier that has
+   634      // gone out of scope answers `None` to every one of them (the first
+   635      // version of this printed `at theorem ?` where the tip printed `at
+   636      // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
+   637      let fe: IFEnv = checker::thaw_tier(&mut st.store, tier);
+   638      match phase_b_verdict(&order, &pend, &blocks, r) {
+   639          Err((e, pos)) => {
+   640              obs.check_failed(pos);
+   641              Err((e, pos))
+   642          }
+   643          Ok(()) => {
+   644              obs.check_done(m);
+   645              Ok(fe)
+   646          }
+   647      }
+   648  }
 
 == crates/con-ron/src/pool.rs#L30-L43
     30  //! ## What a worker is, in phase B
@@ -1815,26 +2028,26 @@
     37  //! builds `checker::worker_state(pins)` — an EMPTY store, FROZEN
     38  //! (`EStore::empty_frozen`: every append a scratch append), its own `Memos`
     39  //! and `Caches`, and a COPY of
-    40  //! the driver's `Pins` — and its `step` borrows the frozen `&PersTier` and
-    41  //! the installed `&IFEnv` (by reference: `check_pending` takes the record's
-    42  //! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
-    43  //! at all — task #97-P6-6b).
+    40  //! the driver's `Pins` — and its `step` borrows the frozen `&PersTier`, which
+    41  //! holds the installed index.  A value check reads it at its prefix bound, a
+    42  //! scalar (`pc.vis`), through one shared empty layer; a block job pushes into a
+    43  //! layer of its own over it.  So a worker costs no environment copy at all.
 
-== crates/con-ron-core/src/arena/checker.rs#L670-L683
-   670  /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-   671  /// Lean twin: `proof/ConRon/Arena/Phased.lean:33-40 AState.worker` — the twin's
-   672  /// phase-B worker reads the persistent tier where it is.
-   673  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
-   674  /// moved here by task #97-P5-Driver): the empty store, FROZEN
-   675  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
-   676  /// goes to the `PersTier` the boundary froze and every append is a scratch
-   677  /// append; fresh memos and caches; and a copy of the pins.  The store stays
-   678  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
-   679  pub fn worker_state(pins: &Pins) -> AState {
-   680      let mut st = AState::init(EStore::empty_frozen());
-   681      st.pins = pins_dup(pins);
-   682      st
-   683  }
+== crates/con-ron-core/src/arena/checker.rs#L1054-L1067
+  1054  /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
+  1055  /// Lean twin: `proof/ConRon/Arena/Checker.lean:370-377 AState.worker` — the twin's
+  1056  /// phase-B worker reads the persistent tier where it is.
+  1057  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
+  1058  /// moved here by task #97-P5-Driver): the empty store, FROZEN
+  1059  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
+  1060  /// goes to the `PersTier` the boundary froze and every append is a scratch
+  1061  /// append; fresh memos and caches; and a copy of the pins.  The store stays
+  1062  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
+  1063  pub fn worker_state(pins: &Pins) -> AState {
+  1064      let mut st = AState::init(EStore::empty_frozen());
+  1065      st.pins = pins_dup(pins);
+  1066      st
+  1067  }
 
 == crates/con-ron/src/pool.rs#L227-L253
    227  /// con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool
@@ -1878,17 +2091,17 @@
    393    ∃ e : frontend.scan_types.ScanErr, e.what = .IndexOverflow ∧
    394      frontend.export_c.scan_err_to_check e = ok ce
 
-== crates/con-ron/src/driver.rs#L155-L164
-   155  /// because that is what it is: the port cannot carry this input, and says so
-   156  /// rather than rejecting the stream (1) or claiming a checker bug (3).
-   157  pub fn exit_code(e: &CheckError) -> u8 {
-   158      match e {
-   159          CheckError::NotImplemented(_) => 2,
-   160          CheckError::Invalid(_) => 1,
-   161          CheckError::Internal(_) => 3,
-   162          CheckError::Native(_) => 2,
-   163      }
-   164  }
+== crates/con-ron/src/driver.rs#L157-L166
+   157  /// because that is what it is: the port cannot carry this input, and says so
+   158  /// rather than rejecting the stream (1) or claiming a checker bug (3).
+   159  pub fn exit_code(e: &CheckError) -> u8 {
+   160      match e {
+   161          CheckError::NotImplemented(_) => 2,
+   162          CheckError::Invalid(_) => 1,
+   163          CheckError::Internal(_) => 3,
+   164          CheckError::Native(_) => 2,
+   165      }
+   166  }
 
 == Cargo.toml#L22-L23
     22  [profile.release]
@@ -2615,119 +2828,126 @@
     36  //!    is in the PERSISTENT cons table before any declaration's check can
     37  //!    intern one into a tier that is about to vanish.  Its result — the
     38  //!    interned pin list — is the fold's parameter.
-    39  //! 3. **Phase B's bracket is `check_pending`'s**, which turns the scratch tier
-    40  //!    on and drops it.  A driver that checked records itself without it would
-    41  //!    grow the scratch tier without bound; the loop below calls it once per
-    42  //!    record and nothing else opens a tier.
-    43  //! 4. **`--jobs=<n>` runs [`crate::pool`]** (task #97-P6-6b), which is
-    44  //!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
-    45  //!    is immutable in phase B, so it is shared by reference, and each worker
-    46  //!    owns a scratch tier, its own caches and a copy of the pin handles.
-    47  //!    Phase B reads `fe` and the pending list and writes only the per-record
-    48  //!    state, which is what lets the pool slot in where the `while` is.
-    49  //!
-    50  //! ## The read loop
-    51  //!
-    52  //! [`parse_export_handle_d`] is `ConLeche/Frontend/CheckerIO.lean`'s
-    53  //! `foldChunks` over forward reads (its positional reads and its parallel
-    54  //! rounds parse are not ported): the VERIFIED loop `export_c::parse_source` (task
-    55  //! #97-P5-Driver moved it into the core) over [`HandleSource`], the handle
+    39  //! 3. **Phase B's bracket is `run_job`'s** (`check_pending`'s and
+    40  //!    `block_check`'s), which empties the scratch tier around each job.  A
+    41  //!    driver that checked records itself without it would grow the scratch tier
+    42  //!    without bound; the pool calls it once per job and nothing else opens a
+    43  //!    tier.
+    44  //! 4. **Phase B runs on [`crate::pool`] at every `--jobs=<n>`**, which is
+    45  //!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
+    46  //!    and the installed index are immutable in phase B, so they are shared by
+    47  //!    reference, and each worker owns a scratch tier, its own caches and a copy
+    48  //!    of the pin handles.  `--jobs=1` is the same install and the same jobs on
+    49  //!    one worker.
+    50  //!
+    51  //! ## The read loop
+    52  //!
+    53  //! [`parse_export_handle_d`] is `ConLeche/Frontend/CheckerIO.lean`'s
+    54  //! `foldChunks` over forward reads (its positional reads and its parallel
+    55  //! rounds parse are not ported): the VERIFIED loop `export_c::parse_source` (task
 
-== crates/con-ron/src/driver.rs#L507-L600
-   507  
-   508  /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
-   509  /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
-   510  /// **The driver**: the two-phase fold with the boundary visible — a straight
-   511  /// line of calls, with the observer's lines between them and the pool for
-   512  /// phase B (tasks #97-P5-Driver, #98-POOL).  Each step is one premise of the capstone:
-   513  ///
-   514  /// | step | here | the capstone's premise |
-   515  /// |---|---|---|
-   516  /// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
-   517  /// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
-   518  /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
-   519  /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
-   520  ///
-   521  /// `init` and `step` are calls into the verified crate; `parallel_all` is the
-   522  /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
-   523  /// `ParallelAll`: on `Ok`, every record was checked by some worker,
-   524  /// each worker folding `check_pending` over the records it claimed on ONE
-   525  /// `worker_state`.  Everything else here is the observer, which only ever
-   526  /// holds `&` the state (the hook of phase A by the trait's own signature, the
-   527  /// other lines through `&st.store` and the worker's `&AState`), so it cannot
-   528  /// change an outcome.
-   529  ///
-   530  /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
-   531  /// owns its persistent tier and appends to it; at the boundary
-   532  /// `checker::freeze_tier` moves the four stores' persistent tables out into
-   533  /// one `PersTier`, handed back `frozen`: every read through it goes to those
-   534  /// tables, and a worker's own store is frozen (`checker::worker_state`), so
-   535  /// every append there is a scratch append (task #98-FREEZE).  The
-   536  /// installed index goes to the workers by reference, since `check_pending`
-   537  /// takes the visibility bound as a scalar — so `n` workers share one
-   538  /// environment and one term DAG and own nothing but a scratch tier, their
-   539  /// caches and a copy of the pin handles (`checker::worker_state`).
-   540  pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
-   541      pers: &PersTier,
-   542      st: &mut AState,
-   543      mode: &CheckMode,
-   544      pins: &Vec<INatOpPinSet>,
-   545      ds: &Vec<IDeclaration>,
-   546      jobs: u64,
-   547      obs: &mut O,
-   548  ) -> Result<IFEnv, (CheckError, u64)> {
-   549      let total = ds.len();
-   550      // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
-   551      let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
-   552          Err(e) => {
-   553              obs.install_failed(e.1, total);
-   554              return Err(e);
-   555          }
-   556          Ok(p) => p,
-   557      };
-   558      let (_n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
-   559      let m = pend.len();
-   560      obs.install_done(pers, &st.store, total, m);
-   561      let workers = workers_for(jobs, m);
-   562      obs.phase_b_workers(workers);
-   563      // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
-   564      // value every worker reads (the doc comment above).  `st` keeps its
-   565      // (empty) store, its tables moved out, so the observer can still read a
-   566      // label back through the tier.  (ConRon.Capstone: h7)
-   567      let tier: PersTier = checker::freeze_tier(&mut st.store);
-   568      // PHASE B: `check_pending` at every record, on `workers` threads, each
-   569      // folding it over the records it claims on ONE `worker_state` — the
-   570      // verdict and the record a rejection names are the one-worker walk's at
-   571      // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
-   572      let heartbeat = obs.wants_check_lines();
-   573      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
-   574      let r = parallel_all(
-   575          m,
-   576          workers,
-   577          || checker::worker_state(&st.pins),
-   578          |w: &mut AState, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
-   579          |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &pend[k]),
-   580      );
-   581      let obs: &mut O = match lock.into_inner() {
-   582          Ok((_, o)) => o,
-   583          Err(e) => e.into_inner().1,
-   584      };
-   585      // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
-   586      // declaration label, the failing record's name, the receipts — reads a
-   587      // handle back out of `st`, and a state left frozen over a tier that has
-   588      // gone out of scope answers `None` to every one of them (the first
-   589      // version of this printed `at theorem ?` where the tip printed `at
-   590      // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
-   591      checker::thaw_tier(&mut st.store, tier);
-   592      match phase_b_verdict(&pend, r) {
-   593          Err((e, pos)) => {
-   594              obs.check_failed(pos);
-   595              Err((e, pos))
-   596          }
-   597          Ok(()) => {
-   598              obs.check_done(m);
-   599              Ok(fe)
-   600          }
+== crates/con-ron/src/driver.rs#L548-L648
+   548  /// con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls
+   549  /// con-leche: ConLeche/Driver/Run.lean:50-210 checkDeclsIO
+   550  /// **The driver**: the two-phase fold with the boundary visible — a straight
+   551  /// line of calls, with the observer's lines between them and the pool for
+   552  /// phase B, at every job count.  Each step is one premise of the capstone:
+   553  ///
+   554  /// | step | here | the capstone's premise |
+   555  /// |---|---|---|
+   556  /// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
+   557  /// | boundary | `checker::freeze_tier(&mut st.store, fe)` | the same call's value |
+   558  /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]), …)` | `h8`: index lists `ws` covering `0..order.len`, each `w` a `foldlM` of `run_job` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
+   559  /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store and hands `fe` back (`freeze_tier_ok`) |
+   560  ///
+   561  /// `init` and `step` are calls into the verified crate; `parallel_all` is the
+   562  /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
+   563  /// `ParallelAll`: on `Ok`, every job was run by some worker, each worker folding
+   564  /// `run_job` over the jobs it claimed on ONE `worker_state`.  Everything else
+   565  /// here is the observer, which only ever holds `&` the state (the hook of phase
+   566  /// A by the trait's own signature, the other lines through `&st.store` and the
+   567  /// worker's `&AState`), so it cannot change an outcome.
+   568  ///
+   569  /// **Phase A failing** runs the block jobs before it (`checker::phase_a_failure`):
+   570  /// a stored block is checked only by its job, and a failure past it may be that
+   571  /// block's doing, so the verdict is the first failing job's.  **Phase B** merges
+   572  /// the value checks and the block jobs in fold order (`checker::job_order`), and
+   573  /// the pool reports the least failing index, so the first failure in fold order
+   574  /// is the verdict at every job count.
+   575  ///
+   576  /// **The boundary is where the tier is FROZEN.**  Phase A owns its persistent
+   577  /// tier and its index and appends to them; at the boundary `checker::freeze_tier`
+   578  /// moves the four stores' persistent tables and the index into one `PersTier`,
+   579  /// handed back `frozen`: every read through it goes to those tables, and a
+   580  /// worker's own store is frozen (`checker::worker_state`), so every append there
+   581  /// is a scratch append.  So `n` workers share one environment and one term DAG and
+   582  /// own nothing but a scratch tier, their caches and a copy of the pin handles.
+   583  pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
+   584      pers: &PersTier,
+   585      st: &mut AState,
+   586      mode: &CheckMode,
+   587      pins: &Vec<INatOpPinSet>,
+   588      ds: &Vec<IDeclaration>,
+   589      jobs: u64,
+   590      obs: &mut O,
+   591  ) -> Result<IFEnv, (CheckError, u64)> {
+   592      let total = ds.len();
+   593      // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
+   594      let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
+   595          Err((e, i)) => {
+   596              let f = checker::phase_a_failure(pers, st, mode, pins, ds, e, i);
+   597              obs.install_failed(f.1, total);
+   598              return Err(f);
+   599          }
+   600          Ok(p) => p,
+   601      };
+   602      let (_n_installed, fe, pend, blocks): (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) = p;
+   603      let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
+   604      let m = order.len();
+   605      obs.install_done(pers, &st.store, total, m, blocks.len());
+   606      let workers = workers_for(jobs, m);
+   607      obs.phase_b_workers(workers);
+   608      // THE PHASE BOUNDARY: the persistent tier and the index leave the state and
+   609      // become a value every worker reads (the doc comment above).  `st` keeps its
+   610      // (empty) store, its tables moved out, so the observer can still read a
+   611      // label back through the tier.  (ConRon.Capstone: h7)
+   612      let tier: PersTier = checker::freeze_tier(&mut st.store, fe);
+   613      let layer: IFEnv = checker::check_layer();
+   614      // PHASE B: `run_job` at every job, on `workers` threads, each folding it over
+   615      // the jobs it claims on ONE `worker_state` — the verdict and the record a
+   616      // rejection names are the one-worker walk's at every `--jobs` (the least
+   617      // failing index).  (ConRon.Capstone: h8)
+   618      let heartbeat = obs.wants_check_lines();
+   619      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
+   620      let r = parallel_all(
+   621          m,
+   622          workers,
+   623          || checker::worker_state(&st.pins),
+   624          |w: &mut AState, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
+   625          |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &job_at(&order, &pend, &blocks, k)),
+   626      );
+   627      let obs: &mut O = match lock.into_inner() {
+   628          Ok((_, o)) => o,
+   629          Err(e) => e.into_inner().1,
+   630      };
+   631      // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
+   632      // declaration label, the failing record's name, the receipts — reads a
+   633      // handle back out of `st`, and a state left frozen over a tier that has
+   634      // gone out of scope answers `None` to every one of them (the first
+   635      // version of this printed `at theorem ?` where the tip printed `at
+   636      // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
+   637      let fe: IFEnv = checker::thaw_tier(&mut st.store, tier);
+   638      match phase_b_verdict(&order, &pend, &blocks, r) {
+   639          Err((e, pos)) => {
+   640              obs.check_failed(pos);
+   641              Err((e, pos))
+   642          }
+   643          Ok(()) => {
+   644              obs.check_done(m);
+   645              Ok(fe)
+   646          }
+   647      }
+   648  }
 
 == crates/con-ron/src/pool.rs#L45-L97
     45  //! ## THE TRUSTED CLAIM, and the whole of it
@@ -2741,17 +2961,17 @@
     53  //! statement about this module's control flow only — nothing about what
     54  //! `init` and `step` compute.  With the driver's closures it is the
     55  //! capstone's pool premise `h8` (task #98-H8 states it inline: index lists
-    56  //! `ws` covering `0..pend.len`, and for each `w` in `ws` a `foldlM` of
-    57  //! `check_pending` over `w` from `worker_state pins`, accepting), which the
+    56  //! `ws` covering `0..order.len`, and for each `w` in `ws` a `foldlM` of
+    57  //! `run_job` over `w` from `worker_state pins`, accepting), which the
     58  //! proof relates, worker by worker, to the twin (`PoolAccepts.toParts`,
     59  //! `pool_accepts_refines`).
     60  //!
     61  //! The claim is deliberately weaker than what the code does (task #98-H8):
     62  //! the counter below hands each index to exactly ONE worker and a worker's
     63  //! claims INCREASE, but the contract promises neither — the proof needs only
-    64  //! coverage, since each record is checked against its own prefix environment
-    65  //! and the twin's grouping theorem (`checkPendingList_grouping`) holds for any
-    66  //! order, any split and any repetition.  The argument:
+    64  //! coverage, since each job reads only its own prefix environment and the
+    65  //! twin's grouping theorem holds for any order, any split and any repetition.
+    66  //! The argument:
     67  //!
     68  //! * **A claim is a `fetch_add` on one counter.**  Each value `0, 1, 2, …` is
     69  //!   handed to exactly one caller, so every index in `0..n` is claimed (by

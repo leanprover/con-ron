@@ -789,7 +789,7 @@ pub fn target_outside_inst(
     us: &LsIdx,
     ds: &Vec<EIdx>,
 ) -> Result<(u64, crate::arena::handle::LIdx), CheckError> {
-    match positivity::ind_cv_of(vis, fe, i_name) {
+    match positivity::ind_cv_of(pers, vis, fe, i_name) {
         None => fail(core_types::invalid(code_points(&M_NOT_STORED))),
         Some(cv_i) => match expr_ops::inst_lp_fast(pers, st, CORE_WALK_FUEL, &cv_i.level_params, us, &cv_i.ty) {
             Err(e) => Err(e),

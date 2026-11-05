@@ -59,6 +59,7 @@ public import ConRon.Arena.Inductives.RecCheck
 public import ConRon.Arena.Inductives.GenRec
 public import ConRon.Arena.Inductives.StoredRecs
 public import ConRon.Arena.Inductives.BlockTail
+public import ConRon.Arena.Inductives.StoredInstall
 public import ConRon.Arena.CheckDecl
 public import ConRon.Arena.InductivesTest
 public import ConRon.Arena.Checker
