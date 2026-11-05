@@ -381,4 +381,488 @@ theorem installStepGo_ext {A : IFEnv} (hA : EnvOK A) (mode : ConLeche.CheckMode)
   | basisDecl kind => exact hod _ hd
   | quotDecl k cv => exact hod _ hd
 
+/-! ## A block read as stored -/
+
+theorem Post.scratchRun {α : Type} {c : AM α} {Q : α → Prop} (h : Post c Q) :
+    Post (Arena.scratchRun c) Q := by
+  intro s r s' hr
+  unfold Arena.scratchRun at hr
+  cases hc : c s with
+  | error e => simp [hc] at hr
+  | ok p =>
+    obtain ⟨a, s1⟩ := p
+    simp only [hc] at hr
+    split at hr
+    · cases hr; exact h s _ s1 hc
+    · cases hr
+
+theorem storedTry_post {α β : Type} {run : AM α} {keep : α → AM β} {Q : β → Prop}
+    (hk : ∀ a, Post (keep a) Q) :
+    Post (storedTry run keep) (fun o => ∀ b, o = some b → Q b) := by
+  unfold storedTry
+  refine Post.bind (Post.any _) fun _ _ => ?_
+  refine Post.bind (Post.any _) fun _ _ => ?_
+  intro s r s' hr
+  dsimp only at hr
+  split at hr
+  · refine Post.bind (hk _) (fun b hb => Post.bind (Post.any _) fun _ _ =>
+      Post.pure (Q := fun o => ∀ b', o = some b' → Q b') ?_) _ r s' hr
+    intro b' h
+    cases h
+    exact hb
+  · refine Post.bind (Post.any _) (fun _ _ =>
+      Post.pure (Q := fun o => ∀ b', o = some b' → Q b') ?_) _ r s' hr
+    intro b' h
+    cases h
+
+/-- A former read keeps its record's name. -/
+theorem storedTele_name (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) :
+    Post (storedTele mode fe cv n) (fun o => ∀ x, o = some x → x.1.name = cv.name) := by
+  have hslow : Post (storedTry (storedTeleRun mode fe cv n) fun q => do
+        let (m, ty) ← promoteE PMemo.empty coreWalkFuel q.1
+        let (_, s) ← promoteL m coreWalkFuel q.2
+        pure (({ cv with type := ty } : IConstantVal), s))
+      (fun o => ∀ x, o = some x → x.1.name = cv.name) :=
+    storedTry_post (Q := fun x : IConstantVal × LIdx => x.1.name = cv.name) (by
+      intro q
+      refine Post.bind (Post.any _) fun p _ => ?_
+      obtain ⟨m, ty⟩ := p
+      refine Post.bind (Post.any _) fun p' _ => ?_
+      obtain ⟨_, s⟩ := p'
+      exact Post.pure rfl)
+  unfold storedTele
+  dsimp only
+  refine Post.bind (Post.any _) fun o _ => ?_
+  split
+  · split
+    · refine Post.bind (Post.any _) fun v _ => ?_
+      split
+      · exact Post.fail
+      · exact Post.pure (by intro x h; cases h; rfl)
+    · exact hslow
+  · exact hslow
+
+/-- The formers read carry the members' names, in order. -/
+theorem storedFormers_names (mode : ConLeche.CheckMode) (fe : IFEnv) (nP : Nat) :
+    ∀ (ms : List MemberShape) (i : Nat) (out : List IConstantVal) (s0 : LIdx),
+      Post (storedFormers mode fe nP ms i out s0)
+        (fun r => r.1.map (·.name) = out.reverse.map (·.name) ++ ms.map (·.cvT.name))
+  | [], _, out, _ => by
+    rw [storedFormers]
+    exact Post.pure (by simp)
+  | m :: rest, i, out, s0 => by
+    rw [storedFormers]
+    refine Post.bind (storedTele_name mode fe m.cvT _) fun o ho => ?_
+    split
+    · rename_i cv s
+      refine fun st r st' hr => ?_
+      have := storedFormers_names mode fe nP rest _ _ _ st r st' hr
+      dsimp only at this ⊢
+      rw [this]
+      have hn : cv.name = m.cvT.name := ho (cv, s) rfl
+      simp only [List.reverse_cons, List.map_append, List.map_cons, List.map_nil,
+        List.append_assoc, List.singleton_append, hn]
+    · refine fun st r st' hr => ?_
+      have := storedFormers_names mode fe nP rest _ _ _ st r st' hr
+      dsimp only at this ⊢
+      rw [this]
+      simp
+
+/-- **Past the names' test**: an extension of `A`, whose structures have their rows. -/
+structure ExtR (A : IFEnv) (T0 : List NIdx) (b : IFEnv) : Prop where
+  ext : EnvExt A b
+  rows : ∀ T ∈ T0, (b.idx[T]?).isSome
+
+theorem ExtR.push {A : IFEnv} {T0 : List NIdx} {b : IFEnv} (h : ExtR A T0 b) {ci : IConstantInfo}
+    (hfree : A.idx[ci.name]? = none) : ExtR A T0 (b.push ci) := by
+  refine ⟨h.ext.push hfree, fun T hT => ?_⟩
+  have := h.rows T hT
+  simp only [IFEnv.push, Std.HashMap.getElem?_insert]
+  split <;> simp_all
+
+theorem consBlockInds_ext {A : IFEnv} (p : BlockShape) (isRec : Bool) :
+    ∀ (cvs : List IConstantVal) (i : Nat) (T0 : List NIdx) (b : IFEnv), ExtR A T0 b →
+      (∀ cv ∈ cvs, A.idx[cv.name]? = none) →
+      Post (consBlockInds p isRec cvs i b) (ExtR A (cvs.map (·.name) ++ T0))
+  | [], _, _, b, h, _ => by
+    rw [consBlockInds]
+    exact Post.pure h
+  | cv :: rest, i, T0, b, h, hf => by
+    rw [consBlockInds]
+    refine Post.bind (Post.any _) fun caps _ => ?_
+    have h1 : ExtR A (cv.name :: T0) (b.push (.indInfo cv caps)) := by
+      refine ⟨h.ext.push (hf cv (by simp)), fun T hT => ?_⟩
+      rcases List.mem_cons.mp hT with rfl | hT
+      · have hn : (IConstantInfo.indInfo cv caps).name = cv.name := rfl
+        simp [IFEnv.push, hn]
+      · exact (h.push (ci := .indInfo cv caps) (hf cv (by simp))).rows T hT
+    refine fun st r st' hr => ?_
+    have h2 := consBlockInds_ext p isRec rest (i + 1) _ _ h1
+      (fun c hc => hf c (List.mem_cons_of_mem _ hc)) st r st' hr
+    refine ⟨h2.ext, fun T hT => h2.rows T ?_⟩
+    simp only [List.map_cons, List.cons_append, List.mem_cons, List.mem_append] at hT ⊢
+    grind
+
+theorem consSumCtors_ext {A : IFEnv} {T0 : List NIdx} (nP : Nat) :
+    ∀ (cs : List (IConstantVal × Nat)) (b : IFEnv), ExtR A T0 b →
+      (∀ c ∈ cs, A.idx[c.1.name]? = none) → ExtR A T0 (consSumCtors nP cs b)
+  | [], _, h, _ => h
+  | c :: cs, b, h, hf =>
+    consSumCtors_ext nP cs _ (h.push (ci := .ctorInfo c.1 nP c.2) (hf c (by simp)))
+      (fun x hx => hf x (List.mem_cons_of_mem _ hx))
+
+theorem storedCtors_ext {A : IFEnv} {T0 : List NIdx} (nP : Nat) :
+    ∀ (ms : List MemberShape) (b : IFEnv), ExtR A T0 b →
+      (∀ m ∈ ms, ∀ c ∈ m.ctors, A.idx[c.1.name]? = none) → ExtR A T0 (storedCtors nP ms b)
+  | [], _, h, _ => h
+  | m :: rest, b, h, hf =>
+    storedCtors_ext nP rest _ (consSumCtors_ext nP m.ctors b h (hf m (by simp)))
+      (fun x hx => hf x (List.mem_cons_of_mem _ hx))
+
+theorem storedRecs_ext {A : IFEnv} {T0 : List NIdx} (vis₂ : Nat) (p : BlockShape) :
+    ∀ (rcs : List RecShape) (r : Nat) (b : IFEnv), ExtR A T0 b →
+      (∀ rc ∈ rcs, A.idx[rc.cvR.name]? = none) →
+      Post (storedRecs vis₂ p r rcs b) (ExtR A T0)
+  | [], _, _, h, _ => by
+    rw [storedRecs]
+    exact Post.pure h
+  | rc :: rest, r, b, h, hf => by
+    rw [storedRecs]
+    have hfr := hf rc (by simp)
+    have hfs : ∀ x ∈ rest, A.idx[x.cvR.name]? = none :=
+      fun x hx => hf x (List.mem_cons_of_mem _ hx)
+    refine Post.bind (Post.any _) fun _ _ => ?_
+    split
+    · exact storedRecs_ext vis₂ p rest _ _ (h.push hfr) hfs
+    · refine Post.bind (Post.any _) fun rules _ => ?_
+      exact storedRecs_ext vis₂ p rest _ _ (h.push hfr) hfs
+
+theorem storedTables_ext {A : IFEnv} {T0 : List NIdx} (hA : EnvOK A) (p : BlockShape) :
+    ∀ (ms : List MemberShape) (gs : List (List LIdx)) (b : IFEnv), ExtR A T0 b →
+      (∀ m ∈ ms, m.cvT.name ∈ T0 ∧ A.idx[m.cvT.name]? = none) →
+      Post (storedTables p ms gs b) (ExtR A T0)
+  | [], _, _, h, _ => by
+    rw [storedTables]
+    exact Post.pure h
+  | m :: rest, gs, b, h, hf => by
+    rw [storedTables]
+    have hfs : ∀ x ∈ rest, x.cvT.name ∈ T0 ∧ A.idx[x.cvT.name]? = none :=
+      fun x hx => hf x (List.mem_cons_of_mem _ hx)
+    obtain ⟨hm, hfm⟩ := hf m (by simp)
+    split
+    · split
+      · refine Post.bind (Post.any _) fun _ _ => ?_
+        split
+        · exact storedTables_ext hA p rest _ _
+            ⟨h.ext.pushTable hA hfm (h.rows _ hm), h.rows⟩ hfs
+        · exact storedTables_ext hA p rest _ _ h hfs
+      · exact storedTables_ext hA p rest _ _ h hfs
+    · exact storedTables_ext hA p rest _ _ h hfs
+
+/-- **What a block's names' test gives**: every name it pushes free in `A`. -/
+structure BlockFree (A : IFEnv) (p : BlockShape) : Prop where
+  members : ∀ m ∈ p.members, A.idx[m.cvT.name]? = none
+  ctors : ∀ m ∈ p.members, ∀ c ∈ m.ctors, A.idx[c.1.name]? = none
+  recs : ∀ rc ∈ p.recs, A.idx[rc.cvR.name]? = none
+
+/-- The pushes of `storedTail`, before its promotion. -/
+theorem storedTail_pushes {A : IFEnv} (hA : EnvOK A) (p : BlockShape) (guards : List (List LIdx))
+    (hf : BlockFree A p) {fe₁ : IFEnv} (h : ExtR A (p.members.map (·.cvT.name)) fe₁) :
+    Post (do
+        let fe₂ := storedCtors p.nP p.members fe₁
+        let vis₂ := fe₂.visibleBelow
+        let fe₃ ← storedRecs vis₂ p 0 p.recs fe₂
+        storedTables p p.members guards fe₃ : AM IFEnv)
+      (ExtR A (p.members.map (·.cvT.name))) := by
+  dsimp only
+  refine Post.bind (storedRecs_ext _ p p.recs 0 _ (storedCtors_ext p.nP p.members fe₁ h hf.ctors)
+    hf.recs) fun _ h' => ?_
+  exact storedTables_ext hA p p.members guards _ h'
+    (fun m hm => ⟨List.mem_map_of_mem hm, hf.members m hm⟩)
+
+/-! ## The promotion, at a name that does not move
+
+The twin's `promoteNew` re-keys what it promotes, under the promoted names.  The fact
+that those are the names it started from is the Rust's (`index_promoted`,
+`promote_installed_tables` assert it), so it is a hypothesis here, which the lockstep
+theorem of each bracket discharges. -/
+
+theorem eraseInstalled_get (n : NIdx) : ∀ (cs : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)),
+    (∀ c ∈ cs, c.name ≠ n) → (eraseInstalled idx cs)[n]? = idx[n]?
+  | [], _, _ => rfl
+  | c :: cs, idx, h => by
+    simp only [eraseInstalled]
+    rw [eraseInstalled_get n cs _ (fun x hx => h x (List.mem_cons_of_mem _ hx)),
+      Std.HashMap.getElem?_erase]
+    have : (c.name == n) = false := by
+      rw [beq_eq_false_iff_ne]; exact h c (by simp)
+    simp [this]
+
+theorem indexPromoted_other (n : NIdx) : ∀ (L : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (c : Nat),
+    (∀ x ∈ L, x.name ≠ n) → (indexPromoted idx c L)[n]? = idx[n]?
+  | [], _, _, _ => rfl
+  | x :: xs, idx, c, h => by
+    simp only [indexPromoted]
+    rw [indexPromoted_other n xs _ _ (fun y hy => h y (List.mem_cons_of_mem _ hy)),
+      Std.HashMap.getElem?_insert]
+    have : (x.name == n) = false := by
+      rw [beq_eq_false_iff_ne]; exact h x (by simp)
+    simp [this]
+
+theorem indexPromoted_mem (n : NIdx) : ∀ (L : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (c : Nat), L.length ≤ c →
+    (∃ x ∈ L, x.name = n) →
+      ((indexPromoted idx c L)[n]?).isSome ∧
+      ∀ r, (indexPromoted idx c L)[n]? = some r → c - L.length ≤ r.1 ∧ r.1 < c
+  | [], _, _, _, ⟨_, hx, _⟩ => by simp at hx
+  | x :: xs, idx, c, hl, hm => by
+    simp only [indexPromoted]
+    simp only [List.length_cons] at hl ⊢
+    by_cases hin : ∃ y ∈ xs, y.name = n
+    · obtain ⟨h1, h2⟩ := indexPromoted_mem n xs (idx.insert x.name (c - 1, x)) (c - 1)
+        (by omega) hin
+      exact ⟨h1, fun r hr => by have := h2 r hr; omega⟩
+    · have hne : ∀ y ∈ xs, y.name ≠ n := fun y hy he => hin ⟨y, hy, he⟩
+      have hxn : x.name = n := by
+        obtain ⟨y, hy, he⟩ := hm
+        rcases List.mem_cons.mp hy with rfl | hy
+        · exact he
+        · exact absurd he (hne y hy)
+      rw [indexPromoted_other n xs _ _ hne, hxn, Std.HashMap.getElem?_insert_self]
+      refine ⟨rfl, fun r hr => ?_⟩
+      cases hr
+      simp only
+      omega
+
+theorem eraseInstalledTables_get (n : NIdx) : ∀ (ts : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable),
+    (∀ t ∈ ts, t.structName ≠ n) → (eraseInstalledTables tb ts)[n]? = tb[n]?
+  | [], _, _ => rfl
+  | t :: ts, tb, h => by
+    simp only [eraseInstalledTables]
+    rw [eraseInstalledTables_get n ts _ (fun x hx => h x (List.mem_cons_of_mem _ hx)),
+      Std.HashMap.getElem?_erase]
+    have : (t.structName == n) = false := by
+      rw [beq_eq_false_iff_ne]; exact h t (by simp)
+    simp [this]
+
+theorem indexPromotedTables_other (n : NIdx) : ∀ (L : List IProjTable)
+    (tb : Std.HashMap NIdx IProjTable),
+    (∀ x ∈ L, x.structName ≠ n) → (indexPromotedTables tb L)[n]? = tb[n]?
+  | [], _, _ => rfl
+  | x :: xs, tb, h => by
+    simp only [indexPromotedTables, Std.HashMap.getElem?_insert]
+    have : (x.structName == n) = false := by
+      rw [beq_eq_false_iff_ne]; exact h x (by simp)
+    simp only [this, Bool.false_eq_true, ↓reduceIte]
+    exact indexPromotedTables_other n xs tb (fun y hy => h y (List.mem_cons_of_mem _ hy))
+
+/-- What `promoteNewConsts` does to an environment that pushed `new` above `below`. -/
+theorem promoteNewConsts_shape {m : PMemo} {fuel k : Nat} {b : IFEnv}
+    {new below : List IConstantInfo} (he : b.env.consts = new ++ below) (hl : new.length = k) :
+    Post (promoteNewConsts m fuel k b) (fun p =>
+      ∃ inst : List IConstantInfo,
+        p.2.env.consts = inst ++ below ∧ p.2.env.tables = b.env.tables ∧
+        p.2.visibleBelow = b.visibleBelow ∧ p.2.tbls = b.tbls ∧
+        (new = [] ∧ inst = [] ∧ p.2.idx = b.idx ∨
+          p.2.idx = indexPromoted (eraseInstalled b.idx new) b.visibleBelow inst)) := by
+  obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := b
+  dsimp only at he
+  subst he
+  rw [promoteNewConsts]
+  by_cases h0 : k = 0
+  · subst h0
+    have hn : new = [] := List.eq_nil_of_length_eq_zero hl
+    subst hn
+    simp only [BEq.rfl, ↓reduceIte]
+    exact Post.pure ⟨[], by simp, rfl, rfl, rfl, Or.inl (by simp)⟩
+  · have hk : (k == 0) = false := by simpa using h0
+    simp only [hk, Bool.false_eq_true, ↓reduceIte]
+    have ht : (new ++ below).take k = new := by
+      rw [← hl]; simp
+    have hd : (new ++ below).drop k = below := by
+      rw [← hl]; simp
+    rw [ht, hd]
+    refine Post.bind (Post.any _) fun q _ => ?_
+    obtain ⟨m', inst⟩ := q
+    exact Post.pure ⟨inst, rfl, rfl, rfl, rfl, Or.inr rfl⟩
+
+/-- What `promoteNewTables` does likewise. -/
+theorem promoteNewTables_shape {m : PMemo} {fuel k : Nat} {b : IFEnv}
+    {new below : List IProjTable} (he : b.env.tables = new ++ below) (hl : new.length = k) :
+    Post (promoteNewTables m fuel k b) (fun p =>
+      ∃ inst : List IProjTable,
+        p.2.env.tables = inst ++ below ∧ p.2.env.consts = b.env.consts ∧
+        p.2.visibleBelow = b.visibleBelow ∧ p.2.idx = b.idx ∧
+        (new = [] ∧ inst = [] ∧ p.2.tbls = b.tbls ∨
+          p.2.tbls = indexPromotedTables (eraseInstalledTables b.tbls new) inst)) := by
+  obtain ⟨⟨consts, tables⟩, idx, vb, tbls⟩ := b
+  dsimp only at he
+  subst he
+  rw [promoteNewTables]
+  by_cases h0 : k = 0
+  · subst h0
+    have hn : new = [] := List.eq_nil_of_length_eq_zero hl
+    subst hn
+    simp only [BEq.rfl, ↓reduceIte]
+    exact Post.pure ⟨[], by simp, rfl, rfl, rfl, Or.inl (by simp)⟩
+  · have hk : (k == 0) = false := by simpa using h0
+    simp only [hk, Bool.false_eq_true, ↓reduceIte]
+    have ht : (new ++ below).take k = new := by
+      rw [← hl]; simp
+    have hd : (new ++ below).drop k = below := by
+      rw [← hl]; simp
+    rw [ht, hd]
+    refine Post.bind (Post.any _) fun q _ => ?_
+    obtain ⟨m', inst⟩ := q
+    exact Post.pure ⟨inst, rfl, rfl, rfl, rfl, Or.inr rfl⟩
+
+/-- **The promotion keeps the extension**, at names that did not move. -/
+theorem EnvExt.promoteNew {a b c : IFEnv} (h : EnvExt a b) (ha : EnvOK a) {m m' : PMemo}
+    {fuel k kt : Nat} {s s' : AState}
+    (hk : k = b.visibleBelow - a.visibleBelow)
+    (hkt : kt = b.env.tables.length - a.env.tables.length)
+    (hrun : Arena.promoteNew m fuel k kt b s = .ok ((m', c), s'))
+    (hnc : c.env.consts.map (·.name) = b.env.consts.map (·.name))
+    (hnt : c.env.tables.map (·.structName) = b.env.tables.map (·.structName)) :
+    EnvExt a c := by
+  obtain ⟨new, e₁, l₁, f₁⟩ := h.newC
+  obtain ⟨newT, g₁, q₁⟩ := h.newT
+  have hlT : newT.length = kt := by
+    rw [hkt, g₁]; simp
+  have hrun' : (Arena.promoteNewConsts m fuel k b >>= fun p =>
+      Arena.promoteNewTables p.1 fuel kt p.2) s = .ok ((m', c), s') := by
+    have := hrun
+    rw [Arena.promoteNew] at this
+    exact this
+  -- the two stages
+  have hstage : ∃ b' : IFEnv, ∃ m₁ s₁,
+      Arena.promoteNewConsts m fuel k b s = .ok ((m₁, b'), s₁) ∧
+      Arena.promoteNewTables m₁ fuel kt b' s₁ = .ok ((m', c), s') := by
+    cases h1 : Arena.promoteNewConsts m fuel k b s with
+    | error e =>
+      have hx : (Arena.promoteNewConsts m fuel k b s >>= fun p =>
+          Arena.promoteNewTables p.1.1 fuel kt p.1.2 p.2) = .ok ((m', c), s') := hrun'
+      rw [h1] at hx; cases hx
+    | ok p =>
+      obtain ⟨⟨m₁, b'⟩, s₁⟩ := p
+      have hx : (Arena.promoteNewConsts m fuel k b s >>= fun p =>
+          Arena.promoteNewTables p.1.1 fuel kt p.1.2 p.2) = .ok ((m', c), s') := hrun'
+      rw [h1] at hx
+      exact ⟨b', m₁, s₁, rfl, hx⟩
+  obtain ⟨b', m₁, s₁, h1, h2⟩ := hstage
+  obtain ⟨inst, c1, c2, c3, c4, c5⟩ :=
+    promoteNewConsts_shape e₁ (by rw [hk, l₁]) _ _ _ h1
+  dsimp only at c1 c2 c3 c4 c5
+  obtain ⟨instT, d1, d2, d3, d4, d5⟩ :=
+    promoteNewTables_shape (b := b') (by rw [c2]; exact g₁) hlT _ _ _ h2
+  dsimp only at d1 d2 d3 d4 d5
+  have hinst : inst.map (·.name) = new.map (·.name) := by
+    have := hnc
+    rw [d2, c1, e₁, List.map_append, List.map_append] at this
+    exact List.append_cancel_right this
+  have hinstT : instT.map (·.structName) = newT.map (·.structName) := by
+    have := hnt
+    rw [d1, g₁, List.map_append, List.map_append] at this
+    exact List.append_cancel_right this
+  have hmemN : ∀ n : NIdx, (∃ x ∈ inst, x.name = n) ↔ (∃ x ∈ new, x.name = n) := by
+    intro n
+    have e : ∀ L : List IConstantInfo, (∃ x ∈ L, x.name = n) ↔ n ∈ L.map (·.name) := by
+      intro L; simp
+    rw [e, e, hinst]
+  have hmemT : ∀ n : NIdx, (∃ x ∈ instT, x.structName = n) ↔ (∃ x ∈ newT, x.structName = n) := by
+    intro n
+    have e : ∀ L : List IProjTable, (∃ x ∈ L, x.structName = n) ↔ n ∈ L.map (·.structName) := by
+      intro L; simp
+    rw [e, e, hinstT]
+  -- the index, row by row
+  have hother : ∀ n : NIdx, (∀ x ∈ new, x.name ≠ n) → c.idx[n]? = b.idx[n]? := by
+    intro n hn
+    rw [d4]
+    rcases c5 with ⟨-, -, hi⟩ | hi
+    · rw [hi]
+    · rw [hi, indexPromoted_other n inst _ _ (fun x hx he =>
+        (by obtain ⟨y, hy, hyn⟩ := (hmemN n).mp ⟨x, hx, he⟩; exact hn y hy hyn)),
+        eraseInstalled_get n new _ hn]
+  have hlen : new.length ≤ b.visibleBelow := by rw [l₁]; omega
+  have hmem : ∀ n : NIdx, (∃ x ∈ new, x.name = n) →
+      (c.idx[n]?).isSome ∧ ∀ r, c.idx[n]? = some r →
+        a.visibleBelow ≤ r.1 ∧ r.1 < b.visibleBelow := by
+    intro n hn
+    rw [d4]
+    rcases c5 with ⟨hnil, -, -⟩ | hi
+    · subst hnil; obtain ⟨_, hx, _⟩ := hn; simp at hx
+    · have hil : inst.length = new.length := by
+        have := congrArg List.length hinst; simpa using this
+      rw [hi]
+      obtain ⟨h3, h4⟩ := indexPromoted_mem n inst (eraseInstalled b.idx new) b.visibleBelow
+        (by omega) ((hmemN n).mpr hn)
+      refine ⟨h3, fun r hr => ?_⟩
+      have := h4 r hr
+      have hvb := h.vb
+      omega
+  have hisSome : ∀ n : NIdx, (b.idx[n]?).isSome → (c.idx[n]?).isSome := by
+    intro n hn
+    by_cases hm : ∃ x ∈ new, x.name = n
+    · exact (hmem n hm).1
+    · rw [hother n (fun x hx he => hm ⟨x, hx, he⟩)]; exact hn
+  -- the tables, row by row
+  have htother : ∀ n : NIdx, (∀ x ∈ newT, x.structName ≠ n) → c.tbls[n]? = b.tbls[n]? := by
+    intro n hn
+    rcases d5 with ⟨-, -, hi⟩ | hi
+    · rw [hi, c4]
+    · rw [hi, indexPromotedTables_other n instT _ (fun x hx he =>
+        (by obtain ⟨y, hy, hyn⟩ := (hmemT n).mp ⟨x, hx, he⟩; exact hn y hy hyn)),
+        eraseInstalledTables_get n newT _ hn, c4]
+  have hvbc : c.visibleBelow = b.visibleBelow := by rw [d3, c3]
+  have hfreeN : ∀ n : NIdx, (∃ x ∈ new, x.name = n) → a.idx[n]? = none := by
+    rintro n ⟨x, hx, rfl⟩; exact f₁ x hx
+  have hfreeT : ∀ n : NIdx, (∃ x ∈ newT, x.structName = n) →
+      a.idx[n]? = none ∧ (c.idx[n]?).isSome := by
+    rintro n ⟨x, hx, rfl⟩
+    exact ⟨(q₁ x hx).1, hisSome _ (q₁ x hx).2⟩
+  refine ⟨⟨inst, by rw [d2, c1], ?_, ?_⟩, ⟨instT, d1, ?_⟩, ?_, ?_, ?_, ?_, ?_, ⟨?_, ?_⟩⟩
+  · have := congrArg List.length hinst
+    simp only [List.length_map] at this
+    rw [this, l₁, hvbc]
+  · intro x hx
+    exact hfreeN _ ((hmemN _).mp ⟨x, hx, rfl⟩)
+  · intro x hx
+    exact hfreeT _ ((hmemT _).mp ⟨x, hx, rfl⟩)
+  · rw [hvbc]; exact h.vb
+  · intro n r hr
+    rw [hother n (fun x hx he => by
+      have := f₁ x hx; rw [he, hr] at this; cases this)]
+    exact h.idxOld n r hr
+  · intro n r hr hn
+    by_cases hm : ∃ x ∈ new, x.name = n
+    · exact ((hmem n hm).2 r hr).1
+    · rw [hother n (fun x hx he => hm ⟨x, hx, he⟩)] at hr
+      exact h.idxNew n r hr hn
+  · intro T t ht
+    rw [htother T (fun x hx he => by
+      have h3 := (q₁ x hx).1
+      have h4 := ha.tblRow T t ht
+      rw [he, h3] at *
+      cases h4)]
+    exact h.tblOld T t ht
+  · intro T t ht hn
+    by_cases hm : ∃ x ∈ newT, x.structName = T
+    · exact (hfreeT T hm).1
+    · rw [htother T (fun x hx he => hm ⟨x, hx, he⟩)] at ht
+      exact h.tblNew T t ht hn
+  · intro n r hr
+    rw [hvbc]
+    by_cases hm : ∃ x ∈ new, x.name = n
+    · exact ((hmem n hm).2 r hr).2
+    · rw [hother n (fun x hx he => hm ⟨x, hx, he⟩)] at hr
+      exact h.ok.rows n r hr
+  · intro T t ht
+    by_cases hm : ∃ x ∈ newT, x.structName = T
+    · exact (hfreeT T hm).2
+    · rw [htother T (fun x hx he => hm ⟨x, hx, he⟩)] at ht
+      exact hisSome T (h.ok.tblRow T t ht)
+
 end ConRon.Refine2
