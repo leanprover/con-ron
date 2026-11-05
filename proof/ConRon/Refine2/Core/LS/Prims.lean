@@ -285,10 +285,10 @@ theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : 
 
 /-- **`arena::env::ifenv_find_table` against `IFEnv.findTable?`**: gated by
 the structure's own lookup, as the twin is. -/
-theorem ifenv_find_table_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx t vis fe lfe) {t : arena.handle.NIdx}
+theorem ifenv_find_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
-    (hrun : arena.env.ifenv_find_table t vis fe t = ok o) :
+    (hrun : arena.env.ifenv_find_table pers vis fe t = ok o) :
     o.map absIProjTable = lfe.findTable? (absNIdx t) := by
   rw [arena.env.ifenv_find_table] at hrun
   obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -303,10 +303,10 @@ theorem ifenv_find_table_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv
 
 /-- **`arena::env::ifenv_find_proj` against `IFEnv.findProj?`**: the
 structure's table, viewed at field `i`. -/
-theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx t vis fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
+theorem ifenv_find_proj_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
     {o : Option arena.env.IProjEntry}
-    (hrun : arena.env.ifenv_find_proj t vis fe t i = ok o) :
+    (hrun : arena.env.ifenv_find_proj pers vis fe t i = ok o) :
     o.map absIProjEntry = lfe.findProj? (absNIdx t) (absU i) := by
   rw [arena.env.ifenv_find_proj] at hrun
   obtain ⟨ot, hot, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -336,8 +336,8 @@ theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 /-- The table lookup (`ifenv_find_table`) against `IFEnv.findTable?`, as
 `ifenv_find_ls`. -/
 @[lockstep] theorem ifenv_find_table_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx t vis fe lfe) (t : arena.handle.NIdx) :
-    LSP (arena.env.ifenv_find_table t vis fe t)
+    (hctx : CoreCtx pers vis fe lfe) (t : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find_table pers vis fe t)
       (fun o => TwinEq (lfe.findTable? (absNIdx t)) (o.map absIProjTable)) :=
   fun _ h => (ifenv_find_table_abs hctx h).symm
 
@@ -345,8 +345,8 @@ theorem ifenv_find_proj_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 `IFEnv.findProj?`: a pure read on both sides, a `TwinEq` the twin side is
 rewritten with, as `ifenv_find_ls`. -/
 @[lockstep] theorem ifenv_find_proj_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx t vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
-    LSP (arena.env.ifenv_find_proj t vis fe t i)
+    (hctx : CoreCtx pers vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
+    LSP (arena.env.ifenv_find_proj pers vis fe t i)
       (fun o => TwinEq (lfe.findProj? (absNIdx t) (absU i)) (o.map absIProjEntry)) :=
   fun _ h => (ifenv_find_proj_abs hctx h).symm
 

@@ -407,6 +407,33 @@ structure PersEnvEmpty (pers : arena.store.PersTier) : Prop where
   base : BaseOK pers
   idx : ∀ n, ConRon.Refine.HashMap2.toFun pers.env.idx n = none
 
+/-- `layer00` is an empty layer, well formed. -/
+theorem layer00_inv : IFEnvInv layer00 := by
+  have hn := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
+  have ht := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.tbls) rfl
+  refine ⟨hn.1, by simp [layer00], fun n p hp => ?_, ht.1, fun n s hs => ?_⟩
+  · rw [hn.2.2 n] at hp; cases hp
+  · rw [ht.2.2 n] at hs; cases hs
+
+/-- A tier that holds `layer00` as its environment is empty-based. -/
+theorem persEnvEmpty_of_eq {pers : arena.store.PersTier} (h : pers.env = layer00) :
+    PersEnvEmpty pers := by
+  have hn := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
+  refine ⟨⟨?_, fun ci hci => ?_⟩, fun n => ?_⟩
+  · rw [h]; exact layer00_inv
+  · rw [h] at hci; simp [layer00] at hci
+  · rw [h]; exact hn.2.2 n
+
+/-- The tier a bracket freezes out of a store. -/
+theorem persEnvEmpty_tierOf (ar : arena.store.EStore) : PersEnvEmpty (tierOf ar) :=
+  persEnvEmpty_of_eq rfl
+
 theorem PersEnvEmpty.baseRow {pers : arena.store.PersTier} (h : PersEnvEmpty pers)
     (below : Std.U64) (n : arena.handle.NIdx) : baseRow pers below n = none := by
   simp [ConRon.Refine2.baseRow, h.idx n]
@@ -656,11 +683,11 @@ table list's CURRENT length and the list grows by one, where the twin conses
 and inserts the table itself; every other row's slot was in range already
 (`IFEnvInv.tblRange`), so the append does not move what it reads.  The
 constants, the index and the counter are untouched. -/
-theorem ifenv_push_table_refines {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+theorem ifenv_push_table_refines {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {t : arena.env.IProjTable}
-    (hfe : IFEnvRel t E₀ rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
     (h : arena.env.ifenv_push_table rf t = ok rf') :
-    IFEnvRel t E₀ rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
+    IFEnvRel pers E₀ rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
       rf'.visible_below = rf.visible_below := by
   rw [arena.env.ifenv_push_table] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

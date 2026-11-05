@@ -78,7 +78,7 @@ recogniser does not read: its formers checked, then a decline. -/
     {block : alloc.vec.Vec arena.env.IConstantInfo}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.check_decl.check_shapeless pers st mode rf block) lst
       (checkShapeless (ConRon.Refine.absMode mode) lf (absICIL block)) := by
   rw [arena.check_decl.check_shapeless, checkShapeless]

@@ -127,14 +127,14 @@ lists walked side by side. -/
     {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.inductives.block_tail.check_block_tables pers st p ctors_as sortsss i rf) lst
       (checkBlockTables (absBlockShape p) ((p.members.val.drop i.val).map absMemberShape)
         ((ctors_as.val.drop i.val).map absCtorsL) ((sortsss.val.drop i.val).map absLIdxLL)
         lf) := by
   suffices H : ∀ (n : Nat) (i : Std.Usize) st lst rf lf, p.members.val.length - i.val = n →
       AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI pers E₀ rf lf →
-      LS pers IFEnvRelI
+      LS pers (IFEnvRelI pers E₀)
         (arena.inductives.block_tail.check_block_tables pers st p ctors_as sortsss i rf) lst
         (checkBlockTables (absBlockShape p) ((p.members.val.drop i.val).map absMemberShape)
           ((ctors_as.val.drop i.val).map absCtorsL) ((sortsss.val.drop i.val).map absLIdxLL)
@@ -314,7 +314,7 @@ the comparison, the pops, a flush, and the stored recursors consed. -/
     (hfe : IFEnvRelI pers E₀ rf lf) (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.inductives.block_tail.check_block_tail_stored pers vis2 st mode p out rf) lst
       (checkBlockTailStored (ConRon.Refine.absMode mode) (absU vis2) (absBlockShape p)
         (out.val.map absRecOut) lf) := by
@@ -334,7 +334,7 @@ the comparison, the pops, a flush, and the stored recursors consed. -/
     {r : arena.inductives.block_tail.BlockPass} {q : BlockPass}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hq : BlockPassRel r q) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.inductives.block_tail.check_block_tail pers st mode block r) lst
       (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q) := by
   obtain ⟨henv, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hq
@@ -356,7 +356,7 @@ the comparison, the pops, a flush, and the stored recursors consed. -/
     {p0 : arena.inductives.block_parts.BlockParts}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.inductives.block_tail.check_block pers st mode rf block p0) lst
       (checkBlock (ConRon.Refine.absMode mode) lf (absICIL block) (absBlockParts p0)) := by
   rw [arena.inductives.block_tail.check_block, checkBlock]

@@ -884,7 +884,7 @@ theorem check_reduce_pin_refines {E₀ : IEnv} {pers st lst} {rf2 lf2}
     (hfe : IFEnvRel pers E₀ rf2 lf2) (hfinv : IFEnvInv rf2)
     (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.decl_check.check_reduce_pin pers st mode rf2 k_pre c value = ok o) :
-    SimRel₀ IFEnvRelI pers E₀ pers lst o
+    SimRel₀ (IFEnvRelI pers E₀) pers lst o
       (do checkReducePin (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2 (absNIdx c)
             (absEIdx value)
           pure lf2) := by
@@ -899,7 +899,7 @@ open Lockstep in
     {value : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.decl_check.check_reduce_pin pers st mode rf2 k_pre c value) lst
       (do checkReducePin (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
             (absNIdx c) (absEIdx value)
@@ -952,7 +952,7 @@ theorem check_thm_val_witness_refines {E₀ : IEnv} {pers st lst} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_thm_val_witness pers st mode rf cv value = ok o) :
-    SimRel₀ IFEnvRelI pers E₀ pers lst o
+    SimRel₀ (IFEnvRelI pers E₀) pers lst o
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) := by
   have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
@@ -971,7 +971,7 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.decl_check.check_thm_val_witness pers st mode rf cv value) lst
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) :=
@@ -985,7 +985,7 @@ theorem check_thm_val_refines {E₀ : IEnv} {pers st lst} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_thm_val pers st mode rf cv value = ok o) :
-    SimRel₀ IFEnvRelI pers E₀ pers lst o
+    SimRel₀ (IFEnvRelI pers E₀) pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
   have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
@@ -1004,7 +1004,7 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.decl_check.check_thm_val pers st mode rf cv value) lst
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) :=
@@ -3251,7 +3251,7 @@ theorem check_div_mod_pin_at_pre_refines {E₀ : IEnv} {pers st lst} {rf2 lf2}
     (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.decl_check.check_div_mod_pin_at_pre pers st mode pins rf2 k_pre c
       value2 = ok o) :
-    SimRel₀ IFEnvRelI pers E₀ pers lst o
+    SimRel₀ (IFEnvRelI pers E₀) pers lst o
       (do checkDivModPinLoop (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) (absNIdx c)
             (absEIdx value2) (absINatOpPinSetL pins) []
           pure lf2) := by
@@ -3267,7 +3267,7 @@ open Lockstep in
     {c : arena.handle.NIdx} {value2 : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.decl_check.check_div_mod_pin_at_pre pers st mode pins rf2 k_pre c value2) lst
       (do checkDivModPinLoop (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre))
             (absNIdx c) (absEIdx value2) (absINatOpPinSetL pins) []
@@ -3285,7 +3285,7 @@ theorem check_div_mod_pin_refines {E₀ : IEnv} {pers st lst} {rf2 lf2}
     (hfe : IFEnvRel pers E₀ rf2 lf2) (hfinv : IFEnvInv rf2)
     (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.decl_check.check_div_mod_pin pers st mode pins rf2 k_pre c = ok o) :
-    SimRel₀ IFEnvRelI pers E₀ pers lst o
+    SimRel₀ (IFEnvRelI pers E₀) pers lst o
       (do checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (lf2.restrictTo (absU k_pre)) lf2
             (absNIdx c)
           pure lf2) := by
@@ -3301,7 +3301,7 @@ open Lockstep in
     {c : arena.handle.NIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
-    LS pers IFEnvRelI
+    LS pers (IFEnvRelI pers E₀)
       (arena.decl_check.check_div_mod_pin pers st mode pins rf2 k_pre c) lst
       (do checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
             (lf2.restrictTo (absU k_pre)) lf2 (absNIdx c)

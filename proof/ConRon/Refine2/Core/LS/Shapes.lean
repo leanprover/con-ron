@@ -183,11 +183,11 @@ section slots
 attribute [local lockstep_simp] Option.map_none Option.map_some Option.isSome_none
   Option.isSome_some absIProjEntry
 
-theorem tower_slots_all_go_abs (n : Nat) :
+theorem tower_slots_all_go_abs {pers : arena.store.PersTier} (n : Nat) :
     ∀ {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
       (t : arena.handle.NIdx) (nn j : Std.U64) {o : Bool},
-      nn.val = n → CoreCtx t vis fe lfe →
-      arena.core.tower_slots_all_go t vis fe t nn j = ok o →
+      nn.val = n → CoreCtx pers vis fe lfe →
+      arena.core.tower_slots_all_go pers vis fe t nn j = ok o →
       o = towerSlotsAllGo lfe (absNIdx t) n (absU j) := by
   induction n with
   | zero =>
@@ -218,9 +218,9 @@ theorem tower_slots_all_go_abs (n : Nat) :
       rw [ih t i i1 hiv hctx h, hi1v]
       rfl
 
-@[lockstep] theorem tower_slots_all_ls {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
+@[lockstep] theorem tower_slots_all_ls {vis fe lfe} (hctx : CoreCtx pers vis fe lfe)
     (t : arena.handle.NIdx) (n_f : Std.U64) :
-    LSP (arena.core.tower_slots_all t vis fe t n_f)
+    LSP (arena.core.tower_slots_all pers vis fe t n_f)
       (fun b => TwinEq (towerSlotsAll lfe (absNIdx t) n_f.val) b) := by
   intro b h
   rw [arena.core.tower_slots_all] at h

@@ -1391,11 +1391,12 @@ private theorem index_promoted_aux (d : Nat) :
     have hiiwf : IConstantInfoWF ii :=
       hfe.envWF ii (by rw [← hii]; exact List.getElem_mem _)
     -- the name the assertion below compares with
-    refine LS.packT_bind (LS.bind_eq fun name hname => ?_)
-    have hname' := i_constant_info_name_abs hname
+    refine LS.packT_bind (LS.bind_eq fun nm hnm => ?_)
+    have hnm' := i_constant_info_name_abs hnm
     refine LS.packT_bind (LS.bind_eq fun ii1 hii1 => ?_)
-    obtain ⟨-, hii1⟩ := ExprOps.vecIndexAt hii1
-    obtain rfl : ii1 = ii := by rw [← hii1, hii]
+    have hx1 := (ExprOps.vecIndexAt hii1).2
+    have e1 : ii = ii1 := hii.symm.trans hx1
+    subst e1
     refine LS.packT_bind (LS.bindT (LST.and_rust (promote_ci_ls hP ht hsc hrel hinv hm fuel ii)
         (Q := fun r => IConstantInfoWF r.2)
         (fun a t' h => promote_ci_wf hiiwf h)) (by rw [htw]) ?_ ?_)
@@ -1413,7 +1414,7 @@ private theorem index_promoted_aux (d : Nat) :
         cases bb with
         | true => rfl
         | false => simp [massert] at hass
-      have hsame : absNIdx nn = absNIdx name := by
+      have hsame : absNIdx nn = absNIdx nm := by
         have := nidx_eq2_abs hbb
         rw [hbt] at this
         simpa using this
@@ -1443,9 +1444,8 @@ private theorem index_promoted_aux (d : Nat) :
           consts := alloc.vec.Vec.set rf.env.consts i ci }, idx := hmm } := by
         show (alloc.vec.Vec.set rf.env.consts i ci).val.map _ = _
         simp only [alloc.vec.Vec.set_val_eq]
-        refine map_set_same _ _ _ (by rw [← hii]; omega) _ ?_
-        rw [← hnn', hsame, hname']
-        congr 2
+        refine map_set_same _ _ _ (by omega) _ ?_
+        rw [← hnn', hsame, hnm', ← hii]
       refine LS.tailT hrec ?_ (fun _ _ h =>
         ⟨⟨h.1.1, h.1.2.1, h.1.2.2.1, h.1.2.2.2.trans hkept⟩, h.2⟩)
       simp only [hiv, show absU i1 = absU c - 1 from hi1v]
@@ -1872,15 +1872,16 @@ private theorem promote_installed_tables_aux (d : Nat) :
       subst htt
       try dsimp only
       refine LS.packT_bind (LS.bind_eq fun ii1 hii1 => ?_)
-      obtain ⟨-, hii1⟩ := ExprOps.vecIndexAt hii1
-      obtain rfl : ii1 = ii := by rw [← hii1, hii]
+      have hx1 := (ExprOps.vecIndexAt hii1).2
+      have e1 : ii = ii1 := hii.symm.trans hx1
+      subst e1
       refine LS.packT_bind (LS.bind_eq fun bb hbb => ?_)
       refine LS.packT_bind (LS.bind_eq fun _ hass => ?_)
       have hbt : bb = true := by
         cases bb with
         | true => rfl
         | false => simp [massert] at hass
-      have hsame : absNIdx tt.struct_name = absNIdx ii1.struct_name := by
+      have hsame : absNIdx tt.struct_name = absNIdx ii.struct_name := by
         have := nidx_eq2_abs hbb
         rw [hbt] at this
         simpa using this
@@ -1935,7 +1936,7 @@ private theorem promote_installed_tables_aux (d : Nat) :
           show (alloc.vec.Vec.set rf.env.tables i tt).val.map _ = _
           simp only [alloc.vec.Vec.set_val_eq]
           refine map_set_same _ _ _ hil _ ?_
-          rw [hsame, ← hii1]
+          rw [hsame, ← hii]
 
 open Lockstep in
 /-- **`promote_new_tables` ⊑ `promoteNewTables`** — the phase-A bracket's
@@ -1959,7 +1960,7 @@ theorem promote_new_tables_ls {P t st lst rm lm rf lf} {fuel kt : Std.U64}
   · rw [ite_eq_left hk0]
     have h0 : absU kt = 0 := by rw [hk0]; rfl
     rw [promoteNewTables, h0]
-    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, ⟨hfe, hfinv⟩, rfl, rfl⟩, ht⟩ hrel hinv)
   · rw [ite_eq_right hk0]
     have hn := alloc.vec.Vec.len_val rf.env.tables
     have hkabs : absU kt = kt.val := rfl

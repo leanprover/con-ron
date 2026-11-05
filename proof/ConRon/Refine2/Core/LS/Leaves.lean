@@ -113,9 +113,9 @@ The answer is a `CheckError` on both sides; messages are never compared
 
 /-- `proj_indexed_struct_like` is pure on both sides: the cited `&&` chain,
 read off the environment. -/
-theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
+theorem proj_indexed_struct_like_abs {pers : arena.store.PersTier} {vis fe lfe} (hctx : CoreCtx pers vis fe lfe)
     {t sn : arena.handle.NIdx} {i n : Std.U64} {b : Bool}
-    (h : arena.core.proj_indexed_struct_like t vis fe t sn i n = ok b) :
+    (h : arena.core.proj_indexed_struct_like pers vis fe t sn i n = ok b) :
     b = projIndexedStructLike lfe (absNIdx t) (absNIdx sn) (absU i) (absU n) := by
   rw [arena.core.proj_indexed_struct_like] at h
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -176,9 +176,9 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
 
 /-- `proj_miss_error` against `projMissError`: the error KIND (messages are
 never compared, DESIGN §3.1). -/
-@[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx t vis fe lfe)
+@[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx pers vis fe lfe)
     (ht : Bool) (t sn : arena.handle.NIdx) (i n : Std.U64) :
-    LSP (arena.core.proj_miss_error t vis fe ht t sn i n)
+    LSP (arena.core.proj_miss_error pers vis fe ht t sn i n)
       (fun ce => absAErrKind ce
         = lAErrKind (projMissError lfe ht (absNIdx t) (absNIdx sn) (absU i) (absU n))) := by
   intro ce h

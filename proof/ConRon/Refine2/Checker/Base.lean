@@ -1136,10 +1136,10 @@ inductive, from its caps' source. -/
   fun _ h => ⟨ifenv_push_refines hfe.rel hfe.inv hwf h, by rw [ifenv_push_vis h]; omega⟩
 
 /-- `ifenv_push_table`: a table pushed, the counter unmoved. -/
-@[lockstep] theorem ifenv_push_table_spec {E₀ : IEnv} {rf lf} (hfe : IFEnvRelI t E₀ rf lf)
+@[lockstep] theorem ifenv_push_table_spec {E₀ : IEnv} {rf lf} (hfe : IFEnvRelI pers E₀ rf lf)
     (t : arena.env.IProjTable) :
     LSP (arena.env.ifenv_push_table rf t)
-      (fun r => IFEnvRelI t E₀ r (lf.pushTable (absIProjTable t)) ∧
+      (fun r => IFEnvRelI pers E₀ r (lf.pushTable (absIProjTable t)) ∧
         rf.visible_below.val ≤ r.visible_below.val) := by
   intro r h
   obtain ⟨h1, h2, h3⟩ := ifenv_push_table_refines hfe.rel hfe.inv h
