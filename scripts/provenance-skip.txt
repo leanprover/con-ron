@@ -342,7 +342,6 @@ ConLeche/Frontend/CheckerIO.lean readRangeOf Lean's IO seam for its own driver t
 ConLeche/Frontend/CheckerIO.lean parShare Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean parMapIO Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/ReadRange.lean * Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/Olean.lean * deferred to its own task (ported after this sync)
 ConLeche/Frontend/Olean/Closure.lean * deferred to its own task (ported after this sync)
 ConLeche/Frontend/Olean/Emit.lean * deferred to its own task (ported after this sync)
 ConLeche/Frontend/Olean/Fast.lean * deferred to its own task (ported after this sync)

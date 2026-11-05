@@ -55,7 +55,7 @@ pub const M_DUP_CTOR: [u32; 33] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:26-53 BlockPass
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:39-56 BlockPass` — **what one
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:44-61 BlockPass` — **what one
 /// pass over the formers, the constructors and the classes yields**: the
 /// environment holding all k formers, the checked formers, the completed
 /// record, the checked constructors and their fields' sorts per member,
@@ -78,7 +78,7 @@ pub struct BlockPass {
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
 /// con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:58-79 checkBlockPass` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:63-84 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
 /// that holds them all), the constructors, the classes, and the positivity
@@ -106,7 +106,7 @@ pub fn check_block_pass(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
 /// con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:58-79 checkBlockPass` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:63-84 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 #[allow(clippy::too_many_arguments)]
 pub fn check_block_pass_classes(
@@ -153,7 +153,7 @@ pub fn check_block_pass_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:77-92 checkBlockRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:81-89 checkBlockRec` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:86-94 checkBlockRec` — **the
 /// recursor stage on the uniform route**: the GENERATED recursor stage at the
 /// constructors' environment, on the stream's own recursor family (the raw
 /// `block`), the pass's classes and table, and the container bit.
@@ -177,7 +177,7 @@ pub fn check_block_rec(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:107-122 checkBlockTables
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:91-109 checkBlockTables` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:96-114 checkBlockTables` — **the
 /// projection table at every STRUCTURE-LIKE member** (one constructor, no
 /// index) from member `i` on: the member's table; nothing at any other
 /// member.
@@ -224,7 +224,7 @@ pub fn check_block_tables(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
 /// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:1-1 consBlockRecsTemp` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:116-133 consBlockRecsTemp` — **the
 /// generated install, pushed TEMPORARILY**: each generated recursor from `m` on
 /// with its rules at its major (the lookups at the constructors' bound `vis2`).
 /// Returns the rows the pushes displaced, for `gen_rec::class_fe_r_pop`.
@@ -261,7 +261,7 @@ pub fn cons_block_recs_temp(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:1-1 checkBlockTailStored` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:135-148 checkBlockTailStored` —
 /// **the stored recursors against the generated ones, and their install**: the
 /// generated install pushed, a flush entering it, the comparison, the pushes
 /// undone, a flush leaving it, and the stored recursors consed at their majors.
@@ -295,7 +295,7 @@ pub fn check_block_tail_stored(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:111-126 checkBlockTail` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:150-166 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the
 /// stored recursors against the generated ones and consed at their majors, and
@@ -327,7 +327,7 @@ pub fn check_block_tail(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:144-152 checkBlock
 /// con-leche: ConLeche/Cached/CheckerC.lean:181-189 checkBlockKS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:128-141 checkBlock` — **check
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:168-181 checkBlock` — **check
 /// and install a block on the uniform route**: the distinct names, the flush,
 /// the pass at official's `is_rec`, and the install after it.
 pub fn check_block(

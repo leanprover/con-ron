@@ -52,11 +52,11 @@ structure MemberShape where
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-98 RecShape
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockParts.RecShape_bridge, then delete this line
 **One recursor of a block, as the stream carries it**: its constant, the
 record's own rule prefix `rP` and major index `mI`, the member its MAJOR names
-(`k`: none — a nested block's auxiliary recursor), and its rules' right-hand
-sides as exported. -/
+(`k`: none — a nested block's auxiliary recursor), and its rules as exported:
+what the install stores once they agree with the generated ones
+(`Arena/Inductives/StoredRecs.lean`). -/
 structure RecShape where
   /-- the recursor's constant -/
   cvR : IConstantVal
@@ -66,8 +66,8 @@ structure RecShape where
   mI : Nat
   /-- the member its MAJOR names -/
   tgt : Nat
-  /-- the recursor's rules' right-hand sides as exported -/
-  rhss : List EIdx
+  /-- the recursor's rules as exported -/
+  rules : List IRecRule
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:100-123 BlockShape
@@ -330,7 +330,6 @@ def blockMemberCounts? (nPd k nC : Nat) (names : List NIdx)
       | some ns => pure (some (c.2 :: ns))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockParts.blockShape?_bridge, then delete this line
 **The block's shape**: split into formers, constructors and recursors (at least
 one of each of the first and the last), the members' counts, the reserved-name
 and level pins, the result sort (member 0's, or the placeholder `0` the
@@ -377,7 +376,7 @@ def blockShape? (nPd : Nat) (block : List IConstantInfo) : AM (Option BlockShape
             fun a => ⟨a.1.1, a.1.2, a.2⟩
           let recsL ← rs.mapM fun r => do
             let tgt ← recTargetOf names r.2.1 r.1.type
-            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)
+            pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : RecShape)
           let large? : Option NIdx := match cvR0.levelParams with
             | [] => none
             | elim :: relps => if relps == lps && !lps.contains elim then some elim else none

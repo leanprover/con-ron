@@ -178,9 +178,7 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
   pure (cvCa, sorts)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-163 checkSumCtors
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-115 checkSumCtorsF
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
 def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)

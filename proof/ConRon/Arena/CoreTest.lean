@@ -449,70 +449,70 @@ private def okB : ConLeche.CheckM Bool → Bool → Bool
   | .ok a, b => a == b
   | .error _, _ => false
 
-#guard okE (ConLeche.whnf MU envCL F 0 tTwo) (.lit (.natVal 2))
-#guard okE (ConLeche.whnf MU envCL F 0 tBetaSucc) (.lit (.natVal 4))
-#guard okE (ConLeche.inferTypeCore MU envCL F 0 tLit7) natTy
-#guard okE (ConLeche.inferTypeCore MU envCL F 0 tIdNat) tPiNat
-#guard okB (ConLeche.isDefEqCore MU envCL F 0 tPfA tPfB) true
-#guard okB (ConLeche.isDefEqCore MU envCL F 0 tTwo tLit7) false
-#guard okE (ConLeche.inferTypeCore MU envCL F 0 tLetTwo) natTy
+#guard okE (ConLeche.whnf MU false envCL F 0 tTwo) (.lit (.natVal 2))
+#guard okE (ConLeche.whnf MU false envCL F 0 tBetaSucc) (.lit (.natVal 4))
+#guard okE (ConLeche.inferTypeCore MU false envCL F 0 tLit7) natTy
+#guard okE (ConLeche.inferTypeCore MU false envCL F 0 tIdNat) tPiNat
+#guard okB (ConLeche.isDefEqCore MU false envCL F 0 tPfA tPfB) true
+#guard okB (ConLeche.isDefEqCore MU false envCL F 0 tTwo tLit7) false
+#guard okE (ConLeche.inferTypeCore MU false envCL F 0 tLetTwo) natTy
 
 /-! ## `whnf` — twelve subjects
 
 Each line is "the arena's `whnf` and con-leche's `whnf` agree on this term",
 with the con-leche side computed from the denotation. -/
 
-#guard chkE (whnf MU FX.fe F 0 FX.two) (ConLeche.whnf MU envCL F 0 tTwo)
-#guard chkE (whnf MU FX.fe F 0 FX.ax) (ConLeche.whnf MU envCL F 0 tAx)
-#guard chkE (whnf MU FX.fe F 0 FX.lit7) (ConLeche.whnf MU envCL F 0 tLit7)
-#guard chkE (whnf MU FX.fe F 0 FX.succ3) (ConLeche.whnf MU envCL F 0 tSucc3)
-#guard chkE (whnf MU FX.fe F 0 FX.betaTwo) (ConLeche.whnf MU envCL F 0 tBetaTwo)
-#guard chkE (whnf MU FX.fe F 0 FX.betaSucc) (ConLeche.whnf MU envCL F 0 tBetaSucc)
-#guard chkE (whnf MU FX.fe F 0 FX.piNat) (ConLeche.whnf MU envCL F 0 tPiNat)
-#guard chkE (whnf MU FX.fe F 0 FX.sort0) (ConLeche.whnf MU envCL F 0 tSort0)
-#guard chkE (whnf MU FX.fe F 1 FX.fv0) (ConLeche.whnf MU envCL F 1 tFv0)
-#guard chkE (whnf MU FX.fe F 0 FX.idNat) (ConLeche.whnf MU envCL F 0 tIdNat)
-#guard chkE (whnf MU FX.fe F 0 FX.appAx) (ConLeche.whnf MU envCL F 0 tAppAx)
-#guard chkE (whnf MU FX.fe F 0 FX.nat) (ConLeche.whnf MU envCL F 0 natTy)
+#guard chkE (whnf MU FX.fe F 0 FX.two) (ConLeche.whnf MU false envCL F 0 tTwo)
+#guard chkE (whnf MU FX.fe F 0 FX.ax) (ConLeche.whnf MU false envCL F 0 tAx)
+#guard chkE (whnf MU FX.fe F 0 FX.lit7) (ConLeche.whnf MU false envCL F 0 tLit7)
+#guard chkE (whnf MU FX.fe F 0 FX.succ3) (ConLeche.whnf MU false envCL F 0 tSucc3)
+#guard chkE (whnf MU FX.fe F 0 FX.betaTwo) (ConLeche.whnf MU false envCL F 0 tBetaTwo)
+#guard chkE (whnf MU FX.fe F 0 FX.betaSucc) (ConLeche.whnf MU false envCL F 0 tBetaSucc)
+#guard chkE (whnf MU FX.fe F 0 FX.piNat) (ConLeche.whnf MU false envCL F 0 tPiNat)
+#guard chkE (whnf MU FX.fe F 0 FX.sort0) (ConLeche.whnf MU false envCL F 0 tSort0)
+#guard chkE (whnf MU FX.fe F 1 FX.fv0) (ConLeche.whnf MU false envCL F 1 tFv0)
+#guard chkE (whnf MU FX.fe F 0 FX.idNat) (ConLeche.whnf MU false envCL F 0 tIdNat)
+#guard chkE (whnf MU FX.fe F 0 FX.appAx) (ConLeche.whnf MU false envCL F 0 tAppAx)
+#guard chkE (whnf MU FX.fe F 0 FX.nat) (ConLeche.whnf MU false envCL F 0 natTy)
 
 /-! ## `whnfCore` — the delta-free head normal form
 
 The same subjects: `whnfCore` must NOT unfold `two`, where `whnf` does. -/
 
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.two) (ConLeche.whnfCore MU envCL F 0 tTwo)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.betaTwo)
-  (ConLeche.whnfCore MU envCL F 0 tBetaTwo)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.succ3)
-  (ConLeche.whnfCore MU envCL F 0 tSucc3)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.two) (ConLeche.whnfCore MU false envCL F 0 tTwo)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.betaTwo)
+  (ConLeche.whnfCore MU false envCL F 0 tBetaTwo)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.succ3)
+  (ConLeche.whnfCore MU false envCL F 0 tSucc3)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.piPi) (ConLeche.whnfCore MU false envCL F 0 tPiPi)
 
 /-! ## `infer` — twelve subjects, the last two failures -/
 
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.sort0)
-  (ConLeche.inferTypeCore MU envCL F 0 tSort0)
+  (ConLeche.inferTypeCore MU false envCL F 0 tSort0)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.sort1)
-  (ConLeche.inferTypeCore MU envCL F 0 tSort1)
+  (ConLeche.inferTypeCore MU false envCL F 0 tSort1)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.lit7)
-  (ConLeche.inferTypeCore MU envCL F 0 tLit7)
+  (ConLeche.inferTypeCore MU false envCL F 0 tLit7)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.two)
-  (ConLeche.inferTypeCore MU envCL F 0 tTwo)
+  (ConLeche.inferTypeCore MU false envCL F 0 tTwo)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.ax)
-  (ConLeche.inferTypeCore MU envCL F 0 tAx)
+  (ConLeche.inferTypeCore MU false envCL F 0 tAx)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.pfA)
-  (ConLeche.inferTypeCore MU envCL F 0 tPfA)
+  (ConLeche.inferTypeCore MU false envCL F 0 tPfA)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.succ3)
-  (ConLeche.inferTypeCore MU envCL F 0 tSucc3)
+  (ConLeche.inferTypeCore MU false envCL F 0 tSucc3)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.idNat)
-  (ConLeche.inferTypeCore MU envCL F 0 tIdNat)
+  (ConLeche.inferTypeCore MU false envCL F 0 tIdNat)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.piNat)
-  (ConLeche.inferTypeCore MU envCL F 0 tPiNat)
+  (ConLeche.inferTypeCore MU false envCL F 0 tPiNat)
 #guard chkE (inferTypeCore MU FX.fe F 1 FX.fv0)
-  (ConLeche.inferTypeCore MU envCL F 1 tFv0)
+  (ConLeche.inferTypeCore MU false envCL F 1 tFv0)
 -- the two failure shapes: an unknown constant, and an out-of-scope `fvar`
 #guard chkEKind (inferTypeCore MU FX.fe F 0 FX.unknown)
-  (ConLeche.inferTypeCore MU envCL F 0 tUnknown)
+  (ConLeche.inferTypeCore MU false envCL F 0 tUnknown)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.fv0)
-  (ConLeche.inferTypeCore MU envCL F 0 tFv0)
+  (ConLeche.inferTypeCore MU false envCL F 0 tFv0)
 
 /-! ## `inferIO` — the io grade, under its own memo
 
@@ -520,39 +520,39 @@ A hit in the io table must never serve a full-`infer` query and vice versa;
 what this checks is the weaker, necessary condition — the two grades agree on
 the fixture, which they must at `.verified`. -/
 
-#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.two)
-  (ConLeche.inferTypeIO MU envCL F 0 tTwo)
-#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.idNat)
-  (ConLeche.inferTypeIO MU envCL F 0 tIdNat)
-#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.succ3)
-  (ConLeche.inferTypeIO MU envCL F 0 tSucc3)
+#guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.two)
+  (ConLeche.inferTypeIO MU false envCL F 0 tTwo)
+#guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.idNat)
+  (ConLeche.inferTypeIO MU false envCL F 0 tIdNat)
+#guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.succ3)
+  (ConLeche.inferTypeIO MU false envCL F 0 tSucc3)
 
 /-! ## `defeq` — twelve pairs, both verdicts -/
 
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.two FX.two)
-  (ConLeche.isDefEqCore MU envCL F 0 tTwo tTwo)
+  (ConLeche.isDefEqCore MU false envCL F 0 tTwo tTwo)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.two FX.lit7)
-  (ConLeche.isDefEqCore MU envCL F 0 tTwo tLit7)
+  (ConLeche.isDefEqCore MU false envCL F 0 tTwo tLit7)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.zero FX.zero)
-  (ConLeche.isDefEqCore MU envCL F 0 zeroE zeroE)
+  (ConLeche.isDefEqCore MU false envCL F 0 zeroE zeroE)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pfA FX.pfB)
-  (ConLeche.isDefEqCore MU envCL F 0 tPfA tPfB)
+  (ConLeche.isDefEqCore MU false envCL F 0 tPfA tPfB)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pfA FX.pfA)
-  (ConLeche.isDefEqCore MU envCL F 0 tPfA tPfA)
+  (ConLeche.isDefEqCore MU false envCL F 0 tPfA tPfA)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.sort0 FX.sort1)
-  (ConLeche.isDefEqCore MU envCL F 0 tSort0 tSort1)
+  (ConLeche.isDefEqCore MU false envCL F 0 tSort0 tSort1)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.sort0 FX.sort0)
-  (ConLeche.isDefEqCore MU envCL F 0 tSort0 tSort0)
+  (ConLeche.isDefEqCore MU false envCL F 0 tSort0 tSort0)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.idNat FX.idNat)
-  (ConLeche.isDefEqCore MU envCL F 0 tIdNat tIdNat)
+  (ConLeche.isDefEqCore MU false envCL F 0 tIdNat tIdNat)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.piNat FX.piNat)
-  (ConLeche.isDefEqCore MU envCL F 0 tPiNat tPiNat)
+  (ConLeche.isDefEqCore MU false envCL F 0 tPiNat tPiNat)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.ax FX.two)
-  (ConLeche.isDefEqCore MU envCL F 0 tAx tTwo)
+  (ConLeche.isDefEqCore MU false envCL F 0 tAx tTwo)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.betaTwo FX.succ3)
-  (ConLeche.isDefEqCore MU envCL F 0 tBetaTwo tSucc3)
+  (ConLeche.isDefEqCore MU false envCL F 0 tBetaTwo tSucc3)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.nat FX.sort0)
-  (ConLeche.isDefEqCore MU envCL F 0 natTy tSort0)
+  (ConLeche.isDefEqCore MU false envCL F 0 natTy tSort0)
 
 /-! ## `let` — official's `infer_let` (con-leche's task #342), and `whnf`'s ζ
 
@@ -560,14 +560,14 @@ A let whose value fits its type infers its body at the value; a let whose
 value does not is rejected; `whnfCore` reduces the `let`. -/
 
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.letTwo)
-  (ConLeche.inferTypeCore MU envCL F 0 tLetTwo)
+  (ConLeche.inferTypeCore MU false envCL F 0 tLetTwo)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.letBad)
-  (ConLeche.inferTypeCore MU envCL F 0 tLetBad)
-#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.letTwo)
-  (ConLeche.inferTypeIO MU envCL F 0 tLetTwo)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.letTwo)
-  (ConLeche.whnfCore MU envCL F 0 tLetTwo)
-#guard chkE (whnf MU FX.fe F 0 FX.letTwo) (ConLeche.whnf MU envCL F 0 tLetTwo)
+  (ConLeche.inferTypeCore MU false envCL F 0 tLetBad)
+#guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.letTwo)
+  (ConLeche.inferTypeIO MU false envCL F 0 tLetTwo)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.letTwo)
+  (ConLeche.whnfCore MU false envCL F 0 tLetTwo)
+#guard chkE (whnf MU FX.fe F 0 FX.letTwo) (ConLeche.whnf MU false envCL F 0 tLetTwo)
 
 /-! ## The batched walks, against con-leche's own chained bodies
 
@@ -579,29 +579,29 @@ against `ConLeche`'s chained body on the denotation. -/
 
 -- `inferPis` / `inferPisOut`'s `imax` fold, three binders deep
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.pi3)
-  (ConLeche.inferTypeCore MU envCL F 0 tPi3)
+  (ConLeche.inferTypeCore MU false envCL F 0 tPi3)
 -- `inferLams` / `inferLamsLeaf` / `inferLamsOut`, two binders deep
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.lam2)
-  (ConLeche.inferTypeCore MU envCL F 0 tLam2)
+  (ConLeche.inferTypeCore MU false envCL F 0 tLam2)
 -- `whnfApp` / `betaPeel`: a two-argument β redex peeled in ONE group
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.beta2)
-  (ConLeche.whnfCore MU envCL F 0 tBeta2)
-#guard chkE (whnf MU FX.fe F 0 FX.beta2) (ConLeche.whnf MU envCL F 0 tBeta2)
+#guard chkE ((pureFnsA MU false FX.fe F).whnfCore false 0 FX.beta2)
+  (ConLeche.whnfCore MU false envCL F 0 tBeta2)
+#guard chkE (whnf MU FX.fe F 0 FX.beta2) (ConLeche.whnf MU false envCL F 0 tBeta2)
 -- `inferApp` / `inferSpine`: the same spine, inferred head-first
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.beta2)
-  (ConLeche.inferTypeCore MU envCL F 0 tBeta2)
-#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.beta2)
-  (ConLeche.inferTypeIO MU envCL F 0 tBeta2)
+  (ConLeche.inferTypeCore MU false envCL F 0 tBeta2)
+#guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.beta2)
+  (ConLeche.inferTypeIO MU false envCL F 0 tBeta2)
 -- `defeqBinders` / `defeqPeel` (∀) and `defeqLams` (λ): two telescopes
 -- descended together
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.pi3)
-  (ConLeche.isDefEqCore MU envCL F 0 tPi3 tPi3)
+  (ConLeche.isDefEqCore MU false envCL F 0 tPi3 tPi3)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.piPi)
-  (ConLeche.isDefEqCore MU envCL F 0 tPi3 tPiPi)
+  (ConLeche.isDefEqCore MU false envCL F 0 tPi3 tPiPi)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.lam2 FX.lam2)
-  (ConLeche.isDefEqCore MU envCL F 0 tLam2 tLam2)
+  (ConLeche.isDefEqCore MU false envCL F 0 tLam2 tLam2)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.lam2 FX.idNat)
-  (ConLeche.isDefEqCore MU envCL F 0 tLam2 tIdNat)
+  (ConLeche.isDefEqCore MU false envCL F 0 tLam2 tIdNat)
 
 /-! ## `ensureSort` -/
 
@@ -614,11 +614,11 @@ private def chkL (c : AM LIdx) (expect : ConLeche.CheckM Level) : Bool :=
   | _, _ => false
 
 #guard chkL (ensureSortCore MU FX.fe F 0 FX.nat)
-  (ConLeche.ensureSortCore MU envCL F 0 natTy)
+  (ConLeche.ensureSortCore MU false envCL F 0 natTy)
 #guard chkL (ensureSortCore MU FX.fe F 0 FX.sort0)
-  (ConLeche.ensureSortCore MU envCL F 0 tSort0)
+  (ConLeche.ensureSortCore MU false envCL F 0 tSort0)
 #guard chkL (ensureSortCore MU FX.fe F 0 FX.two)
-  (ConLeche.ensureSortCore MU envCL F 0 tTwo)
+  (ConLeche.ensureSortCore MU false envCL F 0 tTwo)
 
 /-! ## The memo: the second call hits, and answers identically
 
@@ -673,7 +673,7 @@ it against a state whose table was filled by hand gives that entry back. -/
   pure (s.caches.inferC.size > 0))
 
 #guard runB (do
-  let _ ← (pureFnsA MU FX.fe F).inferIO 0 FX.succ3
+  let _ ← (pureFnsA MU false FX.fe F).inferIO 0 FX.succ3
   let s ← get
   pure (s.caches.inferIOC.size > 0))
 

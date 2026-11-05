@@ -18,10 +18,11 @@ must meet a failure of the same KIND (messages are not compared, DESIGN §3.1).
 **The blocks are written by hand**, recursor types included, in the official
 shape (formers, then constructors, then recursors — `blockSplit`'s order).
 The uniform route GENERATES each recursor and compares it with the stream's by
-defeq, and it never reads the stream's rules (it installs its own), so a
-fixture needs a correct recursor TYPE and nothing more; `accepts` pins that
-con-leche accepts each positive fixture, so a wrong hand-written type cannot
-make a check pass vacuously on two agreeing errors.
+defeq, the rules as well, so a fixture writes a correct recursor TYPE and each
+rule's constructor and field count, and `withRules` gives its rules the
+right-hand sides con-leche generates; `accepts` pins that con-leche accepts each
+positive fixture, so a wrong hand-written type cannot make a check pass
+vacuously on two agreeing errors.
 
 Covered: a recursive family (`N`), a structure with its projection table
 (`Pair`), an indexed propositional family with a large eliminator (`Eq'`), a
@@ -134,11 +135,36 @@ private def ap (f a : ConLeche.Expr) : ConLeche.Expr := .app f a
 private def ty1 : ConLeche.Expr := .sort (.succ .zero)
 /-- con-leche: none — `Sort u` at a named parameter. -/
 private def sortP (u : String) : ConLeche.Expr := .sort (.param (nm u))
-/-- con-leche: none — a stream rule placeholder: the uniform route never
-reads the stream's rules, so only the constructor and the field count are
-meaningful. -/
+/-- con-leche: none — a stream rule before `withRules`: the constructor and the
+field count, and a placeholder right-hand side. -/
 private def rl (c : ConLeche.Name) (nF : Nat) : RecRule :=
   { ctor := c, nfields := nF, ctorParams := 0, fire := .plain, rhs := ty1 }
+
+/-- con-leche: none — each record's rules from the generated right-hand sides at
+its position. -/
+private def fillRules : List ConstantInfo → List (List ConLeche.Expr) → List ConstantInfo
+  | .recInfo cv mI rP rules :: rest, gs :: gss =>
+    .recInfo cv mI rP (List.zipWith (fun r g => { r with rhs := g }) rules gs) :: fillRules rest gss
+  | ci :: rest, gss => ci :: fillRules rest gss
+  | [], _ => []
+
+/-- con-leche: none — a block as an elaborator exports it: its rules' right-hand
+sides are the ones con-leche's recursor stage generates at the environment of
+`pre`.  A block that does not get that far stays as it is. -/
+private def withRules (pre : List Declaration) (nP : Nat) (block : List ConstantInfo) :
+    List ConstantInfo :=
+  let out? : ConLeche.CheckM (List (ConstantVal × ConLeche.TargetMajor × List ConLeche.Expr)) := do
+    let env ← ConLeche.checkDeclsPure MU OPS [] pre
+    match ConLeche.blockParts? nP block with
+    | none => throw (.internal "fixture: not a block")
+    | some p₀ =>
+      let q ← ConLeche.checkBlockPass OPS env p₀ (ConLeche.blockRawRec p₀)
+      let p := q.p
+      ConLeche.checkBlockRec OPS (ConLeche.consBlockCtors p.nP q.ctorsAs q.env₁) p
+        (ConLeche.blockNestedBit p.toBlockShape q.kinds) q.params q.tbl.toList q.rd q.cls block q.cvTas
+  match out? with
+  | .ok out => fillRules block (out.map (·.2.2))
+  | .error _ => block
 
 /-! ## Fixture 1 — `N`, a recursive family -/
 
@@ -153,6 +179,7 @@ private def nRecTy : ConLeche.Expr :=
         (pi cN (ap (bv 3) (bv 0)))))
 /-- con-leche: none — the `N` block. -/
 private def nBlock : List ConstantInfo :=
+  withRules [] 0 <|
   [ .indInfo ⟨nm "N", [], ty1⟩ {},
     .ctorInfo ⟨nm2 "N" "zero", [], cN⟩ 0 0,
     .ctorInfo ⟨nm2 "N" "succ", [], pi cN cN⟩ 0 1,
@@ -181,6 +208,7 @@ private def pairRecTy : ConLeche.Expr :=
       (pi (pairAt (bv 3) (bv 2)) (ap (bv 2) (bv 0))))))
 /-- con-leche: none — the `Pair` block. -/
 private def pairBlock : List ConstantInfo :=
+  withRules [] 2 <|
   [ .indInfo ⟨nm "Pair", [], pi ty1 (pi ty1 ty1)⟩ {},
     .ctorInfo ⟨nm2 "Pair" "mk", [],
       pi ty1 (pi ty1 (pi (bv 1) (pi (bv 1) (pairAt (bv 3) (bv 2)))))⟩ 2 2,
@@ -209,6 +237,7 @@ private def eqRecTy : ConLeche.Expr :=
         (pi (bv 3) (pi (eqAt (bv 4) (bv 3) (bv 0)) (ap (ap (bv 3) (bv 1)) (bv 0)))))))
 /-- con-leche: none — the `Eq'` block. -/
 private def eqBlock : List ConstantInfo :=
+  withRules [] 2 <|
   [ .indInfo ⟨nm "Eq'", [nm "u"], pi (sortP "u") (pi (bv 0) (pi (bv 1) (.sort .zero)))⟩ {},
     .ctorInfo ⟨nm2 "Eq'" "refl", [nm "u"],
       pi (sortP "u") (pi (bv 0) (eqAt (bv 1) (bv 0) (bv 0)))⟩ 2 0,
@@ -228,6 +257,7 @@ private def truRecTy : ConLeche.Expr :=
     (pi (ap (bv 0) (c0 (nm2 "Tru" "intro"))) (pi (c0 (nm "Tru")) (ap (bv 2) (bv 0))))
 /-- con-leche: none — the `Tru` block. -/
 private def truBlock : List ConstantInfo :=
+  withRules [] 0 <|
   [ .indInfo ⟨nm "Tru", [], .sort .zero⟩ {},
     .ctorInfo ⟨nm2 "Tru" "intro", [], c0 (nm "Tru")⟩ 0 0,
     .recInfo ⟨nm2 "Tru" "rec", [nm "u"], truRecTy⟩ 2 2 [rl (nm2 "Tru" "intro") 0] ]
@@ -256,6 +286,7 @@ private def abRecTy (last : ConLeche.Expr) : ConLeche.Expr :=
           last))))
 /-- con-leche: none — the mutual block. -/
 private def abBlock : List ConstantInfo :=
+  withRules [] 0 <|
   [ .indInfo ⟨nm "A", [], ty1⟩ {},
     .indInfo ⟨nm "B", [], ty1⟩ {},
     .ctorInfo ⟨nm2 "A" "a", [], cA⟩ 0 0,
@@ -297,6 +328,7 @@ private def lRecTy : ConLeche.Expr :=
         (pi (lAt (bv 3)) (ap (bv 3) (bv 0))))))
 /-- con-leche: none — the container block `L`. -/
 private def lBlock : List ConstantInfo :=
+  withRules [] 1 <|
   [ .indInfo ⟨nm "L", [], pi ty1 ty1⟩ {},
     .ctorInfo ⟨nm2 "L" "nil", [], pi ty1 (lAt (bv 0))⟩ 1 0,
     .ctorInfo ⟨nm2 "L" "cons", [], pi ty1 (pi (bv 0) (pi (lAt (bv 1)) (lAt (bv 2))))⟩ 1 2,
@@ -319,6 +351,7 @@ private def treeRecTy (last : ConLeche.Expr) : ConLeche.Expr :=
 /-- con-leche: none — the nested block: one former, one constructor, TWO
 recursors. -/
 private def treeBlock : List ConstantInfo :=
+  withRules [.indDecl lBlock 1] 0 <|
   [ .indInfo ⟨nm "Tree", [], ty1⟩ {},
     .ctorInfo ⟨nm2 "Tree" "node", [], pi (lAt cT) cT⟩ 0 1,
     .recInfo ⟨nm2 "Tree" "rec", [nm "u"], treeRecTy (pi cT (ap (bv 5) (bv 0)))⟩ 5 5

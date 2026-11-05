@@ -32,10 +32,9 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO — **the io
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove CoreIO.coreKnotIO_bridge, then delete this line
 knot** (the leaf lane).  Its own `inferIO` slot is the io body again: the io
 grade is idempotent, there being nothing below io to select. -/
-def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
+def coreKnotIO (mode : CheckMode) (eager : Bool) (fe : IFEnv) : Nat → CoreFnsA
   | 0 =>
     { whnfCore := fun _ _ _ => fail (.internal "fuel exhausted: whnfCore")
       whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
@@ -44,11 +43,11 @@ def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
       defeqE := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
-    { whnfCore := (coreKnot mode fe id (fuel + 1)).whnfCore
-      whnf := (coreKnot mode fe id (fuel + 1)).whnf
-      defeq := (coreKnot mode fe id (fuel + 1)).defeq
-      defeqE := (coreKnot mode fe id (fuel + 1)).defeqE
-      infer := fun d e => inferBodyIO (coreKnotIO mode fe fuel) fe d e
-      inferIO := fun d e => inferBodyIO (coreKnotIO mode fe fuel) fe d e }
+    { whnfCore := (coreKnot mode eager fe id (fuel + 1)).whnfCore
+      whnf := (coreKnot mode eager fe id (fuel + 1)).whnf
+      defeq := (coreKnot mode eager fe id (fuel + 1)).defeq
+      defeqE := (coreKnot mode eager fe id (fuel + 1)).defeqE
+      infer := fun d e => inferBodyIO (coreKnotIO mode eager fe fuel) fe d e
+      inferIO := fun d e => inferBodyIO (coreKnotIO mode eager fe fuel) fe d e }
 
 end ConRon.Arena

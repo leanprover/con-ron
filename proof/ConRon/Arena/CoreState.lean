@@ -124,7 +124,7 @@ structure Caches where
   /-- The same for an interned universe-argument LIST (`readLevels`). -/
   readLsC : Std.HashMap LsIdx (List Level)
   /-- **The eager tower's mode memos** (con-leche `CState.eagerMemos`): the
-  six entry-point tables of the eager tower (the knot at `mode.toEager`, the
+  six entry-point tables of the eager tower (the knot at `eager := true`, the
   `defeqE` slot), stored here between eager comparisons and swapped in for
   each one (`enterEager`).  Kept for the declaration like the plain ones, and
   apart from them: an eager entry never serves a plain query, nor the other

@@ -84,7 +84,8 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
+con-leche: ConLeche/Cached/ParsedC.lean:129-150 checkIndDeclC — **check a
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)

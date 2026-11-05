@@ -120,9 +120,7 @@ def blockRawRec (p : BlockParts) : AM Bool := do
 /-! ## Stage 1: the formers -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:111-122 checkBlockTele
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 One member's type former: the constant check, official's telescope loop and
 the result sort, without the environment cons. -/
 def checkBlockTele (mode : CheckMode) (fe : IFEnv) (nP : Nat) (ms : MemberShape) :
@@ -196,9 +194,7 @@ def consBlockInds (p₁ : BlockShape) (isRec : Bool) :
     consBlockInds p₁ isRec rest (i + 1) (fe.push (.indInfo cvTa caps))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:179-192 checkBlockInds
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockInstall.checkBlockInds_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockInstall.checkBlockInds_bridge, then delete this line
 **Stage 1**: the k type formers, checked, agreed and consed — official's
 `declare_inductive_types`, which puts every former in the environment before
 any constructor is looked at. -/
@@ -230,7 +226,6 @@ def BlockShape.nestCtx (p : BlockShape) (fvsP : List EIdx) : AM NestCtx := do
          params := fvsP, sort := p.resSort, lvls := lvls }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:204-216 checkBlockCtors
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockInstall.checkBlockCtors_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
 The constructors of every member (beside its checked former), at the
 environment holding ALL the formers, each stored as declared; the constructors

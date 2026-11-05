@@ -189,7 +189,7 @@ pub const M_FAMILY: [u32; 58] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:45-59 recDomsAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 recDomsAt` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:33-48 recDomsAt` — **the
 /// stored type's domains against the generated one's**, binder by binder from
 /// binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
 /// one at its depth, both telescopes opened at their own locals.
@@ -224,7 +224,7 @@ pub fn rec_doms_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:61-74 recTyOpened
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 recTyOpened` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:50-60 recTyOpened` — the
 /// stored and the generated type, opened `n` binders deep: the domains, then
 /// the residues.
 pub fn rec_ty_opened(
@@ -254,7 +254,7 @@ pub fn rec_ty_opened(
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-90 recTyCheck
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedClosed` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:62-71 storedClosed` — the
 /// test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`.
 pub fn stored_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Result<bool, CheckError> {
     match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, s) {
@@ -272,7 +272,7 @@ pub fn stored_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Re
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-90 recTyCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 recTyCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:73-89 recTyCheck` — **the
 /// stored type's check**: closed, at the record's level parameters `lps`,
 /// resolving, a type (inferred, a sort), and the generated one binder by binder
 /// up to the major (`n` binders): the domains, then the residues.
@@ -318,7 +318,7 @@ pub fn rec_ty_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 ruleAgree` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:91-107 ruleAgree` — **one
 /// stored rule's check**: the stored right-hand side `s` is closed, at the
 /// record's level parameters `lps`, resolving; it and the generated `g` are
 /// inferred, their types are definitionally equal, and so are they.
@@ -407,7 +407,7 @@ pub fn stored_nested_bvars(pers: &PersTier, st: &mut AState, k: u64, out: Vec<EI
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedNestedDom` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:109-127 storedNestedDom` — the
 /// major's domain against the firing data: its head a constant at the firing
 /// levels, its arguments the pins lifted past the index binders and the index
 /// variables.
@@ -453,7 +453,7 @@ pub fn stored_nested_dom(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedNestedOk` — **an
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:129-144 storedNestedOk` — **an
 /// auxiliary recursor's stored type fires where the generated one does**: its
 /// major's domain (binder `m_i`) is the container at the firing data's levels,
 /// applied to the pins lifted past the index binders and the index variables.
@@ -486,7 +486,7 @@ pub fn stored_nested_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:133-138 storedFireOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedFireOf` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:146-152 storedFireOf` — the
 /// firing mode the generated recursor's rules carry at its major: `.nested` at
 /// an outside major, `.plain` at a member.
 pub fn stored_fire_of(pers: &PersTier, st: &mut AState, m: &TargetMajor, r_p: u64) -> Result<IRecRuleFire, CheckError> {
@@ -497,7 +497,7 @@ pub fn stored_fire_of(pers: &PersTier, st: &mut AState, m: &TargetMajor, r_p: u6
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:140-152 storedRulesShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedRulesShape` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:154-163 storedRulesShape` — the
 /// stored rules' shape against the generated recursor's class, from `i` on: one
 /// rule per constructor of the class, in order, each with its field count.
 pub fn stored_rules_shape(rs: &Vec<IRecRule>, cs: &Vec<(IConstantVal, u64)>, i: usize) -> Result<(), CheckError> {
@@ -513,7 +513,7 @@ pub fn stored_rules_shape(rs: &Vec<IRecRule>, cs: &Vec<(IConstantVal, u64)>, i: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:154-163 storedRulesCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedRulesCheck` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:165-175 storedRulesCheck` — the
 /// stored rules' checks from `i` on, each against the generated right-hand side
 /// at its position (a rule equal to the generated one needs none).
 #[allow(clippy::too_many_arguments)]
@@ -542,7 +542,7 @@ pub fn stored_rules_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:165-172 storedRecCompare
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedRecCompare` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:177-184 storedRecCompare` — **the
 /// comparison of one recursor**: its stored type unless it is the generated
 /// one, and its stored rules.
 pub fn stored_rec_compare(
@@ -564,7 +564,7 @@ pub fn stored_rec_compare(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:174-183 storedRecCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedRecCheck` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:186-195 storedRecCheck` — **one
 /// recursor, stored against generated**: the rules' shape and the stored major's
 /// container, decided before anything is compared, then the comparison.
 pub fn stored_rec_check(
@@ -589,7 +589,7 @@ pub fn stored_rec_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:185-193 storedRecsCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedRecsCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:197-206 storedRecsCheck` — **the
 /// block's stored recursors against the generated ones**, record by record from
 /// `i` on (the generated family is in the records' order).
 pub fn stored_recs_check(
@@ -614,7 +614,7 @@ pub fn stored_recs_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:195-202 storedOut
-/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:1-1 storedOut` — **what is
+/// Lean twin: `proof/ConRon/Arena/Inductives/StoredRecs.lean:208-215 storedOut` — **what is
 /// installed**, from `i` on: each generated recursor with the stored type and
 /// the stored right-hand sides, at the generated recursor's name, level
 /// parameters and major (the shorter of the two lists decides, as the cited

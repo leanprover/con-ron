@@ -55,8 +55,8 @@
 //! #97-P5-Driver moved it into the core) over [`HandleSource`], the handle
 //! read strictly forward 4 MiB at a time, each buffer fed to `chunk_step` and
 //! dropped, the first empty read its end of file and `chunk_finish` the
-//! close.  Never seeked, never re-opened, never asked for its size — so the
-//! source may be a pipe and no scratch file exists (con-leche task #180).
+//! close.  Never seeked, never re-opened, and no scratch file
+//! exists; the input is a regular file, checked before it is opened.
 //! `parse_source` is `export_c::parse_chunks` over the chunks read — a
 //! theorem (`Refine2/Frontend/Source.lean`), under the one hypothesis about
 //! the input the binary trusts: that the reads are the file's bytes, in

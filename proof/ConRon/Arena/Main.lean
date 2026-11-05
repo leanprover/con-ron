@@ -37,7 +37,7 @@ checking, so P2b–P2e grow the checker without touching the driver, and the
 capstone of §8.2 will be a statement about this one function.  It is the
 same shape as con-leche's `checkMain` ∘ `parseChunks`, minus the IO: the
 heartbeat, the receipts and the diagnostics are the driver's and touch no
-verdict (`ConLeche/Driver/Run.lean`'s `checkMain`, its own argument for why ONE loop serves the
+verdict (`ConLeche/Driver/CheckMain.lean`'s `checkMainG`, its own argument for why ONE loop serves the
 plain run and `--progress` alike).
 
 **What is NOT here.**  No `import ConRon.Refine`: (B) is a checker, not a
@@ -89,7 +89,6 @@ representation-free types rather than copying them), and two spellings of one
 two-constructor enum in one import closure is one too many. -/
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:31-38 ConLeche.CheckError.exitCode
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.CheckError.exitCode_bridge, then delete this line
 The exit code of each error kind.  1 rejected, 2 declined, 3 error; 0 is
 the accept and has no error to map.  The 1/2 distinction is con-leche's
 and is load-bearing: a reject is a verdict about the input, a decline a
@@ -97,14 +96,13 @@ statement about the checker, and a decline is never "something
 unexpectedly went wrong" — that is 3.  `native` — the arena's own fourth
 kind, raised when §8.3's handle word runs out at its index cap per constructor
 per tier — is a 3 for the same reason: it claims nothing about the input. -/
-def CheckError.exitCode : CheckError → UInt32
+def CheckError.exitCode : CheckError → UInt8
   | .notImplemented _ => 2
   | .invalid _ => 1
   | .internal _ => 3
   | .native _ => 3
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:31-38 ConLeche.CheckError.exitCode
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.CheckError.message_bridge, then delete this line
 The message a failing run prints, beside the code above.  con-leche builds
 it from the error's own `ToString`; the arena's is the same three words in
 front of the same payload, plus its own for `native`. -/
@@ -129,20 +127,19 @@ shipped binary passes `ConLeche.natOpPinSets`, the variants this toolchain
 committed, exactly as con-leche's driver does. -/
 
 /-- con-leche: none — the read size, 4 MiB, so a Mathlib-scale export never
-materialises as one buffer and the handle stays readable as a pipe.  It is
+materialises as one buffer.  It is
 `Frontend.chunkSize` (con-leche's `ExportC.lean:813-814`), named here so the
 driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
-/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
 `chunks` are the 4 MiB reads in order, `mode` the checking mode, `pins`
 the pin-variant list; the result is the FILE's accepted
 declaration-record count — con-leche's verdict number, "a property of the
-INPUT" (`ConLeche/Driver/Run.lean`'s `checkMain`).
+INPUT" (`ConLeche/Driver/CheckMain.lean`'s `checkMainG`).
 
 **The FRONTEND half is real since task #97e**: the built-in prelude is
 parsed, the stream's chunks are parsed into the persistent tier of one
@@ -169,14 +166,13 @@ def runPipelineHead :
   | .error e => pure (.error e)
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
-/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
 The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
 #97d), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
 
 The verdict number is con-leche's own, "a property of the INPUT"
-(`ConLeche/Driver/Run.lean`'s `checkMain`): the records the parse produced, which no later step
+(`ConLeche/Driver/CheckMain.lean`'s `checkMainG`): the records the parse produced, which no later step
 moves.  The fold's own environment is discarded — an accept is the
 statement, not the environment.
 
@@ -222,8 +218,7 @@ validated all the same, because `scripts/diff-e2e.sh` passes it on every
 fixture and because §8.3's parallel plan is already written down: the
 persistent tier is immutable in phase B and each worker owns a scratch
 tier, so the count will mean what con-leche's means when P2d gets there.
-An accepted-and-ignored flag is what `con-ron`'s own driver does with
-`--no-mark-persistent`, for the same reason. -/
+-/
 def jobsCount (v : String) : Except String Nat :=
   match v.toNat? with
   | some 0 => .error "--jobs takes a worker count of at least 1 \
@@ -242,13 +237,13 @@ def msSecs (ms : Nat) : String :=
   let c := (ms % 1000) / 10
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
-/-- con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.readFold_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
-never re-opened, never asked for its size — so the source may be a pipe, and
-no scratch file exists anywhere (con-leche's task #180).
+never re-opened, and no scratch file exists anywhere.  Deviation from
+`foldChunks`, whose reads are positional through con-leche's `CheckerIO` class:
+these are sequential and forward, and there is no class.
 
 **This is the same fold as `Frontend.parseChunksGo`**, which the pure seam
 runs over a chunk LIST: the same `chunkStep` at the same four accumulators,
@@ -279,8 +274,7 @@ partial def readFold (h : IO.FS.Handle)
     | .ok (.ok (st, carry, lineNo, total), s) =>
       readFold h st carry lineNo total (chunks + 1) s
 
-/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -307,15 +301,14 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
-/-- con-leche: Main.lean:91-312 usage
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.usage_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Cli.lean:97-293 usage
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same
 so that a script written against one reads against the other. -/
 def usage : String := String.intercalate "\n" [
   "usage: con-ron-lean [--verified|--trusted] [--jobs=<n>] [--no-pins]",
-  "                    [--progress[=<stride>]] FILE.ndjson",
+  "                    [--progress[=<stride>]] [--] FILE.ndjson",
   "       con-ron-lean --help",
   "",
   "  (B), the Lean arena checker of con-ron's DESIGN.md section 8: con-leche's",
@@ -332,10 +325,6 @@ def usage : String := String.intercalate "\n" [
   "                    today ignored: the arena checker is single-threaded",
   "                    until section 8.3's scratch-tier-per-worker plan is",
   "                    built.  0 or a non-numeral is a usage error.",
-  "  --no-mark-persistent",
-  "                    accepted and ignored: the mark is a Lean-runtime",
-  "                    measurement switch of the shipped con-leche, and the",
-  "                    arena's two tiers are not it.  It changes no verdict.",
   "  --no-pins         check with the EMPTY Nat-operation pin list instead of",
   "                    the toolchain's own.  con-ron's flag, not con-leche's,",
   "                    and the third row of scripts/diff-e2e.sh's matrix: the",
@@ -346,10 +335,13 @@ def usage : String := String.intercalate "\n" [
   "                    is stride 1.  A stride that is not a decimal numeral,",
   "                    or 0, is a usage error.  The flag may come before or",
   "                    after the other flags.",
+  "  --                every argument after it is a file, whatever it is called;",
+  "                    FILE.ndjson is a regular file, read forward (a FIFO or a",
+  "                    directory is exit 3)",
   "  --help            print this text on STDOUT and exit 0, in any argument",
-  "                    position; no input is read.",
+  "                    position before any --; no input is read.",
   "",
-  "EXIT CODES, con-leche's (Main.lean:15-31):",
+  "EXIT CODES, con-leche's (ConLeche/Driver/CheckMain.lean):",
   "  0  accepted -- every declaration checked; the verdict line names the",
   "     FILE's declaration-record count, which is a property of the input",
   "  1  rejected -- a declaration is invalid",
@@ -367,30 +359,27 @@ def usage : String := String.intercalate "\n" [
   "What is NOT here is the PROOF: Theorem 1 of section 8.2 (this checker",
   "accepting implies con-leche's pure checker accepting) is phase P3."]
 
-/-- con-leche: Main.lean:314-328 Args
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.Args_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Cli.lean:348-364 Args
 The parsed command line.  `progress = 0` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
   mode : CheckMode := .verified
   progress : Nat := 0
   jobs : Option Nat := none
-  noMark : Bool := false
   noPins : Bool := false
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: Main.lean:330-358 parseArgs
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.parseArgs_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Cli.lean:380-414 parseArgs
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
 def parseArgs : List String → Args → Args
   | [], a => a
+  | "--" :: rest, a => { a with files := a.files ++ rest.toArray }
   | "--verified" :: rest, a => parseArgs rest { a with mode := .verified }
   | "--trusted" :: rest, a => parseArgs rest { a with mode := .trusted }
   | "--progress" :: rest, a => parseArgs rest { a with progress := 1 }
-  | "--no-mark-persistent" :: rest, a => parseArgs rest { a with noMark := true }
   | "--no-pins" :: rest, a => parseArgs rest { a with noPins := true }
   | s :: rest, a =>
     if s.startsWith "--progress=" then
@@ -408,6 +397,12 @@ def parseArgs : List String → Args → Args
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
 
+/-- con-leche: ConLeche/Driver/Cli.lean:366-369 helpWanted
+`--help` before any `--`: after a `--` every argument is a file, whatever it is
+called. -/
+def helpWanted (args : List String) : Bool :=
+  (args.takeWhile (· != "--")).contains "--help"
+
 /-- con-leche: none — con-leche prints a command-line path raw
 A text that came from outside the input proper (a command-line path, an IO
 error, which names that path), for a message: as it is when it holds nothing
@@ -417,20 +412,22 @@ con-leche prints it.  The Rust driver's `render::display_path`. -/
 def displayPath (s : String) : String :=
   if s.any fun c => c == '\\' || c == '"' || Display.unsafeChar c then Display.str s else s
 
-/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
 log, whatever it says — and what the heartbeat prints between the steps
 touches no verdict, which is why there is one path and not two. -/
 def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
-    (stride : Nat) : IO UInt32 := do
+    (stride : Nat) : IO UInt8 := do
   let t0 ← IO.monoMsNow
   let modeTag : String := match mode with
-    | .verified | .verifiedEager => "--verified"
-    | .trusted | .trustedEager => "--trusted"
+    | .verified => "--verified"
+    | .trusted => "--trusted"
   let h? ← try
+      let md ← System.FilePath.metadata file
+      unless md.type == .file do
+        throw (.inappropriateType (some file) 21 "not a regular file")
       pure (some (← IO.FS.Handle.mk file .read))
     catch e => do
       IO.eprintln s!"con-ron-lean: {displayPath file}: {displayPath (toString e)} ({modeTag})"
@@ -457,13 +454,12 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     return e.exitCode
 
 /-- con-leche: Main.lean:33-93 main
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Main.main_bridge, then delete this line
-`--help` in any argument position prints the usage on stdout and exits 0,
-reading nothing.  A bad flag prints its message and the usage on stderr
+`--help` before any `--` prints the usage on stdout and exits 0, reading
+nothing.  A bad flag prints its message and the usage on stderr
 and exits 3, as does a command line that does not name exactly one file.
 Everything else runs the checker IN THIS PROCESS. -/
-def main (args : List String) : IO UInt32 := do
-  if args.contains "--help" then
+def main (args : List String) : IO UInt8 := do
+  if helpWanted args then
     IO.println usage
     return 0
   let a := parseArgs args {}

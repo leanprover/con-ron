@@ -256,7 +256,6 @@ def installFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .ok p' => installFold mode pins p' ds
 
 /-- con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending — **phase
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Checker.checkPending_bridge, then delete this line
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 

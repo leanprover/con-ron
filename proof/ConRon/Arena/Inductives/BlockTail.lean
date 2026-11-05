@@ -21,6 +21,10 @@ twin is `arena::inductives::block_tail`.
 * **`checkBlockTablesF`'s walkers are the arena's**
   (`Arena/Inductives/StructInstall.lean`'s `checkStructProjTable`, the one
   table install).
+* **The generated install is pushed in place and popped** (`consBlockRecsTemp`,
+  `IFEnv.popTemp`), where con-leche's cached driver reads an overlay on the
+  constructors' index (`FEnv.overlay`): the same read-only environment, a flush
+  entering and leaving it, and no copy of the index.
 * **`checkBlockPass` is two functions in the Rust** (`check_block_pass` and
   `check_block_pass_classes`, the latter "part of" the former); here it is
   one, with the same binds in the same order.
@@ -28,6 +32,7 @@ twin is `arena::inductives::block_tail`.
 module
 
 public import ConRon.Arena.Inductives.GenRec
+public import ConRon.Arena.Inductives.StoredRecs
 public import ConRon.Arena.Inductives.BlockInstall
 
 @[expose] public section
@@ -57,7 +62,6 @@ structure BlockPass where
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
 con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockTail.checkBlockPass_bridge, then delete this line
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -109,13 +113,46 @@ def checkBlockTables (p : BlockShape) :
     | _, _ => checkBlockTables p ms css sss fe
   | _, _, _, fe => pure fe
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
 con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
+**The generated install, pushed TEMPORARILY**: each generated recursor with its
+rules at its major (the lookups at the constructors' bound `vis₂`).  Returns the
+rows the pushes displaced (`idx[n]?` before each push), in push order, for the
+pop. -/
+def consBlockRecsTemp (vis₂ : Nat) (p : BlockShape) :
+    Nat → List (IConstantVal × TargetMajor × List EIdx) → IFEnv →
+      List (NIdx × Option (Nat × IConstantInfo)) →
+      AM (IFEnv × List (NIdx × Option (Nat × IConstantInfo)))
+  | _, [], fe, prevs => pure (fe, prevs)
+  | m, (cv, M, rhss) :: rest, fe, prevs => do
+    let mI := p.majorIdxAt m
+    let rP := p.rulePrefixAt m
+    let rules ← tgtStoredRules (fe.restrictTo vis₂) cv rP M rhss
+    let prev := fe.idx[cv.name]?
+    consBlockRecsTemp vis₂ p (m + 1) rest (fe.push (.recInfo cv mI rP rules))
+      (prevs ++ [(cv.name, prev)])
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
+con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
+**The stored recursors against the generated ones, and their install**: the
+generated install pushed, a flush entering it, the comparison, the pushes undone
+in reverse order, a flush leaving it, and the stored recursors consed at their
+majors. -/
+def checkBlockTailStored (mode : CheckMode) (vis₂ : Nat) (p : BlockShape)
+    (out : List (IConstantVal × TargetMajor × List EIdx)) (fe : IFEnv) : AM IFEnv := do
+  let (feG, prevs) ← consBlockRecsTemp vis₂ p 0 out fe []
+  flushCaches
+  storedRecsCheck mode feG p.recs out
+  let fe2 := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG
+  flushCaches
+  consBlockRecsTF vis₂ p 0 (storedOut p.recs out) fe2
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
+con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
-recursors consed at their majors, and the projection tables. -/
+stored recursors against the generated ones and consed at their majors, and the
+projection tables. -/
 def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPass) :
     AM IFEnv := do
   let _isorts ← checkBlockIdxSorts mode q.env1 q.p.shape q.p.shape.members q.cvTas
@@ -125,7 +162,7 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   let nested := blockNestedBit q.p.shape q.kinds
   let (fe₂b, out) ← checkBlockRec mode fe₂ q.p nested q.params q.tbl q.rd q.cls
     block q.cvTas
-  let fe₃ ← consBlockRecsTF vis₂ q.p.shape 0 out fe₂b
+  let fe₃ ← checkBlockTailStored mode vis₂ q.p.shape out fe₂b
   checkBlockTables q.p.shape q.p.shape.members q.ctorsAs q.sortsss fe₃
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:144-152 checkBlock

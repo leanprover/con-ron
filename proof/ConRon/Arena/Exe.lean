@@ -15,20 +15,18 @@ the root has to stay importable by any closure (task #97-COMPOSE).
 -/
 
 /-- con-leche: Main.lean:33-93 main
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Exe.main_bridge, then delete this line
-con-leche: Main.lean:360-428 run
--- con-leche: CHANGED since 0d2f467b — re-port, re-test, re-prove Exe.main_bridge, then delete this line
+con-leche: ConLeche/Driver/Cli.lean:424-504 runArgs
 Lake's entry point.  A `lean_exe`'s root module must declare a TOP-LEVEL
 `main`, and the driver (`ConRon/Arena/Main.lean`) lives in the `ConRon.Arena` namespace with the
 rest of (B), so this forwards to it — the arrangement `ConRon/Gen/Main.lean`
-already uses.  Around it, con-leche's `run`/`main` split: an uncaught IO
+already uses.  Around it, con-leche's `runArgs`/`main` split: an uncaught IO
 error is exit 3, never a reject (con-leche task #335), and the process ends
 right after the verdict with the two streams flushed, without unwinding the
 heap (task #336). -/
-def main (args : List String) : IO UInt32 := do
+def main (args : List String) : IO Unit := do
   let code ← try ConRon.Arena.main args catch e => do
     (try IO.eprintln s!"con-ron-lean: internal error: {ConRon.Arena.displayPath (toString e)}" catch _ => pure ())
     pure 3
   (← IO.getStdout).flush
   (← IO.getStderr).flush
-  IO.Process.exit code.toUInt8
+  IO.Process.exit code

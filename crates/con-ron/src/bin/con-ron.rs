@@ -163,9 +163,9 @@ external tool, no dependency and no spawn.  Every inductive block --
 structures, sums, indexed families, recursive, reflexive, mutual and nested
 blocks -- is installed by the ONE uniform installer: it checks the type formers
 and constructors, runs the positivity check, and GENERATES the block's
-recursors; the stream's recursor records supply only their types, compared with
-the generated ones up to definitional equality, and their classes -- the rule
-bodies the stream carries are ignored.  No model is ever read from the input: a
+recursors; the stream's recursor records are compared with the generated ones
+up to definitional equality, types and rules, and what is installed is the
+stream's type and rules' right-hand sides.  No model is ever read from the input: a
 stream record whose name carries a `_model` component is an ordinary
 declaration with no effect on any block.  A block whose shape the installer
 does not recognise declines (exit 2), naming it.  The binary reads no
