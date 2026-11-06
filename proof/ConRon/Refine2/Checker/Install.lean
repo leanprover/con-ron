@@ -14,6 +14,7 @@ twin maps; each cursor lemma reads `<abs> o = <abs> out ++ <the twin from the
 cursor on>`, the shape of `Refine2/Inductives/StructParts.lean`'s cursors.
 -/
 import ConRon.Refine2.Checker.Shape
+import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Arena.Install
 
@@ -178,6 +179,30 @@ theorem rules_with_fire_abs {rules : alloc.vec.Vec arena.env.IRecRule}
     exact ⟨i3, _, out1, absSz_add_one hi3, ConRon.Refine.vec_push_val hout1,
       by simp [absIRecRule, dupId_nidx _ _ hn, dupId_eidx _ _ he,
         i_rec_rule_fire_dup_abs hirf], h⟩
+
+/-! ## A block's constants and tables -/
+
+/-- `block_recs` ⊑ `blockRecs` from the recursor cursor on, behind the
+accumulator: each record with its rules' firing mode. -/
+theorem block_recs_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (p : arena.inductives.block_shape.BlockShape)
+    (rs : alloc.vec.Vec arena.inductives.block_shape.RecShape) (i : Std.Usize)
+    (out : alloc.vec.Vec arena.env.IConstantInfo) :
+    Lockstep.LS pers (fun a b => a.val.map absIConstantInfo = out.val.map absIConstantInfo ++ b)
+      (arena.install.block_recs pers st p rs i out) lst
+      (blockRecs (absBlockShape p) ((rs.val.drop i.val).map absRecShape)) := by
+  sorry -- T143-STUB
+
+/-- `block_tables` ⊑ `blockTables` from the member cursor on, behind the
+accumulator: one table per structure-like member. -/
+theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (p : arena.inductives.block_shape.BlockShape)
+    (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) (i : Std.Usize)
+    (out : alloc.vec.Vec arena.env.IProjTable) :
+    Lockstep.LS pers (fun a b => a.val.map absIProjTable = out.val.map absIProjTable ++ b)
+      (arena.install.block_tables pers st p ms i out) lst
+      (blockTables (absBlockShape p) ((ms.val.drop i.val).map absMemberShape)) := by
+  sorry -- T143-STUB
 
 /-! ## What a declaration installs -/
 

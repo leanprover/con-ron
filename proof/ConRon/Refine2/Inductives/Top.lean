@@ -13,7 +13,7 @@ over the three companions this module exports:
 
 | Rust | twin |
 |---|---|
-| `block_parts::block_parts` | `blockParts?` |
+| `block_shape::block_shape` | `blockShape?` |
 | `block_tail::check_block` | `checkBlock` |
 | `check_decl::check_shapeless` | `checkShapeless` |
 
