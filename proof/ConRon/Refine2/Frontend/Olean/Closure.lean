@@ -131,6 +131,22 @@ abbrev NSet := SetRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable abs
 /-- `EIdx`'s table, as a set of the twin's handles. -/
 abbrev ESet := SetRel arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable absEIdx
 
+/-! ## A walk's output and its fuel -/
+
+/-- The relation of a walk's output. -/
+abbrev OutA (o : alloc.vec.Vec arena.handle.NIdx) (o' : _root_.Array NIdx) : Prop :=
+  o.val.map absNIdx = o'.toList
+
+theorem out_of_fuel_eq {T : Type} {r} (h : out_of_fuel T = ok r) :
+    ∃ e, r = .Err e ∧ absAErrKind e = some .internal := by
+  rw [out_of_fuel] at h
+  exact (show LSP _ (fun o => ∃ e, o = .Err e ∧ absAErrKind e = some .internal) from by err_tail) _ h
+
+theorem internal_sim {γ : Type} {e : kernel.core_types.CheckError} {m : String}
+    (he : absAErrKind e = some .internal) :
+    AErrSim e (.error (Arena.CheckError.internal m) : Except Arena.CheckError γ) :=
+  twin_err_of_kind rfl he rfl
+
 /-! ## The import walk -/
 
 /-- An import's module, as the twin's. -/
