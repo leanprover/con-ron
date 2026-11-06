@@ -421,6 +421,131 @@ constructors, found in both lists, linked as the pin links it. -/
     hrel hinv
   simpa using h
 
+open Lockstep in
+/-- `block_link_ok_at` ⊑ `blockLinkOkAt`: a constructor carries its former's
+names; a recursor against the pin's recursor links its rules. -/
+@[lockstep] theorem block_link_ok_at_ls {pers st lst}
+    {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    {former : alloc.vec.Vec arena.handle.NIdx} {c p : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.basis.block_link_ok_at pers st block pins former c p) lst
+      (blockLinkOkAt (absICIL block) (absICIL pins) (former.val.map absNIdx)
+        (absIConstantInfo c) (absIConstantInfo p)) := by
+  rw [arena.basis.block_link_ok_at.eq_def]
+  cases c <;> cases p <;> simp only [absIConstantInfo, blockLinkOkAt] <;>
+    first
+    | exact LS.pure rfl hrel hinv
+    | exact rules_link_ok_ls hrel hinv
+    | (refine LS.bind_eq fun b hb => ?_
+       rw [nidx_vec_beq_spec _ _ b hb]
+       exact LS.pure rfl hrel hinv)
+
+open Lockstep in
+private theorem block_links_ok_go_aux {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    {former : alloc.vec.Vec arena.handle.NIdx} (k : Nat) :
+    ∀ {pers st lst} (i : Std.Usize), block.val.length - i.val = k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = id a)
+        (arena.basis.block_links_ok_go pers st block pins former i) lst
+        (blockLinksOkGo (absICIL block) (absICIL pins) (former.val.map absNIdx)
+          (absICILFrom block i) (absICILFrom pins i)) := by
+  induction k with
+  | zero =>
+    intro pers st lst i hk hrel hinv
+    rw [arena.basis.block_links_ok_go.eq_def]; simp only []
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+    have : absICILFrom block i = [] := by
+      simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    rw [this]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst i hk hrel hinv
+    have hlt : i.val < block.val.length := by omega
+    rw [arena.basis.block_links_ok_go.eq_def]; simp only []
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)]
+    have hb : absICILFrom block i = absIConstantInfo block.val[i.val] ::
+        (block.val.drop (i.val + 1)).map absIConstantInfo := by
+      simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hlt]; rfl
+    rw [hb]
+    by_cases hpl : pins.val.length ≤ i.val
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+      have : absICILFrom pins i = [] := by
+        simp only [absICILFrom]; rw [List.drop_eq_nil_of_le hpl]; rfl
+      rw [this]
+      exact LS.pure rfl hrel hinv
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+      have hlp : i.val < pins.val.length := Nat.lt_of_not_le hpl
+      have hp : absICILFrom pins i = absIConstantInfo pins.val[i.val] ::
+          (pins.val.drop (i.val + 1)).map absIConstantInfo := by
+        simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hlp]; rfl
+      rw [hp]
+      obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlt)
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlp)
+      subst hxv hyv
+      rw [alloc.vec.Vec.index_slice_index, hx, bind_ok, alloc.vec.Vec.index_slice_index, hy,
+        bind_ok]
+      simp only [blockLinksOkGo]
+      refine LS.bind (block_link_ok_at_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+      intro a b st1 lst1 hab hrel1 hinv1
+      cases a with
+      | false =>
+        simp only [id] at hab; subst hab
+        exact LS.pure rfl hrel1 hinv1
+      | true =>
+        simp only [id] at hab; subst hab
+        simp only [ite_true]
+        refine LS.bind_eq fun i3 hi3 => ?_
+        have hi3v : i3.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
+        have h := ih i3 (by omega) hrel1 hinv1
+        simp only [absICILFrom, hi3v] at h
+        exact h
+
+open Lockstep in
+/-- `block_links_ok` ⊑ `blockLinksOk`: the pairs from the start, the former's
+names those of the block's first member. -/
+@[lockstep] theorem block_links_ok_ls {pers st lst}
+    {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.block_links_ok pers st block pins) lst
+      (blockLinksOk (absICIL block) (absICIL pins)) := by
+  rw [arena.basis.block_links_ok]
+  unfold blockLinksOk
+  refine LS.bind_eq fun former hf => ?_
+  have hfv : former.val.map absNIdx =
+      (((absICIL block).head?.map (·.toConstantVal.levelParams)).getD []) := by
+    by_cases h0 : alloc.vec.Vec.len block = 0#usize
+    · rw [ite_eq_left h0] at hf
+      obtain rfl := (Result.ok_injective hf).symm
+      have hl : block.val = [] := by
+        have := congrArg Std.UScalar.val h0
+        simpa [alloc.vec.Vec.len] using this
+      simp [absICIL, hl, alloc.vec.Vec.new]
+    · rw [ite_eq_right h0] at hf
+      have hlt : 0 < block.val.length := by
+        rcases hb : block.val with _ | ⟨c, cs⟩
+        · exact absurd (Std.UScalar.eq_of_val_eq (by simp [alloc.vec.Vec.len, hb])) h0
+        · simp
+      obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists
+        (alloc.vec.Vec.index_usize_spec block 0#usize (by simpa using hlt))
+      subst hxv
+      rw [alloc.vec.Vec.index_slice_index, hx, bind_ok] at hf
+      obtain ⟨iv, hiv, hf⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf
+      obtain rfl := (Result.ok_injective hf).symm
+      have e := i_constant_info_to_constant_val_abs hiv
+      rcases hb : block.val with _ | ⟨c, cs⟩
+      · simp [hb] at hlt
+      · simp only [absICIL, hb, List.map_cons, List.head?_cons, Option.map_some,
+          Option.getD_some]
+        have : (↑block : List _)[(0#usize : Std.Usize).val] = c := by simp [hb]
+        rw [this] at e
+        rw [← e]; rfl
+  have h := block_links_ok_go_aux (block := block) (pins := pins) (former := former) _ 0#usize rfl
+    hrel hinv
+  simp only [absICILFrom, show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
+  rw [hfv] at h
+  exact h
+
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
