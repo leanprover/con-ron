@@ -71957,7 +71957,7 @@ IndexBuild,Install,Basis,OleanPool}`, `Core/LS/ProjGuard`, `Frontend/Olean/{Lazy
 deleted `Refine/{BasisTables,BasisPins}`, `Checker/EnvExt`, `Core/Frame`, `Inductives/StoredInstall`,
 `Promote/Promote` (and the renames BlockParts → BlockShape, StoredRecs → StreamRecs).  One statement
 the lockstep corrected: `check_block_tail_stream_ls`'s twin now runs `checkBlockTables` before it
-returns, as the Rust does there.  Two deliberate near-duplicates: GenRecCheck keeps its own
+returns, as the Rust does there.  One deliberate near-duplicate: GenRecCheck keeps its own
 `ifenv_push_temp`/`pop_temp` specs, since it pops layers that only answer like the pushed one and needs
 the index map's invariant, which `Checker/Base`'s pair does not give.
 
