@@ -224,24 +224,6 @@ theorem root_constants_pr {pers : arena.store.PersTier} {ar : arena.store.EStore
 
 /-! ## The modules' references -/
 
-/-- `table_empty` is upstream's empty table. -/
-theorem table_empty_rel {T α : Type} {A : T → α} {t}
-    (h : frontend.olean.sparse.table_empty T = ok t) : TableRel A t {} := by
-  rw [frontend.olean.sparse.table_empty] at h
-  cases Result.ok_injective h
-  exact ⟨by simp [show (alloc.vec.Vec.new Std.U64).val = [] from Slice.from_val _ _],
-    by simp [show (alloc.vec.Vec.new T).val = [] from Slice.from_val _ _]⟩
-
-/-- `frontier_empty` is the twin's empty frontier. -/
-theorem frontier_empty_rel {b} (h : frontend.olean.sparse.frontier_empty = ok b) : FrontierRel b {} := by
-  rw [frontend.olean.sparse.frontier_empty] at h
-  peel h as t, ht
-  peel h as t1, ht1
-  peel h as t2, ht2
-  peel h as t3, ht3
-  cases Result.ok_injective h
-  exact ⟨table_empty_rel ht, table_empty_rel ht1, table_empty_rel ht2, table_empty_rel ht3⟩
-
 /-- A module with its frontier moved out, as the twin's `modRefs` leaves it. -/
 @[reducible] def clearFr (l : Arena.Frontend.Olean.Loaded) : Arena.Frontend.Olean.Loaded :=
   { l with frontier := {} }

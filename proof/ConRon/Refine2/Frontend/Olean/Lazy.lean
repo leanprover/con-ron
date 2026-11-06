@@ -407,12 +407,141 @@ theorem frontier_walk_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} 
       (values.val.map (·.val)).reverse := by
   sorry -- T143-STUB
 
+/-- `table_add` is upstream's `Table.add`. -/
+theorem table_add_rel {T α : Type} {A : T → α} {tb : frontend.olean.sparse.Table T}
+    {tb' : ConLeche.Frontend.Olean.Table α} (ht : TableRel A tb tb') {c : Std.U64} {v : T} {t2}
+    (h : table_add tb c v = ok t2) : TableRel A t2 (tb'.add c.val (A v)) := by
+  rw [table_add] at h
+  peel h as k1, hk1
+  peel h as v1, hv1
+  cases Result.ok_injective h
+  refine ⟨?_, ?_⟩
+  · show k1.val.map (·.val) = (tb'.keys.push c.val).toList
+    rw [ConRon.Refine.vec_push_val hk1, List.map_append, ht.keys]; simp
+  · show v1.val.map A = (tb'.vals.push (A v)).toList
+    rw [ConRon.Refine.vec_push_val hv1, List.map_append, ht.vals]; simp
+
+/-- One kind's arm of `frontier_step`: a slot both marks hold goes into the table, with the
+memo's value there. -/
+theorem frontier_arm {T α : Type} {A : T → α} {m fr : alloc.vec.Vec Std.U8} {k : Std.U8}
+    {p c : Std.U64} {sub : Result (Option T)} {get : α}
+    (hsub : ∀ o, sub = ok o → o.map A = some get)
+    {tb : frontend.olean.sparse.Table T} {tb' : ConLeche.Frontend.Olean.Table α} (ht : TableRel A tb tb')
+    {R : Type} {mk : frontend.olean.sparse.Table T → R} {r0 : R} (hr0 : r0 = mk tb) {res}
+    {K : Option T → Result R} (hKn : K none = ok r0)
+    (hKs : ∀ v, K (some v) = Std.bind (table_add tb c v) (fun t => ok (mk t)))
+    {b1 : Bool} (hb1 : frontend.olean.fast.marked fr k p = ok b1)
+    (h : (if b1 then Std.bind (frontend.olean.fast.marked m k p) (fun b3 =>
+          if b3 then Std.bind sub K else ok r0)
+        else ok r0) = ok res) :
+    ∃ t2, res = mk t2 ∧ TableRel A t2
+      (if ConLeche.Frontend.Olean.marked (absM fr) (absByte k) p.val &&
+          ConLeche.Frontend.Olean.marked (absM m) (absByte k) p.val
+        then tb'.add c.val get else tb') := by
+  rw [← marked_eq hb1]
+  cases b1 with
+  | false => cases Result.ok_injective h; exact ⟨tb, hr0, by simpa using ht⟩
+  | true =>
+    simp only [↓reduceIte] at h
+    peel h as b3, hb3
+    rw [← marked_eq hb3]
+    cases b3 with
+    | false => cases Result.ok_injective h; exact ⟨tb, hr0, by simpa using ht⟩
+    | true =>
+      simp only [↓reduceIte] at h
+      peel h as o, ho
+      have e := hsub o ho
+      cases o with
+      | none => cases e
+      | some v =>
+        rw [hKs] at h
+        peel h as t2, ht2
+        cases Result.ok_injective h
+        simp only [Option.map_some, Option.some.injEq] at e
+        refine ⟨t2, rfl, ?_⟩
+        simp only [Bool.and_self, ↓reduceIte]
+        rw [← e]
+        exact table_add_rel ht ht2
+
+/-- **`frontier_step` is `frontierStep`.** -/
+theorem frontier_step_rel {m fr : alloc.vec.Vec Std.U8} {d : frontend.olean.fast.DS} {t : TDS}
+    (hd : DSRel d t) {p : Std.U64} (hp : p.val ≤ Std.Usize.max) {b : frontend.olean.sparse.Frontier}
+    {b' : Arena.Frontend.Olean.Frontier} (hb : FrontierRel b b') {b2}
+    (h : frontier_step m fr d p b = ok b2) :
+    FrontierRel b2 (Arena.Frontend.Olean.frontierStep (absM m) (absM fr) t p.val b') := by
+  rw [frontier_step] at h
+  rw [Arena.Frontend.Olean.frontierStep]
+  peel h as i, hi
+  have ei := marks_at_eq hi
+  by_cases hz : i = 0#u8
+  · rw [ite_eq_left hz] at h
+    cases Result.ok_injective h
+    rw [ite_eq_left (by rw [← ei, hz]; rfl)]
+    exact hb
+  rw [ite_eq_right hz] at h
+  rw [ite_eq_right (by rw [← ei]; intro he; exact hz (absByte_inj (by simpa using he)))]
+  peel h as c, hc
+  have hcv : c.val = 8 * p.val := by rw [ConRon.Refine.HashMap.uscalar_mul_eq hc]; simp
+  have hcp : tr (c.val / 8) = p.val := by rw [hcv, Nat.mul_div_cancel_left _ (by decide), tr_of_le hp]
+  have hs := ds_subrel hd
+  peel h as m1, hm1
+  obtain ⟨q1, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n2, rfl, hN⟩ := frontier_arm (A := absNIdx) (k := frontend.olean.fast.K_NAME) (m := m) (fr := fr) (p := p) (c := c)
+    (get := t.names.getD p.val default)
+    (fun o ho => by rw [hs.nm c o ho]; show some (t.names.getD (tr (c.val / 8)) default) = _; rw [hcp])
+    hb.names (mk := fun tb => { b with names := tb }) (r0 := b) rfl rfl (fun _ => rfl) hm1 hq1
+  peel h as m2, hm2
+  obtain ⟨q2, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l2, rfl, hL⟩ := frontier_arm (A := absLIdx) (k := frontend.olean.fast.K_LEVEL) (m := m) (fr := fr) (p := p) (c := c)
+    (get := t.levels.getD p.val default)
+    (fun o ho => by rw [hs.lv c o ho]; show some (t.levels.getD (tr (c.val / 8)) default) = _; rw [hcp])
+    hb.levels (mk := fun tb => { b with names := n2, levels := tb }) (r0 := { b with names := n2 }) rfl rfl (fun _ => rfl) hm2 hq2
+  peel h as m3, hm3
+  obtain ⟨q3, hq3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s2, rfl, hS⟩ := frontier_arm (A := absLsIdx) (k := frontend.olean.fast.K_LEVELS) (m := m) (fr := fr) (p := p) (c := c)
+    (get := t.lists.getD p.val default)
+    (fun o ho => by rw [hs.lvs c o ho]; show some (t.lists.getD (tr (c.val / 8)) default) = _; rw [hcp])
+    hb.lists (mk := fun tb => { b with names := n2, levels := l2, lists := tb })
+    (r0 := { b with names := n2, levels := l2 }) rfl rfl (fun _ => rfl) hm3 hq3
+  peel h as m4, hm4
+  obtain ⟨e2, rfl, hE⟩ := frontier_arm (A := absEIdx) (k := frontend.olean.fast.K_EXPR) (m := m) (fr := fr) (p := p) (c := c)
+    (get := t.exprs.getD p.val default)
+    (fun o ho => by rw [hs.ex c o ho]; show some (t.exprs.getD (tr (c.val / 8)) default) = _; rw [hcp])
+    hb.exprs (mk := fun tb => { b with names := n2, levels := l2, lists := s2, exprs := tb })
+    (r0 := { b with names := n2, levels := l2, lists := s2 }) rfl rfl (fun _ => rfl) hm4 h
+  rw [hcv] at hN hL hS hE
+  simp only [absByte_k_name, absByte_k_level, absByte_k_levels, absByte_k_expr] at hN hL hS hE
+  exact ⟨hN, hL, hS, hE⟩
+
 /-- **`frontier_of` is `frontierOf`**, from the empty frontier. -/
 theorem frontier_of_rel {m fr : alloc.vec.Vec Std.U8} {d : frontend.olean.fast.DS} {t : TDS}
-    (hd : DSRel d t) {n : Std.U64} {b0 b} (hb0 : frontend.olean.sparse.frontier_empty = ok b0)
+    (hd : DSRel d t) {n : Std.U64} (hn : n.val ≤ Std.Usize.max) {b0 b}
+    (hb0 : frontend.olean.sparse.frontier_empty = ok b0)
     (h : frontier_of m fr d n 0#u64 b0 = ok b) :
     FrontierRel b (frontierOf (absM m) (absM fr) t n.val 0 {}) := by
-  sorry -- T143-STUB
+  have H : ∀ (k : Nat) (q : Std.U64) (c : frontend.olean.sparse.Frontier)
+      (c' : Arena.Frontend.Olean.Frontier) {r}, n.val - q.val = k → FrontierRel c c' →
+      frontier_of_loop m fr d n c q = ok r →
+      FrontierRel r (frontierOf (absM m) (absM fr) t n.val q.val c') := by
+    intro k
+    induction k with
+    | zero =>
+      intro q c c' r hk hc h
+      rw [frontier_of_loop, ite_eq_right (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [frontierOf, ite_eq_right (by omega)]
+      exact hc
+    | succ k ih =>
+      intro q c c' r hk hc h
+      rw [frontier_of_loop, ite_eq_left (by scalar_tac)] at h
+      peel h as c2, hc2
+      peel h as q1, hq1
+      have hq1v : q1.val = q.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hq1
+      have hs := frontier_step_rel hd (p := q) (by omega) hc hc2
+      rw [frontierOf, ite_eq_left (by omega)]
+      have := ih q1 c2 _ (by omega) hs h
+      rwa [hq1v] at this
+  exact H _ 0#u64 b0 {} rfl (frontier_empty_rel hb0) h
 
 /-! ## The load -/
 
@@ -521,7 +650,7 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
   | Ok x =>
   obtain ⟨nm, ms, d⟩ := x
-  obtain ⟨⟨nm', ms', t⟩, lst3, hx3, ⟨hnmv, hmsv, hd⟩, hrel3, hinv3⟩ := hM
+  obtain ⟨⟨nm', ms', t⟩, lst3, hx3, ⟨hnmv, hnmb, hmsv, hd⟩, hrel3, hinv3⟩ := hM
   obtain ⟨⟨r4, ar3⟩, hq4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r4 with
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
@@ -543,7 +672,7 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
   have efw := frontier_walk_eq hfit hq6
   peel h as b0, hb0
   peel h as frontier, hfront
-  have efo := frontier_of_rel hd hb0 hfront
+  have efo := frontier_of_rel hd hnmb hb0 hfront
   peel h as n1, hn1
   obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
   cases h1

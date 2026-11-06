@@ -590,11 +590,11 @@ theorem usize_max_ge : 4294967295 ≤ Std.Usize.max := by scalar_tac
 and the memo. -/
 def MarkedRel (q : Std.U64 × alloc.vec.Vec Std.U8 × frontend.olean.fast.DS)
     (q' : Nat × ByteArray × TDS) : Prop :=
-  q.1.val = q'.1 ∧ absM q.2.1 = q'.2.1 ∧ DSRel q.2.2 q'.2.2
+  q.1.val = q'.1 ∧ q.1.val ≤ Std.Usize.max ∧ absM q.2.1 = q'.2.1 ∧ DSRel q.2.2 q'.2.2
 
 /-- `RS` from `TS`, the memo with its size and marks. -/
 theorem RS.of_TS_marked {pers st lst} {n : Std.U64} {m : alloc.vec.Vec Std.U8} {f}
-    {x : AM (Option TDS)} (h : TS DSRel pers st lst f x) :
+    {x : AM (Option TDS)} (hn : n.val ≤ Std.Usize.max) (h : TS DSRel pers st lst f x) :
     RS pers MarkedRel st lst
       (do
         let (r1, ar1, st1) ← f
@@ -612,7 +612,7 @@ theorem RS.of_TS_marked {pers st lst} {n : Std.U64} {m : alloc.vec.Vec Std.U8} {
   | Ok u =>
     cases Result.ok_injective h2
     obtain ⟨b, lst', hx, hR, hrel', hinv'⟩ := hF
-    exact ⟨(n.val, absM m, b), lst', by rw [am_bind_ok hx]; rfl, ⟨rfl, rfl, hR⟩, hrel', hinv'⟩
+    exact ⟨(n.val, absM m, b), lst', by rw [am_bind_ok hx]; rfl, ⟨rfl, hn, rfl, hR⟩, hrel', hinv'⟩
   | Err e =>
     cases Result.ok_injective h2
     cases e with
@@ -684,7 +684,7 @@ theorem run_marked_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec St
         rw [hc] at hf
         have hb := build_pass_loop_ts (pk := pk) (pers := pers) (m := m3) hr hnm _ (st := st) (lst := lst)
           (p := 0#u64) (Nat.le_refl _) hf
-        exact RS.of_TS_marked (by rw [build_pass]; exact hb)
+        exact RS.of_TS_marked hnm (by rw [build_pass]; exact hb)
 
 
 /-- **`run_passes` is `runPasses`.** -/
@@ -701,7 +701,7 @@ theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec St
   | Ok q =>
     obtain ⟨n, m, d⟩ := q
     cases Result.ok_injective h2
-    obtain ⟨⟨n', m', t⟩, lst', hx, ⟨-, -, hR⟩, hrel', hinv'⟩ := hF
+    obtain ⟨⟨n', m', t⟩, lst', hx, ⟨-, -, -, hR⟩, hrel', hinv'⟩ := hF
     exact ⟨t, lst', by rw [am_bind_ok hx]; rfl, hR, hrel', hinv'⟩
   | Err e =>
     cases Result.ok_injective h2
