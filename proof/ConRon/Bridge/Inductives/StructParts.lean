@@ -292,7 +292,7 @@ theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
     (hc : denoteE s₀.store c = some cP)
     (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ ROp RE (Expr.instPisAtLift argsP cP) s'.store r := by
-  obtain ⟨h1, h2, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+  obtain ⟨h1, h2, -, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))
   refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
   have h7 := h6 argsP ha cP hc
@@ -644,7 +644,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
       obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
       obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
-      obtain ⟨hok3, hx3, hc3, hp3, -, hb⟩ :=
+      obtain ⟨hok3, hx3, -, hc3, hp3, -, hb⟩ :=
         ExprOps.instantiate1LiftFast_run p2.ok ha
           (by rw [denote_ext hbd p2.ext]; rfl) k3
       have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hc3 hp3
@@ -720,5 +720,134 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
         simp only [Frontend.denoteEArray, hdl]
 
 /-! ## `mentionsConst`, memoised -/
+
+/-! ## The scratch flag
+
+The generators intern on the store they are handed; none of them opens or
+closes the scratch tier.  The stream's index is built on the driver's state
+with the scratch tier closed and reads the flag across the projection bodies
+(`Bridge/Inductives/Install.lean`'s `blockTables_run`). -/
+
+/-- con-leche: none — `internE` keeps the scratch flag (`internE_spec`'s
+frame). -/
+theorem internE_scr {s s' : AState} {w : ENodeView} {h : EIdx}
+    (hok : StateOK s) (hv : s.store.ViewOK w) (hrun : internE w s = .ok (h, s')) :
+    s'.store.scratchOn = s.store.scratchOn :=
+  (AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)).2.2.2.1
+
+/-- con-leche: none — `structPsAt.go` keeps the scratch flag. -/
+theorem structPsAt_go_scr (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
+    {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
+    s'.store.scratchOn = s.store.scratchOn := by
+  intro n
+  induction n with
+  | zero =>
+    intro k s s' r hok hrun
+    simp only [Arena.structPsAt.go] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    rfl
+  | succ n ih =>
+    intro k s s' r hok hrun
+    simp only [Arena.structPsAt.go] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
+    obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
+    have e1 := internE_scr hok viewOK_bvar h1
+    obtain ⟨hstep1, -⟩ := internBVarE_run hok h1
+    have e2 := ih (k + 1) hstep1.ok h3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+    rw [e2, e1]
+
+/-- con-leche: none — `structProjArgP` keeps the scratch flag. -/
+theorem structProjArgP_scr {T : NIdx} {TP : ConLeche.Name} {j : Nat} {s s' : AState}
+    {r : EIdx} (hok : StateOK s) (hT : denoteN s.store.ns T = some TP)
+    (hrun : Arena.structProjArgP T j s = .ok (r, s')) :
+    s'.store.scratchOn = s.store.scratchOn := by
+  simp only [Arena.structProjArgP] at hrun
+  obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
+  have e1 := internE_scr hok viewOK_bvar h1
+  obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
+  have e2 := internE_scr hstep1.ok (viewOK_proj (nview_isSome_of_denote
+    (denoteN_ext hT hstep1.ext)) (by rw [hb]; rfl)) h2
+  rw [e2, e1]
+
+/-- con-leche: none — `instPisAtLift` keeps the scratch flag
+(`instPisAtLift_spec`'s frame). -/
+theorem instPisAtLift_scr {fuel : Nat} {args : List EIdx} {argsP : List Expr}
+    {s₀ s' : AState} {c : EIdx} {cP : Expr} {r : Option EIdx}
+    (hok : StateOK s₀) (ha : Frontend.denoteEList s₀.store args = some argsP)
+    (hc : denoteE s₀.store c = some cP)
+    (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
+    s'.store.scratchOn = s₀.store.scratchOn :=
+  (AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))).2.2.1
+
+/-- con-leche: none — `structProjBodiesGo` keeps the scratch flag. -/
+theorem structProjBodiesGo_scr (T : NIdx) (TP : ConLeche.Name) :
+    ∀ (k i : Nat) (h : EIdx) (hP : Expr) {s₀ s' : AState} {r : Option (List EIdx)},
+      StateOK s₀ → denoteN s₀.store.ns T = some TP → denoteE s₀.store h = some hP →
+      Arena.structProjBodiesGo T k i h s₀ = .ok (r, s') →
+      s'.store.scratchOn = s₀.store.scratchOn := by
+  intro k
+  induction k with
+  | zero =>
+    intro i h hP s₀ s' r hok _ _ hrun
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    rfl
+  | succ k ih =>
+    intro i h hP s₀ s' r hok hT hh hrun
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s1, k1, hz1⟩ := AM.bind_ok (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at hz1
+    split at hz1
+    case h_1 fdom body =>
+      obtain ⟨fdomP, bodyP, rfl, -, hbd⟩ := denote_forallE_inv hok.wf hv hh
+      obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
+      have e2 := structProjArgP_scr hok hT k2
+      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
+      obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
+      obtain ⟨hok3, hx3, e3, hc3, hp3, -, hb⟩ :=
+        ExprOps.instantiate1LiftFast_run p2.ok ha
+          (by rw [denote_ext hbd p2.ext]; rfl) k3
+      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hc3 hp3
+      have hb' := hb bodyP (denote_ext hbd p2.ext)
+      obtain ⟨o, s4, k4, hz4⟩ := AM.bind_ok hz3
+      have e4 := ih (i + 1) b _ p3.ok (denoteN_ext hT (p2.ext.trans p3.ext)) hb' k4
+      have e5 : s'.store.scratchOn = s4.store.scratchOn := by
+        cases o <;> (obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4; rfl)
+      rw [e5, e4, e3, e2]
+    case h_2 =>
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
+      rfl
+
+/-- con-leche: none — `structProjBodies` keeps the scratch flag. -/
+theorem structProjBodies_scr {T : NIdx} {TP : ConLeche.Name} {nP nF : Nat}
+    {cty : EIdx} {ctyP : Expr} {s₀ s' : AState} {r : Option (Array EIdx)}
+    (hok : StateOK s₀) (hT : denoteN s₀.store.ns T = some TP)
+    (hc : denoteE s₀.store cty = some ctyP)
+    (hrun : Arena.structProjBodies T nP nF cty s₀ = .ok (r, s')) :
+    s'.store.scratchOn = s₀.store.scratchOn := by
+  simp only [Arena.structProjBodies] at hrun
+  obtain ⟨ps, s1, k1, hz1⟩ := AM.bind_ok hrun
+  have e1 := structPsAt_go_scr 1 nP nP 0 hok k1
+  obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
+  obtain ⟨o, s2, k2, hz2⟩ := AM.bind_ok hz1
+  have e2 := instPisAtLift_scr p1.ok hps (denote_ext hc p1.ext) k2
+  obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
+    rw [e2, e1]
+  | some h =>
+    obtain ⟨e, -, hd⟩ := ho
+    obtain ⟨o2, s3, k3, hz3⟩ := AM.bind_ok hz2
+    have e3 := structProjBodiesGo_scr T TP nF 0 h e p2.ok
+      (denoteN_ext hT (p1.ext.trans p2.ext)) hd k3
+    have e4 : s'.store.scratchOn = s3.store.scratchOn := by
+      cases o2 <;> (obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3; rfl)
+    rw [e4, e3, e2, e1]
 
 end ConRon.Bridge.Inductives
