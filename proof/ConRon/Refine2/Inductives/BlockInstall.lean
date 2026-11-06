@@ -330,7 +330,6 @@ theorem bi_hvis {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv
     LS pers (fun a b => b = (absIConstantVal a.1, absLIdx a.2))
       (arena.inductives.block_install.check_block_tele pers st mode rf n_p ms) lst
       (checkBlockTele (ConRon.Refine.absMode mode) lf (absU n_p) (absMemberShape ms)) := by
-  have hvis := bi_hvis hfe
   rw [arena.inductives.block_install.check_block_tele, checkBlockTele]
   lockstep
 
@@ -403,7 +402,6 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
       (arena.inductives.block_install.check_block_doms_at pers st mode rf off fvs doms j) lst
       (checkBlockDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU j)) := by
-  have hvis := bi_hvis hfe
   induction hj : j.val generalizing j st lst with
   | zero =>
     rw [arena.inductives.block_install.check_block_doms_at.eq_def, ite_eq_left (by scalar_tac),
@@ -446,7 +444,6 @@ cursor on. -/
           (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0)
             (absLIdx s0) ((rest.val.drop j.val).map fun p => (absIConstantVal p.1, absLIdx p.2))) := ih
     clear ih
-    have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_block_agree.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
     lockstep
@@ -680,7 +677,6 @@ theorem check_abs_ctor_sorts_aux (m : Nat) :
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
-    have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_abs_ctor_sorts, ite_eq_right (by scalar_tac),
       absCtorsLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < os.val.length
@@ -762,7 +758,6 @@ holes.  The context's `vis` is the environment's counter. -/
         b.2 = absEIdxL a.2)
       (arena.inductives.block_install.block_nest_ctx pers st rf p cv_tas) lst
       (blockNestCtx lf (absBlockShape p) (absICVL cv_tas)) := by
-  have hvis := bi_hvis hfe
   rw [arena.inductives.block_install.block_nest_ctx, blockNestCtx.eq_def]
   rcases hcv : cv_tas.val with _ | ⟨c0, rest⟩
   · have h0 : alloc.vec.Vec.len cv_tas = 0#usize := by
@@ -958,7 +953,6 @@ theorem check_block_idx_sorts_aux (m : Nat) :
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf p cv_tas i out hn hrel hinv hfe
-    have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_block_idx_sorts, ite_eq_right (by scalar_tac),
       absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < cv_tas.val.length

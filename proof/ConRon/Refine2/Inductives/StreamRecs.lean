@@ -41,7 +41,6 @@ theorem rec_doms_at_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFE
       LS pers (fun a b => b = a)
         (arena.inductives.stream_recs.rec_doms_at pers st mode rf sfvs gfvs j k) lst
         (recDomsAt (ConRon.Refine.absMode mode) lf (absEIdxL sfvs) (absEIdxL gfvs) (absU j) n) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   induction n with
   | zero =>
     intro j k st lst hk hrel hinv
@@ -77,7 +76,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.rec_ty_opened pers st mode rf n s g) lst
       (recTyOpened (ConRon.Refine.absMode mode) lf (absU n) (absOpened s) (absOpened g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rec_ty_opened.eq_def]
   rcases s with _ | ⟨sfvs, srest⟩ <;> rcases g with _ | ⟨gfvs, grest⟩ <;>
     simp only [absOpened, Option.map, recTyOpened] <;> lockstep
@@ -98,7 +96,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
       (arena.inductives.stream_recs.rec_ty_check pers st mode rf lps n s g) lst
       (recTyCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absU n) (absEIdx s)
         (absEIdx g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rec_ty_check, recTyCheck]
   lockstep
 
@@ -110,7 +107,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.rule_agree pers st mode rf lps s g) lst
       (ruleAgree (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absEIdx s) (absEIdx g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rule_agree, ruleAgree]
   lockstep
 
