@@ -26,6 +26,8 @@ import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.GrindAttr
 import ConRon.Bridge.ExprOps.Subst
 public import ConRon.Bridge.Inductives.Rel
 /- `simp only` unfolds the toolchain's monadic list functions (`List.anyM`),
@@ -41,7 +43,8 @@ namespace ConRon.Bridge.Inductives
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena ConRon.Bridge
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ## The capability record -/
 
@@ -794,5 +797,293 @@ theorem blockShape?_install {env : Env} {fe : IFEnv} {nP : Nat}
     (hrun : Arena.blockShape? nP block s = .ok (r, s')) :
     PStep s s' ∧ ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b) s'.store r :=
   blockShape?_run nP block b s s' r hc hb hrun
+
+/-! ## The recogniser keeps the scratch flag
+
+`blockShape?` reads the store, interns names and levels (which live beside the
+expression store's own flag) and asks `lvlEq?` (which leaves the store alone).
+`XFree` is "the expression store's scratch flag is unchanged"; it composes
+through every bind, and each recursive reader is one fuel induction of the
+same shape. -/
+
+/-- con-leche: none — a run that leaves the scratch flag as it found it. -/
+@[expose] def XFree {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (r : α), c s = .ok (r, s') → s'.store.scratchOn = s.store.scratchOn
+
+theorem XFree.pure {α : Type} (a : α) : XFree (Pure.pure a : AM α) := by
+  intro s s' r h; obtain ⟨-, rfl⟩ := AM.pure_ok h; rfl
+
+theorem XFree.fail {α : Type} (e : Arena.CheckError) : XFree (Arena.fail e : AM α) := by
+  intro s s' r h; exact absurd h (fun h => AM.fail_ok h)
+
+theorem XFree.failDanglingE {α : Type} : XFree (Arena.failDanglingE : AM α) := by
+  intro s s' r h; exact absurd h (fun h => failDanglingE_ok h)
+
+theorem XFree.bind {α β : Type} {x : AM α} {f : α → AM β} (hx : XFree x)
+    (hf : ∀ a, XFree (f a)) : XFree (x >>= f) := by
+  intro s s' r h
+  obtain ⟨a, s₁, h1, h2⟩ := AM.bind_ok h
+  rw [hf a _ _ _ h2, hx _ _ _ h1]
+
+theorem XFree.get : XFree (MonadState.get : AM AState) := by
+  intro s s' r h; obtain ⟨-, rfl⟩ := AM.get_ok h; rfl
+
+theorem XFree.of_sfree {α : Type} {c : AM α} (h : SFree c) : XFree c := by
+  intro s s' r hr; rw [h s s' r hr]
+
+/-- con-leche: none — the closing step of every `XFree` proof below: binds,
+`if`s and `match`es taken apart, the leaves named. -/
+macro "xfree_auto" : tactic => `(tactic| repeat (first
+  | exact XFree.pure _
+  | exact XFree.fail _
+  | exact XFree.failDanglingE
+  | exact XFree.get
+  | assumption
+  | (solve_by_elim (maxDepth := 2))
+  | (refine XFree.bind ?_ (fun _ => ?_))
+  | split))
+
+theorem XFree.view' (h : EIdx) : XFree (Arena.view h) := XFree.of_sfree (SFree.view h)
+theorem XFree.viewApp (h : EIdx) : XFree (Arena.viewApp h) := by
+  unfold Arena.viewApp; xfree_auto
+theorem XFree.viewBind (h : EIdx) : XFree (Arena.viewBind h) := by
+  unfold Arena.viewBind; xfree_auto
+theorem XFree.viewConst (h : EIdx) : XFree (Arena.viewConst h) := by
+  unfold Arena.viewConst; xfree_auto
+theorem XFree.viewLs (h : LsIdx) : XFree (Arena.viewLs h) := by
+  unfold Arena.viewLs; xfree_auto
+theorem XFree.zeroLevel : XFree Arena.zeroLevel := by
+  unfold Arena.zeroLevel Arena.pinZeroLevel; xfree_auto
+theorem XFree.reservedBasisNames : XFree Arena.reservedBasisNames := by
+  unfold Arena.reservedBasisNames Arena.pinReserved; xfree_auto
+
+theorem XFree.lvlEq? (u v : LIdx) : XFree (Arena.lvlEq? u v) := by
+  intro s s' r h; rw [(Core.lvlEq?_frame h).1]
+
+theorem EStore.internName_scr (st : EStore) (v : NNodeView) :
+    (st.internName v).1.scratchOn = st.scratchOn := by
+  unfold EStore.internName; dsimp only
+  try (generalize st.lss.internName v = q; obtain ⟨_, _⟩ := q; rfl)
+
+theorem XFree.internNNode (v : NNodeView) : XFree (Arena.internNNode v) := by
+  intro s s' r h
+  unfold Arena.internNNode at h
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨ht, hs1⟩ := AM.get_ok h1
+  rw [ht, hs1] at h2
+  cases hf : s.store.ns.find? v with
+  | some x => simp only [hf] at h2; obtain ⟨-, rfl⟩ := AM.pure_ok h2; rfl
+  | none =>
+    simp only [hf] at h2
+    split at h2 <;> split at h2
+    all_goals first
+      | (obtain ⟨_, s₂, k, z⟩ := AM.bind_ok h2
+         obtain ⟨-, rfl⟩ := AM.pure_ok z
+         rw [AM.set_ok k]
+         exact EStore.internName_scr _ _)
+      | exact absurd h2 (fun h => AM.fail_ok h)
+
+theorem EStore.internLevel_scr (st : EStore) (v : LNodeView) :
+    (st.internLevel v).1.scratchOn = st.scratchOn := by
+  unfold EStore.internLevel; dsimp only
+  try (generalize st.lss.internLevel v = q; obtain ⟨_, _⟩ := q; rfl)
+
+theorem XFree.internLNode (v : LNodeView) : XFree (Arena.internLNode v) := by
+  intro s s' r h
+  unfold Arena.internLNode at h
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨ht, hs1⟩ := AM.get_ok h1
+  rw [ht, hs1] at h2
+  cases hf : s.store.ls.find? v with
+  | some x => simp only [hf] at h2; obtain ⟨-, rfl⟩ := AM.pure_ok h2; rfl
+  | none =>
+    simp only [hf] at h2
+    split at h2 <;> split at h2
+    all_goals first
+      | (obtain ⟨_, s₂, k, z⟩ := AM.bind_ok h2
+         obtain ⟨-, rfl⟩ := AM.pure_ok z
+         rw [AM.set_ok k]
+         exact EStore.internLevel_scr _ _)
+      | exact absurd h2 (fun h => AM.fail_ok h)
+
+theorem EStore.internLevels_scr (st : EStore) (v : LsNodeView) :
+    (st.internLevels v).1.scratchOn = st.scratchOn := by
+  unfold EStore.internLevels; dsimp only
+  try (generalize st.lss.internLevels v = q; obtain ⟨_, _⟩ := q; rfl)
+
+theorem XFree.internLsNode (v : LsNodeView) : XFree (Arena.internLsNode v) := by
+  intro s s' r h
+  unfold Arena.internLsNode at h
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨ht, hs1⟩ := AM.get_ok h1
+  rw [ht, hs1] at h2
+  cases hf : s.store.lss.find? v with
+  | some x => simp only [hf] at h2; obtain ⟨-, rfl⟩ := AM.pure_ok h2; rfl
+  | none =>
+    simp only [hf] at h2
+    split at h2 <;> split at h2
+    all_goals first
+      | (obtain ⟨_, s₂, k, z⟩ := AM.bind_ok h2
+         obtain ⟨-, rfl⟩ := AM.pure_ok z
+         rw [AM.set_ok k]
+         exact EStore.internLevels_scr _ _)
+      | exact absurd h2 (fun h => AM.fail_ok h)
+
+theorem XFree.mapM {α β : Type} {f : α → AM β} (hf : ∀ a, XFree (f a)) :
+    ∀ (xs : List α), XFree (xs.mapM f)
+  | [] => by simp only [List.mapM_nil]; exact XFree.pure _
+  | x :: xs => by
+    simp only [List.mapM_cons]
+    exact XFree.bind (hf x) (fun _ => XFree.bind (XFree.mapM hf xs) (fun _ => XFree.pure _))
+
+theorem XFree.filterM {α : Type} {f : α → AM Bool} (hf : ∀ a, XFree (f a)) :
+    ∀ (xs : List α), XFree (xs.filterM f) := by
+  have aux : ∀ (xs acc : List α), XFree (List.filterAuxM f xs acc) := by
+    intro xs
+    induction xs with
+    | nil => intro acc; simp only [List.filterAuxM]; exact XFree.pure _
+    | cons x xs ih =>
+      intro acc
+      simp only [List.filterAuxM]
+      exact XFree.bind (hf x) (fun _ => ih _)
+  intro xs
+  simp only [List.filterM]
+  exact XFree.bind (aux _ _) (fun _ => XFree.pure _)
+
+theorem XFree.findM? {α : Type} {f : α → AM Bool} (hf : ∀ a, XFree (f a)) :
+    ∀ (xs : List α), XFree (xs.findM? f)
+  | [] => by simp only [List.findM?]; exact XFree.pure _
+  | x :: xs => by
+    simp only [List.findM?]
+    exact XFree.bind (hf x) (fun b => by cases b <;> first | exact XFree.pure _ | exact XFree.findM? hf xs)
+
+theorem XFree.getAppFn : ∀ (fuel : Nat) (h : EIdx), XFree (Arena.getAppFn fuel h)
+  | 0, _ => by unfold Arena.getAppFn; exact XFree.fail _
+  | fuel + 1, h => by
+    have ih := XFree.getAppFn fuel
+    have hv := XFree.viewApp
+    unfold Arena.getAppFn; xfree_auto
+
+theorem XFree.stripPis : ∀ (k : Nat) (h : EIdx), XFree (Arena.stripPis k h)
+  | 0, _ => by unfold Arena.stripPis; exact XFree.pure _
+  | k + 1, h => by
+    have ih := XFree.stripPis k
+    have hv := XFree.viewBind
+    unfold Arena.stripPis; xfree_auto
+
+theorem XFree.piBinders : ∀ (fuel : Nat) (h : EIdx), XFree (Arena.piBinders fuel h)
+  | 0, _ => by unfold Arena.piBinders; xfree_auto
+  | fuel + 1, h => by
+    have ih := XFree.piBinders fuel
+    have hv := XFree.viewBind
+    have hv' := XFree.view'
+    unfold Arena.piBinders; xfree_auto
+
+theorem XFree.memberIdxAt? (names : List NIdx) (lvls : LsIdx) (e : EIdx) :
+    XFree (Arena.memberIdxAt? names lvls e) := by
+  have hv := XFree.viewConst
+  unfold Arena.memberIdxAt?; xfree_auto
+
+theorem XFree.ctorMember? (names : List NIdx) (lvls : LsIdx) (nP : Nat)
+    (c : IConstantVal × Nat) : XFree (Arena.ctorMember? names lvls nP c) := by
+  have h1 := XFree.stripPis
+  have h2 := XFree.getAppFn
+  have h3 := XFree.memberIdxAt? names lvls
+  unfold Arena.ctorMember?; xfree_auto
+
+theorem XFree.blockGroups (names : List NIdx) (lvls : LsIdx) (nP k : Nat)
+    (cs : List (IConstantVal × Nat)) : XFree (Arena.blockGroups names lvls nP k cs) := by
+  unfold Arena.blockGroups
+  split
+  · exact XFree.pure _
+  · exact XFree.mapM (fun _ => XFree.filterM (fun c =>
+      XFree.bind (XFree.ctorMember? names lvls nP c) (fun o => by cases o <;> exact XFree.pure _)) _) _
+
+theorem XFree.recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) :
+    XFree (Arena.recTargetOf names mI ty) := by
+  have h1 := XFree.stripPis
+  have h2 := XFree.getAppFn
+  have h3 := XFree.viewBind
+  have h4 := XFree.viewConst
+  unfold Arena.recTargetOf; xfree_auto
+
+theorem XFree.blockCounts? (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat)) :
+    XFree (Arena.blockCounts? nPd k nC nR cvT r) := by
+  have h1 := XFree.piBinders
+  have h2 := XFree.view'
+  unfold Arena.blockCounts?
+  repeat (first
+    | exact XFree.pure _
+    | (solve_by_elim (maxDepth := 2))
+    | (refine XFree.bind ?_ (fun _ => ?_))
+    | (dsimp only; split)
+    | split)
+
+theorem XFree.paramLevels (lps : List NIdx) : XFree (Arena.paramLevels lps) := by
+  have hgo : ∀ ns, XFree (Arena.paramLevels.go ns) := by
+    intro ns
+    induction ns with
+    | nil => unfold Arena.paramLevels.go; exact XFree.pure _
+    | cons n ns ih =>
+      unfold Arena.paramLevels.go
+      exact XFree.bind (XFree.internLNode _) (fun _ => XFree.bind ih (fun _ => XFree.pure _))
+  unfold Arena.paramLevels
+  exact XFree.bind (hgo _) (fun _ => XFree.internLsNode _)
+
+theorem XFree.blockMemberCounts? (nPd k nC : Nat) (names : List NIdx)
+    (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule)) :
+    ∀ (m : Nat) (cvTs : List IConstantVal),
+      XFree (Arena.blockMemberCounts? nPd k nC names rs m cvTs)
+  | _, [] => by unfold Arena.blockMemberCounts?; exact XFree.pure _
+  | m, cvT :: ts => by
+    have ih := XFree.blockMemberCounts? nPd k nC names rs (m + 1) ts
+    have h1 := XFree.blockCounts? nPd k nC
+    have h2 := XFree.recTargetOf names
+    have h3 : XFree (rs.findM? fun q => do Pure.pure ((← Arena.recTargetOf names q.2.1 q.1.type) == m)) :=
+      XFree.findM? (fun q => XFree.bind (h2 _ _) (fun _ => by
+        intro s s' r h; obtain ⟨-, rfl⟩ := AM.pure_ok h; rfl)) rs
+    unfold Arena.blockMemberCounts?; xfree_auto
+
+theorem XFree.blockShape? (nPd : Nat) (block : List IConstantInfo) :
+    XFree (Arena.blockShape? nPd block) := by
+  have h1 := XFree.blockMemberCounts? nPd
+  have h2 := XFree.reservedBasisNames
+  have h3 := XFree.stripPis
+  have h4 := XFree.view'
+  have h5 := XFree.zeroLevel
+  have h6 := XFree.lvlEq?
+  have h7 := XFree.paramLevels
+  have h8 := XFree.blockGroups
+  have h9 := XFree.recTargetOf
+  have h10 := XFree.internNNode
+  unfold Arena.blockShape?
+  repeat (first
+    | exact XFree.pure _
+    | exact XFree.fail _
+    | exact XFree.failDanglingE
+    | assumption
+    | exact XFree.mapM (fun _ => XFree.bind (h9 _ _ _) (fun _ => XFree.pure _)) _
+    | exact h1 _ _ _ _ _ _
+    | exact h3 _ _
+    | exact h4 _
+    | exact h6 _ _
+    | exact h7 _
+    | exact h8 _ _ _ _ _
+    | exact h9 _ _ _
+    | exact h10 _
+    | (refine XFree.bind ?_ (fun _ => ?_))
+    | split)
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
+`blockShape?_install` with the scratch flag framed. -/
+theorem blockShape?_installS {env : Env} {fe : IFEnv} {nP : Nat}
+    {block : List IConstantInfo} {b : List ConstantInfo} {s s' : AState}
+    {r : Option Arena.BlockShape} (hc : CheckOK false env fe s)
+    (hb : Frontend.denoteCIList s.store block = some b)
+    (hrun : Arena.blockShape? nP block s = .ok (r, s')) :
+    PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+      ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b) s'.store r :=
+  ⟨(blockShape?_run nP block b s s' r hc hb hrun).1, XFree.blockShape? nP block s s' r hrun,
+    (blockShape?_run nP block b s s' r hc hb hrun).2⟩
 
 end ConRon.Bridge.Inductives
