@@ -125,7 +125,6 @@ closed scratch tier and the three untouched state fields — and
 #print axioms viewN_run
 #print axioms readLevel_run
 #print axioms view_run
-#print axioms piResultD_run
 #print axioms nsWF_of_StateOK
 #print axioms denoteN_str_inv
 #print axioms view_str_of_denoteN
@@ -265,8 +264,8 @@ The machinery `installIndD_run`, `processLineCoreD_run` and
   parsers and `processLineCoreD_run`, and everything below it rests on
   `applyLine_run` and `StateD_init_run` alone;
 * the preparation and the prelude — `builtinPreludeE_run` on `parseBytes_run`,
-  `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run`;
-* `FoldOK_of_start` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`. -/
+  `prepareD_run` (and `preparePrelude_run`, its stream-path instance) on
+  `frontOf_run`/`hoistNatOpGround_run`. -/
 
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
@@ -302,7 +301,7 @@ The machinery `installIndD_run`, `processLineCoreD_run` and
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run
 #print axioms preparePrelude_run
-#print axioms FoldOK_of_start
+#print axioms prepareD_run
 
 /-! ## The headlines, and the two named hypotheses
 

@@ -11,6 +11,7 @@ public import ConRon.Arena.Frontend.Olean.View
 public import ConRon.Bridge.Frontend.Olean.Read
 public import ConLeche.Verify.Frontend.Olean.View
 import ConLeche.Verify.Frontend.Olean.Build
+import Std.Data.HashSet.Lemmas
 public import ConLeche.Verify.Frontend.Olean.Reads
 
 public section
@@ -75,12 +76,12 @@ theorem optT_list_run {α β γ : Type} {pk : OleanPins} {den : EStore → β �
 
 /-! ## Both passes -/
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Engine.lean:135 runPasses_spec — **every root's
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Engine.lean:134 runMarked_spec — **every root's
 memo value denotes its specification's**.  Upstream's `RootsOK` is not needed: a pass of the
 twin that answers read every marked object. -/
-theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} {memo : DS}
-    {s s' : AState} (hctx : Ctx pk s)
-    (hrun : ConRon.Arena.Frontend.Olean.runPasses pk r names exprs s = .ok (some memo, s')) :
+theorem runMarked_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} {nm : Nat}
+    {ms : ByteArray} {memo : DS} {s s' : AState} (hctx : Ctx pk s)
+    (hrun : ConRon.Arena.Frontend.Olean.runMarked pk r names exprs s = .ok (some (nm, ms, memo), s')) :
     ParseStep s s' ∧
       (∀ v ∈ names, ∀ y, memo.nameOf pk r v = some y →
         ∃ z, nameP r v = some z ∧ denoteN s'.store.ns y = some z) ∧
@@ -88,8 +89,8 @@ theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
         ∃ z, exprP r v = some z ∧ denoteE s'.store y = some z) := by
   have hK1 : IsKind kName := Or.inl rfl
   have hK2 : IsKind kExpr := Or.inr (Or.inr (Or.inl rfl))
-  generalize hF : ConRon.Arena.Frontend.Olean.runPasses pk r names exprs = f at hrun
-  unfold ConRon.Arena.Frontend.Olean.runPasses at hF
+  generalize hF : ConRon.Arena.Frontend.Olean.runMarked pk r names exprs = f at hrun
+  unfold ConRon.Arena.Frontend.Olean.runMarked at hF
   simp only [] at hF
   generalize hn : ConLeche.Frontend.Olean.maxLoc r exprs (ConLeche.Frontend.Olean.maxLoc r names 0) / 8 + 1 = n at hF
   have hbN : ∀ v ∈ names, r.locGo v r.segs.size / 8 < n := by
@@ -128,9 +129,17 @@ theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
       | false =>
         simp only [hf3, Bool.false_eq_true, ↓reduceIte] at hF
         subst hF
+        obtain ⟨o, s₁, hbp, hrest⟩ := AM.bind_ok hrun
+        cases o with
+        | none => cases (AM.pure_ok hrest).1
+        | some st =>
+        obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+        simp only [Option.some.injEq, Prod.mk.injEq] at hv
+        obtain ⟨-, -, rfl⟩ := hv
+        subst hs
         obtain ⟨hsub3, -, hc3⟩ := h3.2 hf3
         obtain ⟨hst, hb, -⟩ := buildPass_run hc3 _ 0 (Nat.le_refl _) hctx (sized_fresh n)
-          (fun _ h => absurd h (by omega)) hrun
+          (fun _ h => absurd h (by omega)) hbp
         have hb' := hb (by omega)
         refine ⟨hst, ?_, ?_⟩
         · intro v hv y hy
@@ -160,6 +169,25 @@ theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
           simp only [ConRon.Arena.Frontend.Olean.DS.exprOf, hl, Option.some.injEq] at hy
           subst hy
           exact ⟨z, by simp only [exprP, hl, ha], hd⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Engine.lean:232 runPasses_spec — `runMarked_run`,
+the memo alone. -/
+theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} {memo : DS}
+    {s s' : AState} (hctx : Ctx pk s)
+    (hrun : ConRon.Arena.Frontend.Olean.runPasses pk r names exprs s = .ok (some memo, s')) :
+    ParseStep s s' ∧
+      (∀ v ∈ names, ∀ y, memo.nameOf pk r v = some y →
+        ∃ z, nameP r v = some z ∧ denoteN s'.store.ns y = some z) ∧
+      (∀ v ∈ exprs, ∀ y, memo.exprOf r v = some y →
+        ∃ z, exprP r v = some z ∧ denoteE s'.store y = some z) := by
+  unfold ConRon.Arena.Frontend.Olean.runPasses at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
+  rcases o with _ | ⟨nm, ms, st⟩
+  · cases (AM.pure_ok h2).1
+  · obtain ⟨hv, hs⟩ := AM.pure_ok h2
+    cases hv
+    subst hs
+    exact runMarked_run hctx h1
 
 /-! ## The name table -/
 

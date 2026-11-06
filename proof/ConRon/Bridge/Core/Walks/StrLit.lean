@@ -1,9 +1,9 @@
 /-
 # `ConRon.Bridge.Core.Walks.StrLit` — the `String` literal guard
 
-The literal clauses of `inferBody`, `inferBodyIO` and `annotateBody` run
-`natLitSupported` (`Walks/Nat.lean`) and `strLitSupported`
-(`Arena/Core.lean:709`).  This module is the second's spec and the seven state-only walks under it (`stringTyOk`,
+The literal clauses of `inferBody` and `inferBodyIO` run `natLitStored`
+(`Walks/Nat.lean`) and `strLitStored`; the declaration checker runs
+`strLitSupported`.  This module is the spec of those two and the seven state-only walks under it (`stringTyOk`,
 `stringOfListTyOk`, `listTyOk`, `listNilTyOk`, `listConsTyOk`, `charTyOk`,
 `charOfNatTyOk`), each an EQUATION with the con-leche function of the same
 name (`ConLeche/Kernel/CoreDefs.lean:301-403`) — `Walks/Nat.lean`'s
@@ -975,7 +975,7 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       dsimp only
       exact triple_pureS ⟨hok6, hx06, hp06, (fnTyOks_not_forallE
         (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm⟩
-/-! ## 6. `strLitSupported` -/
+/-! ## 6. `strLitSupported` and `strLitStored` -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported —
 **THEOREM 1 for `strLitSupported`**: the `Nat` literal guard, then the seven
@@ -998,6 +998,20 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
       charOfNatTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.charOfNatName),
       pinAt_specE] <;> finish
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:366-371 strLitStored
+con-leche: ConLeche/Kernel/FEnv.lean:196-201 strLitStoredF —
+**THEOREM 1 for `strLitStored`**: `natLitStored`, then the seven
+string-support names present, read through the index. -/
+theorem strLitStored_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.strLitStored fe
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.strLitStored env; ⊤⦄ := by
+  sym only [bridge_grind, ConLeche.strLitStored] =>
+    vcgen [ConRon.Arena.strLitStored, ConRon.Arena.pinString,
+      ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
+      ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
+      ConRon.Arena.pinCharOfNat, natLitStored_spec (eager := eager) (env := env) (fe := fe),
+      pinAt_specE] <;> finish
+
 /-! ## 7. The axiom census -/
 
 section Census
@@ -1011,6 +1025,7 @@ section Census
 #print axioms charOfNatTyOk_spec
 #print axioms stringOfListTyOk_spec
 #print axioms strLitSupported_spec
+#print axioms strLitStored_spec
 
 end Census
 
