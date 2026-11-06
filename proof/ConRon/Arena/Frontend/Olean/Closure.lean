@@ -32,35 +32,38 @@ A name, once: "written out at each leaf" upstream. -/
   if seenN.contains n then (seenN, out) else (seenN.insert n, out.push n)
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
-The DAG walk of `constsOf`.  A leaf needs no visited entry. -/
+The DAG walk of `constsOf`.  A leaf needs no visited entry; by the tag, as the Rust's
+walk tests it, so that a `bvar` or a `sort` is not looked at and a visited node is not
+looked at again. -/
 def constsGo (pk : OleanPins) : Nat → List EIdx → Std.HashSet EIdx → Std.HashSet NIdx →
     Array NIdx → AM (Array NIdx)
   | _, [], _, _, out => pure out
   | 0, _ :: _, _, _, _ => outOfFuel
   | fuel + 1, e :: rest, seen, seenN, out => do
-    match ← view e with
-    | .const n _ =>
-      let (seenN, out) := addN seenN out n
+    if e.tag == ETag.const || e.tag == ETag.lit then
+      match ← view e with
+      | .const n _ =>
+        let (seenN, out) := addN seenN out n
+        constsGo pk fuel rest seen seenN out
+      | .lit (.natVal _) =>
+        let (seenN, out) := addN seenN out pk.nNat
+        constsGo pk fuel rest seen seenN out
+      | .lit (.strVal _) =>
+        let (seenN, out) := addN seenN out pk.nCharOfNat
+        let (seenN, out) := addN seenN out pk.nStringOfList
+        constsGo pk fuel rest seen seenN out
+      | _ => constsGo pk fuel rest seen seenN out
+    else if e.tag == ETag.bvar || e.tag == ETag.sort || seen.contains e then
       constsGo pk fuel rest seen seenN out
-    | .lit (.natVal _) =>
-      let (seenN, out) := addN seenN out pk.nNat
-      constsGo pk fuel rest seen seenN out
-    | .lit (.strVal _) =>
-      let (seenN, out) := addN seenN out pk.nCharOfNat
-      let (seenN, out) := addN seenN out pk.nStringOfList
-      constsGo pk fuel rest seen seenN out
-    | .bvar _ | .sort _ => constsGo pk fuel rest seen seenN out
-    | v =>
-      if seen.contains e then constsGo pk fuel rest seen seenN out
-      else
-        let seen := seen.insert e
-        match v with
-        | .app f a => constsGo pk fuel (f :: a :: rest) seen seenN out
-        | .lam t b | .forallE t b => constsGo pk fuel (t :: b :: rest) seen seenN out
-        | .letE t w b => constsGo pk fuel (t :: w :: b :: rest) seen seenN out
-        | .proj _ _ x => constsGo pk fuel (x :: rest) seen seenN out
-        | .fvar _ t => constsGo pk fuel (t :: rest) seen seenN out
-        | _ => constsGo pk fuel rest seen seenN out
+    else
+      let seen := seen.insert e
+      match ← view e with
+      | .app f a => constsGo pk fuel (f :: a :: rest) seen seenN out
+      | .lam t b | .forallE t b => constsGo pk fuel (t :: b :: rest) seen seenN out
+      | .letE t w b => constsGo pk fuel (t :: w :: b :: rest) seen seenN out
+      | .proj _ _ x => constsGo pk fuel (x :: rest) seen seenN out
+      | .fvar _ t => constsGo pk fuel (t :: rest) seen seenN out
+      | _ => constsGo pk fuel rest seen seenN out
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:64-69 constsOf
 **The constants an expression mentions**, in first-visit order, and the literal

@@ -402,7 +402,7 @@ pub fn levels_node<S: Sub>(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs:
 /// `u :: us` over handles.
 pub fn levels_cons(pers: &PersTier, ar: &mut EStore, u: LIdx, us: &LsIdx) -> Result<LsIdx, RdErr> {
     match ar.ls_s().view(pers, us) {
-        None => Err(RdErr::Bad),
+        None => rd_of(crate::arena::monad::fail_dangling_ls()),
         Some(rest) => {
             let mut out: Vec<LIdx> = Vec::with_capacity(rest.len() + 1);
             out.push(u);

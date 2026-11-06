@@ -47,19 +47,21 @@ pub fn hdr_adv(b: &[u8], g: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Header.lean:50-65 hdrWalk
-/// **The walk to the imports array** from location `g`.
+/// **The walk to the imports array** from location `g`.  The tests against the
+/// size take no sum, so that they answer as `Nat`'s do whatever the size.
 pub fn hdr_walk(b: &[u8], g: u64) -> HdrWalk {
     let mut g = g;
     let size = b.len() as u64;
     loop {
-        if region::sat_add(g, 16) > size {
+        if size < 16 || g > size - 16 {
             return HdrWalk::Short;
         }
         let t = region::rd_u8(b, g + 7) as u64;
         if t == region::TAG_ARRAY {
-            let e = region::sat_add(g + 24, region::sat_mul8(region::rd_u64(b, g + 8)));
-            if e <= size {
-                return HdrWalk::Found(g, e);
+            let lo = g + 24;
+            let m = region::sat_mul8(region::rd_u64(b, g + 8));
+            if lo <= size && m <= size - lo {
+                return HdrWalk::Found(g, lo + m);
             }
             return HdrWalk::Short;
         } else if t <= 243 || t == region::TAG_STRING || t == region::TAG_MPZ {

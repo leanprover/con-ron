@@ -6,6 +6,7 @@
 //! decline.  "Expressions by the checker's equality" is handle equality: the store
 //! is hash-consed, so that it is both pointer-equal first and structural.
 
+use crate::arena::env;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::reads;
@@ -19,6 +20,7 @@ use crate::frontend::scan_types::HintsRec;
 use crate::frontend::text;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
+use crate::kernel::name;
 use crate::ron::hashmap::Dup;
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap2::HashMap2;
@@ -241,7 +243,10 @@ pub fn expo_step(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r:
         Err(RdErr::Err(e)) => return Err(ExpoErr::Err(e)),
         Ok(n) => n,
     };
-    let en_text = view::name_text(pers, ar, &en);
+    let en_text = match env::read_name(pers, ar, &en) {
+        Err(e) => return Err(ExpoErr::Err(e)),
+        Ok(n) => name::render(&n),
+    };
     let i: u64 = match priv_idx.get(&en) {
         None => {
             let t = text::cat({ const M: [u32; 22] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32]; crate::kernel::core_types::code_points(&M) }, &en_text);
@@ -350,15 +355,20 @@ pub fn check_views_module(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &
         return Err(bad_module(pers, ar, m, { const M: [u32; 78] = [116, 104, 101, 32, 112, 114, 105, 118, 97, 116, 101, 32, 112, 97, 114, 116, 32, 105, 115, 32, 110, 111, 116, 32, 111, 102, 32, 97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 102, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 44, 32, 116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 32, 105, 115]; crate::kernel::core_types::code_points(&M) }));
     }
     let ap = region::part_module_data_addr(p);
-    let expo = expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(&f.exported), &v.private_part.constants);
-    let expo2 = expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(s), &v.private_part.constants);
-    match expo {
+    let expo = match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(&f.exported), &v.private_part.constants) {
+        Err(ExpoErr::Err(e)) => return Err(e),
+        Err(ExpoErr::Msg(msg)) => Err(msg),
+        Ok(x) => Ok(x),
+    };
+    match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(s), &v.private_part.constants) {
         Err(ExpoErr::Err(e)) => Err(e),
-        Err(ExpoErr::Msg(msg)) => Err(bad_module(pers, ar, m, text::cat({ const M: [u32; 19] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))),
-        Ok(x) => match expo2 {
-            Err(ExpoErr::Err(e)) => Err(e),
-            Err(ExpoErr::Msg(msg)) => Err(bad_module(pers, ar, m, text::cat({ const M: [u32; 17] = [116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))),
-            Ok(_) => Ok(x),
+        Err(ExpoErr::Msg(msg2)) => match expo {
+            Err(msg) => Err(bad_module(pers, ar, m, text::cat({ const M: [u32; 19] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))),
+            Ok(_) => { let msg = msg2; Err(bad_module(pers, ar, m, text::cat({ const M: [u32; 17] = [116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))) }
+        },
+        Ok(_) => match expo {
+            Err(msg) => Err(bad_module(pers, ar, m, text::cat({ const M: [u32; 19] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))),
+            Ok(x) => Ok(x),
         },
     }
 }

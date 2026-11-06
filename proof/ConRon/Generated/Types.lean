@@ -1899,7 +1899,7 @@ structure frontend.olean.spec.PtrRead (Self : Type) where
     frontend.olean.spec.RdErr) × arena.store.EStore)
 
 /-- [con_ron_core::frontend::olean::header::NamePRead]
-    Source: 'crates/con-ron-core/src/frontend/olean/header.rs', lines 79:0-79:21
+    Source: 'crates/con-ron-core/src/frontend/olean/header.rs', lines 81:0-81:21
     Visibility: public -/
 @[reducible]
 def frontend.olean.header.NamePRead := Unit
@@ -2025,7 +2025,7 @@ structure frontend.olean.emit.Emit where
   out : alloc.vec.Vec frontend.scan_types.DeclRec
 
 /-- [con_ron_core::frontend::olean::merge::Merged]
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 29:0-33:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 31:0-35:1
     Visibility: public -/
 structure frontend.olean.merge.Merged where
   ls : alloc.vec.Vec frontend.olean.closure.Loaded
@@ -2074,7 +2074,7 @@ structure frontend.olean.sparse.SM where
   exprs : ron.hashmap2.HashMap2 Std.U64 arena.handle.EIdx
 
 /-- [con_ron_core::frontend::olean::module::ExpoErr]
-    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 184:0-187:1
+    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 186:0-189:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.module.ExpoErr where
@@ -2082,7 +2082,7 @@ inductive frontend.olean.module.ExpoErr where
 | Err : kernel.core_types.CheckError → frontend.olean.module.ExpoErr
 
 /-- [con_ron_core::frontend::olean::module::Expo]
-    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 28:0-32:1
+    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 30:0-34:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.module.Expo where
