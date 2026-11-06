@@ -71,21 +71,23 @@ def absCtors3LFrom (v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.
     (i : Std.Usize) : List (IConstantVal × Nat × Nat) :=
   (v.val.drop i.val).map fun p => (absIConstantVal p.1, absU p.2.1, absU p.2.2)
 
-/-- `Vec<(IConstantVal, u64, u64, Vec<IRecRule>)>` as the twin's
-`List (IConstantVal × Nat × Nat × List IRecRule)` — `provisionRecs`' answer. -/
+/-- `Vec<(IConstantVal, u64, u64, bool, Vec<IRecRule>)>` as the twin's
+`List (IConstantVal × Nat × Nat × Bool × List IRecRule)` — `blockSplitRecs`'
+answer: a recursor record's constant, major index, rule prefix, K flag and
+rules. -/
 def absRecsL
-    (v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+    (v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 × Bool ×
       (alloc.vec.Vec arena.env.IRecRule))) :
-    List (IConstantVal × Nat × Nat × List IRecRule) :=
+    List (IConstantVal × Nat × Nat × Bool × List IRecRule) :=
   v.val.map fun p =>
-    (absIConstantVal p.1, absU p.2.1, absU p.2.2.1, p.2.2.2.val.map absIRecRule)
+    (absIConstantVal p.1, absU p.2.1, absU p.2.2.1, p.2.2.2.1, p.2.2.2.2.val.map absIRecRule)
 
 def absRecsLFrom
-    (v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+    (v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 × Bool ×
       (alloc.vec.Vec arena.env.IRecRule))) (i : Std.Usize) :
-    List (IConstantVal × Nat × Nat × List IRecRule) :=
+    List (IConstantVal × Nat × Nat × Bool × List IRecRule) :=
   (v.val.drop i.val).map fun p =>
-    (absIConstantVal p.1, absU p.2.1, absU p.2.2.1, p.2.2.2.val.map absIRecRule)
+    (absIConstantVal p.1, absU p.2.1, absU p.2.2.1, p.2.2.2.1, p.2.2.2.2.val.map absIRecRule)
 
 /-! ## `IRecRule`'s fields -/
 
