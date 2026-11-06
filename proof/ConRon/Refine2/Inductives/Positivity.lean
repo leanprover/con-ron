@@ -1726,9 +1726,10 @@ def frameStackSpec (us : LsIdx) (ds : List EIdx) (hi : Nat) :
 /-- The library `mapM` IS `frameStackSpec`. -/
 theorem frameStackSpec_eq (us : LsIdx) (ds : List EIdx) (hi : Nat) :
     ∀ grp : List (NIdx × EIdx),
-      grp.mapM (fun (p : NIdx × EIdx) => do
-          let (bs, _) ← piBinders coreWalkFuel p.2
-          pure ({ key := ⟨p.1, us, ds⟩, base := hi, nIdx := bs.length } : NestHole))
+      grp.mapM (fun x => do
+          let d ← piBinders coreWalkFuel x.2
+          pure ({ key := { cname := x.1, lvls := us, ds := ds }, base := hi, nIdx := d.1.length } :
+            NestHole))
         = frameStackSpec us ds hi grp := by
   intro grp
   induction grp with
