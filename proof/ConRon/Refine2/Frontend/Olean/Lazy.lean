@@ -28,7 +28,7 @@ namespace ConRon.Refine2.Frontend.Olean
 open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (loadAt loadView loadRoots valueRoots lazyEntries loadImports
   usesOf frontierWalk frontierOf importsPre)
-open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel moduleSkel)
+open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel moduleSkel refBase)
 
 /-! ## The judgement of an accepted read -/
 
@@ -438,6 +438,131 @@ theorem load_imports_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean
       | none => pure false) : AM Bool) lst = Except.ok (true, lst') := by
     rw [am_bind_ok hpre, ← hbeq]; rfl
   exact (am_bind_ok (g := fun b => if b = true then pure (some ()) else pure none) hin).trans rfl
+/-! ## The constants -/
+
+/-- A pure read's `some`. -/
+theorem pure_run_some {α : Type} {x : Option α} {b : α} {lst lst' : AState}
+    (h : StateT.run (pure x : AM (Option α)) lst = .ok (some b, lst')) : x = some b ∧ lst' = lst := by
+  cases x <;> simp [StateT.run, pure, StateT.pure, Except.pure] at h
+  obtain ⟨rfl, rfl⟩ := h
+  exact ⟨rfl, rfl⟩
+
+/-- The memo's `PtrRead` maps names as the twin's pure `nameOf`, the state untouched. -/
+theorem names_mapM_ds {pk : ConRon.Arena.Frontend.Olean.OleanPins} {R : ConLeche.Frontend.Olean.Region}
+    {t : TDS} (l : List UInt64) (lst : AState) :
+    StateT.run (l.mapM (m := OptionT AM)
+      (fun v => OptionT.mk ((ConRon.Arena.Frontend.Olean.DS.read pk R t).rdName v))) lst =
+      .ok (l.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf pk R t), lst) := by
+  induction l with
+  | nil => rfl
+  | cons x l ih =>
+    simp only [List.mapM_cons, ConRon.Arena.Frontend.Olean.DS.read]
+    cases hx : ConRon.Arena.Frontend.Olean.DS.nameOf pk R t x with
+    | none => rfl
+    | some n =>
+      show StateT.run (OptionT.run _) lst = _
+      simp only [OptionT.run_bind, OptionT.run_mk, Option.elimM, bind_pure_comp, pure_bind, Option.elim,
+        OptionT.run_map]
+      simp only [ConRon.Arena.Frontend.Olean.DS.read] at ih
+      rw [StateT.run_map]
+      erw [ih]
+      cases List.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf pk R t) l <;> rfl
+
+/-- **`lazy_entry`'s accept is `lazyEntry`'s.** -/
+theorem lazy_entry_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t) {i : Std.U64}
+    {s : frontend.olean.spec.CEntryF Std.U64 Std.U64} {s' : ConLeche.Frontend.Olean.CEntryF UInt64 UInt64}
+    (hs : EV s s') :
+    AR pers (EntryRel absNIdx absEIdx ValRel) st lst (lazy_entry pk pers st.store bs r d i s)
+      (ConRon.Arena.Frontend.Olean.lazyEntry (absPins pk) (absRegion bs r) t i.val s') := by
+  have hp := ds_ptr_rel (pk := pk) (pers := pers) hr hd
+  have hmap := fun st lst => (c_entry_map_refines hp hs st lst).ar
+  obtain ⟨n, lp, ty, k⟩ := s
+  obtain ⟨n', lp', ty', k'⟩ := s'
+  obtain ⟨hn, hlp, hty, hk⟩ := hs
+  cases k <;> cases k' <;> try exact hk.elim
+  case Thm.thm w all w' all' =>
+    obtain ⟨hw, hall⟩ := hk
+    dsimp only at hn hty
+    intro hrel hinv a s2 h
+    simp only [lazy_entry] at h
+    peel h as i1, hi1
+    have eb := ref_base_val hi1
+    by_cases hi : i < i1
+    · rw [ite_eq_left hi] at h
+      have hiv : i.val < refBase := by rw [← eb]; exact hi
+      peel h as o, ho
+      have eo := region_loc_eq bs ho
+      cases o with
+      | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+      | some g =>
+        simp only at h
+        by_cases hg : g < i1
+        · rw [ite_eq_left hg] at h
+          have hgv : g.val < refBase := by rw [← eb]; exact hg
+          obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases r1 with
+          | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | Ok nn =>
+          obtain ⟨b1, lst1, hx1, hb1, hrel1, hinv1⟩ := (hp.nm st lst n).ar hrel hinv _ _ h1
+          obtain ⟨hnm, rfl⟩ := pure_run_some hx1
+          obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases r2 with
+          | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | Ok x =>
+          obtain ⟨b2, lst2, hx2, hb2, hrel2, hinv2⟩ :=
+            (names_map_refines hp hlp (withStore st ar1) _).ar hrel1 hinv1 _ _ h2
+          rw [names_mapM_ds] at hx2
+          obtain ⟨hlps, rfl⟩ := Prod.mk.inj (Except.ok.inj hx2)
+          obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases r3 with
+          | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | Ok tt =>
+          obtain ⟨b3, lst3, hx3, hb3, hrel3, hinv3⟩ := (hp.ex (withStore st ar2) _ ty).ar hrel2 hinv2 _ _ h3
+          obtain ⟨hex, rfl⟩ := pure_run_some hx3
+          obtain ⟨⟨r4, ar4⟩, h4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases r4 with
+          | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | Ok x1 =>
+          obtain ⟨b4, lst4, hx4, hb4, hrel4, hinv4⟩ :=
+            (names_map_refines hp hall (withStore st ar3) _).ar hrel3 hinv3 _ _ h4
+          rw [names_mapM_ds] at hx4
+          obtain ⟨hall', rfl⟩ := Prod.mk.inj (Except.ok.inj hx4)
+          obtain ⟨⟨r5, ar5⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases r5 with
+          | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | Ok vr =>
+          obtain ⟨h6, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+          cases h6
+          rw [value_ref] at h5
+          peel h5 as j1, hj1
+          peel h5 as j2, hj2
+          peel h5 as j3, hj3
+          have ej : j3.val = g.val * refBase + i.val := by
+            rw [ConRon.Refine.HashMap.uscalar_add_eq hj3, ConRon.Refine.HashMap.uscalar_mul_eq hj2,
+              ref_base_val hj1]
+          have hS := intern_e_bvar_run₀ hrel4 hinv4 j3 (o := (.Ok vr, withStore st ar5))
+            (by rw [arena.monad.intern_e_bvar]; erw [h5]; simp only [bind_ok]; rfl)
+          obtain ⟨lst5, hx5, hrel5, hinv5⟩ := Sim₀.apply hS
+          refine ⟨⟨b1, b2, b3, .thm (absEIdx vr) b4⟩, lst5, ?_, ⟨hb1.symm, hb2, hb3.symm, ⟨rfl, hb4⟩⟩,
+            hrel5, hinv5⟩
+          simp only [ConRon.Arena.Frontend.Olean.lazyEntry]
+          rw [← hw, ← eo, ← hn, ← hty]
+          simp only [locOf, Option.map_some, hiv, hgv, hnm, hlps, hex, hall', ite_true]
+          have hx5' : StateT.run (ConRon.Arena.Frontend.Olean.valueRef i.val g.val) lst3 =
+              Except.ok (absEIdx vr, lst5) := by
+            have : absU j3 = g.val * refBase + i.val := ej
+            rw [ConRon.Arena.Frontend.Olean.valueRef, ← this]
+            exact hx5
+          simp only [pure_bind]
+          rw [am_bind_ok hx5']
+          rfl
+        · rw [ite_eq_right hg] at h; cases (Prod.mk.inj (Result.ok_injective h)).1
+    · rw [ite_eq_right hi] at h; cases (Prod.mk.inj (Result.ok_injective h)).1
+  all_goals
+    simp only [lazy_entry, ConRon.Arena.Frontend.Olean.lazyEntry]
+    exact hmap st lst
+
 /-- **`lazy_entries`' accept is `lazyEntries`'**: each constant read, a theorem's value its
 reference, with what it mentions. -/
 theorem lazy_entries_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
