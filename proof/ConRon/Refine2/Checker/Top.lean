@@ -28,6 +28,8 @@ The statements take `AStateRel₀` and `AStateInv` and nothing else: lockstep,
 with no precondition on the twin.
 -/
 import ConRon.Refine2.Checker.DeclCheck
+import ConRon.Refine2.Checker.Basis
+import ConRon.Refine2.Inductives.Top
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -211,21 +213,6 @@ theorem and_pin_ok_refines {pers st lst} {pd : arena.env.IDeclaration} {o}
   cases pd <;> unfold arena.basis.and_pin_ok <;>
     simp only [absIDeclaration, andPinOk] <;> lockstep
 
-/-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
-recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
-then the declared parameter count, the recogniser and the one uniform route
-(finding 14). -/
-theorem check_ind_decl_refines {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode}
-    {block : alloc.vec.Vec arena.env.IConstantInfo} {n_p : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.check_decl.check_ind_decl pers st mode rf block n_p = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o
-      (checkIndDeclArmSpec (ConRon.Refine.absMode mode) lf (absICIL block)
-        (absU n_p)) := by
-  sorry -- T143-STUB
-
 /-! ## The axiom arm, in five -/
 
 /-- `check_axiom_decl_rest` — the three remaining name tests: the two standard
@@ -340,7 +327,12 @@ theorem check_quot_record_refines {pers st lst} {rf lf}
     (hrun : arena.decl_check.check_quot_record pers st rf k cv = ok o) :
     SimRel₀ (IFEnvRelI pers) pers lst o
       (checkQuotRecord lf (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  sorry -- T143-STUB
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_quot_record]
+  unfold checkQuotRecord
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_quot_record_ls {pers st lst}
@@ -363,7 +355,11 @@ theorem check_basis_block_refines {pers st lst} {rf lf}
     (hrun : arena.decl_check.check_basis_block pers st rf kind block = ok o) :
     SimRel₀ (IFEnvRelI pers) pers lst o
       (checkBasisBlock lf (ConRon.Refine.absBasisKind kind) (absICIL block)) := by
-  sorry -- T143-STUB
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_basis_block]
+  unfold checkBasisBlock
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_basis_block_ls {pers st lst}
@@ -376,6 +372,24 @@ open Lockstep in
       (arena.decl_check.check_basis_block pers st rf kind block) lst
       (checkBasisBlock lf (ConRon.Refine.absBasisKind kind) (absICIL block)) :=
   LS.ofSimRel₀ fun _ h => check_basis_block_refines hrel hinv hfe.rel hfe.inv h
+
+/-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
+recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
+then the declared parameter count, the recogniser and the one uniform route
+(finding 14). -/
+theorem check_ind_decl_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {block : alloc.vec.Vec arena.env.IConstantInfo} {n_p : Std.U64} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.check_decl.check_ind_decl pers st mode rf block n_p = ok o) :
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkIndDeclArmSpec (ConRon.Refine.absMode mode) lf (absICIL block)
+        (absU n_p)) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.check_decl.check_ind_decl, checkIndDeclArmSpec]
+  lockstep
 
 /-- **`check_axiom_decl` ⊑ `checkDecl`'s `.axiomDecl` arm**. -/
 theorem check_axiom_decl_refines {pers st lst} {rf lf}
