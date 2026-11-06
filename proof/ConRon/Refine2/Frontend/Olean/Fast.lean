@@ -625,7 +625,7 @@ theorem mark_pass_loop_ms {bs : Slice Std.U8} {r : frontend.olean.region.Region}
       rw [← failed_m_eq hb1]
       split
       · exact MS.ok
-      · exact ih (by rw [hv]) |> fun h => by rw [hv]; exact h
+      · rw [hv]; exact ih hv
     · rw [ite_eq_right hb, ite_eq_right hb]
       exact ih hv
 
