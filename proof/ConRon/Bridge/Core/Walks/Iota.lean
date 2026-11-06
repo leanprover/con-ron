@@ -17,7 +17,7 @@ The module is top-down, one theorem per twin function:
 | `iotaRecAt_spec` | `iotaRecAt` | `Kernel/Core.lean:786-868` |
 | `iotaFam_spec` | its certificate family | the same clause's case split |
 | `recFireLevels_spec`, `recFireArgs_spec` | `recFireLevels`, `recFireArgs` | `CoreDefs.lean:906-920` |
-| `iotaCase3_spec`, `iotaCtorNeverProp_spec` | `iotaCase3`, `iotaCtorNeverProp` | `CoreDefs.lean:72-104` |
+| `iotaCase3At_spec` (`Walks/Former.lean`) | `iotaCase3At` | `Core.lean:490-511` |
 | `iotaIndexOk_spec` | `iotaIndexOk` | `Core.lean:282-288` |
 
 The comparand, case-split and index walks are `sym only [bridge_grind, …] =>

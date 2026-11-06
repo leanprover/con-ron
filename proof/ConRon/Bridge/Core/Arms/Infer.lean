@@ -341,8 +341,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
-literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`) and
-`strLitSupported_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
+literal clauses**: `natLitStored_spec` (`Walks/Nat.lean`) and
+`strLitStored_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
 `infer_natLit`/`infer_strLit`. -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env)
