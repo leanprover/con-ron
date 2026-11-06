@@ -564,19 +564,6 @@ theorem size_error_refines {o} (h : frontend.export_c.size_error = ok o) :
   subst h
   refine ⟨by rw [← hce]; rfl, rfl⟩
 
-/-- `usize as u64`: a widening, so the value is kept. -/
-theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
-    (h : lift (UScalar.cast .U64 i) = ok r) : r.val = i.val := by
-  simp only [lift, Result.ok.injEq] at h
-  subst h
-  rw [UScalar.cast_val_eq]
-  apply Nat.mod_eq_of_lt
-  have := i.hBounds
-  simp only [UScalarTy.numBits] at this ⊢
-  cases System.Platform.numBits_eq with
-  | inl h => rw [h] at this; omega
-  | inr h => rw [h] at this; omega
-
 /-- `USIZE_SIZE` is `USize.size`: `1 << usize::BITS` in `u128`. -/
 theorem usize_size_val {x : Std.U128} (h : frontend.export_c.USIZE_SIZE = ok x) :
     x.val = USize.size := by

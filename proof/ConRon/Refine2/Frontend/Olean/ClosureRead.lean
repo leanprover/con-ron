@@ -1,10 +1,11 @@
 /-
 # `ConRon.Refine2.Frontend.Olean.ClosureRead` — `olean/closure.rs`: the import walk, and the load
 
-**Task #142, Theorem 2.**  `closure_go`, `closure_order`, `load_module`, `load_all`,
-`load_closure` against the twin's.  Each reaches a file read, so each claims its accept (`AS`).
+**Tasks #142, #143, Theorem 2.**  `closure_go`, `closure_order`, `load_module` (the module's
+files, then its lazy load), `load_all`, `load_closure` against the twin's.  Each reaches a file
+read, so each claims its accept (`AS`).
 -/
-import ConRon.Refine2.Frontend.Olean.Closure
+import ConRon.Refine2.Frontend.Olean.Lazy
 import ConRon.Refine2.Frontend.Olean.FilesRead
 
 open Aeneas Aeneas.Std Result
@@ -220,93 +221,93 @@ theorem closure_order_refines {st : arena.monad.AState} {lst : AState}
 
 /-! ## The load -/
 
-/-- `consts_work_empty`. -/
-theorem consts_work_empty_inv {w} (h : consts_work_empty = ok w) : WorkInv w := by
-  rw [consts_work_empty] at h
-  peel h as hm, hhm
-  peel h as hm1, hhm1
-  cases Result.ok_injective h
-  exact ⟨(ConRon.Refine.HashMap2.new_refines hhm).1, (ConRon.Refine.HashMap2.new_refines hhm1).1⟩
-
 theorem array_mapM_run {α β : Type} (f : α → AM β) (a : _root_.Array α) (lst : AState) :
     (a.mapM f).run lst = ((a.toList.mapM f >>= fun ys => pure ys.toArray) : AM _).run lst := by
   rw [Array.mapM_eq_mapM_toList]
   rfl
 
-/-- **`load_module`'s accept is `loadModule`.** -/
-theorem load_module_ok {st : arena.monad.AState} {lst : AState} {w : ConstsWork}
-    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) (hw : WorkInv w)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {a s' w'}
-    (h : load_module inst fsv pk pers st.store w sp_dirs m = ok (.Ok a, s', w')) :
-    ∃ b lst', (loadModule fs (absPins pk) (absSearchPath sp_dirs) (absNIdx m)).run lst = .ok (b, lst') ∧
-      LoadedRel a b ∧ AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') ∧ WorkInv w' := by
+/-- **`load_module`'s accept is `loadModule`**: the module's files, then its lazy load. -/
+theorem load_module_ok {st : arena.monad.AState} {lst : AState} {total idx : Std.U64}
+    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {a s'}
+    (h : load_module inst fsv pk pers st.store sp_dirs total m idx = ok (.Ok a, s')) :
+    ∃ b lst', (loadModule fs (absPins pk) (absSearchPath sp_dirs) total.val (absNIdx m) idx.val).run lst
+        = .ok (b, lst') ∧
+      LoadedRel a b ∧ AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') := by
   rw [load_module] at h
-  peel h as q, hq
-  obtain ⟨r, ar1⟩ := q
+  peel h as r, hr
   cases r with
-  | Err e =>
-    obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-    cases h1
-  | Ok d =>
-    obtain ⟨d', lst1, hx, hR, hrel1, hinv1⟩ := read_view_refines (st := st) (lst := lst) (sp := sp_dirs) (m := m)
-      (level := .Private) hfs hrel hinv _ _ hq
-    peel h as q1, hq1
-    obtain ⟨r1, w1⟩ := q1
-    have hE := entries_of_read_eq (st := withStore st ar1) hrel1 hw hR.constants hq1
-    cases r1 with
-    | Err e =>
-      obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-      cases h1
-    | Ok cs =>
-      obtain ⟨ys, hys, hF, hw1⟩ := hE
-      peel h as n, hn
-      cases nidx_dup2_ok hn
-      obtain ⟨h1, h2⟩ := Prod.mk.inj (Result.ok_injective h)
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h2
-      cases h1
-      refine ⟨⟨absNIdx m, ys.toArray⟩, lst1, ?_, ⟨rfl, by simpa using hF⟩, hrel1, hinv1, hw1⟩
-      have hx' : (Arena.Frontend.Olean.readView fs (absPins pk) (absSearchPath sp_dirs) (absNIdx m) .private).run lst =
-          .ok (d', lst1) := hx
-      show ((Arena.Frontend.Olean.readView fs (absPins pk) (absSearchPath sp_dirs) (absNIdx m) .private) >>= _).run lst = _
-      rw [am_bind_ok hx']
-      show ((d'.constants.mapM (Arena.Frontend.Olean.CEntry.ofRead (absPins pk))) >>= _).run lst1 = _
-      rw [StateT.run_bind, array_mapM_run, StateT.run_bind, hys]
-      rfl
+  | Err e => cases Result.ok_injective h
+  | Ok f =>
+    dsimp only at h
+    obtain ⟨n, hn⟩ := read_files_name hr
+    obtain ⟨f', e1, hf⟩ := read_files_refines hfs hn hr
+    peel h as q, hq
+    obtain ⟨r1, ar1⟩ := q
+    peel h as q2, hq2
+    obtain ⟨r2, size⟩ := q2
+    peel h as u, -
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    have hr2 : r2 = r1 := by
+      cases r1 with
+      | Ok l =>
+        dsimp only at hq2
+        peel hq2 as sz, -
+        exact (Prod.mk.inj (Result.ok_injective hq2)).1.symm
+      | Err _ => exact (Prod.mk.inj (Result.ok_injective hq2)).1.symm
+    subst hr2 h1
+    have hF := load_view_refines (st := st) (lst := lst) (i := idx) (m := m) hf hrel hinv _ _ hq
+    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := hF
+    refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
+    show ((Arena.readName (absNIdx m)) >>= _).run lst = _
+    rw [am_bind_ok (read_name_run hrel hn)]
+    have e1' : Arena.Frontend.Olean.readFiles fs (absSearchPath sp_dirs) (ConRon.Refine.absName n)
+        .private = .ok f' := e1
+    simp only [e1', Arena.Frontend.Olean.liftE]
+    show ((pure f' : AM _) >>= _).run lst = _
+    rw [am_bind_ok rfl, am_bind_ok hx]
+    rfl
 
-/-- The loop of `load_all`. -/
+/-- The loop of `load_all`: the rest of the order, each module with its position. -/
 theorem load_all_loop_ok (hfs : FsRel inst fsv fs)
-    (order : alloc.vec.Vec arena.handle.NIdx) (st : arena.monad.AState) (lst : AState) (w : ConstsWork)
-    (out : alloc.vec.Vec Loaded) (i : Std.Usize) (hw : WorkInv w)
+    (order : alloc.vec.Vec arena.handle.NIdx) (st : arena.monad.AState) (lst : AState)
+    (out : alloc.vec.Vec frontend.olean.lazy.Loaded) (total : Std.U64) (i : Std.Usize)
     {acc : List Arena.Frontend.Olean.Loaded} (ho : List.Forall₂ LoadedRel out.val acc) :
-    AS pers (fun (o : alloc.vec.Vec Loaded) (ys : List Arena.Frontend.Olean.Loaded) =>
+    AS pers (fun (o : alloc.vec.Vec frontend.olean.lazy.Loaded) (ys : List Arena.Frontend.Olean.Loaded) =>
         List.Forall₂ LoadedRel o.val (acc ++ ys)) st lst
-      (load_all_loop inst fsv pk pers st.store sp_dirs order w out i)
-      (((order.val.drop i.val).map absNIdx).mapM (loadModule fs (absPins pk) (absSearchPath sp_dirs))) := by
+      (load_all_loop inst fsv pk pers st.store sp_dirs order out total i)
+      ((((order.val.drop i.val).map absNIdx).zipIdx i.val).mapM fun (p : NIdx × Nat) =>
+        loadModule fs (absPins pk) (absSearchPath sp_dirs) total.val p.1 p.2) := by
   intro hrel hinv a s' h
   rw [load_all_loop] at h
   by_cases hlt : i < alloc.vec.Vec.len order
   · rw [ite_eq_left hlt] at h
     peel h as n, hn
     obtain ⟨hi, rfl⟩ := vec_index_eq hn
+    peel h as i2, hi2
+    have hi2v : i2.val = i.val := by
+      simp only [lift, Result.ok.injEq] at hi2
+      subst hi2
+      rw [usize_cast_u64_val']
     peel h as q, hq
-    obtain ⟨r, ar1, w1⟩ := q
+    obtain ⟨r, ar1⟩ := q
     cases r with
-    | Err e =>
-      obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-      cases h1
+    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
     | Ok l =>
-      obtain ⟨b, lst1, hx, hR, hrel1, hinv1, hw1⟩ := load_module_ok hfs hw hrel hinv hq
+      obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := load_module_ok hfs hrel hinv hq
       peel h as out1, ho1
-      peel h as i2, hi2
-      have hi2v : i2.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi2]; rfl
+      peel h as i3, hi3
+      have hi3v : i3.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi3]; rfl
       have ho' : List.Forall₂ LoadedRel out1.val (acc ++ [b]) := by
         rw [ConRon.Refine.vec_push_val ho1]
         exact List.rel_append ho (.cons hR .nil)
       obtain ⟨ys, lst2, hys, hF, hrel2, hinv2⟩ :=
-        load_all_loop_ok hfs order (withStore st ar1) lst1 w1 out1 i2 hw1 ho' hrel1 hinv1 a s' h
-      rw [hi2v] at hys
+        load_all_loop_ok hfs order (withStore st ar1) lst1 out1 total i3 ho' hrel1 hinv1 a s' h
+      rw [hi3v] at hys
       refine ⟨b :: ys, lst2, ?_, by simpa using hF, hrel2, hinv2⟩
-      rw [List.drop_eq_getElem_cons hi, List.map_cons, List.mapM_cons, am_bind_ok hx, am_bind_ok hys]
+      rw [List.drop_eq_getElem_cons hi, List.map_cons, List.zipIdx_cons, List.mapM_cons]
+      rw [hi2v] at hx
+      rw [am_bind_ok hx, am_bind_ok hys]
       rfl
   · rw [ite_eq_right hlt] at h
     obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
@@ -323,23 +324,29 @@ decreasing_by
   omega
 
 /-- The relation of a load. -/
-abbrev LoadedA (ls : alloc.vec.Vec Loaded) (ls' : _root_.Array Arena.Frontend.Olean.Loaded) : Prop :=
+abbrev LoadedA (ls : alloc.vec.Vec frontend.olean.lazy.Loaded) (ls' : _root_.Array Arena.Frontend.Olean.Loaded) : Prop :=
   List.Forall₂ LoadedRel ls.val ls'.toList
 
-/-- **`load_all`'s accept is `order.mapM loadModule`.** -/
+/-- **`load_all`'s accept is the twin's `loadAll`.** -/
 theorem load_all_refines {st : arena.monad.AState} {lst : AState}
     {order : alloc.vec.Vec arena.handle.NIdx} {order' : _root_.Array NIdx} (ho : OutA order order')
     (hfs : FsRel inst fsv fs) :
     AS pers LoadedA st lst (load_all inst fsv pk pers st.store sp_dirs order)
-      (order'.mapM (loadModule fs (absPins pk) (absSearchPath sp_dirs))) := by
+      (Arena.Frontend.Olean.loadAll fs (absPins pk) (absSearchPath sp_dirs) order') := by
   intro hrel hinv a s' h
   rw [load_all] at h
-  peel h as w, hw
-  obtain ⟨ys, lst1, hys, hF, hrel1, hinv1⟩ := load_all_loop_ok hfs order st lst w _ _ (consts_work_empty_inv hw)
+  peel h as total, htotal
+  have htv : total.val = order'.size := by
+    simp only [lift, Result.ok.injEq] at htotal
+    subst htotal
+    rw [usize_cast_u64_val', vec_len_val, ← Array.length_toList, ← ho, List.length_map]
+  obtain ⟨ys, lst1, hys, hF, hrel1, hinv1⟩ := load_all_loop_ok hfs order st lst _ total _
     (acc := []) .nil hrel hinv a s' h
-  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, ho] at hys
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, ho, htv] at hys
   refine ⟨ys.toArray, lst1, ?_, by simpa using hF, hrel1, hinv1⟩
-  rw [array_mapM_run, StateT.run_bind, hys]
+  rw [Arena.Frontend.Olean.loadAll]
+  show ((List.mapM _ _ : AM _) >>= fun ys => pure ys.toArray).run lst = _
+  rw [StateT.run_bind, hys]
   rfl
 
 /-- **`load_closure`'s accept is `loadClosure`.** -/
@@ -349,6 +356,9 @@ theorem load_closure_refines {st : arena.monad.AState} {lst : AState}
       (loadClosure fs (absPins pk) (absSearchPath sp_dirs) (absNIdxArr roots)) := by
   intro hrel hinv a s' h
   rw [load_closure] at h
+  peel h as s0, -
+  peel h as v0, -
+  peel h as u0, -
   peel h as q, hq
   obtain ⟨r, ar1⟩ := q
   cases r with
@@ -356,6 +366,15 @@ theorem load_closure_refines {st : arena.monad.AState} {lst : AState}
     obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
     cases h1
   | Ok order =>
+    dsimp only at h
+    peel h as s1, -
+    peel h as v1, -
+    peel h as i1, -
+    peel h as v2, -
+    peel h as s2, -
+    peel h as v3, -
+    peel h as line, -
+    peel h as u1, -
     obtain ⟨o', lst1, hx, hR, hrel1, hinv1⟩ := closure_order_refines (st := st) (lst := lst) (pk := pk) (pers := pers)
       (sp_dirs := sp_dirs) (roots := roots) hfs hrel hinv _ _ hq
     obtain ⟨b, lst2, hb, hR2, hrel2, hinv2⟩ := load_all_refines hR hfs hrel1 hinv1 a s' h

@@ -30,15 +30,31 @@ open ConRon.Arena.Frontend.Olean (isPropBody isPropHead isPropDrop isPropCheap)
 /-- A recursor's rule, handles against the twin's. -/
 abbrev RuleR := RuleRel (N := arena.handle.NIdx) absNIdx (E := arena.handle.EIdx) absEIdx ValRel
 
-/-- **`closure::CEntry` against the twin's.** -/
-def CEntryRel (c : frontend.olean.closure.CEntry) (c' : Arena.Frontend.Olean.CEntry) : Prop :=
+/-- **`lazy::CEntry` against the twin's.** -/
+def CEntryRel (c : frontend.olean.lazy.CEntry) (c' : Arena.Frontend.Olean.CEntry) : Prop :=
   EntryRel absNIdx absEIdx ValRel c.c c'.c ∧ c.uses.val.map absNIdx = c'.uses.toList
 
-/-- `closure::Loaded` against the twin's. -/
-structure LoadedRel (l : frontend.olean.closure.Loaded) (l' : Arena.Frontend.Olean.Loaded) :
+/-- **`sparse::Table` against upstream's `Table`**: the same keys, ascending, and
+the values abstracted. -/
+structure TableRel {T α : Type} (A : T → α) (t : frontend.olean.sparse.Table T)
+    (t' : ConLeche.Frontend.Olean.Table α) : Prop where
+  keys : t.keys.val.map (·.val) = t'.keys.toList
+  vals : t.vals.val.map A = t'.vals.toList
+
+/-- **`sparse::Frontier` against the twin's**: the four tables. -/
+structure FrontierRel (b : frontend.olean.sparse.Frontier) (b' : Arena.Frontend.Olean.Frontier) :
+    Prop where
+  names : TableRel absNIdx b.names b'.names
+  levels : TableRel absLIdx b.levels b'.levels
+  lists : TableRel absLsIdx b.lists b'.lists
+  exprs : TableRel absEIdx b.exprs b'.exprs
+
+/-- `lazy::Loaded` against the twin's. -/
+structure LoadedRel (l : frontend.olean.lazy.Loaded) (l' : Arena.Frontend.Olean.Loaded) :
     Prop where
   «name» : absNIdx l.name = l'.name
   constants : List.Forall₂ CEntryRel l.constants.val l'.constants.toList
+  frontier : FrontierRel l.frontier l'.frontier
 
 /-- A position in the merge. -/
 @[reducible] def absMgPos (p : Std.Usize × Std.Usize) : Nat × Nat := (p.1.val, p.2.val)
@@ -68,7 +84,7 @@ theorem forall₂_getElem? {α β : Type} {R : α → β → Prop} {l : List α}
 
 /-- **`mg_get` is `Merged.get`**: the map's answer, and the Rust's index in range. -/
 theorem mg_get_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
-    (hm : MergedRel mg mg') {n : arena.handle.NIdx} {o : Option frontend.olean.closure.CEntry}
+    (hm : MergedRel mg mg') {n : arena.handle.NIdx} {o : Option frontend.olean.lazy.CEntry}
     (h : mg_get mg n = ok o) : Option.Rel CEntryRel o (mg'.get (absNIdx n)) := by
   rw [mg_get] at h
   peel h as o1, h1
@@ -436,7 +452,7 @@ theorem nidx_list_eq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
 theorem subsumes_rel {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     (pk : frontend.olean.spec.OleanPins) {mg : frontend.olean.merge.Merged}
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg')
-    {c1 c2 : frontend.olean.closure.CEntry} {c1' c2' : Arena.Frontend.Olean.CEntry}
+    {c1 c2 : frontend.olean.lazy.CEntry} {c1' c2' : Arena.Frontend.Olean.CEntry}
     (h1 : CEntryRel c1 c1') (h2 : CEntryRel c2 c2') :
     CR pers Eq st lst (subsumes pk pers st.store mg c1 c2)
       (Arena.Frontend.Olean.subsumes (absPins pk) mg' c1' c2') := by
@@ -872,7 +888,7 @@ theorem merge_all_loop_cr {pers : arena.store.PersTier} {st : arena.monad.AState
 
 /-- **`merge_all` is `mergeAll`.** -/
 theorem merge_all_rel {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-    (pk : frontend.olean.spec.OleanPins) {ls : alloc.vec.Vec frontend.olean.closure.Loaded}
+    (pk : frontend.olean.spec.OleanPins) {ls : alloc.vec.Vec frontend.olean.lazy.Loaded}
     {ls' : Array Arena.Frontend.Olean.Loaded} (hls : List.Forall₂ LoadedRel ls.val ls'.toList) :
     CR pers MergedRel st lst (merge_all pk pers st.store ls)
       (Arena.Frontend.Olean.mergeAll (absPins pk) ls') := by

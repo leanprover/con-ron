@@ -34,7 +34,7 @@ readers state them.  The twin's two side-by-side lists (`checkBlockCtors`,
 module
 
 import ConRon.Bridge.Inductives.SumInstall
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.Positivity
 import ConLeche.Verify.Cached.BlockRunC
 -- `Verify.openPisAtFvars_length`, which no public import re-exports
@@ -257,7 +257,7 @@ theorem blockCapsAt_spec {env : Env} (fe : IFEnv)
     rw [hg]
     simp only [Option.getD_some]
     obtain ⟨cv, nI, cs⟩ := mP
-    obtain ⟨hcv, rfl, hcs⟩ := dMember_inv hmP
+    obtain ⟨hcv, rfl, hcs, -⟩ := dMember_inv hmP
     dsimp only at hcv hcs
     dsimp only at hrun ⊢
     cases hc : m.ctors with
@@ -456,7 +456,7 @@ theorem blockRawRec_spec (p : Arena.BlockParts) (pP : ConLeche.BlockParts) :
     intro m mP s₀ s' r hok hp hrun
     obtain ⟨hT, hm⟩ := hp
     obtain ⟨cv, nI, cs⟩ := mP
-    obtain ⟨-, rfl, hcs⟩ := dMember_inv hm
+    obtain ⟨-, rfl, hcs, -⟩ := dMember_inv hm
     dsimp only at hcs
     exact anyM_dpstep dCtor dCtor_ext _ hQ _ _ hin m.ctors cs s₀ s' r hok ⟨hT, hcs⟩ hrun
   exact anyM_dpstep dMember dMember_ext _ hQ _ _ hout p.shape.members ms s₀ s' r hok
@@ -939,7 +939,7 @@ theorem checkBlockCtors_specF {env : Env} (fe₀ fe : IFEnv)
     | cons cvTa cvTas =>
     obtain ⟨cvTaP, cvTasP, rfl, hcv, hcvs'⟩ := mapM_option_cons_inv hcvs
     obtain ⟨cvT, nI, csP⟩ := msP
-    obtain ⟨hcvT, rfl, hcs⟩ := dMember_inv hm
+    obtain ⟨hcvT, rfl, hcs, -⟩ := dMember_inv hm
     dsimp only at hcvT hcs
     have hlps := BlockShape.lps_spec hp
     obtain ⟨mm, rs, nP, el, sP, lg, ip⟩ := pP
@@ -1038,7 +1038,7 @@ theorem checkAbsCtorSorts_specF {env : Env} (fe : IFEnv)
       obtain ⟨x, hx, rfl⟩ := ho
       exact ⟨x, hx, rfl⟩
     have hW : Expr.WScoped (ctxP.hiAt 0) tyN := hws _ List.mem_cons_self
-    obtain ⟨namesP, lpsP, paramsP, sortP, hceq, hn, hl, -, hsort, -⟩ := dCtx_inv hctx
+    obtain ⟨namesP, lpsP, paramsP, sortP, _, hceq, hn, hl, -, hsort, -, _⟩ := dCtx_inv hctx
     have hl' : Frontend.denoteNList s₀.store.ns ctx.lps = some ctxP.lps := by rw [hceq]; exact hl
     have hsort' : denoteL s₀.store.ls ctx.sort = some ctxP.sort := by rw [hceq]; exact hsort
     have hhi : ctx.hiAt 0 = ctxP.hiAt 0 := by
@@ -1363,7 +1363,7 @@ theorem checkBlockPositivity_spec {env : Env} (fe : IFEnv)
   obtain ⟨hs4, hz⟩ := zeroLevel_run c3.ok.pins k4
   subst s₄
   obtain ⟨ov, s₅, k5, z5⟩ := AM.bind_ok z4
-  obtain ⟨namesP, lpsP, paramsP, sortP, hceq, -, -, -, hsort, -⟩ := dCtx_inv hctx
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, hceq, -, -, -, hsort, -, _⟩ := dCtx_inv hctx
   have hfind : ctxP.find? = env.find? := by rw [hceq]
   have hsort' : denoteL s₃.store.ls ctx.sort = some ctxP.sort := by
     rw [hceq]; exact denoteL_ext hsort (c2.ext.trans c3.ext)

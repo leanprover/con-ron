@@ -27,6 +27,7 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.ProjCore
 public import ConRon.Bridge.Core.Walks.BetaSpine
 import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Specs
 
 public section
 
