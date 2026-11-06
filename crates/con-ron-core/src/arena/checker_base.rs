@@ -121,7 +121,7 @@ pub const M_FUEL_CRF: [u32; 30] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"a certified Nat operation's name, not a definition"`, as code points (the cited message with the name dropped).
+/// `"a certified Nat operation's name, not a definition"`, as code points; the name follows (`: <name>`), as in the cited message.
 pub const M_NAT_OP_NAME: [u32; 50] = [
     97, 32, 99, 101, 114, 116, 105, 102, 105, 101, 100, 32, 78, 97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110, 39, 115, 32, 110, 97, 109, 101, 44, 32, 110, 111, 116, 32, 97, 32, 100, 101, 102, 105, 110, 105, 116, 105, 111, 110,
 ];
@@ -647,7 +647,7 @@ pub fn unresolved_consts_fail<T>(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
 /// con-leche: ConLeche/Cached/ParsedC.lean:42-66 checkConstantValC
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — checks
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — checks
 /// common to all declarations: fresh name, no reserved name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
 /// `false`, which Rust spells at every call), a literal's name only at its
@@ -683,7 +683,7 @@ pub fn check_constant_val(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
 /// reserved basis name, not a certified operation's name unless `allow_op`.
 pub fn check_constant_val_guards(
@@ -706,7 +706,18 @@ pub fn check_constant_val_guards(
                         Err(e) => Err(e),
                         Ok(op) => {
                             if op && !allow_op {
-                                fail(CheckError::Invalid(code_points(&M_NAT_OP_NAME)))
+                                match crate::arena::monad::read_name(pers, st, &cv.name) {
+                                    Err(e) => Err(e),
+                                    Ok(n) => {
+                                        let mut m: Vec<u32> = code_points(&M_NAT_OP_NAME);
+                                        m.push(58);
+                                        m.push(32);
+                                        fail(CheckError::Invalid(crate::frontend::text::cat(
+                                            m,
+                                            &crate::kernel::name::render(&n),
+                                        )))
+                                    }
+                                }
                             } else {
                                 check_constant_val_guards_rest(pers, st, cv)
                             }
@@ -720,7 +731,7 @@ pub fn check_constant_val_guards(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
 /// and no free variable in the type.
@@ -762,7 +773,7 @@ pub fn check_constant_val_guards_rest(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the two
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).
 pub fn check_constant_val_tail(
@@ -797,7 +808,7 @@ pub fn check_constant_val_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:171-177 unwrapOr
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:277-282 unwrapOr` — unwrap
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:279-284 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
     match o {
@@ -818,7 +829,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-424 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:291-304 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
@@ -846,7 +857,7 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-424 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` — one
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:291-304 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.

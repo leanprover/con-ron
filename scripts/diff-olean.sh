@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# THE OLEAN DIFFERENTIAL (task #142): upstream's `tests/olean.sh` case table (109
+# THE OLEAN DIFFERENTIAL (task #142): upstream's `tests/olean.sh` case table (122
 # cases: exit codes and messages as pinned upstream, the verdicts pinned both ways
 # included) against a binary that speaks con-leche's command line.
 #
@@ -76,7 +76,7 @@ grep -E '^OLEAN FAIL|olean gate:' "$LOG" | cut -c1-200
 if [ -n "$UP" ]; then
   UPC="$(dirname "$UP")/olean-compare"
   run "$UP" "$UPC" "$W/upstream.log" 60
-  norm() { sed -E 's/con-(ron|ron-lean|leche): //; s/ t=[0-9.]+s$//; /^con-leche: stats:/d; /stats:/d' "$1"; }
+  norm() { sed -E 's/con-(ron|ron-lean|leche): //; s/ t=[0-9.]+s( RSS=[0-9.]+G)?$//; /^con-leche: stats:/d; /stats:/d' "$1"; }
   norm "$LOG" > "$W/ours.norm"; norm "$W/upstream.log" > "$W/upstream.norm"
   if cmp -s "$W/ours.norm" "$W/upstream.norm"; then
     echo "diff-olean: every verdict line agrees with upstream's"

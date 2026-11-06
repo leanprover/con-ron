@@ -1038,6 +1038,23 @@ structure arena.core.NatOpPins where
   sl : arena.handle.NIdx
   sr : arena.handle.NIdx
 
+/-- [con_ron_core::kernel::name::NameComponent]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 585:0-588:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.name.NameComponent where
+| Str : alloc.vec.Vec Std.U32 → kernel.name.NameComponent
+| Num : Std.U64 → kernel.name.NameComponent
+
+/-- [con_ron_core::kernel::name::DisplayAcc]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 347:0-352:1
+    Visibility: public -/
+structure kernel.name.DisplayAcc where
+  out : alloc.vec.Vec Std.U32
+  len : Std.U64
+  dropped : Std.U64
+  full : Bool
+
 /-- [con_ron_core::arena::nat_op_pin_set::INatOpPinSet]
     Source: 'crates/con-ron-core/src/arena/nat_op_pin_set.rs', lines 39:0-67:1
     Visibility: public -/
@@ -1267,23 +1284,6 @@ structure arena.inductives.positivity.NestState where
   keys : alloc.vec.Vec arena.inductives.positivity.NestKey
   active : alloc.vec.Vec arena.inductives.positivity.NestKey
   ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
-
-/-- [con_ron_core::kernel::name::NameComponent]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 585:0-588:1
-    Visibility: public -/
-@[discriminant isize]
-inductive kernel.name.NameComponent where
-| Str : alloc.vec.Vec Std.U32 → kernel.name.NameComponent
-| Num : Std.U64 → kernel.name.NameComponent
-
-/-- [con_ron_core::kernel::name::DisplayAcc]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 347:0-352:1
-    Visibility: public -/
-structure kernel.name.DisplayAcc where
-  out : alloc.vec.Vec Std.U32
-  len : Std.U64
-  dropped : Std.U64
-  full : Bool
 
 /-- [con_ron_core::arena::core::NatEqCtx]
     Source: 'crates/con-ron-core/src/arena/core.rs', lines 2816:0-2825:1

@@ -33100,7 +33100,7 @@ def arena.checker_base.M_UNDECL_TYPE : Array Std.U32 37#usize :=
     ]
 
 /-- [con_ron_core::arena::checker_base::check_constant_val_tail]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 768:0-793:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 779:0-804:1
     Visibility: public -/
 def arena.checker_base.check_constant_val_tail
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -33128,6 +33128,928 @@ def arena.checker_base.check_constant_val_tail
       let r1 ← arena.monad.fail Unit (kernel.core_types.CheckError.Invalid v)
       ok (r1, st1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+
+/-- [con_ron_core::kernel::name::render_from::DOT]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 643:12-643:39 -/
+@[global_simps, irreducible]
+def kernel.name.render_from.DOT : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::kernel::name::display_acc_component::CLOSE]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 564:8-564:38 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_component.CLOSE : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 187#u32 ]
+
+/-- [con_ron_core::kernel::name::display_acc_component::OPEN]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 563:8-563:37 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_component.OPEN : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 171#u32 ]
+
+/-- [con_ron_core::kernel::name::display_in_range]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 220:0-222:1
+    Visibility: public -/
+def kernel.name.display_in_range
+  (v : Std.U32) (lo : Std.U32) (hi : Std.U32) : Result Bool := do
+  if lo <= v
+  then ok (v <= hi)
+  else ok false
+
+/-- [con_ron_core::kernel::name::display_ascii_alpha]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 485:0-493:1
+    Visibility: public -/
+def kernel.name.display_ascii_alpha (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 97#u32 122#u32
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 65#u32 90#u32
+    if b1
+    then ok true
+    else ok false
+
+/-- [con_ron_core::kernel::name::display_subscript_alnum]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 470:0-482:1
+    Visibility: public -/
+def kernel.name.display_subscript_alnum (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 8320#u32 8329#u32
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 8336#u32 8348#u32
+    if b1
+    then ok true
+    else
+      let b2 ← kernel.name.display_in_range v 7522#u32 7530#u32
+      if b2
+      then ok true
+      else if v = 11388#u32
+           then ok true
+           else ok false
+
+/-- [con_ron_core::kernel::name::display_letter_like]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 447:0-467:1
+    Visibility: public -/
+def kernel.name.display_letter_like (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_in_range v 945#u32 969#u32
+  if b
+  then
+    if v != 955#u32
+    then ok true
+    else
+      let b1 ← kernel.name.display_in_range v 913#u32 937#u32
+      if b1
+      then
+        if v != 928#u32
+        then
+          if v != 931#u32
+          then ok true
+          else
+            let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+            if b2
+            then ok true
+            else
+              let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+              if b3
+              then ok true
+              else
+                let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+                if b4
+                then ok true
+                else
+                  let b5 ←
+                    kernel.name.display_in_range v 119964#u32 120223#u32
+                  if b5
+                  then ok true
+                  else
+                    let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                    if b6
+                    then
+                      if v != 215#u32
+                      then
+                        if v != 247#u32
+                        then ok true
+                        else
+                          let b7 ←
+                            kernel.name.display_in_range v 256#u32 383#u32
+                          if b7
+                          then ok true
+                          else ok false
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+        else
+          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+          if b2
+          then ok true
+          else
+            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+            if b3
+            then ok true
+            else
+              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+              if b4
+              then ok true
+              else
+                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+                if b5
+                then ok true
+                else
+                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                  if b6
+                  then
+                    if v != 215#u32
+                    then
+                      if v != 247#u32
+                      then ok true
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+      else
+        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+        if b2
+        then ok true
+        else
+          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+          if b3
+          then ok true
+          else
+            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+            if b4
+            then ok true
+            else
+              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+              if b5
+              then ok true
+              else
+                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                if b6
+                then
+                  if v != 215#u32
+                  then
+                    if v != 247#u32
+                    then ok true
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+  else
+    let b1 ← kernel.name.display_in_range v 913#u32 937#u32
+    if b1
+    then
+      if v != 928#u32
+      then
+        if v != 931#u32
+        then ok true
+        else
+          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+          if b2
+          then ok true
+          else
+            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+            if b3
+            then ok true
+            else
+              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+              if b4
+              then ok true
+              else
+                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+                if b5
+                then ok true
+                else
+                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                  if b6
+                  then
+                    if v != 215#u32
+                    then
+                      if v != 247#u32
+                      then ok true
+                      else
+                        let b7 ←
+                          kernel.name.display_in_range v 256#u32 383#u32
+                        if b7
+                        then ok true
+                        else ok false
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+      else
+        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+        if b2
+        then ok true
+        else
+          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+          if b3
+          then ok true
+          else
+            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+            if b4
+            then ok true
+            else
+              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+              if b5
+              then ok true
+              else
+                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+                if b6
+                then
+                  if v != 215#u32
+                  then
+                    if v != 247#u32
+                    then ok true
+                    else
+                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                      if b7
+                      then ok true
+                      else ok false
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+    else
+      let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
+      if b2
+      then ok true
+      else
+        let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
+        if b3
+        then ok true
+        else
+          let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
+          if b4
+          then ok true
+          else
+            let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
+            if b5
+            then ok true
+            else
+              let b6 ← kernel.name.display_in_range v 192#u32 255#u32
+              if b6
+              then
+                if v != 215#u32
+                then
+                  if v != 247#u32
+                  then ok true
+                  else
+                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                    if b7
+                    then ok true
+                    else ok false
+                else
+                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                  if b7
+                  then ok true
+                  else ok false
+              else
+                let b7 ← kernel.name.display_in_range v 256#u32 383#u32
+                if b7
+                then ok true
+                else ok false
+
+/-- [con_ron_core::kernel::name::display_id_rest]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 509:0-529:1
+    Visibility: public -/
+def kernel.name.display_id_rest (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_ascii_alpha v
+  if b
+  then ok true
+  else
+    let b1 ← kernel.name.display_in_range v 48#u32 57#u32
+    if b1
+    then ok true
+    else
+      if v = 95#u32
+      then ok true
+      else
+        if v = 39#u32
+        then ok true
+        else
+          if v = 33#u32
+          then ok true
+          else
+            if v = 63#u32
+            then ok true
+            else
+              let b2 ← kernel.name.display_letter_like v
+              if b2
+              then ok true
+              else
+                let b3 ← kernel.name.display_subscript_alnum v
+                if b3
+                then ok true
+                else ok false
+
+/-- [con_ron_core::kernel::name::display_id_rest_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 545:0-553:1
+    Visibility: public -/
+def kernel.name.display_id_rest_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) : Result Bool := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok true
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let b ← kernel.name.display_id_rest i2
+    if b
+    then let i3 ← i + 1#usize
+         kernel.name.display_id_rest_from s i3
+    else ok false
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_id_first]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 496:0-506:1
+    Visibility: public -/
+def kernel.name.display_id_first (v : Std.U32) : Result Bool := do
+  let b ← kernel.name.display_ascii_alpha v
+  if b
+  then ok true
+  else
+    if v = 95#u32
+    then ok true
+    else
+      let b1 ← kernel.name.display_letter_like v
+      if b1
+      then ok true
+      else ok false
+
+/-- [con_ron_core::kernel::name::display_id_shaped]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 536:0-542:1
+    Visibility: public -/
+def kernel.name.display_id_shaped
+  (s : alloc.vec.Vec Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  if i = 0#usize
+  then ok false
+  else
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+        0#usize
+    let b ← kernel.name.display_id_first i1
+    if b
+    then kernel.name.display_id_rest_from s 1#usize
+    else ok false
+
+/-- [con_ron_core::kernel::name::display_acc_escaped_from::BACKSLASHES]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 414:12-414:51 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_escaped_from.BACKSLASHES : Array Std.U32 2#usize :=
+  Array.repeat 2#usize 92#u32
+
+/-- [con_ron_core::kernel::name::display_max_len]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 294:0-296:1
+    Visibility: public -/
+def kernel.name.display_max_len : Result Std.U64 := do
+  ok 512#u64
+
+/-- [con_ron_core::frontend::text::cat]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 23:4-26:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cat_loop
+  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    let out1 ← alloc.vec.Vec.push out i1
+    let i2 ← i + 1#usize
+    frontend.text.cat_loop b out1 n i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cat]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 19:0-28:1
+    Visibility: public -/
+def frontend.text.cat
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let n := alloc.vec.Vec.len b
+  frontend.text.cat_loop b a n 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_piece]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 363:0-375:1
+    Visibility: public -/
+def kernel.name.display_acc_piece
+  (a : kernel.name.DisplayAcc) (p : alloc.vec.Vec Std.U32) (raw : Std.U64) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i := alloc.vec.Vec.len p
+  let n ← lift (UScalar.cast .U64 i)
+  if a.full
+  then let i1 ← a.dropped + raw
+       ok { a with dropped := i1 }
+  else
+    let i1 ← a.len + n
+    let i2 ← kernel.name.display_max_len
+    if i1 > i2
+    then let i3 ← a.dropped + raw
+         ok { a with dropped := i3, full := true }
+    else let v ← frontend.text.cat a.out p
+         ok { a with out := v, len := i1 }
+
+/-- [con_ron_core::kernel::name::display_acc_char]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 379:0-383:1
+    Visibility: public -/
+def kernel.name.display_acc_char
+  (a : kernel.name.DisplayAcc) (c : Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  let p ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) c
+  kernel.name.display_acc_piece a p 1#u64
+
+/-- [con_ron_core::kernel::name::display_hex_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 329:0-342:1
+    Visibility: public -/
+def kernel.name.display_hex_from
+  (v : Std.U32) (k : Std.U32) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if k = 0#u32
+  then ok out
+  else
+    let i ← k - 1#u32
+    let i1 ← 4#u32 * i
+    let i2 ← v >>> i1
+    let d ← lift (i2 &&& 15#u32)
+    let o ←
+      if d < 10#u32
+      then do
+           let i3 ← 48#u32 + d
+           alloc.vec.Vec.push out i3
+      else do
+           let i3 ← 55#u32 + d
+           alloc.vec.Vec.push out i3
+    kernel.name.display_hex_from v i o
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_hex_width]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 313:0-325:1
+    Visibility: public -/
+def kernel.name.display_hex_width (v : Std.U32) : Result Std.U32 := do
+  if v < 65536#u32
+  then ok 4#u32
+  else
+    if v < 1048576#u32
+    then ok 5#u32
+    else
+      if v < 16777216#u32
+      then ok 6#u32
+      else if v < 268435456#u32
+           then ok 7#u32
+           else ok 8#u32
+
+/-- [con_ron_core::kernel::name::display_code_escape::OPEN]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 304:4-304:42 -/
+@[global_simps, irreducible]
+def kernel.name.display_code_escape.OPEN : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 92#u32, 117#u32, 123#u32 ]
+
+/-- [con_ron_core::kernel::name::display_code_escape]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 303:0-309:1
+    Visibility: public -/
+def kernel.name.display_code_escape
+  (c : Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let i ← kernel.name.display_hex_width c
+  let s ← lift (Array.to_slice kernel.name.display_code_escape.OPEN)
+  let v ← kernel.core_types.code_points s
+  let out ← kernel.name.display_hex_from c i v
+  alloc.vec.Vec.push out 125#u32
+
+/-- [con_ron_core::kernel::name::display_unsafe_char]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 232:0-290:1
+    Visibility: public -/
+def kernel.name.display_unsafe_char (v : Std.U32) : Result Bool := do
+  if v < 32#u32
+  then ok true
+  else
+    let b ← kernel.name.display_in_range v 127#u32 160#u32
+    if b
+    then ok true
+    else
+      if v = 173#u32
+      then ok true
+      else
+        let b1 ← kernel.name.display_in_range v 1536#u32 1541#u32
+        if b1
+        then ok true
+        else
+          if v = 1564#u32
+          then ok true
+          else
+            if v = 1757#u32
+            then ok true
+            else
+              if v = 1807#u32
+              then ok true
+              else
+                let b2 ← kernel.name.display_in_range v 2192#u32 2193#u32
+                if b2
+                then ok true
+                else
+                  if v = 2274#u32
+                  then ok true
+                  else
+                    if v = 5760#u32
+                    then ok true
+                    else
+                      if v = 6158#u32
+                      then ok true
+                      else
+                        let b3 ←
+                          kernel.name.display_in_range v 8192#u32 8207#u32
+                        if b3
+                        then ok true
+                        else
+                          let b4 ←
+                            kernel.name.display_in_range v 8232#u32 8239#u32
+                          if b4
+                          then ok true
+                          else
+                            let b5 ←
+                              kernel.name.display_in_range v 8287#u32 8292#u32
+                            if b5
+                            then ok true
+                            else
+                              let b6 ←
+                                kernel.name.display_in_range v 8294#u32
+                                  8303#u32
+                              if b6
+                              then ok true
+                              else
+                                if v = 12288#u32
+                                then ok true
+                                else
+                                  let b7 ←
+                                    kernel.name.display_in_range v 55296#u32
+                                      57343#u32
+                                  if b7
+                                  then ok true
+                                  else
+                                    if v = 65279#u32
+                                    then ok true
+                                    else
+                                      let b8 ←
+                                        kernel.name.display_in_range v
+                                          65529#u32 65531#u32
+                                      if b8
+                                      then ok true
+                                      else
+                                        if v = 69821#u32
+                                        then ok true
+                                        else
+                                          if v = 69837#u32
+                                          then ok true
+                                          else
+                                            let b9 ←
+                                              kernel.name.display_in_range v
+                                                78896#u32 78911#u32
+                                            if b9
+                                            then ok true
+                                            else
+                                              let b10 ←
+                                                kernel.name.display_in_range v
+                                                  113824#u32 113827#u32
+                                              if b10
+                                              then ok true
+                                              else
+                                                let b11 ←
+                                                  kernel.name.display_in_range
+                                                    v 119155#u32 119162#u32
+                                                if b11
+                                                then ok true
+                                                else
+                                                  if v = 917505#u32
+                                                  then ok true
+                                                  else
+                                                    let b12 ←
+                                                      kernel.name.display_in_range
+                                                        v 917536#u32 917631#u32
+                                                    if b12
+                                                    then ok true
+                                                    else
+                                                      if v > 1114111#u32
+                                                      then ok true
+                                                      else ok false
+
+/-- [con_ron_core::kernel::name::display_acc_escaped_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 408:0-423:1
+    Visibility: public -/
+def kernel.name.display_acc_escaped_from
+  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32)
+  (i : Std.Usize) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok a
+  else
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let a1 ←
+      if c = 92#u32
+      then
+        do
+        let s1 ←
+          lift (Array.to_slice
+            kernel.name.display_acc_escaped_from.BACKSLASHES)
+        let v ← kernel.core_types.code_points s1
+        kernel.name.display_acc_piece a v 1#u64
+      else
+        if c = close
+        then
+          do
+          let v ← kernel.name.display_code_escape c
+          kernel.name.display_acc_piece a v 1#u64
+        else
+          do
+          let b ← kernel.name.display_unsafe_char c
+          if b
+          then
+            let v ← kernel.name.display_code_escape c
+            kernel.name.display_acc_piece a v 1#u64
+          else kernel.name.display_acc_char a c
+    let i2 ← i + 1#usize
+    kernel.name.display_acc_escaped_from a1 close s i2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_escaped]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 403:0-405:1
+    Visibility: public -/
+def kernel.name.display_acc_escaped
+  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  kernel.name.display_acc_escaped_from a close s 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_chars_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 392:0-398:1
+    Visibility: public -/
+def kernel.name.display_acc_chars_from
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result kernel.name.DisplayAcc
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok a
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let da ← kernel.name.display_acc_char a i2
+    let i3 ← i + 1#usize
+    kernel.name.display_acc_chars_from da s i3
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_chars]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 387:0-389:1
+    Visibility: public -/
+def kernel.name.display_acc_chars
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  kernel.name.display_acc_chars_from a s 0#usize
+
+/-- [con_ron_core::kernel::name::display_acc_component]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 559:0-569:1
+    Visibility: public -/
+def kernel.name.display_acc_component
+  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.DisplayAcc
+  := do
+  let b ← kernel.name.display_id_shaped s
+  if b
+  then kernel.name.display_acc_chars a s
+  else
+    let s1 ← lift (Array.to_slice kernel.name.display_acc_component.OPEN)
+    let v ← kernel.core_types.code_points s1
+    let a1 ← kernel.name.display_acc_piece a v 0#u64
+    let a2 ← kernel.name.display_acc_escaped a1 187#u32 s
+    let s2 ← lift (Array.to_slice kernel.name.display_acc_component.CLOSE)
+    let v1 ← kernel.core_types.code_points s2
+    kernel.name.display_acc_piece a2 v1 0#u64
+
+/-- [con_ron_core::kernel::core_k::nat_to_dec_go]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 128:0-138:1
+    Visibility: public -/
+def kernel.core_k.nat_to_dec_go
+  (i : Std.U64) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i < 10#u64
+  then
+    let i1 ← lift (UScalar.cast .U32 i)
+    let i2 ← 48#u32 + i1
+    alloc.vec.Vec.push out i2
+  else
+    let i1 ← i / 10#u64
+    let out1 ← kernel.core_k.nat_to_dec_go i1 out
+    let i2 ← i % 10#u64
+    let i3 ← lift (UScalar.cast .U32 i2)
+    let i4 ← 48#u32 + i3
+    alloc.vec.Vec.push out1 i4
+partial_fixpoint
+
+/-- [con_ron_core::kernel::core_k::nat_to_dec]:
+    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 121:0-123:1
+    Visibility: public -/
+def kernel.core_k.nat_to_dec
+  (i : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  kernel.core_k.nat_to_dec_go i (alloc.vec.Vec.new Std.U32)
+
+/-- [con_ron_core::kernel::name::render_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 636:0-652:1
+    Visibility: public -/
+def kernel.name.render_from
+  (cs : alloc.vec.Vec kernel.name.NameComponent) (k : Std.Usize)
+  (a : kernel.name.DisplayAcc) :
+  Result kernel.name.DisplayAcc
+  := do
+  if k = 0#usize
+  then ok a
+  else
+    let i := alloc.vec.Vec.len cs
+    let a1 ←
+      if k = i
+      then ok a
+      else
+        do
+        let s ← lift (Array.to_slice kernel.name.render_from.DOT)
+        let v ← kernel.core_types.code_points s
+        kernel.name.display_acc_piece a v 1#u64
+    let i1 ← k - 1#usize
+    let nc ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.NameComponent) cs i1
+    let a2 ←
+      match nc with
+      | kernel.name.NameComponent.Str s =>
+        kernel.name.display_acc_component a1 s
+      | kernel.name.NameComponent.Num m =>
+        do
+        let v ← kernel.core_k.nat_to_dec m
+        kernel.name.display_acc_chars a1 v
+    kernel.name.render_from cs i1 a2
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::render::A]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 621:12-621:86 -/
+@[global_simps, irreducible]
+def kernel.name.render.A : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::kernel::name::component_list]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 595:0-609:1
+    Visibility: public -/
+def kernel.name.component_list
+  (n : kernel.name.Name) (acc : alloc.vec.Vec kernel.name.NameComponent) :
+  Result (alloc.vec.Vec kernel.name.NameComponent)
+  := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => ok acc
+  | kernel.name.NameKind.Str p s =>
+    let v ← kernel.expr.str_copy s
+    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Str v)
+    kernel.name.component_list p acc1
+  | kernel.name.NameKind.Num p k =>
+    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Num k)
+    kernel.name.component_list p acc1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::display_acc_finish::POST]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 432:8-434:10 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_finish.POST : Array Std.U32 17#usize :=
+  Array.make 17#usize [
+    32#u32, 109#u32, 111#u32, 114#u32, 101#u32, 32#u32, 99#u32, 104#u32,
+    97#u32, 114#u32, 97#u32, 99#u32, 116#u32, 101#u32, 114#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::kernel::name::display_acc_finish::PRE]
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 430:8-430:41 -/
+@[global_simps, irreducible]
+def kernel.name.display_acc_finish.PRE : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 8230#u32, 91#u32 ]
+
+/-- [con_ron_core::frontend::text::cat3]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 31:0-33:1
+    Visibility: public -/
+def frontend.text.cat3
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
+  (c : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let v ← frontend.text.cat a b
+  frontend.text.cat v c
+
+/-- [con_ron_core::kernel::name::display_acc_finish]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 427:0-444:1
+    Visibility: public -/
+def kernel.name.display_acc_finish
+  (a : kernel.name.DisplayAcc) : Result (alloc.vec.Vec Std.U32) := do
+  if a.full
+  then
+    let s ← lift (Array.to_slice kernel.name.display_acc_finish.PRE)
+    let v ← kernel.core_types.code_points s
+    let v1 ← kernel.core_k.nat_to_dec a.dropped
+    let s1 ← frontend.text.cat3 a.out v v1
+    let s2 ← lift (Array.to_slice kernel.name.display_acc_finish.POST)
+    let v2 ← kernel.core_types.code_points s2
+    frontend.text.cat s1 v2
+  else ok a.out
+
+/-- [con_ron_core::kernel::name::display_acc_empty]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 356:0-358:1
+    Visibility: public -/
+def kernel.name.display_acc_empty : Result kernel.name.DisplayAcc := do
+  ok
+    {
+      out := (alloc.vec.Vec.new Std.U32),
+      len := 0#u64,
+      dropped := 0#u64,
+      full := false
+    }
+
+/-- [con_ron_core::kernel::name::render]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 618:0-630:1
+    Visibility: public -/
+def kernel.name.render
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous =>
+    let s ← lift (Array.to_slice kernel.name.render.A)
+    kernel.core_types.code_points s
+  | kernel.name.NameKind.Str _ _ =>
+    let cs ←
+      kernel.name.component_list n (alloc.vec.Vec.new
+        kernel.name.NameComponent)
+    let k := alloc.vec.Vec.len cs
+    let da ← kernel.name.display_acc_empty
+    let da1 ← kernel.name.render_from cs k da
+    kernel.name.display_acc_finish da1
+  | kernel.name.NameKind.Num _ _ =>
+    let cs ←
+      kernel.name.component_list n (alloc.vec.Vec.new
+        kernel.name.NameComponent)
+    let k := alloc.vec.Vec.len cs
+    let da ← kernel.name.display_acc_empty
+    let da1 ← kernel.name.render_from cs k da
+    kernel.name.display_acc_finish da1
 
 /-- [con_ron_core::arena::core::nat_op_names]:
     Source: 'crates/con-ron-core/src/arena/core.rs', lines 2359:0-2391:1
@@ -34039,7 +34961,7 @@ def arena.checker_base.M_DUP_UNIV : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::arena::checker_base::check_constant_val_guards_rest]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 727:0-761:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 738:0-772:1
     Visibility: public -/
 def arena.checker_base.check_constant_val_guards_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -34138,7 +35060,7 @@ def arena.checker_base.M_DUP_DECL : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::arena::checker_base::check_constant_val_guards]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 689:0-719:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 689:0-730:1
     Visibility: public -/
 def arena.checker_base.check_constant_val_guards
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -34175,11 +35097,21 @@ def arena.checker_base.check_constant_val_guards
             if allow_op
             then arena.checker_base.check_constant_val_guards_rest pers st1 cv
             else
-              let s ← lift (Array.to_slice arena.checker_base.M_NAT_OP_NAME)
-              let v ← kernel.core_types.code_points s
-              let r2 ←
-                arena.monad.fail Unit (kernel.core_types.CheckError.Invalid v)
-              ok (r2, st1)
+              let r2 ← arena.monad.read_name pers st1 cv.name
+              match r2 with
+              | core.result.Result.Ok n =>
+                let s ←
+                  lift (Array.to_slice arena.checker_base.M_NAT_OP_NAME)
+                let m ← kernel.core_types.code_points s
+                let m1 ← alloc.vec.Vec.push m 58#u32
+                let m2 ← alloc.vec.Vec.push m1 32#u32
+                let v ← kernel.name.render n
+                let v1 ← frontend.text.cat m2 v
+                let r3 ←
+                  arena.monad.fail Unit (kernel.core_types.CheckError.Invalid
+                    v1)
+                ok (r3, st1)
+              | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
           else arena.checker_base.check_constant_val_guards_rest pers st1 cv
         | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
     | core.result.Result.Err e => ok (core.result.Result.Err e, st)
@@ -38163,7 +39095,7 @@ def arena.inductives.struct_install.M_TBL_BODIES : Array Std.U32 41#usize :=
     ]
 
 /-- [con_ron_core::arena::checker_base::unwrap_or]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 802:0-807:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 813:0-818:1
     Visibility: public -/
 def arena.checker_base.unwrap_or
   {T : Type} (o : Option T) (err : kernel.core_types.CheckError) :
@@ -38388,34 +39320,6 @@ def arena.inductives.rec_check.ctor3_names
     let i2 ← i + 1#usize
     arena.inductives.rec_check.ctor3_names cs i2 out1
 partial_fixpoint
-
-/-- [con_ron_core::kernel::core_k::nat_to_dec_go]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 128:0-138:1
-    Visibility: public -/
-def kernel.core_k.nat_to_dec_go
-  (i : Std.U64) (out : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i < 10#u64
-  then
-    let i1 ← lift (UScalar.cast .U32 i)
-    let i2 ← 48#u32 + i1
-    alloc.vec.Vec.push out i2
-  else
-    let i1 ← i / 10#u64
-    let out1 ← kernel.core_k.nat_to_dec_go i1 out
-    let i2 ← i % 10#u64
-    let i3 ← lift (UScalar.cast .U32 i2)
-    let i4 ← 48#u32 + i3
-    alloc.vec.Vec.push out1 i4
-partial_fixpoint
-
-/-- [con_ron_core::kernel::core_k::nat_to_dec]:
-    Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 121:0-123:1
-    Visibility: public -/
-def kernel.core_k.nat_to_dec
-  (i : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
-  kernel.core_k.nat_to_dec_go i (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::arena::inductives::rec_check::cps_append]:
     Source: 'crates/con-ron-core/src/arena/inductives/rec_check.rs', lines 1094:0-1102:1
@@ -54600,7 +55504,7 @@ def arena.env.pi_sort_tele_len
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker_base::ind_params_ok_at]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 853:0-870:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 864:0-881:1
     Visibility: public -/
 def arena.checker_base.ind_params_ok_at
   (pers : arena.store.PersTier) (st : arena.monad.AState) (n_p : Std.U64)
@@ -54629,7 +55533,7 @@ def arena.checker_base.ind_params_ok_at
     ok (core.result.Result.Ok true, st)
 
 /-- [con_ron_core::arena::checker_base::ind_params_ok]:
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 825:0-846:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 836:0-857:1
     Visibility: public -/
 def arena.checker_base.ind_params_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState) (n_p : Std.U64)
@@ -56732,900 +57636,6 @@ def kernel.trust_axioms.S_NATIVE : Array Std.U32 7#usize :=
   Array.make 7#usize [
     95#u32, 110#u32, 97#u32, 116#u32, 105#u32, 118#u32, 101#u32
     ]
-
-/-- [con_ron_core::kernel::name::render_from::DOT]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 643:12-643:39 -/
-@[global_simps, irreducible]
-def kernel.name.render_from.DOT : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 46#u32 ]
-
-/-- [con_ron_core::kernel::name::display_acc_component::CLOSE]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 564:8-564:38 -/
-@[global_simps, irreducible]
-def kernel.name.display_acc_component.CLOSE : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 187#u32 ]
-
-/-- [con_ron_core::kernel::name::display_acc_component::OPEN]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 563:8-563:37 -/
-@[global_simps, irreducible]
-def kernel.name.display_acc_component.OPEN : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 171#u32 ]
-
-/-- [con_ron_core::kernel::name::display_in_range]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 220:0-222:1
-    Visibility: public -/
-def kernel.name.display_in_range
-  (v : Std.U32) (lo : Std.U32) (hi : Std.U32) : Result Bool := do
-  if lo <= v
-  then ok (v <= hi)
-  else ok false
-
-/-- [con_ron_core::kernel::name::display_ascii_alpha]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 485:0-493:1
-    Visibility: public -/
-def kernel.name.display_ascii_alpha (v : Std.U32) : Result Bool := do
-  let b ← kernel.name.display_in_range v 97#u32 122#u32
-  if b
-  then ok true
-  else
-    let b1 ← kernel.name.display_in_range v 65#u32 90#u32
-    if b1
-    then ok true
-    else ok false
-
-/-- [con_ron_core::kernel::name::display_subscript_alnum]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 470:0-482:1
-    Visibility: public -/
-def kernel.name.display_subscript_alnum (v : Std.U32) : Result Bool := do
-  let b ← kernel.name.display_in_range v 8320#u32 8329#u32
-  if b
-  then ok true
-  else
-    let b1 ← kernel.name.display_in_range v 8336#u32 8348#u32
-    if b1
-    then ok true
-    else
-      let b2 ← kernel.name.display_in_range v 7522#u32 7530#u32
-      if b2
-      then ok true
-      else if v = 11388#u32
-           then ok true
-           else ok false
-
-/-- [con_ron_core::kernel::name::display_letter_like]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 447:0-467:1
-    Visibility: public -/
-def kernel.name.display_letter_like (v : Std.U32) : Result Bool := do
-  let b ← kernel.name.display_in_range v 945#u32 969#u32
-  if b
-  then
-    if v != 955#u32
-    then ok true
-    else
-      let b1 ← kernel.name.display_in_range v 913#u32 937#u32
-      if b1
-      then
-        if v != 928#u32
-        then
-          if v != 931#u32
-          then ok true
-          else
-            let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-            if b2
-            then ok true
-            else
-              let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-              if b3
-              then ok true
-              else
-                let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-                if b4
-                then ok true
-                else
-                  let b5 ←
-                    kernel.name.display_in_range v 119964#u32 120223#u32
-                  if b5
-                  then ok true
-                  else
-                    let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-                    if b6
-                    then
-                      if v != 215#u32
-                      then
-                        if v != 247#u32
-                        then ok true
-                        else
-                          let b7 ←
-                            kernel.name.display_in_range v 256#u32 383#u32
-                          if b7
-                          then ok true
-                          else ok false
-                      else
-                        let b7 ←
-                          kernel.name.display_in_range v 256#u32 383#u32
-                        if b7
-                        then ok true
-                        else ok false
-                    else
-                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                      if b7
-                      then ok true
-                      else ok false
-        else
-          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-          if b2
-          then ok true
-          else
-            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-            if b3
-            then ok true
-            else
-              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-              if b4
-              then ok true
-              else
-                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
-                if b5
-                then ok true
-                else
-                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-                  if b6
-                  then
-                    if v != 215#u32
-                    then
-                      if v != 247#u32
-                      then ok true
-                      else
-                        let b7 ←
-                          kernel.name.display_in_range v 256#u32 383#u32
-                        if b7
-                        then ok true
-                        else ok false
-                    else
-                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                      if b7
-                      then ok true
-                      else ok false
-                  else
-                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                    if b7
-                    then ok true
-                    else ok false
-      else
-        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-        if b2
-        then ok true
-        else
-          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-          if b3
-          then ok true
-          else
-            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-            if b4
-            then ok true
-            else
-              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
-              if b5
-              then ok true
-              else
-                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-                if b6
-                then
-                  if v != 215#u32
-                  then
-                    if v != 247#u32
-                    then ok true
-                    else
-                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                      if b7
-                      then ok true
-                      else ok false
-                  else
-                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                    if b7
-                    then ok true
-                    else ok false
-                else
-                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                  if b7
-                  then ok true
-                  else ok false
-  else
-    let b1 ← kernel.name.display_in_range v 913#u32 937#u32
-    if b1
-    then
-      if v != 928#u32
-      then
-        if v != 931#u32
-        then ok true
-        else
-          let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-          if b2
-          then ok true
-          else
-            let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-            if b3
-            then ok true
-            else
-              let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-              if b4
-              then ok true
-              else
-                let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
-                if b5
-                then ok true
-                else
-                  let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-                  if b6
-                  then
-                    if v != 215#u32
-                    then
-                      if v != 247#u32
-                      then ok true
-                      else
-                        let b7 ←
-                          kernel.name.display_in_range v 256#u32 383#u32
-                        if b7
-                        then ok true
-                        else ok false
-                    else
-                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                      if b7
-                      then ok true
-                      else ok false
-                  else
-                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                    if b7
-                    then ok true
-                    else ok false
-      else
-        let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-        if b2
-        then ok true
-        else
-          let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-          if b3
-          then ok true
-          else
-            let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-            if b4
-            then ok true
-            else
-              let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
-              if b5
-              then ok true
-              else
-                let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-                if b6
-                then
-                  if v != 215#u32
-                  then
-                    if v != 247#u32
-                    then ok true
-                    else
-                      let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                      if b7
-                      then ok true
-                      else ok false
-                  else
-                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                    if b7
-                    then ok true
-                    else ok false
-                else
-                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                  if b7
-                  then ok true
-                  else ok false
-    else
-      let b2 ← kernel.name.display_in_range v 970#u32 1019#u32
-      if b2
-      then ok true
-      else
-        let b3 ← kernel.name.display_in_range v 7936#u32 8190#u32
-        if b3
-        then ok true
-        else
-          let b4 ← kernel.name.display_in_range v 8448#u32 8527#u32
-          if b4
-          then ok true
-          else
-            let b5 ← kernel.name.display_in_range v 119964#u32 120223#u32
-            if b5
-            then ok true
-            else
-              let b6 ← kernel.name.display_in_range v 192#u32 255#u32
-              if b6
-              then
-                if v != 215#u32
-                then
-                  if v != 247#u32
-                  then ok true
-                  else
-                    let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                    if b7
-                    then ok true
-                    else ok false
-                else
-                  let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                  if b7
-                  then ok true
-                  else ok false
-              else
-                let b7 ← kernel.name.display_in_range v 256#u32 383#u32
-                if b7
-                then ok true
-                else ok false
-
-/-- [con_ron_core::kernel::name::display_id_rest]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 509:0-529:1
-    Visibility: public -/
-def kernel.name.display_id_rest (v : Std.U32) : Result Bool := do
-  let b ← kernel.name.display_ascii_alpha v
-  if b
-  then ok true
-  else
-    let b1 ← kernel.name.display_in_range v 48#u32 57#u32
-    if b1
-    then ok true
-    else
-      if v = 95#u32
-      then ok true
-      else
-        if v = 39#u32
-        then ok true
-        else
-          if v = 33#u32
-          then ok true
-          else
-            if v = 63#u32
-            then ok true
-            else
-              let b2 ← kernel.name.display_letter_like v
-              if b2
-              then ok true
-              else
-                let b3 ← kernel.name.display_subscript_alnum v
-                if b3
-                then ok true
-                else ok false
-
-/-- [con_ron_core::kernel::name::display_id_rest_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 545:0-553:1
-    Visibility: public -/
-def kernel.name.display_id_rest_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) : Result Bool := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok true
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let b ← kernel.name.display_id_rest i2
-    if b
-    then let i3 ← i + 1#usize
-         kernel.name.display_id_rest_from s i3
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::display_id_first]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 496:0-506:1
-    Visibility: public -/
-def kernel.name.display_id_first (v : Std.U32) : Result Bool := do
-  let b ← kernel.name.display_ascii_alpha v
-  if b
-  then ok true
-  else
-    if v = 95#u32
-    then ok true
-    else
-      let b1 ← kernel.name.display_letter_like v
-      if b1
-      then ok true
-      else ok false
-
-/-- [con_ron_core::kernel::name::display_id_shaped]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 536:0-542:1
-    Visibility: public -/
-def kernel.name.display_id_shaped
-  (s : alloc.vec.Vec Std.U32) : Result Bool := do
-  let i := alloc.vec.Vec.len s
-  if i = 0#usize
-  then ok false
-  else
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-        0#usize
-    let b ← kernel.name.display_id_first i1
-    if b
-    then kernel.name.display_id_rest_from s 1#usize
-    else ok false
-
-/-- [con_ron_core::kernel::name::display_acc_escaped_from::BACKSLASHES]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 414:12-414:51 -/
-@[global_simps, irreducible]
-def kernel.name.display_acc_escaped_from.BACKSLASHES : Array Std.U32 2#usize :=
-  Array.repeat 2#usize 92#u32
-
-/-- [con_ron_core::kernel::name::display_max_len]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 294:0-296:1
-    Visibility: public -/
-def kernel.name.display_max_len : Result Std.U64 := do
-  ok 512#u64
-
-/-- [con_ron_core::frontend::text::cat]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 23:4-26:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.text.cat_loop
-  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
-    let out1 ← alloc.vec.Vec.push out i1
-    let i2 ← i + 1#usize
-    frontend.text.cat_loop b out1 n i2
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::text::cat]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 19:0-28:1
-    Visibility: public -/
-def frontend.text.cat
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let n := alloc.vec.Vec.len b
-  frontend.text.cat_loop b a n 0#usize
-
-/-- [con_ron_core::kernel::name::display_acc_piece]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 363:0-375:1
-    Visibility: public -/
-def kernel.name.display_acc_piece
-  (a : kernel.name.DisplayAcc) (p : alloc.vec.Vec Std.U32) (raw : Std.U64) :
-  Result kernel.name.DisplayAcc
-  := do
-  let i := alloc.vec.Vec.len p
-  let n ← lift (UScalar.cast .U64 i)
-  if a.full
-  then let i1 ← a.dropped + raw
-       ok { a with dropped := i1 }
-  else
-    let i1 ← a.len + n
-    let i2 ← kernel.name.display_max_len
-    if i1 > i2
-    then let i3 ← a.dropped + raw
-         ok { a with dropped := i3, full := true }
-    else let v ← frontend.text.cat a.out p
-         ok { a with out := v, len := i1 }
-
-/-- [con_ron_core::kernel::name::display_acc_char]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 379:0-383:1
-    Visibility: public -/
-def kernel.name.display_acc_char
-  (a : kernel.name.DisplayAcc) (c : Std.U32) :
-  Result kernel.name.DisplayAcc
-  := do
-  let p ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) c
-  kernel.name.display_acc_piece a p 1#u64
-
-/-- [con_ron_core::kernel::name::display_hex_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 329:0-342:1
-    Visibility: public -/
-def kernel.name.display_hex_from
-  (v : Std.U32) (k : Std.U32) (out : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if k = 0#u32
-  then ok out
-  else
-    let i ← k - 1#u32
-    let i1 ← 4#u32 * i
-    let i2 ← v >>> i1
-    let d ← lift (i2 &&& 15#u32)
-    let o ←
-      if d < 10#u32
-      then do
-           let i3 ← 48#u32 + d
-           alloc.vec.Vec.push out i3
-      else do
-           let i3 ← 55#u32 + d
-           alloc.vec.Vec.push out i3
-    kernel.name.display_hex_from v i o
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::display_hex_width]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 313:0-325:1
-    Visibility: public -/
-def kernel.name.display_hex_width (v : Std.U32) : Result Std.U32 := do
-  if v < 65536#u32
-  then ok 4#u32
-  else
-    if v < 1048576#u32
-    then ok 5#u32
-    else
-      if v < 16777216#u32
-      then ok 6#u32
-      else if v < 268435456#u32
-           then ok 7#u32
-           else ok 8#u32
-
-/-- [con_ron_core::kernel::name::display_code_escape::OPEN]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 304:4-304:42 -/
-@[global_simps, irreducible]
-def kernel.name.display_code_escape.OPEN : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 92#u32, 117#u32, 123#u32 ]
-
-/-- [con_ron_core::kernel::name::display_code_escape]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 303:0-309:1
-    Visibility: public -/
-def kernel.name.display_code_escape
-  (c : Std.U32) : Result (alloc.vec.Vec Std.U32) := do
-  let i ← kernel.name.display_hex_width c
-  let s ← lift (Array.to_slice kernel.name.display_code_escape.OPEN)
-  let v ← kernel.core_types.code_points s
-  let out ← kernel.name.display_hex_from c i v
-  alloc.vec.Vec.push out 125#u32
-
-/-- [con_ron_core::kernel::name::display_unsafe_char]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 232:0-290:1
-    Visibility: public -/
-def kernel.name.display_unsafe_char (v : Std.U32) : Result Bool := do
-  if v < 32#u32
-  then ok true
-  else
-    let b ← kernel.name.display_in_range v 127#u32 160#u32
-    if b
-    then ok true
-    else
-      if v = 173#u32
-      then ok true
-      else
-        let b1 ← kernel.name.display_in_range v 1536#u32 1541#u32
-        if b1
-        then ok true
-        else
-          if v = 1564#u32
-          then ok true
-          else
-            if v = 1757#u32
-            then ok true
-            else
-              if v = 1807#u32
-              then ok true
-              else
-                let b2 ← kernel.name.display_in_range v 2192#u32 2193#u32
-                if b2
-                then ok true
-                else
-                  if v = 2274#u32
-                  then ok true
-                  else
-                    if v = 5760#u32
-                    then ok true
-                    else
-                      if v = 6158#u32
-                      then ok true
-                      else
-                        let b3 ←
-                          kernel.name.display_in_range v 8192#u32 8207#u32
-                        if b3
-                        then ok true
-                        else
-                          let b4 ←
-                            kernel.name.display_in_range v 8232#u32 8239#u32
-                          if b4
-                          then ok true
-                          else
-                            let b5 ←
-                              kernel.name.display_in_range v 8287#u32 8292#u32
-                            if b5
-                            then ok true
-                            else
-                              let b6 ←
-                                kernel.name.display_in_range v 8294#u32
-                                  8303#u32
-                              if b6
-                              then ok true
-                              else
-                                if v = 12288#u32
-                                then ok true
-                                else
-                                  let b7 ←
-                                    kernel.name.display_in_range v 55296#u32
-                                      57343#u32
-                                  if b7
-                                  then ok true
-                                  else
-                                    if v = 65279#u32
-                                    then ok true
-                                    else
-                                      let b8 ←
-                                        kernel.name.display_in_range v
-                                          65529#u32 65531#u32
-                                      if b8
-                                      then ok true
-                                      else
-                                        if v = 69821#u32
-                                        then ok true
-                                        else
-                                          if v = 69837#u32
-                                          then ok true
-                                          else
-                                            let b9 ←
-                                              kernel.name.display_in_range v
-                                                78896#u32 78911#u32
-                                            if b9
-                                            then ok true
-                                            else
-                                              let b10 ←
-                                                kernel.name.display_in_range v
-                                                  113824#u32 113827#u32
-                                              if b10
-                                              then ok true
-                                              else
-                                                let b11 ←
-                                                  kernel.name.display_in_range
-                                                    v 119155#u32 119162#u32
-                                                if b11
-                                                then ok true
-                                                else
-                                                  if v = 917505#u32
-                                                  then ok true
-                                                  else
-                                                    let b12 ←
-                                                      kernel.name.display_in_range
-                                                        v 917536#u32 917631#u32
-                                                    if b12
-                                                    then ok true
-                                                    else
-                                                      if v > 1114111#u32
-                                                      then ok true
-                                                      else ok false
-
-/-- [con_ron_core::kernel::name::display_acc_escaped_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 408:0-423:1
-    Visibility: public -/
-def kernel.name.display_acc_escaped_from
-  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32)
-  (i : Std.Usize) :
-  Result kernel.name.DisplayAcc
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok a
-  else
-    let c ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let a1 ←
-      if c = 92#u32
-      then
-        do
-        let s1 ←
-          lift (Array.to_slice
-            kernel.name.display_acc_escaped_from.BACKSLASHES)
-        let v ← kernel.core_types.code_points s1
-        kernel.name.display_acc_piece a v 1#u64
-      else
-        if c = close
-        then
-          do
-          let v ← kernel.name.display_code_escape c
-          kernel.name.display_acc_piece a v 1#u64
-        else
-          do
-          let b ← kernel.name.display_unsafe_char c
-          if b
-          then
-            let v ← kernel.name.display_code_escape c
-            kernel.name.display_acc_piece a v 1#u64
-          else kernel.name.display_acc_char a c
-    let i2 ← i + 1#usize
-    kernel.name.display_acc_escaped_from a1 close s i2
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::display_acc_escaped]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 403:0-405:1
-    Visibility: public -/
-def kernel.name.display_acc_escaped
-  (a : kernel.name.DisplayAcc) (close : Std.U32) (s : alloc.vec.Vec Std.U32) :
-  Result kernel.name.DisplayAcc
-  := do
-  kernel.name.display_acc_escaped_from a close s 0#usize
-
-/-- [con_ron_core::kernel::name::display_acc_chars_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 392:0-398:1
-    Visibility: public -/
-def kernel.name.display_acc_chars_from
-  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result kernel.name.DisplayAcc
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok a
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let da ← kernel.name.display_acc_char a i2
-    let i3 ← i + 1#usize
-    kernel.name.display_acc_chars_from da s i3
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::display_acc_chars]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 387:0-389:1
-    Visibility: public -/
-def kernel.name.display_acc_chars
-  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
-  Result kernel.name.DisplayAcc
-  := do
-  kernel.name.display_acc_chars_from a s 0#usize
-
-/-- [con_ron_core::kernel::name::display_acc_component]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 559:0-569:1
-    Visibility: public -/
-def kernel.name.display_acc_component
-  (a : kernel.name.DisplayAcc) (s : alloc.vec.Vec Std.U32) :
-  Result kernel.name.DisplayAcc
-  := do
-  let b ← kernel.name.display_id_shaped s
-  if b
-  then kernel.name.display_acc_chars a s
-  else
-    let s1 ← lift (Array.to_slice kernel.name.display_acc_component.OPEN)
-    let v ← kernel.core_types.code_points s1
-    let a1 ← kernel.name.display_acc_piece a v 0#u64
-    let a2 ← kernel.name.display_acc_escaped a1 187#u32 s
-    let s2 ← lift (Array.to_slice kernel.name.display_acc_component.CLOSE)
-    let v1 ← kernel.core_types.code_points s2
-    kernel.name.display_acc_piece a2 v1 0#u64
-
-/-- [con_ron_core::kernel::name::render_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 636:0-652:1
-    Visibility: public -/
-def kernel.name.render_from
-  (cs : alloc.vec.Vec kernel.name.NameComponent) (k : Std.Usize)
-  (a : kernel.name.DisplayAcc) :
-  Result kernel.name.DisplayAcc
-  := do
-  if k = 0#usize
-  then ok a
-  else
-    let i := alloc.vec.Vec.len cs
-    let a1 ←
-      if k = i
-      then ok a
-      else
-        do
-        let s ← lift (Array.to_slice kernel.name.render_from.DOT)
-        let v ← kernel.core_types.code_points s
-        kernel.name.display_acc_piece a v 1#u64
-    let i1 ← k - 1#usize
-    let nc ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.NameComponent) cs i1
-    let a2 ←
-      match nc with
-      | kernel.name.NameComponent.Str s =>
-        kernel.name.display_acc_component a1 s
-      | kernel.name.NameComponent.Num m =>
-        do
-        let v ← kernel.core_k.nat_to_dec m
-        kernel.name.display_acc_chars a1 v
-    kernel.name.render_from cs i1 a2
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::render::A]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 621:12-621:86 -/
-@[global_simps, irreducible]
-def kernel.name.render.A : Array Std.U32 11#usize :=
-  Array.make 11#usize [
-    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
-    117#u32, 115#u32, 93#u32
-    ]
-
-/-- [con_ron_core::kernel::name::component_list]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 595:0-609:1
-    Visibility: public -/
-def kernel.name.component_list
-  (n : kernel.name.Name) (acc : alloc.vec.Vec kernel.name.NameComponent) :
-  Result (alloc.vec.Vec kernel.name.NameComponent)
-  := do
-  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous => ok acc
-  | kernel.name.NameKind.Str p s =>
-    let v ← kernel.expr.str_copy s
-    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Str v)
-    kernel.name.component_list p acc1
-  | kernel.name.NameKind.Num p k =>
-    let acc1 ← alloc.vec.Vec.push acc (kernel.name.NameComponent.Num k)
-    kernel.name.component_list p acc1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::display_acc_finish::POST]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 432:8-434:10 -/
-@[global_simps, irreducible]
-def kernel.name.display_acc_finish.POST : Array Std.U32 17#usize :=
-  Array.make 17#usize [
-    32#u32, 109#u32, 111#u32, 114#u32, 101#u32, 32#u32, 99#u32, 104#u32,
-    97#u32, 114#u32, 97#u32, 99#u32, 116#u32, 101#u32, 114#u32, 115#u32, 93#u32
-    ]
-
-/-- [con_ron_core::kernel::name::display_acc_finish::PRE]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 430:8-430:41 -/
-@[global_simps, irreducible]
-def kernel.name.display_acc_finish.PRE : Array Std.U32 2#usize :=
-  Array.make 2#usize [ 8230#u32, 91#u32 ]
-
-/-- [con_ron_core::frontend::text::cat3]:
-    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 31:0-33:1
-    Visibility: public -/
-def frontend.text.cat3
-  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
-  (c : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let v ← frontend.text.cat a b
-  frontend.text.cat v c
-
-/-- [con_ron_core::kernel::name::display_acc_finish]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 427:0-444:1
-    Visibility: public -/
-def kernel.name.display_acc_finish
-  (a : kernel.name.DisplayAcc) : Result (alloc.vec.Vec Std.U32) := do
-  if a.full
-  then
-    let s ← lift (Array.to_slice kernel.name.display_acc_finish.PRE)
-    let v ← kernel.core_types.code_points s
-    let v1 ← kernel.core_k.nat_to_dec a.dropped
-    let s1 ← frontend.text.cat3 a.out v v1
-    let s2 ← lift (Array.to_slice kernel.name.display_acc_finish.POST)
-    let v2 ← kernel.core_types.code_points s2
-    frontend.text.cat s1 v2
-  else ok a.out
-
-/-- [con_ron_core::kernel::name::display_acc_empty]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 356:0-358:1
-    Visibility: public -/
-def kernel.name.display_acc_empty : Result kernel.name.DisplayAcc := do
-  ok
-    {
-      out := (alloc.vec.Vec.new Std.U32),
-      len := 0#u64,
-      dropped := 0#u64,
-      full := false
-    }
-
-/-- [con_ron_core::kernel::name::render]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 618:0-630:1
-    Visibility: public -/
-def kernel.name.render
-  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
-  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous =>
-    let s ← lift (Array.to_slice kernel.name.render.A)
-    kernel.core_types.code_points s
-  | kernel.name.NameKind.Str _ _ =>
-    let cs ←
-      kernel.name.component_list n (alloc.vec.Vec.new
-        kernel.name.NameComponent)
-    let k := alloc.vec.Vec.len cs
-    let da ← kernel.name.display_acc_empty
-    let da1 ← kernel.name.render_from cs k da
-    kernel.name.display_acc_finish da1
-  | kernel.name.NameKind.Num _ _ =>
-    let cs ←
-      kernel.name.component_list n (alloc.vec.Vec.new
-        kernel.name.NameComponent)
-    let k := alloc.vec.Vec.len cs
-    let da ← kernel.name.display_acc_empty
-    let da1 ← kernel.name.render_from cs k da
-    kernel.name.display_acc_finish da1
 
 /-- [con_ron_core::frontend::text::cps_starts_with]: loop 0:
     Source: 'crates/con-ron-core/src/frontend/text.rs', lines 87:4-94:1
