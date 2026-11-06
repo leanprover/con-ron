@@ -71949,11 +71949,11 @@ core: `read_name_ls` in `Tactic/Prims.lean`; `Lockstep.lean` loses the tier-walk
 `packT`, `LS.bindT`/`tailT`, `packTMove`, the `tier` kind, `LS.twin_dite_split`), whose one user was
 promotion (3efba85e).
 
-**Status.**  `lake build ConRonRefine2` green at bump-701d72ae 1502b8b7, no sorry and no warning from
+**Status.**  `lake build ConRonRefine2` (and plain `lake build`) green at bump-701d72ae dc697186, no sorry and no warning from
 `Refine/**`, `Refine2/**`; `pool_accepts_refines` and `olean_pool_accepts_refines` print the three
 standard axioms; Theorem 1's capstone builds on them.  `diff-olean.sh --lean` 116/122, `diff-e2e.sh
 --timeout=60 --bin=con-ron-lean` 682/682 (display 6/9, command line 10/10) on that tree.  Refine and
-Refine2 from `ce200a4a`: +13 239 / −18 847 over 106 files; new modules `Checker/{StreamIndex,
+Refine2 from `ce200a4a`: +13 017 / −20 519 over 115 files (census cut included); new modules `Checker/{StreamIndex,
 IndexBuild,Install,Basis,OleanPool}`, `Core/LS/ProjGuard`, `Frontend/Olean/{Lazy,ReadValue,Sparse}`;
 deleted `Refine/{BasisTables,BasisPins}`, `Checker/EnvExt`, `Core/Frame`, `Inductives/StoredInstall`,
 `Promote/Promote` (and the renames BlockParts → BlockShape, StoredRecs → StreamRecs).  One statement
