@@ -169,29 +169,6 @@ the whole of the pool's trust.  The driver instantiates it with two calls into t
 verified crate, `init := worker_state pins` and `step := fun st k => run_job tier st mode
 pins ds (k as u64)` (`jobStep`). -/
 
-/-- **A fold with every step `Ok`**: `step` from `s` over `ks` in order,
-threading the state, every call answering `.Ok ()`. -/
-def FoldAllOk {S E I : Type} (step : S → I → Result (core.result.Result Unit E × S)) :
-    S → List I → Prop
-  | _, [] => True
-  | s, k :: ks => ∃ s', step s k = ok (.Ok (), s') ∧ FoldAllOk step s' ks
-
-/-- **The contract of `crates/con-ron/src/pool.rs`'s `parallel_all`** (task #98-POOL) —
-the pool's one trusted claim, stated with nothing about what the pool runs.
-`parallel_all(n, workers, init, step, after)` returning `Ok(())` means: every index in
-`0..n` was claimed by some worker; and each worker built its state with `init()` ONCE and
-folded `step` over its claims, in claim order, which is increasing (one monotone counter
-hands them out), every step answering `Ok(())`.  Nothing is promised about an index
-claimed twice.  An index `≥ n` needs no clause: the driver's `step` fails there
-(`jobStep`), so an accepting fold never claims one.  `init` and `step` are the Aeneas
-models of the two closures; `after`, the heartbeat hook, holds the state by `&` and is not
-in the contract.  It holds at every worker count. -/
-def ParallelAll {S E : Type} (n : Nat) (init : Result S)
-    (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
-  ∃ parts : List (List Nat),
-    (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
-    ∀ w ∈ parts, w.Pairwise (· < ·) ∧ ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
-
 /-- **The driver's `step` closure**, `|w, k| checker::run_job(&tier, w, &mode, &ipins, ds,
 k as u64)` (`crates/con-ron/src/driver.rs` `check_decls_driver`), as the Aeneas model
 reads it: `run_job` at the `usize` index cast up to a `u64`.  The pool's indices are
@@ -258,8 +235,11 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
         rw [usize_cast_u64_val']; rfl
       have hkU : (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)).val
           ≤ Std.Usize.max := by
-        rw [hu, Std.Usize.max]; simp only [UScalarTy.numBits] at hk ⊢; omega
-      obtain ⟨hlt, lst1, hx, hidle1, hinv1⟩ := run_job_refines hidle hinv htf hI hkU hs1
+        have h2 : Std.Usize.max = 2 ^ UScalarTy.Usize.numBits - 1 := by
+      rw [← UScalar.max_USize_eq, UScalar.max_def]
+    have h3 := Nat.one_le_two_pow (n := UScalarTy.Usize.numBits)
+    rw [hu, h2]; omega
+      obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU hs1
       rw [hu] at hlt
       have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
       rw [hau] at hx

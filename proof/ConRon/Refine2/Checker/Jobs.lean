@@ -87,7 +87,7 @@ theorem record_job_refines {tier st lst} {I : IStreamIndex}
     (hrun : arena.stream_index.record_job tier st mode pins k pd = ok (.Ok (), st')) :
     ∃ lst', (recordJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absU k)
         (absIDeclaration pd)).run lst = .ok ((), lst') ∧
-      AIdle tier st' lst' ∧ AStateInv tier st' := by
+      AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
   rw [arena.stream_index.record_job] at hrun
   obtain ⟨st1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (enter_record_sim hidle hinv h1).apply
@@ -96,7 +96,13 @@ theorem record_job_refines {tier st lst} {I : IStreamIndex}
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
   obtain ⟨lst2, hx2, hrel2, hinv2⟩ := record_check_refines hrel1 hinv1 hI hk h2
   obtain ⟨lst3, hx3, hidle3, hinv3⟩ := leave_record_rel hrel2 hinv2 htf h3
-  refine ⟨lst3, ?_, hidle3, hinv3⟩
+  have hoff : lst3.store.scratchOn = false := by
+    have h' : (dropScratch : AM Unit).run lst2
+        = .ok ((), { lst2 with store := lst2.store.dropScratch, caches := Caches.empty }) := rfl
+    rw [h'] at hx3
+    cases hx3
+    rfl
+  refine ⟨lst3, ?_, hidle3, hinv3, hoff⟩
   simp only [recordJob, StateT.run_bind, hx1, except_ok_bind, hx2, hx3]
 
 /-- **`run_job` ⊑ `runJob`, accepting**: job `k`, the record at position `k`'s job; a
@@ -111,7 +117,7 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
     k.val < ds.val.length ∧
     ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
         (absIDeclL ds).toArray (absU k) lst = .ok (.ok (), lst') ∧
-      AIdle tier st' lst' ∧ AStateInv tier st' := by
+      AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
   rw [arena.checker.run_job] at hrun
   obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hiv := cast_val hk hi
@@ -131,8 +137,8 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
     | Ok u =>
       obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
       cases u
-      obtain ⟨lst1, hx1, hidle1, hinv1⟩ := record_job_refines hidle hinv htf hI hk h1
-      refine ⟨hb', lst1, ?_, hidle1, hinv1⟩
+      obtain ⟨lst1, hx1, hidle1, hinv1, hoff1⟩ := record_job_refines hidle hinv htf hI hk h1
+      refine ⟨hb', lst1, ?_, hidle1, hinv1, hoff1⟩
       have hget : (absIDeclL ds).toArray[absU k]? = some (absIDeclaration pd) := by
         simp [absIDeclL, absU, hpdv]
       simp only [runJob, hget]
@@ -141,5 +147,30 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases Result.ok_injective hrun
+
+/-! ## The pool's contract, generically -/
+
+/-- **A fold with every step `Ok`**: `step` from `s` over `ks` in order,
+threading the state, every call answering `.Ok ()`. -/
+def FoldAllOk {S E I : Type} (step : S → I → Result (core.result.Result Unit E × S)) :
+    S → List I → Prop
+  | _, [] => True
+  | s, k :: ks => ∃ s', step s k = ok (.Ok (), s') ∧ FoldAllOk step s' ks
+
+/-- **The contract of `crates/con-ron/src/pool.rs`'s `parallel_all`** (task #98-POOL) —
+the pool's one trusted claim, stated with nothing about what the pool runs.
+`parallel_all(n, workers, init, step, after)` returning `Ok(())` means: every index in
+`0..n` was claimed by some worker; and each worker built its state with `init()` ONCE and
+folded `step` over its claims, in claim order, which is increasing (one monotone counter
+hands them out), every step answering `Ok(())`.  Nothing is promised about an index
+claimed twice.  An index `≥ n` needs no clause: the driver's `step` fails there
+(`jobStep`), so an accepting fold never claims one.  `init` and `step` are the Aeneas
+models of the two closures; `after`, the heartbeat hook, holds the state by `&` and is not
+in the contract.  It holds at every worker count. -/
+def ParallelAll {S E : Type} (n : Nat) (init : Result S)
+    (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
+  ∃ parts : List (List Nat),
+    (∀ k < n, ∃ w ∈ parts, k ∈ w) ∧
+    ∀ w ∈ parts, w.Pairwise (· < ·) ∧ ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
 
 end ConRon.Refine2
