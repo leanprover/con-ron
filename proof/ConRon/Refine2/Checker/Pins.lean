@@ -51,7 +51,7 @@ import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
-import ConRon.Refine2.Core.Arms.Delta
+import ConRon.Refine2.Core.Induction
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -130,11 +130,16 @@ theorem push_nidx_val {out w : alloc.vec.Vec arena.handle.NIdx} {n : arena.handl
   rw [dupId_nidx _ _ hn1] at h
   exact ConRon.Refine.vec_push_val h
 
+-- T143-STUB: `Core/Arms/Delta.lean`'s, here until the core lane's STAGE1 restores that import.
+theorem core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
+  rw [arena.core.CORE_WALK_FUEL, Arena.coreWalkFuel]
+  rfl
+
 /-! ## The table's own two writers and its four readers -/
 
 set_option maxRecDepth 20000 in
 /-- `pin_names` is the twin's `pinNames`, a pure list of con-leche `Name`s
-built by fifty-one name calls.  The `NamesWF` conjunct is what every
+built by fifty-two name calls.  The `NamesWF` conjunct is what every
 caller of `intern_name_list` owes (`Refine2/Promote/Intern.lean`'s note). -/
 theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
     ConRon.Refine.absNames o = pinNames ∧ NamesWF o := by
@@ -239,7 +244,9 @@ theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
   obtain ⟨o48, ho48, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨n49, h49, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨o49, ho49, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨n50, h50, hlast⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n50, h50, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o50, ho50, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n51, h51, hlast⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨e0, f0⟩ := ConRon.Refine.BasisNames.eq_name_refines h0
   obtain ⟨e1, f1⟩ := ConRon.Refine.BasisNames.nat_name_refines h1
   obtain ⟨e2, f2⟩ := ConRon.Refine.BasisNames.nat_zero_name_refines h2
@@ -291,19 +298,20 @@ theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
   obtain ⟨e48, f48⟩ := ConRon.Refine.BasisRaw.and_intro_name_refines h48
   obtain ⟨e49, f49⟩ := ConRon.Refine.BasisRaw.and_rec_name_refines h49
   obtain ⟨e50, f50⟩ := ConRon.Refine.CoreK.eager_reduce_name_refines h50
-  have hval : o.val = [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, n20, n21, n22, n23, n24, n25, n26, n27, n28, n29, n30, n31, n32, n33, n34, n35, n36, n37, n38, n39, n40, n41, n42, n43, n44, n45, n46, n47, n48, n49, n50] := by
-    rw [ConRon.Refine.vec_push_val hlast, ConRon.Refine.vec_push_val ho49, ConRon.Refine.vec_push_val ho48, ConRon.Refine.vec_push_val ho47, ConRon.Refine.vec_push_val ho46, ConRon.Refine.vec_push_val ho45, ConRon.Refine.vec_push_val ho44, ConRon.Refine.vec_push_val ho43, ConRon.Refine.vec_push_val ho42, ConRon.Refine.vec_push_val ho41, ConRon.Refine.vec_push_val ho40, ConRon.Refine.vec_push_val ho39, ConRon.Refine.vec_push_val ho38, ConRon.Refine.vec_push_val ho37, ConRon.Refine.vec_push_val ho36, ConRon.Refine.vec_push_val ho35, ConRon.Refine.vec_push_val ho34, ConRon.Refine.vec_push_val ho33, ConRon.Refine.vec_push_val ho32, ConRon.Refine.vec_push_val ho31, ConRon.Refine.vec_push_val ho30, ConRon.Refine.vec_push_val ho29, ConRon.Refine.vec_push_val ho28, ConRon.Refine.vec_push_val ho27, ConRon.Refine.vec_push_val ho26, ConRon.Refine.vec_push_val ho25, ConRon.Refine.vec_push_val ho24, ConRon.Refine.vec_push_val ho23, ConRon.Refine.vec_push_val ho22, ConRon.Refine.vec_push_val ho21, ConRon.Refine.vec_push_val ho20, ConRon.Refine.vec_push_val ho19, ConRon.Refine.vec_push_val ho18, ConRon.Refine.vec_push_val ho17, ConRon.Refine.vec_push_val ho16, ConRon.Refine.vec_push_val ho15, ConRon.Refine.vec_push_val ho14, ConRon.Refine.vec_push_val ho13, ConRon.Refine.vec_push_val ho12, ConRon.Refine.vec_push_val ho11, ConRon.Refine.vec_push_val ho10, ConRon.Refine.vec_push_val ho9, ConRon.Refine.vec_push_val ho8, ConRon.Refine.vec_push_val ho7, ConRon.Refine.vec_push_val ho6, ConRon.Refine.vec_push_val ho5, ConRon.Refine.vec_push_val ho4, ConRon.Refine.vec_push_val ho3, ConRon.Refine.vec_push_val ho2, ConRon.Refine.vec_push_val ho1, ConRon.Refine.vec_push_val ho0]
+  obtain ⟨e51, f51⟩ := ConRon.Refine.BasisNames.quot_mk_name_refines h51
+  have hval : o.val = [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, n20, n21, n22, n23, n24, n25, n26, n27, n28, n29, n30, n31, n32, n33, n34, n35, n36, n37, n38, n39, n40, n41, n42, n43, n44, n45, n46, n47, n48, n49, n50, n51] := by
+    rw [ConRon.Refine.vec_push_val hlast, ConRon.Refine.vec_push_val ho50, ConRon.Refine.vec_push_val ho49, ConRon.Refine.vec_push_val ho48, ConRon.Refine.vec_push_val ho47, ConRon.Refine.vec_push_val ho46, ConRon.Refine.vec_push_val ho45, ConRon.Refine.vec_push_val ho44, ConRon.Refine.vec_push_val ho43, ConRon.Refine.vec_push_val ho42, ConRon.Refine.vec_push_val ho41, ConRon.Refine.vec_push_val ho40, ConRon.Refine.vec_push_val ho39, ConRon.Refine.vec_push_val ho38, ConRon.Refine.vec_push_val ho37, ConRon.Refine.vec_push_val ho36, ConRon.Refine.vec_push_val ho35, ConRon.Refine.vec_push_val ho34, ConRon.Refine.vec_push_val ho33, ConRon.Refine.vec_push_val ho32, ConRon.Refine.vec_push_val ho31, ConRon.Refine.vec_push_val ho30, ConRon.Refine.vec_push_val ho29, ConRon.Refine.vec_push_val ho28, ConRon.Refine.vec_push_val ho27, ConRon.Refine.vec_push_val ho26, ConRon.Refine.vec_push_val ho25, ConRon.Refine.vec_push_val ho24, ConRon.Refine.vec_push_val ho23, ConRon.Refine.vec_push_val ho22, ConRon.Refine.vec_push_val ho21, ConRon.Refine.vec_push_val ho20, ConRon.Refine.vec_push_val ho19, ConRon.Refine.vec_push_val ho18, ConRon.Refine.vec_push_val ho17, ConRon.Refine.vec_push_val ho16, ConRon.Refine.vec_push_val ho15, ConRon.Refine.vec_push_val ho14, ConRon.Refine.vec_push_val ho13, ConRon.Refine.vec_push_val ho12, ConRon.Refine.vec_push_val ho11, ConRon.Refine.vec_push_val ho10, ConRon.Refine.vec_push_val ho9, ConRon.Refine.vec_push_val ho8, ConRon.Refine.vec_push_val ho7, ConRon.Refine.vec_push_val ho6, ConRon.Refine.vec_push_val ho5, ConRon.Refine.vec_push_val ho4, ConRon.Refine.vec_push_val ho3, ConRon.Refine.vec_push_val ho2, ConRon.Refine.vec_push_val ho1, ConRon.Refine.vec_push_val ho0]
     simp
   refine ⟨?_, ?_⟩
   · rw [ConRon.Refine.absNames, hval]
-    simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47, e48, e49, e50]
+    simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47, e48, e49, e50, e51]
     rfl
   · intro x hx
     rw [hval] at hx
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
     rcases hx with
-      rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
-    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50]
+      rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
+    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48, f49, f50, f51]
 
 /-! ### The startup walk's glue (task #97-P5-Top) -/
 
@@ -1469,6 +1477,29 @@ theorem pin_of_reduce_bool_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+/-- `pin_quot_mk` ⊑ `pinQuotMk`, at slot `PIN_QUOT_MK`. -/
+theorem pin_quot_mk_refines {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.pins.pin_quot_mk st = ok o) :
+    SimRE absNIdx lst o pinQuotMk := by
+  rw [arena.pins.pin_quot_mk] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_QUOT_MK = Arena.PIN_QUOT_MK := by
+    show (arena.pins.PIN_QUOT_MK).val = _
+    rw [arena.pins.PIN_QUOT_MK]
+    rfl
+  rw [hc] at h
+  exact h
+
+open Lockstep in
+@[lockstep] theorem pin_quot_mk_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_quot_mk st) st lst
+      pinQuotMk :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_quot_mk_refines hrel hinv h
 
 /-! ## `arena::nat_op_pin_set` — the `Nat`-operation pin variants
 

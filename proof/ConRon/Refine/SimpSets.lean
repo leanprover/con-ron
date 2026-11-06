@@ -9,7 +9,7 @@ elaborated once, at attribute time.  The attributes live here, in a module of
 their own, because a `register_simp_attr` cannot be used in the file that
 declares it: `Refine/Abs.lean` imports this one and populates both sets with
 the plumbing lemmas it owns, and any later file adds its own (`ExprOps.lean`'s
-`binder_meta_eq`, `BasisTables.lean`'s `expr_dup_eq`).
+`binder_meta_eq`).
 
 * `rust_reduce`: what makes the generated body's `match` on a known node
   reduce -- the erased pointer operations (`Arc::deref`/`new`/`clone`,

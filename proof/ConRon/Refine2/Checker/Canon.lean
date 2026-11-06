@@ -70,7 +70,6 @@ proof ends in `decide_eq_decide` and `tauto` over the same set of conjuncts.
 Modeled, slices 2–3), the last at canonical Rust data.
 -/
 import ConRon.Refine2.Checker.Pins
-import ConRon.Refine.BasisPins
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -367,6 +366,13 @@ theorem i_rec_rule_fire_beq_refines {a b : arena.env.IRecRuleFire} {o : Bool}
           simpa [absLIdxLFrom] using hl
         simp [absIRecRuleFire, hl']
     all_goals (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire])
+  case Levels l1 =>
+    cases b
+    case Levels l2 =>
+      have h1 := lidx_vec_beq_refines hrun
+      rw [h1]
+      simp [absIRecRuleFire, absLIdxLFrom]
+    all_goals (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire])
   all_goals (cases b <;> (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire]))
 
 /-! ### The short-circuit conjunction, once
@@ -447,19 +453,12 @@ private theorem i_rec_rule_eq_but_rhs_aux {r r2 : arena.env.IRecRule} {o : Bool}
       { absIRecRule r2 with rhs := default }) := by
   rw [arena.canon.i_rec_rule_eq_but_rhs] at hrun
   obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  simp only [absIRecRule, IRecRule.mk.injEq, true_and]
+  simp only [absIRecRule, IRecRule.mk.injEq, and_true]
   refine beq_chain (nidx_eq2_abs_decide hb) hrun ?_
   intro o1 h
   refine beq_chain' absU_iff h ?_
   intro o2 h
-  refine beq_chain' absU_iff h ?_
-  intro o3 h
-  obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  refine beq_chain (i_rec_rule_fire_beq_refines hb1) h ?_
-  intro o4 h
-  refine beq_chain' Iff.rfl h ?_
-  intro o5 h
-  exact beq_last h
+  exact i_rec_rule_fire_beq_refines h
 
 /-- `i_rec_rule_beq` ⊑ `==` on `IRecRule`. -/
 theorem i_rec_rule_beq_refines {a b : arena.env.IRecRule} {o : Bool}
@@ -471,11 +470,8 @@ theorem i_rec_rule_beq_refines {a b : arena.env.IRecRule} {o : Bool}
       { absIRecRule b with rhs := default }) ∧ absEIdx a.rhs = absEIdx b.rhs) :=
     beq_chain (i_rec_rule_eq_but_rhs_aux hb1) hrun
       (fun _ h => eidx_eq2_abs_decide h)
-  -- the port compares `rhs` LAST and the twin's record has it fifth, so the
-  -- two conjunctions are the same set in a different order
   rw [key, decide_eq_decide]
-  simp only [absIRecRule, IRecRule.mk.injEq, true_and]
-  tauto
+  simp only [absIRecRule, IRecRule.mk.injEq, and_true, and_assoc]
 
 private theorem i_rec_rules_beq_aux (n : Nat) :
     ∀ {a b : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize} {o : Bool},
@@ -549,12 +545,9 @@ theorem i_rec_rules_beq_refines {a b : alloc.vec.Vec arena.env.IRecRule}
     o = decide (absIRecRuleLFrom a i = absIRecRuleLFrom b i) :=
   i_rec_rules_beq_aux _ rfl hrun
 
-/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s
-(`PropWhenWF`, the erased invariant `IConstantInfoWF` carries).  The port
-compares two `PropWhen`s constructor by constructor (`prop_when::beq`), the
-twin by value; they agree on well-formed data (`PropWhen.beq_refines`). -/
+/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`: the cited derived equality, field by
+field. -/
 theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
-    (ha : ConRon.Refine.PropWhenWF a.sort_z) (hb : ConRon.Refine.PropWhenWF b.sort_z)
     (hrun : arena.canon.i_ind_caps_beq a b = ok o) :
     o = decide (absIIndCaps a = absIIndCaps b) := by
   rw [arena.canon.i_ind_caps_beq] at hrun
@@ -572,14 +565,6 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   intro o5 h
   refine beq_chain' absU_iff h ?_
   intro o6 h
-  refine beq_chain' Iff.rfl h ?_
-  intro o7 h
-  obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h8 : b8 = decide (ConRon.Refine.absPropWhen a.sort_z
-      = ConRon.Refine.absPropWhen b.sort_z) :=
-    ConRon.Refine.PropWhen.beq_refines ha hb hb8
-  refine beq_chain h8 h ?_
-  intro o8 h
   obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h9 := nidx_vec_beq_refines hb9
   simp only [absNIdxLFrom] at h9
@@ -587,89 +572,11 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   intro o9 h
   refine beq_chain' absU_iff h ?_
   intro o10 h
+  refine beq_chain' absU_iff h ?_
+  intro o11 h
   have h10 := nidx_vec_beq_refines h
   simp only [absNIdxLFrom] at h10
   simpa using h10
-
-/-- `intern_caps` copies `sort_z` with `prop_when::dup`, the identity. -/
-theorem intern_caps_sort_z {pers st c r st'}
-    (h : arena.intern.intern_caps pers st c = ok (.Ok r, st')) : r.sort_z = c.sort_z := by
-  rw [arena.intern.intern_caps] at h
-  obtain ⟨⟨r0, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r0 with
-  | Err e => simp at h
-  | Ok ct =>
-  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r1 with
-  | Err e => simp at h
-  | Ok all =>
-  obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r2 with
-  | Err e => simp at h
-  | Ok ctors =>
-  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-  rw [← h.1, ConRon.Refine.PropWhen.dup_eq hpw]
-
-/-- An interned constant's capabilities keep their `sort_z` (`intern_caps`
-copies it with `prop_when::dup`): canonical input, canonical output. -/
-theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
-    {ci : arena.env.IConstantInfo} {s' m'}
-    (hc : ∀ v c2, c = .IndInfo v c2 → ConRon.Refine.PropWhenWF c2.sort_z)
-    (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, s', m')) :
-    ∀ v caps, ci = .IndInfo v caps → ConRon.Refine.PropWhenWF caps.sort_z := by
-  intro v caps hci
-  subst hci
-  cases c <;> simp only [arena.intern.intern_ci_go] at h <;>
-    obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
-    cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h
-  all_goals (obtain ⟨a, a1, h⟩ := h)
-  all_goals first
-    | (obtain ⟨b, h2, h⟩ := h
-       cases a <;> simp [ConRon.Refine.bind_eq_ok_iff] at h)
-    | (obtain ⟨h2, h⟩ := h
-       cases a <;> simp at h
-       obtain ⟨-, hc2, -, -⟩ := h
-       subst hc2
-       rw [intern_caps_sort_z h2]
-       exact hc _ _ rfl)
-
-
-/-- A pinned constant the port interns (`m >>= intern_ci`, `m` one of
-`kernel::basis_pins`' builders) is canonical Rust data (`IConstantInfoWF`):
-con-leche's constant, built by the smart constructors (`ConstantInfoWF`). -/
-theorem intern_pinned_wf {pers st} {m : Result kernel.env.ConstantInfo}
-    {ci : arena.env.IConstantInfo} {s'}
-    (hm : ∀ c, m = ok c → ConRon.Refine.ConstantInfoWF c)
-    (h : (Std.bind m fun c => arena.intern.intern_ci pers st c) = ok (.Ok ci, s')) :
-    IConstantInfoWF ci := by
-  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hwf := hm c hc
-  rw [arena.intern.intern_ci] at h
-  obtain ⟨mm, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h' : (core.result.Result.Ok ci, s') = (r, s1) := (Result.ok_injective h).symm
-  simp only [Prod.mk.injEq] at h'
-  obtain ⟨rfl, rfl⟩ := h'
-  cases ci with
-  | IndInfo v caps =>
-    refine intern_ci_go_caps_wf ?_ h1 v caps rfl
-    intro v c2 hc2
-    subst hc2
-    exact hwf.2.2.1
-  | _ => trivial
-
-/-- The pinned `Eq` basis is canonical Rust data. -/
-theorem eq_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
-    (h : arena.std_axioms.eq_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
-  rw [arena.std_axioms.eq_a] at h
-  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.eq_a_refines hc).2) h
-
-/-- The pinned `Nat` is canonical Rust data. -/
-theorem nat_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
-    (h : arena.std_axioms.nat_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
-  rw [arena.std_axioms.nat_a] at h
-  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.nat_a_refines hc).2) h
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
 private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
@@ -677,10 +584,8 @@ private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
   simp only [lift, core.cmp.impls.PartialEqU64.eq, Result.ok.injEq] at h
   exact h.symm
 
-/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`, at canonical Rust data
-(`IConstantInfoWF`; the `IndInfo` arm compares `sort_z` by representation). -/
+/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`. -/
 theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
-    (ha : IConstantInfoWF a) (hb : IConstantInfoWF b)
     (hrun : arena.canon.i_constant_info_beq a b = ok o) :
     o = decide (absIConstantInfo a = absIConstantInfo b) := by
   cases a <;> cases b <;> simp only [arena.canon.i_constant_info_beq, Result.ok.injEq] at hrun <;>
@@ -705,7 +610,7 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     refine beq_chain (i_constant_val_beq_refines hb1) h ?_
     intro o1 h
-    exact i_ind_caps_beq_refines ha hb h
+    exact i_ind_caps_beq_refines h
   case CtorInfo.CtorInfo x p f y q g =>
     simp only [absIConstantInfo, IConstantInfo.ctorInfo.injEq]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -715,7 +620,7 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
     intro o2 h
     exact (u64_eq_lift h).trans (decide_eq_decide.mpr absU_iff)
-  case RecInfo.RecInfo x m p rs y n q ss =>
+  case RecInfo.RecInfo x m p k rs y n q k2 ss =>
     simp only [absIConstantInfo, IConstantInfo.recInfo.injEq]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     refine beq_chain (i_constant_val_beq_refines hb1) h ?_
@@ -726,6 +631,10 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine beq_chain ((u64_eq_lift hb3).trans (decide_eq_decide.mpr absU_iff)) h ?_
     intro o3 h
+    obtain ⟨b4, hb4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain (by simp only [core.cmp.impls.PartialEqBool.eq, Result.ok.injEq] at hb4
+                         exact hb4.symm) h ?_
+    intro o4 h
     have h4 := i_rec_rules_beq_refines h
     simpa [absIRecRuleLFrom] using h4
 
@@ -1346,7 +1255,7 @@ lane Checker Canon). -/
       ((absIConstantInfo ci).canonEq (absIConstantInfo ci2)) := by
   cases ci <;> cases ci2 <;>
     simp only [arena.canon.i_constant_info_canon_eq, absIConstantInfo,
-      IConstantInfo.canonEq] <;> lockstep
+      IConstantInfo.canonEq, core.cmp.impls.PartialEqBool.eq, bind_ok] <;> lockstep
 
 open Lockstep in
 private theorem canon_eq_list_aux (n : Nat) :
