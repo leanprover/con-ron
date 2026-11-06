@@ -462,11 +462,11 @@ pub fn max_loc(r: &Region, vs: &Vec<u64>, m: u64) -> u64 {
     m
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove fast::run_passes_refines, then delete this line
-/// **Both passes** from the given name and expression roots.  Every object they
-/// reach lies at or below the highest root, so the memo ends there.
-pub fn run_passes(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, names: &Vec<u64>, exprs: &Vec<u64>) -> Result<DS, RdErr> {
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:271-282 runMarked
+/// **Both passes** from the given name and expression roots: how many slots the
+/// memo has, the marks and the memo.  Every object they reach lies at or below
+/// the highest root, so the memo ends there.
+pub fn run_marked(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, names: &Vec<u64>, exprs: &Vec<u64>) -> Result<(u64, Vec<u8>, DS), RdErr> {
     let n: u64 = max_loc(r, exprs, max_loc(r, names, 0)) / 8 + 1;
     let mut m: Vec<u8> = zeros(n as usize);
     if !mark_roots(r, K_NAME, true, &mut m, names) {
@@ -482,7 +482,16 @@ pub fn run_passes(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r
     let mut st: DS = ds_fresh(n as usize);
     match build_pass(pk, pers, ar, bs, r, &m, n, &mut st, 0) {
         Err(e) => Err(e),
-        Ok(()) => Ok(st),
+        Ok(()) => Ok((n, m, st)),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
+/// **Both passes**: the memo.
+pub fn run_passes(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, names: &Vec<u64>, exprs: &Vec<u64>) -> Result<DS, RdErr> {
+    match run_marked(pk, pers, ar, bs, r, names, exprs) {
+        Err(e) => Err(e),
+        Ok((_, _, st)) => Ok(st),
     }
 }
 

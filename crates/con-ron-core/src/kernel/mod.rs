@@ -1,9 +1,7 @@
 //! `ConLeche/Kernel/*` — the pure checker's types and operations.
 pub mod basis_builder;
 pub mod basis_names;
-pub mod basis_pins;
 pub mod basis_raw;
-pub mod basis_tables;
 pub mod core_k;
 pub mod core_types;
 pub mod env;

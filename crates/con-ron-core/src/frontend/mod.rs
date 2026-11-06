@@ -29,6 +29,7 @@
 //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
 //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 //! | `olean` | `Arena/Frontend/Olean/*` | `Frontend/Olean/*`, task #142, its own table |
+//! | `pace` | none yet | `Frontend/Pace.lean`, the pure part (task #484) |
 //!
 //! ## The byte recogniser is not twinned, and that is deliberate
 //!
@@ -109,6 +110,7 @@ pub mod export_c;
 pub mod nat_decimal;
 pub mod nat_op_ground;
 pub mod olean;
+pub mod pace;
 pub mod prelude;
 pub mod prelude_text;
 pub mod prepare;

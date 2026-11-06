@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! con-ron [--verified|--trusted] [--jobs=<n>]
-//!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
+//!         [--progress[=N|P%|Ss]] [--pins FILE|--no-pins] FILE.ndjson
 //! con-ron [flags] --olean --search-path=DIR[:DIR...] [--constant=NAME]... [--] MODULE...
 //! con-ron --help
 //! ```
@@ -28,9 +28,9 @@
 //! declarations in front and hoists a pinned `Nat` operation's ground, the pin
 //! list is interned ONCE while the scratch tier is still off
 //! (`checker::intern_all_pins`), and the resulting `Vec<IDeclaration>` goes to
-//! the two-phase fold, `con_ron::driver::check_decls_driver` — phase A
-//! (`checker::install_fold_hooked`), the frozen tier, and the worker pool over
-//! `checker::run_job` for its phase B.
+//! `con_ron::driver::check_decls_driver` — the stream's index
+//! (`stream_index::build_index`), the frozen tier, and the worker pool over
+//! `checker::run_job`, every record's check a job.
 //!
 //! Exit codes are con-leche's (`Driver/CheckMain.lean`'s `exitCode`): 0 accepted, 1 rejected, 2
 //! declined, 3 usage/malformed/internal — `con_ron::driver::exit_code`, the
@@ -42,8 +42,8 @@
 //! outside its own stdout/stderr and reads its input strictly forward, 4 MiB
 //! at a time.
 //!
-//! **`--jobs=<n>` is real** since task #97-P6-6b: phase B runs on `n` worker
-//! threads sharing the frozen persistent tier and the installed index by
+//! **`--jobs=<n>` is real** since task #97-P6-6b: the check phase runs on `n`
+//! worker threads sharing the frozen persistent tier and the stream's index by
 //! reference (`con_ron::pool`), and the default is one per hardware
 //! thread capped at sixteen — `con_ron::driver::default_jobs`, the same
 //! function `con-ron` uses.  `--pins FILE` and
@@ -66,6 +66,10 @@ use con_ron_core::kernel::env::CheckMode;
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
 use con_ron::driver::STACK_BYTES;
+use con_ron_core::frontend::pace::Pace;
+use con_ron_core::arena::env::IDeclaration;
+use con_ron_core::frontend::nat_op_ground::DeclUsedConsts;
+use con_ron_core::frontend::olean::records::{value_cache_empty, OleanRead, ValueCache};
 use con_ron_core::arena::store::PersTier;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
@@ -78,138 +82,71 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: ConLeche/Driver/Cli.lean:97-293 usage
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
-/// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
-/// `con-ron`'s synopsis — the same flags in the same order, because
-/// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
-/// the three paragraphs that are this checker's own: the representation, the
-/// and the single-lane phase B.
-const USAGE: &str = "\
-usage: con-ron [--verified|--trusted] [--jobs=<n>]
-               [--progress[=<stride>]] [--pins FILE|--no-pins]
-               [--] FILE.ndjson
-       con-ron [flags] --olean --search-path=DIR[:DIR...]
-               [--constant=NAME]... [--] MODULE...
-       con-ron --help
+/// con-leche: ConLeche/Driver/Cli.lean:104-108 synopsis
+/// The invocation forms, printed on their own when there are no arguments.
+/// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
+/// and are not in con-leche's synopsis; they are in the help text's options.
+const SYNOPSIS: &str = "\
+Usage:
+  con-ron [OPTIONS] [--] FILE.ndjson
+  con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...";
 
-  (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
-  pure checker over an append-only DAG of per-constructor handle arrays, with
-  con-leche's command line and con-leche's exit codes, so that
-  scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
-  the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
-  the checking path there is no Arc, no tagged pointer and no reference count
-  at all.  (The PINNED DATA the checker compares against is still
-  con-leche's own constants as Expr values, interned into the persistent tier
-  once at startup -- crates/con-ron-core/src/lib.rs says why.)
+/// con-leche: ConLeche/Driver/Cli.lean:110-111 tryHelp
+/// The line after a usage error.
+const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
 
-  --verified        the default, and the mode the main theorem is about: every
-                    environment the fold accepts in this mode has a model in
-                    every set theory (ConLeche.model_exists), so a stream
-                    declaring a theorem of type False is never accepted.  The
-                    same two statements are PROVED about this program's
-                    pipeline (ConRon.Capstone.model_exists and
-                    no_False_declaration, on the Aeneas model of the Rust),
-                    using only the axioms propext, Classical.choice and
-                    Quot.sound.  What they still assume are hypotheses, not
-                    axioms: that the driver runs the extracted stages in the
-                    order it does on the file's bytes.  They hold at every pin
-                    text and every prelude.  OVERVIEW.md section 3.1 lists
-                    them.
-  --trusted         the unverified mode: the SAME checker bodies at the mode
-                    with the certification-only work switched off.  An accept
-                    in this mode is outside the theorem.
-  --jobs=<n>        the check phase runs on <n> worker threads sharing the
-                    persistent tier and the installed index by reference
-                    (DESIGN.md section 8.3): each worker owns a scratch tier,
-                    its own caches and a copy of the pin handles, and the
-                    results are merged by record index and walked in record
-                    order, so the verdict and the record a rejection names are
-                    the same at every <n>.  Default: one per hardware thread,
-                    capped at 16.  A worker reserves 1 GiB of stack, which a
-                    `ulimit -v` must allow for.  0 or a non-numeral is a usage
-                    error, as in con-leche.
-  --                every argument after it is a file, whatever it is called;
-                    FILE.ndjson is a regular file, read forward (a FIFO or a
-                    directory is exit 3)
-  --olean           read the input from .olean files instead of a lean4export
-                    stream: the arguments are root modules (Init, Std, Mathlib,
-                    ...; a component in «» is taken literally), checked with
-                    every constant of their import closure.  The closure is
-                    read at the private level (theorems with proofs,
-                    definitions with bodies), merged as Lean's own import
-                    merges it, and emitted as the records lean4export would
-                    write, so the same checker checks them.  Every object the
-                    imports and constants reach is decoded and validated,
-                    nothing in the files is trusted.  A file of another .olean
-                    format version declines (2).  OVERVIEW.md says how far the
-                    theorems reach on this path.
-  --constant=NAME   with --olean: check only this constant and what it
-                    mentions, not every constant of the closure, as
-                    lean4export's arguments after -- do; a component of digits
-                    is a number (_private.M.0.foo).  May be given more than
-                    once.  A name the closure does not hold is an error (3).
-  --search-path=DIR[:DIR...]
-                    the directories holding .olean trees, as LEAN_PATH lists
-                    them (the toolchain's lib/lean, a package's
-                    .lake/build/lib/lean).  May be given more than once.  Every
-                    module is looked up in every directory: its files (M.olean
-                    and, for a module of the module system, exactly
-                    M.olean.server and M.olean.private beside it) must be in
-                    one directory, counted once however often it is reached (a
-                    repeated entry, a symbolic link).  A module in two places,
-                    a missing, stray or split part is an error (3).
+/// con-leche: ConLeche/Driver/Cli.lean:113-141 helpText
+/// The `--help` text: con-leche's, with this binary's name, the port's two
+/// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
+/// strings need not match.
+const HELP_HEAD: &str = "\
+Check Lean declarations from a lean4export file or from .olean modules.
+";
 
-build-time selection (cargo features, not command-line flags): the global
-allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
-dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
-is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-It is the same edge `crates/con-ron` has, so the two checkers are measured on
-the same allocator unless a build says otherwise.
+/// con-leche: ConLeche/Driver/Cli.lean:113-141 helpText
+/// The rest of the `--help` text, after the synopsis.
+const HELP_TAIL: &str = "\
+Options:
+  --verified          Check in the mode the soundness theorem covers (default)
+  --trusted           Skip the checks only the proof needs; outside the theorem
+  --jobs=N            Worker threads (default: one per hardware thread, at most 16)
+  --progress[=PACE]   Report progress on stderr: PACE is N declarations
+                      (default 1), P% of each phase, or Ss seconds
+  --pins FILE         Testing only: check with this Nat pin list instead of
+                      the embedded one (outside the theorems)
+  --no-pins           Testing only: check with no Nat pin list
+  --help              Print this help and exit
+  --                  End of options
 
-Any other option is a usage error: the run reports it, prints this text and
-exits 3 without reading its input.
+.olean input:
+  --olean             Read modules and their import closure from .olean files
+  --search-path=DIRS  Colon-separated .olean directories; repeatable
+  --constant=NAME     Check only NAME and what it mentions; repeatable
 
-exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
-An out-of-memory condition is NEITHER: this program aborts the way Rust aborts
-on a failed allocation ('memory allocation of <n> bytes failed', SIGABRT,
-which a shell reports as 134).  A panic is exit 3.
+Exit status:
+  0  accepted
+  1  rejected: a declaration is invalid
+  2  declined: an unsupported feature
+  3  error: bad usage, malformed input or an internal failure
 
-THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
-one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-built-in prelude's own records are not counted; a stream record that declares
-a prelude declaration IS counted.  That count is a property of the INPUT; the
-number of environment CONSTANTS is not.
+Documentation:
+  README.md and OVERVIEW.md of the con-ron repository";
 
-THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-checker's own little prelude -- the five pinned basis blocks (Eq, Nat, Empty,
-False, Quot) and the toolchain's Bool and And blocks, embedded at build
-time -- so the pin-certified Nat operations find their ground whatever order
-the export chose.  It is parsed into the SAME store as the stream, which is
-what the persistent tier is for: the prelude's nodes and the stream's are
-hash-consed together.
-
-NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is no
-external tool, no dependency and no spawn.  Every inductive block --
-structures, sums, indexed families, recursive, reflexive, mutual and nested
-blocks -- is installed by the ONE uniform installer: it checks the type formers
-and constructors, runs the positivity check, and GENERATES the block's
-recursors; the stream's recursor records are compared with the generated ones
-up to definitional equality, types and rules, and what is installed is the
-stream's type and rules' right-hand sides.  No model is ever read from the input: a
-stream record whose name carries a `_model` component is an ordinary
-declaration with no effect on any block.  A block whose shape the installer
-does not recognise declines (exit 2), naming it.  The binary reads no
-environment variable.";
+/// con-leche: none — a usage error's two lines (con-leche writes them out at
+/// each site of `runArgs`): the message, then the pointer to `--help`.
+fn usage_error(msg: &str) -> ExitCode {
+    eprintln!("con-ron: {}", msg);
+    eprintln!("{}", TRY_HELP);
+    ExitCode::from(3)
+}
 
 /// con-leche: ConLeche/Driver/Cli.lean:143-159 Args
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
     files: Vec<String>,
     verified: bool,
-    progress: u64,
+    progress: Pace,
     jobs: Option<u64>,
     pins: Option<String>,
     no_pins: bool,
@@ -223,7 +160,6 @@ struct Args {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:175-209 parseArgs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -234,7 +170,7 @@ fn parse_args(argv: &[String]) -> Args {
     let mut a = Args {
         files: Vec::new(),
         verified: true,
-        progress: 0,
+        progress: Pace::Off,
         jobs: None,
         pins: None,
         no_pins: false,
@@ -260,7 +196,7 @@ fn parse_args(argv: &[String]) -> Args {
             }
             "--verified" => a.verified = true,
             "--trusted" => a.verified = false,
-            "--progress" => a.progress = 1,
+            "--progress" => a.progress = Pace::Every(1),
             "--no-pins" => a.no_pins = true,
             "--olean" => a.olean = true,
             "--pins" => {
@@ -279,7 +215,7 @@ fn parse_args(argv: &[String]) -> Args {
             ),
             _ => {
                 if let Some(v) = s.strip_prefix("--progress=") {
-                    match con_ron::driver::progress_stride(v) {
+                    match con_ron::driver::progress_pace(v) {
                         Ok(n) => a.progress = n,
                         Err(m) => bad(m, &mut a),
                     }
@@ -362,7 +298,7 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:59-62 Input
+/// con-leche: ConLeche/Driver/CheckMain.lean:55-62 Input
 /// **What a run reads**: a lean4export stream, or the import closure of root
 /// modules read from their `.olean` files along a search path.
 enum Input {
@@ -371,11 +307,10 @@ enum Input {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// The driver's front matter: the prelude, the streaming parse, the
-/// preparation, the pin walk, the receipts, then the fold and the verdict.
+/// preparation, the pin walk, the receipts, then the index, the check phase
+/// and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
 /// around it (`Arena/Main.lean`), and `con-ron`'s `check_main` with the
 /// handles in place of the trees.
@@ -395,14 +330,11 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // hash-consed together into its persistent tier (DESIGN.md §8.3).
     // ConRon.Capstone: `startState`
     let mut st = AState::empty();
-    // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-    // #97-P6-6b).  The parse and phase A's setup own their own — the store
-    // is owned (not frozen) outside a declaration bracket — so what they are
-    // handed here is the EMPTY tier, and the single-lane computation is
-    // unchanged.  Each phase-A bracket freezes the store and reads through
-    // the tier it took out; phase B freezes the store's tier into a
-    // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
-    // where that happens.
+    // THE PERSISTENT TIER a worker reads (DESIGN.md §8.3, task #97-P6-6b).
+    // The parse, the pin walk and the index build own their own — the store is
+    // owned (not frozen) — so what they are handed here is the EMPTY tier; the
+    // check phase freezes the store's tier, the index with it, into a
+    // `PersTier` and hands `&` it to every worker (`check_decls_driver`).
     // ConRon.Capstone: `emptyTier`
     let pers: &PersTier = &PersTier::empty();
     // THE RESERVED-NAME PINS, interned once into that persistent tier before
@@ -424,6 +356,12 @@ fn check_main(a: &Args, input: &Input) -> u8 {
             return 3;
         }
     }
+    // The heartbeat (`--progress`), and its first line: what the run reads.
+    let mut hb = Heartbeat::new(con_ron_core::frontend::pace::pace_dup(&a.progress), t0);
+    hb.read_starts(&match input {
+        Input::Ndjson(file) => con_ron::render::display_path(file),
+        Input::Oleans(req) => req.label(pers, &st),
+    });
     // THE BUILT-IN PRELUDE, parsed into that store before anything else.
     // ConRon.Capstone: h2
     let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
@@ -451,21 +389,25 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
     // The `.olean` path ends in the same records (task #142); no capstone
     // premise is about it yet (OVERVIEW.md).
-    let read: std::io::Result<Result<ParseResultD, (CheckError, u64)>> = match input {
+    // An `--olean` run's theorems hold references to their values, which their
+    // jobs read (`driver::olean_job`); what that needs comes back beside the
+    // records (`OleanRead`).
+    let read: std::io::Result<Result<(Vec<IDeclaration>, Option<OleanRead>), (CheckError, u64)>> = match input {
         Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
             Err(e) => {
                 eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
                 return 3;
             }
-            Ok((r, _)) => Ok(r),
+            Ok((r, _)) => Ok(r.map(|p: ParseResultD| (p.decls, None))),
         },
-        Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req)),
+        Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req, &a.progress)
+            .map(|mut rd| (std::mem::take(&mut rd.decls), Some(rd)))),
     };
     let label: String = match input {
         Input::Ndjson(file) => con_ron::render::display_path(file),
         Input::Oleans(req) => req.label(pers, &st),
     };
-    let parsed: ParseResultD = match read {
+    let (parsed_decls, olean): (Vec<IDeclaration>, Option<OleanRead>) = match read {
         Err(_) => return 3,
         Ok(Err((e, line))) => match classify(&e) {
             FrontendClass::Declined(what) => {
@@ -485,7 +427,7 @@ fn check_main(a: &Args, input: &Input) -> u8 {
         },
         Ok(Ok(r)) => r,
     };
-    let file_records = parsed.decls.len();
+    let file_records = parsed_decls.len();
     // From here on the store is the checker's state: the memo tables and the
     // per-declaration caches join it (`AState`), and every handle the parse
     // produced indexes into it.
@@ -496,7 +438,13 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // ground hoisted ahead of it.  It takes the whole state since task
     // #97-P4d: step 2 is the real ground hoist, which interns.
     // ConRon.Capstone: h4
-    let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
+    // What a record mentions, for the ground hoist: its expressions say it,
+    // except a theorem's read from an `.olean`, whose load read it off the
+    // file (con-leche's `usedOf`).
+    let prepared = match match &olean {
+        None => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, &DeclUsedConsts),
+        Some(rd) => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, rd),
+    } {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
     };
@@ -523,18 +471,9 @@ fn check_main(a: &Args, input: &Input) -> u8 {
             return 3;
         }
     };
-    // The heartbeat's first line: the parse and the preparation are done.
-    let mut hb = Heartbeat::new(a.progress, t0);
-    hb.parse_done(
-        prepared.decls.len(),
-        file_records,
-        prepared.synthesised,
-        (
-            st.store.node_count(pers),
-            st.store.ls().node_count(pers),
-            st.store.ns().node_count(pers),
-        ),
-    );
+    // What the parse line reports, printed once the index is built.
+    hb.file_records = file_records;
+    hb.synthesised = prepared.synthesised;
     // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
     // pinned datum the checker compares a stream record against — the six
     // basis blocks in both forms, the axiom pins, the reserved names and the
@@ -547,22 +486,38 @@ fn check_main(a: &Args, input: &Input) -> u8 {
         Err(e) => return frontend_exit(&e, mode_tag),
     };
     // ONE driver, and the heartbeat is printed between its steps
-    // (`driver::check_decls_driver`: phase A, the frozen tier, and the pool
-    // for its phase B).
+    // (`driver::check_decls_driver`: the index, the frozen tier, and the pool
+    // for the check phase).
     let jobs: u64 = match a.jobs {
         Some(n) => n,
         None => con_ron::driver::default_jobs(),
     };
-    // ONE lane, whatever the flags: the driver is what freezes the persistent
-    // tier at the phase boundary and phase B is the pool at every worker count
-    // (task #97-P6-6b), so a run with no heartbeat is the same computation as
-    // a run with one and `install_then_check` is no longer a second path.
-    // ConRon.Capstone: h6, hord, h7, hlayer, h8 (the driver's steps, either observer)
-    let verdict = if a.progress > 0 {
-        driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
-    } else {
-        let mut silent = driver::Silent;
-        driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
+    // ONE lane, whatever the flags: the driver is what builds and freezes the
+    // index and the check phase is the pool at every worker count, so a run
+    // with no heartbeat is the same computation as a run with one.
+    // ConRon.Capstone: the index, the freeze and the pool (the driver's steps,
+    // either observer)
+    let on = con_ron_core::frontend::pace::pace_on(&a.progress);
+    let ds = &prepared.decls;
+    let verdict = match (&olean, input) {
+        (Some(rd), Input::Oleans(req)) => {
+            let sp = &req.search_path;
+            let job = |tier: &PersTier, w: &mut AState, c: &mut ValueCache, k: u64| {
+                driver::olean_job(tier, w, c, &mode, &ipins, ds, rd, sp, k)
+            };
+            if on {
+                driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut hb, value_cache_empty, job)
+            } else {
+                driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut driver::Silent, value_cache_empty, job)
+            }
+        }
+        _ => {
+            if on {
+                driver::check_decls_driver(pers, &mut st, &mode, &ipins, ds, jobs, &mut hb)
+            } else {
+                driver::check_decls_driver(pers, &mut st, &mode, &ipins, ds, jobs, &mut driver::Silent)
+            }
+        }
     };
     // **The headline number is the FILE's declaration-record count**: the
     // records the PARSE produced, which are the file's own.  Nothing the
@@ -592,7 +547,6 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// con-leche: Main.lean:32-91 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
@@ -605,7 +559,7 @@ fn exit_after_verdict(code: u8) -> ! {
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if help_wanted(&argv) {
-        println!("{}", USAGE);
+        println!("{}\n{}\n\n{}", HELP_HEAD, SYNOPSIS, HELP_TAIL);
         // The one build-time choice a run's numbers depend on, printed rather
         // than merely documented (task #89).
         println!("this build's global allocator: {}", con_ron_dump::ALLOCATOR);
@@ -613,35 +567,31 @@ fn main() -> ExitCode {
     }
     let a = parse_args(&argv);
     if let Some(msg) = &a.bad {
-        eprintln!("con-ron: {}", msg);
-        eprintln!("{}", USAGE);
-        return ExitCode::from(3);
+        return usage_error(msg);
     }
     let input: Input = if a.olean {
         // `--olean`: the arguments are root modules, read with their import
         // closure along the search path, module names as Lean spells them.
         if a.files.is_empty() || a.search_path.is_empty() {
-            eprintln!("con-ron: --olean takes one or more module names and a --search-path=DIR[:DIR\u{2026}]");
-            eprintln!("{}", USAGE);
-            return ExitCode::from(3);
+            return usage_error("--olean takes one or more module names and a --search-path=DIRS");
         }
         match con_ron::olean_fs::OleanRequest::new(&a.search_path, &a.files, &a.constants) {
-            Err(msg) => {
-                eprintln!("con-ron: {}", msg);
-                eprintln!("{}", USAGE);
-                return ExitCode::from(3);
-            }
+            Err(msg) => return usage_error(&msg),
             Ok(req) => Input::Oleans(req),
         }
     } else {
         if !a.search_path.is_empty() || !a.constants.is_empty() {
-            eprintln!("con-ron: --search-path and --constant take --olean");
-            eprintln!("{}", USAGE);
-            return ExitCode::from(3);
+            return usage_error("--search-path and --constant take --olean");
         }
-        if a.files.len() != 1 {
-            eprintln!("{}", USAGE);
-            return ExitCode::from(3);
+        match a.files.len() {
+            1 => (),
+            // no arguments: the invocation forms, and the pointer to `--help`
+            0 => {
+                eprintln!("{}", SYNOPSIS);
+                eprintln!("{}", TRY_HELP);
+                return ExitCode::from(3);
+            }
+            _ => return usage_error("takes one input file"),
         }
         Input::Ndjson(a.files[0].clone())
     };

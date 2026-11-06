@@ -35,7 +35,6 @@ use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
 use crate::kernel::expr;
-use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
 use crate::arena::store::PersTier;
 
@@ -431,16 +430,17 @@ pub fn i_constant_val_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:90-122 RecRuleFire
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_rec_rule_fire_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:180-194 canonRulesEq` — the
-/// derived `BEq` on a rule's firing mode, which the record comparison below
-/// needs and `arena::env` does not carry (it has the copy only).
+/// con-leche: ConLeche/Kernel/Canon.lean:316-321 RecRuleFire.beqP
+/// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); equality of a
+/// rule's firing mode (the comparands by handle, which is `Expr`'s `==` and
+/// the derived `DecidableEq` at once: interning is injective).
 pub fn i_rec_rule_fire_beq(a: &IRecRuleFire, b: &IRecRuleFire) -> bool {
     match (a, b) {
         (IRecRuleFire::Plain, IRecRuleFire::Plain) => true,
         (IRecRuleFire::Nested(l1, p1), IRecRuleFire::Nested(l2, p2)) => {
             lidx_vec_beq(l1, l2, 0) && eidx_vec_beq(p1, p2, 0)
         }
+        (IRecRuleFire::Levels(l1), IRecRuleFire::Levels(l2)) => lidx_vec_beq(l1, l2, 0),
         _ => false,
     }
 }
@@ -493,12 +493,7 @@ pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
 /// twin's `{ r with rhs := default } == { r' with rhs := default }`: every
 /// field of the rule but its right-hand side.
 pub fn i_rec_rule_eq_but_rhs(r: &IRecRule, r2: &IRecRule) -> bool {
-    r.ctor.eq2(&r2.ctor)
-        && r.nfields == r2.nfields
-        && r.ctor_params == r2.ctor_params
-        && i_rec_rule_fire_beq(&r.fire, &r2.fire)
-        && r.k == r2.k
-        && r.eta == r2.eta
+    r.ctor.eq2(&r2.ctor) && r.nfields == r2.nfields && i_rec_rule_fire_beq(&r.fire, &r2.fire)
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:198-205 canonRulesEqFast
@@ -537,10 +532,8 @@ pub fn canon_rules_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:224-226 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
@@ -576,10 +569,10 @@ pub fn i_constant_info_canon_eq(
             }
         }
         (
-            IConstantInfo::RecInfo(cv, mi, rp, rs),
-            IConstantInfo::RecInfo(cv2, mi2, rp2, rs2),
+            IConstantInfo::RecInfo(cv, mi, rp, is_k, rs),
+            IConstantInfo::RecInfo(cv2, mi2, rp2, is_k2, rs2),
         ) => {
-            if mi == mi2 && rp == rp2 {
+            if mi == mi2 && rp == rp2 && is_k == is_k2 {
                 canon_eq_cv_and_rules(pers, st, cv, cv2, rs, rs2)
             } else {
                 Ok(false)
@@ -590,7 +583,6 @@ pub fn i_constant_info_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::canon_eq_cv_and_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
@@ -628,7 +620,6 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::canon_eq_cv_and_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
@@ -694,32 +685,33 @@ pub fn canon_eq_list(
 }
 
 // ---------------------------------------------------------------------------
-// The derived equality on a stored constant
+// Pointer-first equality of what an install pushes
 //
-// `Arena/DeclCheck.lean` and `Arena/Checker.lean` compare a stored constant
-// with a pin by `==` (`fe.find? eqName == some eqA`), which in the twin is the
-// `deriving DecidableEq` of `IConstantInfo`.  Rust has no derive (§3.4), so
-// the instance is spelled out here.
+// con-leche's `…beqP` compares every `Expr` by its memoised `==` and the rest
+// by its derived `DecidableEq`.  Over handles both are handle equality
+// (interning is injective, DESIGN.md §8.3), so each `beqP` and the derived
+// equality it decides are one function here; Rust has no derive (§3.4).
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:83-88 ConstantVal
-/// Lean twin: `proof/ConRon/Arena/Env.lean:54-60 IConstantVal` — the cited
-/// `deriving DecidableEq`, field by field.
+/// con-leche: ConLeche/Kernel/Canon.lean:305-307 ConstantVal.beqP
+/// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); field by
+/// field.
 pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_rec_rule_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:72-83 IRecRule` — the cited
-/// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
+/// con-leche: ConLeche/Kernel/Canon.lean:326-328 RecRule.beqP
+/// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4);
+/// `i_rec_rule_eq_but_rhs` and the right-hand side.
 pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
     i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_rec_rules_beq_refines, then delete this line
-/// A rule list compared elementwise.
+/// con-leche: ConLeche/Kernel/Canon.lean:291-295 listBeqBy
+/// `listBeqBy RecRule.beqP`: a rule list compared elementwise.
 pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     if i >= a.len() && i >= b.len() {
         true
@@ -733,9 +725,8 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_ind_caps_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:87-108 IIndCaps` — the cited
-/// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
+/// Lean twin: `proof/ConRon/Arena/Env.lean:80-101 IIndCaps` — the cited `deriving
+/// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
     a.eta == b.eta
         && a.eta_ctor.eq2(&b.eta_ctor)
@@ -743,19 +734,18 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.eta_fields == b.eta_fields
         && a.unitlike == b.unitlike
         && a.unit_params == b.unit_params
-        && a.rule_k == b.rule_k
-        && prop_when::beq(&a.sort_z, &b.sort_z)
         && nidx_vec_beq(&a.all, &b.all, 0)
         && a.nparams == b.nparams
+        && a.n_idx == b.n_idx
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:150-160 IConstantInfo` — the cited
-/// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
-/// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
-/// `Eq` and `Nat` bases are recognised by.
+/// con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
+/// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); **`ConstantInfo`
+/// equality**, constructor for constructor: what a pinned block's record is
+/// compared with its pin by (`arena::basis::pin_agrees`), and the exact
+/// `find? natName = some natA` of `reduceElemOk`.
 pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
     match (a, b) {
         (IConstantInfo::AxiomInfo(x), IConstantInfo::AxiomInfo(y)) => {
@@ -771,8 +761,8 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
         (IConstantInfo::CtorInfo(x, p, f), IConstantInfo::CtorInfo(y, q, g)) => {
             i_constant_val_beq(x, y) && p == q && f == g
         }
-        (IConstantInfo::RecInfo(x, m, p, rs), IConstantInfo::RecInfo(y, n, q, ss)) => {
-            i_constant_val_beq(x, y) && m == n && p == q && i_rec_rules_beq(rs, ss, 0)
+        (IConstantInfo::RecInfo(x, m, p, k, rs), IConstantInfo::RecInfo(y, n, q, k2, ss)) => {
+            i_constant_val_beq(x, y) && m == n && p == q && k == k2 && i_rec_rules_beq(rs, ss, 0)
         }
         _ => false,
     }

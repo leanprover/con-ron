@@ -9,7 +9,7 @@
 //! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
 //! campaign, beside the `Expr`-tree driver it has now replaced, and the
 //! eleven representation-free items it used to import across the crate line
-//! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_stride`,
+//! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_pace`,
 //! `jobs_count`, `default_jobs`, [`workers_for`],
 //! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
 //!
@@ -68,12 +68,11 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use con_ron_core::arena::checker;
-use con_ron_core::arena::checker::BlockCheck;
-use con_ron_core::arena::checker::InstallHook;
-use con_ron_core::arena::checker::PendingCheck;
-use con_ron_core::arena::checker_split::ValueKind;
 use con_ron_core::arena::env as ienv;
-use con_ron_core::arena::env::{IDeclaration, IFEnv};
+use con_ron_core::arena::env::IDeclaration;
+use con_ron_core::arena::stream_index;
+use con_ron_core::arena::stream_index::IStreamIndex;
+use con_ron_core::frontend::pace::{pace_due_count, pace_on, pace_trace, Pace};
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::nat_op_pin_set::INatOpPinSet;
 use con_ron_core::arena::store::EStore;
@@ -203,7 +202,6 @@ pub fn verdict_word(code: u8) -> &'static str {
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
 /// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::default_jobs_refines, then delete this line
 /// The `--jobs` default, which con-leche reads in `run` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped
@@ -242,23 +240,37 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:58-69 progressStride
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::progress_stride_refines, then delete this line
-/// The progress heartbeat's stride: no flag is off; bare `--progress` is
-/// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
-/// for no heartbeat — are usage errors: a run's output must be readable off
-/// its invocation, never silently degraded.
-pub fn progress_stride(v: &str) -> Result<u64, String> {
-    match v.parse::<u64>() {
-        Ok(0) => Err("--progress takes a declaration stride of at least 1 \
-                      (a decimal numeral); omit the flag for no heartbeat"
-            .to_string()),
-        Ok(n) => Ok(n),
-        Err(_) => Err(format!(
-            "--progress takes a declaration stride \
-             (a decimal numeral of at least 1), got {}",
+/// con-leche: ConLeche/Driver/Cli.lean:56-77 progressPace
+/// The progress heartbeat's pace, read off the `--progress[=N|P%|Ss]` flag:
+/// every `N` declarations, per `P` percent of a phase, or at the first one done
+/// after `S` seconds (`Pace`).  No flag is off; bare `--progress` is every one.
+/// A value of another form, and a zero — the flag asking for no heartbeat — are
+/// usage errors (exit 3): a run's output must be readable off its invocation,
+/// never silently degraded.
+pub fn progress_pace(v: &str) -> Result<Pace, String> {
+    let bad = || {
+        Err(format!(
+            "--progress takes a number of declarations of at least 1, a percentage \
+             from 1% to 100%, or seconds of at least 1s, got {}; omit the flag for no \
+             heartbeat",
             crate::render::display_str(v)
-        )),
+        ))
+    };
+    if let Some(p) = v.strip_suffix('%') {
+        match p.parse::<u64>() {
+            Ok(p) if (1..=100).contains(&p) => Ok(Pace::Percent(p)),
+            _ => bad(),
+        }
+    } else if let Some(n) = v.strip_suffix('s') {
+        match n.parse::<u64>() {
+            Ok(0) | Err(_) => bad(),
+            Ok(n) => Ok(Pace::Seconds(n)),
+        }
+    } else {
+        match v.parse::<u64>() {
+            Ok(0) | Err(_) => bad(),
+            Ok(n) => Ok(Pace::Every(n)),
+        }
     }
 }
 
@@ -312,47 +324,29 @@ pub fn pins_for_run(
 // Rendering: the labels the arena has to read back
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::value_kind_word_refines, then delete this line
-/// The kind's word, for the check phase's heartbeat line.  `crate::driver`
-/// has the same three words against `con_ron_core`'s `ValueKind`; the arena
-/// has its own enum, so the three arms are spelled once more here rather than
-/// converted.
-pub fn value_kind_word(k: &ValueKind) -> &'static str {
-    match k {
-        ValueKind::Defn => "definition",
-        ValueKind::Thm => "theorem",
-        ValueKind::Opaque => "opaque",
-    }
-}
-
 /// con-leche: ConLeche/Cached/ParsedC.lean:255-264 declCLabel
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::decl_label_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:47-51 declCName
-/// A record's display label, `crate::driver::decl_label`'s seven arms with
-/// the names READ BACK out of the store: a handle is not a name until the
-/// store is asked, which is the one thing every rendering in this crate has to
-/// do that con-ron's does not.  A dangling handle renders as `?` rather than
-/// failing — this is a log line, never a verdict.
+/// A record's display label, the cited six arms with the names READ BACK out
+/// of the store: a handle is not a name until the store is asked, which is the
+/// one thing every rendering in this crate has to do that con-leche's does not.
+/// A dangling handle renders as `?` rather than failing — this is a log line,
+/// never a verdict.
 pub fn decl_label(pers: &PersTier, ar: &EStore, d: &IDeclaration) -> String {
     let (kind, n) = match d {
-        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(pers, ar, &cv.name))),
-        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(pers, ar, &cv.name))),
-        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(pers, ar, &cv.name))),
-        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(pers, ar, &cv.name))),
-        IDeclaration::BasisDecl(_) => ("basis", None),
+        IDeclaration::AxiomDecl(cv) => ("axiom", name_of(pers, ar, &cv.name)),
+        IDeclaration::DefnDecl(cv, _, _) => ("def", name_of(pers, ar, &cv.name)),
+        IDeclaration::ThmDecl(cv, _) => ("theorem", name_of(pers, ar, &cv.name)),
+        IDeclaration::OpaqueDecl(cv, _) => ("opaque", name_of(pers, ar, &cv.name)),
         IDeclaration::IndDecl(block, _) => (
             "inductive",
-            block
-                .first()
-                .map(|ci| name_of(pers, ar, &ienv::i_constant_info_name(ci))),
+            match block.first() {
+                Some(ci) => name_of(pers, ar, &ienv::i_constant_info_name(ci)),
+                None => "[anonymous]".to_string(),
+            },
         ),
-        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::QuotDecl(_, cv) => ("quot", name_of(pers, ar, &cv.name)),
     };
-    match n {
-        Some(n) => format!("{} {}", kind, n),
-        None => kind.to_string(),
-    }
+    format!("{} {}", kind, n)
 }
 
 /// con-leche: none — `Name.toString` of a handle, for a log line
@@ -366,12 +360,9 @@ pub fn name_of(pers: &PersTier, ar: &EStore, h: &con_ron_core::arena::handle::NI
     }
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::workers_for_refines, then delete this line
-/// The worker count a run reports and the pool spawns: `max 1 (min jobs
-/// pend.size)`, which is `workers_for` and nothing else —
-/// the two binaries cannot drift on what `--jobs=<n>` means (task #97-P6-6b;
-/// until then this clamped to ONE, because phase B was single-lane).
+/// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// The worker count a run reports and the pool spawns: the cited
+/// `max 1 (min jobs m)`.
 pub fn workers_for(jobs: u64, m: usize) -> usize {
     let w = if (jobs as usize) < m { jobs as usize } else { m };
     if w < 1 {
@@ -382,117 +373,76 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// The two phases (`ParInstall.lean`'s `commitLoop`, `CheckPool.lean`'s `checkLoop`)
+// The check phase (`Driver/CheckPool.lean`, `Driver/Run.lean`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
-/// What a caller wants to know between the steps of the fold —
-/// `crate::driver::PhaseObserver` over the arena's records, with the store
-/// passed to every method because a handle is not a label until the store is
-/// asked.  Every method defaults to nothing, so a caller implements the lines
-/// it prints and no more.  The line printed BEFORE each install is not here:
-/// phase A is the verified `checker::install_fold_hooked`, and its hook is
-/// `con_ron_core::arena::checker::InstallHook`, which every observer also
-/// implements (task #97-P5-Driver).
+/// What a caller wants to know between the steps of the run — the heartbeat's
+/// lines, with the store passed to every method because a handle is not a
+/// label until the store is asked.  Every method defaults to nothing, so a
+/// caller implements the lines it prints and no more.  An observer only ever
+/// holds `&` the state, so it cannot change an outcome.
 pub trait PhaseObserver {
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
-    /// Phase A failed at fold position `pos`.
-    fn install_failed(&mut self, _pos: u64, _total: usize) {}
+    /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// The index build is about to start (`tIndex`).
+    fn index_starts(&mut self) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_done_refines, then delete this line
-    /// The phase boundary: every record installed, `pend` checks pending, and
-    /// the store as phase A left it — the node counts are the one number P6
-    /// asked this line for, because they are what the install ADDED to the
-    /// persistent tier on top of the parse's.  Phase A runs in the SCRATCH tier
-    /// and promotes what the environment keeps, so the figure to compare with
-    /// the Lean twin's is the PERSISTENT one, printed beside the total; phase B
-    /// promotes nothing, so it is also the count at the end of the run.  `pend`
-    /// counts every job of phase B, `blocks` of them inductive blocks.
-    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize, _blocks: usize) {}
+    /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// The parse is done, the index built: `con-ron: parse done: …`.
+    fn parse_done(&mut self, _pers: &PersTier, _ar: &EStore, _fold_records: usize) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
-    /// The worker count phase B is about to run on, so that the summary
-    /// reports the lane the run actually took.
-    fn phase_b_workers(&mut self, _workers: usize) {}
+    /// con-leche: ConLeche/Driver/Run.lean:48-52 checkStarts
+    /// The check phase starts: `m` jobs on `workers` workers.
+    fn check_starts(&mut self, _m: usize, _workers: usize) {}
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
+    /// con-leche: ConLeche/Driver/CheckPool.lean:165-170 jobBegin
     /// Does this observer print a line per check?  The driver asks ONCE, before
-    /// the pool spawns: off, no worker touches the completed-count atomic or the
-    /// observer lock at all, which is the difference between a plain pooled
-    /// run and the `--progress` lane.
+    /// the pool spawns: off, no worker touches the completed-count or the
+    /// observer lock at all, which is the difference between a plain run and
+    /// the `--progress` lane.
     fn wants_check_lines(&self) -> bool {
         false
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_after_refines, then delete this line
-    /// After the `done`-th of `m` jobs completed.
-    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _job: &JobRef) {}
+    /// After the `done`-th of `m` jobs completed, job `k` the one just done.
+    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _ds: &Vec<IDeclaration>, _k: usize) {}
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
-    /// Phase B failed at fold position `pos`.
-    fn check_failed(&mut self, _pos: u64) {}
-
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_done_refines, then delete this line
-    /// Every recorded check passed.
-    fn check_done(&mut self, _m: usize) {}
+    /// con-leche: ConLeche/Driver/Run.lean:54-72 checkDone
+    /// The check phase ended: at the first failure in fold order, or with every
+    /// job passed (`None`).
+    fn check_done(&mut self, _m: usize, _failure: Option<u64>) {}
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::Silent_refines, then delete this line
 /// The observer a plain run (no `--progress`) hands the driver: it prints
 /// nothing and wants no check lines, so no worker touches the completed-count
-/// atomic or the observer lock at all.  ONE lane serves both runs since task
-/// #97-P6-6b — the phase boundary freezes the tier, and a second path that
-/// did not would be a second computation.
+/// or the observer lock at all.  ONE lane serves both runs.
 pub struct Silent;
 
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl PhaseObserver for Silent {}_refines, then delete this line
 impl PhaseObserver for Silent {}
 
-/// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl InstallHook for Silent_refines, then delete this line
-impl InstallHook for Silent {
-    /// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_before_refines, then delete this line
-    /// Nothing.
-    fn install_before(&self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
-}
-
-/// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_line_refines, then delete this line
-/// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_line_refines, then delete this line
-/// The heartbeat's line after phase B's `k`-th job, on the worker that
-/// ran it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
-/// spelling of the cited `stride > 0` guard inside `checkOne`: off, no worker
-/// touches the counter or the observer lock at all.
+/// con-leche: ConLeche/Driver/CheckPool.lean:172-183 jobEnd
+/// The heartbeat's line after job `k`, on the worker that ran it:
+/// `parallel_all`'s `after` hook.  `heartbeat` is the cited `pace.on` guard:
+/// off, no worker touches the counter or the observer lock at all.
 ///
-/// **The bump and its line are ONE critical section** (con-leche task
-/// absorbed by #105's `uniform-inds` merge, Main.lean's own note on
-/// `checkOne`/`checkPool`): the completed-count and the observer share one
-/// `Mutex`, so a worker cannot be descheduled between incrementing the count
-/// and printing it — which used to let a later count's line overtake its own
-/// (`check 1, 3, 2`, measured under load) when the two were a separate
-/// atomic and a separate lock.  Under the one lock the lines leave in count
-/// order, whatever the scheduling.
+/// **The bump and its line are ONE critical section** (the cited `jobEnd`):
+/// the completed-count and the observer share one `Mutex`, so a worker cannot
+/// be descheduled between incrementing the count and printing it, which used
+/// to let a later count's line overtake its own (`check 1, 3, 2`, measured
+/// under load).  Under the one lock the lines leave in count order, whatever
+/// the scheduling.
+#[allow(clippy::too_many_arguments)]
 fn check_line<O: PhaseObserver>(
     heartbeat: bool,
     lock: &Mutex<(usize, &mut O)>,
     tier: &PersTier,
     w: &AState,
     m: usize,
-    job: &JobRef,
+    ds: &Vec<IDeclaration>,
+    k: usize,
 ) {
     if heartbeat {
         // A poisoned lock means another worker panicked while printing; the
@@ -500,113 +450,58 @@ fn check_line<O: PhaseObserver>(
         if let Ok(mut g) = lock.lock() {
             g.0 += 1;
             let n = g.0;
-            g.1.check_after(tier, &w.store, n, m, job);
+            g.1.check_after(tier, &w.store, n, m, ds, k);
         }
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:49-52 Jobs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::JobRef_refines, then delete this line
-/// Which job a heartbeat line is about: a recorded value check or a block's.
-pub enum JobRef<'a> {
-    /// A recorded value check.
-    Value(&'a PendingCheck),
-    /// A block's checked install.
-    Block(&'a BlockCheck),
-}
-
-/// con-leche: ConLeche/Driver/CheckPool.lean:90-94 jobLabel
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::job_label_refines, then delete this line
-/// A job's label: its kind and its name.  A block is named by its first constant.
-pub fn job_label(pers: &PersTier, ar: &EStore, job: &JobRef) -> String {
-    match job {
-        JobRef::Value(pc) => format!(
-            "{} {}",
-            value_kind_word(&pc.vg.kind),
-            name_of(pers, ar, &pc.vg.cv.name)
-        ),
-        JobRef::Block(b) => match b.block.first() {
-            Some(ci) => format!("inductive {}", name_of(pers, ar, &ienv::i_constant_info_name(ci))),
-            None => "inductive".to_string(),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Driver/CheckPool.lean:116-123 runAt
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::job_at_refines, then delete this line
-/// Job `k` of the order, as a `JobRef`.
-fn job_at<'a>(order: &[(bool, u64)], pend: &'a [PendingCheck], blocks: &'a [BlockCheck], k: usize) -> JobRef<'a> {
-    if order[k].0 {
-        JobRef::Block(&blocks[order[k].1 as usize])
-    } else {
-        JobRef::Value(&pend[order[k].1 as usize])
-    }
-}
-
-/// con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::phase_b_verdict_refines, then delete this line
-/// Phase B's answer as a verdict: `parallel_all`'s first failing job, whose error
-/// carries its fold position, and the pool's own failures (a missing result, a
-/// panicked worker) as internal errors — exit 3, never a verdict on the input.
-pub fn phase_b_verdict(
-    order: &[(bool, u64)],
-    pend: &[PendingCheck],
-    blocks: &[BlockCheck],
-    r: Result<(), ParallelError<(CheckError, u64)>>,
-) -> Result<(), (CheckError, u64)> {
+/// con-leche: ConLeche/Driver/CheckPool.lean:143-146 collect
+/// The check phase's answer as a verdict: `parallel_all`'s first failing job,
+/// whose error carries its fold position, and the pool's own failures (a
+/// missing result, a panicked worker) as internal errors — exit 3, never a
+/// verdict on the input.
+pub fn pool_verdict(r: Result<(), ParallelError<(CheckError, u64)>>) -> Result<(), (CheckError, u64)> {
     let internal = |msg: String| con_ron_core::kernel::core_types::internal(msg.chars().map(|c| c as u32).collect());
     match r {
         Ok(()) => Ok(()),
         Err(ParallelError::Step(_, e)) => Err(e),
-        Err(ParallelError::Missing(k)) => {
-            let pos = match job_at(order, pend, blocks, k) {
-                JobRef::Value(pc) => pc.pos,
-                JobRef::Block(b) => b.pos,
-            };
-            Err((internal(format!("check phase: job {} was never run", k)), pos))
-        }
-        Err(ParallelError::Panicked) => Err((internal("check phase: a worker panicked".to_string()), 0)),
+        Err(ParallelError::Missing(k)) => Err((internal(format!("check phase: no result for job {}", k)), k as u64)),
+        Err(ParallelError::Panicked) => Err((internal("check phase: a worker failed".to_string()), 0)),
     }
 }
 
-/// con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
-/// **The driver**: the two-phase fold with the boundary visible — a straight
-/// line of calls, with the observer's lines between them and the pool for
-/// phase B, at every job count.  Each step is one premise of the capstone:
+/// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// **The driver after the parse**: the stream's index, built once from the
+/// records alone, frozen, and every record's job on the pool — a straight line
+/// of calls with the observer's lines between them, at every job count.  Each
+/// step is one premise of the capstone:
 ///
-/// | step | here | the capstone's premise |
+/// | step | here | con-leche |
 /// |---|---|---|
-/// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
-/// | boundary | `checker::freeze_tier(&mut st.store, fe)` | the same call's value |
-/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]), …)` | `h8`: index lists `ws` covering `0..order.len`, each `w` a `foldlM` of `run_job` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
-/// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store and hands `fe` back (`freeze_tier_ok`) |
+/// | index | `stream_index::build_index(pers, st, stream_index_empty(), ds, 0)` | `Jobs.build` (`buildIndex`) |
+/// | boundary | `checker::freeze_tier(&mut st.store, ix)` | `Runtime.markPersistent` |
+/// | check | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ run_job(&tier, w, mode, pins, ds, k), …)` | `checkPool` over `runAt` |
+/// | after | `checker::thaw_tier(&mut st.store, tier)` | — |
 ///
 /// `init` and `step` are calls into the verified crate; `parallel_all` is the
-/// one trusted piece, and its contract (`pool.rs`'s note) is exactly
-/// `ParallelAll`: on `Ok`, every job was run by some worker, each worker folding
-/// `run_job` over the jobs it claimed on ONE `worker_state`.  Everything else
-/// here is the observer, which only ever holds `&` the state (the hook of phase
-/// A by the trait's own signature, the other lines through `&st.store` and the
-/// worker's `&AState`), so it cannot change an outcome.
+/// one trusted piece, and its contract (`pool.rs`'s note) is that on `Ok` every
+/// job was run by some worker, each worker folding `run_job` over the jobs it
+/// claimed, in increasing order, on ONE `worker_state`.  The pool reports the
+/// least failing index, so the first failure in fold order is the verdict at
+/// every job count.  There is no install phase: a record's guards run in its
+/// own job, so a failing guard at record 9 no longer overtakes a failing value
+/// at record 5.
 ///
-/// **Phase A failing** runs the block jobs before it (`checker::phase_a_failure`):
-/// a stored block is checked only by its job, and a failure past it may be that
-/// block's doing, so the verdict is the first failing job's.  **Phase B** merges
-/// the value checks and the block jobs in fold order (`checker::job_order`), and
-/// the pool reports the least failing index, so the first failure in fold order
-/// is the verdict at every job count.
-///
-/// **The boundary is where the tier is FROZEN.**  Phase A owns its persistent
-/// tier and its index and appends to them; at the boundary `checker::freeze_tier`
-/// moves the four stores' persistent tables and the index into one `PersTier`,
-/// handed back `frozen`: every read through it goes to those tables, and a
-/// worker's own store is frozen (`checker::worker_state`), so every append there
-/// is a scratch append.  So `n` workers share one environment and one term DAG and
-/// own nothing but a scratch tier, their caches and a copy of the pin handles.
-pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
+/// **The boundary is where the tier is FROZEN.**  The index is built on the
+/// driver's own store, with no scratch tier open, so every handle it holds is
+/// persistent; `checker::freeze_tier` moves the four stores' persistent tables
+/// and the index into one `PersTier`, handed back `frozen`, and a worker's own
+/// store is frozen too (`checker::worker_state`), so every append there is a
+/// scratch append.  So `n` workers share one index and one term DAG and own
+/// nothing but a scratch tier, their caches and a copy of the pin handles.
+pub fn check_decls_driver<O: PhaseObserver + Send>(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -614,116 +509,187 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     ds: &Vec<IDeclaration>,
     jobs: u64,
     obs: &mut O,
-) -> Result<IFEnv, (CheckError, u64)> {
-    let total = ds.len();
-    // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
-    let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
-        Err((e, i)) => {
-            let f = checker::phase_a_failure(pers, st, mode, pins, ds, e, i);
-            obs.install_failed(f.1, total);
-            return Err(f);
-        }
-        Ok(p) => p,
-    };
-    let (_n_installed, fe, pend, blocks): (u64, IFEnv, Vec<PendingCheck>, Vec<BlockCheck>) = p;
-    let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);  // ConRon.Capstone: hord
-    let m = order.len();
-    obs.install_done(pers, &st.store, total, m, blocks.len());
+) -> Result<(), (CheckError, u64)> {
+    check_decls_driver_with(pers, st, ds, jobs, obs, || (), |tier, w, _x, k| {
+        checker::run_job(tier, w, mode, pins, ds, k)
+    })
+}
+
+/// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/// con-leche: ConLeche/Driver/CheckMain.lean:152-169 checkOleansG
+/// `check_decls_driver` with a worker state of the caller's beside each
+/// worker's `AState` (`init_x`, one per worker) and the caller's job: an
+/// `--olean` run's workers keep the module region they read a theorem's value
+/// from (`olean_job`, con-leche's `OleanWorker`), every other run's job is
+/// `checker::run_job` with nothing beside it.
+pub fn check_decls_driver_with<O, X, I, J>(
+    pers: &PersTier,
+    st: &mut AState,
+    ds: &Vec<IDeclaration>,
+    jobs: u64,
+    obs: &mut O,
+    init_x: I,
+    job: J,
+) -> Result<(), (CheckError, u64)>
+where
+    O: PhaseObserver + Send,
+    I: Fn() -> X + Sync,
+    J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
+{
+    // THE INDEX (the last step of the parse phase): every record's constants and
+    // tables, a name's first entry winning, read off the records alone.
+    obs.index_starts();
+    let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
+    obs.parse_done(pers, &st.store, ds.len());
+    let m = ds.len();
     let workers = workers_for(jobs, m);
-    obs.phase_b_workers(workers);
-    // THE PHASE BOUNDARY: the persistent tier and the index leave the state and
-    // become a value every worker reads (the doc comment above).  `st` keeps its
-    // (empty) store, its tables moved out, so the observer can still read a
-    // label back through the tier.  (ConRon.Capstone: h7)
-    let tier: PersTier = checker::freeze_tier(&mut st.store, fe);
-    let layer: IFEnv = checker::check_layer();  // ConRon.Capstone: hlayer
-    // PHASE B: `run_job` at every job, on `workers` threads, each folding it over
-    // the jobs it claims on ONE `worker_state` — the verdict and the record a
-    // rejection names are the one-worker walk's at every `--jobs` (the least
-    // failing index).  (ConRon.Capstone: h8)
+    obs.check_starts(m, workers);
+    // THE BOUNDARY: the persistent tier and the index leave the state and become
+    // a value every worker reads.  `st` keeps its (empty) store, its tables
+    // moved out, so the observer can still read a label back through the tier.
+    let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
+    // THE CHECK PHASE: the job at every record, on `workers` threads, each
+    // folding it over the jobs it claims on ONE `worker_state` — the verdict and
+    // the record a rejection names are the one-worker walk's at every `--jobs`.
     let heartbeat = obs.wants_check_lines();
     let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
     let r = parallel_all(
         m,
         workers,
-        || checker::worker_state(&st.pins),
-        |w: &mut AState, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
-        |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &job_at(&order, &pend, &blocks, k)),
+        || (checker::worker_state(&st.pins), init_x()),
+        |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, k as u64),
+        |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, m, ds, k),
     );
     let obs: &mut O = match lock.into_inner() {
         Ok((_, o)) => o,
         Err(e) => e.into_inner().1,
     };
-    // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
-    // declaration label, the failing record's name, the receipts — reads a
-    // handle back out of `st`, and a state left frozen over a tier that has
-    // gone out of scope answers `None` to every one of them (the first
-    // version of this printed `at theorem ?` where the tip printed `at
-    // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
-    let fe: IFEnv = checker::thaw_tier(&mut st.store, tier);
-    match phase_b_verdict(&order, &pend, &blocks, r) {
-        Err((e, pos)) => {
-            obs.check_failed(pos);
-            Err((e, pos))
+    // AND THE TIER GOES BACK.  Everything after the check — the verdict line's
+    // declaration label, the failing record's name — reads a handle back out of
+    // `st`, and a state left frozen over a tier that has gone out of scope
+    // answers `None` to every one of them.
+    let _ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
+    let v = pool_verdict(r);
+    obs.check_done(m, match &v {
+        Err((_, pos)) => Some(*pos),
+        Ok(()) => None,
+    });
+    v
+}
+
+/// con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
+/// **One job of an `--olean` run**, from the module region the worker kept: a
+/// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
+/// reference) reads it into the worker's scratch tier and is checked with it in
+/// place, any other record as it stands.  The value goes with the tier when the
+/// job ends.  The read is inside the job's bracket (`enter_record` …
+/// `leave_record`, `stream_index::record_job`'s), so that what it interns is
+/// the job's.
+#[allow(clippy::too_many_arguments)]
+pub fn olean_job(
+    tier: &PersTier,
+    w: &mut AState,
+    cache: &mut con_ron_core::frontend::olean::records::ValueCache,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    ds: &Vec<IDeclaration>,
+    rd: &con_ron_core::frontend::olean::records::OleanRead,
+    sp: &Vec<Vec<u32>>,
+    k: u64,
+) -> Result<(), (CheckError, u64)> {
+    let d = match ds.get(k as usize) {
+        Some(d) => d,
+        None => return checker::run_job(tier, w, mode, pins, ds, k),
+    };
+    let code: Option<u64> = match d {
+        IDeclaration::ThmDecl(_, v) => w.store.view_bvar(tier, v),
+        _ => None,
+    };
+    match (code, d) {
+        (Some(code), IDeclaration::ThmDecl(cv, _)) => {
+            con_ron_core::arena::core::enter_record(w);
+            let r = match con_ron_core::frontend::olean::records::read_value(
+                &crate::olean_fs::StdFs,
+                &rd.pins,
+                tier,
+                &mut w.store,
+                sp,
+                &rd.values,
+                cache,
+                code,
+            ) {
+                Err(e) => Err((e, k)),
+                Ok(v) => {
+                    let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
+                    match stream_index::record_check(tier, w, mode, pins, k, &pd) {
+                        Err(e) => Err((e, k)),
+                        Ok(()) => Ok(()),
+                    }
+                }
+            };
+            con_ron_core::arena::core::leave_record(w);
+            r
         }
-        Ok(()) => {
-            obs.check_done(m);
-            Ok(fe)
-        }
+        _ => checker::run_job(tier, w, mode, pins, ds, k),
     }
 }
 
 // ---------------------------------------------------------------------------
-// The progress heartbeat (`--progress[=<stride>]`)
+// The progress heartbeat (`--progress[=N|P%|Ss]`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::Heartbeat_refines, then delete this line
+/// con-leche: ConLeche/Driver/Run.lean:26-30 beat
 /// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::Heartbeat_refines, then delete this line
-/// **The heartbeat**, `crate::driver::Heartbeat`'s line shapes with
-/// `con-ron: ` for the prefix:
+/// **The heartbeat**, con-leche's line shapes with `con-ron: ` for the prefix:
 ///
 /// ```text
+/// con-ron: reading <label>
 /// con-ron: parse done: <N> fold records — … t=<s>s (parse <s>s)
-/// con-ron: install <i>/<N> <decl> t=<s>s
-/// con-ron: install done: <N>/<N> declarations installed, <M> checks pending (<B> of them inductive blocks) t=<s>s (install <s>s)
-/// con-ron: check <done>/<M> <kind> <name> t=<s>s
-/// con-ron: check done: <M>/<M> t=<s>s (check <s>s)
-/// con-ron: done: parse <p>s, install <i>s, check <c>s, <n> worker t=<s>s
+/// con-ron: checking: <N> declarations on <W> workers t=<s>s
+/// con-ron: check <n> (<p>%)[ <decl>] t=<s>s
+/// con-ron: check done: <N> declarations t=<s>s (check <s>s)
+/// con-ron: done: parse <p>s, check <c>s, <W> worker[s] t=<s>s
 /// ```
 ///
-/// An install line is printed BEFORE the record it names, so a run that dies
-/// in phase A names on its last line the declaration it died in; a check line
-/// is printed AFTER the check, so "a check that is running is not on any line,
-/// the gap between two lines is where it sits".
+/// A check line is printed AFTER the check, so "a check that is running is not
+/// on any line, the gap between two lines is where it sits"; it names its
+/// declaration only at a pace that gives every check a line (`pace_trace`).
+/// Deviation: con-leche's ` busy=…, oldest …` suffix and its `stats:` lines are
+/// not ported (performance reports the port's driver has never printed); the
+/// parse line also gives the store's node counts.
 pub struct Heartbeat {
-    /// The stride; `0` is no flag and no heartbeat.
-    pub stride: u64,
+    /// How often it speaks; `Pace::Off` is no flag and no heartbeat.
+    pub pace: Pace,
     /// The start of the run, which every `t=` is measured from.
     pub t0: Instant,
-    /// When the parse finished, in ms since `t0` — `checkMainG`'s parse time.
+    /// When the clock pace last spoke, in ms since `t0` (`Pace.clock`).
+    pub last: u128,
+    /// The file's records and the prelude records synthesised, for the parse
+    /// line.
+    pub file_records: usize,
+    pub synthesised: u64,
+    /// When the index build started and the parse ended (index included), in ms
+    /// since `t0`: `checkMainG`'s `tIndex` and `tParse`.
+    pub t_index: u128,
     pub t_parse: u128,
-    /// When phase A finished, in ms since `t0` — `checkMainG`'s install time.
-    pub t_install: u128,
-    /// The worker count phase B ran on, for the summary.
+    /// The worker count the check ran on, for the summary.
     pub workers: usize,
 }
 
-/// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl Heartbeat_refines, then delete this line
-/// The heartbeat's own lines: the parse's, and the closing summary the failure
-/// and success arms share.
+/// con-leche: ConLeche/Driver/Run.lean:26-30 beat
+/// The heartbeat's own lines.
 impl Heartbeat {
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::new_refines, then delete this line
-    /// A heartbeat at `stride` (0 for none), starting now.
-    pub fn new(stride: u64, t0: Instant) -> Heartbeat {
+    /// A heartbeat at `pace`, starting now.
+    pub fn new(pace: Pace, t0: Instant) -> Heartbeat {
         Heartbeat {
-            stride,
+            pace,
             t0,
+            last: 0,
+            file_records: 0,
+            synthesised: 0,
+            t_index: 0,
             t_parse: 0,
-            t_install: 0,
             workers: 1,
         }
     }
@@ -733,215 +699,145 @@ impl Heartbeat {
         self.t0.elapsed().as_millis()
     }
 
-    /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
-    /// `con-ron: parse done: …`, the heartbeat's first line.  Records
-    /// `t_parse`, so the summary can price the parse whatever happens next.
-    pub fn parse_done(
-        &mut self,
-        fold_records: usize,
-        file_records: usize,
-        synthesised: u64,
-        nodes: (usize, usize, usize),
-    ) {
-        self.t_parse = self.now();
-        if self.stride == 0 {
-            return;
-        }
-        eprintln!(
-            "con-ron: parse done: {} fold records — the file's {}, {} built-in \
-             prelude records synthesised; store {} expression, {} level, {} name \
-             nodes t={}s (parse {}s)",
-            fold_records,
-            file_records,
-            synthesised,
-            nodes.0,
-            nodes.1,
-            nodes.2,
-            ms_secs(self.t_parse),
-            ms_secs(self.t_parse)
-        );
-    }
-
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::summary_refines, then delete this line
-    /// The `done:` summary — the three phase durations and the worker count.
-    fn summary(&self, check_ms: Option<u128>) {
-        if self.stride == 0 {
-            return;
-        }
-        let now = self.now();
-        match check_ms {
-            None => eprintln!(
-                "con-ron: done: parse {}s, install {}s, check not reached t={}s",
-                ms_secs(self.t_parse),
-                ms_secs(now - self.t_parse),
-                ms_secs(now)
-            ),
-            Some(c) => eprintln!(
-                "con-ron: done: parse {}s, install {}s, check {}s, {} worker{} t={}s",
-                ms_secs(self.t_parse),
-                ms_secs(self.t_install - self.t_parse),
-                ms_secs(c),
-                self.workers,
-                if self.workers == 1 { "" } else { "s" },
-                ms_secs(now)
-            ),
+    /// con-leche: ConLeche/Driver/Run.lean:26-30 beat
+    /// A line, when the heartbeat is on.
+    pub fn beat(&self, line: &str) {
+        if pace_on(&self.pace) {
+            eprintln!("con-ron: {}", line);
         }
     }
-}
 
-/// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl InstallHook for Heartbeat_refines, then delete this line
-/// The heartbeat's install line, as phase A's hook: it reads the clock and
-/// the store and writes nothing but standard error.
-impl InstallHook for Heartbeat {
-    /// con-leche: ConLeche/Driver/ParInstall.lean:668-808 commitLoop
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_before_refines, then delete this line
-    /// `con-ron: install <i>/<N> <decl> t=<s>s`, before the install.
-    fn install_before(
-        &self,
-        pers: &PersTier,
-        ar: &EStore,
-        pos: u64,
-        total: usize,
-        d: &IDeclaration,
-    ) {
-        if self.stride > 0 && pos % self.stride == 0 {
-            eprintln!(
-                "con-ron: install {}/{} {} t={}s",
-                pos,
-                total,
-                decl_label(pers, ar, d),
-                ms_secs(self.now())
-            );
+    /// con-leche: ConLeche/Driver/Run.lean:32-34 readStarts
+    /// The first line of a run: what it is reading.
+    pub fn read_starts(&self, label: &str) {
+        self.beat(&format!("reading {}", label));
+    }
+
+    /// con-leche: ConLeche/Frontend/Pace.lean:38-48 Pace.due
+    /// Is a line due at item `k` of `total`, counted from 1?  The count arms are
+    /// the core's (`pace_due_count`); the clock arm is here.
+    fn due(&mut self, k: u64, total: u64) -> bool {
+        match &self.pace {
+            Pace::Seconds(s) => {
+                let now = self.now();
+                if self.last + (*s as u128) * 1000 <= now {
+                    self.last = now;
+                    true
+                } else {
+                    false
+                }
+            }
+            p => pace_due_count(p, k, total),
         }
     }
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
-/// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
-/// The heartbeat as an observer of the two phases.
+/// con-leche: ConLeche/Driver/Run.lean:48-52 checkStarts
+/// The heartbeat as an observer of the run.
 impl PhaseObserver for Heartbeat {
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_failed_refines, then delete this line
-    /// `con-ron: install failed at <i>/<N> …`, then the summary.
-    fn install_failed(&mut self, pos: u64, total: usize) {
-        if self.stride > 0 {
-            let now = self.now();
-            eprintln!(
-                "con-ron: install failed at {}/{} t={}s (install {}s)",
-                pos,
-                total,
-                ms_secs(now),
-                ms_secs(now - self.t_parse)
-            );
-        }
-        self.summary(None);
+    /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// `tIndex`.
+    fn index_starts(&mut self) {
+        self.t_index = self.now();
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::install_done_refines, then delete this line
-    /// `con-ron: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize, blocks: usize) {
-        self.t_install = self.now();
-        if self.stride > 0 {
-            eprintln!(
-                "con-ron: install done: {}/{} declarations installed, {} checks \
-                 pending ({} of them inductive blocks); store {} expression ({} persistent), \
-                 {} level, {} name nodes t={}s (install {}s)",
-                total,
-                total,
-                pend,
-                blocks,
-                ar.node_count(pers),
-                ar.pers_count(pers),
-                ar.ls().node_count(pers),
-                ar.ns().node_count(pers),
-                ms_secs(self.t_install),
-                ms_secs(self.t_install - self.t_parse)
-            );
-        }
+    /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// `con-ron: parse done: …`: the parse and the index are done.  Records
+    /// `t_parse`, so the summary can price the parse whatever happens next.
+    fn parse_done(&mut self, pers: &PersTier, ar: &EStore, fold_records: usize) {
+        self.t_parse = self.now();
+        self.beat(&format!(
+            "parse done: {} fold records — the file's {}, {} built-in \
+             prelude records synthesised; store {} expression, {} level, {} name \
+             nodes t={}s (parse {}s)",
+            fold_records,
+            self.file_records,
+            self.synthesised,
+            ar.node_count(pers),
+            ar.ls().node_count(pers),
+            ar.ns().node_count(pers),
+            ms_secs(self.t_parse),
+            ms_secs(self.t_parse)
+        ));
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::phase_b_workers_refines, then delete this line
-    /// The cited `workers`, for the summary's last field.
-    fn phase_b_workers(&mut self, workers: usize) {
+    /// con-leche: ConLeche/Driver/Run.lean:48-52 checkStarts
+    /// `con-ron: checking: <N> declarations on <W> workers t=<s>s`.
+    fn check_starts(&mut self, m: usize, workers: usize) {
         self.workers = workers;
+        self.last = self.now();
+        self.beat(&format!(
+            "checking: {} declarations on {} workers t={}s",
+            m,
+            workers,
+            ms_secs(self.now())
+        ));
     }
 
-    /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
-    /// The heartbeat prints a check line exactly when it has a stride.
+    /// con-leche: ConLeche/Driver/CheckPool.lean:165-170 jobBegin
+    /// The heartbeat prints check lines exactly when it is on.
     fn wants_check_lines(&self) -> bool {
-        self.stride > 0
+        pace_on(&self.pace)
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:96-114 checkHeartbeat
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_after_refines, then delete this line
-    /// `con-ron: check <done>/<M> <kind> <name> t=<s>s`, after the check.
-    fn check_after(
-        &mut self,
-        pers: &PersTier,
-        ar: &EStore,
-        done: usize,
-        m: usize,
-        job: &JobRef,
-    ) {
-        if self.stride > 0 && (done as u64) % self.stride == 0 {
-            eprintln!(
-                "con-ron: check {}/{} {} t={}s",
+    /// `con-ron: check <n> (<p>%)[ <decl>] t=<s>s`, after the check, when the
+    /// pace says a line is due.
+    fn check_after(&mut self, pers: &PersTier, ar: &EStore, done: usize, m: usize, ds: &Vec<IDeclaration>, k: usize) {
+        if self.due(done as u64, m as u64) {
+            let label = if !pace_trace(&self.pace) {
+                String::new()
+            } else {
+                match ds.get(k) {
+                    Some(d) => format!(" {}", decl_label(pers, ar, d)),
+                    None => format!(" record {}", k),
+                }
+            };
+            let pct = done * 100 / if m == 0 { 1 } else { m };
+            self.beat(&format!(
+                "check {} ({}%){} t={}s",
                 done,
-                m,
-                job_label(pers, ar, job),
+                pct,
+                label,
                 ms_secs(self.now())
-            );
+            ));
         }
     }
 
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_failed_refines, then delete this line
-    /// `con-ron: check failed at fold position <i> …`, then the summary.
-    fn check_failed(&mut self, pos: u64) {
+    /// con-leche: ConLeche/Driver/Run.lean:54-72 checkDone
+    /// The end of the check phase, whatever its result, and the summary.
+    fn check_done(&mut self, m: usize, failure: Option<u64>) {
         let now = self.now();
-        if self.stride > 0 {
-            eprintln!(
-                "con-ron: check failed at fold position {} t={}s (check {}s)",
+        match failure {
+            Some(pos) => self.beat(&format!(
+                "check failed at fold position {} t={}s (check {}s)",
                 pos,
                 ms_secs(now),
-                ms_secs(now - self.t_install)
-            );
-        }
-        self.summary(Some(now - self.t_install));
-    }
-
-    /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::check_done_refines, then delete this line
-    /// `con-ron: check done: <M>/<M> …`, then the summary.
-    fn check_done(&mut self, m: usize) {
-        let now = self.now();
-        if self.stride > 0 {
-            eprintln!(
-                "con-ron: check done: {}/{} t={}s (check {}s)",
-                m,
+                ms_secs(now - self.t_parse)
+            )),
+            None => self.beat(&format!(
+                "check done: {} declarations t={}s (check {}s)",
                 m,
                 ms_secs(now),
-                ms_secs(now - self.t_install)
-            );
+                ms_secs(now - self.t_parse)
+            )),
         }
-        self.summary(Some(now - self.t_install));
+        self.beat(&format!(
+            "done: parse {}s, check {}s, {} worker{} t={}s",
+            ms_secs(self.t_parse),
+            ms_secs(now - self.t_parse),
+            self.workers,
+            if self.workers == 1 { "" } else { "s" },
+            ms_secs(now)
+        ));
     }
 }
-
 // ---------------------------------------------------------------------------
 // The verdict lines
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::verdict_accept_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckMain.lean:171-222 verdictG
 /// **The accept line**, `crate::driver::verdict_accept`'s with this
 /// binary's name: `records` is the FILE's declaration-record count — what the
 /// parse produced — and nothing the preparation does moves it.  It is not the
@@ -956,8 +852,7 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
     0
 }
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::verdict_failure_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckMain.lean:171-222 verdictG
 /// The failure line: the error, the declaration it names and its FOLD
 /// position, the mode, the elapsed time.  There is no second pass — the fold's
 /// error carries the position, so the label is read off the record array the
@@ -1068,7 +963,6 @@ pub fn parse_export_handle_d<R: Read>(
 
 /// con-leche: ConLeche/Driver/StreamParse.lean:114-125 parseStreamG
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:449-461 instCheckerIOIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove driver::parse_export_stream_d_refines, then delete this line
 /// Streaming direct parse of a file.  The input must be a regular file, and
 /// that is decided before it is opened, as the class's `fileSize` decides it:
 /// opening a FIFO with no writer would block.  con-leche goes on with positional
@@ -1126,16 +1020,16 @@ mod tests {
         }
     }
 
-    /// The three words of the arena's own `ValueKind`, and the flag values,
-    /// which are `crate::driver`'s and are called across the crate line so
-    /// that the two binaries cannot drift.
+    /// The flag values.
     #[test]
     fn rendering_and_flag_values() {
-        assert_eq!(value_kind_word(&ValueKind::Defn), "definition");
-        assert_eq!(value_kind_word(&ValueKind::Thm), "theorem");
-        assert_eq!(value_kind_word(&ValueKind::Opaque), "opaque");
-        assert_eq!(progress_stride("1"), Ok(1));
-        assert!(progress_stride("0").is_err());
+        assert!(matches!(progress_pace("1"), Ok(Pace::Every(1))));
+        assert!(matches!(progress_pace("5%"), Ok(Pace::Percent(5))));
+        assert!(matches!(progress_pace("10s"), Ok(Pace::Seconds(10))));
+        assert!(progress_pace("0").is_err());
+        assert!(progress_pace("0s").is_err());
+        assert!(progress_pace("101%").is_err());
+        assert!(progress_pace("x").is_err());
         assert_eq!(jobs_count("8"), Ok(8));
         assert!(jobs_count("0").is_err());
         // the worker count is `workers_for` and nothing else
@@ -1177,13 +1071,13 @@ mod tests {
         };
         assert_eq!(name_of(empty, &st.store, &n), "add");
         // frozen: the store's own tables are out and the tier answers
-        let tier = checker::freeze_tier(&mut st.store, checker::check_layer());
+        let tier = checker::freeze_tier(&mut st.store, con_ron_core::arena::stream_index::stream_index_empty());
         assert!(tier.frozen);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);
         assert_eq!(name_of(&tier, &w.store, &n), "add");
-        // thawed: the store is what phase A left
+        // thawed: the store is what it was
         let _ = checker::thaw_tier(&mut st.store, tier);
         assert!(!st.store.scratch_on);
         assert_eq!(name_of(empty, &st.store, &n), "add");

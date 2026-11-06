@@ -1,46 +1,51 @@
-//! `pool` — con-leche's `Driver/CheckPool.lean` over the ARENA: **phase B on a
-//! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, tasks
-//! #97-P6-6b and #98-POOL).
+//! `pool` — con-leche's worker map (`CheckerIO.parMapWorkersIO`) and
+//! `Driver/CheckPool.lean` over the ARENA: **the check phase on a pool of worker
+//! threads** (DESIGN.md §8.3, §8.6's P6 item 6, tasks #97-P6-6b and #98-POOL).
 //!
 //! Since task #98-POOL the whole module is ONE generic combinator,
 //! [`parallel_all`], plus the index-merge and the walk it rests on.  It knows
 //! nothing about checking: it is handed a count `n`, a worker count, a state
 //! constructor `init` and a per-index `step`, and it answers whether `step`
-//! succeeded at every index.  What phase B plugs into it is the driver's
-//! business (`driver::check_decls_driver`):
+//! succeeded at every index.  What the check phase plugs into it is the
+//! driver's business (`driver::check_decls_driver`):
 //!
 //! ```text
-//! parallel_all(order.len(), workers,
+//! parallel_all(ds.len(), workers,
 //!              || checker::worker_state(&st.pins),
-//!              |w, k| checker::run_job(&tier, w, mode, &layer, &pend, &blocks, &order[k]),
+//!              |w, k| checker::run_job(&tier, w, mode, pins, ds, k),
 //!              <the heartbeat line>)
 //! ```
 //!
 //! — both closures calls into the VERIFIED crate.  The functions are the cited
-//! ones: `worker` is `checkWorker` with `checkOne` inlined
-//! (`checkWorker`), `parallel_all` is `checkPool`,
-//! `merge_results` is `mergeResults` (`:280-287`) and `first_failure` is the
-//! walk that turns the merged table into a verdict (`collectJobs`,
-//! `ConLeche/Cached/Installed.lean:392-416`).
+//! ones: `worker` is `parWorker`, `parallel_all` is `parMapWorkersIO` (and the
+//! thread handling of `checkPool`), `merge_results` is `parMapWorkersIO`'s
+//! table merge, and `first_failure` is the walk that turns the merged table
+//! into a verdict (`collect`).  The observable contract is con-leche's worker
+//! map's: one element per claim off one shared counter, a worker's state going
+//! through its own elements in claim order, a failure lowering the shared limit,
+//! the results merged by index, and the first failure in the list's order the
+//! answer.  Two deviations: `init` takes no worker index (no state here needs
+//! it), and a worker that panics is `Panicked` where con-leche's `IO` error
+//! restarts the worker's state at `init` — both outside an accepting run.
 //!
 //! **Threads live here and never in `con-ron-core`** (DESIGN.md §8.5): the
 //! verified crate is a pure state-threading computation and knows nothing of
 //! this module.
 //!
-//! ## What a worker is, in phase B
+//! ## What a worker is, in the check phase
 //!
-//! §8.3 has said since P1 what phase B is: "the persistent tier is immutable
-//! in phase B, each worker owns a scratch tier — **no atomics anywhere**",
-//! and task #97-P6-6 verified it in the code (`check_pending` is the bracket;
-//! the persistent interns' only caller is phase A's `arena::promote`, which
-//! writes a `&mut PersTier` a worker never holds).  So the driver's `init`
+//! §8.3 has said since P1 what the check phase is: "the persistent tier is
+//! immutable, each worker owns a scratch tier — **no atomics anywhere**"
+//! (`record_job` is the bracket; nothing writes the persistent tier after the
+//! index is built and frozen, and a worker never holds it `&mut`).  So the
+//! driver's `init`
 //! builds `checker::worker_state(pins)` — an EMPTY store, FROZEN
 //! (`EStore::empty_frozen`: every append a scratch append), its own `Memos`
 //! and `Caches`, and a COPY of
 //! the driver's `Pins` — and its `step` borrows the frozen `&PersTier`, which
-//! holds the installed index.  A value check reads it at its prefix bound, a
-//! scalar (`pc.vis`), through one shared empty layer; a block job pushes into a
-//! layer of its own over it.  So a worker costs no environment copy at all.
+//! holds the stream's index.  A job reads it through an empty layer of its own
+//! at its record's view and pushes into that layer.  So a worker costs no
+//! environment copy at all.
 //!
 //! ## THE TRUSTED CLAIM, and the whole of it
 //!
@@ -91,7 +96,7 @@
 //! claimed before `f` was and is finished by the worker that claimed it.
 //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
 //! and 8 workers on a list whose records 2 and 4 both fail;
-//! `pool_is_the_one_worker_walk_at_every_jobs` checks that phase B's verdict
+//! `pool_is_the_one_worker_walk_at_every_jobs` checks that the check phase's verdict
 //! is the one-worker walk's; `parallel_all_partitions_the_indices` checks the
 //! claim itself on a state that records its claims.
 //!
@@ -102,7 +107,7 @@
 //!
 //! **A worker keeps one state across its indices** (task #97-P6-6b), where
 //! master's pool checked each record from a fresh state: the bracket
-//! (`enter_scratch`, `drop_scratch`) resets everything but capacity, and a
+//! (`enter_record`, `leave_record`) resets everything but capacity, and a
 //! fresh state per record measured **+16.4 % instructions on `Init`** (task
 //! #97-P5-Driver).  The claim above does not ask what a worker stepped
 //! before: the capstone relates every worker's fold to the twin on its own.
@@ -111,7 +116,7 @@
 //!
 //! The workers are `std::thread::scope`d threads with `STACK_BYTES` (1 GiB)
 //! reserved each — which is what lets the closures borrow `&PersTier`,
-//! `&IFEnv` and `&[PendingCheck]` with no `Arc` and no `'static` bound — so a
+//! and `&[IDeclaration]` with no `Arc` and no `'static` bound — so a
 //! run needs `3x` the checker's resident set **plus 1 GiB of address space per
 //! worker** under `ulimit -v`.
 //!
@@ -143,10 +148,7 @@ pub enum ParallelError<E> {
     Panicked,
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::worker_refines, then delete this line
-/// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::worker_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -157,7 +159,7 @@ pub enum ParallelError<E> {
 /// so claiming singly spreads a cluster of heavy records over the whole pool
 /// instead of serialising it inside one claimed range.
 ///
-/// Deviation: the cited `fuel` (`pend.size + 1` claims, Lean's termination
+/// Deviation: the cited `fuel` (`xs.size + 1` claims, Lean's termination
 /// device) is a `loop` that returns when its claim is past the end, which is
 /// the same bound — every claim advances the counter by exactly one.
 fn worker<S, E>(
@@ -187,8 +189,7 @@ fn worker<S, E>(
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:229-234 mergeResults
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::merge_results_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:421-447 parMapWorkersIO
 /// The workers' arrays merged **by index** into one table.  The table is the
 /// pool's whole interface to the verdict: which worker produced a result, and
 /// when, is recorded nowhere.
@@ -210,8 +211,8 @@ pub fn merge_results<E>(
     tab
 }
 
-/// con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::first_failure_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckPool.lean:125-141 collectFrom
+/// con-leche: ConLeche/Driver/CheckPool.lean:143-146 collect
 /// **The results, walked in index order.**  Slot `k` holds index `k`'s
 /// result; the walk stops at the first failure, so its answer is the
 /// sequential fold's whatever order the results were produced in.  An empty
@@ -228,8 +229,8 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
     Ok(())
 }
 
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:421-447 parMapWorkersIO
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///
@@ -296,62 +297,55 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
     use con_ron_core::arena::checker;
-    use con_ron_core::arena::checker::PendingCheck;
-    use con_ron_core::arena::env::IFEnv;
-    use con_ron_core::arena::monad::AState;
-    use con_ron_core::arena::pins::Pins;
-    use con_ron_core::arena::store::PersTier;
-    use con_ron_core::kernel::core_types::CheckError;
-    use con_ron_core::kernel::env::CheckMode;
-    use crate::driver::JobRef;
-    use crate::driver::PhaseObserver;
-    use con_ron_core::arena::checker::BlockCheck;
-    use con_ron_core::arena::checker_split::ValueGroup;
-    use con_ron_core::arena::checker_split::ValueKind;
-    use con_ron_core::arena::env::IConstantVal;
+    use con_ron_core::arena::env::{IConstantVal, IDeclaration};
     use con_ron_core::arena::monad;
+    use con_ron_core::arena::monad::AState;
+    use con_ron_core::arena::nat_op_pin_set::INatOpPinSet;
+    use con_ron_core::arena::pins::Pins;
     use con_ron_core::arena::store::EStore;
-    use con_ron_core::ron::hashmap::Dup;
     use con_ron_core::arena::store::ENodeView;
     use con_ron_core::arena::store::LNodeView;
     use con_ron_core::arena::store::NNodeView;
+    use con_ron_core::arena::store::PersTier;
+    use con_ron_core::arena::stream_index;
+    use con_ron_core::kernel::core_types::CheckError;
+    use con_ron_core::kernel::env::{CheckMode, ReducibilityHint};
+    use con_ron_core::ron::hashmap::Dup;
+    use crate::driver::PhaseObserver;
 
     type RecordResult = Result<(), (CheckError, u64)>;
 
-    /// **Phase B as the driver runs it** (`driver::check_decls_driver`'s
-    /// `parallel_all` call, with the heartbeat hook the observer asks for):
-    /// the tests below are about this call.
+    /// **The check phase as the driver runs it** (`driver::check_decls_driver`'s
+    /// `parallel_all` call, with the heartbeat hook the observer asks for).
     fn check_pool<O: PhaseObserver + Send>(
         pers: &PersTier,
         mode: &CheckMode,
-        fe: &IFEnv,
-        pend: &Vec<PendingCheck>,
+        ds: &Vec<IDeclaration>,
         pins: &Pins,
         workers: usize,
         obs: &Mutex<&mut O>,
     ) -> RecordResult {
-        let blocks: Vec<BlockCheck> = Vec::new();
-        let order: Vec<(bool, u64)> = checker::job_order(pend, &blocks);
+        let np: Vec<INatOpPinSet> = Vec::new();
         let heartbeat = match obs.lock() {
             Ok(g) => g.wants_check_lines(),
             Err(_) => false,
         };
         let done = AtomicUsize::new(0);
         let r = parallel_all(
-            pend.len(),
+            ds.len(),
             workers,
             || checker::worker_state(pins),
-            |w: &mut AState, k| checker::run_job(pers, w, mode, fe, pend, &blocks, &order[k]),
+            |w: &mut AState, k| checker::run_job(pers, w, mode, &np, ds, k as u64),
             |w: &AState, k| {
                 if heartbeat {
                     let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                     if let Ok(mut g) = obs.lock() {
-                        g.check_after(pers, &w.store, n, pend.len(), &JobRef::Value(&pend[k]));
+                        g.check_after(pers, &w.store, n, ds.len(), ds, k);
                     }
                 }
             },
         );
-        crate::driver::phase_b_verdict(&order, pend, &blocks, r)
+        crate::driver::pool_verdict(r)
     }
 
     /// **The contract, generically**: a state that records the indices it
@@ -442,12 +436,12 @@ mod tests {
         }
     }
 
-    /// The fixture: one store, the tier frozen out of it, and the six or nine
-    /// records built into that tier.  A record whose declared type is `Sort 1`
-    /// and whose value is `Sort u` checks iff `u + 1 = 1`, i.e. iff `u` is
-    /// `Sort 0` — no environment is needed for either outcome, which is the
-    /// point: the walk is what is under test, not the checker.
-    fn fixture(oks: &[bool]) -> (PersTier, Pins, Vec<PendingCheck>) {
+    /// The fixture: one store, the records built into it, their index built
+    /// and the tier frozen out of it.  A definition whose declared type is
+    /// `Sort 1` and whose value is `Sort u` checks iff `u + 1 = 1`, i.e. iff
+    /// `u` is `Sort 0` — no other constant is needed for either outcome, which
+    /// is the point: the walk is what is under test, not the checker.
+    fn fixture(oks: &[bool]) -> (PersTier, Pins, Vec<IDeclaration>) {
         let pers0: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         ok(con_ron_core::arena::pins::intern_reserved_pins(pers0, &mut st));
@@ -456,30 +450,30 @@ mod tests {
         let one = ok(monad::intern_l_node(pers0, &mut st, LNodeView::Succ(zero.dup2())));
         let sort0 = ok(monad::intern_e(pers0, &mut st, ENodeView::Sort(zero.dup2())));
         let sort1 = ok(monad::intern_e(pers0, &mut st, ENodeView::Sort(one.dup2())));
-        let mut pend: Vec<PendingCheck> = Vec::new();
+        let mut ds: Vec<IDeclaration> = Vec::new();
         for (k, good) in oks.iter().enumerate() {
             let nm = ok(monad::intern_n_node(
                 pers0,
                 &mut st,
                 NNodeView::Num(anon.dup2(), k as u64),
             ));
-            pend.push(PendingCheck {
-                vg: ValueGroup {
-                    kind: ValueKind::Defn,
-                    cv: IConstantVal {
-                        name: nm,
-                        level_params: Vec::new(),
-                        ty: sort1.dup2(),
-                    },
-                    jv: if *good { sort0.dup2() } else { sort1.dup2() },
+            ds.push(IDeclaration::DefnDecl(
+                IConstantVal {
+                    name: nm,
+                    level_params: Vec::new(),
+                    ty: sort1.dup2(),
                 },
-                pos: k as u64,
-                vis: 0,
-            });
+                if *good { sort0.dup2() } else { sort1.dup2() },
+                ReducibilityHint::Abbrev,
+            ));
         }
+        let ix = match stream_index::build_index(pers0, &mut st, stream_index::stream_index_empty(), &ds, 0) {
+            Ok(ix) => ix,
+            Err(_) => panic!("the fixture's index must build"),
+        };
         let pins = checker::pins_dup(&st.pins);
-        let tier = checker::freeze_tier(&mut st.store, checker::check_layer());
-        (tier, pins, pend)
+        let tier = checker::freeze_tier(&mut st.store, ix);
+        (tier, pins, ds)
     }
 
     /// **The pool's guarantee** (the module note): a list whose records 2 and
@@ -487,13 +481,12 @@ mod tests {
     /// every worker count, because the results are walked in record order.
     #[test]
     fn pool_reports_the_first_failure_at_every_jobs() {
-        let (tier, pins, pend) = fixture(&[true, true, false, true, false, true]);
-        let fe: IFEnv = checker::check_layer();
+        let (tier, pins, ds) = fixture(&[true, true, false, true, false, true]);
         let mode = CheckMode::Verified;
         for workers in [1usize, 2, 3, 4, 8] {
             let mut obs = Silent;
             let lock = Mutex::new(&mut obs);
-            match check_pool(&tier, &mode, &fe, &pend, &pins, workers, &lock) {
+            match check_pool(&tier, &mode, &ds, &pins, workers, &lock) {
                 Ok(()) => panic!(
                     "a list with two failing records must fail ({} workers)",
                     workers
@@ -503,32 +496,28 @@ mod tests {
         }
     }
 
-    /// Phase B as a pure walk (a test's own, beside the twin's `checkJobList`,
-    /// `Arena/Checker.lean`): every record checked by the verified
-    /// `checker::check_pending` at its own prefix view, a failure tagged with
-    /// the record's fold position.  The oracle the pool is checked against;
-    /// test-only since task #105 — the driver runs the pool.
-    fn check_pending_list(
+    /// The check phase as a pure walk (a test's own oracle): every record's job
+    /// by the verified `checker::run_job`, in fold order, from one worker state.
+    fn run_job_list(
         pers: &PersTier,
         st: &mut AState,
         mode: &CheckMode,
-        fe: &IFEnv,
-        pend: &Vec<PendingCheck>,
+        ds: &Vec<IDeclaration>,
         i: usize,
     ) -> Result<(), (CheckError, u64)> {
-        if i >= pend.len() {
+        let np: Vec<INatOpPinSet> = Vec::new();
+        if i >= ds.len() {
             Ok(())
         } else {
-            match checker::check_pending(pers, st, mode, fe, &pend[i]) {
-                Err(e) => Err((e, pend[i].pos)),
-                Ok(()) => check_pending_list(pers, st, mode, fe, pend, i + 1),
+            match checker::run_job(pers, st, mode, &np, ds, i as u64) {
+                Err(e) => Err(e),
+                Ok(()) => run_job_list(pers, st, mode, ds, i + 1),
             }
         }
     }
 
     /// **The trusted claim, as a test**: at every worker count the pool
-    /// returns what the one-worker walk (`check_pending_list` below
-    /// from one `checker::worker_state`) returns — the same verdict, and on a
+    /// returns what the one-worker walk returns — the same verdict, and on a
     /// failure the same fold position.
     #[test]
     fn pool_is_the_one_worker_walk_at_every_jobs() {
@@ -539,16 +528,15 @@ mod tests {
             vec![false, true],
             vec![true, true, true, true, true, false],
         ];
-        let fe: IFEnv = checker::check_layer();
         let mode = CheckMode::Verified;
         for oks in lists {
-            let (tier, pins, pend) = fixture(&oks);
+            let (tier, pins, ds) = fixture(&oks);
             let mut st = checker::worker_state(&pins);
-            let seq = check_pending_list(&tier, &mut st, &mode, &fe, &pend, 0);
+            let seq = run_job_list(&tier, &mut st, &mode, &ds, 0);
             for workers in [1usize, 2, 3, 4, 8] {
                 let mut obs = Silent;
                 let lock = Mutex::new(&mut obs);
-                let pooled = check_pool(&tier, &mode, &fe, &pend, &pins, workers, &lock);
+                let pooled = check_pool(&tier, &mode, &ds, &pins, workers, &lock);
                 match (&seq, &pooled) {
                     (Ok(()), Ok(())) => {}
                     (Err((_, a)), Err((_, b))) => {
@@ -562,66 +550,67 @@ mod tests {
 
     /// A list every record of which checks is accepted at every worker count,
     /// and every slot of the table is filled (an unfilled one is the internal
-    /// error `collect_checks` reports, so `Ok` IS the completeness assertion).
+    /// error `pool_verdict` reports, so `Ok` IS the completeness assertion).
     #[test]
     fn pool_accepts_a_clean_list_at_every_jobs() {
-        let (tier, pins, pend) = fixture(&[true; 9]);
-        let fe: IFEnv = checker::check_layer();
+        let (tier, pins, ds) = fixture(&[true; 9]);
         let mode = CheckMode::Verified;
         for workers in [1usize, 2, 3, 4, 8, 16] {
             let mut obs = Silent;
             let lock = Mutex::new(&mut obs);
             assert!(
-                check_pool(&tier, &mode, &fe, &pend, &pins, workers, &lock).is_ok(),
+                check_pool(&tier, &mode, &ds, &pins, workers, &lock).is_ok(),
                 "at {} workers",
                 workers
             );
         }
     }
 
-    /// `jobOrder`: the two arrays merged by position, a block before a record at
-    /// a larger position, every job once.
+    /// A record whose name an earlier record took fails as a duplicate at its
+    /// own position: the index keeps the first entry, and the later record's
+    /// view sees it.
     #[test]
-    fn jobs_merge_in_fold_order() {
-        let (_, _, pend) = fixture(&[true, true, true]);
-        let at = |pos: u64| BlockCheck {
-            block: Vec::new(),
-            n_p: 0,
-            pos,
-            vis: 0,
-            c_lo: 0,
-            c_hi: 0,
-            t_lo: 0,
-            t_hi: 0,
+    fn a_repeated_name_fails_at_the_repeat() {
+        let (tier, pins, mut ds) = fixture(&[true, true]);
+        let d0 = con_ron_core::arena::env::i_declaration_dup(&ds[0]);
+        ds.push(d0);
+        // the index was built without the repeat, so rebuild it with it
+        let mut st = AState::init(EStore::empty());
+        let _ = checker::thaw_tier(&mut st.store, tier);
+        let ix = match stream_index::build_index(&PersTier::empty(), &mut st, stream_index::stream_index_empty(), &ds, 0) {
+            Ok(ix) => ix,
+            Err(_) => panic!("the index must build"),
         };
-        // the records are at positions 0, 1, 2
-        let blocks: Vec<BlockCheck> = vec![at(1), at(9)];
-        let order = checker::job_order(&pend, &blocks);
-        assert_eq!(order, vec![(false, 0), (false, 1), (true, 0), (false, 2), (true, 1)]);
+        let tier = checker::freeze_tier(&mut st.store, ix);
+        let mut obs = Silent;
+        let lock = Mutex::new(&mut obs);
+        match check_pool(&tier, &CheckMode::Verified, &ds, &pins, 2, &lock) {
+            Ok(()) => panic!("a repeated name is never an accept"),
+            Err((e, pos)) => {
+                assert_eq!(crate::driver::exit_code(&e), 1);
+                assert_eq!(pos, 2);
+            }
+        }
     }
 
     /// The empty list: no worker has anything to claim, and the walk accepts.
     #[test]
     fn pool_on_no_records_accepts() {
-        let (tier, pins, _) = fixture(&[]);
-        let fe: IFEnv = checker::check_layer();
+        let (tier, pins, ds) = fixture(&[]);
         let mut obs = Silent;
         let lock = Mutex::new(&mut obs);
-        assert!(check_pool(&tier, &CheckMode::Verified, &fe, &Vec::new(), &pins, 4, &lock).is_ok());
+        assert!(check_pool(&tier, &CheckMode::Verified, &ds, &pins, 4, &lock).is_ok());
     }
 
-    /// `mergeResults` merges by index whatever order the arrays arrive in, and
-    /// a gap in the table is the internal error, tagged with the missing
-    /// record's fold position.
+    /// The merge is by index whatever order the arrays arrive in, and a gap in
+    /// the table is the internal error.
     #[test]
     fn merge_is_by_index_and_a_gap_is_internal() {
-        let (_, _, pend) = fixture(&[true, true, true]);
-        let blocks: Vec<BlockCheck> = Vec::new();
-        let order: Vec<(bool, u64)> = checker::job_order(&pend, &blocks);
         let tab = merge_results(3, vec![vec![(2, Ok(())), (0, Ok(()))], vec![(1, Ok(()))]]);
-        assert!(crate::driver::phase_b_verdict(&order, &pend, &blocks, first_failure(tab)).is_ok());
-        let gap = merge_results(3, vec![vec![(0, Ok(())), (2, Ok(()))]]);
-        match crate::driver::phase_b_verdict(&order, &pend, &blocks, first_failure(gap)) {
+        assert!(crate::driver::pool_verdict(first_failure(tab)).is_ok());
+        let gap: Vec<Option<Result<(), (CheckError, u64)>>> =
+            merge_results(3, vec![vec![(0, Ok(())), (2, Ok(()))]]);
+        match crate::driver::pool_verdict(first_failure(gap)) {
             Ok(()) => panic!("a gap in the table is never an accept"),
             Err((e, pos)) => {
                 assert_eq!(crate::driver::exit_code(&e), 3);

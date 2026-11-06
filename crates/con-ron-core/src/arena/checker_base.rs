@@ -33,22 +33,15 @@
 //!    duplication" note is the Lean-side record of the same seam.
 
 use crate::arena::core::{
-    consts_resolve, ensure_sort_core, infer_type_core, reserved_basis_names, str_lit_supported,
-    CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR, M_UNKNOWN_CONST,
+    consts_resolve, ensure_sort_core, infer_type_core, lit_shape_ok, nat_op_name,
+    reserved_basis_names, str_lit_stored, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
+    M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::take_walk_memo;
-use crate::arena::env::{
-    ifenv_find, IConstantInfo,
-    IConstantVal, IFEnv,
-};
-use crate::arena::expr_ops::{
-    cons_eidx, fvar_type_d, has_fvar_fast,
-    instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast,
-};
-use crate::arena::handle::{EIdx, NIdx, ETAG_FORALL_E};
-use crate::arena::monad::{
-    AState, fail, fail_dangling_e, intern_e_fvar, read_level, read_levels, read_names, view, view_bind,
-};
+use crate::arena::env::{i_constant_val_dup, ifenv_find, IConstantInfo, IConstantVal, IFEnv};
+use crate::arena::expr_ops::{fvar_type_d, has_fvar_fast, loose_bvars_bounded_fast};
+use crate::arena::handle::{EIdx, NIdx};
+use crate::arena::monad::{AState, fail, read_level, read_levels, read_names, view};
 use crate::arena::store::ENodeView;
 use crate::arena::pins::pin_sorry_ax;
 use crate::kernel::core_types::{code_points, CheckError};
@@ -127,6 +120,17 @@ pub const M_FUEL_CRF: [u32; 30] = [
     116, 115, 82, 101, 115, 111, 108, 118, 101, 70,
 ];
 
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"a certified Nat operation's name, not a definition"`, as code points (the cited message with the name dropped).
+pub const M_NAT_OP_NAME: [u32; 50] = [
+    97, 32, 99, 101, 114, 116, 105, 102, 105, 101, 100, 32, 78, 97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110, 39, 115, 32, 110, 97, 109, 101, 44, 32, 110, 111, 116, 32, 97, 32, 100, 101, 102, 105, 110, 105, 116, 105, 111, 110,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"a declaration at a literal's name with another shape"`, as code points (the cited message with the name dropped).
+pub const M_LIT_SHAPE: [u32; 52] = [
+    97, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 97, 116, 32, 97, 32, 108, 105, 116, 101, 114, 97, 108, 39, 115, 32, 110, 97, 109, 101, 32, 119, 105, 116, 104, 32, 97, 110, 111, 116, 104, 101, 114, 32, 115, 104, 97, 112, 101,
+];
 
 // ---------------------------------------------------------------------------
 // Name-shape tests (`CheckerBase.lean:141-172`)
@@ -354,7 +358,6 @@ pub fn all_level_params_defined(
 /// thing on eight fixtures and it is what made them time out).
 pub fn consts_resolve_f_go(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -366,13 +369,13 @@ pub fn consts_resolve_f_go(
     } else {
         match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Sort(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Lit(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Const(_, _)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::BVar(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Sort(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Lit(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Const(_, _)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
             Ok(v) => match memo_b_get(memo, h) {
                 Some(r) => Ok(r),
-                None => match consts_resolve_f_node(pers, vis, st, fe, memo, fuel - 1, v) {
+                None => match consts_resolve_f_node(pers, st, fe, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         memo.insert(h.dup2(), r);
@@ -390,7 +393,6 @@ pub fn consts_resolve_f_go(
 /// the structure's own resolution, as the twin has it.
 pub fn consts_resolve_f_node(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -398,22 +400,22 @@ pub fn consts_resolve_f_node(
     v: ENodeView,
 ) -> Result<bool, CheckError> {
     match v {
-        ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &ty),
-        ENodeView::App(f, a) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
+        ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, st, fe, memo, fuel, &ty),
+        ENodeView::App(f, a) => consts_resolve_f_two(pers, st, fe, memo, fuel, &f, &a),
+        ENodeView::Lam(ty, body) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
         ENodeView::LetE(ty, val, body) => {
-            match consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &val) {
+            match consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &val) {
                 Err(e) => Err(e),
-                Ok(b12) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &body) {
+                Ok(b12) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &body) {
                     Err(e) => Err(e),
                     Ok(b3) => Ok(b12 && b3),
                 },
             }
         }
-        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &sub) {
+        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &sub) {
             Err(e) => Err(e),
-            Ok(b) => Ok(ifenv_find(pers, vis, fe, &s).is_some() && b),
+            Ok(b) => Ok(ifenv_find(pers, fe, &s).is_some() && b),
         },
         _ => Ok(false),
     }
@@ -425,7 +427,6 @@ pub fn consts_resolve_f_node(
 /// because the memo the second walk fills is part of the state.
 pub fn consts_resolve_f_two(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -433,9 +434,9 @@ pub fn consts_resolve_f_two(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, a) {
+    match consts_resolve_f_go(pers, st, fe, memo, fuel, a) {
         Err(e) => Err(e),
-        Ok(b1) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, b) {
+        Ok(b1) => match consts_resolve_f_go(pers, st, fe, memo, fuel, b) {
             Err(e) => Err(e),
             Ok(b2) => Ok(b1 && b2),
         },
@@ -448,13 +449,12 @@ pub fn consts_resolve_f_two(
 /// front door below calls.
 pub fn consts_resolve_f_fast(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
 ) -> Result<bool, CheckError>  {
     let mut memo: HashMap<EIdx, bool> = take_walk_memo(&mut st.memos.crf_c);
-    let r = consts_resolve_f_go(pers, vis, st, fe, &mut memo, CORE_WALK_FUEL, e);
+    let r = consts_resolve_f_go(pers, st, fe, &mut memo, CORE_WALK_FUEL, e);
     st.memos.crf_c = memo;
     r
 }
@@ -599,7 +599,7 @@ pub fn has_str_lit_two(
 /// — `unresolved_consts_error` with a string-literal guard ahead of it: a
 /// string literal is DECLINED here, before resolution, when the String support
 /// declarations are not yet present (con-leche task #342 L-CK: the guard the
-/// annotate pass used to run).  `str_ok` is the caller's `strLitSupported`.
+/// annotate pass used to run).  `str_ok` is the caller's `strLitStored`.
 pub fn unresolved_consts_error_l(
     pers: &PersTier,
     st: &mut AState,
@@ -621,19 +621,17 @@ pub fn unresolved_consts_error_l(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:92-98 unresolvedConstsErrorL
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::unresolved_consts_fail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:226-238 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
-/// (strLitSupportedF fe) where_ e)`, the support test read first, as Lean
+/// (strLitStoredF fe) where_ e)`, the presence test read first, as Lean
 /// evaluates the argument.
 pub fn unresolved_consts_fail<T>(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
 ) -> Result<T, CheckError> {
-    match str_lit_supported(pers, vis, st, fe) {
+    match str_lit_stored(pers, st, fe) {
         Err(err) => Err(err),
         Ok(ok) => match unresolved_consts_error_l(pers, st, ok, e) {
             Err(err) => Err(err),
@@ -647,33 +645,34 @@ pub fn unresolved_consts_fail<T>(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-268 checkConstantVal` —
-/// checks common to all declarations: fresh name, no reserved name,
-/// well-formed universe parameters, and a type that
-/// is a type and mentions only declared parameters.  **Returns nothing**
-/// (con-leche task #342 S5C): the constant is stored as declared.
+/// con-leche: ConLeche/Cached/ParsedC.lean:42-66 checkConstantValC
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — checks
+/// common to all declarations: fresh name, no reserved name, a certified
+/// operation's name only at a definition (`allow_op`, the cited default
+/// `false`, which Rust spells at every call), a literal's name only at its
+/// shape, well-formed universe parameters, and a type that is a type and
+/// mentions only declared parameters.  **Returns nothing**: the constant is
+/// stored as declared.
 ///
-/// The twin reads the name back for four of the six messages (DESIGN.md §8.3's
-/// "readback happens only for the environment index's error text"); the port
-/// drops the interpolation, so the readbacks go with it.
+/// The twin reads the name back for the messages (DESIGN.md §8.3's "readback
+/// happens only for the environment index's error text"); the port drops the
+/// interpolation, so the readbacks go with it.
 pub fn check_constant_val(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
+    allow_op: bool,
 ) -> Result<(), CheckError> {
-    match check_constant_val_guards(pers, vis, st, fe, cv) {
+    match check_constant_val_guards(pers, st, fe, cv, allow_op) {
         Err(e) => Err(e),
-        Ok(()) => match install_header_tail(pers, vis, st, fe, cv) {
+        Ok(()) => match check_constant_val_tail(pers, st, fe, cv) {
             Err(e) => Err(e),
-            Ok(()) => match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+            Ok(()) => match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
                 Err(e) => Err(e),
-                Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
+                Ok(stype) => match ensure_sort_core(pers, st, mode, fe, CHECK_FUEL, 0, &stype) {
                     Err(e) => Err(e),
                     Ok(_u) => Ok(()),
                 },
@@ -683,23 +682,18 @@ pub fn check_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-268 checkConstantVal` —
-/// the five SYNTACTIC guards on the header, in the twin's order.  Shared with
-/// `arena::checker_split::install_header`, which the twin writes out clause for
-/// clause a second time (as con-leche does).
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// guards on the declaration's NAME, in the twin's order: fresh, not a
+/// reserved basis name, not a certified operation's name unless `allow_op`.
 pub fn check_constant_val_guards(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
+    allow_op: bool,
 ) -> Result<(), CheckError> {
-    if ifenv_find(pers, vis, fe, &cv.name).is_some() {
+    if ifenv_find(pers, fe, &cv.name).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         match reserved_basis_names(st) {
@@ -708,38 +702,13 @@ pub fn check_constant_val_guards(
                 if nidx_contains_from(&rs, 0, &cv.name) {
                     fail(CheckError::Invalid(code_points(&M_RESERVED_BASIS)))
                 } else {
-                    check_constant_val_guards_rest(pers, st, cv)
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-268 checkConstantVal` —
-/// the three guards past the reserved-name test.
-pub fn check_constant_val_guards_rest(
-    pers: &PersTier,
-    st: &mut AState,
-    cv: &IConstantVal,
-) -> Result<(), CheckError> {
-    if !name_nodup(&cv.level_params) {
-        fail(CheckError::Invalid(code_points(&M_DUP_UNIV)))
-    } else {
-        match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &cv.ty) {
-            Err(e) => Err(e),
-            Ok(b) => {
-                if !b {
-                    fail(CheckError::Invalid(code_points(&M_LOOSE_TYPE)))
-                } else {
-                    match has_fvar_fast(pers, st, CORE_WALK_FUEL, &cv.ty) {
+                    match nat_op_name(st, &cv.name) {
                         Err(e) => Err(e),
-                        Ok(f) => {
-                            if f {
-                                fail(CheckError::Invalid(code_points(&M_FVAR_TYPE)))
+                        Ok(op) => {
+                            if op && !allow_op {
+                                fail(CheckError::Invalid(code_points(&M_NAT_OP_NAME)))
                             } else {
-                                Ok(())
+                                check_constant_val_guards_rest(pers, st, cv)
                             }
                         }
                     }
@@ -750,21 +719,54 @@ pub fn check_constant_val_guards_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_base::install_header_tail_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-268 checkConstantVal`
-/// (and `CheckerSplit.lean installHeader`, which spells it a second time) —
-/// the two guards on the declared type: its universe parameters are declared,
-/// and its constants resolve (else `unresolvedConstsErrorL`'s verdict).  This
-/// is exactly the install half's tail, so the two twins share it here where
-/// the Lean writes it twice.  Task #119: was `install_constant_val_tail`, on
-/// the annotated type, returning the annotated header.
-pub fn install_header_tail(
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// four guards past the name tests: a literal's name only at its shape
+/// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
+/// and no free variable in the type.
+pub fn check_constant_val_guards_rest(
     pers: &PersTier,
-    vis: u64,
+    st: &mut AState,
+    cv: &IConstantVal,
+) -> Result<(), CheckError> {
+    match lit_shape_ok(pers, st, &IConstantInfo::AxiomInfo(i_constant_val_dup(cv))) {
+        Err(e) => Err(e),
+        Ok(false) => fail(CheckError::NotImplemented(code_points(&M_LIT_SHAPE))),
+        Ok(true) => {
+            if !name_nodup(&cv.level_params) {
+                fail(CheckError::Invalid(code_points(&M_DUP_UNIV)))
+            } else {
+                match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &cv.ty) {
+                    Err(e) => Err(e),
+                    Ok(b) => {
+                        if !b {
+                            fail(CheckError::Invalid(code_points(&M_LOOSE_TYPE)))
+                        } else {
+                            match has_fvar_fast(pers, st, CORE_WALK_FUEL, &cv.ty) {
+                                Err(e) => Err(e),
+                                Ok(f) => {
+                                    if f {
+                                        fail(CheckError::Invalid(code_points(&M_FVAR_TYPE)))
+                                    } else {
+                                        Ok(())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the two
+/// guards on the declared type: its universe parameters are declared, and its
+/// constants resolve (else `unresolvedConstsErrorL`'s verdict).
+pub fn check_constant_val_tail(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
@@ -775,11 +777,11 @@ pub fn install_header_tail(
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_TYPE)))
             } else {
-                match consts_resolve_f_fast(pers, vis, st, fe, &cv.ty) {
+                match consts_resolve_f_fast(pers, st, fe, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            unresolved_consts_fail(pers, vis, st, fe, &cv.ty)
+                            unresolved_consts_fail(pers, st, fe, &cv.ty)
                         } else {
                             Ok(())
                         }
@@ -794,110 +796,8 @@ pub fn install_header_tail(
 // The strategy-independent helpers (`CheckerBase.lean:356-543`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:755-765 openPisAtFvars
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:272-288 openPisAtFvars` —
-/// open the first `n` `∀`-binders at fresh free variables `0..n-1` (each
-/// fvar's type is the binder domain, instantiated with the earlier fvars).
-/// Structural on `n`, so no fuel of its own.
-pub fn open_pis_at_fvars(
-    pers: &PersTier,
-    st: &mut AState,
-    n: u64,
-    h: &EIdx,
-    i: u64,
-) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    if n == 0 {
-        Ok(Some((Vec::new(), h.dup2())))
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((dom, body)) => match intern_e_fvar(pers, st, i, dom) {
-                    Err(e) => Err(e),
-                    Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
-                        Err(e) => Err(e),
-                        Ok(b) => match open_pis_at_fvars(pers, st, n - 1, &b, i + 1) {
-                            Err(e) => Err(e),
-                            Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
-                            Ok(None) => Ok(None),
-                        },
-                    },
-                },
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:767-781 openPisAtFvarsFGo
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:290-307 openPisAtFvarsFGo` —
-/// core of `openPisAtFvarsF`: `acc` holds the already-created fvars — the list
-/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
-/// (task #97-P6-15).  One `instantiateList` pass per domain instead of one
-/// whole-telescope `instantiate1` pass per binder.  The list this function
-/// RETURNS is a different one and keeps its cons: it is built on the way out.
-pub fn open_pis_at_fvars_f_go(
-    pers: &PersTier,
-    st: &mut AState,
-    acc: Vec<EIdx>,
-    n: u64,
-    h: &EIdx,
-    i: u64,
-) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    if n == 0 {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, &acc, 0) {
-            Err(e) => Err(e),
-            Ok(b) => Ok(Some((Vec::new(), b))),
-        }
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((dom, body)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
-                        Err(e) => Err(e),
-                        Ok(d) => match intern_e_fvar(pers, st, i, d) {
-                            Err(e) => Err(e),
-                            Ok(fv) => {
-                                let mut acc2: Vec<EIdx> = acc;
-                                acc2.push(fv.dup2());
-                                match open_pis_at_fvars_f_go(pers, st, acc2, n - 1, &body, i + 1) {
-                                    Err(e) => Err(e),
-                                    Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
-                                    Ok(None) => Ok(None),
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:783-790 openPisAtFvarsF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:309-316 openPisAtFvarsF` —
-/// one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
-/// appear after substitution).  **The executed one.**
-pub fn open_pis_at_fvars_f(
-    pers: &PersTier,
-    st: &mut AState,
-    n: u64,
-    e: &EIdx,
-    i: u64,
-) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    match open_pis_at_fvars_f_go(pers, st, Vec::new(), n, e, i) {
-        Err(err) => Err(err),
-        Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => open_pis_at_fvars(pers, st, n, e, i),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:171-177 unwrapOr
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:318-323 unwrapOr` — unwrap
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:277-282 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
     match o {
@@ -918,7 +818,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-424 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:330-343 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
@@ -946,7 +846,7 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-424 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:330-343 indParamsOk` — one
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.

@@ -13,9 +13,10 @@
 //! | `fenv` | `proof/ConRon/Arena/FEnv.lean` |
 //! | `core_io` | `proof/ConRon/Arena/CoreIO.lean` |
 //! | `inductives` | `proof/ConRon/Arena/Inductives.lean` and `Inductives/*` |
-//! | `promote` | `proof/ConRon/Arena/Promote.lean` |
 //! | `pins` | `proof/ConRon/Arena/Pins.lean` |
 //! | `check_decl` | `proof/ConRon/Arena/CheckDecl.lean` |
+//! | `install` | `proof/ConRon/Arena/Install.lean` |
+//! | `stream_index` | `proof/ConRon/Arena/StreamIndex.lean` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -39,9 +40,9 @@ pub mod trust_axioms;
 pub mod basis;
 pub mod nat_op_pin_set;
 pub mod checker_base;
-pub mod checker_split;
+pub mod install;
+pub mod stream_index;
 pub mod decl_check;
 pub mod inductives;
-pub mod promote;
 pub mod checker;
 pub mod check_decl;

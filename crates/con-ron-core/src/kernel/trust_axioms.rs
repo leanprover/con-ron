@@ -24,7 +24,8 @@
 //! con-leche's task #342 there is no annotated form), and every consumer
 //! reads them through `ConstantVal.matchesPin`, which is plain equality.
 //! `natA` in `reduce_elem_ok` is compared by exact `ConstantInfo` equality —
-//! `kernel::basis_pins`' stub.
+//! `kernel::basis_raw::nat_a`, the pin itself (`Nat` has no level parameter,
+//! so the environment holds it unrenamed).
 //!
 //! The `Env`/`FEnv` twins (`trustCompilerOkF`, `reduceStoredOkF`,
 //! `reduceElemOkF`, `ofReduceAxOkF`, `reducePinGuardF`) are the same Rust

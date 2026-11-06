@@ -79,7 +79,7 @@ use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::ron::hashmap::Hashable;
 
 use crate::arena::core_state::reset_map;
-use crate::arena::env::{ifenv_layer, IFEnv};
+use crate::arena::stream_index::{stream_index_empty, IStreamIndex};
 use std::vec::Vec;
 
 use crate::arena::handle::e_tag_is_bind;
@@ -1256,10 +1256,10 @@ pub struct PersTier {
     pub l: LTables,
     pub ls: LsTables,
     pub e: ETables,
-    /// The installed environment's frozen base (`arena::env`'s `IFEnv` note):
-    /// `checker::freeze_tier` moves phase A's index here, so every phase-B
-    /// worker reads one by reference.  An empty layer in every other tier.
-    pub env: IFEnv,
+    /// The stream's index, the frozen base of every job's environment
+    /// (`arena::env`'s `IFEnv` note): `checker::freeze_tier` moves it here, so
+    /// every worker reads one by reference.  Empty in every other tier.
+    pub env: IStreamIndex,
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:365-373 EStore
@@ -1275,7 +1275,7 @@ impl PersTier {
             l: LTables::empty(),
             ls: LsTables::empty(),
             e: ETables::empty(),
-            env: ifenv_layer(0, 0),
+            env: stream_index_empty(),
         }
     }
 
@@ -1677,17 +1677,6 @@ impl NStore {
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
-    /// proof/ConRon/Arena/Store.lean:509-512 NStore.dropScratch
-    /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back and the scratch tier is dropped.  Persistent
-    /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
-    pub fn thaw(&mut self, t: NTables) {
-        self.pers = t;
-        self.scr.reset();
-        self.scratch_on = false;
-    }
-
-    /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:504-507 NStore.enableScratch
     /// **Empty the scratch tier of a frozen store**, the flag untouched: a
     /// phase-B worker's per-record bracket, where the store stays frozen.
@@ -2053,17 +2042,6 @@ impl LStore {
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
-    /// proof/ConRon/Arena/Store.lean:509-512 LStore.dropScratch
-    /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back and the scratch tier is dropped.  Persistent
-    /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
-    pub fn thaw(&mut self, t: LTables) {
-        self.pers = t;
-        self.scr.reset();
-        self.scratch_on = false;
-    }
-
-    /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:504-507 LStore.enableScratch
     /// **Empty the scratch tier of a frozen store**, the flag untouched: a
     /// phase-B worker's per-record bracket, where the store stays frozen.
@@ -2387,17 +2365,6 @@ impl LsStore {
         self.scr.reset();
         self.scratch_on = true;
         t
-    }
-
-    /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
-    /// proof/ConRon/Arena/Store.lean:509-512 LsStore.dropScratch
-    /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back and the scratch tier is dropped.  Persistent
-    /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
-    pub fn thaw(&mut self, t: LsTables) {
-        self.pers = t;
-        self.scr.reset();
-        self.scratch_on = false;
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
@@ -4265,47 +4232,7 @@ impl EStore {
         let e: ETables = core::mem::replace(&mut self.pers, ETables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        PersTier { frozen: true, n, l, ls, e, env: ifenv_layer(0, 0) }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin:
-    /// proof/ConRon/Arena/Store.lean:509-512 EStore.dropScratch
-    /// **A closed store made of a tier alone**: the tier's tables, empty scratch
-    /// tiers, the flags off.  `thaw`'s answer, read off nothing of the store it
-    /// would be called on, for the state a failed run left
-    /// (`stored_install::stored_abandon`).
-    pub fn of_tier(tier: PersTier) -> EStore {
-        EStore {
-            lss: LsStore {
-                ls: LStore {
-                    ns: NStore { pers: tier.n, scr: NTables::empty(), scratch_on: false },
-                    pers: tier.l,
-                    scr: LTables::empty(),
-                    scratch_on: false,
-                },
-                pers: tier.ls,
-                scr: LsTables::empty(),
-                scratch_on: false,
-            },
-            pers: tier.e,
-            scr: ETables::empty(),
-            scratch_on: false,
-        }
-    }
-
-    /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
-    /// proof/ConRon/Arena/Store.lean:509-512 EStore.dropScratch
-    /// **Thaw the store** (the bracket, closed): the tier's four tables back
-    /// into the four stores, the scratch tiers dropped.
-    /// Persistent handles keep their bits, so everything that denoted before
-    /// still denotes (DESIGN.md §8.3, con-leche's lesson 6).
-    pub fn thaw(&mut self, tier: PersTier) {
-        self.lss.ls.ns.thaw(tier.n);
-        self.lss.ls.thaw(tier.l);
-        self.lss.thaw(tier.ls);
-        self.pers = tier.e;
-        self.scr.reset();
-        self.scratch_on = false;
+        PersTier { frozen: true, n, l, ls, e, env: stream_index_empty() }
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
@@ -4336,111 +4263,6 @@ impl EStore {
     /// Intern a universe-argument list from the expression store.
     pub fn intern_levels(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
         self.lss.intern(pers, v)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Interning into the PERSISTENT tier while the scratch tier is on
-// (`Store.lean:1125-1298`, task #97-P6-2 — ADDITIVE: nothing above moves)
-// ---------------------------------------------------------------------------
-//
-// DESIGN.md §8.3, "Phase A runs in the scratch tier too, with promotion": the
-// install phase opens the scratch tier exactly as phase B does, and the
-// handles the environment KEEPS are **promoted** before the tier is dropped —
-// a memoised structural copy scratch → persistent (`arena::promote`).  The
-// copy's target is the persistent tier while the scratch tier is still live,
-// and `intern` cannot say that: it appends to the tier the store is IN, which
-// inside a bracket is always the scratch tier.  So the persistent tier — a
-// `PersTier` the bracket owns while the store is frozen — gets a twin of
-// `intern`'s `else` branch per store, and the store is only read.
-//
-// **The probe order is `intern`'s own, minus the scratch probe**: the
-// persistent cons table first, and an entry found there is the answer — so a
-// node the parse already interned promotes to ITSELF, and a node promoted once
-// is never duplicated.  The scratch table is deliberately NOT probed: a hit
-// there would hand back a SCRATCH handle, which is the one thing the promotion
-// exists to get rid of.
-//
-// The capacity test is `intern`'s, against the PERSISTENT array and with the
-// same `Native` decline.  The WF
-// obligations — the added `childOK` precondition ("the view's children are
-// persistent") and the transient `fresh` exception the bracket repairs — are
-// the twin's section note, and P3's.
-
-/// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
-/// proof/ConRon/Arena/Store.lean:1548-1559 NStore.internPersistent
-/// **Promotion's interns are methods of the TIER** (task #98-FREEZE): inside
-/// a declaration bracket the store is frozen and its persistent tables are
-/// this value, which the bracket owns and lends to promotion as `&mut`.  So
-/// the append goes here directly, and a store is only READ — for the derived
-/// words of the node's children, through this tier (`der_of_view(self, …)`),
-/// exactly as every other read of a frozen store.
-impl PersTier {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1548-1559 NStore.internPersistent
-    /// Hash-cons a name node into the tier: `intern`'s persistent branch,
-    /// verbatim, with no scratch probe; `ns` is the store the node's prefix is
-    /// read in.
-    pub fn intern_n(&mut self, ns: &NStore, v: NNodeView) -> Result<NIdx, CheckError> {
-        match self.n.find(&v) {
-            Some(i) => Ok(i),
-            None => {
-                if self.n.full_of(&v) {
-                    Err(CheckError::Native(code_points(&M_N_CAP)))
-                } else {
-                    let d: u64 = ns.der_of_view(self, &v);
-                    Ok(self.n.push(v, d, TIER_P))
-                }
-            }
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1566-1576 LStore.internPersistent
-    /// Hash-cons a level node into the tier.
-    pub fn intern_l(&mut self, ls: &LStore, v: LNodeView) -> Result<LIdx, CheckError> {
-        match self.l.find(&v) {
-            Some(i) => Ok(i),
-            None => {
-                if self.l.full_of(&v) {
-                    Err(CheckError::Native(code_points(&M_L_CAP)))
-                } else {
-                    let d: LDer = ls.der_of_view(self, &v);
-                    Ok(self.l.push(v, d, TIER_P))
-                }
-            }
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1583-1593 LsStore.internPersistent
-    /// Hash-cons a level list into the tier.
-    pub fn intern_ls(&mut self, lss: &LsStore, v: LsNodeView) -> Result<LsIdx, CheckError> {
-        match self.ls.find(&v) {
-            Some(i) => Ok(i),
-            None => {
-                if self.ls.full_of(&v) {
-                    Err(CheckError::Native(code_points(&M_LS_CAP)))
-                } else {
-                    let d: LDer = lss.der_of_view(self, &v);
-                    Ok(self.ls.push(v, d, TIER_P))
-                }
-            }
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1600-1610 EStore.internPersistent
-    /// Hash-cons an expression node into the tier; `ar` is the store the
-    /// node's children are read in.
-    pub fn intern_e(&mut self, ar: &EStore, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.e.find(&v) {
-            Some(i) => Ok(i),
-            None => {
-                if self.e.full_of(&v) {
-                    Err(CheckError::Native(code_points(&M_E_CAP)))
-                } else {
-                    let d: u64 = ar.der_of_view(self, &v);
-                    Ok(self.e.push(v, d, TIER_P))
-                }
-            }
-        }
     }
 }
 
@@ -4838,26 +4660,6 @@ mod tests {
     }
 
     // --- `StoreTest.lean:142-167`: the `dropScratch` bracket -----------------
-
-    #[test]
-    fn drop_scratch_invalidates_scratch_and_keeps_persistent() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, _z, _one, _foo, _us, s0, _s1, _c, ap) = fixture();
-        let pers_view_ap = st.view(pers, &ap);
-        let tier: PersTier = st.freeze();
-        let scr = ok(st.intern(&tier, ENodeView::App(s0.dup2(), s0.dup2())));
-
-        assert!(!scr.is_persistent()); // #guard 36
-        assert!(eq_e(&denote_e(&tier, &st, &scr), &expr::app(e_s0(), e_s0()))); // #guard 37
-        assert!(eq_e(&denote_e(&tier, &st, &ap), &e_ap())); // #guard 38
-
-        st.thaw(tier);
-        assert!(denote_e(pers, &st, &scr).is_none()); // #guard 39
-        assert!(st.view(pers, &scr).is_none()); // #guard 40
-        assert!(eq_e(&denote_e(pers, &st, &ap), &e_ap())); // #guard 41
-        assert!(view_eq(&st.view(pers, &ap), &pers_view_ap)); // #guard 42
-        assert!(!st.scratch_on); // #guard 43
-    }
 
     /// `StoreTest.lean:165-167`: a persistent handle's *bits* are unchanged by
     /// the bracket — the point of putting the tier bit above the index.

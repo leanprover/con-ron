@@ -5,11 +5,11 @@
 //! S5A).  The datum is `never | ifAllZero (ps : List Name)`, exposed and
 //! uncanonicalised: duplicates and order are kept, so equal parameter sets
 //! need not be equal values, and nothing here says otherwise.  The checker
-//! asks two things of a datum, `isNever` (`capsNeverZero`, the ι case split)
-//! and "is it `ifAllZero []`" (`PropWhen.isProp`, `kernel::prop_read`), and
-//! compares data in no other way at run time; the stored `IndCaps.sortZ` is
-//! compared structurally by the pin comparison (`arena::canon`), which is the
-//! derived `DecidableEq` (`beq` below).  The five-constructor sealed
+//! asks two things of a datum, `isNever` (`formerNeverZero`, the ι case
+//! split) and "is it `ifAllZero []`" (`PropWhen.isProp`, `kernel::prop_read`),
+//! and compares data in no other way at run time; the derived `DecidableEq` is
+//! `beq` below.  The datum is produced by the head-symbol reader and by the
+//! reading of an inductive's sort (`formerZ`).  The five-constructor sealed
 //! representation, the name order, `merge`/`canon` and the hash that the
 //! binder annotations needed are gone with the annotations.
 //!
@@ -52,23 +52,6 @@ pub fn names_copy(xs: &Vec<Name>) -> Vec<Name> {
     append_from(xs, 0, Vec::new())
 }
 
-/// con-leche: none — `List Name` equality from index `i`, the `ps == qs` of the derived `DecidableEq`
-/// The index recursion of `names_beq`.
-pub fn names_beq_from(ps: &Vec<Name>, qs: &Vec<Name>, i: usize) -> bool {
-    if i >= ps.len() {
-        true
-    } else if name::beq(&ps[i], &qs[i]) {
-        names_beq_from(ps, qs, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: none — `List Name` equality, the entry point of the recursion above
-pub fn names_beq(ps: &Vec<Name>, qs: &Vec<Name>) -> bool {
-    ps.len() == qs.len() && names_beq_from(ps, qs, 0)
-}
-
 // ---------------------------------------------------------------------------
 // The datum (`PropWhen.lean:32-38`)
 // ---------------------------------------------------------------------------
@@ -91,24 +74,6 @@ pub fn never() -> PropWhen {
 /// The `ifAllZero` constructor, as a function: the list is kept as given.
 pub fn if_all_zero(ps: Vec<Name>) -> PropWhen {
     PropWhen::IfAllZero(ps)
-}
-
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-pub fn dup(pw: &PropWhen) -> PropWhen {
-    match pw {
-        PropWhen::Never => PropWhen::Never,
-        PropWhen::IfAllZero(ps) => PropWhen::IfAllZero(names_copy(ps)),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/PropWhen.lean:32-38 PropWhen
-/// The cited `deriving DecidableEq`: constructor and list, structurally.
-pub fn beq(a: &PropWhen, b: &PropWhen) -> bool {
-    match (a, b) {
-        (PropWhen::Never, PropWhen::Never) => true,
-        (PropWhen::IfAllZero(ps), PropWhen::IfAllZero(qs)) => names_beq(ps, qs),
-        _ => false,
-    }
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:52-55 PropWhen.isNever
@@ -183,9 +148,29 @@ mod tests {
     use crate::kernel::name;
     use crate::kernel::name::Name;
     use crate::kernel::prop_when::{
-        beq, bind_z, bind_z_go, dup, if_all_zero, inter, is_never, never,
+        bind_z, bind_z_go, if_all_zero, inter, is_never, names_copy, never,
         NameToPw, PropWhen,
     };
+
+    /// The derived `DecidableEq` the laws below compare with (test-only since
+    /// the kernel stopped comparing data, task #143).
+    fn beq(a: &PropWhen, b: &PropWhen) -> bool {
+        match (a, b) {
+            (PropWhen::Never, PropWhen::Never) => true,
+            (PropWhen::IfAllZero(ps), PropWhen::IfAllZero(qs)) => {
+                ps.len() == qs.len() && ps.iter().zip(qs.iter()).all(|(p, q)| name::beq(p, q))
+            }
+            _ => false,
+        }
+    }
+
+    /// The value copy.
+    fn dup(pw: &PropWhen) -> PropWhen {
+        match pw {
+            PropWhen::Never => PropWhen::Never,
+            PropWhen::IfAllZero(ps) => PropWhen::IfAllZero(names_copy(ps)),
+        }
+    }
     use crate::kernel::prop_read::is_prop;
 
     /// A valuation of the level parameters: Lean's `φ : Name → Nat`, as a

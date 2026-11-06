@@ -517,6 +517,44 @@ pub fn zeroness_of(l: &Level) -> PropWhen {
     }
 }
 
+/// con-leche: ConLeche/Kernel/Level.lean:199-204 isAlwaysZero
+/// `Level.isAlwaysZero`: a level that is zero at every valuation (official's
+/// `is_zero` after normalising) — its zero-ness datum is `ifAllZero []`.
+pub fn is_always_zero(s: &Level) -> bool {
+    match zeroness_of(s) {
+        PropWhen::IfAllZero(ps) => ps.len() == 0,
+        PropWhen::Never => false,
+    }
+}
+
+/// con-leche: none — `qs.all ps.contains` of `zeroWhereZero`, from index `i`
+/// The index recursion of the cited `List.all`.
+pub fn names_all_in_from(qs: &Vec<Name>, ps: &Vec<Name>, i: usize) -> bool {
+    if i >= qs.len() {
+        true
+    } else if name::contains(ps, &qs[i]) {
+        names_all_in_from(qs, ps, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:206-213 zeroWhereZero
+/// `Level.zeroWhereZero`: is `u` zero at every valuation at which `s` is?
+/// Exact: the implication holds exactly when `u`'s parameters are among
+/// `s`'s, or `s` is never zero.
+pub fn zero_where_zero(s: &Level, u: &Level) -> bool {
+    let zs: PropWhen = zeroness_of(s);
+    let zu: PropWhen = zeroness_of(u);
+    match zs {
+        PropWhen::Never => true,
+        PropWhen::IfAllZero(ps) => match zu {
+            PropWhen::Never => false,
+            PropWhen::IfAllZero(qs) => names_all_in_from(&qs, &ps, 0),
+        },
+    }
+}
+
 /// con-leche: none — replaces the `fun n => zeronessOf (subst.go ks vs n)` of `substPW`
 /// The one-method dictionary that stands for `substPW`'s function argument
 /// (task #9's pattern 1; DESIGN.md §3.4 forbids closures).  It captures the
@@ -744,5 +782,26 @@ mod tests {
             level::leq(&nested, &level::max(p("u"), level::max(p("v"), p("w")))),
             Some(true)
         );
+    }
+
+    /// `isAlwaysZero` is "zero at every valuation"; `zeroWhereZero s u` is
+    /// "`u`'s parameters among `s`'s, or `s` never zero".
+    #[test]
+    fn always_zero_and_zero_where_zero() {
+        assert!(level::is_always_zero(&level::zero()));
+        assert!(level::is_always_zero(&level::imax(p("u"), level::zero())));
+        assert!(!level::is_always_zero(&p("u")));
+        assert!(!level::is_always_zero(&level::succ(level::zero())));
+        // `s` never zero: anything goes
+        assert!(level::zero_where_zero(&level::succ(p("u")), &p("v")));
+        // `s` may be zero, `u` never: no
+        assert!(!level::zero_where_zero(&p("u"), &level::succ(level::zero())));
+        // `Prop`: only a level zero everywhere passes
+        assert!(level::zero_where_zero(&level::zero(), &level::zero()));
+        assert!(!level::zero_where_zero(&level::zero(), &p("v")));
+        // parameters: `max u v` is zero only where both are, so `u` is zero there
+        assert!(level::zero_where_zero(&level::max(p("u"), p("v")), &p("u")));
+        assert!(!level::zero_where_zero(&p("u"), &level::max(p("u"), p("w"))));
+        assert!(level::zero_where_zero(&level::max(p("u"), p("w")), &level::imax(p("v"), p("w"))));
     }
 }

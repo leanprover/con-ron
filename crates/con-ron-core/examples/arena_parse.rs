@@ -238,7 +238,7 @@ fn main() {
             // `preparePrelude` is the real ground hoist, whose trigger set is
             // the kernel's pinned `Nat` operation names.
             let mut ast = ar;
-            let prepared = match prepare::prepare_d(pers, &mut ast, pre, res.decls) {
+            let prepared = match prepare::prepare_d(pers, &mut ast, pre, res.decls, &con_ron_core::frontend::nat_op_ground::DeclUsedConsts) {
                 Ok(p) => p,
                 Err(e) => {
                     let (m, c) = render(&e);

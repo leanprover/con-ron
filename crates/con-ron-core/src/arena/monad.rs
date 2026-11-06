@@ -735,16 +735,6 @@ pub fn intern_e_proj(
 // The name store's primitives (`Monad.lean:168-222`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:377-382 viewN` — decode a name
-/// handle.
-pub fn view_n(pers: &PersTier, st: &AState, h: &NIdx) -> Result<NNodeView, CheckError> {
-    match st.store.ns().view(pers, h) {
-        Some(v) => Ok(v),
-        None => fail(CheckError::Internal(code_points(&M_DANGLING_N))),
-    }
-}
-
 /// con-leche: none — hash-cons a name node, through the nesting
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:384-400 internNNode` (the
 /// capacity test is one layer down here; see `intern_e`).
@@ -1221,66 +1211,6 @@ pub fn intern_levels(
         Ok(hs) => intern_ls_node(pers, st, hs),
         Err(e) => Err(e),
     }
-}
-
-// ---------------------------------------------------------------------------
-// Interning into the PERSISTENT tier — the promotion's primitives
-// (`Monad.lean:329-397`, task #97-P6-2 — ADDITIVE)
-// ---------------------------------------------------------------------------
-//
-// DESIGN.md §8.3, "Phase A runs in the scratch tier too, with promotion".
-// Four twins of `intern_e` / `intern_n_node` / `intern_l_node` /
-// `intern_ls_node` that append to the PERSISTENT tier while the store is in a
-// declaration bracket — frozen, its persistent tables the `tier` the bracket
-// owns (task #98-FREEZE) — over `arena::store`'s `PersTier::intern_*`.  The
-// tier is written through `&mut`; the state is only read (the children's
-// derived words).  The capacity test is the same one against the persistent
-// array and the error is the same `Native` kind — and, as with `intern_e`,
-// the test sits one layer down here (the twin's `internPersistentE` tests
-// `sizeOf v < v.cap` at the wrapper; `PersTier::intern_e` already *is*
-// that test).  `arena::promote` is the only caller.
-
-/// con-leche: none — arena infrastructure; hash-cons an expression node into the persistent tier
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:630-648 internPersistentE`.
-pub fn intern_persistent_e(
-    tier: &mut PersTier,
-    st: &AState,
-    v: ENodeView,
-) -> Result<EIdx, CheckError> {
-    tier.intern_e(&st.store, v)
-}
-
-/// con-leche: none — arena infrastructure; hash-cons a name node into the persistent tier
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:650-664 internPersistentN`, through
-/// the nesting.
-pub fn intern_persistent_n(
-    tier: &mut PersTier,
-    st: &AState,
-    v: NNodeView,
-) -> Result<NIdx, CheckError> {
-    tier.intern_n(&st.store.lss.ls.ns, v)
-}
-
-/// con-leche: none — arena infrastructure; hash-cons a level node into the persistent tier
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:666-680 internPersistentL`, through
-/// the nesting.
-pub fn intern_persistent_l(
-    tier: &mut PersTier,
-    st: &AState,
-    v: LNodeView,
-) -> Result<LIdx, CheckError> {
-    tier.intern_l(&st.store.lss.ls, v)
-}
-
-/// con-leche: none — arena infrastructure; hash-cons a universe-argument list into the persistent tier
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:682-696 internPersistentLs`, through
-/// the nesting.
-pub fn intern_persistent_ls(
-    tier: &mut PersTier,
-    st: &AState,
-    v: LsNodeView,
-) -> Result<LsIdx, CheckError> {
-    tier.intern_ls(&st.store.lss, v)
 }
 
 // ---------------------------------------------------------------------------

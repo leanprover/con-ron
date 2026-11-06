@@ -14,6 +14,12 @@
 //!
 //! ## Deviations
 //!
+//! * **The read's heartbeat is two operations of the seam**
+//!   (`read_notes_say`, `read_notes_module_loaded`): upstream's `ReadNotes`
+//!   (task #484) are `IO` state handed to `CheckerIO.liftIO`; here the notes,
+//!   the pace and the clock are the instance's, built where the instance is
+//!   (`crates/con-ron`'s `olean_fs`), not in `readOleans`.
+//!
 //! * **An operation's failure is a value**: `Result<_, Vec<u32>>`, the message.
 //!   Upstream's `IO.Error` is an exception that `findModule` catches for its own
 //!   reads and `runArgs` for the rest; here the rest is `.internal` with that
@@ -45,31 +51,35 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::OleanFs_refines, then delete this line
 /// **The checker's file reads**: the operations of upstream's class the reader
-/// uses.  A failure is the operation's message.
+/// uses, and the read's heartbeat, two of the `liftIO` actions upstream hands
+/// the class.  A failure is the operation's message.  The class's worker map
+/// (`parMapWorkers`) is the check pool's, in `crates/con-ron`.
 pub trait OleanFs {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::path_exists_refines, then delete this line
     /// whether the path names something (a file, a directory)
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::real_path_refines, then delete this line
     /// the path with every symbolic link resolved, absolute
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::read_bin_file_refines, then delete this line
     /// a regular file's bytes
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::read_range_refines, then delete this line
     /// a positional read: the bytes from `off` up to `off + len` or the end of
     /// the file, whichever comes first
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
-    /// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove files::file_size_refines, then delete this line
     /// the size of a regular file in bytes
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>>;
+    /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
+    /// `CheckerIO.liftIO (n.say line)`: one line of the read's heartbeat, the
+    /// instance's notes (module note).  Changes nothing a read returns.
+    fn read_notes_say(&self, line: &Vec<u32>);
+    /// con-leche: ConLeche/Frontend/Olean/Progress.lean:50-60 ReadNotes.moduleLoaded
+    /// `CheckerIO.liftIO (n.moduleLoaded total size)`: a module of `total` is
+    /// loaded, with `size` constants.  Changes nothing a read returns.
+    fn read_notes_module_loaded(&self, total: u64, size: u64);
 }
 
 /// con-leche: none — `System.FilePath`'s `/` (`join`): an absolute `sub` replaces

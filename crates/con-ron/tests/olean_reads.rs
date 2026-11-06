@@ -9,7 +9,8 @@ use con_ron::olean_fs::StdFs;
 use con_ron_core::arena::handle::{EIdx, NIdx};
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::{ENodeView, LNodeView, NNodeView, PersTier};
-use con_ron_core::frontend::olean::closure::{CEntry, Loaded};
+use con_ron_core::frontend::olean::lazy::{CEntry, Loaded};
+use con_ron_core::frontend::olean::sparse;
 use con_ron_core::frontend::olean::files;
 use con_ron_core::frontend::olean::files::OleanFs;
 use con_ron_core::frontend::olean::header;
@@ -283,7 +284,7 @@ impl Blocks {
         let e = PersTier::empty();
         let m = self.n("M");
         let n = cs.len();
-        let mg = merge::merge_all(&self.pk, &e, &self.st.store, vec![Loaded { name: m, constants: cs }]);
+        let mg = merge::merge_all(&self.pk, &e, &self.st.store, vec![Loaded { name: m, constants: cs, frontier: sparse::frontier_empty() }]);
         let mg = mg.ok().expect("the merge");
         assert_eq!(mg.order.len(), n);
         emit::blocks_ok(&self.pk, &e, &self.st.store, &mg)
@@ -426,4 +427,48 @@ fn reads_of_a_part_stay_files_through_the_trait() {
     // reads' filter: lean4export's
     assert!(!reads::c_kind_skipped::<NIdx, EIdx>(&CKindF::Ax(false)));
     assert!(reads::c_kind_skipped::<NIdx, EIdx>(&CKindF::Ax(true)));
+}
+
+/// **A theorem's value read in its check is the specification's** (upstream
+/// `readOleans_filled`, task #481): the lazy load's constants are the full
+/// private view's but for a theorem's value, which is a reference, and
+/// `records::read_value` of the reference — through the files, over the load's
+/// frontier — is the value the full read builds, in one hash-consed store the
+/// same handle.
+#[test]
+fn a_theorems_value_read_lazily_is_the_full_reads() {
+    use con_ron_core::frontend::olean::lazy;
+    use con_ron_core::frontend::olean::records;
+    let Some(lib) = lib() else { return };
+    let e = pers();
+    let mut st = AState::empty();
+    let pk = spec::olean_pins(&e, &mut st.store).ok().unwrap();
+    let sp = vec![cps(&lib)];
+    let mut thms = 0usize;
+    for m in ["Tiny", "TinyUse", "ClashA", "ClashB", "TinyClassic"] {
+        let f = files_of(&lib, m);
+        let mn = nm(&mut st, m);
+        let full = ok_or_panic(view::parse_view(&pk, &e, &mut st.store, &f, &OLeanLevel::Private), m);
+        let l = lazy::load_view(&pk, &e, &mut st.store, 0, &mn, &f).ok().expect("the lazy load");
+        assert_eq!(l.constants.len(), full.constants.len(), "{}", m);
+        let values = vec![records::ModRef { name: mn, frontier: l.frontier }];
+        let mut cache = records::value_cache_empty();
+        for (c, d) in l.constants.iter().zip(full.constants.iter()) {
+            assert!(c.c.name.eq2(&d.name) && c.c.ty.eq2(&d.ty), "{}: a statement differs", m);
+            match (&c.c.kind, &d.kind) {
+                (CKindF::Thm(r, _), CKindF::Thm(v, _)) => {
+                    let code = st.store.view_bvar(&e, r).expect("a reference");
+                    assert_eq!(lazy::ref_module(code), 0);
+                    let got = records::read_value(&StdFs, &pk, &e, &mut st.store, &sp, &values, &mut cache, code)
+                        .ok()
+                        .expect("the value reads");
+                    assert!(got.eq2(v), "{}: a value read lazily differs", m);
+                    thms += 1;
+                }
+                (CKindF::Thm(..), _) | (_, CKindF::Thm(..)) => panic!("{}: kinds differ", m),
+                _ => assert!(entries_eq(std::slice::from_ref(&c.c), std::slice::from_ref(d)), "{}: an entry differs", m),
+            }
+        }
+    }
+    assert!(thms > 0, "the fixtures hold theorems");
 }

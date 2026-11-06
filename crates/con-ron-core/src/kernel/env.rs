@@ -40,12 +40,9 @@
 
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -79,24 +76,6 @@ pub fn verified_checks(m: &CheckMode) -> bool {
 // Copy helpers for the `Vec` fields (`List`s in the Lean, shared by value)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — a `Vec<Level>` copy; Lean's `List Level` is shared by value
-/// The entry point of the index recursion below (task #9's `*_from` pattern).
-pub fn levels_copy(us: &Vec<Level>) -> Vec<Level> {
-    levels_copy_from(us, 0, Vec::with_capacity(us.len()))
-}
-
-/// con-leche: none — the index recursion behind `levels_copy`
-/// The accumulator is passed by value and returned (task #6's rule).
-pub fn levels_copy_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Level> {
-    if i >= us.len() {
-        out
-    } else {
-        let mut out = out;
-        out.push(level::dup(&us[i]));
-        levels_copy_from(us, i + 1, out)
-    }
-}
-
 /// con-leche: none — a `Vec<Expr>` copy; Lean's `Array Expr` is shared by value
 /// The entry point of the index recursion below.
 pub fn exprs_copy(es: &Vec<Expr>) -> Vec<Expr> {
@@ -128,89 +107,27 @@ pub struct ConstantVal {
     pub ty: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:84-88 ConstantVal
-/// The record copy: two `P` bumps and one `Vec<Name>` spine.
-pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
-    ConstantVal {
-        name: name::dup(&cv.name),
-        level_params: prop_when::names_copy(&cv.level_params),
-        ty: expr::dup(&cv.ty),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:90-122 RecRuleFire
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::RecRuleFire_refines, then delete this line
-/// How a stored recursor rule fires (install-computed; the parse placeholder
-/// is `.plain`): `.plain` at a member major, `.nested lvls pins` at an outside
-/// one (the comparands of a case-3 fire).
+/// How a stored recursor rule fires (read off the recursor's record; the
+/// parse placeholder is `.plain`): `.plain` at a member major, `.nested lvls
+/// pins` at an outside one (the comparands of a case-3 fire), `.levels lvls`
+/// at a quotient eliminator (the comparand levels, over the recursor's own
+/// level parameters).
 pub enum RecRuleFire {
     Plain,
     Nested(Vec<Level>, Vec<Expr>),
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:90-122 RecRuleFire
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_fire_dup_refines, then delete this line
-/// The copy; `.nested`'s two lists are copied spine-wise.
-pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
-    match f {
-        RecRuleFire::Plain => RecRuleFire::Plain,
-        RecRuleFire::Nested(lvls, pins) => {
-            RecRuleFire::Nested(levels_copy(lvls), exprs_copy(pins))
-        }
-    }
+    Levels(Vec<Level>),
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::RecRule_refines, then delete this line
-/// One iota rule of a recursor.  The four install-computed fields
-/// (`ctorParams`, `fire`, `k`, `eta`) carry parse placeholders
-/// `0`/`.plain`/`false` until the install computes them
-/// (task #10, surprise 2); the Lean's `:= false`/`:= 0` field defaults
-/// become `rec_rule_parsed` below, since Rust has none.
+/// One iota rule of a recursor: the record's three fields, as Lean's
+/// `RecursorRule` has them, and `fire`, read off the recursor's record (the
+/// parse placeholder `.plain`).
 pub struct RecRule {
     pub ctor: Name,
     pub nfields: u64,
-    pub ctor_params: u64,
     pub fire: RecRuleFire,
     pub rhs: Expr,
-    pub k: bool,
-    pub eta: bool,
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_dup_refines, then delete this line
-/// The record copy.
-pub fn rec_rule_dup(r: &RecRule) -> RecRule {
-    RecRule {
-        ctor: name::dup(&r.ctor),
-        nfields: r.nfields,
-        ctor_params: r.ctor_params,
-        fire: rec_rule_fire_dup(&r.fire),
-        rhs: expr::dup(&r.rhs),
-        k: r.k,
-        eta: r.eta,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:114-117 BasisDSL.rule
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
-/// A rule at the cited *parse placeholders* — the Lean's field defaults
-/// `ctorParams := 0`, `fire := .plain`, `k := eta := false`,
-/// which a parsed stream always carries (task #10's census: all 2 715 parsed
-/// rules).  Rust has no field defaults, so the record the parser builds goes
-/// through this constructor.
-pub fn rec_rule_parsed(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
-    RecRule {
-        ctor,
-        nfields,
-        ctor_params: 0,
-        fire: RecRuleFire::Plain,
-        rhs,
-        k: false,
-        eta: false,
-    }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:147-151 ReducibilityHint
@@ -292,10 +209,10 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
-/// Definitional capabilities of a stored inductive type, recorded at
-/// install.  Every field of the cited structure has a default; see
-/// `ind_caps_default`.
+/// Definitional capabilities of a stored inductive type that its block alone
+/// decides, read off the block's records.  The family's result sort is on no
+/// record, so what depends on it is computed where it is read.  Every field of
+/// the cited structure has a default; see `ind_caps_default`.
 pub struct IndCaps {
     pub eta: bool,
     pub eta_ctor: Name,
@@ -303,25 +220,20 @@ pub struct IndCaps {
     pub eta_fields: u64,
     pub unitlike: bool,
     pub unit_params: u64,
-    pub rule_k: bool,
-    pub sort_z: PropWhen,
     /// the block's members (official's `all`), itself included
     pub all: Vec<Name>,
     /// the family's parameter count (official's `inductive_val.nparams`)
     pub nparams: u64,
+    /// the family's index count (official's `inductive_val.nindices`), read
+    /// off the block's recursor record
+    pub n_idx: u64,
     /// the family's constructors, in declaration order (official's `cnstrs`)
     pub ctors: Vec<Name>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
-/// false`, `etaCtor := .anonymous`, `etaParams := etaFields := 0`,
-/// `unitlike := false`, `unitParams := 0`, `ruleK := false` and — the one
-/// that is not the obvious zero — **`sortZ := .ifAllZero []`**, which reads
-/// "zero at every valuation" and not `.never` (task #10, surprise 6: picking
-/// the other one changes the structure-η rescue's guard).  This is the
-/// record every parsed `IndCaps` carries (task #10's census: all 1 917).
+/// false`, `etaCtor := .anonymous`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
     IndCaps {
         eta: false,
@@ -330,89 +242,24 @@ pub fn ind_caps_default() -> IndCaps {
         eta_fields: 0,
         unitlike: false,
         unit_params: 0,
-        rule_k: false,
-        sort_z: prop_when::if_all_zero(Vec::new()),
         all: Vec::new(),
         nparams: 0,
+        n_idx: 0,
         ctors: Vec::new(),
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ind_caps_dup_refines, then delete this line
-/// The record copy.
-pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
-    IndCaps {
-        eta: c.eta,
-        eta_ctor: name::dup(&c.eta_ctor),
-        eta_params: c.eta_params,
-        eta_fields: c.eta_fields,
-        unitlike: c.unitlike,
-        unit_params: c.unit_params,
-        rule_k: c.rule_k,
-        sort_z: prop_when::dup(&c.sort_z),
-        all: prop_when::names_copy(&c.all),
-        nparams: c.nparams,
-        ctors: prop_when::names_copy(&c.ctors),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
-/// Information stored about an accepted constant.
+/// Information stored about an accepted constant.  A recursor carries its
+/// record's K flag (official's `recursor_val::is_k`), the `bool` before its
+/// rules.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
     DefnInfo(ConstantVal, Expr, ReducibilityHint),
     ThmInfo(ConstantVal),
     IndInfo(ConstantVal, IndCaps),
     CtorInfo(ConstantVal, u64, u64),
-    RecInfo(ConstantVal, u64, u64, Vec<RecRule>),
-}
-
-/// con-leche: none — a `Vec<RecRule>` copy; Lean's `List RecRule` is shared by value
-/// The entry point of the index recursion below.
-pub fn rec_rules_copy(rs: &Vec<RecRule>) -> Vec<RecRule> {
-    rec_rules_copy_from(rs, 0, Vec::with_capacity(rs.len()))
-}
-
-/// con-leche: none — the index recursion behind `rec_rules_copy`
-/// The accumulator is passed by value and returned.
-pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Vec<RecRule> {
-    if i >= rs.len() {
-        out
-    } else {
-        let mut out = out;
-        out.push(rec_rule_dup(&rs[i]));
-        rec_rules_copy_from(rs, i + 1, out)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::constant_info_dup_refines, then delete this line
-/// The record copy; what `fenv::push` needs, because a pushed constant lands
-/// both in `env.consts` and in the index (where Lean shares one value).
-pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
-    match c {
-        ConstantInfo::AxiomInfo(v) => ConstantInfo::AxiomInfo(constant_val_dup(v)),
-        ConstantInfo::DefnInfo(v, value, hint) => ConstantInfo::DefnInfo(
-            constant_val_dup(v),
-            expr::dup(value),
-            reducibility_hint_dup(hint),
-        ),
-        ConstantInfo::ThmInfo(v) => ConstantInfo::ThmInfo(constant_val_dup(v)),
-        ConstantInfo::IndInfo(v, caps) => {
-            ConstantInfo::IndInfo(constant_val_dup(v), ind_caps_dup(caps))
-        }
-        ConstantInfo::CtorInfo(v, np, nf) => {
-            ConstantInfo::CtorInfo(constant_val_dup(v), *np, *nf)
-        }
-        ConstantInfo::RecInfo(v, mi, rp, rules) => ConstantInfo::RecInfo(
-            constant_val_dup(v),
-            *mi,
-            *rp,
-            rec_rules_copy(rules),
-        ),
-    }
+    RecInfo(ConstantVal, u64, u64, bool, Vec<RecRule>),
 }
 
 // ---------------------------------------------------------------------------
@@ -484,29 +331,8 @@ pub fn quot_kind_dup(k: &QuotKind) -> QuotKind {
 #[cfg(test)]
 mod tests {
     use crate::kernel::env;
-    use crate::kernel::env::BasisKind;
     use crate::kernel::env::CheckMode;
-    use crate::kernel::env::ConstantInfo;
-    use crate::kernel::env::ConstantVal;
     use crate::kernel::env::ReducibilityHint;
-    use crate::kernel::expr;
-    use crate::kernel::level;
-    use crate::kernel::name;
-    use crate::kernel::name::Name;
-    use crate::kernel::prop_when;
-
-    fn nm(s: &str) -> Name {
-        let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();
-        name::mk_str(name::anonymous(), cps)
-    }
-
-    fn cv(s: &str) -> ConstantVal {
-        ConstantVal {
-            name: nm(s),
-            level_params: Vec::new(),
-            ty: expr::sort(level::zero()),
-        }
-    }
 
     #[test]
     fn mode_accessors() {
@@ -542,38 +368,4 @@ mod tests {
         assert!(!env::reducibility_hint_same_regular(&a, &a));
     }
 
-    #[test]
-    fn dups_are_faithful() {
-        let ci = ConstantInfo::RecInfo(
-            cv("R"),
-            3,
-            2,
-            vec![env::rec_rule_parsed(nm("C"), 1, expr::bvar(0))],
-        );
-        let c2 = env::constant_info_dup(&ci);
-        match c2 {
-            ConstantInfo::RecInfo(cv2, mi, rp, rules) => {
-                assert!(name::beq(&cv2.name, &nm("R")));
-                assert_eq!((mi, rp), (3, 2));
-                assert_eq!(rules.len(), 1);
-                // the parse placeholders (task #10, surprise 2)
-                assert_eq!(rules[0].ctor_params, 0);
-                assert!(!rules[0].k && !rules[0].eta);
-                assert!(matches!(rules[0].fire, env::RecRuleFire::Plain));
-            }
-            _ => panic!("wrong constructor"),
-        }
-        // `IndCaps`'s one non-obvious default: `sortZ = ifAllZero []`, not
-        // `never` (task #10, surprise 6)
-        let caps = env::ind_caps_default();
-        assert!(!prop_when::is_never(&caps.sort_z));
-        assert!(crate::kernel::prop_read::is_prop(&caps.sort_z));
-        let caps2 = env::ind_caps_dup(&caps);
-        assert!(prop_when::beq(&caps.sort_z, &caps2.sort_z));
-        // the remaining copies
-        assert!(matches!(
-            env::basis_kind_dup(&BasisKind::QuotK),
-            BasisKind::QuotK
-        ));
-    }
 }

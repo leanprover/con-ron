@@ -49,7 +49,6 @@ fn rec_order(pers: &PersTier, st: &AState, block: &[IConstantInfo]) -> Vec<usize
 }
 
 /// con-leche: OleanCompare.lean:77-84 declEq
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove olean-compare::decl_eq_refines, then delete this line
 /// Two records, field by field, by handle.
 fn decl_eq(pers: &PersTier, st: &AState, a: &IDeclaration, b: &IDeclaration) -> bool {
     use con_ron_core::ron::hashmap::Eq2;
@@ -220,7 +219,6 @@ fn internal_name(pers: &PersTier, st: &AState, n: u32) -> bool {
 }
 
 /// con-leche: OleanCompare.lean:150-204 main
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove olean-compare::run_compare_refines, then delete this line
 /// The record for record comparison.
 fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
@@ -249,12 +247,12 @@ fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String])
         Ok(p) => p,
         Err(e) => return fail_with(&e),
     };
-    let os = match records::read_oleans(&StdFs, pers, &mut st.store, &req.search_path, &roots, &cs) {
+    let os = match records::read_oleans_full(&StdFs, pers, &mut st.store, &req.search_path, &roots, &cs) {
         Err((e, l)) => {
             eprintln!("oleans: {} at record {}", driver::message(&e), l);
             return 3;
         }
-        Ok(r) => r.decls,
+        Ok(ds) => ds,
     };
     let t2 = t0.elapsed().as_millis();
     println!("stream: {} records ({} ms); oleans: {} records ({} ms)", js.len(), t1, os.len(), t2 - t1);
@@ -316,7 +314,6 @@ fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String])
 }
 
 /// con-leche: OleanCompare.lean:150-204 main
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove olean-compare::main_refines, then delete this line
 /// The entry point: one thread with the checker's stack, as the binary's.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();

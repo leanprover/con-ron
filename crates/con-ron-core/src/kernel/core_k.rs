@@ -1,6 +1,6 @@
 //! **The pure checker core's syntactic layer** —
-//! `ConLeche/Kernel/Core.lean`'s readers, pinned tables, install-time rule
-//! bits and small helpers, plus the three fuel constants of the knot's loops
+//! `ConLeche/Kernel/Core.lean`'s readers, pinned tables, rule
+//! data and small helpers, plus the three fuel constants of the knot's loops
 //! and `checkFuel` (`:2903`).  The head of the file (`CheckError`, `CheckM`)
 //! is `core_types.rs` (task #14).
 //!
@@ -38,10 +38,9 @@
 //!   (deviation 3 below).  So is `litToCtorIfNatI`,
 //!   whose twin is the spec's under a `pure`;
 //! * the pinned name tables and the `Nat`-operation pin sets;
-//! * the install-time rule bits (`rec_rule_bits`,
-//!   `rec_rule_k`) and the shape conjunctions the cached certificates read
+//! * the shape conjunctions the cached certificates read
 //!   (`struct_eta_shape_ok`, `unit_shape_ok`, `proj_fire_shape_ok`,
-//!   `fab_scope_ok`, `proj_entry_fire_ok`, `and_rescue_slots`);
+//!   `fab_scope_ok`, `and_rescue_slots`);
 //! * the pure pieces of the inference clauses (`infer_fvar`,
 //!   `infer_lit_nat`, `infer_lit_str`, `infer_proj_at`,
 //!   `proj_type_at_checked`, `proj_entry_type_at`);
@@ -286,9 +285,9 @@ pub fn eager_reduce_name() -> Name {
      message strings need not match, and the CLI (outside the verified core)
      renders errors.  Already recorded by task #14, which ported the
      `CheckError` half of the file.
-   * the eight `@[simp] theorem`s about `recRuleBits` (`:1545-1586`) and the
-     four about `projFnRule` (`:1596-1613`) — field-projection equations,
-     i.e. the *spec* this port will be proved against, not part of it.
+   * the four `@[simp] theorem`s about `projFnRule` (`:1596-1613`) —
+     field-projection equations, i.e. the *spec* this port will be proved
+     against, not part of it.
 
    Everything else in the file is either here or in `crate::cached::core_c`,
    whose twin of it is what the knot executes (the module note's "What is

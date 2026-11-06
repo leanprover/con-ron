@@ -186,7 +186,6 @@ pub fn lam_proj(pers: &PersTier, st: &AState, fuel: u64, k: u64, h: &EIdx) -> Re
 /// definitional (δ then β).
 pub fn unwrap_id_defs(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -201,7 +200,7 @@ pub fn unwrap_id_defs(
             Ok(hd) => if hd.tag() == ETAG_CONST {
                 match view_const_name(pers, st, &hd) {
                 None => fail_dangling_e(),
-                Some(c) => match env::ifenv_find(pers, vis, fe, &c) {
+                Some(c) => match env::ifenv_find(pers, fe, &c) {
                     Some(IConstantInfo::DefnInfo(_, v0, _)) => {
                         let v: EIdx = v0.dup2();
                         match lam_proj(pers, st, fuel, 0, &v) {
@@ -214,7 +213,7 @@ pub fn unwrap_id_defs(
                                         // by `lamProj?`, so the index is in
                                         // range and the default unread.
                                         let a: EIdx = args[(k - 1 - j) as usize].dup2();
-                                        unwrap_id_defs(pers, vis, st, fe, fuel, n - 1, &a)
+                                        unwrap_id_defs(pers, st, fe, fuel, n - 1, &a)
                                     } else {
                                         Ok(e.dup2())
                                     }
@@ -240,7 +239,6 @@ pub fn unwrap_id_defs(
 /// Structural on `k`.
 pub fn peel_pis_w(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -248,23 +246,23 @@ pub fn peel_pis_w(
     h: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
     if k == 0 {
-        match unwrap_id_defs(pers, vis, st, fe, fuel, UNWRAP_FUEL, h) {
+        match unwrap_id_defs(pers, st, fe, fuel, UNWRAP_FUEL, h) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some(r)),
         }
     } else if h.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, h) {
             None => fail_dangling_e(),
-            Some((_, b)) => peel_pis_w(pers, vis, st, fe, fuel, k - 1, &b),
+            Some((_, b)) => peel_pis_w(pers, st, fe, fuel, k - 1, &b),
         }
     } else {
-        match unwrap_id_defs(pers, vis, st, fe, fuel, UNWRAP_FUEL, h) {
+        match unwrap_id_defs(pers, st, fe, fuel, UNWRAP_FUEL, h) {
             Err(e) => Err(e),
             Ok(u) => {
                 if u.tag() == ETAG_FORALL_E {
                     match view_bind(pers, st, &u) {
                         None => fail_dangling_e(),
-                        Some((_, b)) => peel_pis_w(pers, vis, st, fe, fuel, k - 1, &b),
+                        Some((_, b)) => peel_pis_w(pers, st, fe, fuel, k - 1, &b),
                     }
                 } else {
                     Ok(None)
@@ -315,7 +313,6 @@ pub fn subst_pw_at(
 /// identity wrappers) is read by `residual_pw`.
 pub fn head_type_pw(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -326,14 +323,14 @@ pub fn head_type_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(pers, vis, fe, &i) {
+        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(pers, fe, &i) {
             Some(ci) => {
                 let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
                 match view_ls_len(pers, st, &us) {
                     None => fail_dangling_ls(),
                     Some(usl) => {
                         if usl == cv.level_params.len() {
-                            match peel_pis_w(pers, vis, st, fe, fuel, n, &cv.ty) {
+                            match peel_pis_w(pers, st, fe, fuel, n, &cv.ty) {
                                 Err(e) => Err(e),
                                 Ok(res) => match residual_pw(pers, st, res) {
                                     Err(e) => Err(e),
@@ -349,7 +346,7 @@ pub fn head_type_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => match peel_pis_w(pers, vis, st, fe, fuel, n, &ty) {
+        Ok(ENodeView::FVar(_, ty)) => match peel_pis_w(pers, st, fe, fuel, n, &ty) {
             Err(e) => Err(e),
             Ok(res) => residual_pw(pers, st, res),
         },
@@ -357,7 +354,7 @@ pub fn head_type_pw(
             if i < d {
                 match binder_dom(pers, st, d - 1 - i, root) {
                     Err(e) => Err(e),
-                    Ok(Some(dom)) => match peel_pis_w(pers, vis, st, fe, fuel, n, &dom) {
+                    Ok(Some(dom)) => match peel_pis_w(pers, st, fe, fuel, n, &dom) {
                         Err(e) => Err(e),
                         Ok(res) => residual_pw(pers, st, res),
                     },
@@ -378,7 +375,6 @@ pub fn head_type_pw(
 /// then read the residual's head.
 pub fn type_sort_pw_go(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -394,7 +390,7 @@ pub fn type_sort_pw_go(
         if t.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, t) {
                 None => fail_dangling_e(),
-                Some((_, b)) => type_sort_pw_go(pers, vis, st, fe, fuel - 1, root, &b, d + 1),
+                Some((_, b)) => type_sort_pw_go(pers, st, fe, fuel - 1, root, &b, d + 1),
             }
         } else if t.tag() == ETAG_SORT {
             Ok(Some(prop_when::never()))
@@ -403,7 +399,7 @@ pub fn type_sort_pw_go(
                 Err(e) => Err(e),
                 Ok(fnh) => match num_args(pers, st, fuel - 1, t) {
                     Err(e) => Err(e),
-                    Ok(n) => head_type_pw(pers, vis, st, fe, fuel - 1, root, d, &fnh, n),
+                    Ok(n) => head_type_pw(pers, st, fe, fuel - 1, root, d, &fnh, n),
                 },
             }
         }
@@ -416,13 +412,12 @@ pub fn type_sort_pw_go(
 /// read off `t`'s shape.  `none` = unknown.
 pub fn type_sort_pw(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     t: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    type_sort_pw_go(pers, vis, st, fe, fuel, t, t, 0)
+    type_sort_pw_go(pers, st, fe, fuel, t, t, 0)
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:151-181 headProofPW
@@ -433,7 +428,6 @@ pub fn type_sort_pw(
 /// answers from its field's stored type, "not a proof" only.
 pub fn head_proof_pw(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -441,14 +435,14 @@ pub fn head_proof_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(pers, vis, fe, &c) {
+        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(pers, fe, &c) {
             Some(ci) => {
                 let cv: env::IConstantVal = env::i_constant_info_to_constant_val(ci);
                 match view_ls_len(pers, st, &us) {
                     None => fail_dangling_ls(),
                     Some(usl) => {
                         if usl == cv.level_params.len() {
-                            match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
+                            match type_sort_pw(pers, st, fe, fuel, &cv.ty) {
                                 Err(e) => Err(e),
                                 Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
                                 Ok(None) => Ok(None),
@@ -461,12 +455,12 @@ pub fn head_proof_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, vis, st, fe, fuel, &ty),
+        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, st, fe, fuel, &ty),
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::ForallE(_, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
-        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(pers, vis, fe, &s, i) {
-            Some(entry) => match type_sort_pw(pers, vis, st, fe, fuel, &entry.body) {
+        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(pers, fe, &s, i) {
+            Some(entry) => match type_sort_pw(pers, st, fe, fuel, &entry.body) {
                 Err(e) => Err(e),
                 Ok(Some(pw)) => {
                     if prop_when::is_never(&pw) {
@@ -490,7 +484,6 @@ pub fn head_proof_pw(
 /// an application from its function, anything else from its head.
 pub fn proof_pw(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -504,20 +497,20 @@ pub fn proof_pw(
         if a.tag() == ETAG_LAM {
             match view_bind(pers, st, a) {
                 None => fail_dangling_e(),
-                Some((_, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+                Some((_, b)) => proof_pw(pers, st, fe, fuel - 1, &b),
             }
         } else if a.tag() == ETAG_LET_E {
             match view_let(pers, st, a) {
                 None => fail_dangling_e(),
-                Some((_, _, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+                Some((_, _, b)) => proof_pw(pers, st, fe, fuel - 1, &b),
             }
         } else if a.tag() == ETAG_APP {
             match view_app(pers, st, a) {
                 None => fail_dangling_e(),
-                Some((f, _)) => proof_pw(pers, vis, st, fe, fuel - 1, &f),
+                Some((f, _)) => proof_pw(pers, st, fe, fuel - 1, &f),
             }
         } else {
-            head_proof_pw(pers, vis, st, fe, fuel - 1, a)
+            head_proof_pw(pers, st, fe, fuel - 1, a)
         }
     }
 }
@@ -528,13 +521,12 @@ pub fn proof_pw(
 /// Refusing the proof-irrelevance shortcut is always sound.
 pub fn not_proof_fast(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(pers, vis, st, fe, fuel, a) {
+    match proof_pw(pers, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => {
             if prop_read::is_prop(&pw) {
@@ -553,13 +545,12 @@ pub fn not_proof_fast(
 /// the squash regime, con-leche's `prf_of_isProofFast`).
 pub fn is_proof_fast(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(pers, vis, st, fe, fuel, a) {
+    match proof_pw(pers, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => Ok(prop_read::is_prop(&pw)),
         Ok(None) => Ok(false),

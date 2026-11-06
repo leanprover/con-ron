@@ -4,7 +4,7 @@
 //! `ConLeche/Kernel/Inductives/BlockRec.lean` over handles: the elimination
 //! guard, official's `elim_only_at_universe_zero` said declaratively.
 
-use super::block_parts::{shape_k, shape_num_ctors, BlockShape};
+use super::block_shape::{shape_k, shape_num_ctors, BlockShape};
 use crate::arena::monad::{read_level_m, AState};
 use crate::arena::store::PersTier;
 use crate::kernel::core_types::CheckError;

@@ -197,7 +197,6 @@ pub fn prepared_front(
 }
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove prepare::prepared_rest_refines, then delete this line
 /// The cited `front ++ rest`'s second half: the stream's records the mask does
 /// not carry, in the stream's order.
 pub fn prepared_rest(
@@ -231,14 +230,18 @@ pub struct Prepared {
 }
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove prepare::prepare_d_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:129-134 prepareD` —
-/// `prepare_prelude`, with its receipts.
-pub fn prepare_d(
+/// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:129-137 prepareD` —
+/// `prepare_prelude`, with its receipts.  `used_of` says what a record
+/// mentions, where the record itself does not say: a theorem's record read
+/// from an `.olean` holds a reference to its value (`olean::lazy`); upstream's
+/// default argument `Declaration.usedConsts` is
+/// [`crate::frontend::nat_op_ground::DeclUsedConsts`].
+pub fn prepare_d<U: crate::frontend::nat_op_ground::UsedConsts>(
     pers: &PersTier,
     st: &mut AState,
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
+    used_of: &U,
 ) -> Result<Prepared, CheckError> {
     let n_in = ds.len();
     let plan = match front_of(pers, &mut st.store, &pre.decls, &ds) {
@@ -250,7 +253,7 @@ pub fn prepare_d(
     // (task #97-P4d), which is why this function takes the whole state and not
     // just the store — the trigger set is the kernel's
     // `natOpNames`/`natDivModNames` and the closure walks the records' terms.
-    let hoisted = match crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, st, all) {
+    let hoisted = match crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, st, used_of, all) {
         Err(e) => return Err(e),
         Ok(h) => h,
     };
@@ -263,7 +266,7 @@ pub fn prepare_d(
 }
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:168-175 preparePrelude
-/// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:136-143 preparePrelude`
+/// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:139-146 preparePrelude`
 /// — the parsed stream, prepared for the fold: the prelude's declarations
 /// first (the stream's own copies where it has them), the rest of the stream
 /// after them, every pinned `Nat` operation's stream-certified ground ahead of
@@ -275,7 +278,7 @@ pub fn prepare_prelude(
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
-    match prepare_d(pers, st, pre, ds) {
+    match prepare_d(pers, st, pre, ds, &crate::frontend::nat_op_ground::DeclUsedConsts) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.decls),
     }
@@ -380,7 +383,7 @@ mod tests {
         };
         let stream = vec![ax(pers, &mut ar, "X"), ax(pers, &mut ar, "Bool"), ax(pers, &mut ar, "Y")];
         let mut st = AState::init(ar);
-        let p = prepare_d(pers, &mut st, pre, stream).ok().unwrap();
+        let p = prepare_d(pers, &mut st, pre, stream, &crate::frontend::nat_op_ground::DeclUsedConsts).ok().unwrap();
         assert_eq!(names_of(pers, &st.store, &p.decls), vec!["Eq", "Bool", "X", "Y"]);
         // one prelude record (`Eq`) was not declared by the stream
         assert_eq!(p.synthesised, 1);
@@ -414,7 +417,7 @@ mod tests {
         let mut ar = EStore::empty();
         let stream = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let mut st = AState::init(ar);
-        let p = prepare_d(pers, &mut st, prelude_ix_empty(), stream).ok().unwrap();
+        let p = prepare_d(pers, &mut st, prelude_ix_empty(), stream, &crate::frontend::nat_op_ground::DeclUsedConsts).ok().unwrap();
         assert_eq!(names_of(pers, &st.store, &p.decls), vec!["A", "B"]);
         assert_eq!(p.synthesised, 0);
     }
@@ -445,7 +448,7 @@ mod tests {
         let ds = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let mut st = AState::init(ar);
         let (out, moved) =
-            crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, &mut st, ds)
+            crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, &mut st, &crate::frontend::nat_op_ground::DeclUsedConsts, ds)
                 .ok()
                 .unwrap();
         assert_eq!(names_of(pers, &st.store, &out), vec!["A", "B"]);

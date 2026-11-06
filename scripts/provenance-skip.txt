@@ -22,7 +22,6 @@
 # Elaboration-time meta code: the Rust core has no elaborator (DESIGN.md §4)
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/BasisGen.lean * The `#stored_basis` elaborator (until task #119 also `#annotate_basis`/`#annotate_pins`) and its `Qq` quotations — meta code that runs while con-leche elaborates; its *results* are carried as generated source (`kernel/basis_tables.rs`, task #22).
 
 # ---------------------------------------------------------------------------
 # Proof-tier and mode-gated variants of bodies the port has once (§3.1)
@@ -35,7 +34,6 @@ ConLeche/Kernel/TypeChecker.lean pureFns The PURE knot at `CheckM`; §3.1 gives 
 # `Prop`s and proof-carrying apparatus: Rust has no `Prop` (§3.5)
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/ExprOps.lean Inst1MemoInv A memo invariant, `Prop`-valued ("every recorded answer is the real one"): the specification the port's memo is proved against, not code.
 ConLeche/Kernel/ExprOps.lean InstLMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean LiftMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean RenameMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
@@ -46,13 +44,7 @@ ConLeche/Kernel/ExprOps.lean Inst1LMemoInv A `Prop`-valued memo invariant, as `I
 ConLeche/Kernel/ExprOps.lean ILPMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/Level.lean LPMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/DeclCheck.lean CRFMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/StructParts.lean LooseBVarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/StructParts.lean MentionsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Cached/Installed.lean InstallRun Phase A's accepting run, an `inductive … : Prop`; the parallel driver's evidence plumbing (`cached/installed.rs`'s module note), whose verdict is `check_pending_list`, which IS ported.
-ConLeche/Cached/Installed.lean InstalledEnv A structure indexed by an `InstallRun` proof; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean GroupChecked "Record `i` has been checked", a `Prop`; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean FullyChecked A subtype over `GroupChecked`; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean FullyChecked.env The `.env` projection of that subtype.
 
 # ---------------------------------------------------------------------------
 # The address-keyed apparatus of `Expr.beq`, superseded by task #30's memo
@@ -173,7 +165,6 @@ ConLeche/Cached/ExprOpsC.lean instantiate1LiftP As `instantiate1P`, for the capt
 ConLeche/Cached/ExprOpsC.lean instantiateListP As `instantiate1P`, for the bulk substitution.
 ConLeche/Cached/ExprOpsC.lean instantiateRevP As `instantiate1P`, on the reversed accumulator array.
 ConLeche/Cached/ExprOpsC.lean abstract1P As `instantiate1P`, for the single abstraction.
-ConLeche/Cached/ExprOpsC.lean abstractRangeP As `instantiate1P`, for the range abstraction.
 ConLeche/Cached/ExprOpsC.lean instLevelParamsP As `instantiate1P`, for level instantiation.
 ConLeche/Cached/ExprOpsC.lean wscopedBP As `instantiate1P`, for the scope guard.
 ConLeche/Cached/ExprOpsC.lean leavesSubP As `instantiate1P`, for the leaf-subset guard.
@@ -211,13 +202,12 @@ ConLeche/Kernel/Inductives/Positivity.lean ReplaceFVarsMemoInv A `Prop`-valued m
 ConLeche/Kernel/Inductives/Positivity.lean ReplaceAppsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/Positivity.lean NestedPositivity The `Prop`-valued specification of nested positivity that `nestPos` decides; no run-time content.
 ConLeche/Kernel/Inductives/Positivity.lean nestedBlockPositivity The specification's block-level reading of `NestedPositivity`; the executed test is `checkBlockPositivity` (`block_install.rs`), which is ported.
-ConLeche/Kernel/Inductives/BlockParts.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller.
-ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose cons is `consBlockRecsT` (`rec_check::cons_block_recs_t`).
+ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose recursors are `blockRecInfosTF`'s (`rec_check::block_rec_infos_tf`), pushed and popped in place.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps The operations record the recursor check is parameterised by; the port has one instance, the cached one (`shadowOpsC`), and calls the core entry points and `flush_caches` directly (`gen_rec.rs`'s module note).
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.ofOps The pure-knot instance of `ShadowOps`; as `ShadowOps`.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.fueled The fueled pure instance of `ShadowOps`; as `ShadowOps`.
 ConLeche/Kernel/Inductives/RecCheck.lean TargetAbsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/RecCheck.lean tgtRs The recursor-list format of the targets for `consBlockRecs`; the port's `cons_block_recs_t` reads the targets directly.
+ConLeche/Kernel/Inductives/RecCheck.lean tgtRs The recursor-list format of the targets for `consBlockRecs`; the port's `block_rec_infos_tf` reads the targets directly.
 ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers The walkers record `classRuleOk` is parameterised by; the port has its one instance (`structWalkersC`: `consts_resolve_f`, `struct_proj_bodies_c`) and calls it directly.
 ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers.plain The pure instance of `StructWalkers`; as `StructWalkers`.
 ConLeche/Kernel/Inductives/SumParts.lean InductiveShape A block member read as one inductive, for the proofs' statement of the recursor's shape; no executed caller.
@@ -258,7 +248,6 @@ ConLeche/Cached/StateC.lean unfoldableHeadC Was the second citation on `kernel/c
 ConLeche/Cached/StateC.lean sameConstHeadsC Was the second citation on `kernel/core_k.rs`'s `same_const_heads` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean rawNatLitC? Was the second citation on `kernel/core_k.rs`'s `raw_nat_lit` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean etaCtorShapeC Was the second citation on `kernel/core_k.rs`'s `eta_ctor_shape` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
-ConLeche/Kernel/Core.lean whnfCoreLoopFuel Was `kernel/core_k.rs`'s `whnf_core_loop_fuel`, a fuel constant for the retired Expr-tree checker's loop (deleted, task #105 sweep): the arena's own loop fuel is `arena::core::WHNF_CORE_LOOP_FUEL`.
 ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
@@ -290,7 +279,6 @@ ConLeche/Kernel/Level.lean isNonZero Ported, but used only by its own unit test 
 ConLeche/Kernel/Level.lean Expr.instantiateLevelParams Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/PropWhen.lean holds Ported as `kernel::prop_when::holds`, used only as the tests' oracle for the `PropWhen` laws; now a private helper in that test module (tests are not provenance-scanned), task #105.
 ConLeche/Kernel/PropWhen.lean paramsDefined Read only by the binder datum's level-parameter guard (`allLevelParamsDefined`'s binder arm) until con-leche's task #342 removed the datum; it survives upstream for the proofs, and the Rust port had no other caller, so `kernel::prop_when::params_defined` was deleted with the datum (task #119).
-ConLeche/Cached/Installed.lean checkPendingList Was `arena::checker::check_pending_list`, whose only user was `crates/con-ron/src/pool.rs`'s test that the pool equals the one-worker walk; now that test's private helper (tests are not provenance-scanned), task #105 — the driver runs the pool over the verified `check_pending`.
 ConLeche/Kernel/ExprOps.lean sizeB Ported only as a benchmark row (`examples/bench.rs`) and a tree-oracle comparison; deleted with them, task #105.
 ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the pure walk the memoized `fvar_leaves_fast`/`leaf_guard`/`fab_scope_ok` are tested against; now a private helper of that test module (tests are not provenance-scanned), task #105.
 
@@ -303,18 +291,10 @@ ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the 
 # is how often a Lean array is copied, never a verdict.
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/FEnv.lean baseShard The base layer's shard choice; as `FBase`.
-ConLeche/Kernel/FEnv.lean baseGet? The base layer's sharded lookup; as `FBase`.
 ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
-ConLeche/Kernel/FEnv.lean markLinear The identity that sets the Lean runtime's linearity bit on the index (task #331); the port's index is a Rust value with no reference count.
-ConLeche/Kernel/FEnv.lean ProjTable.lastOf? The base layer's read of a record slot's tables, for `FBase.findTable?`; as `FBase`.
 ConLeche/Kernel/FEnv.lean pushTables The parallel commit's install of a record's tables (`FEnv.pushDelta`, task #362); the port has no parallel install, and its block install installs one table at a time (`env::ifenv_push_table`), as con-leche's `checkBlockTablesF` does.
-ConLeche/Kernel/Inductives/BlockInstallF.lean FEnv.pushDelta A parallel-install record's whole effect for the commit (task #362); as `pushTables`.
 ConLeche/Kernel/Inductives/GenRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
 ConLeche/Kernel/Inductives/GenRec.lean classFeROvl The cached driver's `ShadowOps.ruleEnv`, `classFeR` as an overlay (task #332); the pure install's `classFeR` is what the port computes, with its own push and pop (`gen_rec_generate`).
-ConLeche/Cached/ParsedC.lean checkDefnValCI The unpushed half of `checkDefnValC` (task #331), so that the pinned arms certify against an overlay before the push; the port's pinned arms read the pushed index, the same `find?` (`check_decl`).
-ConLeche/Cached/ParsedC.lean checkOpaqueValCI The unpushed half of `checkOpaqueValC`; as `checkDefnValCI`.
-ConLeche/Cached/InstallSkel.lean * The parallel install's predicted-slot skeletons (task #329 PINSTALL); the port installs serially.
 
 # ---------------------------------------------------------------------------
 # Task #139, con-leche sync to 7cb7a45c
@@ -349,3 +329,15 @@ ConLeche/Frontend/Olean/Spec.lean constSpec `noncomputable` specification, as `l
 ConLeche/Frontend/Olean/Spec.lean decodeAt `noncomputable` specification, as `levelAt`.
 ConLeche/Frontend/Olean/Spec.lean stmtP `noncomputable` specification, as `levelAt`.
 ConLeche/Frontend/Olean/View.lean decodeModuleSpec `noncomputable` specification, THE definition of a valid view: not executable, so not ported; Theorem 1 cites it.
+ConLeche/Kernel/CoreDefs.lean LooseBVarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s (moved here from StructParts.lean).
+ConLeche/Kernel/Inductives/BlockShape.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller (task #143: the file was `BlockParts.lean`).
+ConLeche/Frontend/CheckerIO.lean WorkerReach Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
+ConLeche/Frontend/CheckerIO.lean workerElem Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
+ConLeche/Frontend/CheckerIO.lean workerMap Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
+ConLeche/Kernel/FEnv.lean mkIdxGo The Rust builds no environment from a constant list: every job's environment is an empty layer over the stream's index (`arena::stream_index`); the twin ports it (`Arena/Env.lean`), for the spec fold.
+ConLeche/Kernel/FEnv.lean mkTblsGo As `mkIdxGo`.
+ConLeche/Kernel/FEnv.lean mkFEnv As `mkIdxGo`.
+ConLeche/Kernel/CoreDefs.lean strLitSupported Read only by `denote` and the proofs since #480's literal guards; the executed core reads `strLitStored`.
+ConLeche/Cached/Decls.lean declStep The spec fold's step: the binary runs every record's job at the stream index's view (`stream_index::record_job`), and the fold is the twin's statement shape (`Arena/CheckDecl.lean`).
+ConLeche/Cached/Decls.lean DeclsRun Proof-only: an accepting run of the spec fold.
+ConLeche/Cached/Decls.lean checkDecls As `declStep`.

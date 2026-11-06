@@ -24,7 +24,6 @@ use crate::arena::env::{IConstantInfo, IConstantVal};
 use crate::arena::handle::NIdx;
 use crate::arena::intern::{intern_ci, intern_cv};
 use crate::arena::monad::AState;
-use crate::kernel::basis_pins;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::std_axioms as cstd;
 use crate::ron::hashmap::Eq2;
@@ -121,7 +120,6 @@ pub fn iff_intro_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, Ch
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::iff_rec_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:74-75 iffRecA`.
 pub fn iff_rec_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_rec_a())
@@ -146,7 +144,6 @@ pub fn nonempty_intro_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInf
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::nonempty_rec_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:82-83 nonemptyRecA`.
 pub fn nonempty_rec_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_rec_a())
@@ -156,21 +153,4 @@ pub fn nonempty_rec_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo,
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:84-85 choiceA`.
 pub fn choice_a(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::choice_a())
-}
-
-/// con-leche: ConLeche/Kernel/BasisA.lean:30-46 _
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::eq_a_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:87-91 eqA` — the stored `Eq`
-/// pin, interned.  It is the comparand of every "requires the pinned `Eq`
-/// basis" test in the checker, compared by whole-constant equality.
-pub fn eq_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(pers, st, &basis_pins::eq_a())
-}
-
-/// con-leche: ConLeche/Kernel/BasisA.lean:30-46 _
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::nat_a_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:93-95 natA` — the stored
-/// `Nat` pin, interned.
-pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(pers, st, &basis_pins::nat_a())
 }

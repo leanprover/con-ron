@@ -13,6 +13,8 @@
 //! | `view` | `Arena/Frontend/Olean/View.lean` | `Olean/View.lean` |
 //! | `module` | `Arena/Frontend/Olean/Module.lean` | `Olean/Module.lean` |
 //! | `files` | `Arena/Frontend/Olean/Files.lean` | `Olean/Files.lean` |
+//! | `lazy` | none yet | `Olean/Lazy.lean` (task #481) |
+//! | `progress` | none yet | `Olean/Progress.lean`, the pure part (task #484) |
 //! | `closure` | `Arena/Frontend/Olean/Closure.lean` | `Olean/Closure.lean` |
 //! | `merge` | `Arena/Frontend/Olean/Merge.lean` | `Olean/Merge.lean` |
 //! | `emit` | `Arena/Frontend/Olean/Emit.lean` | `Olean/Emit.lean` |
@@ -32,6 +34,8 @@ pub mod reads;
 pub mod view;
 pub mod module;
 pub mod files;
+pub mod lazy;
+pub mod progress;
 pub mod closure;
 pub mod merge;
 pub mod emit;

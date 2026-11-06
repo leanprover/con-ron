@@ -14,8 +14,9 @@
 //! Since con-leche's task #342 a binder carries no datum, so the pins are
 //! hand-written through the builder (`basis_builder`) and compared with
 //! `ConstantVal.matchesPin`, which is plain equality of name, level
-//! parameters and type.  The two pins compared by exact `ConstantInfo`
-//! equality — `eqA` and `natA` — are `kernel::basis_pins`' stubs.
+//! parameters and type.  The pinned `Eq` is read by presence alone
+//! (`(find? eqName).isSome`): the environment holds it at the stream's
+//! level-parameter names.
 
 use crate::kernel::basis_builder;
 use crate::kernel::basis_names;
@@ -167,7 +168,6 @@ pub fn iff_rec_intro() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::iff_rec_a_refines, then delete this line
 /// `Iff.rec.{u} (a b : Prop) (motive : Iff a b → Sort u)`
 /// `(intro : ∀ mp mpr, motive (Iff.intro a b mp mpr)) (t : Iff a b) :`
 /// `motive t`.
@@ -208,6 +208,7 @@ pub fn iff_rec_a() -> ConstantInfo {
         },
         4,
         4,
+        false,
         Vec::new(),
     )
 }
@@ -294,7 +295,6 @@ pub fn nonempty_intro_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::nonempty_rec_a_refines, then delete this line
 /// `Nonempty.rec.{u} (α : Sort u) (motive : Nonempty α → Prop)`
 /// `(intro : ∀ val, motive (Nonempty.intro α val)) (t : Nonempty α) :`
 /// `motive t`.  The motive sort is pinned to `Prop` (the cited guidance: a
@@ -347,6 +347,7 @@ pub fn nonempty_rec_a() -> ConstantInfo {
         },
         3,
         3,
+        false,
         Vec::new(),
     )
 }

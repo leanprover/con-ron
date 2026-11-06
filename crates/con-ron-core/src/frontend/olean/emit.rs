@@ -20,7 +20,8 @@
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::closure;
-use crate::frontend::olean::closure::CEntry;
+use crate::frontend::olean::lazy;
+use crate::frontend::olean::lazy::CEntry;
 use crate::frontend::olean::merge;
 use crate::frontend::olean::merge::Merged;
 use crate::frontend::olean::module;
@@ -458,7 +459,7 @@ pub fn visit_named(pk: &OleanPins, mg: &Merged, rec_map: &HashMap2<NIdx, Vec<NId
         match merge::mg_get(mg, n) {
             None => sp,
             Some(c) => {
-                if closure::c_entry_skipped(c) {
+                if lazy::c_entry_skipped(c) {
                     sp
                 } else {
                     visit_step(pk, mg, rec_map, stack, sp, st, n, c)
@@ -589,7 +590,7 @@ pub fn block_member_ok(pers: &PersTier, ar: &EStore, mg: &Merged, n: &NIdx, all:
         Some(m) => match &m.c.kind {
             CKindF::Induct(_, _, all2, _, _, _, _, _) => {
                 if module::nidx_list_eq(all2, all) {
-                    if closure::c_entry_skipped(m) == sk {
+                    if lazy::c_entry_skipped(m) == sk {
                         Ok(())
                     } else {
                         Err(block_bad(pers, ar, n, text::cat(pre, &{ const M: [u32; 40] = [32, 105, 115, 32, 115, 97, 102, 101, 32, 111, 114, 32, 117, 110, 115, 97, 102, 101, 32, 119, 104, 101, 114, 101, 32, 116, 104, 101, 32, 116, 121, 112, 101, 32, 105, 115, 32, 110, 111, 116]; crate::kernel::core_types::code_points(&M) })))
@@ -612,7 +613,7 @@ pub fn block_ctor_ok(pers: &PersTier, ar: &EStore, mg: &Merged, n: &NIdx, sk: bo
         Some(m) => match &m.c.kind {
             CKindF::Ctor(ind, _, _, _, _) => {
                 if ind.eq2(n) {
-                    if closure::c_entry_skipped(m) == sk {
+                    if lazy::c_entry_skipped(m) == sk {
                         Ok(())
                     } else {
                         Err(block_bad(pers, ar, n, text::cat(pre, &{ const M: [u32; 40] = [32, 105, 115, 32, 115, 97, 102, 101, 32, 111, 114, 32, 117, 110, 115, 97, 102, 101, 32, 119, 104, 101, 114, 101, 32, 116, 104, 101, 32, 116, 121, 112, 101, 32, 105, 115, 32, 110, 111, 116]; crate::kernel::core_types::code_points(&M) })))
@@ -701,7 +702,7 @@ pub fn block_step_recur(pers: &PersTier, ar: &EStore, mg: &Merged, n: &NIdx, all
         Some(m) => match &m.c.kind {
             CKindF::Induct(_, _, all2, _, _, _, _, _) => {
                 if module::nidx_list_eq(all2, all) {
-                    if closure::c_entry_skipped(m) == sk {
+                    if lazy::c_entry_skipped(m) == sk {
                         Ok(())
                     } else {
                         let x = text::cat({ const M: [u32; 37] = [116, 104, 101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 105, 115, 32, 115, 97, 102, 101, 32, 111, 114, 32, 117, 110, 115, 97, 102, 101, 32, 119, 104, 101, 114, 101, 32]; crate::kernel::core_types::code_points(&M) }, &tt);
@@ -749,9 +750,9 @@ pub fn block_step(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, n: 
     match merge::mg_get(mg, n) {
         None => Ok(()),
         Some(c) => match &c.c.kind {
-            CKindF::Induct(_, _, all, cs, _, _, _, _) => block_step_induct(pers, ar, mg, n, all, cs, closure::c_entry_skipped(c)),
+            CKindF::Induct(_, _, all, cs, _, _, _, _) => block_step_induct(pers, ar, mg, n, all, cs, lazy::c_entry_skipped(c)),
             CKindF::Ctor(ind, _, _, _, _) => block_step_ctor(pers, ar, mg, n, ind),
-            CKindF::Recur(all, _, _, _, _, _, _, _) => block_step_recur(pers, ar, mg, n, all, closure::c_entry_skipped(c)),
+            CKindF::Recur(all, _, _, _, _, _, _, _) => block_step_recur(pers, ar, mg, n, all, lazy::c_entry_skipped(c)),
             CKindF::Quot(_) => {
                 if n.eq2(&pk.n_quot) || n.eq2(&pk.n_quot_mk) || n.eq2(&pk.n_quot_lift) || n.eq2(&pk.n_quot_ind) {
                     if quot_all_quot(pk, mg) {

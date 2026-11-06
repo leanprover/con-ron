@@ -674,7 +674,7 @@ where
     /// before the hole, and repeats from the slot that entry vacated.  The
     /// alternative — a tombstone — needs a third slot state, and every probe
     /// then pays for deletions that happened long ago; the checker's one
-    /// `remove` caller (`arena::promote::erase_installed`) does not justify
+    /// `remove` caller does not justify
     /// that.
     pub fn remove(&mut self, key: &K) -> Option<V> {
         let n = self.slots.len();

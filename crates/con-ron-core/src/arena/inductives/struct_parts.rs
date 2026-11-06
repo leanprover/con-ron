@@ -13,15 +13,15 @@
 //! `view`; every term built is interned; `lps.map .param` is one interned
 //! `LsIdx`; the fields' sorts are a `Vec<LIdx>` and not an `LsIdx`).  The
 //! fifth — *the pure walk, the cutoff walk and the memoized walk are ONE
-//! twin* — is why `has_loose_bvar_b_go` and `mentions_const_go` each cite
-//! three or four con-leche declarations.
+//! twin* — is why `mentions_const_go` cites several con-leche declarations.
+//! (The `hasLooseBVarB` walk and `structUsedLater` moved upstream to
+//! `Kernel/CoreDefs.lean`; their port is in `arena::core`.)
 //!
 //! ## The memos are ARGUMENTS, threaded by value
 //!
-//! con-leche threads a `Std.HashMap Expr Bool` through `hasLooseBVarBGo` and
-//! `mentionsConstGo` rather than putting it in a state, because the answer
-//! depends on data that is fixed for one call (`T`, and for `hasLooseBVarB`
-//! the index, which is in the key).  The twin does the same at handle keys —
+//! con-leche threads a `Std.HashMap Expr Bool` through `mentionsConstGo`
+//! rather than putting it in a state, because the answer depends on data that
+//! is fixed for one call (`T`).  The twin does the same at handle keys —
 //! **nothing is added to `AState`** — and this port threads the table *by
 //! value*, moved in and returned, which is the twin's `AM (Bool × Std.HashMap
 //! …)` term for term.  `con_ron_core::kernel::inductives::struct_parts` hands
@@ -35,14 +35,13 @@
 //!   an `_from` companion (DESIGN.md §3.4, task #97-P4b's row);
 //! * a `HashMap::get` match that produces a value is its own function and is
 //!   never inlined — task #97-P4c's **extraction rule 5**.  That is what
-//!   `hlb_probe` and `mc_probe` are.
+//!   `mc_probe` is.
 
-use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_FORALL_E};
 use crate::arena::monad::{
-    AState, EIdxNat, eidx_nat_key, fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_proj, intern_l_node, intern_ls_node, view, view_bind,
+    AState, fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_proj, intern_l_node, intern_ls_node, view, view_bind,
 };
 use crate::arena::store::{ENodeView, LNodeView};
 use crate::kernel::core_types::{code_points, CheckError};
@@ -59,13 +58,6 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: hasLooseBVarB"`, as code points.
-pub const M_FUEL_HLB: [u32; 29] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 104, 97, 115, 76,
-    111, 111, 115, 101, 66, 86, 97, 114, 66,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: mentionsConst"`, as code points.
 pub const M_FUEL_MENTIONS: [u32; 29] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 109, 101, 110, 116,
@@ -77,7 +69,7 @@ pub const M_FUEL_MENTIONS: [u32; 29] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — `lps.map .param`, interned: the universe arguments a block's own constants carry
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:58-69 paramLevels`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:47-58 paramLevels`
 /// — con-leche writes the list inline at every use; over handles a level list
 /// is a node, so it is built once by a function of its own.
 pub fn param_levels(
@@ -92,7 +84,7 @@ pub fn param_levels(
 }
 
 /// con-leche: none — `lps.map .param`, interned
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:58-69 paramLevels.go`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:47-58 paramLevels.go`
 /// — the cursor recursion behind `param_levels`.
 pub fn param_levels_go(
     pers: &PersTier,
@@ -120,7 +112,7 @@ pub fn param_levels_go(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:38-41 structPsAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:73-83 structPsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:62-72 structPsAt`
 /// — the parameter variables as seen from under `o` extra binders:
 /// `p_k = bvar (o + nP - 1 - k)`, `structFam`'s argument spine.
 pub fn struct_ps_at(
@@ -133,7 +125,7 @@ pub fn struct_ps_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:38-41 structPsAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:83 structPsAt.go`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:72 structPsAt.go`
 /// — the cursor recursion behind `struct_ps_at`.
 pub fn struct_ps_at_from(
     pers: &PersTier,
@@ -158,7 +150,7 @@ pub fn struct_ps_at_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:43-46 structElimLevel
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:85-89 structElimLevel`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:74-78 structElimLevel`
 /// — the recursor's elimination level: the fresh parameter at the large
 /// eliminator, `zero` at the small one.
 pub fn struct_elim_level(
@@ -179,7 +171,7 @@ pub fn struct_elim_level(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:67-73 structCtorResidOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:93-104 structCtorResidOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:82-93 structCtorResidOk`
 /// — a constructor residual's shape at an indexed family: the family at exactly
 /// the parameter variables (`o` binders below the parameter frame) followed by
 /// `nIdx` index expressions.
@@ -222,7 +214,7 @@ pub fn struct_ctor_resid_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:75-81 structProjPs
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:108-111 structProjPs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:97-100 structProjPs`
 /// — the parameter spine of the generated projection types, spelled at the
 /// frame of the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`.
 pub fn struct_proj_ps(pers: &PersTier, st: &mut AState, n_p: u64) -> Result<Vec<EIdx>, CheckError> {
@@ -230,7 +222,7 @@ pub fn struct_proj_ps(pers: &PersTier, st: &mut AState, n_p: u64) -> Result<Vec<
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:83-89 structProjArgP
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:113-118 structProjArgP`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:102-107 structProjArgP`
 /// — the `j`-th earlier-field substitute in a tower entry's generated type: the
 /// first-class node `t.j` (`.proj T j` of the subject).
 pub fn struct_proj_arg_p(
@@ -245,326 +237,8 @@ pub fn struct_proj_arg_p(
     }
 }
 
-// ---------------------------------------------------------------------------
-// `hasLooseBVar` — one twin for the pure walk, the cutoff and the memo
-// (`StructParts.lean:337-397` of the twin)
-// ---------------------------------------------------------------------------
-
-/// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:129-175 hasLooseBVarBGo`
-/// — the `memo[(h, i)]?` probe of the `hasLooseBVarB` walk.  Inline, Aeneas
-/// reports *"Could not match the contexts"* on the joined arms.
-pub fn hlb_probe(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
-    match memo.get(k) {
-        Some(r) => Some(*r),
-        None => None,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:870-875 Expr.hasLooseBVarBIns
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:122-127 hasLooseBVarBIns`
-/// — record one answer for `(e, i)` in the memo the walk hands back.
-pub fn has_loose_bvar_b_ins(
-    e: &EIdx,
-    i: u64,
-    r: (bool, HashMap<EIdxNat, bool>),
-) -> (bool, HashMap<EIdxNat, bool>) {
-    let mut memo: HashMap<EIdxNat, bool> = r.1;
-    memo.insert(eidx_nat_key(e, i), r.0);
-    (r.0, memo)
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:792-805 Expr.hasLooseBVar
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:807-825 Expr.hasLooseBVarB
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:877-913 Expr.hasLooseBVarBGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:129-175 hasLooseBVarBGo`
-/// — does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
-/// (`bvarB ≤ i`) and its per-call memo, both kept: the cutoff stops the walk
-/// where the variable CANNOT occur, the memo shares a shared node's answer
-/// across the paths that reach it.  The memo is keyed by the node AND the
-/// index, because the index shifts under binders.
-pub fn has_loose_bvar_b_go(
-    pers: &PersTier,
-    st: &mut AState,
-    memo: HashMap<EIdxNat, bool>,
-    i: u64,
-    fuel: u64,
-    h: &EIdx,
-) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_HLB)))
-    } else {
-        match expr_ops::bvar_b(pers, st, fuel - 1, h) {
-            Err(e) => Err(e),
-            Ok(bb) => {
-                if bb <= i {
-                    Ok((false, memo))
-                } else {
-                    match view(pers, st, h) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::BVar(j)) => Ok((i == j, memo)),
-                        Ok(ENodeView::FVar(_, _)) => Ok((false, memo)),
-                        Ok(ENodeView::Sort(_)) => Ok((false, memo)),
-                        Ok(ENodeView::Const(_, _)) => Ok((false, memo)),
-                        Ok(ENodeView::Lit(_)) => Ok((false, memo)),
-                        Ok(v) => {
-                            let k: EIdxNat = eidx_nat_key(h, i);
-                            match hlb_probe(&memo, &k) {
-                                Some(r) => Ok((r, memo)),
-                                None => match has_loose_bvar_b_node(pers, st, memo, i, fuel - 1, v) {
-                                    Err(e) => Err(e),
-                                    Ok(r) => Ok(has_loose_bvar_b_ins(h, i, r)),
-                                },
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:877-913 Expr.hasLooseBVarBGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:129-175 hasLooseBVarBGo`
-/// — the walk's compound arms, split off so that the `view`'s loans are dead
-/// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
-pub fn has_loose_bvar_b_node(
-    pers: &PersTier,
-    st: &mut AState,
-    memo: HashMap<EIdxNat, bool>,
-    i: u64,
-    fuel: u64,
-    v: ENodeView,
-) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
-    match v {
-        ENodeView::App(f, a) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &f) {
-            Err(e) => Err(e),
-            Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i, fuel, &a),
-        },
-        ENodeView::Lam(ty, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
-            Err(e) => Err(e),
-            Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
-        },
-        ENodeView::ForallE(ty, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
-            Err(e) => Err(e),
-            Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
-        },
-        ENodeView::LetE(t, val, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &t) {
-            Err(e) => Err(e),
-            Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => match has_loose_bvar_b_go(pers, st, m, i, fuel, &val) {
-                Err(e) => Err(e),
-                Ok((true, m2)) => Ok((true, m2)),
-                Ok((false, m2)) => has_loose_bvar_b_go(pers, st, m2, i + 1, fuel, &b),
-            },
-        },
-        ENodeView::Proj(_, _, sub) => has_loose_bvar_b_go(pers, st, memo, i, fuel, &sub),
-        _ => Ok((false, memo)),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1059-1061 Expr.hasLooseBVarBFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:177-180 hasLooseBVarBFast`
-/// — the executed `hasLooseBVarB` (one memoized DAG walk).
-pub fn has_loose_bvar_b_fast(
-    pers: &PersTier,
-    st: &mut AState,
-    i: u64,
-    e: &EIdx,
-) -> Result<bool, CheckError>  {
-    match has_loose_bvar_b_go(pers, st, HashMap::new(), i, CORE_WALK_FUEL, e) {
-        Err(er) => Err(er),
-        Ok(r) => Ok(r.0),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// `structUsedLater` and the guard table (`StructParts.lean:399-451`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1068-1076 structUsedLater
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:182-188 structUsedLater`
-/// — **field `j` is used by a later field**, the official `infer_proj`'s
-/// `has_loose_bvars(binding_body(r))` at step `j`.
-pub fn struct_used_later(
-    pers: &PersTier,
-    st: &mut AState,
-    cty: &EIdx,
-    n_p: u64,
-    j: u64,
-) -> Result<bool, CheckError> {
-    match expr_ops::strip_pis(pers, st, n_p + j + 1, cty) {
-        Err(e) => Err(e),
-        Ok(Some(q)) => has_loose_bvar_b_fast(pers, st, 0, &q.1),
-        Ok(None) => Ok(false),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:415-420 structUsedLaterGo
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_used_later_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:190-196 structUsedLaterGo`
-/// — memoized `structUsedLater`, taking and returning the shared memo.
-pub fn struct_used_later_go(
-    pers: &PersTier,
-    st: &mut AState,
-    memo: HashMap<EIdxNat, bool>,
-    cty: &EIdx,
-    n_p: u64,
-    j: u64,
-) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
-    match expr_ops::strip_pis(pers, st, n_p + j + 1, cty) {
-        Err(e) => Err(e),
-        Ok(Some(q)) => has_loose_bvar_b_go(pers, st, memo, 0, CORE_WALK_FUEL, &q.1),
-        Ok(None) => Ok((false, memo)),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:431-438 structUsedLaterList
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_used_later_list_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:198-207 structUsedLaterList`
-/// — `structUsedLater cty nP j` for `j = base, …, base + n - 1`, in order,
-/// through one shared memo.  Lean conses on the way out; the port pushes on the
-/// way in, which is the same list at the same order of effects.
-pub fn struct_used_later_list(
-    pers: &PersTier,
-    st: &mut AState,
-    memo: HashMap<EIdxNat, bool>,
-    cty: &EIdx,
-    n_p: u64,
-    n: u64,
-    base: u64,
-    out: Vec<bool>,
-) -> Result<Vec<bool>, CheckError> {
-    if n == 0 {
-        Ok(out)
-    } else {
-        match struct_used_later_go(pers, st, memo, cty, n_p, base) {
-            Err(e) => Err(e),
-            Ok((r, m)) => {
-                let mut o: Vec<bool> = out;
-                o.push(r);
-                struct_used_later_list(pers, st, m, cty, n_p, n - 1, base + 1, o)
-            }
-        }
-    }
-}
-
-/// con-leche: none — `used.getD j false` over a `Vec<bool>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:209-234 structProjGuards`
-/// — the out-of-range fallback the guard fold spells at every read.
-pub fn used_get_d(used: &Vec<bool>, j: u64) -> bool {
-    if j < used.len() as u64 {
-        used[j as usize]
-    } else {
-        false
-    }
-}
-
-/// con-leche: none — `sorts.getD j z` over a `Vec<LIdx>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:209-234 structProjGuards`
-/// — the out-of-range fallback (`zeroLevel`) the guard fold spells at every
-/// read.
-pub fn sort_get_d(sorts: &Vec<LIdx>, j: u64, z: &LIdx) -> LIdx {
-    if j < sorts.len() as u64 {
-        sorts[j as usize].dup2()
-    } else {
-        z.dup2()
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_col_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_col_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:226 structProjGuards.col`
-/// — the inner fold: field `i`'s own sort joined with the sorts of the earlier
-/// fields that a later field uses.
-pub fn struct_proj_guards_col(
-    pers: &PersTier,
-    st: &mut AState,
-    used: &Vec<bool>,
-    sorts: &Vec<LIdx>,
-    z: &LIdx,
-    j: u64,
-    k: u64,
-    acc: LIdx,
-) -> Result<LIdx, CheckError> {
-    if k == 0 {
-        Ok(acc)
-    } else if used_get_d(used, j) {
-        let s: LIdx = sort_get_d(sorts, j, z);
-        match intern_l_node(pers, st, LNodeView::Max(acc, s)) {
-            Err(e) => Err(e),
-            Ok(m) => struct_proj_guards_col(pers, st, used, sorts, z, j + 1, k - 1, m),
-        }
-    } else {
-        struct_proj_guards_col(pers, st, used, sorts, z, j + 1, k - 1, acc)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_row_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_row_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:234 structProjGuards.row`
-/// — the outer fold, one guard level per field.  Lean conses on the way out;
-/// the port pushes on the way in, at the same order of effects.
-pub fn struct_proj_guards_row(
-    pers: &PersTier,
-    st: &mut AState,
-    used: &Vec<bool>,
-    sorts: &Vec<LIdx>,
-    z: &LIdx,
-    i: u64,
-    k: u64,
-    out: Vec<LIdx>,
-) -> Result<Vec<LIdx>, CheckError> {
-    if k == 0 {
-        Ok(out)
-    } else {
-        let a: LIdx = sort_get_d(sorts, i, z);
-        match struct_proj_guards_col(pers, st, used, sorts, z, 0, i, a) {
-            Err(e) => Err(e),
-            Ok(g) => {
-                let mut o: Vec<LIdx> = out;
-                o.push(g);
-                struct_proj_guards_row(pers, st, used, sorts, z, i + 1, k - 1, o)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
-/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_parts::struct_proj_guards_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:209-234 structProjGuards`
-/// — **the projection guard levels**.  con-leche's two forms are one twin: the
-/// `nF` `structUsedLater` answers are computed first through one shared memo
-/// (its task #236 arrangement), then the fold runs over the recorded answers.
-/// `sorts` and the result are a `Vec<LIdx>` — the twin's module note says why.
-pub fn struct_proj_guards(
-    pers: &PersTier,
-    st: &mut AState,
-    cty: &EIdx,
-    n_p: u64,
-    n_f: u64,
-    sorts: &Vec<LIdx>,
-) -> Result<Vec<LIdx>, CheckError> {
-    match core::zero_level(st) {
-        Err(e) => Err(e),
-        Ok(z) => match struct_used_later_list(pers, st, HashMap::new(), cty, n_p, n_f, 0, Vec::new()) {
-            Err(e) => Err(e),
-            Ok(used) => struct_proj_guards_row(pers, st, &used, sorts, &z, 0, n_f, Vec::new()),
-        },
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:99-117 structProjBodiesGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:236-252 structProjBodiesGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:109-125 structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
 /// constructor telescope: field `i`'s domain is body `i`, and the field is
 /// replaced by the subject's projection `.proj T i (bvar 0)` before the walk
@@ -603,7 +277,7 @@ pub fn struct_proj_bodies_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-122 structProjBodies
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:254-263 structProjBodies`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:127-136 structProjBodies`
 /// — the block's projection bodies, as the table stores them.
 pub fn struct_proj_bodies(
     pers: &PersTier,
@@ -629,7 +303,7 @@ pub fn struct_proj_bodies(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:267-308 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — the `memo[h]?` probe of the `mentionsConst` walk.
 pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     match memo.get(k) {
@@ -640,7 +314,7 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:124-133 Expr.mentionsConst
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:267-308 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), with con-leche's
 /// per-call memo keyed by the node — `T` is fixed for the whole walk.
@@ -677,7 +351,7 @@ pub fn mentions_const_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:267-308 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
 pub fn mentions_const_node(
@@ -730,7 +404,7 @@ pub fn mentions_const_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:273-275 Expr.mentionsConstFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:310-313 mentionsConst`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:183-186 mentionsConst`
 /// — the executed `mentionsConst` (one memoized DAG walk).
 pub fn mentions_const(
     pers: &PersTier,

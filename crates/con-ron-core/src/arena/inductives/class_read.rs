@@ -17,10 +17,9 @@
 //! * **A pure reading computed twice is computed once**
 //!   (`classReadMinor`'s `fvarTypeD.piResult` per field).
 
-use super::block_parts::{BlockShape, RecShape};
+use super::block_shape::{BlockShape, RecShape};
 use super::field_tele::pi_binders;
 use super::gen_rec::class_n_pc_of;
-use crate::arena::checker_base;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
 use crate::arena::env::IFEnv;
@@ -299,7 +298,7 @@ pub fn class_read_minor(
 ) -> Result<Option<ClassSlot>, CheckError> {
     match pi_binders(pers, st, CORE_WALK_FUEL, dom, Vec::new()) {
         Err(e) => Err(e),
-        Ok((bs, _)) => match checker_base::open_pis_at_fvars_f(pers, st, bs.len() as u64, dom, d) {
+        Ok((bs, _)) => match crate::arena::core::open_pis_at_fvars_f(pers, st, bs.len() as u64, dom, d) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some((fvs, concl))) => match fvar_head(pers, st, &concl) {
@@ -471,7 +470,7 @@ pub fn class_read_rec_cls(
         Ok(Some(out))
     } else {
         let ty: EIdx = recs[i].cv_r.ty.dup2();
-        match checker_base::open_pis_at_fvars_f(pers, st, recs[i].m_i + 1, &ty, 0) {
+        match crate::arena::core::open_pis_at_fvars_f(pers, st, recs[i].m_i + 1, &ty, 0) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some((_, concl))) => match fvar_head(pers, st, &concl) {
@@ -508,7 +507,7 @@ pub fn class_read(
     } else {
         let ty: EIdx = recs[0].cv_r.ty.dup2();
         let r_p: u64 = recs[0].r_p;
-        match checker_base::open_pis_at_fvars_f(pers, st, n_p, &ty, 0) {
+        match crate::arena::core::open_pis_at_fvars_f(pers, st, n_p, &ty, 0) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some((_, body))) => {

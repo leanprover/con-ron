@@ -4,7 +4,7 @@
 //! inductive block — structure, sum, mutual, nested, indexed — is installed by
 //! one installer, `block_tail::check_block`, which `arena::check_decl`'s
 //! `.indDecl` arm (`check_ind_decl`, con-leche `Kernel/CheckDecl.lean`) reaches
-//! after the basis-pin test, the parameter count and `block_parts`' recogniser.
+//! after the basis-pin test, the parameter count and `block_shape`'s recogniser.
 //! One Rust module per con-leche file under `ConLeche/Kernel/Inductives/`:
 //!
 //! | Rust | con-leche |
@@ -16,12 +16,11 @@
 //! | `class_read` | `Inductives/ClassRead.lean` |
 //! | `gen_rec` | `Inductives/GenRec.lean` |
 //! | `block_install` | `Inductives/BlockInstall.lean`, `BlockInstallF.lean` |
-//! | `block_parts` | `Inductives/BlockParts.lean` |
+//! | `block_shape` | `Inductives/BlockShape.lean` |
 //! | `block_tail` | `Inductives/BlockTail.lean` |
 //! | `struct_parts` | `Inductives/StructParts.lean` |
 //! | `struct_install` | `Inductives/StructInstall.lean`, `StructInstallF.lean` |
 //! | `sum_install` | `Inductives/SumInstall.lean`, `SumInstallF.lean` |
-//! | `stored_install` | `ConLeche/Cached/StoredInstall.lean` |
 //!
 //! **`StructInstallF.lean`/`SumInstallF.lean`'s `F`-suffixed names had no
 //! caller** (task #105 sweep): the arena has ONE environment type (task
@@ -33,9 +32,11 @@
 //! function (e.g. `checkStructDomsAtF` on `check_struct_doms_at`), so
 //! `scripts/provenance.py coverage` needed no new skip-list entry.
 //!
-//! What is NOT here is the **pinned basis block** (`basisPinHit`): a stream's
+//! What is NOT here is the **pinned basis block** (`basisNameHit`): a stream's
 //! `Nat` block arrives as an ordinary `indDecl` and is recognised first, in
-//! `check_ind_decl`, because its install is `checkBasisDecl`'s.  The modelled
+//! `check_ind_decl`, because its check is `checkBasisBlock`'s and its
+//! constants are `BasisKind.atBlock`'s (`arena::install::decl_constants`).
+//! What a block installs is read off it in `arena::install`.  The modelled
 //! route (`native_parts`, `native_install`, `modeled`, the `_model` families)
 //! and the gated tiers are gone with upstream's.
 
@@ -45,10 +46,9 @@ pub mod block_rec;
 pub mod rec_check;
 pub mod class_read;
 pub mod gen_rec;
-pub mod stored_install;
-pub mod stored_recs;
+pub mod stream_recs;
 pub mod block_install;
-pub mod block_parts;
+pub mod block_shape;
 pub mod block_tail;
 pub mod struct_install;
 pub mod struct_parts;

@@ -15,7 +15,7 @@ use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::monad;
 use crate::arena::store::{ENodeView, EStore, PersTier};
 use crate::frontend::olean::closure;
-use crate::frontend::olean::closure::{CEntry, Loaded};
+use crate::frontend::olean::lazy::{CEntry, Loaded};
 use crate::frontend::olean::module;
 use crate::frontend::olean::spec::{CKindF, OleanPins};
 use crate::frontend::text;

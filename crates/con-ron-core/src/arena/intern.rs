@@ -10,15 +10,14 @@
 //!
 //! Three families of con-leche declaration are pure `Expr` / `ConstantInfo`
 //! *values* written out by hand or spliced by an elaborator: the basis blocks
-//! (`BasisKind.decls` / `declsA`), the standard- and compiler-trust axiom pins,
+//! (`BasisKind.decls`), the standard- and compiler-trust axiom pins,
 //! and the `Nat`-operation pin variants.  DESIGN.md §8.7's ruling is that (B)
 //! IMPORTS con-leche's representation-free data rather than copying it, so the
 //! Lean twin's pin modules are one line each: the con-leche constant, interned.
 //!
 //! The Rust cannot import con-leche, but it does not have to: **`con-ron-core`
-//! already carries every one of those values** — `kernel::basis_raw` and
-//! `kernel::basis_tables` (generated from `BasisKind.decls`/`declsA` at task
-//! #22), `kernel::std_axioms`, `kernel::trust_axioms`, `kernel::trust_pins`,
+//! already carries every one of those values** — `kernel::basis_raw`,
+//! `kernel::std_axioms`, `kernel::trust_axioms`, `kernel::trust_pins`,
 //! and `kernel::pins_decode::decode` of the embedded `kernel::pins_text::
 //! PINS_TEXT` for the pin variants (task #43).  So the arena's pin modules are
 //! one line each here too: the con-ron-core constant, interned by this module.
@@ -57,7 +56,6 @@ use crate::kernel::expr;
 use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::level::Level;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
@@ -66,19 +64,19 @@ use crate::ron::hashmap::{Dup};
 use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::arena::store::PersTier;
 
-/// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:192-196 EMemo
+/// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:189-193 EMemo
 /// The memo of the interning walk: a transient `Expr` node to the handle it
 /// was interned at.  Keyed on the VALUE (`expr::data`'s hash and
 /// `expr::beq`), which is what makes a shared subterm cost one probe.
 pub type EMemo = HashMap<Expr, EIdx>;
 
-/// con-leche: none — a fresh memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:192-196 EMemo
+/// con-leche: none — a fresh memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:189-193 EMemo
 /// The `∅` every `Intern.lean` entry point starts from.
 pub fn memo_empty() -> EMemo {
     HashMap::new()
 }
 
-/// con-leche: none — probe the interning memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
+/// con-leche: none — probe the interning memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:195-257 internExprGo
 /// The `m[e]?` of the walk, as its own function: a `HashMap::get` match that
 /// produces a value is never inlined (task #97-P4c's extraction rule 5).
 pub fn memo_get(m: &EMemo, e: &Expr) -> Option<EIdx> {
@@ -88,7 +86,7 @@ pub fn memo_get(m: &EMemo, e: &Expr) -> Option<EIdx> {
     }
 }
 
-/// con-leche: none — intern a transient expression DAG; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
+/// con-leche: none — intern a transient expression DAG; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:195-257 internExprGo
 /// **The interning walk.**  The four leaf arms intern directly (they are
 /// `O(1)` and a memo row would cost more than it saves — the twin's own
 /// arrangement); every other arm probes the memo first and records its answer.
@@ -128,7 +126,7 @@ pub fn intern_expr_go(
     }
 }
 
-/// con-leche: none — the non-leaf arms of the interning walk; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:198-260 internExprGo
+/// con-leche: none — the non-leaf arms of the interning walk; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:195-257 internExprGo
 /// The six memoized arms, past the probe.  Split off so that the probe's
 /// `match` ends before the state is taken mutably again (extraction rule 5).
 pub fn intern_expr_node(
@@ -191,7 +189,7 @@ pub fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> Result<EIdx, C
     intern_expr_go(pers, st, &mut m, e)
 }
 
-/// con-leche: none — intern a list of transient terms; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:266-272 internExprList
+/// con-leche: none — intern a list of transient terms; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:263-269 internExprList
 /// The `List` recursion of the twin, as a cursor over the `Vec` (DESIGN.md
 /// §3.4's standing rule).
 pub fn intern_expr_list_go(
@@ -227,7 +225,7 @@ pub fn intern_expr_list(
     intern_expr_list_go(pers, st, &mut m, es, 0, Vec::new())
 }
 
-/// con-leche: none — intern a list of transient names; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:274-280 internNameList
+/// con-leche: none — intern a list of transient names; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:271-277 internNameList
 /// The cursor recursion; names carry no memo (a name is a small value and its
 /// cons table is the memo).
 pub fn intern_name_list_go(
@@ -252,7 +250,7 @@ pub fn intern_name_list_go(
 }
 
 /// con-leche: none — intern a list of transient names
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:274-280 internNameList`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:271-277 internNameList`.
 pub fn intern_name_list(
     pers: &PersTier,
     st: &mut AState,
@@ -286,7 +284,7 @@ pub fn intern_level_list_go(
     }
 }
 
-/// con-leche: none — intern a `ConstantVal`; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:282-287 internCV
+/// con-leche: none — intern a `ConstantVal`; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:279-284 internCV
 /// The memoized form, for a block whose members share subterms.
 pub fn intern_cv_go(
     pers: &PersTier,
@@ -318,7 +316,7 @@ pub fn intern_cv(
 }
 
 /// con-leche: none — intern a recursor rule's firing mode
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:289-295 internFire`.
+/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:286-295 internFire`.
 pub fn intern_fire(
     pers: &PersTier,
     st: &mut AState,
@@ -333,6 +331,10 @@ pub fn intern_fire(
                 Err(err) => Err(err),
                 Ok(hps) => Ok(IRecRuleFire::Nested(hls, hps)),
             },
+        },
+        RecRuleFire::Levels(lvls) => match intern_level_list_go(pers, st, lvls, 0, Vec::new()) {
+            Err(err) => Err(err),
+            Ok(hls) => Ok(IRecRuleFire::Levels(hls)),
         },
     }
 }
@@ -354,11 +356,8 @@ pub fn intern_rule(
                 Ok(r) => Ok(IRecRule {
                     ctor: c,
                     nfields: rl.nfields,
-                    ctor_params: rl.ctor_params,
                     fire: f,
                     rhs: r,
-                    k: rl.k,
-                    eta: rl.eta,
                 }),
             },
         },
@@ -405,10 +404,9 @@ pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IInd
                     eta_fields: c.eta_fields,
                     unitlike: c.unitlike,
                     unit_params: c.unit_params,
-                    rule_k: c.rule_k,
-                    sort_z: prop_when::dup(&c.sort_z),
                     all,
                     nparams: c.nparams,
+                    n_idx: c.n_idx,
                     ctors,
                 }),
             },
@@ -451,11 +449,11 @@ pub fn intern_ci_go(
             Err(err) => Err(err),
             Ok(cv) => Ok(IConstantInfo::CtorInfo(cv, *n_p, *n_f)),
         },
-        ConstantInfo::RecInfo(v, m_i, r_p, rs) => match intern_cv_go(pers, st, m, v) {
+        ConstantInfo::RecInfo(v, m_i, r_p, is_k, rs) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
             Ok(cv) => match intern_rules(pers, st, m, rs, 0, Vec::new()) {
                 Err(err) => Err(err),
-                Ok(rules) => Ok(IConstantInfo::RecInfo(cv, *m_i, *r_p, rules)),
+                Ok(rules) => Ok(IConstantInfo::RecInfo(cv, *m_i, *r_p, *is_k, rules)),
             },
         },
     }
