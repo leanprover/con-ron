@@ -28,7 +28,7 @@ namespace ConRon.Refine2.Frontend.Olean
 open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (loadAt loadView loadRoots valueRoots lazyEntries loadImports
   usesOf frontierWalk frontierOf)
-open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel)
+open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel moduleSkel)
 
 /-! ## The judgement of an accepted read -/
 
@@ -151,7 +151,151 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
     (hf : ModFilesRel f f') :
     AR pers LoadedRel st lst (load_at pk pers st.store i m f)
       (loadAt (absPins pk) i.val (absNIdx m) f') := by
-  sorry -- T143-STUB
+  intro hrel hinv a s' h
+  rw [load_at] at h
+  peel h as o, ho
+  have hV := mod_files_view_region_eq hf ho
+  cases o with
+  | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | some p =>
+  obtain ⟨vb, a0⟩ := p
+  peel h as bs, hbs
+  peel h as r, hr
+  obtain ⟨hvr, hfit⟩ := hV bs r hbs hr
+  obtain ⟨⟨r1, ar1⟩, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hC := const_names_ok_refines (pk := pk) (root := a0) hfit hrel hinv r1 ar1 hq1
+  cases r1 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok b =>
+  obtain ⟨b', lst1, hx1, hb', hrel1, hinv1⟩ := hC
+  subst hb'
+  cases b with
+  | false => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | true =>
+  dsimp only [↓reduceIte] at h
+  peel h as o1, ho1
+  have hsk := module_skel_eq hfit ho1
+  cases o1 with
+  | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | some sk =>
+  obtain ⟨sk', hsk', hskR⟩ : ∃ sk', moduleSkel (absRegion bs r) (absWord a0) = some sk' ∧
+      ModSkelRel sk sk' := by
+    cases hh : moduleSkel (absRegion bs r) (absWord a0) with
+    | none => rw [hh] at hsk; cases hsk
+    | some sk' => rw [hh] at hsk; cases hsk with | some h => exact ⟨sk', rfl, h⟩
+  peel h as r2, hr2
+  have hP := consts_skel_ps (bs := bs) (r := r) hskR.consts r2 hr2 lst1
+  cases r2 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok v =>
+  obtain ⟨skels, hx2, hEV⟩ := hP
+  dsimp only at h
+  obtain ⟨⟨nb, ea⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hnb, hea⟩ := load_roots_val hskR hEV hq
+  peel h as i1, hi1
+  peel h as i2, hi2
+  peel h as i3, hi3
+  peel h as n, hn
+  peel h as i4, hi4
+  peel h as stamps, hstamps
+  have e1 := max_loc_eq (bs := bs) hi1
+  have e2 := max_loc_eq (bs := bs) hi2
+  have e3 := ConRon.Refine.HashMap.uscalar_div_eq hi3
+  have e4 := ConRon.Refine.HashMap.uscalar_add_eq hn
+  have hnv : n.val = maxLoc (absRegion bs r) (loadRoots sk' skels).2
+      (maxLoc (absRegion bs r) (loadRoots sk' skels).1 0) / 8 + 1 := by
+    rw [e4, e3, e2, e1, hnb, hea]; rfl
+  have hle := maxLoc_le hfit (ea.val.map absWord) (maxLoc_le hfit (nb.val.map absWord) (Nat.zero_le _))
+  have hL := bytes_le_max bs
+  have hLn : n.val = maxLoc (absRegion bs r) (ea.val.map absWord)
+      (maxLoc (absRegion bs r) (nb.val.map absWord) 0) / 8 + 1 := by
+    rw [e4, e3, e2, e1]; rfl
+  have hmx := usize_max_ge
+  have hnm : n.val ≤ Std.Usize.max := by omega
+  have hi4v : i4.val = n.val := by
+    simp only [lift] at hi4
+    rw [← Result.ok_injective hi4]
+    exact ConRon.Refine.ExprOps.u64_cast_usize_val hnm
+  have hstv : StampsRel stamps (Array.replicate n.val 0) := by
+    sorry -- T143-STUB
+  obtain ⟨⟨o2, s2⟩, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases o2 with
+  | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | some o3 =>
+  obtain ⟨outs, hU, hO⟩ := uses_of_ok hfit hstv hEV hq2
+  peel h as nb1, hnb1
+  have enb1 := uses_names_val hO hnb1
+  peel h as lz, hlz
+  have elz := load_at_loop_val hEV hlz
+  obtain ⟨⟨r3, ar2⟩, hq3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hM := run_marked_refines (pk := pk) (pers := pers) (st := withStore st ar1) (lst := lst1)
+    (names := nb1) (exprs := lz) hfit hrel1 hinv1 r3 ar2 hq3
+  cases r3 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok x =>
+  obtain ⟨nm, ms, d⟩ := x
+  obtain ⟨⟨nm', ms', t⟩, lst3, hx3, ⟨hnmv, hmsv, hd⟩, hrel3, hinv3⟩ := hM
+  obtain ⟨⟨r4, ar3⟩, hq4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r4 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok u =>
+  obtain ⟨u', lst4, hx4, -, hrel4, hinv4⟩ := load_imports_ok (pk := pk) hfit hd hskR hf hrel3 hinv3 _ _ hq4
+  obtain ⟨⟨r5, ar4⟩, hq5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r5 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok cs =>
+  obtain ⟨cs', lst5, hx5, hcs, hrel5, hinv5⟩ :=
+    lazy_entries_ok (pk := pk) (i := i) hfit hd hO hEV hrel4 hinv4 _ _ hq5
+  peel h as values, hvalues
+  have evals := value_roots_val (bs := bs) hEV hvalues
+  peel h as i5, hi5
+  peel h as seen, hseen
+  peel h as i6, hi6
+  peel h as fr, hfr
+  obtain ⟨⟨seen1, fr1, st1⟩, hq6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have efw := frontier_walk_eq hfit hq6
+  peel h as b0, hb0
+  peel h as frontier, hfront
+  have efo := frontier_of_rel hd hb0 hfront
+  peel h as n1, hn1
+  obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+  cases h1
+  have hvr' : f'.viewRegion .private = some (absRegion bs r, absWord a0) := hvr
+  refine ⟨⟨absNIdx m, cs'.toArray, frontierOf (absM ms) (absM fr1) t nm.val 0 {}⟩, lst5, ?_,
+    ⟨by rw [nidx_dup2_ok hn1], by simpa using hcs, ?_⟩, hrel5, hinv5⟩
+  · rw [loadAt]
+    simp only [hvr']
+    rw [StateT.run_bind, hx1]
+    simp only [hsk']
+    -- the twin's imports' check, out of its `Option` wrapper
+    have hli : (loadImports (absPins pk) (absRegion bs r) t sk' f').run lst3 = .ok (true, lst4) := by
+      rw [StateT.run_bind] at hx4
+      cases hl : (loadImports (absPins pk) (absRegion bs r) t sk' f').run lst3 with
+      | error e => rw [hl] at hx4; cases hx4
+      | ok p =>
+        obtain ⟨bb, l⟩ := p
+        rw [hl] at hx4
+        cases bb with
+        | true => cases hx4; rfl
+        | false => cases hx4
+    rw [hnmv, hmsv] at efo
+    rw [hnv] at hU
+    rw [enb1, hnb, elz] at hx3
+    have hi5v : i5.val = n.val := by
+      simp only [lift] at hi5
+      rw [← Result.ok_injective hi5]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val hnm
+    have hi6v : i6.val = n.val := by
+      simp only [lift] at hi6
+      rw [← Result.ok_injective hi6]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val hnm
+    rw [zeros_eq hseen, zeros_eq hfr, hi5v, hi6v, evals, hnv] at efw
+    simp only [ConRon.Refine2.except_ok_bind, ↓reduceIte, StateT.run_bind, StateT.run_pure, pure_bind,
+      hx2, hU, hx3, hli, hx5,
+      hmsv, efw]
+    rw [hnmv]
+    rfl
+  · exact efo
 
 /-- **`load_view`'s accept is `loadView`'s.** -/
 theorem load_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
