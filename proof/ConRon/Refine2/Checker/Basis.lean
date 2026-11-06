@@ -14,7 +14,7 @@ the store through `param_levels`, `inst_lp_fast`, `subst_levels_at` and
 `read_names_m`, which is why this file sits above `Inductives/StructParts.lean`.
 -/
 import ConRon.Refine2.Checker.Axioms
-import ConRon.Refine2.Core.LS.PrimsA1
+import ConRon.Refine2.Core.LS.Leaves
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -267,6 +267,37 @@ theorem pin_agrees_refines {c c2 : arena.env.IConstantInfo} {o : Bool}
     first
     | (rw [i_constant_val_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
     | (rw [i_constant_info_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
+
+/-! ## A pin at a stream's level-parameter names -/
+
+open Lockstep in
+/-- `rec_rule_fire_at_lps` ⊑ `IRecRuleFire.atLps`: a `.levels` firing mode's
+comparands substituted, every other mode copied. -/
+@[lockstep] theorem rec_rule_fire_at_lps_ls {pers st lst}
+    {lps : alloc.vec.Vec kernel.name.Name} {us : alloc.vec.Vec kernel.level.Level}
+    {f : arena.env.IRecRuleFire}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hks : ConRon.Refine.NamesWF lps) (hvs : ConRon.Refine.LevelsWF us) :
+    LS pers (fun a b => b = absIRecRuleFire a) (arena.basis.rec_rule_fire_at_lps pers st lps us f)
+      lst ((absIRecRuleFire f).atLps (ConRon.Refine.absNames lps) (ConRon.Refine.absLevels us)) := by
+  rw [arena.basis.rec_rule_fire_at_lps.eq_def]
+  cases f with
+  | Plain =>
+    refine LS.bind_eq fun a ha => ?_
+    have h1 := i_rec_rule_fire_dup_abs ha
+    simp only [absIRecRuleFire, IRecRuleFire.atLps] at h1 ⊢
+    exact LS.pure h1.symm hrel hinv
+  | Nested l p =>
+    refine LS.bind_eq fun a ha => ?_
+    have h1 := i_rec_rule_fire_dup_abs ha
+    simp only [absIRecRuleFire, IRecRuleFire.atLps] at h1 ⊢
+    exact LS.pure h1.symm hrel hinv
+  | Levels lvls =>
+    simp only [absIRecRuleFire, IRecRuleFire.atLps]
+    refine LS.bind (subst_levels_at_ls hrel hinv hks hvs) rfl (fun _ _ => errArm_ok) ?_
+    intro a b st1 lst1 hR hrel1 hinv1
+    subst hR
+    exact LS.pure rfl hrel1 hinv1
 
 /-! ## What a quotient record's slot needs stored before it -/
 
