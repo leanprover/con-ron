@@ -71393,8 +71393,12 @@ command-line gate 10/10.  A panic in `promote.rs`'s name assertions is exit 3, n
 
 Maintainer: "do the whole olean reader machinery.  port all parser entry points, even
 the unused ones."  And: "we don't want to diverge from con-leche without a very good
-reason".  This is the code phase; Theorem 1 and Theorem 2 are other lanes, and **no
-theorem is about the `.olean` path yet** (OVERVIEW.md says so where it describes the flag).
+reason".  This was the code phase; Theorem 1 and Theorem 2 were other lanes, recorded below.
+
+**Status: done.**  The reader is ported, extracted, and covered end to end: `no_False_oleans` and
+`model_exists_oleans` (`ConRon/Capstone.lean`) at `propext, Classical.choice, Quot.sound`, over Theorem 2's
+`read_oleans_refines` and Theorem 1's `readOleans_run`, with one new trust premise, `SnapshotOf` (the file
+operations answer as one snapshot).  `--constant` and the entry points only the tools call are outside them.
 
 **What landed.**  `crates/con-ron-core/src/frontend/olean/*`, one module per upstream file,
 every entry point of `Frontend/Olean.lean`'s tables; `crates/con-ron/src/olean_fs.rs`, the
@@ -71592,17 +71596,63 @@ friends), which only the tools and `olean-compare` call.  `--constant` is outsid
 **The capstones**, `ConRon/Capstone.lean`.  At (B): `stagesO_no_False`, `stagesO_model`, on `stages_frame_of`
 (`stages_frame` with its parse a premise).  At the Rust: **`no_False_oleans_of`**, **`model_exists_oleans_of`**,
 `#print axioms` at the three standard ones, each taking `hT2 : ReadOleansRefines`,
-`Refine2/Frontend/Olean/Contract.lean`, the statement of Theorem 2 at the reader: **the only thing left**.  When
-`read_oleans_refines` proves it (or a premise is added there, with the capstone's premise beside it), the theorems
-without `_of` are one line each, and OVERVIEW's sentence on `--olean` changes then, not before.
+`Refine2/Frontend/Olean/Contract.lean`, the statement of Theorem 2 at the reader.  `no_False_oleans` and
+`model_exists_oleans` are those at `read_oleans_refines` (`#### Theorem 2`), one line each.
 
-* `SnapshotOf finst fsv F` (in `Capstone.lean`): at T2's `PathRel p q`, each of the five answers is `F`'s at `q`;
-  an `Err` only where `F` has no such file.  `fsRel_of_snapshot` makes T2's `FsRel finst fsv (modelFs F)` of it.
-  The `Err` clause is there because `FsRel`'s has one; were `FsRel` about `Ok` answers alone, which an accept is
-  all that reads, a transient I/O error on a file `F` holds would no longer leave the premise false.
+* `SnapshotOf finst fsv F` (in `Capstone.lean`): at T2's `PathRel p q`, each `Ok` answer of the five is `F`'s at
+  `q`; a failing operation claims nothing, as `FsRel` (`d2425e70`), so that a transient I/O error on a file `F`
+  holds does not make the premise false.  `fsRel_of_snapshot` makes T2's `FsRel finst fsv (modelFs F)` of it.
 * `InternRoots`: the driver's `OleanRequest::intern`, one `intern_name` per root, each `NameWF`.  The roots are
   a list, so the closure is of `(names.map absName).toArray`; upstream's is the case of one.
 * T2's commit `336e049c` changed the twin's `constsGo` to test tags first; `constsGo_run` follows it.
+
+#### Theorem 2
+
+**`read_oleans_refines : ReadOleansRefines`** (`Refine2/Frontend/Olean/ReadOleans.lean`): on `FsRel inst fsv fs`,
+from related states (`AStateRel₀`, `AStateInv`), an accept of `records::read_oleans inst fsv pers rst.store dirs
+roots none` is an accept of the twin's `readOleans fs (absSearchPath dirs) (absNIdxArr roots) none`, the results
+related by `ParseResultDRel` and the states, the store replaced, as before.  The contract's statement as agreed,
+**no premise added**.  Composition of three steps: `olean_pins_refines`, `load_closure_refines`, `read_tail_rel`.
+
+The judgements (`Shape.lean`, `ModFilesRel.lean`, `Merge.lean`, `EmitWalk.lean`): `RS` a read off the bytes
+(`RdErr` against `AM (Option β)`: `Bad` is `none`); `CS` a function of the store, both outcomes claimed; **`AS` a
+function that reaches a file read, its accept only**, since `FsRel` relates `Ok` answers alone; `CR`/`PR`/`PS` what
+reads the store, or nothing, and changes neither side's state.
+
+| module | what it relates |
+|---|---|
+| `Region`, `Parts`, `Header` | the byte, word and object reads, `part_of_bytes`, `region_of_parts*`, `hdr_walk`, `imports_pre`, against upstream's own (imported by the twin), saturating sums against `Nat` under `RegionFits`/`PartFits` |
+| `Skel`, `Spec`, `SpecEntry` | skeletons against upstream's; the node functions intern for intern; `PtrRead`, `c_entry_map`, `olean_pins`, `skel_fits`, the name-table check |
+| `Fast`, `FastBuild`, `FastRoots`, `FastMany` | the mark pass against upstream's; the upward build with the memo as `Sub` (`DSRel`); `parse_many`, `parse_at` |
+| `View` | `mod_files_view_region`, `check_imports_pre`, `parse_view` |
+| `Files`, `FilesRead` | the search (`locateIn`, `findModule`), `read_part`, `read_files`, `read_imports_at`, `read_view` |
+| `Closure`, `ClosureRead` | `consts_go`/`consts_of` (`StackRel`: a `Vec` and its top against a `List`); `closure_go`, `closure_order`, `load_module`, `load_all`, `load_closure` |
+| `Merge`, `Emit`, `EmitWalk`, `EmitBlocks`, `Records` | `merge_all`; the emission (`EmitRel`, `WorkStackRel`), `blocks_ok`; `decls_of` through `process_line_core_d_refines`; `read_tail_rel` |
+
+**Only what `read_oleans` calls is proved on the branch's tip.**  The lane had also proved the entry points the
+accepting read does not take, every read discharged (`587db2cc`): `parse_all_views`, `check_views` and the
+comparisons of `module.rs` (`Module.lean`), `read_all_views`, `read_entry`, `read_stmts`, `read_name_positions`,
+`name_positions_at`, `entry_at`, `stmts_at` (`Reads.lean`), `sparse_entry` and the kid tables (`Sparse.lean`),
+`stmts_fast`, and `parse_mod_name`/`parse_const_name`/`scan_name` (`Names.lean`).  No headline reaches them (the
+driver's `parse_mod_name` runs before `hroots`, and `--constant` is outside the theorems), so
+`scripts/dead-census-gate.sh` found 210 dead owners; they were deleted rather than allowed (about 3 600 lines, the
+four modules whole), as Theorem 1 leaves the same functions out.  They are at `af0a04ac` to restore once a theorem
+needs them.  Three rfl lemmas the census cannot see in `simp` sets (`Merged.get_eq`, `emptyCap_size`, `seg_abs`)
+became the definitions unfolded, not allow-list lines.  The census's capstone roots gain `no_False_oleans`,
+`model_exists_oleans`.
+
+**Twin and Rust fixes the lockstep found** (`336e049c`, Rust and twin, `Generated/` re-extracted with it; `6630e500`, twin only):
+`levels_cons`'s dangling handle is the store's error as `viewLs`; `is_prop_*` and `subsumes` view every step and
+decline a dangling handle; `merge_conflict`, `expo_step` fail where `readName` does; `check_views_module` returns
+after the first failing `expo_of_parts`; `hdr_walk` compares without a sum; the twin's `constsGo` tests the tag
+first and does not view a tag past `proj`.  None was an invariant on a top theorem.
+
+**The last step**: `FilesRead`/`ClosureRead` lost their `ImportsPreSpec`/`EntryAtSpec` premises;
+`SnapshotOf` follows `FsRel` to `Ok` answers; `read_oleans_refines` and the two capstones.  The two import chains
+(the load, through `ClosureRead`; the tail, through `Records`) met for the first time in `ReadOleans.lean`, which
+found four clashing names: `RuleR` (the same abbreviation twice) moved to `Merge.lean`, and `View`'s `not_lt_len`,
+`FastMany`'s `POut`, `EmitWalk`'s `StackRel` became `len_le_of_not_lt`, `PSOut`, `WorkStackRel`.  Then the census
+cut above.
 
 #### What the theorem lanes owe
 

@@ -95,17 +95,17 @@ con-ron --help
   read forward; a FIFO or a directory is exit 3.
 * **`--olean`** reads the input from `.olean` files instead of a lean4export
   stream (§6.2): the arguments are root modules, checked with every constant of
-  their import closure.  **The theorems do not yet cover this path**: the reader
-  is in the verified crate and extracted, but no theorem of §3 is about it.  An
-  accept on the `.olean` path has the checking of §6.3 behind it, on records the
-  theorems do not relate to the files.
+  their import closure.  The theorems cover this path (§3.2), on one premise
+  about the files: the file operations answer as one unchanging snapshot of the
+  file system.
 * **`--search-path=DIR[:DIR...]`** names the directories holding `.olean` trees,
   as `LEAN_PATH` lists them.  Every module is looked up in every directory, and a
   module in two places, or a missing, stray or split part, is exit 3.
 * **`--constant=NAME`** restricts `--olean` to this constant and what it mentions,
   as lean4export's arguments after `--` do.  It may be given more than once.
   Without it every constant of the closure is checked, whatever its name; unsafe
-  and partial constants stay out, as lean4export leaves them out.
+  and partial constants stay out, as lean4export leaves them out.  A run with
+  `--constant` is outside the theorems.
 
 ### 2.2 Exit codes
 
@@ -160,16 +160,16 @@ was built with.
 ## 3. What is proved
 
 The two headline theorems are in
-[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L16-L135).
+[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L18-L137).
 They are stated about the Aeneas model of the Rust functions the binary's
 `check_main` calls, one premise per call, in the order it calls them, from
 the binary's own start values.  Both depend on con-leche's three axioms
 (`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
 `sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L815-L831)).
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1342-L1358)).
 
 **Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L744-L779)),
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1056-L1091)),
 with the implicit arguments left out:
 
 ```lean
@@ -204,7 +204,7 @@ returned `Ok`; the first starts from `startState`, the value of the binary's
 of `check_main`.
 
 **The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L680-L714))
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L992-L1026))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -212,7 +212,7 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L528-L532)
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L826-L830)
 says that the environment the Rust accepted (`fe`) is related to a twin
 environment, which denotes the con-leche environment `env`; `env` has a
 model (con-leche's `Model V env`) in every set theory `V`.  The statement
@@ -245,6 +245,53 @@ The prelude's bytes are not a premise: con-leche's `preparePrelude` puts the
 prelude's declarations into the checked stream, so soundness holds whatever
 the prelude parses to.  The gate `scripts/gen-prelude-lean.sh --check` (§10)
 still checks that con-ron ships con-leche's prelude.
+
+### 3.2 The `.olean` path
+
+`--olean` has its own two theorems,
+[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1240-L1286)
+and
+[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1292-L1330),
+on the same three axioms.  They take the calls of §3 with the stream's two
+replaced by the `.olean` reader's: `hroots`, the roots' names interned one by
+one, and `h3`, the whole read of their import closure.  Soundness, with the
+implicit arguments and the unchanged premises `h4`…`h8` left out:
+
+```lean
+theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
+    (hcl : ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) F
+      (names.map ConRon.Refine.absName).toArray m)
+    (hv : ConLeche.Frontend.Olean.ViewOf (absSearchPath dirs) F m d)
+    (hmem : c ∈ d.constants) (hk : c.kind = .thm v all)
+    (hty : c.type = .const ConLeche.falseName [])
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    (hroots : InternRoots emptyTier st2 names roots.val stR)
+    (hsnap : SnapshotOf finst fsv F)
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+      = ok (.Ok r, store3))
+    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
+      = ok (.Ok prepared, st4))
+    … : False
+```
+
+In words: if, in the files `F`, a module of the roots' import closure holds a
+theorem whose type is `False`, then the binary's calls cannot all succeed.
+The closure and the module's contents are con-leche's specification of the
+format (`InClosure`, `ViewOf`), not anything about the fast decoder that
+reads them.  `model_exists_oleans` takes the same premises without `hcl` …
+`hty` and concludes as `model_exists` does.
+
+The one new trust premise is
+[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L575-L587):
+every answer the file operations give (does the file exist, its real path,
+its bytes, a byte range of it, its size) is the answer of one snapshot `F` of
+the file system.  A failed operation claims nothing, because it gives no
+accept.  So the theorems assume that the files do not change during the run
+and that the driver's operations over `std` (`olean_fs::StdFs`) read what is on
+disk; the reader itself, from the search for a module's files to the records
+it hands to the rest of the pipeline, is verified.  A run with `--constant`
+is outside the theorems.
 
 §8 lists everything else that must hold for the theorems to describe the
 binary: the translator, the compiler, and the hand-written models of what
@@ -506,7 +553,7 @@ loop back into a recursive function, which mirrors con-leche's.
 
 **From `.olean` files** (`--olean`).  The reader is con-leche's
 `Frontend/Olean/*`, one Rust module per file, in the same directory of the
-verified crate, and it is **not yet covered by the theorems**.  Nothing in the files
+verified crate, and covered by the theorems (§3.2).  Nothing in the files
 is trusted: the files are read through one trait of file operations (`OleanFs`,
 implemented over `std` in the driver), every object is located, bounds-checked and
 read field by field, and each object of a module is read once, in two passes, by
@@ -902,7 +949,7 @@ fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
 
 ### 7.6 The composition
 
-[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L16-L135)
+[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L18-L137)
 contains no new mathematics, only glue:
 
 1. **Theorem 2, stage by stage**: each of `h1`…`h5` becomes a twin run from
@@ -966,6 +1013,7 @@ differ.
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
 | **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1-L55) and the binary's `main` | That it calls the verified stages in the order of `h1`…`h8` (§3), on one state from `AState::empty()`, with the pin list the verified decoder reads from the embedded text and `--verified`, and maps the outcome to the exit codes of §2.2.  The read loop is the verified `parse_source`; that the file handle returns the file's bytes in order is `hreads`.  The fold is a [straight line of verified calls](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L548-L648) (phase A, freeze, phase B as `parallel_all` over two verified closures, thaw), and the progress observer between them holds only shared references |
 | **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L45-L97) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `h8`, with the driver's closures (`worker_state`, `run_job`) written in; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L307-L311) and turns it into one accepting fold per worker.  The contract does not promise that an index is claimed only once, or that a worker's claims increase (the code does both); the proof needs neither.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the capstone relates each worker's walk to the twin separately.  Tests check the partition property generically, and that phase B agrees with the one-worker walk and reports the first failure, at every worker count |
+| **The `.olean` file operations**, `olean_fs::StdFs` | That their answers are one snapshot's: `hsnap` (§3.2).  The files' contents are not trusted |
 | **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the capstone assumes the embedded pins decode |
 
 Nothing else: no `native_decide`, no `sorry`, and no axiom beyond the three
