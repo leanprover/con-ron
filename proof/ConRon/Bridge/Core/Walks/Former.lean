@@ -27,6 +27,7 @@ import ConRon.Bridge.Core.Memo
 public import ConRon.Bridge.Core.Knot
 public import ConRon.Bridge.Grind
 import ConRon.Bridge.Specs
+import ConLeche.Verify.InstLevels
 import ConRon.Bridge.GrindAttr
 
 public section
@@ -204,5 +205,110 @@ theorem formerSortLoop_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel) :
         -- `gen := 16`: the opened body is four derived steps from the head-normal form (its
         -- view, the fvar's denotation, the substitution, the recursive call's subject)
         finish (gen := 16)
+
+/-! ## 2. `formerNeverZeroAt` -/
+
+/-- con-leche: none — `instLPFast` at the tier's invariant (`CheckOK.ofInstLP`). -/
+theorem instLPFast_specC (s₀ : AState) (ks : List NIdx) (us : LsIdx) (e : EIdx)
+    (ksv : List ConLeche.Name) (usv : List Level) (x : Expr)
+    (hok : CheckOK eager env fe s₀) (hks : Frontend.denoteNList s₀.store.ns ks = some ksv)
+    (hus : denoteLs s₀.store.lss us = some usv) (he : denoteE s₀.store e = some x) :
+    ⦃fun s => s = s₀⦄ instLPFast coreWalkFuel ks us e
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        denoteE s'.store r = some (x.instantiateLevelParams ksv usv); ⊤⦄ :=
+  triple_mono (ExprOps.instLPFast_spec coreWalkFuel s₀ ks us e ksv usv hok.state
+      hok.caches.readN hok.caches.readL hok.caches.readLs hks hus (by rw [he]; rfl))
+    (fun _ _ ⟨hst, hx, hL, hLs, hN, hc, hp, _, hr⟩ =>
+      ⟨CheckOK.ofInstLP hok hst hx hL hLs hN hc hp, hx, hp, hr x he⟩)
+
+/-- con-leche: ConLeche/Verify/Shift.lean:264 WScoped.of_not_hasFvar — a closed
+stored type, level-instantiated, is scoped at depth `0`. -/
+theorem wscoped_instLP_closed {ty : Expr} {ks : List ConLeche.Name} {vs : List Level}
+    (h : ty.hasFvar = false) : Expr.WScoped 0 (ty.instantiateLevelParams ks vs) :=
+  Expr.WScoped.of_not_hasFvar (by rw [Expr.hasFvar_instantiateLevelParams]; exact h)
+grind_pattern [bridge_grind] wscoped_instLP_closed =>
+  Expr.WScoped 0 (ty.instantiateLevelParams ks vs), ty.hasFvar
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt — **the
+test's answer**: the pure test answers `b` at some fuel. -/
+@[expose] def NZ (eager : Bool) (env : Env) (cvT : ConstantVal) (caps : IndCaps)
+    (us : List Level) (b : Bool) : Prop :=
+  ∃ F, formerNeverZeroAt (pureFns .verified eager env F).whnf cvT caps us = .ok b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt — a stored
+type that ends in a sort is read directly. -/
+theorem nz_stored {cvT : ConstantVal} {caps : IndCaps} {us : List Level}
+    (h : (ConLeche.formerResSort cvT.type).isSome = true) :
+    NZ eager env cvT caps us (ConLeche.formerNeverZero cvT us) := by
+  refine ⟨0, ?_⟩
+  obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp h
+  simp only [ConLeche.formerNeverZeroAt, hs]; rfl
+grind_pattern [bridge_grind] nz_stored =>
+  NZ eager env cvT caps us (ConLeche.formerNeverZero cvT us)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt — any other
+is walked to a sort at the use's levels, and the sort read. -/
+theorem nz_walk {cvT : ConstantVal} {caps : IndCaps} {us : List Level} {st : EStore}
+    {j : LIdx} {l : Level}
+    (h : (ConLeche.formerResSort cvT.type).isSome = false)
+    (hw : SortLoop eager env 0 (caps.nparams + caps.nIdx)
+      (cvT.type.instantiateLevelParams cvT.levelParams us) st (some j))
+    (hl : denoteL st.ls j = some l) :
+    NZ eager env cvT caps us (Level.zeronessOf l).isNever := by
+  obtain ⟨v, hv, F, hF⟩ := hw
+  simp only [denoteLO, hl, Option.map_some, Option.some.injEq] at hv
+  subst hv
+  refine ⟨F, ?_⟩
+  have hn : ConLeche.formerResSort cvT.type = none := by
+    cases h' : ConLeche.formerResSort cvT.type <;> simp_all
+  simp only [ConLeche.formerNeverZeroAt, hn, hF, bind, Except.bind]; rfl
+grind_pattern [bridge_grind] nz_walk =>
+  NZ eager env cvT caps us (Level.zeronessOf l).isNever,
+  SortLoop eager env 0 (caps.nparams + caps.nIdx)
+    (cvT.type.instantiateLevelParams cvT.levelParams us) st (some j), denoteL st.ls j
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt — the walk
+reached no sort: the conservative `false`. -/
+theorem nz_none {cvT : ConstantVal} {caps : IndCaps} {us : List Level} {st : EStore}
+    (h : (ConLeche.formerResSort cvT.type).isSome = false)
+    (hw : SortLoop eager env 0 (caps.nparams + caps.nIdx)
+      (cvT.type.instantiateLevelParams cvT.levelParams us) st none) :
+    NZ eager env cvT caps us false := by
+  obtain ⟨v, hv, F, hF⟩ := hw
+  simp only [denoteLO, Option.some.injEq] at hv
+  subst hv
+  refine ⟨F, ?_⟩
+  have hn : ConLeche.formerResSort cvT.type = none := by
+    cases h' : ConLeche.formerResSort cvT.type <;> simp_all
+  simp only [ConLeche.formerNeverZeroAt, hn, hF, bind, Except.bind]; rfl
+grind_pattern [bridge_grind] nz_none =>
+  NZ eager env cvT caps us false,
+  SortLoop eager env 0 (caps.nparams + caps.nIdx)
+    (cvT.type.instantiateLevelParams cvT.levelParams us) st none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt
+con-leche: ConLeche/Cached/CoreC.lean:439-449 formerNeverZeroI — **THEOREM 1 for
+`formerNeverZeroAt`**: a family's sort never zero at the levels `us`, at a
+closed stored type. -/
+theorem formerNeverZeroAt_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (cvT : IConstantVal) (cvTP : ConstantVal) (caps : IIndCaps)
+    (capsP : IndCaps) (us : LsIdx) (ls : List Level)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvT = some cvTP)
+    (hcaps : Frontend.denoteCaps s₀.store caps = some capsP)
+    (hus : denoteLs s₀.store.lss us = some ls) (hcl : cvTP.type.hasFvar = false) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.formerNeverZeroAt (coreKnot .verified eager fe id fuel) cvT caps us
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        NZ eager env cvTP capsP ls r; ⊤⦄ := by
+  obtain ⟨-, hlps, hty⟩ := denoteCV_inv hcv
+  obtain ⟨-, -, -, -, hnp, hni⟩ := denoteCaps_fields hcaps
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.formerNeverZeroAt,
+      formerResSort_spec (eager := eager) (env := env) (fe := fe) (tyP := cvTP.type),
+      formerNeverZero_spec (eager := eager) (env := env) (fe := fe) (cvP := cvTP) (ls := ls),
+      instLPFast_specC (eager := eager) (env := env) (fe := fe) (ksv := cvTP.levelParams)
+        (usv := ls) (x := cvTP.type),
+      formerSortLoop_spec hsim, readLevelM_specC (eager := eager) (env := env) (fe := fe)] <;>
+      finish (gen := 16)
 
 end ConRon.Bridge.Core
