@@ -167,7 +167,7 @@ def con_leche_dir():
 # whole module (`MODULE_ANNOT_RE` is the same line, used to recognise the
 # module-wide form; see `cmd_check`).  A module-level line may be `none` (a
 # module with no Lean counterpart, `nat.rs`) or a *citation* (a generated
-# module that is one Lean declaration's value, `basis_tables.rs`, task #22);
+# module that is one Lean declaration's value, `pins_text.rs`, task #43);
 # either way it covers every item in the file.
 ANNOT_RE = re.compile(r"^\s*(?P<pfx>//[/!])\s*con-leche:\s*(?P<body>.*?)\s*$")
 MODULE_ANNOT_RE = re.compile(r"^\s*//!\s*con-leche:\s*(?P<body>.*?)\s*$")
@@ -861,7 +861,7 @@ def cmd_check(args):
     #                                           counterpart (`nat.rs`)
     #     //! con-leche: <path>:<range> <decl>  a *generated* module that is
     #                                           one Lean declaration's value
-    #                                           (`basis_tables.rs`, task #22)
+    #                                           (`pins_text.rs`, task #43)
     # The citation form is checked exactly like an item's (it is in `cites`);
     # what the module form adds is the exemption.
     module_annot = set()

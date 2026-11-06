@@ -322,7 +322,7 @@ pub struct ExprNode {
 /// blocks, which bought 32 bytes for an `app` against 64 and cost the crate
 /// its only `unsafe`.  Task #97-SWAP's finding is that the checking path
 /// builds no `Expr` at all — the only `Expr` values a run makes are the
-/// pinned data (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,
+/// pinned data (`kernel::{basis_raw,std_axioms,trust_axioms,
 /// trust_pins,pins_decode}`), which `arena::intern` walks once at startup —
 /// so the compactness is worth nothing here and the `unsafe` is worth
 /// retiring.  `P<ExprNode>` is §3.2's rule for every other node type, and is

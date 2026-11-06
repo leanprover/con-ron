@@ -12,7 +12,7 @@
 //!
 //! The module-level citation above covers the one item in the file: the whole
 //! module is one Lean declaration's value (DESIGN.md §3.7, the
-//! `basis_tables.rs` rule of task #22).
+//! generated-module rule of task #22).
 //!
 //! **Why the text and not generated Rust.**  `natOpPinSets` is a 26 512-node
 //! `Expr` DAG; as generated constructor calls it is what task #22 measured

@@ -22,7 +22,7 @@ SUBJECT the arena still calls:
 | runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
 | representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
 | `core_k`'s readers, names and shape guards | `CoreKBase`, `CoreKNames` (`CoreKShapes` deleted, task #119: the `level::name_is_proj_fn_shape` walk it held went with the kernel-tier dead code; `CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead; `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKInfer` and `CoreKProj` deleted, task #105 SW-R2: nothing live was left in them) |
-| the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
+| the pinned data | `BasisNames`, `BasisRaw`, `StdAxioms`, `TrustAxioms` (`BasisTables` and `BasisPins` deleted, task #143: upstream dropped the stored basis blocks) |
 | the `con-ron-pins/1` decoder | `PinsDec`, `PinsBytes`, `PinsAbs`, `PinsRecords`, `PinsRun` (`Pins` deleted, task #105 SW-R2: only its module note was left; `PinsAscii`, `PinsSplit`, `PinsRead` — the reader half — deleted with it: nothing used them) |
 
 Every lemma in those is still a lemma about code that ships: the arena reads
@@ -407,7 +407,6 @@ ordinary induction on the port's counter inside it for the turns that only pop.
 | `ExprOpsSpine.lean` | the spine and the telescopes: `get_app_fn`/`get_app_args`/`mk_app_n`, `pi_result`/`pi_arity`/`result_sort`/`fvar_type_d`, `strip_pis`/`strip_lams`, the `inst_pis_at`/`inst_lams_at`/`inst_spine` cascade and its one-pass `*_f` twins, `rec_rule_plain`, `pis_to_lams`, `replace_pi_body` |
 | `ExprOpsMeta.lean` | the metadata: `reset_meta`, `rename_consts`, the `level::zeroness_of`/`level::subst_pw` bridge, `levels_subst`/`instantiate_level_params`, the leaf readers (`is_lam`, `lam_pw`, `forall_pw`, `has_level_param`, `expr_ptr_beq`), `fvar_leaves`, and the `all_level_params_defined` family |
 
-| `BasisTables.lean` | `kernel::basis_tables` (task #22): the generated basis tables are the value they were generated from |
 | `HashMapWF.lean` | task #16's deferred `Eq2` generalisation, written for its first client (task #46): the bucket walks and the `Std.HashMap` bridge under a *forward*, key-restricted exactness hypothesis (`Eq2Fwd`) instead of `Eq2Spec` |
 | `Env.lean` | `kernel::env` (task #46): the mode accessors, the `Vec` copies and the `*_dup` identities, `rec_rule_parsed`/`ind_caps_default`/`default_expr` (the Lean's field defaults), `pi_sort_tele_len`, `ind_params_ok`, `abs`'s injectivity on the well-formed records, the whole `*_beq` family exactly, the accessors, and `find` |
 | `FEnv.lean` | `kernel::fenv` (task #46, completed by #50): `FEnvRel`/`FEnvWF`, `mk_fenv_go`/`mk_fenv`, `find`/`find_proj`, `restrict_to`, `dup`, and `push` — `push_refines` was task #46's one `sorry` because the Aeneas model of `Vec::insert` is `List.set`; task #50 removed that call from the port (`Env.consts` is stored reversed) and proved it |

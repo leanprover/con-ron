@@ -42,7 +42,7 @@ for f in subprocess.run(['git', 'ls-files', 'ConRon'], capture_output=True, text
             break
 PY
 )
-mains="ConRon.Arena.Exe ConRon.Arena.Bench ConRon.Arena.Main ConRon.Gen.Main ConRon.Dump.Pins"
+mains="ConRon.Arena.Exe ConRon.Arena.Bench ConRon.Arena.Main ConRon.Dump.Pins"
 libs=$(printf '%s\n' $mods | grep -vxF -f <(printf '%s\n' $mains))
 
 # shake reads the oleans; `lake build` does not build the roots or the exes.

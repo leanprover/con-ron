@@ -45,7 +45,7 @@ from con-leche's own committed `%s`, the file its
 
 The module-level citation below covers every item in this file: the whole
 module is one con-leche declaration's value (DESIGN.md §3.7, the
-`basis_tables.rs` rule of task #22, as `crates/con-ron-core/src/frontend/
+generated-module rule of task #22, as `crates/con-ron-core/src/frontend/
 prelude_text.rs` does for the Rust port).
 
 **Why a constant in the tree and not `include_str`.**  Task #97e part 1 read

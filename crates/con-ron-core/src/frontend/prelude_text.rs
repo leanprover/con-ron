@@ -11,7 +11,7 @@
 //!
 //! The module-level citation above covers every item in the file: the whole
 //! module is one Lean declaration's value (DESIGN.md §3.7, the
-//! `basis_tables.rs` rule of task #22, as `kernel/pins_text.rs` does).
+//! generated-module rule of task #22, as `kernel/pins_text.rs` does).
 //!
 //! **Why a constant in the crate and not `include_str!`.**  The unverified
 //! port read the file out of `vendor/` at compile time, which makes the

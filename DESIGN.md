@@ -741,9 +741,6 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
     Dump/                the `con-ron-pins/1` format of §3.6 (tasks #31, #80):
                          `Pins.lean` (writer, reader, `con-ron-dump-pins`)
                          and `FORMAT.md`
-    Gen/                 the build-time table generator (task #22): the
-                         `con-ron-gen-tables` exe that writes
-                         `crates/con-ron-core/src/kernel/basis_tables.rs`
     Spike/LevelName/     the task-#3 spike, elaborated (task #4), a *second*
                          library root: it carries its own copy of the §3.2
                          pointer model (still `alloc.rc.Rc`: its crate was
@@ -891,8 +888,9 @@ The upstream ask — make `natOpPinSets` an argument of
 `checkDecls` (with the shipped fold its default) and check that `model_exists`
 is parametric in it — **landed as con-leche task #285 and is vendored at task
 #74**, so the hypothesis is not merely dischargeable but absent.  The basis blocks are *not* hints (their
-denotations are pinned by the model), so they stay generated source
-(`kernel/basis_tables.rs`, proved in `Refine/BasisTables.lean`).
+denotations are pinned by the model); since task #143 there are no stored blocks to carry, since
+upstream installs a pinned block as the pin at the record's names (`arena::basis`, over the raw pins of
+`kernel/basis_raw.rs`).
 
 **Decisions of 2026-09-12 (maintainer's questions).**  *Parallel check
 phase*: con-leche's own device — the installed environment is marked
@@ -1139,10 +1137,10 @@ opening the Lean.
 * `locate <path> <decl>…` — print the canonical citation body
   (`<path>:<a>-<b> <decl>`) of each named declaration, i.e. the block
   `update` would relocate to.  It exists so that a *generator* can write
-  citations no hand ever edits: `proof/ConRon/Gen/Main.lean` asks it for
-  the raw pins each generated basis block is computed from, so the
-  emitted `/// con-leche:` ranges are the gate's own and regeneration is
-  a fixed point (task #33).
+  citations no hand ever edits: `scripts/gen-prelude.py` and
+  `scripts/gen-prelude-lean.py` ask it for the citation of
+  `builtinPreludeText`, so the emitted `//! con-leche:` range is the gate's
+  own and regeneration is a fixed point (task #33).
 
 **Module-level annotations** (task #8 for `none`, task #22 for the citation
 form).  A `//!` line covers the whole file and exempts every item in it from
@@ -1150,14 +1148,14 @@ the per-item requirement.  Two forms:
 
 ```
 //! con-leche: none — replaces the runtime's `Nat`; spec in proof/…/NatSpec.lean
-//! con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+//! con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 ```
 
 The first is a module with no Lean counterpart (`ron/nat.rs`,
 `ron/hashmap.rs`).  The second is a **generated** module that *is* one Lean
-declaration's value (`kernel/basis_tables.rs`): repeating the same citation on
-each of its seven functions would be noise, and `update` would have to rewrite
-seven identical lines.  A module-level citation is checked exactly like an
+declaration's value (`kernel/pins_text.rs`, `frontend/prelude_text.rs`): a
+generated file carries no hand-written item to cite, and a per-item citation
+would be rewritten at every regeneration.  A module-level citation is checked exactly like an
 item's — the range must exist at the pin and its first line must declare the
 named constant — and it counts in the `coverage` ledger; what the module form
 adds is only the exemption.  `update` rewrites it in place (a `Cite` remembers
