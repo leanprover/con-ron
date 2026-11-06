@@ -225,6 +225,39 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
 
 /-! ## One job -/
 
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **the invariant at a
+view**: at a position whose prefix the fold has accepted with distinct names, any state whose store
+persistently extends the driver's, with caches sound at the prefix's environment and the driver's
+pins, holds `FoldOK` at the view of that position. -/
+theorem view_foldOK (V : Type w) [ConLeche.SetTheory V]
+    {pinsP : List NatOpPinSet} {dsP : List Declaration} {I : IStreamIndex} {s₁ s : AState}
+    {k : Nat} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
+    (hpI : PersIFBase I.base) (hk : k < dsP.length) (hP : PrefixOK pinsP dsP k)
+    (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
+    (hst : StateOK s) (hx : PExt s₁.store s.store)
+    (hc : CacheOK false (ConLeche.Cached.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
+    FoldOK (ConLeche.Cached.streamEnv (dsP.take k)) (I.view k) s := by
+  have hIj := hI.pmono hpI hx
+  have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
+      (ConLeche.Cached.buildIndex dsP.toArray) := by
+    rw [List.take_append_drop]
+    simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
+  have hlen : (dsP.take k).length = k := by simp; omega
+  obtain ⟨hienv, hgate⟩ := view_ok hst hIj hspec hnd
+  rw [hlen] at hienv hgate
+  obtain ⟨F₀, hF₀⟩ := hP
+  obtain ⟨⟨mp, -, -⟩, -, -⟩ := ConLeche.Model.foldPM (V := V) (pins := pinsP) (dsP.take k)
+    Env.empty ConLeche.Model.EnvModelOk.empty (hF₀ F₀ (Nat.le_refl _))
+  exact
+    { check := ⟨hst, hc, hpinsOK.pmono hpersPins hx hp, hienv⟩
+      envWF := mp.toEnvFacts.wf
+      tblShape := fun t ht => by simp [IStreamIndex.view] at ht
+      persPins := hpersPins.mono hp
+      coh := ⟨fun _ => rfl, fun _ => rfl⟩
+      gate := hgate }
+
+
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **one job, from a worker's
 state**: at a position whose prefix the fold has accepted with distinct names, record `k`'s job
 accepting leaves a worker's state and con-leche's `checkDecl` accepting the record at the
@@ -269,27 +302,10 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
     have hxj : PExt s₁.store sj.store := by
       rw [← hsj]; exact hw.pext.trans (PExt.enterScratch hw.state.wf)
     have hstj : StateOK sj := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.state.wf⟩
-    have hIj := hI.pmono hpI hxj
-    have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
-        (ConLeche.Cached.buildIndex dsP.toArray) := by
-      rw [List.take_append_drop]
-      simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
-    have hlen : (dsP.take k).length = k := by simp; omega
-    obtain ⟨hienv, hgate⟩ := view_ok hstj hIj hspec hnd
-    rw [hlen] at hienv hgate
-    obtain ⟨F₀, hF₀⟩ := hP
-    obtain ⟨⟨mp, -, -⟩, -, -⟩ := ConLeche.Model.foldPM (V := V) (pins := pinsP) (dsP.take k)
-      Env.empty ConLeche.Model.EnvModelOk.empty (hF₀ F₀ (Nat.le_refl _))
     have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.pins
     have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.caches
-    have hok : FoldOK (ConLeche.Cached.streamEnv (dsP.take k)) (I.view k) sj :=
-      { check := ⟨hstj, CacheOK.of_empty hcj,
-          (hpinsOK.pmono hpersPins hxj hpj), hienv⟩
-        envWF := mp.toEnvFacts.wf
-        tblShape := fun t ht => by simp [IStreamIndex.view] at ht
-        persPins := hpersPins.mono hpj
-        coh := ⟨fun _ => rfl, fun _ => rfl⟩
-        gate := hgate }
+    have hok := view_foldOK V hpinsOK hpersPins hI hpI hk' hP hnd hstj hxj
+      (CacheOK.of_empty hcj) hpj
     have hpinsj := PinsDenote.pmono hxj pins pinsP hpp hpins
     have hdj := denoteDecl_pext hxj (hpd _ (Array.getElem_mem_toList hk)) hdk
     obtain ⟨hst', hx', hp', env', F, hF⟩ := hrec hok hpinsj hdj (by cases u; exact hrc)
