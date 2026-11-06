@@ -47,6 +47,10 @@ import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.Spine
 import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.IotaLeaves
+import ConLeche.Verify.Inductives.NestContInv
+import ConLeche.Verify.Inductives.NestCallSyn
+import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.ExprOps.Owed
 import ConRon.Bridge.Specs
 
@@ -409,12 +413,12 @@ theorem denoteCaps_inv {st : EStore} {caps : IIndCaps} {capsP : IndCaps}
     (h : Frontend.denoteCaps st caps = some capsP) :
     Frontend.denoteNList st.ns caps.all = some capsP.all ∧
       Frontend.denoteNList st.ns caps.ctors = some capsP.ctors ∧
-      caps.nparams = capsP.nparams := by
+      caps.nparams = capsP.nparams ∧ caps.nIdx = capsP.nIdx := by
   simp only [Frontend.denoteCaps] at h
   split at h
   · rename_i ct all ctors _ hall hct
     obtain rfl := (Option.some.inj h).symm
-    exact ⟨hall, hct, rfl⟩
+    exact ⟨hall, hct, rfl, rfl⟩
   · exact nomatch h
 
 /-- con-leche: none — a name-handle list denotes, appended. -/
@@ -563,44 +567,6 @@ theorem nestFrameMates_rel {env : Env} {fe : IFEnv} {s : AState} (hok : StateOK 
     matesGo_eq CP _ [] [] rfl]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1293-1307 nestArity
-A frame hole's full arity, exactly con-leche's. -/
-theorem nestArity_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
-    (hfind : ctxP.find? = env.find?) (C : NIdx) (CP : ConLeche.Name) :
-    PSpec (fun st => IFEnvOKS env fe st ∧ denoteN st.ns C = some CP)
-      (Arena.nestArity fe C) (RV (ConLeche.nestArity ctxP CP)) := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hie, hC⟩ := hp
-  have hie' := hie s₀ rfl
-  simp only [Arena.nestArity] at hrun
-  simp only [RV, ConLeche.nestArity, hfind]
-  cases hf : fe.find? C with
-  | none =>
-    rw [hf] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    rw [hie'.miss hok hC hf]
-    exact ⟨PStep.refl hok, rfl⟩
-  | some ci =>
-    rw [hf] at hrun
-    obtain ⟨c, hc, he⟩ := find_some_rel hie' hC hf
-    rw [he]
-    cases ci with
-    | indInfo cv caps =>
-      obtain ⟨cvP, capsP, hcv, -, rfl⟩ := denoteCI_indInfo_inv hc
-      obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
-      dsimp only at hrun
-      obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
-      obtain ⟨p1, hq1, -⟩ := piBinders_spec _ _ _ s₀ s₁ q hok hty h1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      exact ⟨p1, denoteEList_length hq1⟩
-    | _ =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      have := denoteCI_not_ind hc (by intro v caps h; exact nomatch h)
-      refine ⟨PStep.refl hok, ?_⟩
-      cases c with
-      | indInfo v k => exact absurd rfl (this v k)
-      | _ => rfl
-
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1264-1276 nestGroupCtors
 The constructors of every container in `cs`, the accumulator the prefix of
 con-leche's answer; con-leche's run succeeds with the rest. -/
@@ -677,6 +643,310 @@ theorem viewLsLen_run {s s' : AState} {h : LsIdx} {r : Option Nat}
     (hrun : viewLsLen h s = .ok (r, s')) : s' = s ∧ r = s.store.lss.viewLen h :=
   AM.of_run (P := fun t => t = s) rfl hrun (viewLsLen_spec s h)
 
+/-! ## A family's telescope: `whnfTelescope`, `reducedFormer`, `familyTelescope`,
+`checkSpineAt`, `familyKeyCheck`
+
+CORE grade: the telescope loop calls `whnf`, the spine check `inferType` and
+`isDefEq`.  Each is stated against con-leche's `FueledM` function (`CSpecF`),
+so a caller composes them with `FOk.bind` and needs no monotonicity lemma. -/
+
+section FamilyTele
+
+variable {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:67-69 formerDefHeaded — the Core
+tier's `formerDefHeaded_spec`, as a run. -/
+theorem formerDefHeaded_run {s s' : AState} {cv : IConstantVal} {cvP : ConstantVal} {r : Bool}
+    (hok : CheckOK false env fe s) (hcv : Frontend.denoteCV s.store cv = some cvP)
+    (hrun : Arena.formerDefHeaded cv s = .ok (r, s')) :
+    s' = s ∧ r = ConLeche.formerDefHeaded cvP :=
+  AM.of_run (P := fun t => t = s) rfl hrun (Core.formerDefHeaded_spec s cv cvP hok hcv)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:225-248 whnfTelescope
+**Official's telescope loop**: `n` binders peeled, the residual reduced before
+each and at the end, where it is a sort.  The twin accumulates the binders
+(`out`), con-leche conses them on the way out. -/
+theorem whnfTelescope_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (n i : Nat) (e : EIdx) (eP : Expr) (out : List EIdx) (outP : List Expr),
+      Expr.WScoped i eP →
+      CSpecF env fe (fun st => denoteE st e = some eP ∧ Frontend.denoteEList st out = some outP)
+        (Arena.whnfTelescope .verified fe i n e out)
+        (fun st r v => Frontend.denoteEList st r.1 = some (outP ++ v.1) ∧
+          denoteL st.ls r.2 = some v.2)
+        (ConLeche.whnfTelescope (fueledOpsM .verified) env i n eP) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i e eP out outP hws s₀ s' r hok hpre hrun
+    obtain ⟨he, hout⟩ := hpre
+    rw [Arena.whnfTelescope] at hrun
+    obtain ⟨w, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨c1, wP, hwP, -, hF1⟩ := whnf_crun hk henv hok he hws k1
+    obtain ⟨v, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨rfl, hv⟩ := view_run k2
+    cases v
+    case sort u =>
+      obtain ⟨uP, rfl, hu⟩ := denote_sort_inv c1.ok.state.wf hv hwP
+      dsimp only at z2
+      rw [ite_eq_left (by rfl)] at z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+      refine ⟨c1, ([], uP), ⟨by simpa using denoteEList_ext c1.ext _ _ hout, hu⟩, ?_⟩
+      unfold ConLeche.whnfTelescope
+      exact FOk.bind hF1 (FOk.pure _)
+    case forallE dom body =>
+      exact absurd z2 (fun h => AM.fail_ok h)
+    all_goals
+      (dsimp only at z2
+       rw [ite_eq_left (by rfl)] at z2
+       exact absurd z2 (fun h => AM.fail_ok h))
+  | succ n ih =>
+    intro i e eP out outP hws s₀ s' r hok hpre hrun
+    obtain ⟨he, hout⟩ := hpre
+    rw [Arena.whnfTelescope] at hrun
+    obtain ⟨w, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨c1, wP, hwP, hwsw, hF1⟩ := whnf_crun hk henv hok he hws k1
+    obtain ⟨v, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨rfl, hv⟩ := view_run k2
+    cases v
+    case forallE dom body =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv c1.ok.state.wf hv hwP
+      have hwsdb : Expr.WScoped i domP ∧ Expr.WScoped i bodyP := by
+        simp only [Expr.WScoped] at hwsw; exact hwsw
+      obtain ⟨hwsd, hwsb⟩ := hwsdb
+      dsimp only at z2
+      obtain ⟨fv, s₃, k3, z3⟩ := AM.bind_ok z2
+      obtain ⟨p3, hfv⟩ := internE_run c1.ok.state (viewOK_fvar (by rw [hd]; rfl)) k3
+      have hfv' : denoteE s₃.store fv = some (.fvar i domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd p3.ext]
+      have c3 := c1.trans (p3.toCore c1.ok)
+      obtain ⟨op, s₄, k4, z4⟩ := AM.bind_ok z3
+      have hb3 : denoteE s₃.store body = some bodyP := denote_ext hb p3.ext
+      obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
+        (by rw [hb3]; rfl) k4
+      have p4 : PStep s₃ s₄ := PStep.of_caches h1 h2 h4 h5
+      have hop : denoteE s₄.store op = some (bodyP.instantiate1 (.fvar i domP) 0) := h7 _ hb3
+      have c4 := c3.trans (p4.toCore c3.ok)
+      have hout4 : Frontend.denoteEList s₄.store (out ++ [dom]) = some (outP ++ [domP]) :=
+        denoteEList_append (denoteEList_ext c4.ext _ _ hout)
+          (by simp only [Frontend.denoteEList, denote_ext hd (p3.ext.trans p4.ext)])
+      obtain ⟨c5, v, ⟨hr1, hr2⟩, hF2⟩ := ih (i + 1) op _ (out ++ [dom]) (outP ++ [domP])
+        (Expr.WScoped.instantiate1 hwsd 0 hwsb) s₄ s' r c4.ok ⟨hop, hout4⟩ z4
+      refine ⟨c4.trans c5, (domP :: v.1, v.2), ⟨by simpa using hr1, hr2⟩, ?_⟩
+      unfold ConLeche.whnfTelescope
+      exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+    case sort u =>
+      dsimp only at z2
+      rw [ite_eq_right (by simp)] at z2
+      exact absurd z2 (fun h => AM.fail_ok h)
+    all_goals
+      (dsimp only at z2
+       rw [ite_eq_right (by simp)] at z2
+       exact absurd z2 (fun h => AM.fail_ok h))
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:250-254 reducedFormer
+**A former at its reduced telescope**, closed. -/
+theorem reducedFormer_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    (cv : IConstantVal) (cvP : ConstantVal) (n : Nat) (hws : Expr.WScoped 0 cvP.type) :
+    CSpecF env fe (fun st => Frontend.denoteCV st cv = some cvP)
+      (Arena.reducedFormer .verified fe cv n)
+      (fun st r v => Frontend.denoteCV st r = some v)
+      (ConLeche.reducedFormer (fueledOpsM .verified) env cvP n) := by
+  intro s₀ s' r hok hcv hrun
+  simp only [Arena.reducedFormer] at hrun
+  obtain ⟨q, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨c1, v, ⟨hbs, hsP⟩, hF⟩ := whnfTelescope_specF hk henv n 0 cv.type cvP.type [] []
+    hws s₀ s₁ q hok ⟨denoteCV_type hcv, rfl⟩ k1
+  obtain ⟨bs, sL⟩ := q
+  dsimp only at hbs hsP z1
+  obtain ⟨srt, s₂, k2, z2⟩ := AM.bind_ok z1
+  obtain ⟨p2, hsrt⟩ := internSortE_run c1.ok.state hsP k2
+  obtain ⟨ty, s₃, k3, z3⟩ := AM.bind_ok z2
+  obtain ⟨p3, hty⟩ := closeTelescope_spec bs v.1 0 srt (.sort v.2) s₂ s₃ ty p2.ok
+    ⟨denoteEList_ext p2.ext _ _ (by simpa using hbs), hsrt⟩ k3
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+  have c3 := c1.trans ((p2.trans p3).toCore c1.ok)
+  refine ⟨c3, { cvP with type := ConLeche.closeTelescope v.1 0 (.sort v.2) }, ?_, ?_⟩
+  · obtain ⟨hn, hl, -⟩ := denoteCV_inv hcv
+    simp only [Frontend.denoteCV, denoteN_ext hn c3.ext, denoteNListE_ext c3.ext _ _ hl, hty]
+  · unfold ConLeche.reducedFormer
+    exact FOk.bind hF (FOk.pure _)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:256-263 familyTelescope
+**A stored family's former at its telescope**: its stored type where that
+shows one, else its reduct at its parameters and indices. -/
+theorem familyTelescope_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    (cv : IConstantVal) (cvP : ConstantVal) (caps : IIndCaps) (capsP : IndCaps)
+    (hws : Expr.WScoped 0 cvP.type) :
+    CSpecF env fe (fun st => Frontend.denoteCV st cv = some cvP ∧
+        Frontend.denoteCaps st caps = some capsP)
+      (Arena.familyTelescope .verified fe cv caps)
+      (fun st r v => denoteE st r = some v)
+      (ConLeche.familyTelescope (fueledOpsM .verified) env cvP capsP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hcaps⟩ := hpre
+  obtain ⟨-, -, hnp, hni⟩ := denoteCaps_inv hcaps
+  simp only [Arena.familyTelescope] at hrun
+  obtain ⟨b, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, rfl⟩ := formerDefHeaded_run hok hcv k1
+  unfold ConLeche.familyTelescope
+  cases hdh : ConLeche.formerDefHeaded cvP with
+  | false =>
+    rw [hdh] at z1
+    simp only [Bool.false_eq_true, ↓reduceIte] at z1 ⊢
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    exact ⟨CoreStep.refl hok, cvP.type, denoteCV_type hcv, FOk.pure _⟩
+  | true =>
+    rw [hdh] at z1
+    simp only [↓reduceIte] at z1 ⊢
+    obtain ⟨cvR, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨c2, v, hv, hF⟩ := reducedFormer_specF hk henv cv cvP _ hws _ s₂ cvR hok hcv k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨c2, v.type, denoteCV_type hv, ?_⟩
+    rw [← hnp, ← hni]
+    exact FOk.bind hF (FOk.pure _)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:265-276 checkSpineAt
+**The arguments of an application against a telescope**: each argument's type
+definitionally equal to its binder's domain, the domains instantiated along
+the spine. -/
+theorem checkSpineAt_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) (d : Nat) :
+    ∀ (ds : List EIdx) (dsP : List Expr) (t : EIdx) (tP : Expr),
+      Expr.WScoped d tP → (∀ a ∈ dsP, Expr.WScoped d a) →
+      CSpecF env fe (fun st => denoteE st t = some tP ∧ Frontend.denoteEList st ds = some dsP)
+        (Arena.checkSpineAt .verified fe d t ds)
+        (fun _ _ _ => True)
+        (ConLeche.checkSpineAt (fueledOpsM .verified) env d tP dsP) := by
+  have hknot := hk.knot env fe henv
+  intro ds
+  induction ds with
+  | nil =>
+    intro dsP t tP _ _ s₀ s' r hok hpre hrun
+    obtain ⟨-, hds⟩ := hpre
+    simp only [Frontend.denoteEList, Option.some.injEq] at hds
+    subst hds
+    simp only [Arena.checkSpineAt] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨CoreStep.refl hok, (), trivial, by unfold ConLeche.checkSpineAt; exact FOk.pure _⟩
+  | cons a as ih =>
+    intro dsP t tP hwt hwds s₀ s' r hok hpre hrun
+    obtain ⟨ht, hds⟩ := hpre
+    simp only [Frontend.denoteEList] at hds
+    cases ha : denoteE s₀.store a with
+    | none => rw [ha] at hds; simp at hds
+    | some aP =>
+    cases has : Frontend.denoteEList s₀.store as with
+    | none => rw [ha, has] at hds; simp at hds
+    | some asP =>
+    rw [ha, has] at hds
+    obtain rfl := (Option.some.inj hds).symm
+    have hwa : Expr.WScoped d aP := hwds aP List.mem_cons_self
+    simp only [Arena.checkSpineAt] at hrun
+    by_cases htg : (t.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg] at hrun
+      obtain ⟨o, s₁, k1, z1⟩ := AM.bind_ok hrun
+      obtain ⟨rfl, ho⟩ := viewBind_run k1
+      cases o with
+      | none => exact absurd z1 (fun hc => failDanglingE_ok hc)
+      | some q =>
+      obtain ⟨ty, body⟩ := q
+      have hw := view_forallE_of_viewBind htg ho.symm
+      obtain ⟨tyP, bodyP, rfl, hty, hbody⟩ := denote_forallE_inv hok.state.wf hw ht
+      have hwtb : Expr.WScoped d tyP ∧ Expr.WScoped d bodyP := by
+        simp only [Expr.WScoped] at hwt; exact hwt
+      dsimp only at z1
+      obtain ⟨ta, s₂, k2, z2⟩ := AM.bind_ok z1
+      obtain ⟨c2, taP, hta, hwta, hF1⟩ := infer_crun hk henv hok ha hwa k2
+      obtain ⟨q, s₃, k3, z3⟩ := AM.bind_ok z2
+      obtain ⟨c3, hF2⟩ := defeq_crun hknot c2.ok hta (denote_ext hty c2.ext) hwta hwtb.1 k3
+      have c13 := c2.trans c3
+      cases q with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at z3
+        obtain ⟨_, _, k, _⟩ := AM.bind_ok z3
+        exact absurd k (fun h => AM.fail_ok h)
+      | true =>
+      simp only [↓reduceIte] at z3
+      obtain ⟨_, s₄, k4, z4⟩ := AM.bind_ok z3
+      obtain ⟨-, rfl⟩ := AM.pure_ok k4
+      obtain ⟨b, s₅, k5, z5⟩ := AM.bind_ok z4
+      have hb4 := denote_ext hbody c13.ext
+      obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c13.ok.state
+        (denote_ext ha c13.ext) (by rw [hb4]; rfl) k5
+      have p5 := PStep.of_caches h1 h2 h4 h5
+      have c5 := c13.trans (p5.toCore c13.ok)
+      obtain ⟨c6, _, _, hF3⟩ := ih asP b (bodyP.instantiate1 aP 0)
+        (Expr.WScoped.instantiate1_gen hwa 0 hwtb.2)
+        (fun x hx => hwds x (List.mem_cons_of_mem _ hx)) s₅ s' r c5.ok
+        ⟨h7 _ hb4, denoteEList_ext c5.ext _ _ has⟩ z5
+      refine ⟨c5.trans c6, (), trivial, ?_⟩
+      unfold ConLeche.checkSpineAt
+      exact FOk.bind hF1 (FOk.bind hF2 (by simpa using hF3))
+    · rw [ite_eq_right htg] at hrun
+      exact absurd hrun (fun h => AM.fail_ok h)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:278-289 familyKeyCheck
+**A family at a key, typed**: the levels its own count, the arguments against
+its telescope.  The lookup is the index (`ctxP.find? = env.find?`). -/
+theorem familyKeyCheck_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    (d : Nat) (c : NIdx) (cP : ConLeche.Name) (us : LsIdx) (usP : List Level)
+    (ds : List EIdx) (dsP : List Expr) (hwds : ∀ a ∈ dsP, Expr.WScoped d a) :
+    CSpecF env fe (fun st => denoteN st.ns c = some cP ∧ denoteLs st.lss us = some usP ∧
+        Frontend.denoteEList st ds = some dsP)
+      (Arena.familyKeyCheck .verified fe d c us ds)
+      (fun _ _ _ => True)
+      (ConLeche.familyKeyCheck (fueledOpsM .verified) env env.find? d cP usP dsP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hc, hus, hds⟩ := hpre
+  simp only [Arena.familyKeyCheck] at hrun
+  unfold ConLeche.familyKeyCheck
+  cases hf : fe.find? c with
+  | none =>
+    rw [hf] at hrun
+    exact absurd hrun (fun h => AM.fail_ok h)
+  | some ci =>
+  rw [hf] at hrun
+  obtain ⟨cc, hci, he⟩ := find_some_rel hok.ienv hc hf
+  rw [he]
+  cases ci with
+  | indInfo cv caps =>
+    obtain ⟨cvP, capsP, hcv, hcaps, rfl⟩ := denoteCI_indInfo_inv hci
+    obtain ⟨-, hlps, -⟩ := denoteCV_inv hcv
+    have hwsT : Expr.WScoped 0 cvP.type :=
+      Expr.WScoped.of_not_hasFvar (henv.consts _ (Env.find?_mem he)).1
+    dsimp only at hrun ⊢
+    obtain ⟨nl, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hnl⟩ := viewLsLen_run k1
+    rw [Core.viewLen_of_denoteLs hus] at hnl
+    subst hnl
+    dsimp only at z1
+    have hlenC := denoteNList_length _ _ hlps
+    by_cases hlen : (usP.length != cv.levelParams.length) = true
+    · rw [ite_eq_left hlen] at z1; exact absurd z1 (fun h => AM.fail_ok h)
+    rw [ite_eq_right hlen] at z1
+    have hlen' : usP.length = cvP.levelParams.length := by rw [← hlenC]; simpa using hlen
+    obtain ⟨ty, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨c2, tyP, hty, hF1⟩ := familyTelescope_specF hk henv cv cvP caps capsP hwsT
+      _ s₂ ty hok ⟨hcv, hcaps⟩ k2
+    obtain ⟨t, s₃, k3, z3⟩ := AM.bind_ok z2
+    obtain ⟨c3, ht⟩ := instLPFast_cstep c2.ok (denoteNListE_ext c2.ext _ _ hlps)
+      (denoteLs_ext hus c2.ext) hty k3
+    have c23 := c2.trans c3
+    have hcl : tyP.hasFvar = false := by
+      obtain ⟨F, hFt⟩ := hF1
+      rw [familyTelescope_datF] at hFt
+      exact ConLeche.familyTelescope_hasFvar (fun _ _ _ hw he => whnf_WScoped henv F hw he) hFt
+        (henv.consts _ (Env.find?_mem he)).1
+    obtain ⟨c4, _, _, hF2⟩ := checkSpineAt_specF hk henv d ds dsP t _
+      (Expr.WScoped.of_not_hasFvar (by rw [Expr.hasFvar_instantiateLevelParams]; exact hcl)) hwds
+      _ s' r c3.ok ⟨ht, denoteEList_ext c23.ext _ _ hds⟩ z3
+    refine ⟨c23.trans c4, (), trivial, ?_⟩
+    simp only [hlen', ite_true]
+    exact FOk.bind hF1 hF2
+  | _ =>
+    exact absurd hrun (fun h => AM.fail_ok h)
+
+end FamilyTele
+
 section InstType
 
 variable {env : Env} {fe : IFEnv}
@@ -686,13 +956,14 @@ The instantiation's type former, checked as con-leche checks it: the index
 count and the container's type at the key, and (con-leche's
 `nestInstTypeS_sim`) that type is well scoped wherever the key's parameters
 are. -/
-theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
+theorem nestInstType_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     (ctx : Arena.NestCtx) (hi : Nat) (key : Arena.NestKey) (keyP : ConLeche.NestKey) :
     CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧ dKey st key = some keyP)
-      (Arena.nestInstType fe ctx hi key)
+      (Arena.nestInstType .verified fe ctx hi key)
       (fun st r v => r.1 = v.1 ∧ denoteE st r.2 = some v.2 ∧
         ∀ d, (∀ x ∈ keyP.ds, Expr.WScoped d x) → Expr.WScoped d v.2)
-      (ConLeche.nestInstType (m := FueledM) ctxP hi keyP) := by
+      (ConLeche.nestInstType ctxP (fueledOpsM .verified) env hi keyP) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hkey⟩ := hp
   obtain ⟨hcn, hlv, hds⟩ := dKey_inv hkey
@@ -705,12 +976,13 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   | none => rw [hf] at hcv; exact nomatch hcv
   | some ci =>
   rw [hf] at hcv
-  obtain ⟨cv0, caps0, rfl, rfl⟩ : ∃ cv0 caps0, ci = .indInfo cv0 caps0 ∧ cv0 = cv := by
+  obtain ⟨cv0, caps0, rfl, rfl⟩ : ∃ cv0 caps0, ci = .indInfo cv0 caps0 ∧ (cv0, caps0) = cv := by
     cases ci <;> simp_all
+    exact ⟨_, _, ⟨rfl, rfl⟩, hcv⟩
   obtain ⟨c, hci, he⟩ := find_some_rel hok.ienv hcn hf
-  obtain ⟨cvP, capsP, hcvP, -, rfl⟩ := denoteCI_indInfo_inv hci
+  obtain ⟨cvP, capsP, hcvP, hcapsP, rfl⟩ := denoteCI_indInfo_inv hci
   obtain ⟨-, hlpsC, htyC⟩ := denoteCV_inv hcvP
-  have hcl : cvP.type.hasFvar = false := hc _ _ he
+  have hcl : cvP.type.hasFvar = false := hc.1 _ _ he
   obtain ⟨nl, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨hs2, hnl⟩ := viewLsLen_run h3
   rw [hs2] at h4
@@ -723,8 +995,15 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   rw [ite_eq_right hlen] at h4
   have hlen' : keyP.lvls.length = cvP.levelParams.length := by
     rw [← hlenC]; simpa using hlen
-  obtain ⟨o, s₃, h5, h6⟩ := AM.bind_ok h4
-  obtain ⟨hs3, hbp⟩ := stripPis_pstep hok.state htyC h5
+  obtain ⟨tyC, s₂', h4a, h4b⟩ := AM.bind_ok h4
+  obtain ⟨c2', tyCP, htyCP, hFt⟩ := familyTelescope_specF hk henv cv0 cvP caps0 capsP
+    (Expr.WScoped.of_not_hasFvar hcl) _ s₂' tyC hok ⟨hcvP, hcapsP⟩ h4a
+  have hclT : tyCP.hasFvar = false := by
+    obtain ⟨F, hFt'⟩ := hFt
+    rw [familyTelescope_datF] at hFt'
+    exact ConLeche.familyTelescope_hasFvar (fun _ _ _ hw he => whnf_WScoped henv F hw he) hFt' hcl
+  obtain ⟨o, s₃, h5, h6⟩ := AM.bind_ok h4b
+  obtain ⟨hs3, hbp⟩ := stripPis_pstep c2'.ok.state htyCP h5
   rw [hs3] at h6
   cases o with
   | none => exact absurd h6 (fun hc => AM.fail_ok hc)
@@ -733,7 +1012,9 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   rw [denoteEList_length hds] at hsp
   dsimp only at h6
   obtain ⟨tl, s₄, h7, h8⟩ := AM.bind_ok h6
-  obtain ⟨c4, htl⟩ := instLPFast_cstep hok hlpsC hlv htyC h7
+  obtain ⟨c4', htl⟩ := instLPFast_cstep c2'.ok (denoteNListE_ext c2'.ext _ _ hlpsC)
+    (denoteLs_ext hlv c2'.ext) htyCP h7
+  have c4 := c2'.trans c4'
   obtain ⟨o2, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨p5, ho2⟩ := instPisWith_spec key.ds keyP.ds tl _ s₄ s₅ o2 c4.ok.state
     ⟨denoteEList_ext c4.ext _ _ hds, htl⟩ h9
@@ -787,10 +1068,12 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     refine ⟨hall, (tyP.piBinders.1.length, tyP),
       ⟨denoteEList_length hpb1, denote_ext hty (p6.ext.trans (p8.ext.trans c9.ext)),
         fun d hd => wscoped_instPisWith hd (Expr.WScoped.of_not_hasFvar
-          (by rw [Expr.hasFvar_instantiateLevelParams]; exact hcl)) hinst⟩, ?_⟩
+          (by rw [Expr.hasFvar_instantiateLevelParams]; exact hclT)) hinst⟩, ?_⟩
     simp only [ConLeche.nestInstType, he]
     refine FOk.bind FOk.unwrapOr ?_
-    rw [ite_eq_left hlen', ite_eq_left (by rw [hsp]; rfl), hinst]
+    rw [ite_eq_left hlen']
+    refine FOk.bind hFt ?_
+    rw [ite_eq_left (by rw [hsp]; rfl), hinst]
     refine FOk.bind FOk.unwrapOr ?_
     simp only [hres]
     refine FOk.bind FOk.unwrapOr ?_
@@ -850,7 +1133,8 @@ variable {env : Env} {fe : IFEnv}
 A frame's group grown by the named containers, exactly con-leche's (the
 accumulator is con-leche's own), each hole's type well scoped wherever the
 frame's parameters are (con-leche's `nestGrowGroupS_sim`). -/
-theorem nestGrowGroup_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
+theorem nestGrowGroup_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     (ctx : Arena.NestCtx) (hi : Nat) (us : LsIdx) (usP : List Level) (ds : List EIdx)
     (dsP : List Expr) :
     ∀ (cs : List NIdx) (csP : List ConLeche.Name) (grp : List (NIdx × EIdx))
@@ -859,10 +1143,10 @@ theorem nestGrowGroup_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
       CSpecF env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
           denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
           Frontend.denoteNList st.ns cs = some csP ∧ dGrp st grp = some grpP)
-        (Arena.nestGrowGroup fe ctx hi us ds cs grp)
+        (Arena.nestGrowGroup .verified fe ctx hi us ds cs grp)
         (fun st r v => dGrp st r = some v ∧
           ∀ x ∈ v, ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d x.2)
-        (ConLeche.nestGrowGroup (m := FueledM) ctxP hi usP dsP csP grpP) := by
+        (ConLeche.nestGrowGroup ctxP (fueledOpsM .verified) env hi usP dsP csP grpP) := by
   intro cs
   induction cs with
   | nil =>
@@ -887,7 +1171,7 @@ theorem nestGrowGroup_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
     obtain rfl := (Option.some.inj hcs).symm
     simp only [Arena.nestGrowGroup] at hrun
     obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
-    obtain ⟨c1, v1, ⟨hv1a, hv1b, hv1c⟩, hF1⟩ := nestInstType_spec hc ctx hi ⟨c, us, ds⟩
+    obtain ⟨c1, v1, ⟨hv1a, hv1b, hv1c⟩, hF1⟩ := nestInstType_spec hk henv hc ctx hi ⟨c, us, ds⟩
       ⟨cP, usP, dsP⟩ s₀ s₁ q hok ⟨hctx, by simp [dKey, hcn, hus, hds]⟩ h1
     obtain ⟨n1, cty⟩ := q
     dsimp only at h2 hv1a hv1b
@@ -1281,38 +1565,59 @@ theorem dKeys_grp {st : EStore} {us : LsIdx} {usP : List Level} {ds : List EIdx}
       Option.bind_some]
     simp [dKey, hcP, hus, hds]
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
-(the frame's stack entries) — the group's holes at `base`, denoted. -/
-theorem dHoles_grp {st : EStore} {us : LsIdx} {usP : List Level} {ds : List EIdx}
-    {dsP : List Expr} (hus : denoteLs st.lss us = some usP)
-    (hds : Frontend.denoteEList st ds = some dsP) (b : Nat) :
-    ∀ {grp : List (NIdx × EIdx)} {grpP : List (ConLeche.Name × Expr)},
-      dGrp st grp = some grpP →
-      (grp.map fun (x : NIdx × EIdx) => ({ key := ⟨x.1, us, ds⟩, base := b } : Arena.NestHole)).mapM
-          (dHole st) =
-        some (grpP.map fun p => ({ key := ⟨p.1, usP, dsP⟩, base := b } : ConLeche.NestHole)) := by
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1395-1414 nestFrame
+(the frame's stack entries) — the group's holes at `base`, each with its
+instantiated former's index count (`piBinders` of the hole's type), as a run. -/
+theorem frameEntries_run (b : Nat) {us : LsIdx} {usP : List Level} {ds : List EIdx}
+    {dsP : List Expr} {f : NIdx × EIdx → AM Arena.NestHole}
+    (hf : ∀ c ty, f (c, ty) = (do
+      let q ← Arena.piBinders Arena.coreWalkFuel ty
+      pure ({ key := ⟨c, us, ds⟩, base := b, nIdx := q.1.length } : Arena.NestHole))) :
+    ∀ (grp : List (NIdx × EIdx)) (grpP : List (ConLeche.Name × Expr)) (s₀ s' : AState)
+      (r : List Arena.NestHole), StateOK s₀ → denoteLs s₀.store.lss us = some usP →
+      Frontend.denoteEList s₀.store ds = some dsP → dGrp s₀.store grp = some grpP →
+      grp.mapM f s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ r.mapM (dHole s'.store) = some (grpP.map fun p =>
+        ({ key := ⟨p.1, usP, dsP⟩, base := b, nIdx := p.2.piBinders.1.length } :
+          ConLeche.NestHole)) := by
   intro grp
   induction grp with
-  | nil => intro grpP h; simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-           subst h; rfl
+  | nil =>
+    intro grpP s₀ s' r hok _ _ hg hrun
+    simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at hg
+    subst hg
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
   | cons p grp ih =>
-    intro grpP h
-    simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-    cases hp : dGE st p with
-    | none => rw [hp] at h; simp at h
+    intro grpP s₀ s' r hok hus hds hg hrun
+    simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hg
+    cases hp : dGE s₀.store p with
+    | none => rw [hp] at hg; simp at hg
     | some y =>
-    cases hgs : grp.mapM (dGE st) with
-    | none => rw [hp, hgs] at h; simp at h
+    cases hgs : grp.mapM (dGE s₀.store) with
+    | none => rw [hp, hgs] at hg; simp at hg
     | some ys =>
-    rw [hp, hgs] at h
-    simp only [Option.bind_some, Option.some.injEq] at h
-    subst h
+    rw [hp, hgs] at hg
+    simp only [Option.bind_some, Option.some.injEq] at hg
+    subst hg
+    obtain ⟨c, ty⟩ := p
     simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hp
     obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hp
-    have := ih hgs
-    simp only [List.map_cons, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, this,
-      Option.bind_some]
-    simp [dHole, dKey, hcP, hus, hds]
+    simp only [List.mapM_cons, hf] at hrun
+    obtain ⟨h1, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨q, s₀', k0, z0⟩ := AM.bind_ok k1
+    obtain ⟨p0, hq1, -⟩ := piBinders_spec _ ty tyP s₀ s₀' q hok htyP k0
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z0
+    obtain ⟨hs, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hhs⟩ := ih ys _ s₂ hs p0.ok (denoteLs_ext hus p0.ext)
+      (denoteEList_ext p0.ext _ _ hds) (dGrp_ext p0.ext _ _ hgs) k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p0.trans p2, ?_⟩
+    have x := p0.ext.trans p2.ext
+    simp only [List.map_cons, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, hhs,
+      Option.bind_some, denoteEList_length hq1]
+    simp [dHole, dKey, denoteN_ext hcP x, denoteLs_ext hus x, denoteEList_ext x _ _ hds]
 
 /-! ## The positivity function and the container frames -/
 
@@ -1660,7 +1965,7 @@ theorem nestCtors_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     have hx511 := hx510.trans p11.ext
     have hx011 := hx010.trans p11.ext
     have hwN : Expr.WScoped hi (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) :=
-      Cached.closeTelescope_wscoped vf.2.1 hi vf.2.2.1
+      ConLeche.closeTelescope_wscoped vf.2.1 hi vf.2.2.1
         (fun k nd hk => by simpa using hwnds k nd hk) (by simpa using hwcur)
     obtain ⟨c12, vr, ⟨hvr1, hvr2, hvr3⟩, hFr⟩ := ih csP' _
       ({ keys := vf.2.2.2.keys, active := vf.2.2.2.active, ctorNfs := vf.2.2.2.ctorNfs.push (ConLeche.nestCtorNf ctxP progP hi usP dsP cvP vf.2.1 vf.2.2.1) } : ConLeche.NestState)
@@ -1714,11 +2019,11 @@ theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel
       let hn ← (match grp with
         | [] => internNNode .anonymous
         | (c, _) :: _ => pure c : AM NIdx)
-      let hc ← internConstE hn us
-      let app ← Arena.mkAppN hc ds
-      let _ ← Arena.inferTypeCore mode fe Arena.checkFuel hi app
-      let prog2 := prog ++ grp.map fun (c, _) =>
-        ({ key := ⟨c, us, ds⟩, base := hi } : Arena.NestHole)
+      Arena.familyKeyCheck mode fe hi hn us ds
+      let fr ← grp.mapM fun (x : NIdx × EIdx) => (do
+        let q ← Arena.piBinders Arena.coreWalkFuel x.2
+        pure ({ key := ⟨x.1, us, ds⟩, base := hi, nIdx := q.1.length } : Arena.NestHole))
+      let prog2 := prog ++ fr
       let names := grp.map (·.1)
       let ctors ← Arena.nestGroupCtors fe nPc names []
       let holes ← grp.zipIdx.mapM fun ((_, ty), i) => internFVarE (hi + i) ty
@@ -1783,17 +2088,16 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
       exact ⟨PStep.refl hok.state, hcP⟩
   obtain ⟨p1, hhn'⟩ := hhn
   have c1 := p1.toCore hok
-  obtain ⟨hc', s₂, h3, h4⟩ := AM.bind_ok h2
-  obtain ⟨p2, hc2⟩ := internConstE_run c1.ok.state hhn' (denoteLs_ext hus p1.ext) h3
-  obtain ⟨app, s₃, h5, h6⟩ := AM.bind_ok h4
-  obtain ⟨p3, happ⟩ := mkAppN_run ds dsP p2.ok hc2
-    (denoteEList_ext (p1.ext.trans p2.ext) _ _ hds') h5
-  -- the instantiation, typed
-  obtain ⟨tyA, s₄, h7, h8⟩ := AM.bind_ok h6
-  have c3 := c1.trans ((p2.trans p3).toCore c1.ok)
-  have hwapp : Expr.WScoped hi (Expr.mkAppN (.const (grpP.headD default).1 usP) dsP) :=
-    Expr.WScoped.mkAppN (by simp [Expr.WScoped]) hds
-  obtain ⟨c4, tyP, -, -, hFty⟩ := infer_crun hk henv c3.ok happ hwapp h7
+  -- the family at the key, typed
+  obtain ⟨u3, s₃, h3, h4⟩ := AM.bind_ok h2
+  obtain ⟨c3', _, _, hFty⟩ := familyKeyCheck_specF hk henv hi hn (grpP.headD default).1 us usP
+    ds dsP hds _ s₃ u3 c1.ok ⟨hhn', denoteLs_ext hus p1.ext, denoteEList_ext p1.ext _ _ hds'⟩ h3
+  have c3 := c1.trans c3'
+  -- the frame's stack entries
+  obtain ⟨fr, s₄, h7, h8⟩ := AM.bind_ok h4
+  obtain ⟨p4, hfr⟩ := frameEntries_run hi (fun c ty => rfl) grp grpP s₃ s₄ fr c3.ok.state
+    (denoteLs_ext hus c3.ext) (denoteEList_ext c3.ext _ _ hds') (dGrp_ext c3.ext _ _ hgrp) h7
+  have c4 := p4.toCore c3.ok
   dsimp only at h8
   -- the group's constructors
   obtain ⟨ctors, s₅, h9, h10⟩ := AM.bind_ok h8
@@ -1816,15 +2120,15 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   rw [hlenG] at h13
   have hx06 := hx04.trans (p5.ext.trans p6.ext)
   have c6 := c3.trans (c4.trans ((p5.trans p6).toCore c4.ok))
-  have hprog2 : dProg s₆.store (prog ++ grp.map fun (x : NIdx × EIdx) =>
-      ({ key := ⟨x.1, us, ds⟩, base := hi } : Arena.NestHole)) =
+  have hprog2 : dProg s₆.store (prog ++ fr) =
       some ((grpP.mapIdx fun _ (x : ConLeche.Name × Expr) =>
-        ({ key := ⟨x.1, usP, dsP⟩, base := hi } : ConLeche.NestHole)).reverse ++ progP) := by
+        ({ key := ⟨x.1, usP, dsP⟩, base := hi, nIdx := x.2.piBinders.1.length } :
+          ConLeche.NestHole)).reverse ++ progP) := by
     rw [mapIdx_blind (fun (x : ConLeche.Name × Expr) =>
-      ({ key := ⟨x.1, usP, dsP⟩, base := hi } : ConLeche.NestHole))]
+      ({ key := ⟨x.1, usP, dsP⟩, base := hi, nIdx := x.2.piBinders.1.length } :
+        ConLeche.NestHole))]
     exact dProg_append (dProg_ext hx06 _ _ hprog)
-      (dHoles_grp (denoteLs_ext hus hx06) (denoteEList_ext hx06 _ _ hds') hi
-        (dGrp_ext hx06 _ _ hgrp))
+      (dHole_ext.list (p5.ext.trans p6.ext) _ _ hfr)
   obtain ⟨c7, v, ⟨-, hv2, -⟩, hFv⟩ := nestCtors_spec hk henv false fuel
     (fun _ => ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) (fun _ => by simp)
     (fun _ => by simpa using ih) _ _ (hi + grpP.length) us usP ds dsP _ _ holes _
@@ -1837,7 +2141,7 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   dsimp only at h14
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h14
   refine ⟨c6.trans c7, v.2, hv2, ?_⟩
-  simp only [ConLeche.nestFrame]
+  simp only [ConLeche.nestFrame, hfind]
   exact FOk.bind hFty (FOk.bind hFc (FOk.bind hFv (FOk.pure _)))
 
 end Frame
@@ -1894,7 +2198,7 @@ theorem nestContNew_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   obtain ⟨grp, s₂, h3, h4⟩ := AM.bind_ok h2
   have hmates := nestFrameMates_rel c1.ok.state c1.ok.ienv ctxP hfind (denoteN_ext hn p1.ext)
   rw [hiAt_eq (dCtx_ext _ p1.ext _ _ hctx), hwpl] at h3
-  obtain ⟨c2, grpV, ⟨hgrp, hgs⟩, hFg⟩ := nestGrowGroup_spec hc ctx _ us usP ds dsP _ _
+  obtain ⟨c2, grpV, ⟨hgrp, hgs⟩, hFg⟩ := nestGrowGroup_spec hk henv hc ctx _ us usP ds dsP _ _
     [(n, cty)] [(nP, ctyP)]
     (fun x hx => by simp only [List.mem_singleton] at hx; subst hx; exact hni)
     s₁ s₂ grp c1.ok ⟨dCtx_ext _ p1.ext _ _ hctx, denoteLs_ext hus p1.ext,
@@ -2117,7 +2421,7 @@ theorem nestCont_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   have c4 := (p1.trans (p2.trans p4)).toCore hok
   have hx04 := hx02.trans p4.ext
   obtain ⟨ni, s₅, h9, h10⟩ := AM.bind_ok h8
-  obtain ⟨c5, niP, ⟨hni1, hni2, hni3⟩, hFni⟩ := nestInstType_spec hc ctx _
+  obtain ⟨c5, niP, ⟨hni1, hni2, hni3⟩, hFni⟩ := nestInstType_spec hk henv hc ctx _
     ⟨n, us, args.take qP.1⟩ ⟨nP, usP, argsP.take qP.1⟩ s₄ s₅ ni c4.ok
     ⟨dCtx_ext _ hx04 _ _ hctx, by simp [dKey, denoteN_ext hn hx04, denoteLs_ext hus hx04,
       denoteEList_take (denoteEList_ext hx04 _ _ hargs') qP.1]⟩ h9
@@ -2323,27 +2627,19 @@ theorem nestPos_succ (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
       | false =>
       rw [hB] at h12
       simp only [Bool.false_eq_true, ↓reduceIte] at h12
-      obtain ⟨ar, s₇, h13, h14⟩ := AM.bind_ok h12
       simp only [dHole, Option.map_eq_some_iff] at hdh
       obtain ⟨kP, hkP, rfl⟩ := hdh
-      obtain ⟨hkc, -, hkd⟩ := dKey_inv hkP
-      obtain ⟨p7, har⟩ := nestArity_spec ctxP hfind h.key.cname kP.cname s₆ s₇ ar p6.ok
-        ⟨c2.ok.ienv.toS.mono p6.ext, denoteN_ext hkc p6.ext⟩ h13
-      simp only [RV] at har
-      subst har
       have hlen1 := denoteEList_length hargs
-      have hlen2 := denoteEList_length hkd
-      rw [hlen1, hlen2] at h14
-      by_cases hL : (wP.getAppArgs.length + kP.ds.length ==
-          ConLeche.nestArity ctxP kP.cname) = true
-      · rw [ite_eq_left hL] at h14
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok h14
-        have c7 := c2.trans ((p6.trans p7).toCore c2.ok)
+      rw [hlen1] at h12
+      by_cases hL : (wP.getAppArgs.length == h.nIdx) = true
+      · rw [ite_eq_left hL] at h12
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h12
+        have c7 := c2.trans (p6.toCore c2.ok)
         refine ⟨c7, (if i < ctxP.hiAt 0 then
             (if (kb == 0) = true then .recursive (i - ctxP.nP) else .reflexive (i - ctxP.nP))
           else .inProgress, wP, nsP),
-          ⟨?_, denote_ext hwd (p2.ext.trans (p6.ext.trans p7.ext)),
-            dState_ext (hx02.trans (p6.ext.trans p7.ext)) _ _ hns, hww⟩, ?_⟩
+          ⟨?_, denote_ext hwd (p2.ext.trans p6.ext),
+            dState_ext (hx02.trans p6.ext) _ _ hns, hww⟩, ?_⟩
         · simp only [hiAt_eq hctx 0, hcnP]
           by_cases hi1 : i < ctxP.hiAt 0 <;> by_cases hkb : (kb == 0) = true <;>
             simp only [hi1, hkb, ite_true, ite_false] <;> rfl
@@ -2356,7 +2652,7 @@ theorem nestPos_succ (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
             simp only [hg, hhP, ← List.not_any_eq_all_not, hB, Bool.not_false, Bool.true_and,
               hL, ↓reduceIte]
             exact FOk.pure _
-      · rw [ite_eq_right hL] at h14; exact absurd h14 (fun hc => AM.fail_ok hc)
+      · rw [ite_eq_right hL] at h12; exact absurd h12 (fun hc => AM.fail_ok hc)
     case const n us =>
       obtain ⟨nm, ls, hg, hn, hls⟩ := denote_const_inv c2.ok.state.wf hvw hhd
       dsimp only at h10
@@ -2409,29 +2705,36 @@ section Root
 
 variable {env : Env} {fe : IFEnv}
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
-(the cited `mapM`, one index) — member `mm`'s hole. -/
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1565 nestHoles
+(the cited `mapM`, one index) — member `mm`'s hole, off its former. -/
 def holeAtP (ctxP : ConLeche.NestCtx) (mm : Nat) : Option Expr :=
-  match ctxP.find? (ctxP.names.getD mm .anonymous) with
-  | some (.indInfo cv _) => (ConLeche.instPisWith ctxP.params cv.type).map (.fvar (ctxP.nP + mm) ·)
-  | _ => none
+  match ctxP.formers[mm]? with
+  | some cv => (ConLeche.instPisWith ctxP.params cv.type).map (.fvar (ctxP.nP + mm) ·)
+  | none => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
+/-- con-leche: none — the context's formers, denoted. -/
+theorem dCtx_formers {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {c : Arena.NestCtx} {cP : ConLeche.NestCtx} (h : dCtx st fnd c = some cP) :
+    c.formers.mapM (Frontend.denoteCV st) = some cP.formers := by
+  obtain ⟨_, _, _, _, _, rfl, -, -, -, -, -, hf⟩ := dCtx_inv h
+  exact hf
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1565 nestHoles
 — the twin's accumulator loop from member `mm` on: the accumulator, then
 con-leche's `mapM` over the remaining indices. -/
 theorem nestHolesGo_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
     ∀ (ns : List NIdx) (nsP : List ConLeche.Name) (mm : Nat) (out : List EIdx)
       (outP : List Expr),
       ctxP.names.drop mm = nsP →
-      PSpec (fun st => IFEnvOKS env fe st ∧ dCtx st env.find? ctx = some ctxP ∧
+      PSpec (fun st => dCtx st env.find? ctx = some ctxP ∧
           Frontend.denoteNList st.ns ns = some nsP ∧ Frontend.denoteEList st out = some outP)
-        (Arena.nestHoles.go fe ctx mm ns out)
+        (Arena.nestHoles.go ctx mm ns out)
         (ROp REL (((List.range' mm nsP.length).mapM (holeAtP ctxP)).map (outP ++ ·))) := by
   intro ns
   induction ns with
   | nil =>
     intro nsP mm out outP hdrop s₀ s' r hok hp hrun
-    obtain ⟨-, -, hns, hout⟩ := hp
+    obtain ⟨-, hns, hout⟩ := hp
     simp only [Frontend.denoteNList, Option.some.injEq] at hns
     subst hns
     simp only [Arena.nestHoles.go] at hrun
@@ -2439,8 +2742,9 @@ theorem nestHolesGo_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
     exact ⟨PStep.refl hok, _, by simp, hout⟩
   | cons n ns ih =>
     intro nsP mm out outP hdrop s₀ s' r hok hp hrun
-    obtain ⟨hie, hctx, hns, hout⟩ := hp
-    obtain ⟨-, hcnP, hfind, hpar, -, -⟩ := dCtx_fields hctx
+    obtain ⟨hctx, hns, hout⟩ := hp
+    obtain ⟨-, hcnP, -, hpar, -, -⟩ := dCtx_fields hctx
+    have hform := mapM_option_getElem?_bind (dCtx_formers hctx) mm
     simp only [Frontend.denoteNList] at hns
     cases hn : denoteN s₀.store.ns n with
     | none => rw [hn] at hns; simp at hns
@@ -2450,94 +2754,84 @@ theorem nestHolesGo_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
     | some xs =>
     rw [hn, hns'] at hns
     obtain rfl := (Option.some.inj hns).symm
-    have hget : ctxP.names.getD mm .anonymous = x := by
-      have : (ctxP.names.drop mm)[0]? = some x := by rw [hdrop]; rfl
-      rw [List.getElem?_drop, Nat.add_zero] at this
-      rw [List.getD_eq_getElem?_getD, this]; rfl
     have hdrop' : ctxP.names.drop (mm + 1) = xs := by
       rw [← List.drop_drop, hdrop]; rfl
-    have hhole : holeAtP ctxP mm = _ := rfl
     simp only [List.length_cons, List.range'_succ, List.mapM_cons, Option.bind_eq_bind,
       Option.pure_def]
-    have hie' := hie s₀ rfl
     simp only [Arena.nestHoles.go] at hrun
-    cases hf : fe.find? n with
+    cases hf : ctx.formers[mm]? with
     | none =>
-      rw [hf] at hrun
+      rw [hf] at hrun hform
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
-      simp only [holeAtP, hget, hfind, hie'.miss hok hn hf]
+      simp only [Option.bind_none] at hform
+      simp only [holeAtP, hform]
       rfl
-    | some ci =>
-    rw [hf] at hrun
-    obtain ⟨c, hc, he⟩ := find_some_rel hie' hn hf
-    cases ci with
-    | indInfo cv caps =>
-      obtain ⟨cvP, capsP, hcv, -, rfl⟩ := denoteCI_indInfo_inv hc
-      obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
-      dsimp only at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
-      obtain ⟨p1, ho⟩ := instPisWith_spec ctx.params ctxP.params cv.type cvP.type s₀ s₁ o hok
-        ⟨hpar, hty⟩ h1
-      have hG : holeAtP ctxP mm =
-          (ConLeche.instPisWith ctxP.params cvP.type).map (.fvar (ctxP.nP + mm) ·) := by
-        simp only [holeAtP, hget, hfind, he]
-      cases o with
-      | none =>
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-        refine ⟨p1, ?_⟩
-        show _ = none
-        simp only [ROp] at ho
-        rw [hG, ho]; rfl
-      | some t =>
-        obtain ⟨tP, htP, ht⟩ := ho
-        dsimp only at h2
-        obtain ⟨v, s₂, h3, h4⟩ := AM.bind_ok h2
-        obtain ⟨p2, hv⟩ := internFVarE_run p1.ok ht h3
-        rw [hcnP] at hv
-        obtain ⟨p3, hr⟩ := ih xs (mm + 1) (out ++ [v]) (outP ++ [.fvar (ctxP.nP + mm) tP]) hdrop'
-          s₂ s' r p2.ok ⟨hie.mono (p1.ext.trans p2.ext), dCtx_ext _ (p1.ext.trans p2.ext) _ _ hctx,
-            denoteNListE_ext (p1.ext.trans p2.ext) _ _ hns',
-            denoteEList_append (denoteEList_ext (p1.ext.trans p2.ext) _ _ hout)
-              (by simp [Frontend.denoteEList, hv])⟩ h4
-        refine ⟨p1.trans (p2.trans p3), ?_⟩
-        rw [hG, htP]
-        simp only [Option.map_some, Option.bind_some]
-        cases hm : (List.range' (mm + 1) xs.length).mapM (holeAtP ctxP) with
-        | none => rw [hm] at hr; exact hr
-        | some l =>
-          rw [hm] at hr
-          cases r with
-          | none => simp [ROp] at hr
-          | some a =>
-            obtain ⟨b, hb, hbr⟩ := hr
-            simp only [Option.map_some, Option.some.injEq] at hb
-            subst hb
-            exact ⟨_, rfl, by simpa using hbr⟩
-    | _ =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      refine ⟨PStep.refl hok, ?_⟩
+    | some cv =>
+    rw [hf] at hrun hform
+    simp only [Option.bind_some] at hform
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none =>
+      exfalso
+      rw [hcv] at hform
+      have h1 := List.getElem?_eq_none_iff.mp hform
+      obtain ⟨h2, -⟩ := List.getElem?_eq_some_iff.mp hf
+      have hl := ConLeche.option_mapM_length (dCtx_formers hctx)
+      omega
+    | some cvP =>
+    rw [hcv] at hform
+    have hty := denoteCV_type hcv
+    dsimp only at hrun
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
+    obtain ⟨p1, ho⟩ := instPisWith_spec ctx.params ctxP.params cv.type cvP.type s₀ s₁ o hok
+      ⟨hpar, hty⟩ h1
+    have hG : holeAtP ctxP mm =
+        (ConLeche.instPisWith ctxP.params cvP.type).map (.fvar (ctxP.nP + mm) ·) := by
+      simp only [holeAtP, hform]
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+      refine ⟨p1, ?_⟩
       show _ = none
-      have := denoteCI_not_ind hc (by intro v caps h; exact nomatch h)
-      have hG : holeAtP ctxP mm = none := by
-        simp only [holeAtP, hget, hfind, he]
-        cases c with
-        | indInfo v k => exact absurd rfl (this v k)
-        | _ => rfl
-      rw [hG]; rfl
+      simp only [ROp] at ho
+      rw [hG, ho]; rfl
+    | some t =>
+      obtain ⟨tP, htP, ht⟩ := ho
+      dsimp only at h2
+      obtain ⟨v, s₂, h3, h4⟩ := AM.bind_ok h2
+      obtain ⟨p2, hv⟩ := internFVarE_run p1.ok ht h3
+      rw [hcnP] at hv
+      obtain ⟨p3, hr⟩ := ih xs (mm + 1) (out ++ [v]) (outP ++ [.fvar (ctxP.nP + mm) tP]) hdrop'
+        s₂ s' r p2.ok ⟨dCtx_ext _ (p1.ext.trans p2.ext) _ _ hctx,
+          denoteNListE_ext (p1.ext.trans p2.ext) _ _ hns',
+          denoteEList_append (denoteEList_ext (p1.ext.trans p2.ext) _ _ hout)
+            (by simp [Frontend.denoteEList, hv])⟩ h4
+      refine ⟨p1.trans (p2.trans p3), ?_⟩
+      rw [hG, htP]
+      simp only [Option.map_some, Option.bind_some]
+      cases hm : (List.range' (mm + 1) xs.length).mapM (holeAtP ctxP) with
+      | none => rw [hm] at hr; exact hr
+      | some l =>
+        rw [hm] at hr
+        cases r with
+        | none => simp [ROp] at hr
+        | some a =>
+          obtain ⟨b, hb, hbr⟩ := hr
+          simp only [Option.map_some, Option.some.injEq] at hb
+          subst hb
+          exact ⟨_, rfl, by simpa using hbr⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1565 nestHoles
 The member holes, exactly con-leche's (`none` included). -/
 theorem nestHoles_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
-    PSpec (fun st => IFEnvOKS env fe st ∧ dCtx st env.find? ctx = some ctxP)
-      (Arena.nestHoles fe ctx) (ROp REL (ConLeche.nestHoles ctxP)) := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hie, hctx⟩ := hp
+    PSpec (fun st => dCtx st env.find? ctx = some ctxP)
+      (Arena.nestHoles ctx) (ROp REL (ConLeche.nestHoles ctxP)) := by
+  intro s₀ s' r hok hctx hrun
   obtain ⟨hcn, -, -, -, -, -⟩ := dCtx_fields hctx
   simp only [Arena.nestHoles] at hrun
-  obtain ⟨p, hr⟩ := nestHolesGo_spec ctx ctxP ctx.names ctxP.names 0 [] [] rfl s₀ s' r hok
-    ⟨hie, hctx, hcn, rfl⟩ hrun
+  obtain ⟨p, hr⟩ := nestHolesGo_spec (env := env) ctx ctxP ctx.names ctxP.names 0 [] [] rfl
+    s₀ s' r hok ⟨hctx, hcn, rfl⟩ hrun
   refine ⟨p, ?_⟩
   have e1 : ConLeche.nestHoles ctxP = (List.range' 0 ctxP.names.length).mapM (holeAtP ctxP) := by
     rw [ConLeche.nestHoles, ← List.range_eq_range']
@@ -2943,7 +3237,7 @@ theorem nestSeeds_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     have c1 := p1.toCore hok
     -- the former
     obtain ⟨q, s₂, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨c2, niP, ⟨-, hni2, hni3⟩, hFni⟩ := nestInstType_spec hc ctx (ctx.hiAt 0) key keyP
+    obtain ⟨c2, niP, ⟨-, hni2, hni3⟩, hFni⟩ := nestInstType_spec hk henv hc ctx (ctx.hiAt 0) key keyP
       s₁ s₂ q c1.ok ⟨dCtx_ext _ p1.ext _ _ hctx, dKey_ext p1.ext _ _ hkey⟩ h3
     obtain ⟨nI, cty⟩ := q
     dsimp only at h4 hni2
