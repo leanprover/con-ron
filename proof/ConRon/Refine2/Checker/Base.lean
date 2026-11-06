@@ -16,7 +16,7 @@ reading `fe.visible_below` inside the call forced a copy of the record.  The
 twin's `IFEnv.find?` reads `fe.visibleBelow`.  So every statement whose Rust
 takes a `vis` parameter carries
 
-    hvis : absU vis = lf.visibleBelow
+    
 
 and it is discharged at the top by `IFEnvRel.visibleBelow` — the call sites
 all pass `fe.visible_below` — but must be threaded through the tier, because
@@ -532,12 +532,12 @@ theorem consts_resolve_aux (n : Nat) :
         lst (constsResolve lf n (absEIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
+    intro pers st lst rf lf fuel h hn hctx hrel hinv
     rw [arena.core.consts_resolve, constsResolve]
     lockstep
   | succ m ih =>
-    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
-    rw [arena.core.consts_resolve, constsResolve_succ]
+    intro pers st lst rf lf fuel h hn hctx hrel hinv
+    rw [arena.core.consts_resolve, constsResolve_succ, strSupportStoredSpec]
     lockstep
 
 /-- **`arena::core::consts_resolve` ⊑ `constsResolve`**. -/
@@ -611,11 +611,11 @@ theorem consts_resolve_f_go_aux (n : Nat) :
         (constsResolveFGo lf lm n (absEIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst vis rf lf rm lm fuel h hn hrel hinv hctx hm
+    intro pers st lst rf lf rm lm fuel h hn hrel hinv hctx hm
     rw [arena.checker_base.consts_resolve_f_go, constsResolveFGo]
     lockstep
   | succ m ih =>
-    intro pers st lst vis rf lf rm lm fuel h hn hrel hinv hctx hm
+    intro pers st lst rf lf rm lm fuel h hn hrel hinv hctx hm
     rw [arena.checker_base.consts_resolve_f_go, constsResolveFGo]
     unfold arena.checker_base.consts_resolve_f_node arena.checker_base.consts_resolve_f_two
     lockstep
@@ -672,17 +672,16 @@ parked `crf_c` table, moved out and emptied by `take_walk_memo` and put back
 afterwards (task #97-PERF-WALKMEMO); `MemosRel` has no clause for it, so the
 two state updates are invisible to `AStateRel₀`, and `MemosInv.crfC` is
 carried by the walk's own memo relation. -/
-@[lockstep] theorem consts_resolve_f_fast_ls {E₀ : IEnv} {pers st lst}
-   
+@[lockstep] theorem consts_resolve_f_fast_ls {pers st lst}
     {rf lf}
     {e : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = id a)
       (arena.checker_base.consts_resolve_f_fast pers st rf e) lst
-      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe.rel hfe.inv
+      (constsResolveFFast lf (absEIdx e)) := by
+  have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv
   intro o st' hrun
   rw [arena.checker_base.consts_resolve_f_fast] at hrun
   obtain ⟨⟨m, hm⟩, htake, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -950,11 +949,11 @@ statement across a lockstep reader. -/
 /-- **`ifenv_find` ⊑ `IFEnv.find?`**, filed as a Rust-only step whose answer
 rewrites the twin (task #97-T2-LOCKSTEP lane Checker round 2): the index read
 is pure on both sides, `ifenv_find_abs` is the correspondence. -/
-@[lockstep] theorem Lockstep.ifenv_find_spec {pers : arena.store.PersTier} {E₀ : IEnv} {rf lf} (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) (n : arena.handle.NIdx) :
+@[lockstep] theorem Lockstep.ifenv_find_spec {pers : arena.store.PersTier} {rf lf} (hfe : IFEnvRelI pers rf lf)
+    (n : arena.handle.NIdx) :
     LSP (arena.env.ifenv_find pers rf n)
       (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
-  fun _ h => (ifenv_find_abs (IFEnvInv.coreCtx hfe.rel hfe.inv hvis) h).symm
+  fun _ h => (ifenv_find_abs (IFEnvInv.coreCtx hfe.rel hfe.inv) h).symm
 
 @[lockstep_simp] theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).name = absNIdx cv.name := rfl
@@ -962,117 +961,6 @@ is pure on both sides, `ifenv_find_abs` is the correspondence. -/
 attribute [lockstep_simp] Lockstep.PC1.absIConstantVal_type
 
 attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true ite_false
-
-/-! ## The erased-subtype invariant at its sources
-
-`IFEnvRel.envWF` needs every pushed constant to be canonical Rust data
-(`IConstantInfoWF`: an inductive's zero-ness `PropWhen` satisfies the
-invariant Charon erased).  These are its sources, facts about the Rust
-alone: an interned kernel constant (`intern_ci_list`, the basis's
-`basis_kind_decls_a`) and a copy (`i_constant_info_dup`). -/
-
-/-- `intern_caps` copies the zero-ness datum. -/
-theorem intern_ci_go_wf {pers st m c ci st' m'} (hwf : ConRon.Refine.ConstantInfoWF c)
-    (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, st', m')) : IConstantInfoWF ci := by
-  cases c with
-  | IndInfo v c2 =>
-    rw [arena.intern.intern_ci_go] at h
-    obtain ⟨⟨r, st1, m1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases r with
-    | Err e => simp at h
-    | Ok cv =>
-      obtain ⟨⟨r2, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      cases r2 with
-      | Err e => simp at h
-      | Ok caps =>
-        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
-        show ConRon.Refine.PropWhenWF caps.sort_z
-        rw [intern_caps_sort_z h2]; exact hwf.2.2.1
-  | _ =>
-    rcases ci with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
-    rw [arena.intern.intern_ci_go] at h
-    repeat (rust_bind_guard h; obtain ⟨⟨r, _, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; rcases r with r | r)
-    all_goals simp at h
-
-theorem intern_ci_list_go_wf (n : Nat) : ∀ {pers st m} (es : alloc.vec.Vec kernel.env.ConstantInfo)
-    (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo) {r st' m'},
-    es.val.length - i.val = n → (∀ x ∈ es.val, ConRon.Refine.ConstantInfoWF x) →
-    (∀ c ∈ out.val, IConstantInfoWF c) →
-    arena.intern.intern_ci_list_go pers st m es i out = ok (.Ok r, st', m') →
-    ∀ c ∈ r.val, IConstantInfoWF c := by
-  induction n with
-  | zero =>
-    intro pers st m es i out r st' m' hn hP hout h
-    rw [arena.intern.intern_ci_list_go] at h
-    have hl := alloc.vec.Vec.len_val es
-    rw [ite_eq_left (by scalar_tac)] at h
-    obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
-    exact hout
-  | succ k ih =>
-    intro pers st m es i out r st' m' hn hP hout h
-    rw [arena.intern.intern_ci_list_go] at h
-    have hl := alloc.vec.Vec.len_val es
-    rw [ite_eq_right (by scalar_tac)] at h
-    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨⟨r1, st1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rcases r1 with ci | e
-    · obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
-      obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
-      refine ih es i2 out1 (by omega) hP ?_ h
-      rw [ConRon.Refine.vec_push_val hout1]
-      intro c hc
-      rcases List.mem_append.mp hc with hc | hc
-      · exact hout c hc
-      · rw [List.mem_singleton.mp hc]
-        exact intern_ci_go_wf (hP x (hxv ▸ List.getElem_mem hb)) h1
-    · simp at h
-
-/-- **`intern_ci_list` keeps the erased-subtype invariant**: a well-formed
-kernel constant interns to an `IConstantInfoWF` one (an inductive's zero-ness
-datum is copied by `prop_when::dup`).  A fact about the Rust alone. -/
-theorem intern_ci_list_wf {pers st} {cs : alloc.vec.Vec kernel.env.ConstantInfo} {r st'}
-    (hwf : ConRon.Refine.ConstantInfosWF cs)
-    (h : arena.intern.intern_ci_list pers st cs = ok (.Ok r, st')) :
-    ∀ c ∈ r.val, IConstantInfoWF c := by
-  rw [arena.intern.intern_ci_list] at h
-  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨⟨r1, st1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨rfl, -⟩ := Prod.mk.inj (Result.ok_injective h)
-  exact intern_ci_list_go_wf _ cs 0#usize _ rfl hwf (by simp [alloc.vec.Vec.new]) h1
-
-/-- The basis's annotated constants are `IConstantInfoWF`. -/
-theorem basis_kind_decls_a_wf {pers st} {k : kernel.env.BasisKind} {r st'}
-    (h : arena.basis.basis_kind_decls_a pers st k = ok (.Ok r, st')) :
-    ∀ c ∈ r.val, IConstantInfoWF c := by
-  rw [arena.basis.basis_kind_decls_a] at h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  exact intern_ci_list_wf (ConRon.Refine.BasisPins.basis_decls_a_wf hv) h
-
-/-- `i_constant_info_dup` keeps `IConstantInfoWF` (`prop_when::dup` is the
-identity). -/
-theorem i_constant_info_dup_wf {c o : arena.env.IConstantInfo}
-    (h : arena.env.i_constant_info_dup c = ok o) (hc : IConstantInfoWF c) :
-    IConstantInfoWF o := by
-  rw [arena.env.i_constant_info_dup.eq_def] at h
-  cases c with
-  | IndInfo cv caps =>
-    obtain ⟨iv, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [← Result.ok_injective h]
-    rw [arena.env.i_ind_caps_dup] at hic
-    obtain ⟨n, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
-    obtain ⟨pw, hpw, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
-    obtain ⟨_, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
-    obtain ⟨_, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
-    rw [← Result.ok_injective hic]
-    show ConRon.Refine.PropWhenWF pw
-    rw [ConRon.Refine.PropWhen.dup_eq hpw]; exact hc
-  | _ =>
-    rcases o with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
-    repeat (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
-    all_goals simp at h
 
 namespace Lockstep
 
@@ -1082,70 +970,58 @@ namespace Lockstep
       (fun o => o = (absNIdxLFrom ns i).contains (absNIdx n)) :=
   fun _ h => nidx_contains_from_refines h
 
-/-- **`ifenv_restrict_to` is a field update** (task #97-T2-LOCKSTEP lane
-Checker round 2), filed as a Rust-only step whose answer the tactic
-substitutes: the twin's partner is the pure `IFEnv.restrictTo` at the call
-site, and `IFEnvRelI.restrict` below relates the two. -/
-@[lockstep] theorem ifenv_restrict_to_spec (rf : arena.env.IFEnv) (k : Std.U64) :
-    LSP (arena.env.ifenv_restrict_to rf k)
-      (fun r => r = { rf with visible_below := k }) := by
-  intro r h
-  simp only [arena.env.ifenv_restrict_to, Result.ok.injEq] at h
-  exact h.symm
-
-/-- **The restricted index is related to the restricted twin index** — the
-invariant's counter bound is the one thing that needs the new counter to fit
-the constant list. -/
-theorem IFEnvRelI.restrict {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (h : IFEnvRelI pers E₀ rf lf) {k : Std.U64}
-    (hk : k.val ≤ rf.env.consts.val.length + rf.base_below.val) :
-    IFEnvRelI pers E₀ { rf with visible_below := k } (lf.restrictTo (absU k)) :=
-  ⟨⟨h.rel.env, h.rel.idx, rfl, h.rel.envWF, h.rel.keys, h.rel.tbls, h.rel.tblKeys, h.rel.base⟩,
-    ⟨h.inv.1, hk, h.inv.2.2⟩⟩
-
-/-- The side tier's extension for the pin gates' pre-insertion view: a
-restricted index against the restricted twin index, its bound by `omega` over
-the context's counters. -/
-macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| (apply IFEnvRelI.restrict (by assumption); (checker_env_facts; (try simp only at *); omega)))
-
-/-- `ifenv_push` raises the counter by one. -/
-theorem ifenv_push_vis {rf rf' : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
-    (h : arena.env.ifenv_push rf ci = ok rf') :
-    rf'.visible_below.val = rf.visible_below.val + 1 := by
-  rw [arena.env.ifenv_push] at h
-  obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain rfl := (Result.ok_injective h).symm
-  exact ConRon.Refine.Nat.uadd_val hc1
-
-/-- `ifenv_push` at a constant the checker built: `hwf` is the pushed
-constant's erased-subtype invariant (`True` but at an inductive), discharged
-by the side tier from the constructor (`IConstantInfoWF_*`) and, at an
-inductive, from its caps' source. -/
-@[lockstep] theorem ifenv_push_spec {pers : arena.store.PersTier} {E₀ : IEnv} {rf lf} (hfe : IFEnvRelI pers E₀ rf lf)
-    (ci : arena.env.IConstantInfo) (hwf : IConstantInfoWF ci) :
+/-- `ifenv_push`: the constant pushed onto the layer. -/
+@[lockstep] theorem ifenv_push_spec {pers : arena.store.PersTier} {rf lf} (hfe : IFEnvRelI pers rf lf)
+    (ci : arena.env.IConstantInfo) :
     LSP (arena.env.ifenv_push rf ci)
-      (fun r => IFEnvRelI pers E₀ r (lf.push (absIConstantInfo ci)) ∧
-        rf.visible_below.val ≤ r.visible_below.val) :=
-  fun _ h => ⟨ifenv_push_refines hfe.rel hfe.inv hwf h, by rw [ifenv_push_vis h]; omega⟩
+      (fun r => IFEnvRelI pers r (lf.push (absIConstantInfo ci))) :=
+  fun _ h => ifenv_push_refines hfe.rel hfe.inv h
 
-/-- `ifenv_push_table`: a table pushed, the counter unmoved. -/
-@[lockstep] theorem ifenv_push_table_spec {E₀ : IEnv} {rf lf} (hfe : IFEnvRelI pers E₀ rf lf)
-    (t : arena.env.IProjTable) :
+/-- `ifenv_push_table`: a table pushed onto the layer. -/
+@[lockstep] theorem ifenv_push_table_spec {pers : arena.store.PersTier} {rf lf}
+    (hfe : IFEnvRelI pers rf lf) (t : arena.env.IProjTable) :
     LSP (arena.env.ifenv_push_table rf t)
-      (fun r => IFEnvRelI pers E₀ r (lf.pushTable (absIProjTable t)) ∧
-        rf.visible_below.val ≤ r.visible_below.val) := by
-  intro r h
-  obtain ⟨h1, h2, h3⟩ := ifenv_push_table_refines hfe.rel hfe.inv h
-  exact ⟨⟨h1, h2⟩, by rw [h3]⟩
+      (fun r => IFEnvRelI pers r (lf.pushTable (absIProjTable t))) :=
+  fun _ h => ifenv_push_table_refines hfe.rel hfe.inv h
 
-attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
-  Option.map_none
+/-! ### A temporary push and its pop (con-leche's `FEnv.overlay`)
+
+The pinned gates read the environment with the declared constant on it and then
+without: the Rust pushes in place and pops (`ifenv_push_temp`, `ifenv_pop_temp`),
+the twin pushes and puts the displaced own row back (`IFEnv.popTemp`).  Between
+the two the Rust only reads the layer. -/
+
+/-- **`ifenv_push_temp` ⊑ `IFEnv.push`**, with what it displaced: the slot of the
+row it overwrote, which the pop puts back. -/
+theorem ifenv_push_temp_refines {pers : arena.store.PersTier} {rf rf1 : arena.env.IFEnv}
+    {lf : IFEnv} {ci : arena.env.IConstantInfo} {prev : Option Std.U64}
+    (hfe : IFEnvRelI pers rf lf)
+    (h : arena.env.ifenv_push_temp rf ci = ok (prev, rf1)) :
+    IFEnvRelI pers rf1 (lf.push (absIConstantInfo ci)) ∧
+    ∃ n, arena.env.i_constant_info_name ci = ok n ∧
+      prev = ConRon.Refine.HashMap2.toFun rf.idx n ∧
+      rf1.env.consts.val = rf.env.consts.val ++ [ci] ∧
+      (∃ s : Std.U64, s.val = rf.env.consts.val.length ∧
+        ConRon.Refine.HashMap2.toFun rf1.idx =
+          Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some s)) ∧
+      rf1.env.tables = rf.env.tables ∧ rf1.tbls = rf.tbls ∧
+      rf1.base_below = rf.base_below ∧ rf1.base_below_rec = rf.base_below_rec := by
+  sorry -- T143-STUB
+
+/-- **`ifenv_pop_temp` after `ifenv_push_temp` ⊑ `IFEnv.popTemp` after `IFEnv.push`**:
+the layer the push started from, on both sides — the twin's displaced own row is
+the one read before the push. -/
+theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena.env.IFEnv}
+    {lf : IFEnv} {ci : arena.env.IConstantInfo} {prev : Option Std.U64}
+    {n : arena.handle.NIdx}
+    (hfe : IFEnvRelI pers rf lf) (hn : absNIdx n = (absIConstantInfo ci).name)
+    (h1 : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (h2 : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
+    IFEnvRelI pers rf2
+      ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?) := by
+  sorry -- T143-STUB
+
+attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
 
 end Lockstep
 
@@ -1160,8 +1036,18 @@ open Lockstep in
       (fun o => TwinEq (nameNodup (ns.val.map absNIdx)) o) :=
   fun _ h => (name_nodup_refines h).symm
 
+/-- `arena::core::nat_op_name` ⊑ `natOpName`: the name among the seven structural
+operations, else among the WF-recursive ones. -/
+@[lockstep] theorem base_nat_op_name_ls {pers st lst} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    Lockstep.LS pers (fun a b => b = id a) (arena.core.nat_op_name st n) lst
+      (natOpName (absNIdx n)) := by
+  rw [arena.core.nat_op_name, natOpName]
+  lockstep
+
 /-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
-the duplicate-declaration test (extraction rule 5).  One `lockstep` call. -/
+the operation-name test (extraction rule 5): the literal shape, then the three
+syntactic tests on the type.  One `lockstep` call. -/
 theorem check_constant_val_guards_rest_refines {pers st lst}
     {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1183,191 +1069,92 @@ open Lockstep in
       (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
   LS.ofSim₀ fun _ h => check_constant_val_guards_rest_refines hrel hinv h
 
-/-- `check_constant_val_guards` is `installHeader`'s (and `checkConstantVal`'s)
-guard prefix — the six syntactic tests. -/
-theorem check_constant_val_guards_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {cv : arena.env.IConstantVal} {o}
+/-- `check_constant_val_guards` is `checkConstantVal`'s guard prefix — the
+syntactic tests, the operation name allowed only at a definition. -/
+theorem check_constant_val_guards_refines {pers st lst} {rf lf}
+    {cv : arena.env.IConstantVal} {allowOp : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.check_constant_val_guards pers st rf cv = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_base.check_constant_val_guards pers st rf cv allowOp = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantValGuardsSpec lf (absIConstantVal cv)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_base.check_constant_val_guards]
   try unfold checkConstantValGuardsSpec
   lockstep
 
 open Lockstep in
-@[lockstep] theorem check_constant_val_guards_ls {E₀ : IEnv} {pers st lst}
-   
+@[lockstep] theorem check_constant_val_guards_ls {pers st lst}
     {rf lf}
-    {cv : arena.env.IConstantVal}
+    {cv : arena.env.IConstantVal} {allowOp : Bool}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_base.check_constant_val_guards pers st rf cv) lst
-      (checkConstantValGuardsSpec lf (absIConstantVal cv)) :=
-  LS.ofSim₀ fun _ h => check_constant_val_guards_refines hrel hinv hfe.rel hfe.inv hvis h
+      (arena.checker_base.check_constant_val_guards pers st rf cv allowOp) lst
+      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp) :=
+  LS.ofSim₀ fun _ h => check_constant_val_guards_refines hrel hinv hfe.rel hfe.inv h
 
-/-- `install_header_tail` is `installHeader`'s (and `checkConstantVal`'s) tail:
-the level-parameter test and the constant-resolution test on the declared
-type. -/
-theorem install_header_tail_refines {E₀ : IEnv} {pers st lst} {rf lf}
+/-- `check_constant_val_tail` is `checkConstantVal`'s tail: the level-parameter
+test and the constant-resolution test on the declared type. -/
+theorem check_constant_val_tail_refines {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.install_header_tail pers st rf cv = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_base.check_constant_val_tail pers st rf cv = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (installHeaderTailSpec lf (absIConstantVal cv)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+      (checkConstantValTailSpec lf (absIConstantVal cv)) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_base.install_header_tail]
-  try unfold installHeaderTailSpec
+  rw [arena.checker_base.check_constant_val_tail]
+  try unfold checkConstantValTailSpec
   lockstep
 
 open Lockstep in
-@[lockstep] theorem install_header_tail_ls {E₀ : IEnv} {pers st lst}
-   
+@[lockstep] theorem check_constant_val_tail_ls {pers st lst}
     {rf lf}
     {cv : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_base.install_header_tail pers st rf cv) lst
-      (installHeaderTailSpec lf (absIConstantVal cv)) :=
-  LS.ofSim₀ fun _ h => install_header_tail_refines hrel hinv hfe.rel hfe.inv hvis h
+      (arena.checker_base.check_constant_val_tail pers st rf cv) lst
+      (checkConstantValTailSpec lf (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_tail_refines hrel hinv hfe.rel hfe.inv h
 
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
-constant check, whole.  Both return `Unit` since task #119 (the constant is
-stored as declared). -/
-theorem check_constant_val_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
+constant check, whole, at the caller's `allowOp`. -/
+theorem check_constant_val_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {allowOp : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.check_constant_val pers st mode rf cv = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_base.check_constant_val pers st mode rf cv allowOp = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_base.check_constant_val]
   rw [checkConstantVal_unfold]
   lockstep
 
 open Lockstep in
-@[lockstep] theorem check_constant_val_ls {E₀ : IEnv} {pers st lst}
-   
+@[lockstep] theorem check_constant_val_ls {pers st lst}
     {rf lf}
     {mode : kernel.env.CheckMode}
-    {cv : arena.env.IConstantVal}
+    {cv : arena.env.IConstantVal} {allowOp : Bool}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_base.check_constant_val pers st mode rf cv) lst
-      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) :=
-  LS.ofSim₀ fun _ h => check_constant_val_refines hrel hinv hfe.rel hfe.inv hvis h
+      (arena.checker_base.check_constant_val pers st mode rf cv allowOp) lst
+      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp) :=
+  LS.ofSim₀ fun _ h => check_constant_val_refines hrel hinv hfe.rel hfe.inv h
 
-/-! ## Opening a pi telescope at fresh free variables -/
-
-open Lockstep in
-theorem open_pis_at_fvars_aux (k : Nat) :
-    ∀ {pers st lst} (n : Std.U64) (h : arena.handle.EIdx) (i : Std.U64),
-      n.val = k → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-        (arena.checker_base.open_pis_at_fvars pers st n h i) lst
-        (openPisAtFvars k (absEIdx h) (absU i)) := by
-  induction k with
-  | zero =>
-    intro pers st lst n h i hn hrel hinv
-    rw [arena.checker_base.open_pis_at_fvars, openPisAtFvars]
-    lockstep
-  | succ m ih =>
-    intro pers st lst n h i hn hrel hinv
-    rw [arena.checker_base.open_pis_at_fvars, openPisAtFvars]
-    lockstep
-
-open Lockstep in
-theorem open_pis_at_fvars_f_go_aux (k : Nat) :
-    ∀ {pers st lst} (acc : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (h : arena.handle.EIdx) (i : Std.U64),
-      n.val = k → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-        (arena.checker_base.open_pis_at_fvars_f_go pers st acc n h i) lst
-        (openPisAtFvarsFGo (absEIdxL acc).toArray k (absEIdx h) (absU i)) := by
-  induction k with
-  | zero =>
-    intro pers st lst acc n h i hn hrel hinv
-    rw [arena.checker_base.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
-    lockstep
-  | succ m ih =>
-    intro pers st lst acc n h i hn hrel hinv
-    rw [arena.checker_base.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
-    lockstep
-
-
-open Lockstep in
-/-- `open_pis_at_fvars` ⊑ `openPisAtFvars` — structural on `n`, so no fuel of
-its own. -/
-@[lockstep] theorem open_pis_at_fvars_ls {pers st lst}
-    {n : Std.U64}
-    {h : arena.handle.EIdx}
-    {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-      (arena.checker_base.open_pis_at_fvars pers st n h i) lst
-      (openPisAtFvars (absU n) (absEIdx h) (absU i)) := by
-  exact open_pis_at_fvars_aux _ n h i rfl hrel hinv
-
-open Lockstep in
-/-- `open_pis_at_fvars_f_go` ⊑ `openPisAtFvarsFGo` — `acc` holds the
-already-created fvars, innermost binder first; one `instantiateList` pass per
-domain instead of one whole-telescope `instantiate1` pass per binder. -/
-@[lockstep] theorem open_pis_at_fvars_f_go_ls {pers st lst}
-    {acc : alloc.vec.Vec arena.handle.EIdx}
-    {n : Std.U64}
-    {h : arena.handle.EIdx}
-    {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-      (arena.checker_base.open_pis_at_fvars_f_go pers st acc n h i) lst
-      (openPisAtFvarsFGo (absEIdxL acc).toArray (absU n) (absEIdx h) (absU i)) := by
-  exact open_pis_at_fvars_f_go_aux _ acc n h i rfl hrel hinv
-
-/-- `open_pis_at_fvars_f` ⊑ `openPisAtFvarsF` — the one-pass form, with the
-fallback that covers telescopes whose binders only appear after
-substitution. -/
-theorem open_pis_at_fvars_f_refines {pers st lst} {n : Std.U64}
-    {e : arena.handle.EIdx} {i : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.open_pis_at_fvars_f pers st n e i = ok o) :
-    Sim₀ (Option.map (fun p => (absEIdxL p.1, absEIdx p.2)))
-      pers lst o (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_base.open_pis_at_fvars_f]
-  try unfold openPisAtFvarsF
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem open_pis_at_fvars_f_ls {pers st lst}
-    {n : Std.U64}
-    {e : arena.handle.EIdx}
-    {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-      (arena.checker_base.open_pis_at_fvars_f pers st n e i) lst
-      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) :=
-  LS.ofSim₀ fun _ h => open_pis_at_fvars_f_refines hrel hinv h
+/-! ## The free variables' types -/
 
 open Lockstep in
 /-- `fvar_type_ds` ⊑ `fvarTypeDs` at the cursor — `xs.map Expr.fvarTypeD`,
@@ -1532,223 +1319,65 @@ open Lockstep in
       (indParamsOk (absU n_p) (absICILFrom block i)) :=
   LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
 
-/-! ## `arena::checker_split` — the install/check seam of a value declaration
+/-! ## A value's syntactic guards (`arena::decl_check::value_guards`)
 
-DESIGN §8.3's per-declaration bracket lives here: the install half writes the
-annotated type and the annotated value (the terms the environment stores, so
-they must be PERSISTENT and the half runs OUTSIDE the bracket), and the check
-half infers and compares (everything it allocates is intermediate, and the
-scratch tier is dropped at its end). -/
+The three value checks spell the value's guards alike; the Rust splits them past
+the two scope tests (`value_guards_tail`).  They sit here, below the value checks
+(`Refine2/Checker/DeclCheck.lean`), with the other guard walks. -/
 
-/-- `is_thm` is the twin's `g.kind == .thm`. -/
-theorem is_thm_refines {k : arena.checker_split.ValueKind} {o : Bool}
-    (hrun : arena.checker_split.is_thm k = ok o) :
-    o = (absValueKind k == .thm) := by
-  rw [arena.checker_split.is_thm.eq_def] at hrun
-  cases k <;> (
-    simp only [] at hrun
-    have h2 := Result.ok_injective hrun
-    subst h2
-    rfl)
-
-@[lockstep] theorem Lockstep.is_thm_spec (k : arena.checker_split.ValueKind) :
-    LSP (arena.checker_split.is_thm k) (fun o => o = (absValueKind k == .thm)) :=
-  fun _ h => is_thm_refines h
-
-/-- **`install_header` ⊑ `installHeader`** — `checkConstantVal` minus its
-inference: the syntactic guards and the declared type's two resolution
-guards. -/
-theorem install_header_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_split.install_header pers st rf cv = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (installHeader lf (absIConstantVal cv)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.install_header]
-  rw [installHeader_unfold]
-  lockstep
-
-/-- `install_value_guards_tail` is `install_value_guards`' tail past the two
-scope tests. -/
-theorem install_value_guards_tail_refines {E₀ : IEnv} {pers st lst} {rf lf}
+/-- `value_guards_tail` is `valueGuards`' tail past the two scope tests. -/
+theorem value_guards_tail_refines {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value_guards_tail pers st rf cv value = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.decl_check.value_guards_tail pers st rf cv value = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+      (valueGuardsTailSpec lf (absIConstantVal cv) (absEIdx value)) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.install_value_guards_tail]
-  try unfold installValueGuardsTailSpec
+  rw [arena.decl_check.value_guards_tail]
+  try unfold valueGuardsTailSpec
   lockstep
 
 open Lockstep in
-@[lockstep] theorem install_value_guards_tail_ls {E₀ : IEnv} {pers st lst}
-   
+@[lockstep] theorem value_guards_tail_ls {pers st lst}
     {rf lf}
     {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_split.install_value_guards_tail pers st rf cv value) lst
-      (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value)) :=
-  LS.ofSim₀ fun _ h => install_value_guards_tail_refines hrel hinv hfe.rel hfe.inv h
+      (arena.decl_check.value_guards_tail pers st rf cv value) lst
+      (valueGuardsTailSpec lf (absIConstantVal cv) (absEIdx value)) :=
+  LS.ofSim₀ fun _ h => value_guards_tail_refines hrel hinv hfe.rel hfe.inv h
 
-/-- **`install_value_guards` ⊑ `installValueGuards`** — the value half of
-`check{Defn,Thm,Opaque}Val` minus its inference: the value's guards.  One
-`lockstep` call. -/
-theorem install_value_guards_refines {E₀ : IEnv} {pers st lst} {rf lf}
+/-- **`value_guards` ⊑ `valueGuards`**: no loose bound variable, no free
+variable, declared universe parameters, resolving constants.  One `lockstep`
+call. -/
+theorem value_guards_refines {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value_guards pers st rf cv value = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.decl_check.value_guards pers st rf cv value = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (installValueGuards (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
+      (valueGuards lf (absIConstantVal cv) (absEIdx value)) := by
+  have hctx := IFEnvInv.coreCtx hfe hfinv
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.install_value_guards, installValueGuards_unfold]
+  rw [arena.decl_check.value_guards, valueGuards_unfold]
   simp only [am_fail_bind]
   lockstep
 
-@[lockstep] theorem Lockstep.install_value_guards_ls {E₀ : IEnv} {pers st lst} {rf lf}
+@[lockstep] theorem Lockstep.value_guards_ls {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_split.install_value_guards pers st rf cv value) lst
-      (installValueGuards lf (absIConstantVal cv) (absEIdx value)) := by
-  have hlf : lf.restrictTo (absU vis) = lf := by rw [IFEnv.restrictTo, hvis]
-  refine LS.ofSim₀ fun _ h => ?_
-  have := install_value_guards_refines hrel hinv hfe.rel hfe.inv h
-  rwa [hlf] at this
-
-/-- The same at a split scalar: the twin environment viewed at `vis`. -/
-@[lockstep] theorem Lockstep.install_value_guards_at_ls {E₀ : IEnv} {pers st lst}
-    {rf lf} {cv : arena.env.IConstantVal} {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_split.install_value_guards pers st rf cv value) lst
-      (installValueGuards (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value)) :=
-  LS.ofSim₀ fun _ h => install_value_guards_refines hrel hinv hfe.rel hfe.inv h
-
-/-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
-against the declared one.
-
-**PROVED** (task #97-T2-LOCKSTEP step 1), once the twin's type-mismatch
-decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
-old twin message read the constant's name (`readName`), a twin-only store read
-that throws `.internal` at a dangling name, and that divergence was what
-stopped task #97-P5-Top round 3 here.  Since task #97-T2-LOCKSTEP lane
-Checker it is one `lockstep` call (`infer_type_core ; is_def_eq_core` at the
-prefix view), with no precondition on the twin. -/
-theorem check_value_group_tail_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group_tail pers st mode rf g = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.check_value_group_tail, checkValueGroupTailSpec]
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem check_value_group_tail_ls {E₀ : IEnv} {pers st lst}
-   
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {g : arena.checker_split.ValueGroup}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_split.check_value_group_tail pers st mode rf g) lst
-      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g)) :=
-  LS.ofSim₀ fun _ h => check_value_group_tail_refines hrel hinv hfe.rel hfe.inv h
-
-/-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
-is-a-proposition test and, for a theorem, the value's guards.
-
-**Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
-written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
-install_value_guards ; check_value_group_tail`, with `lvl_eq_refines` above), but it
-closes only with clauses the statement does not have and, by the
-coordinator's round-3 rule, must not grow.  (The NOT-A-PROPOSITION decline,
-the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
-twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
-reads the name there.)
-
-* (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
-  gone with the lockstep statements; it is one `lockstep` call once
-  `install_value_guards_refines` (a leaf) is `@[lockstep]`. -/
-theorem check_value_group_value_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group_value pers st mode rf g u
-      = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.check_value_group_value]
-  unfold checkValueGroupValueSpec
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem check_value_group_value_ls {E₀ : IEnv} {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) :
-    LS pers (fun _ b => b = ())
-      (arena.checker_split.check_value_group_value pers st mode rf g u) lst
-      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) :=
-  LS.ofSim₀ fun _ h => check_value_group_value_refines hrel hinv hfe hfinv h
-
-/-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
-declaration, at the environment the constant was installed at.
-
-**PROVED** (task #97-P5-Top round 2), under ruling 2's precondition:
-`infer_type_core ; ensure_sort_core ; check_value_group_value`, the first two
-through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
-(lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
-`checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
-front doors are lockstep statements**, and since task #97-T2-LOCKSTEP lane
-Checker so is this one: ruling 2's precondition is gone and the proof is one
-`lockstep` call. -/
-theorem check_value_group_refines {E₀ : IEnv} {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group pers st mode rf g = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
-        (absValueGroup g)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.check_value_group, checkValueGroup_unfold]
-  lockstep
+      (arena.decl_check.value_guards pers st rf cv value) lst
+      (valueGuards lf (absIConstantVal cv) (absEIdx value)) :=
+  LS.ofSim₀ fun _ h => value_guards_refines hrel hinv hfe.rel hfe.inv h
 
 /-! ## The checker's glue callees as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker)
 
@@ -1764,15 +1393,6 @@ namespace Lockstep
       reduceOpNames :=
   LS.ofSim₀ fun _ h => reduce_op_names_refines hrel hinv h
 
-@[lockstep] theorem install_header_ls {E₀ : IEnv} {pers st lst} {rf lf}
-    {cv : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_split.install_header pers st rf cv) lst
-      (installHeader lf (absIConstantVal cv)) :=
-  LS.ofSim₀ fun _ h => install_header_refines hrel hinv hfe.rel hfe.inv hvis h
-
 @[lockstep] theorem flush_caches_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LSW pers (arena.core.flush_caches st) lst flushCaches :=
@@ -1784,9 +1404,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.memo_b_get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms memo_b_get_refines
-
-/-- info: 'ConRon.Refine2.is_thm_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms is_thm_refines
 
 /-- info: 'ConRon.Refine2.consts_resolve_aux' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms consts_resolve_aux
