@@ -61,7 +61,6 @@ def projRuleFn (mode : CheckMode) (env : Env) (nm : Name) (k : Nat) (v : Expr) :
       v.getAppArgs.length = (projOf (env.findProj? nm k)).numParams +
         (projOf (env.findProj? nm k)).numFields ∧
       (exprConstLevels v.getAppFn).length = (projOf (env.findProj? nm k)).levelParams.length ∧
-      (projOf (env.findProj? nm k)).fireOk (exprConstLevels v.getAppFn) = true ∧
       ConLeche.projCertAt env mode.verifiedChecks (exprConstName v.getAppFn) v.getAppArgs = true
   then some (v.getAppArgs.getD ((projOf (env.findProj? nm k)).numParams + k) (.bvar 0))
   else none
@@ -88,14 +87,14 @@ theorem reduceProjCore_eq (F d : Nat) (nm : Name) (k : Nat) (c : Expr) :
         simp only [exprTag, exprConstName, exprConstLevels, true_and]
         by_cases hgd : n = p.ctor ∧ k < p.numFields ∧
             v.getAppArgs.length = p.numParams + p.numFields ∧
-            us.length = p.levelParams.length ∧ p.fireOk us = true
+            us.length = p.levelParams.length
         · cases ConLeche.projCertAt env mode.verifiedChecks n v.getAppArgs <;>
             simp [hgd, pure, Except.pure]
         · have hgd' : ¬ (n = p.ctor ∧ k < p.numFields ∧
               v.getAppArgs.length = p.numParams + p.numFields ∧
-              us.length = p.levelParams.length ∧ p.fireOk us = true ∧
+              us.length = p.levelParams.length ∧
               ConLeche.projCertAt env mode.verifiedChecks n v.getAppArgs = true) :=
-            fun h => hgd ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1⟩
+            fun h => hgd ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1⟩
           simp only [hgd, hgd', ite_false, pure, Except.pure]
       | _ => simp [exprTag, pure, Except.pure, ETag.const, ETag.bvar, ETag.fvar, ETag.sort,
           ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj]
@@ -198,7 +197,6 @@ theorem reduceProjCore_specA {fuel : Nat}
   sym only [bridge_grind, Option.getD_some] =>
     vcgen [ConRon.Arena.reduceProjCore, projLitToCtor_spec hsim (x := ce),
       ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec, viewLsLen_spec,
-      IProjEntry.fireOk_specA (eager := eager) (env := env) (fe := fe),
       internE_specC (eager := eager) (env := env) (fe := fe),
       projCertAt_specA (eager := eager) (env := env) (fe := fe)] <;> finish
 
