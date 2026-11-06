@@ -722,9 +722,9 @@ theorem iotaFam_mono {F G d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP :
   simp only [ite_true] at h ⊢
   cases hl : Level.isEquivList usj cmp.1 with
   | none =>
-    simp [ConLeche.liftFueled, hl, bind, Except.bind] at h
+    simp [ConLeche.liftFueled, hl] at h
   | some b1 =>
-    simp only [ConLeche.liftFueled, hl, bind, Except.bind, pure, Except.pure] at h ⊢
+    simp only [ConLeche.liftFueled, hl, pure, Except.pure] at h ⊢
     cases b1
     · exact h
     simp only [ite_true] at h ⊢
@@ -779,7 +779,7 @@ theorem iotaFam_fire {F d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP : N
   have hv : CheckMode.verified.verifiedChecks = true := rfl
   rw [ite_eq_left hv]
   simp only [hc, bind, Except.bind, ite_true]
-  simp only [ConLeche.liftFueled, h1, bind, Except.bind, pure, Except.pure]
+  simp only [ConLeche.liftFueled, h1, pure, Except.pure]
   cases b1
   · rfl
   simp only [ite_true, h2 rfl]
