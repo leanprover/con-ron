@@ -418,6 +418,52 @@ theorem block_recs_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
     rw [hw]
     rfl
 
+/-- `block_shape::member_struct_ctor` ⊑ `MemberShape.structCtor?`. -/
+theorem member_struct_ctor_abs {ms : arena.inductives.block_shape.MemberShape} {o}
+    (h : arena.inductives.block_shape.member_struct_ctor ms = ok o) :
+    (absMemberShape ms).structCtor? = o.map fun c => (absIConstantVal c.1, absU c.2) := by
+  rw [arena.inductives.block_shape.member_struct_ctor] at h
+  simp only [absMemberShape, MemberShape.structCtor?, absCtorsL]
+  by_cases h1 : alloc.vec.Vec.len ms.ctors = 1#usize
+  · rw [ite_eq_left h1] at h
+    have hl : ms.ctors.val.length = 1 := by
+      have := congrArg Aeneas.Std.UScalar.val h1; simpa [alloc.vec.Vec.len] using this
+    obtain ⟨c, hc⟩ : ∃ c, ms.ctors.val = [c] := List.length_eq_one_iff.mp hl
+    rw [hc]
+    simp only [List.map_cons, List.map_nil]
+    by_cases h2 : ms.n_idx = 0#u64
+    · rw [ite_eq_left h2] at h
+      obtain ⟨⟨iv, i1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain rfl := (Result.ok_injective h).symm
+      have hpv := vec_index_some hp
+      rw [hc] at hpv
+      simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.getElem?_cons_zero,
+        Option.some.injEq] at hpv
+      subst hpv
+      have h0 : absU ms.n_idx = 0 := by rw [h2]; rfl
+      simp [h0, i_constant_val_dup_abs hiv1]
+    · rw [ite_eq_right h2] at h
+      obtain rfl := (Result.ok_injective h).symm
+      have h0 : absU ms.n_idx ≠ 0 := by
+        intro h0; apply h2; simp only [absU] at h0; scalar_tac
+      simp [h0]
+  · rw [ite_eq_right h1] at h
+    obtain rfl := (Result.ok_injective h).symm
+    have hl : ms.ctors.val.length ≠ 1 := by
+      intro hl; apply h1; scalar_tac
+    match hc : ms.ctors.val with
+    | [] => simp
+    | [_] => simp [hc] at hl
+    | _ :: _ :: _ => simp
+
+open Lockstep in
+@[lockstep] theorem member_struct_ctor_twin (ms : arena.inductives.block_shape.MemberShape) :
+    LSP (arena.inductives.block_shape.member_struct_ctor ms)
+      (fun o => TwinEq (absMemberShape ms).structCtor?
+        (o.map fun c => (absIConstantVal c.1, absU c.2))) :=
+  fun _ h => member_struct_ctor_abs h
+
 /-- `block_tables` ⊑ `blockTables` from the member cursor on, behind the
 accumulator: one table per structure-like member. -/
 theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
