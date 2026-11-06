@@ -14,10 +14,15 @@ The assembly, one theorem per step:
 | every job passing is the fold | `Bridge/Checker/Pooled.lean`'s `pooled_fold` |
 | a record's check is the fold's step | `recordSpec`: `Arena.checkDecl_bridge` and the `And` pin's frame |
 | the step pushes what the record says | `Bridge/Checker/Pushes.lean`'s `checkDecl_pushes`, `checkDecl_fresh` |
+
+`Arena.pooledOleanAccepts_bridge` is the same on an `--olean` run (`Arena.PooledOleanAccepts`):
+the fold accepts the FILLED stream, every theorem's reference replaced by the value its job
+reads (`Bridge/Checker/PooledOleans.lean`'s `pooled_fold_oleans`).
 -/
 module
 
 public import ConRon.Bridge.Checker.Pooled
+public import ConRon.Bridge.Checker.PooledOleans
 public import ConRon.Bridge.Checker.Index
 import ConRon.Bridge.Checker.Fold
 public import ConRon.Bridge.Checker.Hyp
@@ -114,5 +119,43 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
   exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
     (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI parts hcov hinc hacc
+
+open ConRon.Arena.Frontend.Olean (OleanPins ModRef) in
+/-- con-leche: ConLeche/Driver/CheckMain.lean:152-170 checkOleansG
+con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **THEOREM 1 at the
+check phase of an `--olean` run**: from an accepting `Arena.PooledOleanAccepts` on a snapshot
+`F`, con-leche's pure fold accepts the filled stream (`fillStream`: each theorem's reference
+replaced by the snapshot's value there), at the environment it denotes.  The reader's module
+references and pins are related at an earlier state `s₀` (the read's), which the driver's
+persistently extends. -/
+theorem Arena.pooledOleanAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
+    {ds : Array IDeclaration} {dsP : List Declaration} {s₀ s s' : AState} {I : IStreamIndex}
+    {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    (hst : DriverOK s) (hoff : s.store.scratchOn = false)
+    (hpersPins : PersPins s) (hpp : PersPinSets pins) (hpins : PinsDenote s.store pins pinsP)
+    (hpd : ∀ x ∈ ds.toList, PersDecl x) (hden : denoteDecls s.store ds.toList = some dsP)
+    (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s.store)
+    (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk)
+    (hrun : Arena.PooledOleanAccepts (Frontend.Olean.modelFs F) pk sp values .verified pins ds s
+      I s') :
+    ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
+      (fillStream sp F valuesP dsP) =
+        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+  obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
+  obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
+  have hx' := PExt.of_ext hx
+  obtain ⟨hlen, hget⟩ := denoteDecls_getElem hden
+  have hden' : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
+      Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
+    obtain ⟨hi', h⟩ := hget i (by simpa using hi)
+    exact ⟨hi', Frontend.denoteDecl_ext hx (by simpa using h)⟩
+  exact pooled_fold_oleans V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
+    (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
+    hpd (by simpa using hlen) hden' hI hpI hwf₀ hoff₀ (hx₀.trans hx') hv₀ hnu₀ parts hcov hinc
+    hacc
 
 end ConRon.Bridge
