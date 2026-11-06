@@ -365,7 +365,8 @@ theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
       c.c.name = some c := by
     simp only [Merged.get, Std.HashMap.getElem?_insert_self]
     exact hc
-  refine ⟨fun {n nC x} hdn hx => ?_, fun {n nC} hdn hx => ?_, fun {n nC} hdn => ?_, hord⟩
+  refine ⟨fun {n nC x} hdn hx => ?_, fun {n nC} hdn hx => ?_, fun {n nC} hdn => ?_, hord,
+    fun {n p} hp => ?_, fun {nC z} hz => ?_⟩
   · by_cases e : n = c.c.name
     · subst e
       rw [hself] at hx
@@ -395,6 +396,20 @@ theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
     · have hne : cC.name ≠ nC := fun e' => e (denoteN_inj hw hdn (e' ▸ hn))
       have hne' : c.c.name ≠ n := fun e' => e e'.symm
       rw [beq_eq_false_iff_ne.mpr hne, beq_eq_false_iff_ne.mpr hne']
+  · rw [Std.HashMap.getElem?_insert] at hp
+    by_cases e : c.c.name = n
+    · subst e
+      rw [hn]
+      rfl
+    · rw [beq_eq_false_iff_ne.mpr e] at hp
+      exact hm.keys hp
+  · rw [Std.HashMap.getElem?_insert] at hz
+    by_cases e : cC.name = nC
+    · subst e
+      exact ⟨c.c.name, hn, by simp⟩
+    · rw [beq_eq_false_iff_ne.mpr e] at hz
+      obtain ⟨n, hdn, hcn⟩ := hm.keysC hz
+      exact ⟨n, hdn, by simp [Std.HashMap.contains_insert, hcn]⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry — **one constant merged**,
 the arm upstream's. -/
@@ -516,7 +531,7 @@ theorem foldlM_take_succ {α β ε : Type} (f : β → α → Except ε β) (l :
 merged, on the same arms.** -/
 theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : NullsRel s.store pk)
     {ls : Array Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded}
-    (hrel : ListRel (fun y c => denoteLoaded s.store y = some c) ls.toList lsC)
+    (hrel : ListRel (LoadedRel s.store) ls.toList lsC)
     {mg : Merged} {s' : AState} (h : mergeAll pk ls s = .ok (mg, s')) :
     s' = s ∧ ∃ mgC, ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC ∧
       MergedRel s.store mg mgC := by
@@ -532,7 +547,9 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
     ⟨fun {n nC c} _ hc => by simp [Merged.get] at hc,
      fun {n nC} _ _ => by simp,
      fun {n nC} _ => by simp,
-     .nil⟩
+     .nil,
+     fun {n p} hp => by simp at hp,
+     fun {nC c} hc => by simp at hc⟩
   have hI := forIn'_range_inv (I := fun m (b : Merged) t => s = t ∧ b.ls = ls ∧ ∃ mgC,
       (lsC.take m).foldlM stepC {} = .ok mgC ∧ MergedRel s.store b mgC)
     (fun m hm b t r t' hI hrun => by
@@ -540,17 +557,13 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
       have hml : m < ls.toList.length := by simpa using hm.2.1
       obtain ⟨hmC, hdl⟩ := listRel_get hrel hml
       simp only [Array.getElem_toList] at hdl
-      unfold denoteLoaded at hdl
-      obtain ⟨nn, -, hdl⟩ := bind_some_left hdl
-      obtain ⟨cs, hcs, hdl⟩ := bind_some_left hdl
-      simp only [pure, Option.some.injEq] at hdl
-      have hcsR := listRel_of_mapM hcs
+      have hcsR := listRel_of_mapM hdl.constants
       dsimp only at hrun
       obtain ⟨c, t₁, hin, hrest⟩ := AM.bind_ok hrun
       simp only [pure_bind] at hrest
       obtain ⟨hv, hs⟩ := AM.pure_ok hrest
       have hJ := forIn'_range_inv (I := fun i (b : Merged) u => s = u ∧ b.ls = ls ∧ ∃ mgD,
-          (cs.take i).foldlM ConLeche.Frontend.Olean.mergeEntry mgC = .ok mgD ∧
+          (lsC[m].constants.toList.take i).foldlM ConLeche.Frontend.Olean.mergeEntry mgC = .ok mgD ∧
             MergedRel s.store b mgD)
         (fun i hi b u r u' hJ hrun2 => by
           obtain ⟨hu, hbl', mgD, hf, hrd⟩ := hJ
@@ -574,13 +587,14 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
         (b₀ := b) (s₀ := s) ⟨rfl, hbl, mgC, rfl, hrelB⟩ hin
       obtain ⟨hu, hcl, mgD, hf, hrd⟩ := hJ
       refine ⟨c, hv, hu.trans hs.symm, hcl, mgD, ?_, hrd⟩
-      have hlen : cs.length = ls[m].constants.size := by
+      have hlen : lsC[m].constants.toList.length = ls[m].constants.size := by
         have := hcsR.length_eq
         simpa using this.symm
       rw [← hlen, List.take_length] at hf
       rw [foldlM_take_succ _ _ _ hmC, hfold]
       show stepC mgC lsC[m] = _
-      simp only [stepC, ← hdl, List.foldlM_toArray]
+      simp only [stepC]
+      rw [← Array.foldlM_toList]
       exact hf)
     (b₀ := { ls := ls }) (s₀ := s) ⟨rfl, rfl, {}, rfl, hinit⟩ hloop
   obtain ⟨hs, hbl, mgC, hf, hrd⟩ := hI

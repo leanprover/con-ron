@@ -35,13 +35,13 @@ open ConRon.Arena
 
 section Entries
 
-variable {pers vis st mode fe lfe fu depth lst}
+variable {pers st mode fe lfe fu depth lst}
 
 /-- `arena::core::whnf` against `Arena.whnf`, with no side condition. -/
 theorem whnf_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f)
-    (hrun : arena.core.whnf pers vis st mode fe fu depth e = ok o) :
+    (hrun : arena.core.whnf pers st mode fe fu depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (Arena.whnf (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
@@ -52,9 +52,9 @@ theorem whnf_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {e
 
 /-- `arena::core::infer_type_core` against `Arena.inferTypeCore`. -/
 theorem infer_type_core_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f)
-    (hrun : arena.core.infer_type_core pers vis st mode fe fu depth e = ok o) :
+    (hrun : arena.core.infer_type_core pers st mode fe fu depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
@@ -65,9 +65,9 @@ theorem infer_type_core_refines {pers : arena.store.PersTier} {f : Nat} (hk : Kn
 
 /-- `arena::core::is_def_eq_core` against `Arena.isDefEqCore`. -/
 theorem is_def_eq_core_refines {pers : arena.store.PersTier} {f : Nat} (hk : KnotRel f) {a b o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f)
-    (hrun : arena.core.is_def_eq_core pers vis st mode fe fu depth a b = ok o) :
+    (hrun : arena.core.is_def_eq_core pers st mode fe fu depth a b = ok o) :
     Sim₀ id pers lst o
       (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx a) (absEIdx b)) := by

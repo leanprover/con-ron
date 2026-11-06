@@ -548,7 +548,7 @@ theorem tele_vals_cons_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena
 context, which `absNestCtx` drops; the answer carries it. -/
 @[lockstep] theorem shape_nest_ctx_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
-    (fvs_p : alloc.vec.Vec arena.handle.EIdx) (vis : Std.U64) :
+    (fvs_p : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = absNestCtx a ∧ a.vis = vis)
       (arena.inductives.block_install.shape_nest_ctx pers st p fvs_p vis) lst
       ((absBlockShape p).nestCtx (absEIdxL fvs_p)) := by

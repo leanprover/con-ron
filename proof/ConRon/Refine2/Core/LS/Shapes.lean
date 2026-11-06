@@ -144,10 +144,10 @@ section
 attribute [local lockstep_simp] decide_u64_eq ExprOps.absEIdxList List.length_map
   alloc.vec.Vec.len_val
 
-@[lockstep] theorem eta_ctor_shape_ls {pers vis st fe lfe a lst}
+@[lockstep] theorem eta_ctor_shape_ls {pers st fe lfe a lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.eta_ctor_shape pers vis st fe a) lst
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.eta_ctor_shape pers st fe a) lst
       (etaCtorShape lfe (absEIdx a)) := by
   rw [arena.core.eta_ctor_shape, etaCtorShape]
   lockstep
@@ -184,10 +184,10 @@ attribute [local lockstep_simp] Option.map_none Option.map_some Option.isSome_no
   Option.isSome_some absIProjEntry
 
 theorem tower_slots_all_go_abs {pers : arena.store.PersTier} (n : Nat) :
-    ∀ {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    ∀ {fe : arena.env.IFEnv} {lfe : IFEnv}
       (t : arena.handle.NIdx) (nn j : Std.U64) {o : Bool},
-      nn.val = n → CoreCtx pers vis fe lfe →
-      arena.core.tower_slots_all_go pers vis fe t nn j = ok o →
+      nn.val = n → CoreCtx pers fe lfe →
+      arena.core.tower_slots_all_go pers fe t nn j = ok o →
       o = towerSlotsAllGo lfe (absNIdx t) n (absU j) := by
   induction n with
   | zero =>
@@ -218,9 +218,9 @@ theorem tower_slots_all_go_abs {pers : arena.store.PersTier} (n : Nat) :
       rw [ih t i i1 hiv hctx h, hi1v]
       rfl
 
-@[lockstep] theorem tower_slots_all_ls {vis fe lfe} (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem tower_slots_all_ls {fe lfe} (hctx : CoreCtx pers fe lfe)
     (t : arena.handle.NIdx) (n_f : Std.U64) :
-    LSP (arena.core.tower_slots_all pers vis fe t n_f)
+    LSP (arena.core.tower_slots_all pers fe t n_f)
       (fun b => TwinEq (towerSlotsAll lfe (absNIdx t) n_f.val) b) := by
   intro b h
   rw [arena.core.tower_slots_all] at h
@@ -279,37 +279,37 @@ attribute [local lockstep_simp] Option.map_none Option.map_some absIProjEntry u6
   u64_val_beq
 
 theorem and_rescue_slots_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
       {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
       (an ctor : arena.handle.NIdx) (n_p : Std.U64) (ust : arena.handle.LsIdx) (nn j : Std.U64),
-      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
       LS pers (fun a b => b = a)
-        (arena.core.and_rescue_slots_go pers vis st fe an ctor n_p ust nn j) lst
+        (arena.core.and_rescue_slots_go pers st fe an ctor n_p ust nn j) lst
         (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) n (absU j)) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
+    intro pers st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
     rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
     lockstep
   | succ m ih =>
-    intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
+    intro pers st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
     rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
     lockstep
 
-@[lockstep] theorem and_rescue_slots_go_ls {pers vis st fe lfe an ctor n_p ust n j lst}
+@[lockstep] theorem and_rescue_slots_go_ls {pers st fe lfe an ctor n_p ust n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
+    (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.and_rescue_slots_go pers vis st fe an ctor n_p ust n j) lst
+      (arena.core.and_rescue_slots_go pers st fe an ctor n_p ust n j) lst
       (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) (absU n)
         (absU j)) :=
   and_rescue_slots_go_aux _ an ctor n_p ust n j rfl hrel hinv hctx
 
-@[lockstep] theorem and_rescue_slots_ls {pers vis st fe lfe ctor n_p ust lst}
+@[lockstep] theorem and_rescue_slots_ls {pers st fe lfe ctor n_p ust lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
+    (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.and_rescue_slots pers vis st fe ctor n_p ust) lst
+      (arena.core.and_rescue_slots pers st fe ctor n_p ust) lst
       (andRescueSlots lfe (absNIdx ctor) (absU n_p) (absLsIdx ust)) := by
   rw [arena.core.and_rescue_slots, andRescueSlots]
   lockstep

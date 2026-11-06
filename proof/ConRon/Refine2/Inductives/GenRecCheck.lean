@@ -231,7 +231,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
 
 /-- `class_nodes_agree` ⊑ `classNodesAgree`, the entries from the cursor on. -/
 @[lockstep] theorem class_nodes_agree_ls {pers} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (mc : arena.inductives.rec_check.TargetMajor)
     (tele : alloc.vec.Vec arena.handle.EIdx)
@@ -328,7 +328,7 @@ theorem gr_kind_read_in {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec
   cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
 
 theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
@@ -366,8 +366,8 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     all_goals lockstep
 
 @[lockstep] theorem class_fields_agree_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
@@ -389,8 +389,8 @@ attribute [local lockstep high] rc_ctors_dup_spec
 
 /-- `class_ctor_of` ⊑ `classCtorOf`. -/
 @[lockstep] theorem class_ctor_of_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
@@ -419,7 +419,7 @@ def absClassCtorL (v : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) : List 
   v.val.map absClassCtor
 
 theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
@@ -457,8 +457,8 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
     simp [absClassCtorL, hout1]
 
 @[lockstep] theorem class_ctors_of_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
@@ -478,7 +478,7 @@ def absClassCtorLL (v : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.Cl
   v.val.map absClassCtorL
 
 theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
@@ -515,8 +515,8 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
     simp [absClassCtorLL, hout1]
 
 @[lockstep] theorem classes_ctors_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
@@ -592,7 +592,7 @@ theorem class_majors_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
@@ -627,8 +627,8 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     simp [absTargetMajorL, hout1, absTargetMajor]
 
 @[lockstep] theorem classes_nfs_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers vis rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
     (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :

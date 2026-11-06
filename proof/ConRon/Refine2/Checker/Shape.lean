@@ -185,23 +185,6 @@ def SimRelR {α β : Type} (R : α → β → Prop) (lst : AState)
   | .Ok r => ∃ v, x.run lst = .ok (v, lst) ∧ R r v
   | .Err e => AErrSim e (x.run lst)
 
-/-! ## The promotion memo (`arena::promote::PMemo`)
-
-Four `RelOn` clauses at `P := True` and four `Inv`s: every key is a bare
-handle, so the `Eq2Fwd` dictionaries `Refine2/AbsState.lean` proved
-(`eidx_eq2`, `nidx_eq2`, `lidx_eq2`, `lsidx_eq2`) are unrestricted. -/
-
-/-- **`arena::promote::PMemo` against `Arena/Promote.lean`'s.** -/
-structure PMemoRel (rm : arena.promote.PMemo) (lm : PMemo) : Prop where
-  eM : RelOn (fun _ => True) rm.e_m lm.eM absEIdx absEIdx
-  nM : RelOn (fun _ => True) rm.n_m lm.nM absNIdx absNIdx
-  lM : RelOn (fun _ => True) rm.l_m lm.lM absLIdx absLIdx
-  lsM : RelOn (fun _ => True) rm.ls_m lm.lsM absLsIdx absLsIdx
-  eInv : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.e_m
-  nInv : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rm.n_m
-  lInv : Inv arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable rm.l_m
-  lsInv : Inv arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable rm.ls_m
-
 /-- **`arena::intern`'s memo**, the one memo of these two tiers keyed on a
 con-leche VALUE rather than a handle.  `Refine/Expr.lean`'s `absExpr` is exact
 on WELL-FORMED values only (task #97-P5-0's rule 4, and the reason `TblRel` is
@@ -281,183 +264,70 @@ attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFr
   absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom absStmts
   absStmtsFrom absEqPairs absEqPairsFrom absLevelLFrom absNameLFrom absBasisKindLFrom
 
-/-! ## The environment index's own invariant
+/-! ## The environment layer's own invariant
 
-`Refine2/AbsState.lean`'s `IFEnvRel` reads the Rust index through
-`HashMap2.toFun`, which is a specification of a well-formed table and says
-nothing about a malformed one.  Every other `RelOn` of this tower is paired
-with an `Inv` in `AStateInv`; the environment is not in the state, so its
-`Inv` travels with it.
-
-**Second clause, task #97-P5-Checker-2**: the visibility counter never runs
-past the constant list.  It is what discharges task #97-P5-Checker's **finding
-C** — `promote_new` DECLINES when `k > fe.env.consts.len()` where the twin
-promotes, and `check_decl_step`'s `k` is `fe'.visibleBelow - fe.visibleBelow`,
-so `k ≤ fe'.visibleBelow ≤ |fe'.consts|` is exactly the hypothesis the call
-site needs.  That finding predicted the clause would be *"Theorem 1's to
-carry"*; it is cheaper than that, because the port's own `IFEnv` maintains it:
-`mk_ifenv` sets the counter to the list's length and `ifenv_push` grows both
-by one.  A layer over a frozen base starts at `ifenv_layer(v, b)` with an empty list, so
-the bound counts what it sits above: `base_below`, which is `v` on a block job's layer and
-`u64::MAX` on a value check's.  It belongs here, beside the index's `Inv`, for the same
-reason the index's does.
-
-**The table map's two clauses** are the index's first and third at `tbls`:
-its `Inv`, and every slot it stores in range of `env.tables` (`mk_tbls_go`
-stores its cursor, `ifenv_push_table` the length before its `push`,
-`index_promoted_tables` `j - 1` for a cursor `j ≥ 1`). -/
+`Refine2/AbsState.lean`'s relations read a Rust map through `HashMap2.toFun`,
+which specifies a well-formed table and says nothing about a malformed one;
+every other `RelOn` of this tower is paired with an `Inv` in `AStateInv`, and
+the environment is not in the state, so its `Inv` travels with it
+(`IFEnvInv`).  Its range clauses are what let a push at the end of a list move
+no row: `ifenv_push` stores the length before its `push`, `ifenv_pop_temp` puts
+back a row it took out, and there is no other writer. -/
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
 
-/-- The counter is a bound on the constant list — finding C, at the call
-site. -/
-theorem IFEnvInv.visBound {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    rf.visible_below.val ≤ rf.env.consts.val.length + rf.base_below.val := h.2.1
-
-/-- **Every position the index stores is IN RANGE of the constant list** —
-task #97-P5-Checker round 3's strengthening of the clause above, and the one
-`ifenv_push` needs.
-
-The weaker clause (*"the position fits a `usize`"*) is not enough to push:
-`IFEnvRel.idx` reads the port's index through `consts[p.2]?`, and an
-OUT-OF-RANGE stored position answers `none`, which the relation matches
-against a twin index that has no entry there.  Append one constant and that
-same row is suddenly in range and answers `some ci` — against a twin index
-that still has nothing.  So `IFEnvRel rf' (lf.push …)` is **false** unless
-the index is known to store no position at or past the end, and
-`ifenv_push_refines` below cannot be proved from the weaker clause.
-
-It is an invariant of the port for exactly the reason the weaker one was:
-`mk_ifenv_go` stores its `Vec` cursor `i < len`, `ifenv_push` and
-`ifenv_push_temp` store the length BEFORE the `push` that makes it an index,
-`arena::promote::index_promoted` stores `(j - 1)` for a cursor `j ≥ 1`, and
-`ifenv_pop_temp` puts back a row it took out.  There is no other writer, and
-no Rust test is missing. -/
+/-- **Every slot the index stores is in range of the constant list**, so an
+append does not change what an old row reads. -/
 theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
-      p.2.val < rf.env.consts.val.length :=
-  h.2.2.1
+    ∀ n s, ConRon.Refine.HashMap2.toFun rf.idx n = some s →
+      s.val < rf.env.consts.val.length :=
+  h.2.1
 
 /-- The table map's `Inv`. -/
 theorem IFEnvInv.tblInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls := h.2.2.2.1
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.tbls := h.2.2.1
 
 /-- Every slot the table map stores is in range of `env.tables`. -/
 theorem IFEnvInv.tblRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n s, ConRon.Refine.HashMap2.toFun rf.tbls n = some s →
       s.val < rf.env.tables.val.length :=
-  h.2.2.2.2
+  h.2.2.2
 
-/-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
+/-! ## The environment relation a fold carries
 
-`IFEnvRel` alone does not compose.  Every statement of this tier takes
-`hfe : IFEnvRel rf lf` **and** `hfinv : IFEnvInv rf` — the second because
-`IFEnvRel.idx` reads the port's index through `HashMap2.toFun`, which
-specifies a well-formed table and says nothing about a malformed one — and
-every one of them CONCLUDES `IFEnvRel` alone.  A fold then cannot take its own
-step twice: a fold feeds its step's answer back into the step and has no
-`IFEnvInv` for it, and phase A hands `install_fold`'s environment to phase B's
-`check_pending`, which demands one.
-
-So the RESULT relation of every `IFEnv`-returning statement on the fold's path
-is this pair.  It is not a new obligation in substance — the port builds the
-index with `HashMap2::insert`, which preserves `Inv` — but it has to be SAID,
-and task #97-P5-Checker's statements did not say it.  The two capstones keep
-their public conclusion at `IFEnvRel` alone (DESIGN §8.2's own sentence) and
-weaken this at the last step. -/
+Every statement of this tier takes `hfe : IFEnvRel pers rf lf` **and**
+`hfinv : IFEnvInv rf`, and a fold feeds its step's answer back into the step,
+so the result relation of every `IFEnv`-returning statement is the pair. -/
 
 /-- **The environment, related and well formed** — the result relation a fold
 step has to carry. -/
-def IFEnvRelI (pers : arena.store.PersTier) (E₀ : IEnv) (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
-  IFEnvRel pers E₀ rf lf ∧ IFEnvInv rf
+def IFEnvRelI (pers : arena.store.PersTier) (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
+  IFEnvRel pers rf lf ∧ IFEnvInv rf
 
-theorem IFEnvRelI.rel {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI pers E₀ rf lf) :
-    IFEnvRel pers E₀ rf lf := h.1
+theorem IFEnvRelI.rel {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (h : IFEnvRelI pers rf lf) : IFEnvRel pers rf lf := h.1
 
-theorem IFEnvRelI.inv {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI pers E₀ rf lf) :
-    IFEnvInv rf := h.2
-
-/-- `IFEnvOwn` and the invariant: phase A's pair, at the promotion. -/
-def IFEnvOwnI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
-  IFEnvOwn rf lf ∧ IFEnvInv rf
-
-/-- **A tier whose environment base is empty**: phase A's readers, the stand-in
-`PersTier::empty` and the tier a bracket freezes out of an owned store. -/
-structure PersEnvEmpty (pers : arena.store.PersTier) : Prop where
-  base : BaseOK pers
-  idx : ∀ n, ConRon.Refine.HashMap2.toFun pers.env.idx n = none
+theorem IFEnvRelI.inv {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (h : IFEnvRelI pers rf lf) : IFEnvInv rf := h.2
 
 /-- `layer00` is an empty layer, well formed. -/
 theorem layer00_inv : IFEnvInv layer00 := by
   have hn := ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
-    (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
+    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.idx) rfl
   have ht := ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
     (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.tbls) rfl
-  refine ⟨hn.1, by simp [layer00], fun n p hp => ?_, ht.1, fun n s hs => ?_⟩
+  refine ⟨hn.1, fun n p hp => ?_, ht.1, fun n s hs => ?_⟩
   · rw [hn.2.2 n] at hp; cases hp
   · rw [ht.2.2 n] at hs; cases hs
 
-/-- A tier that holds `layer00` as its environment is empty-based. -/
-theorem persEnvEmpty_of_eq {pers : arena.store.PersTier} (h : pers.env = layer00) :
-    PersEnvEmpty pers := by
-  have hn := ConRon.Refine.HashMap2.new_refines
+/-- An empty layer's own rows are none. -/
+theorem layer00_toFun (n : arena.handle.NIdx) :
+    ConRon.Refine.HashMap2.toFun layer00.idx n = none :=
+  (ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
-    (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
-  refine ⟨⟨?_, fun ci hci => ?_⟩, fun n => ?_⟩
-  · rw [h]; exact layer00_inv
-  · rw [h] at hci; simp [layer00] at hci
-  · rw [h]; exact hn.2.2 n
-
-/-- The tier a bracket freezes out of a store. -/
-theorem persEnvEmpty_tierOf (ar : arena.store.EStore) : PersEnvEmpty (tierOf ar) :=
-  persEnvEmpty_of_eq rfl
-
-theorem PersEnvEmpty.baseRow {pers : arena.store.PersTier} (h : PersEnvEmpty pers)
-    (below : Std.U64) (n : arena.handle.NIdx) : baseRow pers below n = none := by
-  simp [ConRon.Refine2.baseRow, h.idx n]
-
-theorem PersEnvEmpty.baseTbl {pers : arena.store.PersTier} (h : PersEnvEmpty pers)
-    (below : Std.U64) (n : arena.handle.NIdx) : baseTbl pers below n = none := by
-  simp [ConRon.Refine2.baseTbl, h.baseRow]
-
-theorem overEnv_empty (e : arena.env.IEnv) : overEnv IEnv.empty e = absIEnv e := by
-  simp [overEnv, absIEnv, IEnv.empty]
-
-/-- **Over an empty base the relation is the field-for-field one.** -/
-theorem IFEnvRel.toOwn {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hpe : PersEnvEmpty pers) (h : IFEnvRel pers IEnv.empty rf lf) : IFEnvOwn rf lf := by
-  refine ⟨by rw [h.env, overEnv_empty], fun n => ?_, h.visibleBelow, h.envWF, h.keys,
-    fun n => ?_, h.tblKeys⟩
-  · rw [← h.idx n, layerRow]
-    cases ConRon.Refine.HashMap2.toFun rf.idx n with
-    | none => simp [hpe.baseRow]
-    | some p => rfl
-  · rw [← h.tbls n, layerTbl]
-    cases ConRon.Refine.HashMap2.toFun rf.tbls n with
-    | none => simp [hpe.baseTbl]
-    | some s => rfl
-
-theorem IFEnvOwn.toRel {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hpe : PersEnvEmpty pers) (h : IFEnvOwn rf lf) : IFEnvRel pers IEnv.empty rf lf := by
-  refine ⟨by rw [h.env, overEnv_empty], fun n => ?_, h.visibleBelow, h.envWF, h.keys,
-    fun n => ?_, h.tblKeys, hpe.base⟩
-  · rw [← h.idx n, layerRow]
-    cases ConRon.Refine.HashMap2.toFun rf.idx n with
-    | none => simp [hpe.baseRow]
-    | some p => rfl
-  · rw [← h.tbls n, layerTbl]
-    cases ConRon.Refine.HashMap2.toFun rf.tbls n with
-    | none => simp [hpe.baseTbl]
-    | some s => rfl
-
-/-- The relation moves between two empty-based tiers: the reader of a bracket's body
-and the reader outside it. -/
-theorem IFEnvRelI.rebase {pers pers' : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hpe : PersEnvEmpty pers) (hpe' : PersEnvEmpty pers')
-    (h : IFEnvRelI pers IEnv.empty rf lf) : IFEnvRelI pers' IEnv.empty rf lf :=
-  ⟨(h.rel.toOwn hpe).toRel hpe', h.inv⟩
+    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.idx) rfl).2.2 n
 
 /-! ## `arena::env::ifenv_push` — the one environment write every install route
 folds over (task #97-P5-Checker round 3)
@@ -529,146 +399,86 @@ theorem eidx_eq2_abs_decide {a b : arena.handle.EIdx} {o : Bool}
     o = decide (absEIdx a = absEIdx b) := by
   rw [eidx_eq2_abs h]; exact beq_eq_decide _ _
 
-/-- **`ifenv_push` ⊑ `IFEnv.push`, relation and invariant together.**
-
-The three clauses, in order:
-
-* `env` — the port appends and `absIEnv` reverses, so the appended constant is
-  the twin's HEAD;
-* `idx` — at the pushed name the port's row is `(visible_below, |consts|)` and
-  `consts[|consts|]?` of the GROWN list is the pushed constant, which is the
-  twin's `(visibleBelow, ci)`; at every other name `IFEnvInv.idxRange` says the
-  stored position was already in range, so the append does not change what it
-  reads;
-* `visibleBelow` — both counters advance by one;
-* `envWF` — the pushed constant is canonical Rust data (`hwf`, the erased
-  subtype invariant of its `PropWhen`): a premise each push site discharges
-  from how the checker built the constant (task #97-T2-LOCKSTEP lane Checker
-  Base/Top round 2; it replaced the seam `ifenvRel_envWF_push`).
-
-and the invariant: the index's `Inv` is `HashMap2::insert`'s, the counter
-bound is the old one plus one on both sides, and the new row's position is
-`|consts|`, which is in range of `|consts| + 1`. -/
-theorem ifenv_push_refines {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+/-- **`ifenv_push` ⊑ `IFEnv.push`, relation and invariant together.**  The port
+writes the index row at the constant list's CURRENT length and appends, where the
+twin conses onto a newest-first list and inserts the constant itself: at the pushed
+name the grown list's slot is the pushed constant, and every other row's slot was in
+range already (`IFEnvInv.idxRange`), so the append does not change what it reads.
+The base and the tables are untouched. -/
+theorem ifenv_push_refines {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {ci : arena.env.IConstantInfo}
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) (hwf : IConstantInfoWF ci)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
     (h : arena.env.ifenv_push rf ci = ok rf') :
-    IFEnvRel pers E₀ rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
+    IFEnvRel pers rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
   rw [arena.env.ifenv_push] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  -- the cast on the length is the identity
   have hsv : s.val = rf.env.consts.val.length := by
     simp only [lift, Result.ok.injEq] at hs
     subst hs
     rw [usize_cast_u64_val']
     simp [alloc.vec.Vec.len]
-  -- the index row written, and the table's `Inv` re-established
   obtain ⟨hinv', -, hupd, -⟩ :=
     ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
       hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
   have hvv : v.val = rf.env.consts.val ++ [ci] := ConRon.Refine.vec_push_val hv
-  have hc1v : c1.val = rf.visible_below.val + 1 := by
-    simpa using ConRon.Refine.Nat.uadd_val hc1
-  have hrf' : rf' =
-      { env := { consts := v, tables := rf.env.tables }, idx := q.2, visible_below := c1,
-        tbls := rf.tbls, base_below := rf.base_below } :=
+  have hrf' : rf' = { rf with env := { rf.env with consts := v }, idx := q.2 } :=
     (Result.ok_injective h).symm
   subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, hfe.tbls, hfe.tblKeys, hfe.base⟩, hinv', ?_, ?_, hfinv.tblInv,
-    hfinv.tblRange⟩
-  · -- the constant list
-    show (lf.push (absIConstantInfo ci)).env = overEnv _ _
-    simp only [IFEnv.push, overEnv, hvv, List.map_append, List.reverse_append]
-    rw [hfe.env]
-    simp [overEnv]
-  · -- the index
+  refine ⟨⟨⟨?_, hfe.tbls, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK⟩, ?_⟩,
+    hinv', ?_, hfinv.tblInv, hfinv.tblRange⟩
+  · -- the own index
     intro m
-    simp only [layerRow, hupd]
+    simp only [ownRow, hupd]
     simp only [IFEnv.push, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = n
     · subst hm
       rw [ite_eq_left rfl, ite_eq_left (by simp [hname])]
-      simp only [rowOf, hvv]
+      simp only [hvv, Option.bind_some]
       rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
-      simp only [List.getElem?_cons_zero, Option.map_some]
-      rw [hfe.visibleBelow]
+      simp
     · rw [ite_eq_right hm]
       have hne : ¬ ((absIConstantInfo ci).name == absNIdx m) = true := by
         simp only [beq_iff_eq]
         intro hc
         exact hm (absNIdx_inj (hc.symm.trans hname.symm))
-      rw [ite_eq_right hne, ← hfe.idx m, layerRow]
+      rw [ite_eq_right hne, ← hfe.idx m, ownRow]
       cases hp : ConRon.Refine.HashMap2.toFun rf.idx m with
       | none => rfl
       | some p =>
-        simp only [rowOf, hvv]
+        simp only [hvv, Option.bind_some]
         rw [List.getElem?_append_left (hfinv.idxRange m p hp)]
-  · -- the counter
-    show (lf.push (absIConstantInfo ci)).visibleBelow = absU c1
-    simp only [IFEnv.push]
-    rw [hfe.visibleBelow]
-    simp [absU, hc1v]
-  · -- the stored constants stay canonical (`IFEnvRel.envWF`; the pushed one
-    -- by the caller's `hwf`: the checker built it)
-    intro c hc
-    rw [hvv] at hc
-    rcases List.mem_append.mp hc with h1 | h1
-    · exact hfe.envWF c h1
-    · rw [List.mem_singleton.mp h1]; exact hwf
-  · -- every row keyed by its slot's name (`IFEnvRel.keys`): the new row by the
-    -- pushed constant's, the old rows unmoved
+  · -- the constant list
+    show (lf.push (absIConstantInfo ci)).env = absIEnv _
+    simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
+    rw [hfe.env]
+    simp [absIEnv]
+  · -- every stored slot still in range
     intro m p hp
     rw [hupd, Function.update_apply] at hp
-    by_cases hm : m = n
-    · subst hm
-      rw [ite_eq_left rfl] at hp
-      obtain rfl : p = (rf.visible_below, s) := (Option.some_injective _ hp).symm
-      refine ⟨ci, ?_, hname.symm⟩
-      simp only [hvv, hsv]
-      rw [List.getElem?_append_right (le_refl _), Nat.sub_self]
-      rfl
-    · rw [ite_eq_right hm] at hp
-      obtain ⟨c, hc, hcn⟩ := hfe.keys m p hp
-      refine ⟨c, ?_, hcn⟩
-      rw [hvv, List.getElem?_append_left (hfinv.idxRange m p hp)]
-      exact hc
-  · -- the counter is still a bound
-    rw [hvv, hc1v]
-    have := hfinv.visBound
-    simp only [List.length_append, List.length_cons, List.length_nil]
-    omega
-  · -- every stored position is still in range
-    intro m p hp
-    rw [hupd, Function.update_apply] at hp
+    show p.val < v.val.length
     rw [hvv]
     simp only [List.length_append, List.length_cons, List.length_nil]
     by_cases hm : m = n
     · subst hm
       rw [ite_eq_left rfl] at hp
-      obtain rfl : p = (rf.visible_below, s) := (Option.some_injective _ hp).symm
-      simp only [hsv]
+      obtain rfl : p = s := (Option.some_injective _ hp).symm
       omega
     · rw [ite_eq_right hm] at hp
       have := hfinv.idxRange m p hp
       omega
 
 /-- **`ifenv_push_table` ⊑ `IFEnv.pushTable`, relation and invariant
-together** — `ifenv_push_refines` at the table map: the row is written at the
-table list's CURRENT length and the list grows by one, where the twin conses
-and inserts the table itself; every other row's slot was in range already
-(`IFEnvInv.tblRange`), so the append does not move what it reads.  The
-constants, the index and the counter are untouched. -/
-theorem ifenv_push_table_refines {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+together** — `ifenv_push_refines` at the table map.  The constants, the index and
+the base are untouched. -/
+theorem ifenv_push_table_refines {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {t : arena.env.IProjTable}
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
     (h : arena.env.ifenv_push_table rf t = ok rf') :
-    IFEnvRel pers E₀ rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' ∧
-      rf'.visible_below = rf.visible_below := by
+    IFEnvRel pers rf' (lf.pushTable (absIProjTable t)) ∧ IFEnvInv rf' := by
   rw [arena.env.ifenv_push_table] at h
   obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -684,53 +494,35 @@ theorem ifenv_push_table_refines {pers : arena.store.PersTier} {E₀ : IEnv} {rf
     ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
       hfinv.tblInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
   have hvv : v.val = rf.env.tables.val ++ [t] := ConRon.Refine.vec_push_val hv
-  have hrf' : rf' =
-      { env := { consts := rf.env.consts, tables := v }, idx := rf.idx,
-        visible_below := rf.visible_below, tbls := q.2, base_below := rf.base_below } :=
+  have hrf' : rf' = { rf with env := { rf.env with tables := v }, tbls := q.2 } :=
     (Result.ok_injective h).symm
   subst hrf'
-  refine ⟨⟨?_, hfe.idx, hfe.visibleBelow, hfe.envWF, hfe.keys, ?_, ?_, hfe.base⟩,
-    ⟨hfinv.idxInv, hfinv.visBound, hfinv.idxRange, hinv', ?_⟩, rfl⟩
-  · -- the table list
-    show (lf.pushTable (absIProjTable t)).env = overEnv _ _
-    have h := hfe.env
-    simp only [IFEnv.pushTable, overEnv, hvv, List.map_append, List.reverse_append] at h ⊢
-    rw [h]
-    simp
+  refine ⟨⟨⟨hfe.idx, ?_, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK⟩, ?_⟩,
+    hfinv.idxInv, hfinv.idxRange, hinv', ?_⟩
   · -- the table map
     intro m
-    simp only [layerTbl, hupd]
+    simp only [ownTbl, hupd]
     simp only [IFEnv.pushTable, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = t.struct_name
     · subst hm
       rw [ite_eq_left rfl, ite_eq_left (by simp [absIProjTable])]
-      simp only [tblOf, hvv]
+      simp only [hvv, Option.bind_some]
       rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
       simp
     · rw [ite_eq_right hm, ite_eq_right (by
         simp only [absIProjTable, beq_iff_eq]; intro h; exact hm (absNIdx_inj h).symm),
-        ← hfe.tbls m, layerTbl]
+        ← hfe.tbls m, ownTbl]
       cases hp : ConRon.Refine.HashMap2.toFun rf.tbls m with
       | none => rfl
       | some p =>
-        simp only [tblOf, hvv]
+        simp only [hvv, Option.bind_some]
         rw [List.getElem?_append_left (hfinv.tblRange m p hp)]
-  · -- every row keyed by its slot's structure
-    intro m p hp
-    rw [hupd, Function.update_apply] at hp
-    by_cases hm : m = t.struct_name
-    · subst hm
-      rw [ite_eq_left rfl] at hp
-      obtain rfl : p = s := (Option.some_injective _ hp).symm
-      refine ⟨t, ?_, rfl⟩
-      simp only [hvv, hsv]
-      rw [List.getElem?_append_right (le_refl _), Nat.sub_self]
-      rfl
-    · rw [ite_eq_right hm] at hp
-      obtain ⟨c, hc, hcn⟩ := hfe.tblKeys m p hp
-      refine ⟨c, ?_, hcn⟩
-      rw [hvv, List.getElem?_append_left (hfinv.tblRange m p hp)]
-      exact hc
+  · -- the table list
+    show (lf.pushTable (absIProjTable t)).env = absIEnv _
+    have h := hfe.env
+    simp only [IFEnv.pushTable, absIEnv, hvv, List.map_append, List.reverse_append] at h ⊢
+    rw [h]
+    simp
   · -- every stored slot still in range
     intro m p hp
     rw [hupd, Function.update_apply] at hp
@@ -771,33 +563,6 @@ theorem am_run_bind_ok {α β : Type} {m : AM α} {k : α → AM β} {ls ls' : A
 function hands back, read as an `AState`. -/
 @[reducible] def withStore (rst : arena.monad.AState) (e : arena.store.EStore) :
     arena.monad.AState := { rst with store := e }
-
-/-! ## `arena::checker_split`'s seam datum -/
-
-/-- `arena::checker_split::ValueKind`. -/
-def absValueKind : arena.checker_split.ValueKind → ValueKind
-  | .Defn => .defn
-  | .Thm => .thm
-  | .Opaque => .opaque
-
-/-- `arena::checker_split::ValueGroup` — the datum that crosses the
-install/check seam, and the one record of the declaration layer that is not in
-`Refine2/AbsState.lean` (it belongs to `arena::checker_split`, not
-`arena::env`). -/
-def absValueGroup (g : arena.checker_split.ValueGroup) : ValueGroup :=
-  ⟨absValueKind g.kind, absIConstantVal g.cv, absEIdx g.jv⟩
-
-attribute [simp] absValueKind absValueGroup
-
-/-- `arena::checker::PendingCheck` — a phase-A record awaiting its phase-B
-check.  `vis` is the environment counter at the install; it is out of the
-INDEX and into the record (task #97-P6-6b), which is why it abstracts as a
-plain counter and not through `IFEnvRel`. -/
-def absPendingCheck (p : arena.checker.PendingCheck) : PendingCheck :=
-  ⟨absValueGroup p.vg, absU p.pos, absU p.vis⟩
-
-def absPendingCheckL (v : alloc.vec.Vec arena.checker.PendingCheck) :
-    List PendingCheck := v.val.map absPendingCheck
 
 /-- `arena::nat_op_pin_set::INatOpPinSet` — one toolchain's `Nat`-operation
 pins over handles.  The `toolchain` string is `Vec<u32>` code points against
@@ -852,7 +617,7 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
     TypePinsWF p.lor_type_pins ∧ TypePinsWF p.xor_type_pins ∧
     TypePinsWF p.shift_left_type_pins ∧ TypePinsWF p.shift_right_type_pins
 
-attribute [simp] absPendingCheck absPendingCheckL absTypePinsI absINatOpPinSet absINatOpPinSetL
+attribute [simp] absTypePinsI absINatOpPinSet absINatOpPinSetL
   absINatOpPinSetLFrom
 
 /-! ## The axiom census — rule 11's four, and the relation's weakening -/

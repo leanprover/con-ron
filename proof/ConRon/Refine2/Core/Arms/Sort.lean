@@ -153,10 +153,10 @@ the twin read its VIEW, so at a dangling non-`sort` reduct the port said
 `Invalid` and the twin `internal` — and it is gone because the twin now tests
 the tag too.  The entry `ensure_sort_core` is this at `LANE_FULL`. -/
 theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst o}
+    {pers st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.ensure_sort pers vis st mode eager lane fu fe depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.ensure_sort pers st mode eager lane fu fe depth e = ok o) :
     Sim₀ absLIdx pers lst o
       (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
@@ -243,10 +243,10 @@ NOT an entry of `Core/Entries.lean`'s kind: `ensure_sort` is a body"*.  It is
 `ensure_sort` at `LANE_FULL`, and `Refine2/Checker/**` takes this beside
 `Core/Entries.lean`'s six. -/
 theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode fe lfe fu depth e lst o}
+    {pers st mode fe lfe fu depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.ensure_sort_core pers vis st mode fe fu depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.ensure_sort_core pers st mode fe fu depth e = ok o) :
     Sim₀ absLIdx pers lst o
       (ensureSortCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by

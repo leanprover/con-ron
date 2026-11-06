@@ -813,7 +813,7 @@ theorem stored_take_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k 
   simp [absEIdxL, alloc.vec.Vec.new, absU, List.map_take]
 
 @[lockstep] theorem stored_major_dom_ls {P st lst} (hrel : AStateRel₀ P st lst)
-    (hinv : AStateInv P st) {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hinv : AStateInv P st) {rf : arena.env.IFEnv} {lf : IFEnv}
     (hctx : CoreCtx P vis rf lf) (dom : arena.handle.EIdx) :
     LS P (fun a b => b = a.map absTargetMajor)
       (arena.inductives.stored_install.stored_major_dom P vis st rf dom) lst
@@ -822,7 +822,7 @@ theorem stored_take_abs (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (k 
   lockstep
 
 @[lockstep] theorem stored_major_ls {P st lst} (hrel : AStateRel₀ P st lst)
-    (hinv : AStateInv P st) {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hinv : AStateInv P st) {rf : arena.env.IFEnv} {lf : IFEnv}
     (hctx : CoreCtx P vis rf lf) (p : arena.inductives.block_parts.BlockShape)
     (rc : arena.inductives.block_parts.RecShape) :
     LS P (fun a b => b = a.map absTargetMajor)
@@ -1367,7 +1367,7 @@ theorem stored_ctors_ls {E₀ : IEnv} {P} {fe : arena.env.IFEnv} {lf : IFEnv} {n
 in a bracket, and everything new promoted; what comes back extends what the block found,
 provided the block's names were free there. -/
 theorem stored_tail_refines {P st lst} {p : arena.inductives.block_parts.BlockShape}
-    {guards : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {vis nt : Std.U64}
+    {guards : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {nt : Std.U64}
     {fe₁ : arena.env.IFEnv} {lf₁ A : IFEnv} {o}
     (hrel : AStateRel₀ P st lst) (hinv : AStateInv P st) (hP : P.frozen = false)
     (hpe : PersEnvEmpty P) (hfe : IFEnvRelI P IEnv.empty fe₁ lf₁)
@@ -1483,7 +1483,7 @@ theorem stored_tail_refines {P st lst} {p : arena.inductives.block_parts.BlockSh
 
 /-! ## The names of a block -/
 
-theorem stored_names_free_abs {P : arena.store.PersTier} {vis : Std.U64} {rf : arena.env.IFEnv}
+theorem stored_names_free_abs {P : arena.store.PersTier} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hctx : CoreCtx P vis rf lf) (ns : alloc.vec.Vec arena.handle.NIdx) (n : Nat) :
     ∀ (i : Std.Usize) {o : Bool}, ns.val.length - i.val = n →
       arena.inductives.stored_install.stored_names_free P vis rf ns i = ok o →

@@ -70,9 +70,9 @@ environment is fixed by the `CoreCtx` side goal, which the tier's side
 extension discharges from `IFEnvRelI` (and the split counter). -/
 
 open Lockstep in
-@[lockstep] theorem ifenv_find_twin {pers : arena.store.PersTier} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (n : arena.handle.NIdx) (hctx : CoreCtx pers vis rf lf) :
-    LSP (arena.env.ifenv_find pers vis rf n)
+@[lockstep] theorem ifenv_find_twin {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx pers rf lf) :
+    LSP (arena.env.ifenv_find pers rf n)
       (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
   fun _ h => (ifenv_find_abs hctx h).symm
 

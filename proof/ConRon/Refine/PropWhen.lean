@@ -61,16 +61,6 @@ theorem names_copy_val {xs v : alloc.vec.Vec name.Name}
   have hv := append_from_val xs xs.length 0#usize _ v (by scalar_tac) h
   simpa [alloc.vec.Vec.new] using hv
 
-/-! ## `dup` -/
-
-theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw := by
-  cases pw with
-  | Never => simp only [prop_when.dup, Result.ok.injEq] at h; exact h.symm
-  | IfAllZero ps =>
-    simp only [prop_when.dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨v, hv, rfl⟩ := h
-    rw [alloc.vec.Vec.ext _ _ (names_copy_val hv)]
-
 /-! ## Injectivity -/
 
 theorem names_map_inj : ∀ {l m : List name.Name}, (∀ n ∈ l, NameWF n) →
@@ -83,90 +73,6 @@ theorem names_map_inj : ∀ {l m : List name.Name}, (∀ n ∈ l, NameWF n) →
     rw [Name.absName_injective (hl x (by simp)) (hm y (by simp)) h.1,
       names_map_inj (l := l) (m := m) (fun n hn => hl n (by simp [hn]))
         (fun n hn => hm n (by simp [hn])) h.2]
-
-/-! ## `beq` -/
-
-theorem names_beq_from_refines {ps qs : alloc.vec.Vec name.Name}
-    (hps : NamesWF ps) (hqs : NamesWF qs) (hlen : ps.val.length = qs.val.length) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), ps.length - i.val ≤ k →
-      prop_when.names_beq_from ps qs i = ok b →
-      (b = true ↔ ps.val.drop i.val = qs.val.drop i.val) := by
-  intro k
-  induction k with
-  | zero =>
-    intro i b hk h
-    rw [prop_when.names_beq_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
-    subst h
-    rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac),
-      List.drop_eq_nil_of_le (show qs.val.length ≤ i.val by scalar_tac)]
-    simp
-  | succ k ih =>
-    intro i b hk h
-    rw [prop_when.names_beq_from.eq_def] at h; simp only [] at h
-    by_cases hp : i.val ≥ ps.val.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
-      subst h
-      rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac),
-        List.drop_eq_nil_of_le (show qs.val.length ≤ i.val by scalar_tac)]
-      simp
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
-      have hpi : i.val < ps.val.length := by scalar_tac
-      have hqi : i.val < qs.val.length := by scalar_tac
-      rw [List.drop_eq_getElem_cons hpi, List.drop_eq_getElem_cons hqi]
-      have hwfp : NameWF ps.val[i.val] := hps _ (List.getElem_mem hpi)
-      have hwfq : NameWF qs.val[i.val] := hqs _ (List.getElem_mem hqi)
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hpi)
-      obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec qs i hqi)
-      subst hyv; subst hzv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hz,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨b1, hb1, h⟩ := h
-      have e1 := Name.name_beq_exact' hwfp hwfq hb1
-      split at h
-      · rename_i hbt
-        have heq : ps.val[i.val] = qs.val[i.val] :=
-          Name.absName_injective hwfp hwfq (of_decide_eq_true (e1.symm.trans hbt))
-        simp only [hw, bind_ok] at h
-        rw [← hwv, ih w b (by scalar_tac) h]
-        simp [heq]
-      · rename_i hbf
-        simp only [Result.ok.injEq] at h
-        subst h
-        have hne : ¬ absName ps.val[i.val] = absName qs.val[i.val] :=
-          of_decide_eq_false (e1.symm.trans (by simpa using hbf))
-        simp only [Bool.false_eq_true, false_iff, List.cons.injEq, not_and]
-        exact fun hc _ => hne (by rw [hc])
-
-theorem names_beq_refines {ps qs : alloc.vec.Vec name.Name} {b : Bool}
-    (hps : NamesWF ps) (hqs : NamesWF qs) (h : prop_when.names_beq ps qs = ok b) :
-    b = decide (absNames ps = absNames qs) := by
-  rw [prop_when.names_beq] at h
-  split at h
-  · rename_i hlen
-    have hl : ps.val.length = qs.val.length := by scalar_tac
-    have := names_beq_from_refines hps hqs hl ps.length 0#usize b (by scalar_tac) h
-    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
-    have hiff : absNames ps = absNames qs ↔ ps.val = qs.val :=
-      ⟨fun he => names_map_inj hps hqs he, fun he => by simp [absNames, he]⟩
-    cases b <;> simp_all
-  · rename_i hlen
-    simp only [Result.ok.injEq] at h; subst h
-    symm; simp only [decide_eq_false_iff_not]
-    intro he
-    apply hlen
-    have := congrArg List.length he
-    simp [absNames] at this; scalar_tac
-
-/-- `prop_when::beq` -- and the `Eq2` dictionary that *is* it -- decides
-equality of the abstracted data exactly. -/
-theorem beq_refines {a b : prop_when.PropWhen} {c : Bool} (ha : PropWhenWF a) (hb : PropWhenWF b)
-    (h : prop_when.beq a b = ok c) : c = decide (absPropWhen a = absPropWhen b) := by
-  cases a <;> cases b <;> simp only [prop_when.beq, Result.ok.injEq] at h <;> subst_vars
-    <;> simp [absPropWhen]
-  exact names_beq_refines ha hb h
 
 /-! ## The constructors and readers -/
 
@@ -306,11 +212,5 @@ info: 'ConRon.Refine.PropWhen.bind_z_refines' depends on axioms: [propext, Class
 -/
 #guard_msgs in
 #print axioms bind_z_refines
-
-/--
-info: 'ConRon.Refine.PropWhen.beq_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms beq_refines
 
 end ConRon.Refine.PropWhen

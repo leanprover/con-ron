@@ -40,12 +40,12 @@ open ConRon.Arena
 /-! ## The type former's stage -/
 
 theorem whnf_telescope_aux {E₀ : IEnv} (m : Nat) :
-    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
+    ∀ {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
       {e : arena.handle.EIdx} {out : alloc.vec.Vec arena.handle.EIdx},
       n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI pers E₀ rf lf →
       absU vis = lf.visibleBelow →
       Lockstep.LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2))
-        (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+        (arena.inductives.sum_install.whnf_telescope pers st mode rf i n e out) lst
         (do
           let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
             (absEIdx e)
@@ -70,7 +70,7 @@ off `e`, reducing the residual to weak head normal form before each binder and
 at the end, where it must be a sort. -/
 @[lockstep] theorem whnf_telescope_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {i n : Std.U64}
@@ -80,7 +80,7 @@ at the end, where it must be a sort. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2)) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2)) (arena.inductives.sum_install.whnf_telescope pers st mode rf i n e out) lst
       (do
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
@@ -123,7 +123,7 @@ its match, named on both sides because over handles the syntactic test is two
 `view`s and duplicating the arm would duplicate the whnf loop. -/
 @[lockstep] theorem check_sum_tele_slow_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {cv : arena.env.IConstantVal}
@@ -133,7 +133,7 @@ its match, named on both sides because over handles the syntactic test is two
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele_slow pers vis st mode rf cv n cv_ta0) lst
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele_slow pers st mode rf cv n cv_ta0) lst
       (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) := by
   rw [arena.inductives.sum_install.check_sum_tele_slow, checkSumTele.checkSumTeleSlow]
@@ -146,7 +146,7 @@ syntactic telescope of `n` Π binders ending in a sort, else the declared
 type's whnf'd telescope, closed and checked in its place. -/
 @[lockstep] theorem check_sum_tele_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {cv : arena.env.IConstantVal}
@@ -156,7 +156,7 @@ type's whnf'd telescope, closed and checked in its place. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele pers vis st mode rf cv n cv_ta0) lst
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele pers st mode rf cv n cv_ta0) lst
       (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
         (absIConstantVal cv_ta0)) := by
   rw [arena.inductives.sum_install.check_sum_tele, checkSumTele]
@@ -261,7 +261,7 @@ last to the first and returns the sorts in field order, which is why the
 counter is the twin's `j + 1` recursion. -/
 @[lockstep] theorem check_struct_field_sorts_i_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {is_prop large : Bool}
@@ -273,7 +273,7 @@ counter is the twin's `j + 1` recursion. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absLIdxL a) (arena.inductives.sum_install.check_struct_field_sorts_i pers vis st mode rf is_prop large s n_p fvs idx_args k) lst
+    LS pers (fun a b => b = absLIdxL a) (arena.inductives.sum_install.check_struct_field_sorts_i pers st mode rf is_prop large s n_p fvs idx_args k) lst
       (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
         (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
   induction hk : k.val generalizing k st lst with
@@ -302,7 +302,7 @@ open Lockstep in
 cursor on. -/
 @[lockstep] theorem field_doms_resolve_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf0 lf0}
     {x_fvs : alloc.vec.Vec arena.handle.EIdx}
     {i : Std.Usize}
@@ -310,13 +310,13 @@ cursor on. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i) lst
+    LS pers (fun a b => b = id a) (arena.inductives.sum_install.field_doms_resolve pers st rf0 x_fvs i) lst
       (fieldDomsResolve lf0 (absEIdxLFrom x_fvs i)) := by
   revert st lst hrel hinv
   simp only [absEIdxLFrom]
   intro st lst hrel hinv
   refine ls_cursor x_fvs absEIdx (fieldDomsResolve lf0)
-    (fun st i => arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i)
+    (fun st i => arena.inductives.sum_install.field_doms_resolve pers st rf0 x_fvs i)
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolve]
@@ -332,7 +332,7 @@ open Lockstep in
 cursor on. -/
 @[lockstep] theorem idx_args_resolve_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf0 lf0}
     {idx_args : alloc.vec.Vec arena.handle.EIdx}
     {i : Std.Usize}
@@ -340,13 +340,13 @@ cursor on. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i) lst
+    LS pers (fun a b => b = id a) (arena.inductives.sum_install.idx_args_resolve pers st rf0 idx_args i) lst
       (idxArgsResolve lf0 (absEIdxLFrom idx_args i)) := by
   revert st lst hrel hinv
   simp only [absEIdxLFrom]
   intro st lst hrel hinv
   refine ls_cursor idx_args absEIdx (idxArgsResolve lf0)
-    (fun st i => arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i)
+    (fun st i => arena.inductives.sum_install.idx_args_resolve pers st rf0 idx_args i)
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolve]

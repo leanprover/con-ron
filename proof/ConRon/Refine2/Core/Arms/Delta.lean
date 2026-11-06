@@ -199,9 +199,9 @@ private theorem read_slot {cs : alloc.vec.Vec arena.env.IConstantInfo} {pos : St
 
 /-- **The base layer's lookup**: `ifenv_find_base` is `baseRow` at the reader's bound,
 and what it finds is canonical. -/
-theorem ifenv_find_base_abs {pers : arena.store.PersTier} {vis below : Std.U64}
+theorem ifenv_find_base_abs {pers : arena.store.PersTier} {below : Std.U64}
     (hb : BaseOK pers) {n : arena.handle.NIdx} {o : Option arena.env.IConstantInfo}
-    (hrun : arena.env.ifenv_find_base pers vis below n = ok o) :
+    (hrun : arena.env.ifenv_find_base pers below n = ok o) :
     o.map absIConstantInfo = rowAt (absU vis) (baseRow pers below n) ∧
       ∀ ci, o = some ci → IConstantInfoWF ci := by
   rw [arena.env.ifenv_find_base] at hrun
@@ -259,14 +259,14 @@ theorem ifenv_find_base_abs {pers : arena.store.PersTier} {vis below : Std.U64}
 Rust data.  The own layer, then the base: `CoreCtx.idx` is that composition, with the
 position read through.  A layer with no constant has no row, so the fast path is the
 miss. -/
-theorem ifenv_find_abs' {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
-    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {n : arena.handle.NIdx}
+theorem ifenv_find_abs' {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {n : arena.handle.NIdx}
     {o : Option arena.env.IConstantInfo}
-    (hrun : arena.env.ifenv_find pers vis fe n = ok o) :
+    (hrun : arena.env.ifenv_find pers fe n = ok o) :
     o.map absIConstantInfo = lfe.find? (absNIdx n) ∧ ∀ ci, o = some ci → IConstantInfoWF ci := by
   rw [IFEnv.find?_eq_rowAt, ← hctx.vis, ← hctx.idx n]
   have hmiss : ConRon.Refine.HashMap2.toFun fe.idx n = none →
-      arena.env.ifenv_find_base pers vis fe.base_below n = ok o →
+      arena.env.ifenv_find_base pers fe.base_below n = ok o →
       o.map absIConstantInfo = rowAt (absU vis) (layerRow pers fe n) ∧
         ∀ ci, o = some ci → IConstantInfoWF ci := by
     intro hn hb
@@ -326,10 +326,10 @@ theorem ifenv_find_abs' {pers : arena.store.PersTier} {vis : Std.U64} {fe : aren
 
 /-- **`arena::env::ifenv_find` against `IFEnv.find?`**: the one lemma every reader of
 the tiers above consumes. -/
-theorem ifenv_find_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
-    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {n : arena.handle.NIdx}
+theorem ifenv_find_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {n : arena.handle.NIdx}
     {o : Option arena.env.IConstantInfo}
-    (hrun : arena.env.ifenv_find pers vis fe n = ok o) :
+    (hrun : arena.env.ifenv_find pers fe n = ok o) :
     o.map absIConstantInfo = lfe.find? (absNIdx n) :=
   (ifenv_find_abs' hctx hrun).1
 
@@ -671,21 +671,21 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
   -- `arena::prop_read`'s four entries (no `Refine2` lemma yet; every walk
   -- under them is on task #97-T2-AUDIT's D1 list, so these are TRUE once that
   -- lane makes `Arena/PropRead.lean` tag-first).
-  proofPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
-    arena.prop_read.proof_pw pers vis st fe fuel a = ok o →
+  proofPW : ∀ {st lst fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
+    arena.prop_read.proof_pw pers st fe fuel a = ok o →
     Sim₀ ExprOps.absPwOpt pers lst o (proofPW lfe (absU fuel) (absEIdx a))
-  typeSortPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
-    arena.prop_read.type_sort_pw pers vis st fe fuel t = ok o →
+  typeSortPW : ∀ {st lst fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
+    arena.prop_read.type_sort_pw pers st fe fuel t = ok o →
     Sim₀ ExprOps.absPwOpt pers lst o (typeSortPW lfe (absU fuel) (absEIdx t))
-  isProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
-    arena.prop_read.is_proof_fast pers vis st fe fuel a = ok o →
+  isProofFast : ∀ {st lst fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
+    arena.prop_read.is_proof_fast pers st fe fuel a = ok o →
     Sim₀ id pers lst o (isProofFast lfe (absU fuel) (absEIdx a))
-  notProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
-    arena.prop_read.not_proof_fast pers vis st fe fuel a = ok o →
+  notProofFast : ∀ {st lst fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
+    arena.prop_read.not_proof_fast pers st fe fuel a = ok o →
     Sim₀ id pers lst o (notProofFast lfe (absU fuel) (absEIdx a))
 
 /-! ## `const_val_at` — the delta step's memo
@@ -948,11 +948,11 @@ theorem unfoldDefAt_run_ne (fe : IFEnv) (e h : EIdx) (lst : AState)
 delta step, and the `whnf` loop's second leaf.  Closed modulo `ExprOpsHyp`
 (P5-3's `inst_lp_fast_refines` and `mk_app_n_refines`, plus finding 14 at two
 call sites) and `CoreCtx`'s two index clauses; no `sorry`. -/
-theorem unfold_definition_refines {pers vis st fe lfe e lst o}
+theorem unfold_definition_refines {pers st fe lfe e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe)
-    (hrun : arena.core.unfold_definition pers vis st fe e = ok o) :
+    (hctx : CoreCtx pers fe lfe)
+    (hrun : arena.core.unfold_definition pers st fe e = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (unfoldDefinition lfe (absEIdx e)) := by
   have hfuel := core_walk_fuel_abs

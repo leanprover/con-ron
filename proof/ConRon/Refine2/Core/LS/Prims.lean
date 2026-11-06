@@ -73,9 +73,9 @@ attribute [local lockstep_simp] absIConstantInfo
 pure expression, so the pair is a `TwinEq` the twin side is rewritten with;
 and the constant found is canonical Rust data (the coordinator's ruling (d) of
 task #97-P5-Core round 5). -/
-@[lockstep] theorem ifenv_find_ls {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) (n : arena.handle.NIdx) :
-    LSP (arena.env.ifenv_find pers vis fe n)
+@[lockstep] theorem ifenv_find_ls {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) (n : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find pers fe n)
       (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo) ∧
         ∀ ci, o = some ci → IConstantInfoWF ci) :=
   fun _ h => ⟨(ifenv_find_abs' hctx h).1.symm, (ifenv_find_abs' hctx h).2⟩
@@ -91,37 +91,37 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `assumption`: a body lemma carries the bundle as a hypothesis, and
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
 
-@[lockstep] theorem is_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem is_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel a) :
-    LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers vis st fe fuel a)
+    LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers st fe fuel a)
       lst (isProofFast lfe (absU fuel) (absEIdx a)) :=
   LS.ofSim₀ (A := id) fun _ h => hx.isProofFast hrel hinv hctx h
 
-@[lockstep] theorem not_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem not_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel a) :
-    LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers vis st fe fuel a)
+    LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers st fe fuel a)
       lst (notProofFast lfe (absU fuel) (absEIdx a)) :=
   LS.ofSim₀ (A := id) fun _ h => hx.notProofFast hrel hinv hctx h
 
 /-! ## The Core lemmas closed before round 5, as `@[lockstep]` -/
 
 @[lockstep] theorem ensure_sort_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst}
+    {pers st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absLIdx a)
-      (arena.core.ensure_sort pers vis st mode eager lane fu fe depth e) lst
+      (arena.core.ensure_sort pers st mode eager lane fu fe depth e) lst
       (ensureSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) :=
   LS.ofSim₀ fun _ h => ensure_sort_refines hk hrel hinv hctx hf h
 
-@[lockstep] theorem unfold_definition_ls {pers vis st fe lfe e lst}
+@[lockstep] theorem unfold_definition_ls {pers st fe lfe e lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
+    (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.unfold_definition pers vis st fe e) lst
+      (arena.core.unfold_definition pers st fe e) lst
       (unfoldDefinition lfe (absEIdx e)) :=
   LS.ofSim₀ fun _ h => unfold_definition_refines hx hrel hinv hctx h
 
@@ -267,8 +267,8 @@ theorem ifenv_table_base_abs {pers : arena.store.PersTier} {below : Std.U64}
 
 /-- **`arena::env::ifenv_raw_table` against `IFEnv.rawTable?`**: the own map, then the
 base's, gated: `CoreCtx.tbls` is that composition. -/
-theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv}
-    {lfe : IFEnv} (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx}
+theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
+    {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
     (hrun : arena.env.ifenv_raw_table pers fe t = ok o) :
     o.map absIProjTable = lfe.rawTable? (absNIdx t) := by
@@ -285,10 +285,10 @@ theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : 
 
 /-- **`arena::env::ifenv_find_table` against `IFEnv.findTable?`**: gated by
 the structure's own lookup, as the twin is. -/
-theorem ifenv_find_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx}
+theorem ifenv_find_table_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
-    (hrun : arena.env.ifenv_find_table pers vis fe t = ok o) :
+    (hrun : arena.env.ifenv_find_table pers fe t = ok o) :
     o.map absIProjTable = lfe.findTable? (absNIdx t) := by
   rw [arena.env.ifenv_find_table] at hrun
   obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -303,10 +303,10 @@ theorem ifenv_find_table_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe :
 
 /-- **`arena::env::ifenv_find_proj` against `IFEnv.findProj?`**: the
 structure's table, viewed at field `i`. -/
-theorem ifenv_find_proj_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
+theorem ifenv_find_proj_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) {t : arena.handle.NIdx} {i : Std.U64}
     {o : Option arena.env.IProjEntry}
-    (hrun : arena.env.ifenv_find_proj pers vis fe t i = ok o) :
+    (hrun : arena.env.ifenv_find_proj pers fe t i = ok o) :
     o.map absIProjEntry = lfe.findProj? (absNIdx t) (absU i) := by
   rw [arena.env.ifenv_find_proj] at hrun
   obtain ⟨ot, hot, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -335,18 +335,18 @@ theorem ifenv_find_proj_abs {pers : arena.store.PersTier} {vis : Std.U64} {fe : 
 
 /-- The table lookup (`ifenv_find_table`) against `IFEnv.findTable?`, as
 `ifenv_find_ls`. -/
-@[lockstep] theorem ifenv_find_table_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) (t : arena.handle.NIdx) :
-    LSP (arena.env.ifenv_find_table pers vis fe t)
+@[lockstep] theorem ifenv_find_table_ls {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) (t : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find_table pers fe t)
       (fun o => TwinEq (lfe.findTable? (absNIdx t)) (o.map absIProjTable)) :=
   fun _ h => (ifenv_find_table_abs hctx h).symm
 
 /-- The projection-table lookup (`ifenv_find_proj`) against
 `IFEnv.findProj?`: a pure read on both sides, a `TwinEq` the twin side is
 rewritten with, as `ifenv_find_ls`. -/
-@[lockstep] theorem ifenv_find_proj_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
-    LSP (arena.env.ifenv_find_proj pers vis fe t i)
+@[lockstep] theorem ifenv_find_proj_ls {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
+    LSP (arena.env.ifenv_find_proj pers fe t i)
       (fun o => TwinEq (lfe.findProj? (absNIdx t) (absU i)) (o.map absIProjEntry)) :=
   fun _ h => (ifenv_find_proj_abs hctx h).symm
 

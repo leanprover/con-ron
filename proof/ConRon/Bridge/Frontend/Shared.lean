@@ -654,6 +654,16 @@ theorem internFire_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
     exact ⟨hstep1.trans hstep2, hd, hm2⟩
+  | levels lvls =>
+    rw [ConRon.Arena.Frontend.internFire] at hrun
+    obtain ⟨hls, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hdls⟩ := internLevelList_sstep lvls hok h1
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, by simp only [denoteFire, hdls, Option.map_some], hm.mono hstep1.ext⟩
 
 theorem internRule_sstep {s s' : AState} (hok : StateOK s)
     {m m' : EMemo} (hm : EMemoOK s.store m)
@@ -675,7 +685,7 @@ theorem internRule_sstep {s s' : AState} (hok : StateOK s)
     internExprGo_sstep rl.rhs hstep2.ok hm2 h3
   simp only [] at hrest3
   have hd : denoteRule s₃.store
-      ⟨hc, rl.nfields, rl.ctorParams, hf, hr, rl.k, rl.eta⟩
+      ⟨hc, rl.nfields, hf, hr⟩
       = some rl := by
     simp only [denoteRule, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
       denoteFire_ext hdf hstep3.ext, hdr]
@@ -830,8 +840,8 @@ theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hstep2, hdrs, hm2⟩ :=
       internRules_sstep rs hstep1.ok hm1 h2
     simp only [] at hrest2
-    have hd : denoteCI s₂.store (.recInfo cv mI rP rules)
-        = some (.recInfo v mI rP rs) := by
+    have hd : denoteCI s₂.store (.recInfo cv mI rP k rules)
+        = some (.recInfo v mI rP k rs) := by
       simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdrs]
     obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
     subst hst
