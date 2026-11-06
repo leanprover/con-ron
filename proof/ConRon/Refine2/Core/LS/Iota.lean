@@ -323,24 +323,57 @@ attribute [lockstep_inline] arena.core.major_to_ctor_certs
   arena.core.major_to_ctor_eta_build arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build arena.core.major_to_ctor_at
 
+/-- `former_never_zero_at` ⊑ `formerNeverZeroAt`: the family's sort is never zero
+at the use's levels, read off its stored type at use. -/
+@[lockstep] theorem former_never_zero_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe cvt caps us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.former_never_zero_at pers st mode eager lane fu fe cvt caps us) lst
+      (formerNeverZeroAt (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        (absIConstantVal cvt) (absIIndCaps caps) (absLsIdx us)) := by
+  sorry -- T143-STUB
+
+/-- `iota_case3_at` ⊑ `iotaCase3At`: case 3 of the ι case split, its family's sort
+read at use. -/
+@[lockstep] theorem iota_case3_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe isK cvj us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.iota_case3_at pers st mode eager lane fu fe isK cvj us) lst
+      (iotaCase3At (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe isK
+        (absIConstantVal cvj) (absLsIdx us)) := by
+  sorry -- T143-STUB
+
 section majorToCtor
 
 theorem absIRecRule_ctor (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
-theorem absIRecRule_k (r : arena.env.IRecRule) : (absIRecRule r).k = r.k := rfl
-theorem absIRecRule_eta (r : arena.env.IRecRule) : (absIRecRule r).eta = r.eta := rfl
 
-attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_k absIRecRule_eta
+attribute [local lockstep_simp] absIRecRule_ctor
+
+/-- `eta_rescue_ok` ⊑ `etaRescueOk`: the structure-η rescue's standing condition,
+at use. -/
+@[lockstep] theorem eta_rescue_ok_ls {pers st ctor cvj cvt caps lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.eta_rescue_ok st ctor cvj cvt caps) st lst
+      (etaRescueOk (absNIdx ctor) (absIConstantVal cvj) (absIConstantVal cvt)
+        (absIIndCaps caps)) := by
+  sorry -- T143-STUB
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem major_to_ctor_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe depth recName rules major lst}
+    {pers st mode eager lane fu fe lfe depth recName isK rules major lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.major_to_ctor pers st mode eager lane fu fe depth recName rules major) lst
+      (arena.core.major_to_ctor pers st mode eager lane fu fe depth recName isK rules major) lst
       (majorToCtor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
-        lfe (absU depth) (absNIdx recName) (rules.val.map absIRecRule) (absEIdx major)) := by
+        lfe (absU depth) (absNIdx recName) isK (rules.val.map absIRecRule) (absEIdx major)) := by
   rw [arena.core.major_to_ctor, majorToCtor.eq_def]
   have hlenv : (alloc.vec.Vec.len rules).val = rules.val.length := alloc.vec.Vec.len_val _
   generalize hL : rules.val.map absIRecRule = L
@@ -379,14 +412,14 @@ attribute [lockstep_inline] arena.core.prepare_major_whnf
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe depth recName rules major lst}
+    {pers st mode eager lane fu fe lfe depth recName isK rules major lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.prepare_major pers st mode eager lane fu fe depth recName rules major) lst
+      (arena.core.prepare_major pers st mode eager lane fu fe depth recName isK rules major) lst
       (prepareMajor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
-        lfe (absU depth) (absNIdx recName) (rules.val.map absIRecRule) (absEIdx major)) := by
+        lfe (absU depth) (absNIdx recName) isK (rules.val.map absIRecRule) (absEIdx major)) := by
   rw [arena.core.prepare_major, prepareMajor]
   lockstep_c2
 
@@ -395,33 +428,12 @@ set_option maxHeartbeats 0 in
 section iota
 
 theorem absIRecRule_nfields (r : arena.env.IRecRule) : (absIRecRule r).nfields = r.nfields.val := rfl
-theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
-    (absIRecRule r).ctorParams = r.ctor_params.val := rfl
 theorem absIRecRule_fire (r : arena.env.IRecRule) :
     (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
 theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
 
-attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
+attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields
   absIRecRule_fire absIRecRule_rhs absIRecRuleFire
-
-/-- `iota_ctor_never_prop` (the ι case split's test) against
-`iotaCtorNeverProp`. -/
-@[lockstep] theorem iota_ctor_never_prop_ls {pers st fe lfe cvj us lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.iota_ctor_never_prop pers st fe cvj us) lst
-      (iotaCtorNeverProp lfe (absIConstantVal cvj) (absLsIdx us)) := by
-  rw [arena.core.iota_ctor_never_prop, iotaCtorNeverProp]
-  lockstep_c2
-
-/-- `iota_case3` (case 3 of the ι case split) against `iotaCase3`. -/
-@[lockstep] theorem iota_case3_ls {pers st fe lfe rl cvj us lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.iota_case3 pers st fe rl cvj us) lst
-      (iotaCase3 lfe (absIRecRule rl) (absIConstantVal cvj) (absLsIdx us)) := by
-  rw [arena.core.iota_case3, iotaCase3]
-  lockstep_c2
 
 attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
   arena.core.iota_rec_cert arena.core.iota_rec_case3 arena.core.iota_rec_fam
