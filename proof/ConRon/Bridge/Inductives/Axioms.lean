@@ -11,7 +11,7 @@ module -- shake: keep-all (`#print axioms` stores no constant shake can see)
 public import ConRon.Bridge.Inductives.Decl
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.FieldTele
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.Positivity
 import ConRon.Bridge.Inductives.BlockInstall

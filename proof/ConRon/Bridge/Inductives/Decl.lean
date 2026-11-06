@@ -32,7 +32,7 @@ clause for clause, so
 module
 
 import ConRon.Bridge.Inductives.BlockTail
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.EnvDenote
 

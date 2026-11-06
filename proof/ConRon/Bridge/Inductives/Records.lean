@@ -546,9 +546,9 @@ theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShap
 /-- con-leche: none — a denoted member, field by field. -/
 theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
     (h : dMember st m = some mP) :
-    Frontend.denoteCV st m.cvT = some mP.cvT ∧
-      Frontend.denoteCV st m.declared = some mP.declared ∧ m.nIdx = mP.nIdx ∧
-      dCtors st m.ctors = some mP.ctors := by
+    Frontend.denoteCV st m.cvT = some mP.cvT ∧ m.nIdx = mP.nIdx ∧
+      dCtors st m.ctors = some mP.ctors ∧
+      Frontend.denoteCV st m.declared = some mP.declared := by
   simp only [dMember] at h
   cases h1 : Frontend.denoteCV st m.cvT with
   | none => rw [h1] at h; exact nomatch h

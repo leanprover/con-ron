@@ -25,7 +25,7 @@ public import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.StreamRecs
 import ConLeche.Verify.Inductives.PositivityInv
 public import ConRon.Bridge.Inductives.ClassRead
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructInstall
 import ConRon.Bridge.Inductives.StructParts
@@ -364,7 +364,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       obtain ⟨hstep, hrel⟩ := checkBlockTables_spec p pP ms msP' css cssP' sss sssP' fe env
         s₀ s' fe' hok hpins hcoh hienv hfe hsh hms' hcss' hsss' h
       exact ⟨hstep, hrel.imp fun e he => FOk.bind hx he⟩
-    obtain ⟨hcvT, hnI, hcsm⟩ := dMember_inv hm
+    obtain ⟨hcvT, hnI, hcsm, -⟩ := dMember_inv hm
     match cs, ss, csP, ssP, hcs, hss with
     | [(cA, nF)], [sorts], csP, ssP, hcs, hss =>
       obtain ⟨cAP', csP', rfl, hcA, hcs'⟩ := mapM_option_cons_inv hcs
