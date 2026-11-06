@@ -237,7 +237,7 @@ theorem uses_names_val {o3 : alloc.vec.Vec (alloc.vec.Vec Std.U64)} {outs : Arra
       · rw [ite_eq_left h0] at hs1; cases Result.ok_injective hs1; simp [g, h0]
       · rw [ite_eq_right h0] at hs1
         by_cases h2 : y = frontend.olean.lazy.USES_STR
-        · rw [ite_eq_left h2] at hs1; cases Result.ok_injective hs1; simp [g, h0, h2]
+        · rw [ite_eq_left h2] at hs1; cases Result.ok_injective hs1; simp [g, h2]
         · rw [ite_eq_right h2] at hs1; rw [ConRon.Refine.vec_push_val hs1]; simp [g, h0, h2]
     · left
       rw [ite_eq_right hj] at h
@@ -277,10 +277,10 @@ theorem uses_names_val {o3 : alloc.vec.Vec (alloc.vec.Vec Std.U64)} {outs : Arra
       rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, absWord_eq_iff]
     rw [hn, hs]
     by_cases h0 : y = frontend.olean.lazy.USES_NAT
-    · simp [g, h0, hn, hs]
+    · simp [g, h0]
     · by_cases h2 : y = frontend.olean.lazy.USES_STR
-      · simp [g, h0, h2, hn, hs]
-      · simp [g, h0, h2, hn, hs]
+      · simp [g, h2]
+      · simp [g, h0, h2]
 
 /-- **`load_at`'s loop collects `lazyRoots`.** -/
 theorem load_at_loop_val {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
@@ -490,7 +490,21 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
     rw [← Result.ok_injective hi4]
     exact ConRon.Refine.ExprOps.u64_cast_usize_val hnm
   have hstv : StampsRel stamps (Array.replicate n.val 0) := by
-    sorry -- T143-STUB
+    rw [alloc.vec.Vec.resize] at hstamps
+    have hv : stamps.val = List.replicate i4.val 0#u64 := by
+      split at hstamps
+      · rename_i hlt
+        simp at hlt
+      · peel hstamps as x, hx
+        have hx0 : 0#u64 = x := Result.ok_injective hx
+        subst hx0
+        cases Result.ok_injective hstamps
+        have e0 : ∀ (l : List Std.U64) (hl), (alloc.vec.Vec.from l hl).val = l := fun l hl => Slice.from_val _ _
+        have e1 : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
+        rw [e0, e1]
+        simp [List.resize]
+    rw [StampsRel, hv, hi4v]
+    simp
   obtain ⟨⟨o2, s2⟩, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o2 with
   | none => cases (Prod.mk.inj (Result.ok_injective h)).1
