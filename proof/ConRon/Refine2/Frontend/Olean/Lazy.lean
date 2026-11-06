@@ -428,7 +428,7 @@ theorem frontier_arm {T α : Type} {A : T → α} {m fr : alloc.vec.Vec Std.U8} 
     (hsub : ∀ o, sub = ok o → o.map A = some get)
     {tb : frontend.olean.sparse.Table T} {tb' : ConLeche.Frontend.Olean.Table α} (ht : TableRel A tb tb')
     {R : Type} {mk : frontend.olean.sparse.Table T → R} {r0 : R} (hr0 : r0 = mk tb) {res}
-    {K : Option T → Result R} (hKn : K none = ok r0)
+    {K : Option T → Result R}
     (hKs : ∀ v, K (some v) = Std.bind (table_add tb c v) (fun t => ok (mk t)))
     {b1 : Bool} (hb1 : frontend.olean.fast.marked fr k p = ok b1)
     (h : (if b1 then Std.bind (frontend.olean.fast.marked m k p) (fun b3 =>
@@ -489,26 +489,26 @@ theorem frontier_step_rel {m fr : alloc.vec.Vec Std.U8} {d : frontend.olean.fast
   obtain ⟨n2, rfl, hN⟩ := frontier_arm (A := absNIdx) (k := frontend.olean.fast.K_NAME) (m := m) (fr := fr) (p := p) (c := c)
     (get := t.names.getD p.val default)
     (fun o ho => by rw [hs.nm c o ho]; show some (t.names.getD (tr (c.val / 8)) default) = _; rw [hcp])
-    hb.names (mk := fun tb => { b with names := tb }) (r0 := b) rfl rfl (fun _ => rfl) hm1 hq1
+    hb.names (mk := fun tb => { b with names := tb }) (r0 := b) rfl (fun _ => rfl) hm1 hq1
   peel h as m2, hm2
   obtain ⟨q2, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨l2, rfl, hL⟩ := frontier_arm (A := absLIdx) (k := frontend.olean.fast.K_LEVEL) (m := m) (fr := fr) (p := p) (c := c)
     (get := t.levels.getD p.val default)
     (fun o ho => by rw [hs.lv c o ho]; show some (t.levels.getD (tr (c.val / 8)) default) = _; rw [hcp])
-    hb.levels (mk := fun tb => { b with names := n2, levels := tb }) (r0 := { b with names := n2 }) rfl rfl (fun _ => rfl) hm2 hq2
+    hb.levels (mk := fun tb => { b with names := n2, levels := tb }) (r0 := { b with names := n2 }) rfl (fun _ => rfl) hm2 hq2
   peel h as m3, hm3
   obtain ⟨q3, hq3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨s2, rfl, hS⟩ := frontier_arm (A := absLsIdx) (k := frontend.olean.fast.K_LEVELS) (m := m) (fr := fr) (p := p) (c := c)
     (get := t.lists.getD p.val default)
     (fun o ho => by rw [hs.lvs c o ho]; show some (t.lists.getD (tr (c.val / 8)) default) = _; rw [hcp])
     hb.lists (mk := fun tb => { b with names := n2, levels := l2, lists := tb })
-    (r0 := { b with names := n2, levels := l2 }) rfl rfl (fun _ => rfl) hm3 hq3
+    (r0 := { b with names := n2, levels := l2 }) rfl (fun _ => rfl) hm3 hq3
   peel h as m4, hm4
   obtain ⟨e2, rfl, hE⟩ := frontier_arm (A := absEIdx) (k := frontend.olean.fast.K_EXPR) (m := m) (fr := fr) (p := p) (c := c)
     (get := t.exprs.getD p.val default)
     (fun o ho => by rw [hs.ex c o ho]; show some (t.exprs.getD (tr (c.val / 8)) default) = _; rw [hcp])
     hb.exprs (mk := fun tb => { b with names := n2, levels := l2, lists := s2, exprs := tb })
-    (r0 := { b with names := n2, levels := l2, lists := s2 }) rfl rfl (fun _ => rfl) hm4 h
+    (r0 := { b with names := n2, levels := l2, lists := s2 }) rfl (fun _ => rfl) hm4 h
   rw [hcv] at hN hL hS hE
   simp only [absByte_k_name, absByte_k_level, absByte_k_levels, absByte_k_expr] at hN hL hS hE
   exact ⟨hN, hL, hS, hE⟩
