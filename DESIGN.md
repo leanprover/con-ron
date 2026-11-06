@@ -71945,8 +71945,9 @@ could build, then closing the stubs (STAGE 2):
 `frontierWalk` take fuel as the Rust's (upstream's are `partial`, so no relation to them could be
 proved; Theorem 1's `loadAt_run` follows); 02a64c77, `checkConstantVal`'s certified-operation message
 reads the name with `readName` as the Rust's `read_name` (failure path only).  No Rust change.  Shared
-core: `read_name_ls` in `Tactic/Prims.lean`; `Lockstep.lean`'s tier-walk note (doc only; `LST`/`packT`
-stay as an unused extension point).
+core: `read_name_ls` in `Tactic/Prims.lean`; `Lockstep.lean` loses the tier-walk judgement (`LST`,
+`packT`, `LS.bindT`/`tailT`, `packTMove`, the `tier` kind, `LS.twin_dite_split`), whose one user was
+promotion (3efba85e).
 
 **Status.**  `lake build ConRonRefine2` green at bump-701d72ae 1502b8b7, no sorry and no warning from
 `Refine/**`, `Refine2/**`; `pool_accepts_refines` and `olean_pool_accepts_refines` print the three
@@ -71957,7 +71958,11 @@ IndexBuild,Install,Basis,OleanPool}`, `Core/LS/ProjGuard`, `Frontend/Olean/{Lazy
 deleted `Refine/{BasisTables,BasisPins}`, `Checker/EnvExt`, `Core/Frame`, `Inductives/StoredInstall`,
 `Promote/Promote` (and the renames BlockParts → BlockShape, StoredRecs → StreamRecs).  One statement
 the lockstep corrected: `check_block_tail_stream_ls`'s twin now runs `checkBlockTables` before it
-returns, as the Rust does there.  One deliberate near-duplicate: GenRecCheck keeps its own
+returns, as the Rust does there.  **The census cut** (399a5f20, 31b61055): what no headline reaches goes, −1 906 lines over 37 files.
+Six `rfl` lemmas the census calls dead stay, since `simp only`/`lockstep_simp` sets use them invisibly
+(`Lockstep.u64_one_val`, `absMemberShape_ctors`, BlockTail's three `bt_absMemberShape_*`, RecCheck's
+two `rc_absCtorsLL_*`); they are the only `Refine`/`Refine2` names `dead-census.py --check` still lists,
+not allow-listed.  One deliberate near-duplicate: GenRecCheck keeps its own
 `ifenv_push_temp`/`pop_temp` specs, since it pops layers that only answer like the pushed one and needs
 the index map's invariant, which `Checker/Base`'s pair does not give.
 
