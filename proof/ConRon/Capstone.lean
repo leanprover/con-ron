@@ -572,7 +572,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge hk
+    ConRon.Bridge.Inductives.indSpec_of_bridge
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, I, hA, hB, hC, hD, hE, hF, hrelF⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2 hreads h3 (prepare_prelude_of_prepare_d h4) h5
       (poolAccepts_intro h6 h7 h8)
@@ -619,7 +619,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge hk
+    ConRon.Bridge.Inductives.indSpec_of_bridge
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, I, hA, hB, hC, hD, hE, hF, -⟩ :=
     rust_stages hpins rfl hest hst0 h1 h2 hreads h3 (prepare_prelude_of_prepare_d h4) h5
       (poolAccepts_intro h6 h7 h8)
@@ -739,7 +739,7 @@ theorem no_False_oleans_of (hT2 : ReadOleansRefines)
   have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge hkc
+    ConRon.Bridge.Inductives.indSpec_of_bridge
   obtain ⟨sA, sB, sB', sC, sD, sE, sF, rd', I, hA, hB, hR, hC, hD, hE, hF, -⟩ :=
     rust_stages_oleans hT2 hpins rfl hest hst0 h1 h2 hroots hsnap h3 h4 h5
       (oleanPoolAccepts_intro h6 h7 h8)
@@ -785,7 +785,7 @@ theorem model_exists_oleans_of (hT2 : ReadOleansRefines)
   have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
     ConRon.Bridge.CoreSpec.of_core
   have hind : ConRon.Bridge.IndSpec :=
-    ConRon.Bridge.Inductives.indSpec_of_bridge hkc
+    ConRon.Bridge.Inductives.indSpec_of_bridge
   obtain ⟨sA, sB, sB', sC, sD, sE, sF, rd', I, hA, hB, hR, hC, hD, hE, hF, hrelF⟩ :=
     rust_stages_oleans hT2 hpins rfl hest hst0 h1 h2 hroots hsnap h3 h4 h5
       (oleanPoolAccepts_intro h6 h7 h8)
