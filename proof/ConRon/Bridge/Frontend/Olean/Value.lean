@@ -28,6 +28,20 @@ open ConRon.Arena.Frontend.Olean (OleanPins SM Frontier Sub ModRef ValueCache)
 open ConLeche.Frontend.Olean (Region Kid kName kLevel kLevels kExpr kidTable nameAt levelAt
   levelsAt exprAt IsKind SearchPath)
 
+/-! ## The context
+
+A theorem's value is read inside its job's scratch bracket, so the context of the read does not
+ask for the flag: the node runs of `Nodes.lean` hold either way. -/
+
+/-- con-leche: none — what every run of the sparse decoder carries. -/
+structure VCtx (pk : OleanPins) (s : AState) : Prop where
+  ok : StateOK s
+  nulls : NullsRel s.store pk
+
+theorem VCtx.step {pk : OleanPins} {s s' : AState} (h : VCtx pk s) (hst : ParseStep s s') :
+    VCtx pk s' :=
+  ⟨hst.ok, h.nulls.ext hst.ext⟩
+
 /-! ## The memo -/
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:33 SM.Good — every handle the memo
@@ -138,7 +152,7 @@ theorem good_insert {α : Type} {P : Nat → α → Prop} {m : Std.HashMap Nat �
 `g`, read as kind `k` from kids the read holds**: the node function's run, its handle denoting
 the specification's value, added to the memo. -/
 theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g : Nat}
-    {sm sm' : SM} {s s' : AState} (hk : IsKind k) (hctx : Ctx pk s) (hG : SMGood s.store r sm)
+    {sm sm' : SM} {s s' : AState} (hk : IsKind k) (hctx : VCtx pk s) (hG : SMGood s.store r sm)
     (hB : FrontierGood s.store r b) (hkids : ∀ k' c, Kid r k g k' c → sm.holds b k' c = true)
     (h : ConRon.Arena.Frontend.Olean.SM.buildIn pk r b k g sm s = .ok (some sm', s')) :
     ParseStep s s' ∧ SMGood s'.store r sm' ∧ sm'.has k g = true ∧ SMSub sm sm' := by
@@ -154,7 +168,7 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
     | some v =>
     cases hv
     subst hs
-    obtain ⟨hst, x, hx, hd⟩ := nameNode_run hctx.ok hctx.off hctx.nulls hsub h1
+    obtain ⟨hst, x, hx, hd⟩ := nameNode_run hctx.ok hctx.nulls hsub h1
     have hG' := hG.ext hst.ext
     refine ⟨hst, ⟨good_insert hG'.1 ⟨x, by rw [nameAt]; exact hx, hd⟩, hG'.2⟩,
       by rw [SM.has_name]; simp [Std.HashMap.contains_insert], sub_all _ ?_⟩
@@ -168,7 +182,7 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
     | some v =>
     cases hv
     subst hs
-    obtain ⟨hst, x, hx, hd⟩ := levelNode_run hctx.ok hctx.off hctx.nulls hsub h1
+    obtain ⟨hst, x, hx, hd⟩ := levelNode_run hctx.ok hctx.nulls hsub h1
     have hG' := hG.ext hst.ext
     refine ⟨hst, ⟨hG'.1, good_insert hG'.2.1 ⟨x, by rw [levelAt]; exact hx, hd⟩, hG'.2.2⟩,
       by rw [SM.has_level]; simp [Std.HashMap.contains_insert], sub_all _ ?_⟩
@@ -183,7 +197,7 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
     | some v =>
     cases hv
     subst hs
-    obtain ⟨hst, x, hx, hd⟩ := exprNode_run hctx.ok hctx.off hctx.nulls hsub h1
+    obtain ⟨hst, x, hx, hd⟩ := exprNode_run hctx.ok hctx.nulls hsub h1
     have hG' := hG.ext hst.ext
     refine ⟨hst, ⟨hG'.1, hG'.2.1, hG'.2.2.1,
       good_insert hG'.2.2.2 ⟨x, by rw [exprAt]; exact hx, hd⟩⟩,
@@ -199,7 +213,7 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
     | some v =>
     cases hv
     subst hs
-    obtain ⟨hst, x, hx, hd⟩ := levelsNode_run hctx.ok hctx.off hctx.nulls hsub h1
+    obtain ⟨hst, x, hx, hd⟩ := levelsNode_run hctx.ok hctx.nulls hsub h1
     have hG' := hG.ext hst.ext
     refine ⟨hst, ⟨hG'.1, hG'.2.1, good_insert hG'.2.2.1 ⟨x, by rw [levelsAt]; exact hx, hd⟩,
       hG'.2.2.2⟩, by rw [SM.has_levels]; simp [Std.HashMap.contains_insert], sub_all _ ?_⟩
@@ -211,7 +225,7 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:273 SGoSpec — what an answering `sGo`
 gives: the memo holds the object, and every handle it holds denotes. -/
 @[expose] def SGoRun (pk : OleanPins) (r : Region) (b : Frontier) (g : Nat) : Prop :=
-  ∀ (k : UInt8) (sm sm' : SM) (s s' : AState), IsKind k → Ctx pk s → SMGood s.store r sm →
+  ∀ (k : UInt8) (sm sm' : SM) (s s' : AState), IsKind k → VCtx pk s → SMGood s.store r sm →
     FrontierGood s.store r b →
     ConRon.Arena.Frontend.Olean.sGo pk r b k g sm s = .ok (some sm', s') →
     ParseStep s s' ∧ SMGood s'.store r sm' ∧ sm'.holds b k g = true ∧ SMSub sm sm'
@@ -221,7 +235,7 @@ theorem kidsGo_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g :
     (ih : ∀ c, c < g → SGoRun pk r b c) {fs₀ : List (Nat × UInt8 × Bool)}
     (hfs : kidTable k (r.tag g) (r.nobjs g) = some fs₀) :
     ∀ (fs : List (Nat × UInt8 × Bool)) (sm sm' : SM) (s s' : AState), (∀ f ∈ fs, f ∈ fs₀) →
-      Ctx pk s → SMGood s.store r sm → FrontierGood s.store r b →
+      VCtx pk s → SMGood s.store r sm → FrontierGood s.store r b →
       ConRon.Arena.Frontend.Olean.kidsGo pk r b g fs sm s = .ok (some sm', s') →
       ParseStep s s' ∧ SMGood s'.store r sm' ∧ SMSub sm sm' ∧
         ∀ f ∈ fs, ∀ c, ¬ (f.2.2 = true ∧ r.fld g f.1 = 1) → r.down g (r.fld g f.1) = some c →
@@ -314,7 +328,7 @@ theorem sGo_run (pk : OleanPins) (r : Region) (b : Frontier) : ∀ g, SGoRun pk 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:385 frontierExpr_eq — **the `Expr` at
 location `c`, read over a good frontier**, denotes the specification's. -/
 theorem frontierExpr_run {pk : OleanPins} {r : Region} {b : Frontier} {c : Nat} {e : EIdx}
-    {s s' : AState} (hctx : Ctx pk s) (hB : FrontierGood s.store r b)
+    {s s' : AState} (hctx : VCtx pk s) (hB : FrontierGood s.store r b)
     (h : ConRon.Arena.Frontend.Olean.frontierExpr pk r b c s = .ok (some e, s')) :
     ParseStep s s' ∧ ∃ x, exprAt r c = some x ∧ denoteE s'.store e = some x := by
   unfold ConRon.Arena.Frontend.Olean.frontierExpr at h

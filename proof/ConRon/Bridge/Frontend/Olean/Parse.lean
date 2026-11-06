@@ -224,7 +224,7 @@ theorem constNamesGo_run {pk : OleanPins} {r : Region} :
       cases o with
       | none => cases (AM.pure_ok hrest).1
       | some a =>
-        obtain ⟨hst1, nC, hnC, hda⟩ := nameAt_run n hctx.ok hctx.off hctx.nulls hat
+        obtain ⟨hst1, nC, hnC, hda⟩ := nameAt_run n hctx.ok hctx.nulls hat
         have hctx1 := hctx.step hst1
         simp only [hnC]
         simp only [] at hrest
@@ -246,7 +246,7 @@ theorem constNamesGo_run {pk : OleanPins} {r : Region} :
               cases (AM.pure_ok hrest').1
             | some q =>
               simp only [pure_bind] at hrest'
-              obtain ⟨hst, z, hz, hdz⟩ := nameP_run hctx1.ok hctx1.off hctx1.nulls hp
+              obtain ⟨hst, z, hz, hdz⟩ := nameP_run hctx1.ok hctx1.nulls hp
               refine ⟨q == a, s₃, hst, fun hbt => ?_, hrest'⟩
               have hqa : q = a := by simpa using hbt
               subst hqa
@@ -605,7 +605,7 @@ theorem importsRead_run {pk : OleanPins} {r : Region} {imps : Array Nat}
       obtain ⟨hv', hs'⟩ := AM.pure_ok h4
       cases hv'
       subst hs'
-      obtain ⟨hst, z, hz, hd⟩ := nameP_run hctx.ok hctx.off hctx.nulls h3
+      obtain ⟨hst, z, hz, hd⟩ := nameP_run hctx.ok hctx.nulls h3
       refine ⟨hst, { a with module := z }, ?_, ?_⟩
       · rw [hsk]
         show ImportF.mapM (nameP r) a = _

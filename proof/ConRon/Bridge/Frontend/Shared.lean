@@ -116,6 +116,11 @@ theorem IStepS.toIStep {s s' : AState} (h : IStepS s s')
     (hoff : s.store.scratchOn = false) : IStep s s' :=
   ⟨h.ok, h.ext, h.off hoff, h.memos, h.caches, h.pins⟩
 
+/-- con-leche: none — a step that leaves the scratch flag alone is a parse step, whichever the
+flag is. -/
+theorem IStepS.toParse' {s s' : AState} (h : IStepS s s') : ParseStep s s' :=
+  ParseStep.of_caches h.ok h.ext h.scratch h.caches h.pins
+
 /-! ## The four leaf interns, in run form -/
 
 theorem internE_sstep {s s' : AState} (hok : StateOK s)
@@ -904,6 +909,15 @@ theorem internE_istep {s s' : AState} (hok : StateOK s)
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
   rw [hoff] at hon
   exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, PersE_of_view hwf hon hview, hden⟩
+
+/-- con-leche: none — a NAME node, in the frame that does not ask for the flag. -/
+theorem internNNode_sstep {s s' : AState} (hok : StateOK s) {v : NNodeView}
+    (hv : s.store.ns.ViewOK v) {h : NIdx}
+    (hrun : internNNode v s = .ok (h, s')) :
+    IStepS s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, -, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
 
 /-- con-leche: none — a NAME node: a view leaf. -/
 theorem internNNode_istep {s s' : AState} (hok : StateOK s)
