@@ -848,8 +848,6 @@ theorem expo_step_refines {pk bs r pers st lst} {c : Std.U64} {priv_idx priv_loc
     {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
     {expo : alloc.vec.Vec frontend.olean.module.Expo} {t' : Std.HashMap NIdx Nat} {locs' : Array Nat}
     {cs' : Array (CEntryF NIdx EIdx)} {expo' : Array Expo}
-    (hE : ∀ st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (entryAt (absPins pk) (absRegion bs r) c.val))
     (hr : RegionFits bs r)
     (hidx : PosRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx priv_idx t' cs.val.length)
     (hlocs : priv_locs.val.map (fun x : Std.U64 => x.val) = locs'.toList)
@@ -957,7 +955,7 @@ theorem expo_step_refines {pk bs r pers st lst} {c : Std.U64} {priv_idx priv_loc
               · rw [ite_eq_right hh] at h
                 rw [ite_eq_right (by simpa using hh)]
                 peel h as ⟨r3, ar2⟩, he
-                have hEn := hE (withStore st ar1) lst1 hrel1 hinv1 r3 ar2 he
+                have hEn := entry_at_refines (st := withStore st ar1) (lst := lst1) hr hrel1 hinv1 r3 ar2 he
                 cases r3 with
                 | Err e =>
                   cases e with
@@ -1014,8 +1012,6 @@ theorem expo_loop_loop_refines {pk bs r pers} {e_consts : alloc.vec.Vec Std.U64}
     {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
     {tl : Std.HashMap Nat Nat} {nl : Nat} {t' : Std.HashMap NIdx Nat} {locs' : Array Nat}
     {cs' : Array (CEntryF NIdx EIdx)}
-    (hE : ∀ c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (entryAt (absPins pk) (absRegion bs r) c.val))
     (hr : RegionFits bs r) (hloc : PosRel hU64 (fun x : Std.U64 => x.val) priv_loc tl nl) (hnl : nl ≤ Std.Usize.max)
     (hidx : PosRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx priv_idx t' cs.val.length)
     (hlocs : priv_locs.val.map (fun x : Std.U64 => x.val) = locs'.toList)
@@ -1072,7 +1068,7 @@ theorem expo_loop_loop_refines {pk bs r pers} {e_consts : alloc.vec.Vec Std.U64}
         rw [Option.map_none]
         dsimp only at h ⊢
         peel h as ⟨r1, ar1, expo1⟩, hstep
-        have hS := expo_step_refines (hE c) hr hidx hlocs hcs hexpo hrel hinv hstep
+        have hS := expo_step_refines hr hidx hlocs hcs hexpo hrel hinv hstep
         cases r1 with
         | Ok u =>
           obtain ⟨b, lst1, hy, hb, hrel1, hinv1⟩ := hS
@@ -1112,8 +1108,6 @@ theorem ExOut.of_msg2 {α β : Type} {pers st lst} {R : α → β → Prop} {ar 
 theorem expo_of_parts_refines {pk bs r pers st lst} {priv_addr exp_addr : Std.U64}
     {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
     {cs' : Array (CEntryF NIdx EIdx)}
-    (hE : ∀ c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (entryAt (absPins pk) (absRegion bs r) c.val))
     (hr : RegionFits bs r) (hcs : List.Forall₂ ERel cs.val cs'.toList)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {o s'}
     (h : frontend.olean.module.expo_of_parts pk pers st.store bs r priv_addr exp_addr cs = ok (o, s')) :
@@ -1153,7 +1147,7 @@ theorem expo_of_parts_refines {pk bs r pers st lst} {priv_addr exp_addr : Std.U6
         rw [List.toList_toArray]
         exact hP.consts
       have hnl : sk.consts.val.length ≤ Std.Usize.max := by scalar_tac
-      have hS := expo_loop_loop_refines hE hr hL hnl hI hlocs hcs _ 0#usize st lst ex0 _ r1 ar1 expo1
+      have hS := expo_loop_loop_refines hr hL hnl hI hlocs hcs _ 0#usize st lst ex0 _ r1 ar1 expo1
         (Nat.le_refl _) hX hrel hinv hloop
       have e1 : ((sk1.consts.val.drop (0#usize : Std.Usize).val).map (fun x : Std.U64 => x.val)) = skE.consts := by
         simpa using hE1.consts
@@ -1214,8 +1208,6 @@ macro "ce_close " h:ident : tactic =>
 /-- **`check_views_module` is the module-system arm of `checkViews`.** -/
 theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v s p} {m' : ConLeche.Name}
     {f' : ConLeche.Frontend.Olean.ModFiles} {v' : Arena.Frontend.Olean.AllViews} {s' p'}
-    (hE : ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (entryAt (absPins pk) (absRegion bs r) c.val))
     (hf : ModFilesRel f f') (hv : AllViewsRel v v') (hs : f.server = some s) (hp : f.private_part = some p)
     (hs' : f'.server = some s') (hp' : f'.private = some p') (hmod : f'.isModule = true) :
     CS pers ExpoRel st lst (frontend.olean.module.check_views_module pk pers st.store m f v s p)
@@ -1254,7 +1246,7 @@ theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v
         have ei := part_module_data_addr_eq hi
         rw [← eap, ← ei]
         peel h as ⟨r1, ar1⟩, he1
-        have hS1 := expo_of_parts_refines (hE _ _) hfit hcs hrel hinv he1
+        have hS1 := expo_of_parts_refines hfit hcs hrel hinv he1
         cases r1 with
         | Ok x =>
           obtain ⟨b1, lst1, hy1, hb1, hrel1, hinv1⟩ := hS1
@@ -1262,7 +1254,7 @@ theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v
           peel h as i1, hi1
           rw [← part_module_data_addr_eq hi1]
           peel h as ⟨r2, ar2⟩, he2
-          have hS2 := expo_of_parts_refines (st := withStore st ar1) (hE _ _) hfit hcs hrel1 hinv1 he2
+          have hS2 := expo_of_parts_refines (st := withStore st ar1) hfit hcs hrel1 hinv1 he2
           cases r2 with
           | Ok y =>
             obtain ⟨b2, lst2, hy2, -, hrel2, hinv2⟩ := hS2
@@ -1293,7 +1285,7 @@ theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v
             peel h as i1, hi1
             rw [← part_module_data_addr_eq hi1]
             peel h as ⟨r2, ar2⟩, he2
-            have hS2 := expo_of_parts_refines (st := withStore st ar1) (hE _ _) hfit hcs hrel1 hinv1 he2
+            have hS2 := expo_of_parts_refines (st := withStore st ar1) hfit hcs hrel1 hinv1 he2
             cases r2 with
             | Ok y =>
               obtain ⟨b2, lst2, hy2, -, -, -⟩ := hS2
@@ -1325,8 +1317,6 @@ theorem expo_same {v v'} (hv : AllViewsRel v v') {r}
 /-- **`check_views` is `checkViews`.** -/
 theorem check_views_refines {pk pers st lst} {m : arena.handle.NIdx} {f v} {m' : ConLeche.Name}
     {f' : ConLeche.Frontend.Olean.ModFiles} {v' : Arena.Frontend.Olean.AllViews}
-    (hE : ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (entryAt (absPins pk) (absRegion bs r) c.val))
     (hf : ModFilesRel f f') (hv : AllViewsRel v v') :
     CS pers ExpoRel st lst (frontend.olean.module.check_views pk pers st.store m f v)
       (Arena.Frontend.Olean.checkViews (absPins pk) m' f' v') := by
@@ -1363,7 +1353,7 @@ theorem check_views_refines {pk pers st lst} {m : arena.handle.NIdx} {f v} {m' :
       cases b with
       | true =>
         rw [ite_eq_left rfl] at h
-        exact check_views_module_refines hE hf hv hs hp (es.trans rfl) (ep.trans rfl) e.symm hrel hinv o s1 h
+        exact check_views_module_refines hf hv hs hp (es.trans rfl) (ep.trans rfl) e.symm hrel hinv o s1 h
       | false =>
         rw [ite_eq_right (by simp)] at h
         peel h as r, hr

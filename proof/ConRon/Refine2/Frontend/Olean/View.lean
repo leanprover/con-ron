@@ -6,7 +6,7 @@ answer that its bytes and its region are upstream's, and that they fit, which th
 What `view.rs` copies, it copies: `region_dup`, `c_entry_dup`, `mod_decoded_dup` are the identity.
 -/
 import ConRon.Refine2.Frontend.Olean.ModFilesRel
-import ConRon.Refine2.Frontend.Olean.FastMany
+import ConRon.Refine2.Frontend.Olean.Reads
 import ConRon.Arena.Frontend.Olean.View
 
 open Aeneas Aeneas.Std Result
@@ -500,15 +500,20 @@ theorem take_dec {ds i d ds'} (h : frontend.olean.fast.take_decoded ds i = ok (d
   intro j hj
   rw [alloc.vec.Vec.set_val_eq, List.getElem?_set_ne (Ne.symm hj)]
 
+/-- `imports_pre` of a module's exported file is `importsPre`. -/
+theorem imports_pre_ok {pk pers f f'} (hf : ModFilesRel f f') (st lst) :
+    RS pers (EqA absImports) st lst
+      (frontend.olean.header.imports_pre pk pers st.store (alloc.vec.Vec.deref f.exported.bytes))
+      (importsPre (absPins pk) (absBytes (alloc.vec.Vec.deref f.exported.bytes))) :=
+  imports_pre_refines (by rw [deref_val]; exact hf.fitsE.size)
+
 /-- **`check_imports_pre` is `checkImportsPre`.** -/
 theorem check_imports_pre_refines {pk pers st lst f f' d d'}
-    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
-      (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') (hd : ModDecodedRel d d') :
     RS pers ModDecodedRel st lst (check_imports_pre pk pers st.store f d) (checkImportsPre (absPins pk) f' d') := by
   rw [check_imports_pre, checkImportsPre, hf.exported]
   refine RS.of_eq (RS.bind (g := fun pre => if pre == d'.imports then pure (some d') else pure none)
-    (hI st lst _) (fun e s1 => by cases e <;> rfl) fun a b s1 lst1 hab => ?_) ?_
+    (imports_pre_ok hf st lst) (fun e s1 => by cases e <;> rfl) fun a b s1 lst1 hab => ?_) ?_
   · cases hab
     refine RS.pure_step fun c hc => ?_
     rw [dec_imports hd, ← imports_beq_eq hc]
@@ -525,8 +530,6 @@ theorem check_imports_pre_refines {pk pers st lst f f' d d'}
 
 /-- **`parse_view` is `parseView`.** -/
 theorem parse_view_refines {pk pers st lst f f' level}
-    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
-      (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') :
     RS pers ModDecodedRel st lst (parse_view pk pers st.store f level) (parseView (absPins pk) f' (absLevel level)) := by
   rw [parse_view, parseView]
@@ -546,15 +549,13 @@ theorem parse_view_refines {pk pers st lst f f' level}
     refine RS.of_eq (RS.bind (g := fun d => checkImportsPre (absPins pk) f' d) (parse_at_refines hfit) ?_ ?_) ?_
     · intros; rfl
     · intro _ _ _ _ hab
-      exact check_imports_pre_refines hI hf hab
+      exact check_imports_pre_refines hf hab
     · congr 1
       funext o
       cases o <;> rfl
 
 /-- **`parse_all_views_module` is `parseAllViewsModule`.** -/
 theorem parse_all_views_module_refines {pk pers st lst f f' s p}
-    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
-      (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') (hs : f.server = some s) (hp : f.private_part = some p) :
     RS pers AllViewsRel st lst (parse_all_views_module pk pers st.store f s p)
       (parseAllViewsModule (absPins pk) f' (absPart s) (absPart p)) := by
@@ -640,7 +641,7 @@ theorem parse_all_views_module_refines {pk pers st lst f f' s p}
               peel h as ⟨r3, ar2⟩, himp
               have hS3 : RdOut pers (EqA absImports) (withStore st ar2) r3
                   ((importsPre (absPins pk) (absPart f.exported).bytes).run lst1) :=
-                hI (withStore st ar1) lst1 _ hrel1 hinv1 r3 ar2 himp
+                imports_pre_ok hf (withStore st ar1) lst1 hrel1 hinv1 r3 ar2 himp
               cases r3 with
               | Err ee =>
                 cases Result.ok_injective h
@@ -708,8 +709,6 @@ theorem parse_all_views_module_refines {pk pers st lst f f' s p}
 
 /-- **`parse_all_views` is `parseAllViews`.** -/
 theorem parse_all_views_refines {pk pers st lst f f'}
-    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
-      (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') :
     RS pers AllViewsRel st lst (parse_all_views pk pers st.store f) (parseAllViews (absPins pk) f') := by
   rw [parse_all_views, parseAllViews]
@@ -723,11 +722,11 @@ theorem parse_all_views_refines {pk pers st lst f f'}
     | some s =>
       cases hp : f.private_part with
       | none => exact RS.none
-      | some p => exact parse_all_views_module_refines hI hf hs hp
+      | some p => exact parse_all_views_module_refines hf hs hp
   | false =>
     rw [ite_eq_right (by simp), ite_eq_right (by simp)]
     refine RS.of_eq (RS.bind (g := fun d => pure (some ⟨d, d, d⟩))
-      (parse_view_refines (level := .Exported) hI hf) ?_ ?_) ?_
+      (parse_view_refines (level := .Exported) hf) ?_ ?_) ?_
     · intros; rfl
     · intro d d' s1 lst1 hd
       refine RS.pure_step fun d2 hd2 => ?_
@@ -758,39 +757,28 @@ macro "view_read " hf:term ", " hk:term : tactic =>
       exact $hk hfit))
 
 /-- **`read_name_positions` is `readNamePositions`.** -/
-theorem read_name_positions_refines {R : frontend.olean.reads.NamePositions → Arena.Frontend.Olean.NamePositions → Prop}
-    {pk pers st lst f f' level}
-    (hK : ∀ {bs r a st lst}, RegionFits bs r → RS pers R st lst
-      (frontend.olean.reads.name_positions_at pk pers st.store bs r a)
-      (Arena.Frontend.Olean.namePositionsAt (absPins pk) (absRegion bs r) (absWord a)))
-    (hf : ModFilesRel f f') :
-    RS pers R st lst (frontend.olean.view.read_name_positions pk pers st.store f level)
+theorem read_name_positions_refines {pk pers st lst f f' level} (hf : ModFilesRel f f') :
+    RS pers (EqA absNamePositions) st lst
+      (frontend.olean.view.read_name_positions pk pers st.store f level)
       (Arena.Frontend.Olean.readNamePositions (absPins pk) f' (absLevel level)) := by
   rw [frontend.olean.view.read_name_positions, Arena.Frontend.Olean.readNamePositions]
-  view_read hf, hK
+  view_read hf, name_positions_at_refines
 
 /-- **`read_entry` is `readEntry`.** -/
-theorem read_entry_refines {pk pers st lst f f' level} {c : Std.U64}
-    (hK : ∀ {bs r st lst}, RegionFits bs r → RS pers ERel st lst
-      (frontend.olean.reads.entry_at pk pers st.store bs r c)
-      (Arena.Frontend.Olean.entryAt (absPins pk) (absRegion bs r) c.val))
-    (hf : ModFilesRel f f') :
+theorem read_entry_refines {pk pers st lst f f' level} {c : Std.U64} (hf : ModFilesRel f f') :
     RS pers ERel st lst (frontend.olean.view.read_entry pk pers st.store f level c)
       (Arena.Frontend.Olean.readEntry (absPins pk) f' (absLevel level) c.val) := by
   rw [frontend.olean.view.read_entry, Arena.Frontend.Olean.readEntry]
-  view_read hf, hK
+  view_read hf, entry_at_refines
 
 /-- **`read_stmts` is `readStmts`.** -/
 theorem read_stmts_refines {pk pers st lst f f' level} {cs : alloc.vec.Vec Std.U64}
-    (hK : ∀ {bs r st lst}, RegionFits bs r → RS pers (fun v l => v.val.map absStmt = l) st lst
-      (frontend.olean.reads.stmts_at pk pers st.store bs r cs)
-      (Arena.Frontend.Olean.stmtsAt (absPins pk) (absRegion bs r) (cs.val.map (·.val))))
     (hf : ModFilesRel f f') :
-    RS pers (fun v l => v.val.map absStmt = l) st lst
+    RS pers (fun v l => List.Forall₂ (EqA absStmt) v.val l) st lst
       (frontend.olean.view.read_stmts pk pers st.store f level cs)
       (Arena.Frontend.Olean.readStmts (absPins pk) f' (absLevel level) (cs.val.map (·.val))) := by
   rw [frontend.olean.view.read_stmts, Arena.Frontend.Olean.readStmts]
-  view_read hf, hK
+  view_read hf, (fun h => stmts_at_refines h rfl)
 
 /-! ## `view_error` -/
 
