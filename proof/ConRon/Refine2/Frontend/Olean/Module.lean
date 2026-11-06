@@ -6,6 +6,7 @@ judgement of one: whatever the Rust's test answers is the twin's boolean.  Handl
 by `absNIdx`/`absEIdx`, strings by `name::str_eq` with `StrWF`.
 -/
 import ConRon.Refine2.Frontend.Olean.Skel
+import ConRon.Refine2.Frontend.Olean.Spec
 import ConRon.Arena.Frontend.Olean.Module
 
 open Aeneas Aeneas.Std Result
@@ -20,7 +21,7 @@ namespace ConRon.Refine2.Frontend.Olean
 
 open ConLeche.Frontend.Olean (CKindF CEntryF Expo hintsEq)
 open ConRon.Arena
-open ConRon.Arena.Frontend.Olean (rulesEq entrySame expoOf)
+open ConRon.Arena.Frontend.Olean (rulesEq entrySame expoOf expoStep expoLoop expoOfParts nameP entryAt)
 open ConRon.Refine (StrWF)
 
 /-! ## `BT`: a test -/
@@ -763,5 +764,423 @@ theorem expo_set_rel {v : alloc.vec.Vec frontend.olean.module.Expo} {v' : Array 
   have e : (alloc.vec.Vec.set v i x).val = v.val.set i.val x := by simp
   rw [e, List.map_set, hv]
   simp
+
+/-! ## The result channel of `expo_of_parts` -/
+
+/-- **What the outcome of `expo_step`, `expo_loop`, `expo_of_parts` claims of a twin run**:
+`ExpoErr::Msg` is the twin's `.ok (.error _)`, `ExpoErr::Err` a throw at the same kind. -/
+def ExOut {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+    (st' : arena.monad.AState) (o : core.result.Result α frontend.olean.module.ExpoErr)
+    (y : Except Arena.CheckError (Except String β × AState)) : Prop :=
+  match o with
+  | .Ok a => ∃ b lst', y = .ok (.ok b, lst') ∧ R a b ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+  | .Err (.Msg _) => ∃ m lst', y = .ok (.error m, lst') ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+  | .Err (.Err e) => AErrSim e y
+
+/-- A message path of `expo_step`: pure steps, ending in `msg_err`. -/
+def MsgLeaf {α γ : Type} (ar : γ)
+    (m : Result (core.result.Result α frontend.olean.module.ExpoErr × γ)) : Prop :=
+  ∀ o s', m = ok (o, s') → (∃ t, o = .Err (.Msg t)) ∧ s' = ar
+
+theorem MsgLeaf.done {α γ : Type} {ar : γ} (v : alloc.vec.Vec Std.U32) :
+    MsgLeaf (α := α) ar (Std.bind (frontend.olean.module.msg_err α v) fun r => ok (r, ar)) := by
+  intro o s' h
+  simp only [frontend.olean.module.msg_err, bind_ok] at h
+  cases Result.ok_injective h
+  exact ⟨⟨v, rfl⟩, rfl⟩
+
+theorem MsgLeaf.step {α γ δ : Type} {ar : γ} {f : Result δ}
+    {k : δ → Result (core.result.Result α frontend.olean.module.ExpoErr × γ)}
+    (h : ∀ a, MsgLeaf ar (k a)) : MsgLeaf ar (Std.bind f k) := by
+  intro o s' hm
+  obtain ⟨a, _, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  exact h a o s' h2
+
+/-- A message path. -/
+macro "msg_leaf" : tactic =>
+  `(tactic| repeat' first | exact MsgLeaf.done _ | refine MsgLeaf.step fun _ => ?_)
+
+/-- `read_name` on a related store: `readName`, which leaves the state. -/
+theorem read_name_step {pers st lst} (hrel : AStateRel₀ pers st lst) {n : arena.handle.NIdx} {o}
+    (h : arena.env.read_name pers st.store n = ok o) :
+    match o with
+    | .Ok _ => ∃ x, (readName (absNIdx n)).run lst = .ok (x, lst)
+    | .Err e => AErrSim e ((readName (absNIdx n)).run lst) := by
+  have hR := env_read_name_abs hrel.store h
+  have hrun : (readName (absNIdx n)).run lst =
+      match denoteN lst.store.ns (absNIdx n) with
+      | some x => .ok (x, lst)
+      | none => .error (.internal "arena: dangling name handle") := by
+    unfold readName
+    show (match denoteN lst.store.ns (absNIdx n) with
+      | some x => (pure x : AM ConLeche.Name)
+      | none => Arena.fail (.internal "arena: dangling name handle")).run lst = _
+    cases denoteN lst.store.ns (absNIdx n) <;> rfl
+  rw [hrun]
+  revert hR
+  cases denoteN lst.store.ns (absNIdx n) with
+  | none =>
+    rintro ⟨e, rfl, hk⟩
+    exact AErrSim.mk rfl (by rw [hk]; rfl)
+  | some x =>
+    rintro ⟨y, rfl, -⟩
+    exact ⟨x, rfl⟩
+
+theorem ite_and_tail {α : Type} (b s : Prop) [Decidable b] [Decidable s] (H T : α) :
+    (if b then (if s then H else T) else T) = if b ∧ s then H else T := by
+  by_cases hb : b <;> by_cases hs : s <;> simp [hb, hs]
+
+/-- A message path against the twin's `pure (.error _)`. -/
+theorem ExOut.of_msg {α β γ : Type} {pers st lst} {R : α → β → Prop} {ar : arena.store.EStore} {e0 : γ}
+    {m : Result (core.result.Result α frontend.olean.module.ExpoErr × arena.store.EStore × γ)}
+    {o s' v'} (hm : MsgLeaf (ar, e0) m) (h : m = ok (o, s', v'))
+    (hrel : AStateRel₀ pers (withStore st ar) lst) (hinv : AStateInv pers (withStore st ar))
+    (t : String) : ExOut pers R (withStore st s') o (.ok (.error t, lst)) := by
+  obtain ⟨⟨u, rfl⟩, e⟩ := hm o (s', v') h
+  cases e
+  exact ⟨t, lst, rfl, hrel, hinv⟩
+
+theorem and_left_eq {M b s : Bool} (h : M = b) : (M && s) = (b && s) := by rw [h]
+
+/-- A position of the twin's array, through the relation of its list. -/
+theorem arr_get_map {α β : Type} {l : List α} {f : α → β} {a : Array β} (h : l.map f = a.toList)
+    (i : Nat) : a[i]? = l[i]?.map f := by
+  rw [← List.getElem?_map, h, Array.getElem?_toList]
+
+theorem f2_get {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') {i : Nat} {x : α} (hi : l[i]? = some x) :
+    ∃ y, l'[i]? = some y ∧ R x y := by
+  induction h generalizing i with
+  | nil => simp at hi
+  | cons hab _ ih =>
+    cases i with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hi
+      subst hi
+      exact ⟨_, rfl, hab⟩
+    | succ i => simpa using ih (by simpa using hi)
+
+/-- **`expo_step` is `expoStep`.** -/
+theorem expo_step_refines {pk bs r pers st lst} {c : Std.U64} {priv_idx priv_locs}
+    {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {expo : alloc.vec.Vec frontend.olean.module.Expo} {t' : Std.HashMap NIdx Nat} {locs' : Array Nat}
+    {cs' : Array (CEntryF NIdx EIdx)} {expo' : Array Expo}
+    (hE : ∀ st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (entryAt (absPins pk) (absRegion bs r) c.val))
+    (hr : RegionFits bs r)
+    (hidx : PosRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx priv_idx t' cs.val.length)
+    (hlocs : priv_locs.val.map (fun x : Std.U64 => x.val) = locs'.toList)
+    (hcs : List.Forall₂ ERel cs.val cs'.toList) (hexpo : ExpoRel expo expo')
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {o s' v'}
+    (h : frontend.olean.module.expo_step pk pers st.store bs r c priv_idx priv_locs cs expo = ok (o, s', v')) :
+    ExOut pers (fun (_ : Unit) b => ExpoRel v' b) (withStore st s') o
+      ((expoStep (absPins pk) (absRegion bs r) t' locs' cs' expo' c.val).run lst) := by
+  rw [frontend.olean.module.expo_step] at h
+  unfold expoStep
+  peel h as o0, ho0
+  have hs0 := const_skel_eq ho0
+  clear ho0
+  revert hs0
+  generalize ConLeche.Frontend.Olean.constSkel (absRegion bs r) c.val = y0
+  intro hs0
+  cases hs0 with
+  | none => exact ExOut.of_msg (by msg_leaf) h hrel hinv _
+  | @some sk se hsk =>
+    dsimp only at h ⊢
+    peel h as ⟨r1, ar1⟩, hn
+    have hN := name_p_refines (pk := pk) (v := sk.name) hr hrel hinv r1 ar1 hn
+    rw [hsk.name] at hN
+    cases r1 with
+    | Err e =>
+      cases e with
+      | Bad =>
+        obtain ⟨lst1, hx, hrel1, hinv1⟩ := hN
+        rw [am_bind_ok hx]
+        exact ExOut.of_msg (by msg_leaf) h hrel1 hinv1 _
+      | Err e =>
+        cases Result.ok_injective h
+        show AErrSim e _
+        rw [StateT.run_bind]
+        exact AErrSim.bind hN _
+    | Ok n =>
+      obtain ⟨_, lst1, hx, rfl, hrel1, hinv1⟩ := hN
+      rw [am_bind_ok hx]
+      dsimp only at h ⊢
+      peel h as r2, hr2
+      have hRd := read_name_step (st := withStore st ar1) hrel1 hr2
+      cases r2 with
+      | Err e =>
+        cases Result.ok_injective h
+        show AErrSim e _
+        rw [StateT.run_bind]
+        exact AErrSim.bind hRd _
+      | Ok nm =>
+        obtain ⟨x, hx2⟩ := hRd
+        rw [am_bind_ok hx2]
+        dsimp only at h ⊢
+        peel h as _en_text, _
+        peel h as o1, ho1
+        have hg := hidx.rel n trivial
+        rw [← nidx_get hidx.inv ho1] at hg
+        rw [← hg]
+        cases o1 with
+        | none => exact ExOut.of_msg (by msg_leaf) h hrel1 hinv1 _
+        | some i =>
+          have hlt := hidx.lt n i (nidx_get hidx.inv ho1).symm
+          rw [Option.map_some]
+          dsimp only at h ⊢
+          simp only [lift, bind_ok] at h
+          have hcsl : cs.val.length ≤ Std.Usize.max := by scalar_tac
+          have hiu : (UScalar.cast .Usize i).val = i.val :=
+            ConRon.Refine.ExprOps.u64_cast_usize_val (by omega)
+          generalize UScalar.cast .Usize i = iu at h hiu
+          by_cases hc : iu < alloc.vec.Vec.len priv_locs
+          · rw [ite_eq_left hc] at h
+            peel h as i2, hi2
+            have e : locs'[i.val]? = some i2.val := by
+              rw [arr_get_map hlocs, ← hiu, ConRon.Refine.ExprOps.vec_index_getElem? hi2]
+              rfl
+            rw [e, Option.bind_some]
+            peel h as o2, ho2
+            have hs2 := const_skel_eq ho2
+            clear ho2
+            revert hs2
+            generalize ConLeche.Frontend.Olean.constSkel (absRegion bs r) i2.val = y2
+            intro hs2
+            cases hs2 with
+            | none => exact ExOut.of_msg (by msg_leaf) h hrel1 hinv1 _
+            | @some sk1 sp hsk1 =>
+              dsimp only at h ⊢
+              peel h as same, hsame
+              have e1 : same = (se.type == sp.type && se.levelParams == sp.levelParams) := by
+                rw [← hsk.type, ← hsk1.type, ← hsk.levelParams, ← hsk1.levelParams]
+                exact BT.andc ⟨fun e => by rw [e]; simp, fun e => absWord_inj (by simpa using e)⟩
+                  (u64_list_eq_bt _ _) same hsame
+              peel h as b, hb
+              have e2 := hidden_kind_bt hsk.kind hsk1.kind b hb
+              rw [← e1, and_left_eq (b := b) (s := same) ?hk]
+              case hk =>
+                rw [e2]
+                generalize se.kind = a
+                generalize sp.kind = c
+                cases a <;> cases c <;> rfl
+              rw [ite_and_tail] at h
+              by_cases hh : b = true ∧ same = true
+              · rw [ite_eq_left hh] at h
+                rw [ite_eq_left (by simp [hh])]
+                peel h as ⟨_, back⟩, hm
+                cases Result.ok_injective h
+                exact ⟨_, lst1, rfl, hiu ▸ expo_set_rel hexpo hm .Hidden, hrel1, hinv1⟩
+              · rw [ite_eq_right hh] at h
+                rw [ite_eq_right (by simpa using hh)]
+                peel h as ⟨r3, ar2⟩, he
+                have hEn := hE (withStore st ar1) lst1 hrel1 hinv1 r3 ar2 he
+                cases r3 with
+                | Err e =>
+                  cases e with
+                  | Bad =>
+                    obtain ⟨lst2, hx3, hrel2, hinv2⟩ := hEn
+                    rw [am_bind_ok hx3]
+                    exact ExOut.of_msg (by msg_leaf) h hrel2 hinv2 _
+                  | Err e =>
+                    cases Result.ok_injective h
+                    show AErrSim e _
+                    rw [StateT.run_bind]
+                    exact AErrSim.bind hEn _
+                | Ok ent =>
+                  obtain ⟨ent', lst2, hx3, hRe, hrel2, hinv2⟩ := hEn
+                  rw [am_bind_ok hx3]
+                  dsimp only
+                  replace h : (if iu ≥ alloc.vec.Vec.len cs then _ else _) = ok (o, s', v') := h
+                  by_cases hge : iu ≥ alloc.vec.Vec.len cs
+                  · rw [ite_eq_left hge] at h
+                    have hge' : cs.val.length ≤ iu.val := by simpa [UScalar.le_equiv] using hge
+                    have e3 : cs'[i.val]? = none := by
+                      rw [← Array.getElem?_toList, List.getElem?_eq_none_iff, ← hcs.length_eq]
+                      omega
+                    rw [e3]
+                    exact ExOut.of_msg (by msg_leaf) h hrel2 hinv2 _
+                  · rw [ite_eq_right hge] at h
+                    peel h as cf, hcf
+                    obtain ⟨pc, hpc, hRc⟩ := f2_get hcs (ConRon.Refine.ExprOps.vec_index_getElem? hcf)
+                    have e3 : cs'[i.val]? = some pc := by
+                      rw [← Array.getElem?_toList, ← hiu, hpc]
+                    rw [e3]
+                    dsimp only
+                    peel h as o3, ho3
+                    rw [← expo_of_eq hRc hRe ho3]
+                    cases o3 with
+                    | none => exact ExOut.of_msg (by msg_leaf) h hrel2 hinv2 _
+                    | some ex =>
+                      dsimp only at h
+                      peel h as ⟨_, back⟩, hm
+                      cases Result.ok_injective h
+                      exact ⟨_, lst2, rfl, hiu ▸ expo_set_rel hexpo hm ex, hrel2, hinv2⟩
+          · rw [ite_eq_right hc] at h
+            have hge' : priv_locs.val.length ≤ iu.val := by
+              have : ¬ iu.val < priv_locs.val.length := by simpa [UScalar.lt_equiv] using hc
+              omega
+            have e : locs'[i.val]? = none := by
+              rw [arr_get_map hlocs, ← hiu, List.getElem?_eq_none_iff.mpr hge']
+              rfl
+            rw [e, Option.bind_none]
+            exact ExOut.of_msg (by msg_leaf) h hrel1 hinv1 _
+
+/-- **`expo_loop` is `expoLoop`.** -/
+theorem expo_loop_loop_refines {pk bs r pers} {e_consts : alloc.vec.Vec Std.U64} {priv_loc priv_idx priv_locs}
+    {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {tl : Std.HashMap Nat Nat} {nl : Nat} {t' : Std.HashMap NIdx Nat} {locs' : Array Nat}
+    {cs' : Array (CEntryF NIdx EIdx)}
+    (hE : ∀ c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (entryAt (absPins pk) (absRegion bs r) c.val))
+    (hr : RegionFits bs r) (hloc : PosRel hU64 (fun x : Std.U64 => x.val) priv_loc tl nl) (hnl : nl ≤ Std.Usize.max)
+    (hidx : PosRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx priv_idx t' cs.val.length)
+    (hlocs : priv_locs.val.map (fun x : Std.U64 => x.val) = locs'.toList)
+    (hcs : List.Forall₂ ERel cs.val cs'.toList) (N : Nat) :
+    ∀ (k : Std.Usize) (st : arena.monad.AState) (lst : AState) expo (expo' : Array Expo) o s' v',
+      e_consts.val.length - k.val ≤ N → ExpoRel expo expo' → AStateRel₀ pers st lst → AStateInv pers st →
+      frontend.olean.module.expo_loop_loop pk pers st.store bs r e_consts priv_loc priv_idx priv_locs cs expo k
+        = ok (o, s', v') →
+      ExOut pers (fun (_ : Unit) b => ExpoRel v' b) (withStore st s') o
+        ((expoLoop (absPins pk) (absRegion bs r) tl t' locs' cs'
+          ((e_consts.val.drop k.val).map (fun x : Std.U64 => x.val)) expo').run lst) := by
+  induction N with
+  | zero =>
+    intro k st lst expo expo' o s' v' hN hexpo hrel hinv h
+    rw [frontend.olean.module.expo_loop_loop] at h
+    have hc : ¬ k < alloc.vec.Vec.len e_consts := by
+      have : ¬ k.val < e_consts.val.length := by omega
+      simpa [UScalar.lt_equiv] using this
+    rw [ite_eq_right hc] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega)]
+    exact ⟨expo', lst, rfl, hexpo, hrel, hinv⟩
+  | succ N ih =>
+    intro k st lst expo expo' o s' v' hN hexpo hrel hinv h
+    rw [frontend.olean.module.expo_loop_loop] at h
+    by_cases hc : k < alloc.vec.Vec.len e_consts
+    · rw [ite_eq_left hc] at h
+      have hlt : k.val < e_consts.val.length := by simpa [UScalar.lt_equiv] using hc
+      peel h as c, hcv
+      rw [drop_of_getElem? (ConRon.Refine.ExprOps.vec_index_getElem? hcv), List.map_cons]
+      rw [expoLoop]
+      peel h as o1, ho1
+      have hget := ConRon.Refine.HashMap2.get_refines_gen (P := fun _ => True) u64Eq2Fwd hloc.inv
+        (fun _ _ => trivial) trivial ho1
+      have hg := hloc.rel c trivial
+      rw [← hget] at hg
+      rw [← hg]
+      cases o1 with
+      | some i =>
+        have hilt := hloc.lt c i hget.symm
+        rw [Option.map_some]
+        dsimp only at h ⊢
+        simp only [lift, bind_ok] at h
+        have hiu : (UScalar.cast .Usize i).val = i.val :=
+          ConRon.Refine.ExprOps.u64_cast_usize_val (by omega)
+        peel h as ⟨_, back⟩, hm
+        peel h as j, hj
+        have hset := expo_set_rel hexpo hm .Same
+        rw [hiu] at hset
+        have := ih j st lst (back .Same) (expo'.set! i.val .same) o s' v'
+          (by have := add_one_val hj; omega) hset hrel hinv h
+        rwa [add_one_val hj] at this
+      | none =>
+        rw [Option.map_none]
+        dsimp only at h ⊢
+        peel h as ⟨r1, ar1, expo1⟩, hstep
+        have hS := expo_step_refines (hE c) hr hidx hlocs hcs hexpo hrel hinv hstep
+        cases r1 with
+        | Ok u =>
+          obtain ⟨b, lst1, hy, hb, hrel1, hinv1⟩ := hS
+          rw [am_bind_ok hy]
+          dsimp only at h ⊢
+          peel h as j, hj
+          have := ih j (withStore st ar1) lst1 expo1 b o s' v' (by have := add_one_val hj; omega) hb hrel1 hinv1 h
+          rwa [add_one_val hj] at this
+        | Err ee =>
+          cases Result.ok_injective h
+          cases ee with
+          | Msg t =>
+            obtain ⟨m, lst1, hy, hrel1, hinv1⟩ := hS
+            rw [am_bind_ok hy]
+            exact ⟨m, lst1, rfl, hrel1, hinv1⟩
+          | Err e =>
+            show AErrSim e _
+            rw [StateT.run_bind]
+            exact AErrSim.bind hS _
+    · rw [ite_eq_right hc] at h
+      cases Result.ok_injective h
+      have : ¬ k.val < e_consts.val.length := by simpa [UScalar.lt_equiv] using hc
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨expo', lst, rfl, hexpo, hrel, hinv⟩
+
+/-- A message path of `expo_of_parts`. -/
+theorem ExOut.of_msg2 {α β : Type} {pers st lst} {R : α → β → Prop} {ar : arena.store.EStore}
+    {m : Result (core.result.Result α frontend.olean.module.ExpoErr × arena.store.EStore)}
+    {o s'} (hm : MsgLeaf ar m) (h : m = ok (o, s'))
+    (hrel : AStateRel₀ pers (withStore st ar) lst) (hinv : AStateInv pers (withStore st ar))
+    (t : String) : ExOut pers R (withStore st s') o (.ok (.error t, lst)) := by
+  obtain ⟨⟨u, rfl⟩, e⟩ := hm o s' h
+  cases e
+  exact ⟨t, lst, rfl, hrel, hinv⟩
+
+/-- **`expo_of_parts` is `expoOfParts`.** -/
+theorem expo_of_parts_refines {pk bs r pers st lst} {priv_addr exp_addr : Std.U64}
+    {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {cs' : Array (CEntryF NIdx EIdx)}
+    (hE : ∀ c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (entryAt (absPins pk) (absRegion bs r) c.val))
+    (hr : RegionFits bs r) (hcs : List.Forall₂ ERel cs.val cs'.toList)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {o s'}
+    (h : frontend.olean.module.expo_of_parts pk pers st.store bs r priv_addr exp_addr cs = ok (o, s')) :
+    ExOut pers ExpoRel (withStore st s') o
+      ((expoOfParts (absPins pk) (absRegion bs r) (absWord priv_addr) (absWord exp_addr) cs').run lst) := by
+  rw [frontend.olean.module.expo_of_parts] at h
+  unfold expoOfParts
+  peel h as o0, ho0
+  have hs0 := module_skel_eq hr ho0
+  clear ho0
+  revert hs0
+  generalize ConLeche.Frontend.Olean.moduleSkel (absRegion bs r) (absWord priv_addr) = y0
+  intro hs0
+  cases hs0 with
+  | none => exact ExOut.of_msg2 (by msg_leaf) h hrel hinv _
+  | @some sk skP hP =>
+    dsimp only at h ⊢
+    peel h as o1, ho1
+    have hs1 := module_skel_eq hr ho1
+    clear ho1
+    revert hs1
+    generalize ConLeche.Frontend.Olean.moduleSkel (absRegion bs r) (absWord exp_addr) = y1
+    intro hs1
+    cases hs1 with
+    | none => exact ExOut.of_msg2 (by msg_leaf) h hrel hinv _
+    | @some sk1 skE hE1 =>
+      dsimp only at h ⊢
+      peel h as priv_loc, hpl
+      have hL := priv_loc_of_rel hpl
+      peel h as priv_idx, hpi
+      have hI := priv_idx_of_rel hcs hpi
+      peel h as ex0, hex
+      have hX := expo_fill_rel (cs := cs') (by simpa using hcs.length_eq) hex
+      peel h as ⟨r1, ar1, expo1⟩, hloop
+      rw [frontend.olean.module.expo_loop] at hloop
+      have hlocs : sk.consts.val.map (fun x : Std.U64 => x.val) = skP.consts.toArray.toList := by
+        rw [List.toList_toArray]
+        exact hP.consts
+      have hnl : sk.consts.val.length ≤ Std.Usize.max := by scalar_tac
+      have hS := expo_loop_loop_refines hE hr hL hnl hI hlocs hcs _ 0#usize st lst ex0 _ r1 ar1 expo1
+        (Nat.le_refl _) hX hrel hinv hloop
+      have e1 : ((sk1.consts.val.drop (0#usize : Std.Usize).val).map (fun x : Std.U64 => x.val)) = skE.consts := by
+        simpa using hE1.consts
+      rw [e1, hP.consts] at hS
+      cases r1 with
+      | Ok u =>
+        cases Result.ok_injective h
+        exact hS
+      | Err ee =>
+        cases Result.ok_injective h
+        cases ee <;> exact hS
 
 end ConRon.Refine2.Frontend.Olean
