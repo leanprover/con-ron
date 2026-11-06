@@ -81,56 +81,16 @@ constructor, so each refinement is one `simp` per mode. -/
 
 /-! ## The `Vec` copies
 
-`levels_copy`, `exprs_copy`, `rec_rules_copy` and `constant_infos_copy` are the
-port's stand-ins for Lean's value semantics on a `List`/`Array` field; each is
-an index recursion whose element step is a handle bump, so each is the identity
-on the `Vec`'s list and hence — a `Vec` being a subtype of a list — on the
-`Vec`.  The `*_from` lemmas are the recursion (`PropWhen.append_from_val`'s
-shape, with the conclusion on `List.drop i`); the entry points follow. -/
+`exprs_copy` is the port's stand-in for Lean's value semantics on a `List`
+field: an index recursion whose element step is a handle bump, so it is the
+identity on the `Vec`'s list and hence — a `Vec` being a subtype of a list — on
+the `Vec`.  The `*_from` lemma is the recursion (`PropWhen.append_from_val`'s
+shape, with the conclusion on `List.drop i`); the entry point follows. -/
 
 /-- `expr::dup` in the `= ok` form an index recursion needs
 (`Expr.dup_eq` is the same fact read forwards). -/
 theorem expr_dup_val (e : expr.Expr) : expr.dup e = ok e := by
   cases e; simp [expr.dup]
-
-/-- `env::levels_copy_from` appends the rest of the levels to its accumulator. -/
-theorem levels_copy_from_val (us : alloc.vec.Vec level.Level) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec level.Level),
-      us.length - i.val ≤ k → env.levels_copy_from us i out = ok v →
-      v.val = out.val ++ us.val.drop i.val := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out v hk h
-    rw [env.levels_copy_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
-    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-  | succ k ih =>
-    intro i out v hk h
-    rw [env.levels_copy_from.eq_def] at h; simp only [] at h
-    by_cases hi : i.val ≥ us.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
-      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
-      have hlt : i.val < us.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec us i hlt)
-      subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw, level_dup_eq,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨out1, hout1, h⟩ := h
-      rw [ih w out1 v (by scalar_tac) h, vec_push_val hout1, hwv,
-        List.drop_eq_getElem_cons hlt]
-      simp
-
-/-- `env::levels_copy` is the identity: the copy is the very same `Vec`. -/
-theorem levels_copy_refines {us v : alloc.vec.Vec level.Level}
-    (h : env.levels_copy us = ok v) : v = us := by
-  rw [env.levels_copy] at h
-  exact alloc.vec.Vec.ext _ _ (by
-    simpa [alloc.vec.Vec.with_capacity] using
-      levels_copy_from_val us us.length 0#usize _ v (by scalar_tac) h)
 
 /-- `env::exprs_copy_from` appends the rest of the terms to its accumulator. -/
 theorem exprs_copy_from_val (es : alloc.vec.Vec expr.Expr) :
@@ -178,58 +138,8 @@ theorem exprs_copy_wf {es v : alloc.vec.Vec expr.Expr} (hes : ExprsWF es)
 
 /-! ## The stored-constant records
 
-Every `*_dup` is the identity in the model: a `Name`/`Expr`/`PropWhen` copy is
-an `Arc::clone` (DESIGN.md §3.2) and a `Vec` copy is the `Vec` (above).  The
-identity is the strongest statement each can have, and the `abs` reading of
-each follows by `congrArg`. -/
-
-/-- `ConLeche/Kernel/Env.lean:197-201` -- `env::constant_val_dup` is the
-identity on the record. -/
-theorem constant_val_dup_refines {cv cv' : env.ConstantVal}
-    (h : env.constant_val_dup cv = ok cv') : cv' = cv := by
-  simp only [env.constant_val_dup, bind_eq_ok_iff, name_dup_eq, expr_dup_val,
-    Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨v, hv, rfl⟩ := h
-  rw [alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv)]
-
-/-- `ConLeche/Kernel/Env.lean:243-247` -- `env::rec_rule_fire_dup` is the
-identity. -/
-theorem rec_rule_fire_dup_refines {f f' : env.RecRuleFire}
-    (h : env.rec_rule_fire_dup f = ok f') : f' = f := by
-  cases f with
-  | Plain => simp only [env.rec_rule_fire_dup, Result.ok.injEq] at h; exact h.symm
-  | Nested lvls pins =>
-    simp only [env.rec_rule_fire_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨us, hus, es, hes, rfl⟩ := h
-    rw [levels_copy_refines hus, exprs_copy_refines hes]
-
-/-- `ConLeche/Kernel/Env.lean:259-292` -- `env::rec_rule_dup` is the
-identity. -/
-theorem rec_rule_dup_refines {r r' : env.RecRule}
-    (h : env.rec_rule_dup r = ok r') : r' = r := by
-  simp only [env.rec_rule_dup, bind_eq_ok_iff, name_dup_eq, expr_dup_val,
-    Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨f, hf, rfl⟩ := h
-  rw [rec_rule_fire_dup_refines hf]
-
-/-- `ConLeche/Kernel/Env.lean:259-292` -- `env::rec_rule_parsed` builds the
-cited structure at its parse placeholders: `ctorParams := 0`, `fire := .plain`,
-`k := eta := false`. -/
-theorem rec_rule_parsed_refines {ctor : name.Name} {nfields : Std.U64}
-    {rhs : expr.Expr} {r : env.RecRule}
-    (h : env.rec_rule_parsed ctor nfields rhs = ok r) :
-    absRecRule r =
-      ⟨absName ctor, nfields.val, 0, .plain, absExpr rhs, false, false⟩ := by
-  simp only [env.rec_rule_parsed, Result.ok.injEq] at h
-  rw [← h]; rfl
-
-/-- `env::rec_rule_parsed` is well formed as soon as its two term arguments
-are. -/
-theorem rec_rule_parsed_wf {ctor : name.Name} {nfields : Std.U64}
-    {rhs : expr.Expr} {r : env.RecRule} (hc : NameWF ctor) (hr : ExprWF rhs)
-    (h : env.rec_rule_parsed ctor nfields rhs = ok r) : RecRuleWF r := by
-  simp only [env.rec_rule_parsed, Result.ok.injEq] at h
-  rw [← h]; exact ⟨hc, trivial, hr⟩
+A `*_dup` is the identity in the model, the strongest statement it can have;
+the `abs` reading follows by `congrArg`. -/
 
 /-- `ConLeche/Kernel/Env.lean:318-322` -- `env::reducibility_hint_dup` is the
 identity. -/
@@ -238,38 +148,24 @@ theorem reducibility_hint_dup_refines {h1 h2 : env.ReducibilityHint}
   cases h1 <;> simp only [env.reducibility_hint_dup, Result.ok.injEq] at h <;>
     exact h.symm
 
-/-- `ConLeche/Kernel/Env.lean:362-384` -- `env::ind_caps_default` builds the
-cited structure's field defaults, whose one non-obvious member is
-`sortZ := .ifAllZero []`. -/
+/-- `ConLeche/Kernel/Env.lean:191-232` -- `env::ind_caps_default` builds the
+cited structure's field defaults. -/
 theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
     absIndCaps c = ({} : ConLeche.IndCaps) := by
   simp only [env.ind_caps_default, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, pw, hpw, rfl⟩ := h
+  obtain ⟨n, hn, rfl⟩ := h
   rw [absIndCaps]
-  simp only [Name.anonymous_refines hn,
-    PropWhen.if_all_zero_refines hpw,
-    absNames]
+  simp only [Name.anonymous_refines hn, absNames]
   simp [alloc.vec.Vec.new]
 
 /-- `env::ind_caps_default` is well formed. -/
 theorem ind_caps_default_wf {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
     IndCapsWF c := by
   simp only [env.ind_caps_default, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, pw, hpw, rfl⟩ := h
+  obtain ⟨n, hn, rfl⟩ := h
   exact ⟨Name.anonymous_wf hn,
-    PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hpw,
     fun _ hm => by simp [alloc.vec.Vec.new] at hm,
     fun _ hm => by simp [alloc.vec.Vec.new] at hm⟩
-
-/-- `ConLeche/Kernel/Env.lean:362-384` -- `env::ind_caps_dup` is the
-identity. -/
-theorem ind_caps_dup_refines {c c' : env.IndCaps}
-    (h : env.ind_caps_dup c = ok c') : c' = c := by
-  simp only [env.ind_caps_dup, bind_eq_ok_iff, name_dup_eq, Result.ok.injEq,
-    exists_eq_left'] at h
-  obtain ⟨pw, hpw, v, hv, v1, hv1, rfl⟩ := h
-  rw [PropWhen.dup_eq hpw, alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv),
-    alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv1)]
 
 /-! ## `default_expr` and the per-field view of a table
 
@@ -282,84 +178,6 @@ theorem u64_cast_usize_val {x : Std.U64} (h : x.val ≤ Std.Usize.max) :
     (UScalar.cast UScalarTy.Usize x).val = x.val := by
   apply UScalar.cast_val_mod_pow_of_inBounds_eq
   scalar_tac
-
-/-! ## `RecRule` and `ConstantInfo` copies
-
-`env::constant_info_share` and `env::constant_info_rc_dup` are `ron::ptr`
-calls, hence the identity in the model (DESIGN.md §3.2); their `= ok` readings
-are what the two `ConstantInfo` loops below need, so they come first. -/
-
-/-- `env::rec_rules_copy_from` appends the rest of the rules to its
-accumulator. -/
-theorem rec_rules_copy_from_val (rs : alloc.vec.Vec env.RecRule) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (out v : alloc.vec.Vec env.RecRule),
-      rs.length - i.val ≤ k → env.rec_rules_copy_from rs i out = ok v →
-      v.val = out.val ++ rs.val.drop i.val := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out v hk h
-    rw [env.rec_rules_copy_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
-    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-  | succ k ih =>
-    intro i out v hk h
-    rw [env.rec_rules_copy_from.eq_def] at h; simp only [] at h
-    by_cases hi : i.val ≥ rs.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
-      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
-      have hlt : i.val < rs.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := rs.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec rs i hlt)
-      subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨r1, hr1, out1, hout1, h⟩ := h
-      rw [rec_rule_dup_refines hr1] at hout1
-      rw [ih w out1 v (by scalar_tac) h, vec_push_val hout1, hwv,
-        List.drop_eq_getElem_cons hlt]
-      simp
-
-/-- `env::rec_rules_copy` is the identity. -/
-theorem rec_rules_copy_refines {rs v : alloc.vec.Vec env.RecRule}
-    (h : env.rec_rules_copy rs = ok v) : v = rs := by
-  rw [env.rec_rules_copy] at h
-  exact alloc.vec.Vec.ext _ _ (by
-    simpa [alloc.vec.Vec.with_capacity] using
-      rec_rules_copy_from_val rs rs.length 0#usize _ v (by scalar_tac) h)
-
-/-- `ConLeche/Kernel/Env.lean:471-496` -- `env::constant_info_dup` is the
-identity on a stored constant. -/
-theorem constant_info_dup_refines {c c' : env.ConstantInfo}
-    (h : env.constant_info_dup c = ok c') : c' = c := by
-  cases c with
-  | AxiomInfo v =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    rw [constant_val_dup_refines hcv]
-  | DefnInfo v value hint =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, expr_dup_val, Result.ok.injEq,
-      exists_eq_left'] at h
-    obtain ⟨cv, hcv, hint', hhint, rfl⟩ := h
-    rw [constant_val_dup_refines hcv, reducibility_hint_dup_refines hhint]
-  | ThmInfo v =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    rw [constant_val_dup_refines hcv]
-  | IndInfo v caps =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨cv, hcv, ic, hic, rfl⟩ := h
-    rw [constant_val_dup_refines hcv, ind_caps_dup_refines hic]
-  | CtorInfo v np nf =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    rw [constant_val_dup_refines hcv]
-  | RecInfo v mi rp rules =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨cv, hcv, rs, hrs, rfl⟩ := h
-    rw [constant_val_dup_refines hcv, rec_rules_copy_refines hrs]
 
 /-! ## The presented declarations -/
 

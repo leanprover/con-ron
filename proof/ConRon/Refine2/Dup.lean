@@ -218,6 +218,11 @@ theorem i_rec_rule_fire_dup_abs {f o : arena.env.IRecRuleFire}
     rw [← Result.ok_injective h]
     simp only [absIRecRuleFire, lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv),
       eidx_vec_dup_val hv1]
+  | Levels lvls =>
+    simp only [] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIRecRuleFire, lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv)]
 
 /-- `arena::env::i_rec_rule_dup` is the identity on the abstraction. -/
 theorem i_rec_rule_dup_abs {r o : arena.env.IRecRule}
@@ -268,12 +273,10 @@ theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
     (h : arena.env.i_ind_caps_dup c = ok o) : absIIndCaps o = absIIndCaps c := by
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
-  simp only [absIIndCaps, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw,
-    nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
+  simp only [absIIndCaps, dupId_nidx _ _ hn, nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 
 /-- **`arena::env::i_constant_info_dup` is the identity on the abstraction.** -/
 theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
@@ -307,7 +310,7 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
     simp only [absIConstantInfo, i_constant_val_dup_abs hiv]
-  | RecInfo cv a b rs =>
+  | RecInfo cv a b k rs =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
@@ -393,13 +396,6 @@ theorem i_declaration_dup_abs {d o : arena.env.IDeclaration}
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
     simp only [absIDeclaration, i_constant_val_dup_abs hiv, dupId_eidx _ _ he]
-  | BasisDecl k =>
-    obtain ⟨bk, hbk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [← Result.ok_injective h]
-    have hk : bk = k := by
-      rw [kernel.env.basis_kind_dup.eq_def] at hbk
-      cases k <;> simp only [] at hbk <;> exact (Result.ok_injective hbk).symm
-    rw [hk]
   | IndDecl bl n =>
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]

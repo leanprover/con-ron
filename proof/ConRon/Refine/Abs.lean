@@ -603,16 +603,14 @@ def absHint : env.ReducibilityHint → ConLeche.ReducibilityHint
 def absFire : env.RecRuleFire → ConLeche.RecRuleFire
   | .Plain => .plain
   | .Nested us es => .nested (absLevels us) (absExprs es)
+  | .Levels us => .levels (absLevels us)
 
 /-- `ConLeche/Kernel/Env.lean:259` — `RecRule`. -/
 def absRecRule (r : env.RecRule) : ConLeche.RecRule where
   ctor := absName r.ctor
   nfields := r.nfields.val
-  ctorParams := r.ctor_params.val
   fire := absFire r.fire
   rhs := absExpr r.rhs
-  k := r.k
-  eta := r.eta
 
 /-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
 def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
@@ -622,10 +620,9 @@ def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   etaFields := c.eta_fields.val
   unitlike := c.unitlike
   unitParams := c.unit_params.val
-  ruleK := c.rule_k
-  sortZ := absPropWhen c.sort_z
   all := absNames c.all
   nparams := c.nparams.val
+  nIdx := c.n_idx.val
   ctors := absNames c.ctors
 
 /-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
@@ -635,8 +632,8 @@ def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .ThmInfo cv => .thmInfo (absConstantVal cv)
   | .IndInfo cv c => .indInfo (absConstantVal cv) (absIndCaps c)
   | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
-  | .RecInfo cv mi rp rs =>
-    .recInfo (absConstantVal cv) mi.val rp.val (rs.val.map absRecRule)
+  | .RecInfo cv mi rp k rs =>
+    .recInfo (absConstantVal cv) mi.val rp.val k (rs.val.map absRecRule)
 
 /-- A `Vec<ConstantInfo>` as a `List ConLeche.ConstantInfo`.  Also the reading
 of `Env.consts`' `Vec<P<ConstantInfo>>`: `P` is the identity in the model. -/
@@ -693,19 +690,20 @@ def ConstantValWF (cv : env.ConstantVal) : Prop :=
 def RecRuleFireWF : env.RecRuleFire → Prop
   | .Plain => True
   | .Nested us es => LevelsWF us ∧ ExprsWF es
+  | .Levels us => LevelsWF us
 
 /-- `RecRule`: the constructor name, the firing mode and the right-hand side
-(the five counters and bits are machine words). -/
+(the field count is a machine word). -/
 def RecRuleWF (r : env.RecRule) : Prop :=
   NameWF r.ctor ∧ RecRuleFireWF r.fire ∧ ExprWF r.rhs
 
 /-- A `Vec<RecRule>` all of whose entries are well formed. -/
 def RecRulesWF (rs : alloc.vec.Vec env.RecRule) : Prop := ∀ r ∈ rs.val, RecRuleWF r
 
-/-- `IndCaps`: the η constructor's name, the result-sort zero-ness datum, and
-the block's member and constructor names. -/
+/-- `IndCaps`: the η constructor's name, and the block's member and constructor
+names. -/
 def IndCapsWF (c : env.IndCaps) : Prop :=
-  NameWF c.eta_ctor ∧ PropWhenWF c.sort_z ∧ NamesWF c.all ∧ NamesWF c.ctors
+  NameWF c.eta_ctor ∧ NamesWF c.all ∧ NamesWF c.ctors
 
 /-- `ConstantInfo`: the hereditary invariant of a stored constant, one clause
 per constructor in the cited field order. -/
@@ -715,7 +713,7 @@ def ConstantInfoWF : env.ConstantInfo → Prop
   | .ThmInfo cv => ConstantValWF cv
   | .IndInfo cv c => ConstantValWF cv ∧ IndCapsWF c
   | .CtorInfo cv _ _ => ConstantValWF cv
-  | .RecInfo cv _ _ rs => ConstantValWF cv ∧ RecRulesWF rs
+  | .RecInfo cv _ _ _ rs => ConstantValWF cv ∧ RecRulesWF rs
 
 /-- A `Vec<ConstantInfo>` — or a `Vec<P<ConstantInfo>>`, the same type in the
 model — all of whose entries are well formed. -/

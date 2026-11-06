@@ -274,18 +274,15 @@ theorem etables_reset {rt rt' : arena.store.ETables}
 
 
 
-/-! ## The two store states, and the moves between them (task #98-FREEZE)
+/-! ## The two store states (task #98-FREEZE)
 
 A Rust store is OWNED (scratch off, read through the empty stand-in tier,
-which is not `frozen`: the parse, the setup, between phase A's brackets) or
-FROZEN (scratch on, its persistent tables moved into a `frozen` `PersTier`
-that every read of it goes through: inside a declaration bracket, and a
-phase-B worker for its whole life).  `freeze` moves the four tables out and
-opens the scratch tiers empty; `thaw` puts a tier back and drops them;
-`clear_scratch` empties the scratch tiers and touches nothing else.  The twin
-has one store and no tier: its `enableScratch`/`dropScratch` are the scratch
-halves alone, so the relation moves its READER at a freeze and a thaw — from
-the owned store's stand-in to the tier handed out, and back. -/
+which is not `frozen`: the parse, the setup, the index build) or FROZEN
+(scratch on, its persistent tables moved into a `frozen` `PersTier` that every
+read of it goes through: a check-phase worker for its whole life).
+`clear_scratch` empties the scratch tiers and touches nothing else, and both
+halves of a job's bracket are it.  The twin has one store and no tier: its
+`enableScratch`/`dropScratch` are the scratch halves alone. -/
 
 /-- `ifenv_layer(0, 0)`: the empty environment layer of every tier that holds no
 frozen base. -/
@@ -293,20 +290,28 @@ def layer00 : arena.env.IFEnv :=
   { env := { consts := alloc.vec.Vec.new _, tables := alloc.vec.Vec.new _ },
     idx := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
              slots := alloc.vec.Vec.new _ },
-    visible_below := 0#u64,
     tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
               slots := alloc.vec.Vec.new _ },
-    base_below := 0#u64 }
+    base_below := 0#u64, base_below_rec := 0#u64 }
 
 theorem ifenv_layer00 : arena.env.ifenv_layer 0#u64 0#u64 = ok layer00 := by
   simp only [arena.env.ifenv_layer, arena.env.i_env_empty, ron.hashmap2.HashMap2.new, bind_ok]
   rfl
 
-/-- The persistent tier `freeze` moves out of a store: its four own
-persistent tables, `frozen`, and no environment base. -/
-def tierOf (ar : arena.store.EStore) : arena.store.PersTier :=
-  { frozen := true, n := ar.lss.ls.ns.pers, l := ar.lss.ls.pers, ls := ar.lss.pers,
-    e := ar.pers, env := layer00 }
+/-- `stream_index_empty()`: the empty stream index, the environment of every tier
+that holds no frozen index. -/
+def ixEmpty : arena.stream_index.IStreamIndex :=
+  { consts := alloc.vec.Vec.new _,
+    idx := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
+             slots := alloc.vec.Vec.new _ },
+    tables := alloc.vec.Vec.new _,
+    tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
+              slots := alloc.vec.Vec.new _ },
+    firsts := alloc.vec.Vec.new _, next := 0#u64 }
+
+theorem stream_index_empty_eq : arena.stream_index.stream_index_empty = ok ixEmpty := by
+  simp only [arena.stream_index.stream_index_empty, ron.hashmap2.HashMap2.new, bind_ok]
+  rfl
 
 theorem nstore_freeze_eq {rs : arena.store.NStore} {t rs'}
     (h : arena.store.NStore.freeze rs = ok (t, rs')) :
@@ -343,112 +348,6 @@ theorem lsstore_freeze_eq {rs : arena.store.LsStore} {t rs'}
   have h' := Result.ok_injective h
   simp only [Prod.mk.injEq] at h'
   exact ⟨e, s, hs, h'.1.symm, h'.2.symm⟩
-
-/-- **`EStore::freeze` of an owned store**: it hands back the store's own four
-tables as a `frozen` tier, and the frozen store read through that tier is
-related to the twin store with its scratch tier opened — the persistent arm
-is read through the tier now instead of the store, and it is the same four
-tables.  `hpers`: the store was owned, read through a stand-in that is not
-`frozen`. -/
-theorem estore_freeze {pers} {rs : arena.store.EStore} {ls : EStore} {tier rs'}
-    (hrel : StoreRel pers rs ls) (hinv : StoreInv pers rs) (hpers : pers.frozen = false)
-    (h : arena.store.EStore.freeze rs = ok (tier, rs')) :
-    tier = tierOf rs ∧ StoreRel tier rs' ls.enableScratch ∧ StoreInv tier rs' := by
-  rw [arena.store.EStore.freeze] at h
-  obtain ⟨⟨n, n1⟩, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨⟨l, l1⟩, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨⟨lt, ls1⟩, hls, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  simp only [core.mem.replace] at h
-  obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨le0, hle0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [ifenv_layer00] at hle0
-  obtain rfl := Result.ok_injective hle0
-  have h' := Result.ok_injective h
-  simp only [Prod.mk.injEq] at h'
-  obtain ⟨rfl, rfl⟩ := h'
-  obtain ⟨ne, ns, hns, rfl, rfl⟩ := nstore_freeze_eq hn
-  obtain ⟨le, lsc, hlsc, rfl, rfl⟩ := lstore_freeze_eq hl
-  obtain ⟨lse, lssc, hlssc, rfl, rfl⟩ := lsstore_freeze_eq hls
-  have pN : rPersN pers rs.lss.ls.ns = rs.lss.ls.ns.pers := by unfold rPersN; rw [hpers]; rfl
-  have pL : rPersL pers rs.lss.ls = rs.lss.ls.pers := by unfold rPersL; rw [hpers]; rfl
-  have pLs : rPersLs pers rs.lss = rs.lss.pers := by unfold rPersLs; rw [hpers]; rfl
-  have pE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hpers]; rfl
-  obtain ⟨rN, iN⟩ := ntables_reset hinv.lss.lvl.ns.scrt hns
-  obtain ⟨rL, iL⟩ := ltables_reset hinv.lss.lvl.scrt hlsc
-  obtain ⟨rLs, iLs⟩ := lstables_reset hinv.lss.scrt hlssc
-  obtain ⟨rE, iE⟩ := etables_reset hinv.scrt hes
-  refine ⟨rfl, ⟨⟨⟨⟨?_, rN, rfl⟩, ?_, rL, rfl⟩, ?_, rLs, rfl⟩, ?_, rE, rfl⟩,
-    ⟨⟨⟨⟨?_, iN, fun _ => rfl⟩, ?_, iL, fun _ => rfl⟩, ?_, iLs, fun _ => rfl⟩, ?_, iE,
-      fun _ => rfl⟩⟩
-  · show NTablesRel rs.lss.ls.ns.pers ls.lss.ls.ns.pers
-    rw [← pN]; exact hrel.lss.lvl.ns.perst
-  · show LTablesRel rs.lss.ls.pers ls.lss.ls.pers
-    rw [← pL]; exact hrel.lss.lvl.perst
-  · show LsTablesRel rs.lss.pers ls.lss.pers
-    rw [← pLs]; exact hrel.lss.perst
-  · show ETablesRel rs.pers ls.pers
-    rw [← pE]; exact hrel.perst
-  · show NTablesInv rs.lss.ls.ns.pers
-    rw [← pN]; exact hinv.lss.lvl.ns.perst
-  · show LTablesInv rs.lss.ls.pers
-    rw [← pL]; exact hinv.lss.lvl.perst
-  · show LsTablesInv rs.lss.pers
-    rw [← pLs]; exact hinv.lss.perst
-  · show ETablesInv rs.pers
-    rw [← pE]; exact hinv.perst
-
-/-- **`EStore::thaw` of a store read through a frozen tier**: the tier goes
-back, and the owned store is related, through any stand-in that is not
-`frozen`, to the twin store with its scratch tier dropped. -/
-theorem estore_thaw {tier} {rs : arena.store.EStore} {ls : EStore} {rs'}
-    (hrel : StoreRel tier rs ls) (hinv : StoreInv tier rs) (htf : tier.frozen = true)
-    (h : arena.store.EStore.thaw rs tier = ok rs') {pers : arena.store.PersTier}
-    (hpers : pers.frozen = false) :
-    StoreRel pers rs' ls.dropScratch ∧ StoreInv pers rs' := by
-  rw [arena.store.EStore.thaw] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨lt, hls, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain rfl := (Result.ok_injective h).symm
-  rw [arena.store.NStore.thaw] at hn
-  obtain ⟨ns, hns, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
-  obtain rfl := (Result.ok_injective hn).symm
-  rw [arena.store.LStore.thaw] at hl
-  obtain ⟨lsc, hlsc, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
-  obtain rfl := (Result.ok_injective hl).symm
-  rw [arena.store.LsStore.thaw] at hls
-  obtain ⟨lssc, hlssc, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
-  obtain rfl := (Result.ok_injective hls).symm
-  have pN : rPersN tier rs.lss.ls.ns = tier.n := by unfold rPersN; rw [htf]; rfl
-  have pL : rPersL tier rs.lss.ls = tier.l := by unfold rPersL; rw [htf]; rfl
-  have pLs : rPersLs tier rs.lss = tier.ls := by unfold rPersLs; rw [htf]; rfl
-  have pE : rPersE tier rs = tier.e := by unfold rPersE; rw [htf]; rfl
-  obtain ⟨rN, iN⟩ := ntables_reset hinv.lss.lvl.ns.scrt hns
-  obtain ⟨rL, iL⟩ := ltables_reset hinv.lss.lvl.scrt hlsc
-  obtain ⟨rLs, iLs⟩ := lstables_reset hinv.lss.scrt hlssc
-  obtain ⟨rE, iE⟩ := etables_reset hinv.scrt hes
-  have hoff : ∀ {b : Bool}, pers.frozen = true → b = true := fun h => by
-    rw [hpers] at h; cases h
-  refine ⟨⟨⟨⟨⟨?_, rN, rfl⟩, ?_, rL, rfl⟩, ?_, rLs, rfl⟩, ?_, rE, rfl⟩,
-    ⟨⟨⟨⟨?_, iN, hoff⟩, ?_, iL, hoff⟩, ?_, iLs, hoff⟩, ?_, iE, hoff⟩⟩
-  · show NTablesRel (rPersN pers _) ls.lss.ls.ns.pers
-    unfold rPersN; rw [hpers]; rw [← pN]; exact hrel.lss.lvl.ns.perst
-  · show LTablesRel (rPersL pers _) ls.lss.ls.pers
-    unfold rPersL; rw [hpers]; rw [← pL]; exact hrel.lss.lvl.perst
-  · show LsTablesRel (rPersLs pers _) ls.lss.pers
-    unfold rPersLs; rw [hpers]; rw [← pLs]; exact hrel.lss.perst
-  · show ETablesRel (rPersE pers _) ls.pers
-    unfold rPersE; rw [hpers]; rw [← pE]; exact hrel.perst
-  · show NTablesInv (rPersN pers _)
-    unfold rPersN; rw [hpers]; rw [← pN]; exact hinv.lss.lvl.ns.perst
-  · show LTablesInv (rPersL pers _)
-    unfold rPersL; rw [hpers]; rw [← pL]; exact hinv.lss.lvl.perst
-  · show LsTablesInv (rPersLs pers _)
-    unfold rPersLs; rw [hpers]; rw [← pLs]; exact hinv.lss.perst
-  · show ETablesInv (rPersE pers _)
-    unfold rPersE; rw [hpers]; rw [← pE]; exact hinv.perst
 
 /-- **`EStore::clear_scratch`**: the four scratch tiers emptied, the flags and
 the persistent arm untouched — so, through the same tier, the store is related
@@ -675,8 +574,8 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
 
 /-! ## The bracket in the lockstep shape (task #97-T2-LOCKSTEP step 1)
 
-Theorem 2 is a lockstep refinement: the Rust and the twin run the same three
-operations — `flush_caches`, `enter_scratch`, `drop_scratch` — from related
+Theorem 2 is a lockstep refinement: the Rust and the twin run the same
+operations — `flush_caches` and a job's two bracket halves — from related
 states, and each is a plain `SimS₀`.  Nothing about the twin's store is
 carried: `ScratchClosed`, `BrOK`, `TwinWF` and `ext_bracket` existed only to
 move `Ext`/`StoreWF` across the bracket, and those are Theorem 1's
@@ -697,53 +596,6 @@ theorem flush_caches_sim₀ {pers st lst st'}
   obtain ⟨hr, hi⟩ := caches_reset hinv.caches hc
   exact SimS₀.mk (lst' := { lst with caches := Caches.empty }) rfl
     { hrel with caches := hr } { hinv with caches := hi }
-
-/-- **`enter_scratch` ⊑ `enterScratch`** (task #98-FREEZE): opening a bracket
-FREEZES an owned store.  Both sides clear the memos and open an empty scratch
-tier; the Rust hands out the store's own tables as a `frozen` tier, and the
-relation moves to it — the reader the bracket's body runs at. -/
-theorem enter_scratch_rel {pers st lst tier st'}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hpers : pers.frozen = false)
-    (hrun : arena.core.enter_scratch st = ok (tier, st')) :
-    tier = tierOf st.store ∧
-      ∃ lst', (enterScratch : AM Unit).run lst = .ok ((), lst') ∧
-        AStateRel₀ tier st' lst' ∧ AStateInv tier st' := by
-  rw [arena.core.enter_scratch] at hrun
-  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨⟨t, e⟩, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have h' := Result.ok_injective hrun
-  simp only [Prod.mk.injEq] at h'
-  obtain ⟨rfl, rfl⟩ := h'
-  obtain ⟨hmr, hmi⟩ := memos_reset hinv.memos hm
-  obtain ⟨htier, hsr, hsi⟩ := estore_freeze hrel.store hinv.store hpers he
-  exact ⟨htier, { lst with store := lst.store.enableScratch, memos := Memos.empty }, rfl,
-    ⟨hsr, hmr, hrel.caches, hrel.pins⟩, ⟨hsi, hmi, hinv.caches⟩⟩
-
-/-- **`drop_scratch` ⊑ `dropScratch`** (task #98-FREEZE): closing a bracket
-THAWS the store with the tier that comes back.  Both sides drop the caches and
-the scratch tier; the relation moves back from the tier to any stand-in that
-is not `frozen`. -/
-theorem drop_scratch_rel {tier st lst st'}
-    (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st)
-    (htf : tier.frozen = true)
-    (hrun : arena.core.drop_scratch st tier = ok st') {pers : arena.store.PersTier}
-    (hpers : pers.frozen = false) :
-    SimS₀ pers lst st' dropScratch := by
-  rw [arena.core.drop_scratch] at hrun
-  obtain ⟨s1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { s1 with store := e } := (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨lf, hf, hr1, hi1⟩ := (flush_caches_sim₀ hrel hinv h1).apply
-  obtain ⟨hsr, hsi⟩ := estore_thaw hr1.store hi1.store htf he hpers
-  have hlf : lf = { lst with caches := Caches.empty } := by
-    have : (flushCaches : AM Unit).run lst = .ok ((), { lst with caches := Caches.empty }) := rfl
-    rw [this] at hf; cases hf; rfl
-  subst hlf
-  exact SimS₀.mk
-    (lst' := { lst with store := lst.store.dropScratch, caches := Caches.empty }) rfl
-    ⟨hsr, hr1.memos, hr1.caches, hr1.pins⟩ ⟨hsi, hi1.memos, hi1.caches⟩
 
 /-- **The representation clause between two phase-B records** (task
 #98-FREEZE): a worker's store stays frozen with an EMPTY scratch tier between
@@ -809,12 +661,6 @@ theorem leave_record_rel {tier st lst st'}
 
 /-- info: 'ConRon.Refine2.flush_caches_sim₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms flush_caches_sim₀
-
-/-- info: 'ConRon.Refine2.enter_scratch_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms enter_scratch_rel
-
-/-- info: 'ConRon.Refine2.drop_scratch_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms drop_scratch_rel
 
 /-- info: 'ConRon.Refine2.enter_record_sim' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms enter_record_sim
