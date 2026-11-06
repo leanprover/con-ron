@@ -1333,7 +1333,59 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
     (m : arena.inductives.rec_check.TargetMajor) :
     LSP (arena.inductives.rec_check.rec_k_expected p m)
       (fun o => TwinEq (recKExpected (absBlockShape p) (absTargetMajor m)) o) := by
-  sorry -- T143-STUB
+  intro o h
+  rw [arena.inductives.rec_check.rec_k_expected] at h
+  simp only [TwinEq, recKExpected, absTargetMajor]
+  cases hm : m.member with
+  | none =>
+    simp only [hm] at h
+    cases Result.ok_injective h
+    rfl
+  | some t =>
+    simp only [hm, Option.map_some] at h ⊢
+    by_cases h1 : m.ctors.val.length = 1
+    · obtain ⟨c, hc⟩ := List.length_eq_one_iff.mp h1
+      have hl : alloc.vec.Vec.len m.ctors = 1#usize := by
+        have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+        scalar_tac
+      rw [if_pos hl] at h
+      obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hk' := shape_k_twin p k hk
+      simp only [TwinEq] at hk'
+      simp only [absCtorsL, hc, List.map_cons, List.map_nil]
+      have hidx : alloc.vec.Vec.index
+          (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+          m.ctors 0#usize = ok c := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [hc]
+      by_cases hk1 : k = 1#u64
+      · rw [if_pos hk1] at h
+        have hk1' : (absBlockShape p).k = 1 := by rw [hk', hk1]; rfl
+        rw [hk1']
+        cases hp : p.is_prop
+        · rw [if_neg (by simp [hp])] at h
+          cases Result.ok_injective h
+          simp [absBlockShape, hp]
+        · rw [if_pos hp, hidx, bind_ok] at h
+          cases Result.ok_injective h
+          simp only [absBlockShape, hp, absU]
+          by_cases hc0 : c.2 = 0#u64
+          · simp [hc0]
+          · have : c.2.val ≠ 0 := fun hv => hc0 (by scalar_tac)
+            simp [hc0, this]
+      · rw [if_neg hk1] at h
+        cases Result.ok_injective h
+        have : (absBlockShape p).k ≠ 1 := by
+          rw [hk']; intro hv; exact hk1 (by simp [absU] at hv; scalar_tac)
+        simp [this]
+    · have hl : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
+        intro hv; exact h1 (by have := congrArg (·.val) hv; simpa [alloc.vec.Vec.len] using this)
+      rw [if_neg hl] at h
+      cases Result.ok_injective h
+      rcases hc : m.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+      · simp [absCtorsL, hc]
+      · exact absurd (by simp [hc]) h1
+      · simp [absCtorsL, hc]
 
 /-- A checked recursor with its major and its right-hand sides. -/
 def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×

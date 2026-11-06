@@ -347,7 +347,10 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.stream_rec_check pers st mode rf rc g) lst
       (streamRecCheck (ConRon.Refine.absMode mode) lf (absRecShape rc) (absRecOut g)) := by
-  sorry -- T143-STUB
+  obtain ⟨cv, m, rhss⟩ := g
+  rw [arena.inductives.stream_recs.stream_rec_check, streamRecCheck]
+  simp only [absRecOut, gr_absRecShape_rP, gr_absRecShape_mI, gr_absRecShape_cvR]
+  lockstep
 
 theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
@@ -397,8 +400,62 @@ theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.e
   have h := stored_recs_check_aux (mode := mode) hfe rcs gs _ 0#usize st lst rfl hrel hinv
   simpa using h
 
-/-- `stream_k_check` ⊑ `streamKCheck` from the cursor on: each record's K flag
-against the block's (`recKExpected`). -/
+theorem streamKCheck_nil_left (p : BlockShape) (gs : List (IConstantVal × TargetMajor × List EIdx)) :
+    streamKCheck p [] gs = pure () := by
+  cases gs <;> rfl
+
+theorem streamKCheck_nil_right (p : BlockShape) (rcs : List RecShape) :
+    streamKCheck p rcs [] = pure () := by
+  cases rcs <;> rfl
+
+theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShape)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
+    (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+      alloc.vec.Vec arena.handle.EIdx)) :
+    ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.stream_k_check p rcs gs i) st lst
+        (streamKCheck (absBlockShape p) ((rcs.val.drop i.val).map absRecShape)
+          ((gs.val.drop i.val).map absRecOut)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rcs.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.stream_k_check p rcs gs i) st lst
+        (streamKCheck (absBlockShape p) ((rcs.val.drop i.val).map absRecShape)
+          ((gs.val.drop i.val).map absRecOut))) ?_ ?_ i ()
+  · intro i _ hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.stream_recs.stream_k_check.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len rcs by scalar_tac),
+      List.drop_eq_nil_of_le hn, List.map_nil, streamKCheck_nil_left]
+    lockstep
+  · intro i _ hlt ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.stream_recs.stream_k_check.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rcs by scalar_tac),
+      List.drop_eq_getElem_cons hlt, List.map_cons]
+    by_cases hg : i.val < gs.val.length
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len gs by scalar_tac),
+        List.drop_eq_getElem_cons hg, List.map_cons, streamKCheck]
+      lockstep
+      · intro o st' hm
+        obtain ⟨o', ho', hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+        cases Result.ok_injective hm
+        have hj : a.val = i.val + 1 := by scalar_tac
+        have := ih a () hj lst ‹_› ‹_› _ ho'
+        rw [hj] at this
+        rw [if_pos (by simp_all [absRecShape, absRecOut, TwinEq])]
+        exact this
+      · rw [if_neg (by simp_all [absRecShape, absRecOut, TwinEq])]
+        lockstep
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len gs by scalar_tac),
+        List.drop_eq_nil_of_le (by omega : gs.val.length ≤ i.val), List.map_nil,
+        streamKCheck_nil_right]
+      lockstep
+
+/-- `stream_k_check` ⊑ `streamKCheck`: each record's K flag against the block's
+(`recKExpected`). -/
 @[lockstep] theorem stream_k_check_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
     (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
@@ -407,7 +464,8 @@ against the block's (`recKExpected`). -/
     LSR pers (fun _ _ => True)
       (arena.inductives.stream_recs.stream_k_check p rcs gs 0#usize) st lst
       (streamKCheck (absBlockShape p) (rcs.val.map absRecShape) (gs.val.map absRecOut)) := by
-  sorry -- T143-STUB
+  have h := stream_k_check_aux (pers := pers) (st := st) p rcs gs 0#usize lst hrel hinv
+  simpa using h
 
 /-! ## The axiom census -/
 
