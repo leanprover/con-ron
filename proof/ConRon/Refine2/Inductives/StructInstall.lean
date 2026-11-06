@@ -1,22 +1,15 @@
 /-
 # `ConRon.Refine2.Inductives.StructInstall` — Theorem 2 for `arena::inductives::struct_install`
 
-**Task #97-P5-Ind** (DESIGN.md §8.2); carried over unchanged by task #105.
+**Task #97-P5-Ind** (DESIGN.md §8.2).
 `crates/con-ron-core/src/arena/inductives/struct_install.rs` against
 `proof/ConRon/Arena/Inductives/StructInstall.lean`: the binder-domain walk
-and the projection TABLE the uniform route stores at a structure-like block.
+and the checks of the projection TABLE a structure-like member installs (the
+table itself is read off the block, `Refine2/Checker/Install.lean`).
 
-**Four `pub fn`s against two twin `def`s**, and the two extra are DESIGN
-§3.4's rules at `checkStructProjTable`'s `allM` and its `let`-boundary (the
-projection-name family test went upstream, task #119).
-`Refine2/Inductives/Spec.lean` carries the transcriptions.
-
-**Finding 10 reaches this module.**  `check_struct_doms_at` and
-`proj_bodies_scoped` take `vis : u64` beside `fe`
-(task #97-P6-6b), so each carries `hvis : absU vis = lf.visibleBelow`.
-`check_struct_proj_table` and its `_names` tail do NOT: they take `fe` by
-value and read `fe.visible_below` themselves, which `IFEnvRel.visibleBelow`
-settles inside the proof.
+**Three `pub fn`s against two twin `def`s**, the extra one DESIGN §3.4's rule
+at `checkStructProjTable`'s `allM`.  `Refine2/Inductives/Spec.lean` carries the
+transcriptions.
 
 The Core tier reaches it at one site: `check_struct_doms_at` calls
 `is_def_eq_core` (`Refine2/Checker/KnotHyp.lean`'s `is_def_eq_core_ls`).
@@ -100,9 +93,8 @@ set_option maxHeartbeats 1000000 in
 binder-domain comparisons, run binder by binder at its own frame.  Walks from
 the last binder to the first, which is why the counter is the twin's `j + 1`
 recursion and not a cursor. -/
-@[lockstep] theorem check_struct_doms_at_ls {E₀ : IEnv}
+@[lockstep] theorem check_struct_doms_at_ls
     {pers st lst}
-   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {off : Std.U64}
@@ -110,8 +102,7 @@ recursion and not a cursor. -/
     {k : Std.U64}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install.check_struct_doms_at pers st mode rf off fvs doms k) lst
       (checkStructDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
@@ -143,9 +134,8 @@ recursion and not a cursor. -/
 open Lockstep in
 /-- `proj_bodies_scoped` ⊑ `checkStructProjTable`'s `scopedOk` `let`, from the
 cursor on. -/
-@[lockstep] theorem proj_bodies_scoped_ls {E₀ : IEnv}
+@[lockstep] theorem proj_bodies_scoped_ls
     {pers st lst}
-   
     {rf lf}
     {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p : Std.U64}
@@ -153,8 +143,7 @@ cursor on. -/
     {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = id a) (arena.inductives.struct_install.proj_bodies_scoped pers st rf lps n_p bodies i) lst
       (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p)
         (absEIdxLFrom bodies i)) := by
@@ -174,54 +163,24 @@ cursor on. -/
     lockstep
 
 open Lockstep in
-/-- `check_struct_proj_table_push` ⊑ `checkStructProjTable`'s tail: the
-structure stored, its table free, the table pushed. -/
-@[lockstep] theorem check_struct_proj_table_push_ls {E₀ : IEnv}
+/-- `check_struct_proj_table` ⊑ `checkStructProjTable` — stage 5, the projection
+table's checks: the bodies, their scoping, the structure stored and its table
+free.  Nothing is pushed (the table is the block's install). -/
+@[lockstep] theorem check_struct_proj_table_ls
     {pers st lst}
-    {t c : arena.handle.NIdx}
+    {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64}
-    {res_sort : arena.handle.LIdx}
-    {guards : alloc.vec.Vec arena.handle.LIdx}
-    {bodies : alloc.vec.Vec arena.handle.EIdx}
-    {rf lf}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
-    LSR pers (IFEnvRelI pers E₀) (arena.inductives.struct_install.check_struct_proj_table_push pers t c lps n_p
-        n_f res_sort guards bodies rf) st lst
-      (checkStructProjTablePushSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
-        (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards)
-        (absEIdxL bodies).toArray lf) := by
-  apply LSR.of_LS
-  rw [arena.inductives.struct_install.check_struct_proj_table_push,
-    checkStructProjTablePushSpec]
-  lockstep
-  all_goals
-    (try simp only [absIProjTable] at *)
-    lockstep
-
-open Lockstep in
-/-- `check_struct_proj_table` ⊑ `checkStructProjTable` — stage 5, the
-projection table, pushed after its structure. -/
-@[lockstep] theorem check_struct_proj_table_ls {E₀ : IEnv}
-    {pers st lst}
-    {t c : arena.handle.NIdx}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p n_f : Std.U64}
-    {res_sort : arena.handle.LIdx}
-    {guards : alloc.vec.Vec arena.handle.LIdx}
     {cv_ca : arena.env.IConstantVal}
     {rf lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers (IFEnvRelI pers E₀) (arena.inductives.struct_install.check_struct_proj_table pers st t c lps n_p n_f res_sort guards cv_ca rf) lst
-      (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
-        (absU n_f) (absLIdx res_sort) (absLIdxL guards)
+    (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun _ _ => True) (arena.inductives.struct_install.check_struct_proj_table pers st t lps n_p n_f cv_ca rf) lst
+      (checkStructProjTable (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_f)
         (absIConstantVal cv_ca) lf) := by
   rw [arena.inductives.struct_install.check_struct_proj_table,
-    checkStructProjTable_unfold]
+    checkStructProjTable_unfold, checkStructProjTableTailSpec]
   lockstep
 
 end ConRon.Refine2

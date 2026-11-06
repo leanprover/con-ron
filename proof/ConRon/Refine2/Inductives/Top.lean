@@ -26,7 +26,7 @@ installs, because the checker's fold needs both for its next step).  No
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.BlockTail
-import ConRon.Refine2.Inductives.StoredRecs
+import ConRon.Refine2.Inductives.StreamRecs
 -- `checker_base::ind_params_ok` and `check_constant_val` are the checker
 -- tier's (`Checker/Base.lean`).
 import ConRon.Refine2.Checker.Base
@@ -48,10 +48,10 @@ open Lockstep
 cursor on: the Rust's index walk is the twin's list recursion (every type
 former checked as a constant at the block's environment, every other member
 skipped). -/
-@[lockstep] theorem check_shapeless_formers_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem check_shapeless_formers_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
+    (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = a)
       (arena.check_decl.check_shapeless_formers pers st mode rf block i) lst
       (checkShapelessFormers (ConRon.Refine.absMode mode) lf (absICILFrom block i)) := by
@@ -74,11 +74,11 @@ skipped). -/
 
 /-- **`check_decl::check_shapeless` ⊑ `checkShapeless`** — a block the
 recogniser does not read: its formers checked, then a decline. -/
-@[lockstep] theorem check_shapeless_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+@[lockstep] theorem check_shapeless_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     {block : alloc.vec.Vec arena.env.IConstantInfo}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers E₀ rf lf) :
-    LS pers (IFEnvRelI pers E₀)
+    (hfe : IFEnvRelI pers rf lf) :
+    LS pers (IFEnvRelI pers)
       (arena.check_decl.check_shapeless pers st mode rf block) lst
       (checkShapeless (ConRon.Refine.absMode mode) lf (absICIL block)) := by
   rw [arena.check_decl.check_shapeless, checkShapeless]
