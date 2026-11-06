@@ -754,4 +754,117 @@ theorem parse_all_views_refines {pk pers st lst f f'}
       funext o
       cases o <;> rfl
 
+/-! ## `view_error` -/
+
+/-- A message path of `view_error`: pure steps, ending in an `.internal`. -/
+def IntLeaf (m : Result (kernel.core_types.CheckError × arena.store.EStore)) : Prop :=
+  ∀ e s', m = ok (e, s') → absAErrKind e = some .internal
+
+theorem IntLeaf.step {δ : Type} {f : Result δ}
+    {k : δ → Result (kernel.core_types.CheckError × arena.store.EStore)}
+    (h : ∀ a, IntLeaf (k a)) : IntLeaf (Std.bind f k) := by
+  intro e s' hm
+  obtain ⟨a, _, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  exact h a e s' h2
+
+theorem IntLeaf.done {ar : arena.store.EStore} (v : alloc.vec.Vec Std.U32) :
+    IntLeaf (Std.bind (kernel.core_types.internal v) fun e => ok (e, ar)) := by
+  intro e s' h
+  simp only [kernel.core_types.internal, bind_ok] at h
+  cases Result.ok_injective h
+  rfl
+
+/-- `undecodable` is an `.internal`. -/
+theorem undecodable_kind {pers ar m ce} (h : frontend.olean.view.undecodable pers ar m = ok ce) :
+    absAErrKind ce = some .internal := by
+  rw [frontend.olean.view.undecodable] at h
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  rw [kernel.core_types.internal] at h
+  cases Result.ok_injective h
+  rfl
+
+theorem IntLeaf.undec {pers ar m} :
+    IntLeaf (Std.bind (frontend.olean.view.undecodable pers ar m) fun e => ok (e, ar)) := by
+  intro e s' h
+  peel h as ce, hce
+  cases Result.ok_injective h
+  exact undecodable_kind hce
+
+/-- A message path of `view_error`. -/
+macro "int_leaf" : tactic =>
+  `(tactic| repeat' first | exact IntLeaf.done _ | exact IntLeaf.undec | refine IntLeaf.step fun _ => ?_)
+
+/-- **`view_error` is `viewError`**, thrown: an error at the kind of the twin's.  The name is in
+its message only, so the twin's `m'` is any. -/
+theorem view_error_refines {γ : Type} {pk pers st lst f f' level} {m : arena.handle.NIdx} {m' : ConLeche.Name}
+    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
+      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
+    (hf : ModFilesRel f f') (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {ce ar'}
+    (h : frontend.olean.view.view_error pk pers st.store m f level = ok (ce, ar')) :
+    AErrSim ce ((Arena.Frontend.Olean.viewError (absPins pk) m' f' (absLevel level) >>=
+      Arena.fail (α := γ)).run lst) := by
+  rw [frontend.olean.view.view_error] at h
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  unfold Arena.Frontend.Olean.viewError
+  peel h as o, ho
+  have hV := mod_files_view_region_eq hf ho
+  cases o with
+  | none =>
+    rw [show f'.viewRegion (absLevel level) = none from hV]
+    exact ConRon.Refine2.AErrSim.of_kind rfl ((show IntLeaf _ by int_leaf) _ _ h) rfl
+  | some p =>
+    obtain ⟨vb, a⟩ := p
+    dsimp only at h
+    peel h as bs, hb
+    peel h as r, hr
+    obtain ⟨e, hfit⟩ := hV bs r hb hr
+    rw [e]
+    dsimp only
+    peel h as ⟨r1, ar1⟩, hc
+    have hC := const_names_ok_refines hfit hrel hinv r1 ar1 hc
+    cases r1 with
+    | Err e1 =>
+      obtain ⟨rfl, -⟩ := Prod.mk.inj (Result.ok_injective h)
+      rw [StateT.run_bind, StateT.run_bind]
+      exact AErrSim.bind (AErrSim.bind hC _) _
+    | Ok b =>
+      obtain ⟨b', lst1, hx, rfl, hrel1, hinv1⟩ := hC
+      rw [StateT.run_bind, am_bind_ok hx]
+      cases b with
+      | false =>
+        rw [ite_eq_right (by simp)]
+        replace h : (if false = true then _ else _) = ok (ce, ar') := h
+        rw [ite_eq_right (by simp)] at h
+        exact ConRon.Refine2.AErrSim.of_kind rfl ((show IntLeaf _ by int_leaf) _ _ h) rfl
+      | true =>
+        rw [ite_eq_left rfl]
+        replace h : (if true = true then _ else _) = ok (ce, ar') := h
+        rw [ite_eq_left rfl] at h
+        peel h as ⟨r2, ar2⟩, hpa
+        have hS := hP _ _ _ _ _ hfit hrel1 hinv1 r2 ar2 hpa
+        cases r2 with
+        | Ok d =>
+          obtain ⟨d', lst2, hx2, -, -, -⟩ := hS
+          rw [am_bind_ok hx2]
+          exact ConRon.Refine2.AErrSim.of_kind rfl ((show IntLeaf _ by int_leaf) _ _ h) rfl
+        | Err ee =>
+          cases ee with
+          | Bad =>
+            obtain ⟨lst2, hx2, -, -⟩ := hS
+            rw [am_bind_ok hx2]
+            exact ConRon.Refine2.AErrSim.of_kind rfl ((show IntLeaf _ by int_leaf) _ _ h) rfl
+          | Err e2 =>
+            obtain ⟨rfl, -⟩ := Prod.mk.inj (Result.ok_injective h)
+            rw [StateT.run_bind]
+            exact AErrSim.bind (AErrSim.bind hS _) _
+
 end ConRon.Refine2.Frontend.Olean
