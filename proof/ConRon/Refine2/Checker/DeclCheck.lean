@@ -3427,6 +3427,33 @@ theorem install_basis_decls_refines {pers : arena.store.PersTier} {lst} {rf lf}
       (installBasisDecls lf (absICILFrom decls i)) :=
   install_basis_decls_aux _ decls i rfl hfe hfinv hrun
 
+open Lockstep in
+/-- `install_basis_decl` as the read the `lockstep` zip steps over. -/
+@[lockstep] theorem install_basis_decl_ls {pers st lst} {rf lf} {ci : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LSR pers (IFEnvRelI pers) (arena.decl_check.install_basis_decl pers rf ci) st lst
+      (installBasisDecl lf (absIConstantInfo ci)) := by
+  intro o h
+  have H := install_basis_decl_refines (lst := lst) hfe.rel hfe.inv h
+  cases o with
+  | Err e => exact H
+  | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩
+
+open Lockstep in
+/-- `install_basis_decls` from the start, as the read the `lockstep` zip steps over. -/
+@[lockstep] theorem install_basis_decls_ls {pers st lst} {rf lf}
+    {decls : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LSR pers (IFEnvRelI pers) (arena.decl_check.install_basis_decls pers rf decls 0#usize) st lst
+      (installBasisDecls lf (absICIL decls)) := by
+  intro o h
+  have H := install_basis_decls_refines (lst := lst) hfe.rel hfe.inv h
+  have e0 : absICILFrom decls 0#usize = absICIL decls := by simp [absICILFrom, absICIL]
+  rw [e0] at H
+  cases o with
+  | Err e => exact H
+  | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.cert_hyp1_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

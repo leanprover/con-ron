@@ -26,12 +26,6 @@ open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (regionFor readValue)
 open ConLeche.Frontend.Olean (refModule refLoc refBase)
 
-/-- `REF_BASE` is `refBase`. -/
-theorem ref_base_val {x : Std.U64} (h : frontend.olean.lazy.REF_BASE = ok x) : x.val = refBase := by
-  rw [frontend.olean.lazy.REF_BASE] at h
-  have := (ConRon.Refine.Nat.ushiftLeftI_val h).2
-  rw [this]; decide
-
 /-- `ref_module` is `refModule`. -/
 theorem ref_module_eq {code i : Std.U64} (h : frontend.olean.lazy.ref_module code = ok i) :
     i.val = refModule code.val := by
