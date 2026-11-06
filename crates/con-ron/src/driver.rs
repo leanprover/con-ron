@@ -576,7 +576,7 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
-/// Lean twin: `proof/ConRon/Arena/OleanJobs.lean` `oleanJob`; Theorem 2 reads this
+/// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-60 oleanJob`; Theorem 2 reads this
 /// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.
 /// **One job of an `--olean` run**, from the module region the worker kept: a
 /// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
