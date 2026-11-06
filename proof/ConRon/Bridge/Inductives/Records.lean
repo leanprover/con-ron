@@ -22,7 +22,7 @@ module
 
 import ConRon.Bridge.Rel
 public import ConLeche.Verify.BridgeDecl
-public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Inductives.BlockShape
 public import ConRon.Arena.Frontend.Readback
 
 public section

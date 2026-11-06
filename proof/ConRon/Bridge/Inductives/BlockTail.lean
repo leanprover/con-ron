@@ -23,7 +23,7 @@ import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.RecCheck
 public import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.BlockWF
-import ConRon.Bridge.Inductives.StoredRecs
+import ConRon.Bridge.Inductives.StreamRecs
 import ConLeche.Verify.Inductives.PositivityInv
 public import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.BlockParts
@@ -32,7 +32,7 @@ import ConRon.Bridge.Inductives.StructInstall
 import ConRon.Bridge.Inductives.StructParts
 public import ConLeche.Verify.Cached.GenRecC
 import ConRon.Bridge.Checker.Base
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 
 public section
 

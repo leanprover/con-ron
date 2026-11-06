@@ -30,7 +30,7 @@ module
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Names
 public import ConRon.Bridge.Frontend.Shared
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.Specs
 public import ConLeche.Kernel.Checker
 public import ConRon.Arena.CheckDecl

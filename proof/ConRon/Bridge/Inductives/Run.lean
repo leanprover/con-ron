@@ -15,7 +15,7 @@ module
 
 public import ConRon.Bridge.Inductives.Records
 import ConRon.Bridge.Specs
-import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Pers
 public import ConRon.Bridge.Grind
 
 public section

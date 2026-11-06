@@ -23,7 +23,7 @@ module
 
 public import ConRon.Bridge.Inductives.Run
 import ConLeche.Verify.Inductives.NestScope
-import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Pers
 import ConRon.Bridge.Specs
 
 public section

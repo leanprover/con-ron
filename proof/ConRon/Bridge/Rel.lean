@@ -689,6 +689,10 @@ theorem denoteFire_ext {st st' : EStore} {f : IRecRuleFire} {g : RecRuleFire}
         rw [hl, hp] at h
         rw [denoteLListE_ext hx _ ls hl, denoteEList_ext hx _ ps hp]
         exact h
+  | levels lvls =>
+    simp only [Frontend.denoteFire, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨ls, hl, rfl⟩ := h
+    exact ⟨ls, denoteLListE_ext hx _ ls hl, rfl⟩
 
 theorem denoteRule_ext {st st' : EStore} {rl : IRecRule} {r : RecRule}
     (h : Frontend.denoteRule st rl = some r) (hx : Ext st st') :
@@ -761,19 +765,12 @@ theorem denoteProjTable_ext {st st' : EStore} {t : IProjTable} {p : ProjTable}
         rw [hs, hl, hc] at h
         rw [denoteN_ext hs hx, denoteNListE_ext hx _ lps hl,
           denoteN_ext hc hx]
-        cases hss : denoteL st.ls t.structSort with
-        | none => rw [hss] at h; simp at h
-        | some ss =>
-          cases hb : Frontend.denoteEArray st t.bodies with
-          | none => rw [hss, hb] at h; simp at h
-          | some bs =>
-            cases hg : denoteLList st.ls t.guards with
-            | none => rw [hss, hb, hg] at h; simp at h
-            | some gs =>
-              rw [hss, hb, hg] at h
-              rw [denoteL_ext hss hx, denoteEArray_ext hb hx,
-                denoteLListE_ext hx _ gs hg]
-              exact h
+        cases hb : Frontend.denoteEArray st t.bodies with
+        | none => rw [hb] at h; simp at h
+        | some bs =>
+          rw [hb] at h
+          rw [denoteEArray_ext hb hx]
+          exact h
 
 /-! ### `denoteProjEntry` — the projection table's PER-FIELD denotation
 
@@ -784,8 +781,7 @@ needs beyond the other ten transports (DESIGN `### Task #97-P3-CoreWalks`
 
 **Why it is not `denoteProjTable` composed with `entry`.**
 `Arena/Env.lean`'s `IProjTable.entry` and con-leche's `ProjTable.entry` both
-read the two indexed columns with a DEFAULT — `bodies.getD i default` and
-`guards.getD i default` (con-leche's guard default is `.zero`) — and the two
+read the indexed column with a DEFAULT — `bodies.getD i default` — and the two
 defaults are a handle and a term that are unrelated: `(default : EIdx)` need
 not denote `(default : Expr)` in any store.  So the transport
 `denoteProjTable → denoteProjEntry` (`denoteProjTable_entry` below) holds
@@ -795,24 +791,21 @@ hypothesis between the two sides.
 -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:433-452 ProjEntry — **the denotation
-of one projection-table entry**: the six handle fields denote, the three
+of one projection-table entry**: the four handle fields denote, the three
 scalar fields (`idx`, `numParams`, `numFields`) are shared by the two tiers and
 are copied.  `Frontend.denoteProjTable`'s shape exactly. -/
 @[expose] def denoteProjEntry (st : EStore) (e : IProjEntry) : Option ProjEntry :=
   match denoteN st.ns e.structName, Frontend.denoteNList st.ns e.levelParams,
         denoteN st.ns e.ctor with
   | some sn, some lps, some c =>
-    match denoteE st e.body, denoteL st.ls e.fieldSort,
-          denoteL st.ls e.structSort with
-    | some b, some fs, some ss =>
-      some ⟨sn, e.idx, lps, e.numParams, c, e.numFields, b, fs, ss⟩
-    | _, _, _ => none
+    match denoteE st e.body with
+    | some b => some ⟨sn, e.idx, lps, e.numParams, c, e.numFields, b⟩
+    | none => none
   | _, _, _ => none
 
 /-- con-leche: none — **the inversion**, and the workhorse of every walk that
 reads an entry: a denoting entry denotes field by field, and its four scalar
-fields are literally con-leche's.  `IProjEntry.fireOk` needs `structSort`,
-`levelParams` and `fieldSort`; `typeAt` needs `levelParams` and `body`;
+fields are literally con-leche's.  `typeAt` needs `levelParams` and `body`;
 `projCert`'s guard needs `ctor`, `numParams` and `numFields`. -/
 theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
     (h : denoteProjEntry st e = some p) :
@@ -820,8 +813,6 @@ theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
       Frontend.denoteNList st.ns e.levelParams = some p.levelParams ∧
       denoteN st.ns e.ctor = some p.ctor ∧
       denoteE st e.body = some p.body ∧
-      denoteL st.ls e.fieldSort = some p.fieldSort ∧
-      denoteL st.ls e.structSort = some p.structSort ∧
       p.idx = e.idx ∧ p.numParams = e.numParams ∧
       p.numFields = e.numFields := by
   simp only [denoteProjEntry] at h
@@ -838,15 +829,9 @@ theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
         cases hb : denoteE st e.body with
         | none => rw [hb] at h; simp at h
         | some b =>
-          cases hf : denoteL st.ls e.fieldSort with
-          | none => rw [hb, hf] at h; simp at h
-          | some fs =>
-            cases hss : denoteL st.ls e.structSort with
-            | none => rw [hb, hf, hss] at h; simp at h
-            | some ss =>
-              rw [hb, hf, hss] at h
-              obtain rfl := Option.some.inj h
-              exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+          rw [hb] at h
+          obtain rfl := Option.some.inj h
+          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — a denoting expression-handle list keeps its length. -/
 theorem denoteEList_len {st : EStore} :
@@ -934,13 +919,13 @@ theorem denoteLList_getD {st : LStore} :
 
 /-- con-leche: ConLeche/Kernel/Env.lean:454-458 ProjTable.entry — **the
 EXACTNESS lemma of the projection table**: taking the per-field view commutes
-with the denotation, at every index both columns actually have.  This is the
-only fact about `denoteProjEntry` a `findProj?` rule needs, and the two range
-hypotheses are exactly `IProjTable.entry`'s two `getD`s (see the group
+with the denotation, at every index the body column actually has.  This is the
+only fact about `denoteProjEntry` a `findProj?` rule needs, and the range
+hypothesis is exactly `IProjTable.entry`'s `getD` (see the group
 note). -/
 theorem denoteProjTable_entry {st : EStore} {t : IProjTable} {p : ProjTable}
     (h : Frontend.denoteProjTable st t = some p) {i : Nat}
-    (hb : i < t.bodies.size) (hg : i < t.guards.length) :
+    (hb : i < t.bodies.size) :
     denoteProjEntry st (t.entry i) = some (p.entry i) := by
   simp only [Frontend.denoteProjTable] at h
   cases hs : denoteN st.ns t.structName with
@@ -953,48 +938,39 @@ theorem denoteProjTable_entry {st : EStore} {t : IProjTable} {p : ProjTable}
       | none => rw [hs, hl, hc] at h; simp at h
       | some ct =>
         rw [hs, hl, hc] at h
-        cases hss : denoteL st.ls t.structSort with
-        | none => rw [hss] at h; simp at h
-        | some ss =>
-          cases hbb : Frontend.denoteEArray st t.bodies with
-          | none => rw [hss, hbb] at h; simp at h
-          | some bs =>
-            cases hgg : denoteLList st.ls t.guards with
-            | none => rw [hss, hbb, hgg] at h; simp at h
-            | some gs =>
-              rw [hss, hbb, hgg] at h
-              obtain rfl := Option.some.inj h
-              simp only [Frontend.denoteEArray] at hbb
-              cases hbl : Frontend.denoteEList st t.bodies.toList with
-              | none => rw [hbl] at hbb; simp at hbb
-              | some bl =>
-                rw [hbl] at hbb
-                obtain rfl := Option.some.inj hbb
-                have hbi : denoteE st (t.bodies.toList.getD i default)
-                    = some (bl.getD i default) :=
-                  denoteEList_getD hbl (by simpa using hb)
-                have hgi : denoteL st.ls (t.guards.getD i default)
-                    = some (gs.getD i .zero) :=
-                  denoteLList_getD hgg hg
-                have harr : t.bodies.getD i default
-                    = t.bodies.toList.getD i default := by
-                  simp only [Array.getD, List.getD]
-                  split
-                  · rw [List.getElem?_eq_getElem (by simpa using hb)]
-                    simp
-                  · rename_i hlt; exact absurd hb hlt
-                have hbll : i < bl.toArray.size := by
-                  have : bl.toArray.size = bl.length := by simp
-                  rw [this, denoteEList_len hbl]
-                  simpa using hb
-                have harr2 : bl.toArray.getD i default = bl.getD i default := by
-                  simp only [Array.getD, List.getD]
-                  split
-                  · rw [List.getElem?_eq_getElem (by simpa using hbll)]
-                    simp
-                  · rename_i hlt; exact absurd hbll hlt
-                simp only [IProjTable.entry, ProjTable.entry, denoteProjEntry,
-                  harr, harr2, hs, hl, hc, hss, hbi, hgi]
+        cases hbb : Frontend.denoteEArray st t.bodies with
+        | none => rw [hbb] at h; simp at h
+        | some bs =>
+          rw [hbb] at h
+          obtain rfl := Option.some.inj h
+          simp only [Frontend.denoteEArray] at hbb
+          cases hbl : Frontend.denoteEList st t.bodies.toList with
+          | none => rw [hbl] at hbb; simp at hbb
+          | some bl =>
+            rw [hbl] at hbb
+            obtain rfl := Option.some.inj hbb
+            have hbi : denoteE st (t.bodies.toList.getD i default)
+                = some (bl.getD i default) :=
+              denoteEList_getD hbl (by simpa using hb)
+            have harr : t.bodies.getD i default
+                = t.bodies.toList.getD i default := by
+              simp only [Array.getD, List.getD]
+              split
+              · rw [List.getElem?_eq_getElem (by simpa using hb)]
+                simp
+              · rename_i hlt; exact absurd hb hlt
+            have hbll : i < bl.toArray.size := by
+              have : bl.toArray.size = bl.length := by simp
+              rw [this, denoteEList_len hbl]
+              simpa using hb
+            have harr2 : bl.toArray.getD i default = bl.getD i default := by
+              simp only [Array.getD, List.getD]
+              split
+              · rw [List.getElem?_eq_getElem (by simpa using hbll)]
+                simp
+              · rename_i hlt; exact absurd hbll hlt
+            simp only [IProjTable.entry, ProjTable.entry, denoteProjEntry,
+              harr, harr2, hs, hl, hc, hbi]
 
 /-- con-leche: ConLeche/Kernel/Env.lean:281-326 ProjTable — the two SCALAR
 fields of a table are shared by the two tiers and survive the denotation
@@ -1014,18 +990,12 @@ theorem denoteProjTable_fields {st : EStore} {t : IProjTable} {p : ProjTable}
       | none => rw [hs, hl, hc] at h; simp at h
       | some ct =>
         rw [hs, hl, hc] at h
-        cases hss : denoteL st.ls t.structSort with
-        | none => rw [hss] at h; simp at h
-        | some ss =>
-          cases hb : Frontend.denoteEArray st t.bodies with
-          | none => rw [hss, hb] at h; simp at h
-          | some bs =>
-            cases hg : denoteLList st.ls t.guards with
-            | none => rw [hss, hb, hg] at h; simp at h
-            | some gs =>
-              rw [hss, hb, hg] at h
-              obtain rfl := Option.some.inj h
-              exact ⟨rfl, rfl⟩
+        cases hb : Frontend.denoteEArray st t.bodies with
+        | none => rw [hb] at h; simp at h
+        | some bs =>
+          rw [hb] at h
+          obtain rfl := Option.some.inj h
+          exact ⟨rfl, rfl⟩
 
 theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c) (hx : Ext st st') :
@@ -1063,7 +1033,7 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
       | some caps =>
         rw [hcv, hcp] at h
         rw [denoteCV_ext hcv hx, denoteCaps_ext hcp hx]; exact h
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h ⊢
     cases hcv : Frontend.denoteCV st v with
     | none => rw [hcv] at h; simp at h

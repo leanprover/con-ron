@@ -57,10 +57,6 @@ public import ConRon.Bridge.Checker.DeclVal
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.DeclWF
 public import ConRon.Bridge.Checker.Nodup
-public import ConRon.Bridge.Checker.Frame
-public import ConRon.Bridge.Checker.StoredFrame
-public import ConRon.Bridge.Checker.Job
-public import ConRon.Bridge.Checker.Split
 public import ConRon.Bridge.Checker.Axioms
 
 public section

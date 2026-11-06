@@ -15,7 +15,7 @@ module
 
 import ConRon.Bridge.ExprOps.Ranges
 public import ConRon.Bridge.ExprOps.Abs
-import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Pers
 import ConRon.Bridge.Specs
 
 public section

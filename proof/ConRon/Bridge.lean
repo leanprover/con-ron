@@ -81,7 +81,6 @@ public import ConRon.Bridge.Specs
 public import ConRon.Bridge.SpecsL
 public import ConRon.Bridge.ExprOps
 public import ConRon.Bridge.Core
-public import ConRon.Bridge.Promote
 public import ConRon.Bridge.Checker
 public import ConRon.Bridge.Inductives
 public import ConRon.Bridge.Frontend

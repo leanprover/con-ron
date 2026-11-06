@@ -37,9 +37,9 @@ survives the next `dropScratch`:
 -/
 module
 
-public import ConRon.Bridge.Promote.Exact
+public import ConRon.Bridge.EnvDenote
 public import ConLeche.Verify.EnvWF
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 
 public section
 

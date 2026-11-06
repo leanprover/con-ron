@@ -41,7 +41,7 @@ read, with their cone:
 module
 
 import ConRon.Bridge.Specs
-import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Pers
 public import ConRon.Bridge.StateOK
 public import ConRon.Arena.CheckerBase
 

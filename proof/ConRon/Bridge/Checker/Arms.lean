@@ -40,7 +40,7 @@ import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Names
 public import ConRon.Bridge.Checker.Hyp
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 
 public section
 

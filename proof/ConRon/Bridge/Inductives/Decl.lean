@@ -34,7 +34,7 @@ module
 import ConRon.Bridge.Inductives.BlockTail
 import ConRon.Bridge.Inductives.BlockParts
 public import ConRon.Bridge.Inductives.Rel
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 
 public section
 

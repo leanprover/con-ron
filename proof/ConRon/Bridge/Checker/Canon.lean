@@ -25,7 +25,7 @@ instance of `Bridge/StoreNested.lean`'s `EStore.internName` spec and of
 module
 
 import ConRon.Bridge.Checker.Inv
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.Specs
 public import ConRon.Bridge.Grind
 public import ConRon.Arena.Canon

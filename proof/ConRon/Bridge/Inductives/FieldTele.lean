@@ -18,7 +18,7 @@ module
 public import ConRon.Bridge.Inductives.Run
 import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.Pers
 import ConRon.Bridge.ExprOps.Inst1
 
 public section

@@ -1,36 +1,32 @@
 /-
-# `ConRon.Bridge.Promote.Pers` — the PERSISTENT extension, and what survives a drop
+# `ConRon.Bridge.Pers` — the PERSISTENT extension, and what survives a drop
 
-DESIGN.md §8.2 states Theorem 1's second conjunct as `Ext st st'`.  **At the
-per-declaration STEP that conjunct is false as written**, and this module is
-the correction (DESIGN `### Task #97-P3-Checker`).
-
-`Ext st st'` (`Arena/Denote.lean:274`) is TOTAL: *every* handle of `st`
-denotes the same in `st'`.  `Arena/Checker.lean`'s `checkDeclStep` ends in
+`Ext st st'` (`Arena/Denote.lean`) is TOTAL: *every* handle of `st` denotes the
+same in `st'`.  A record's job (`Arena/StreamIndex.lean`'s `recordJob`) ends in
 `dropScratch`, which takes the scratch tier away, and `Arena/WFProofs.lean`'s
 own `dropScratch_spec` says exactly what then happens to a scratch handle:
-`denoteE st.dropScratch i = none`.  So a bracketed step CANNOT deliver `Ext`,
-and the conjunct it does deliver — the one the fold actually needs, and the
-one that is the tier discipline in a line — is
+`denoteE st.dropScratch i = none`.  So a job CANNOT deliver `Ext`, and the
+conjunct it does deliver — the one the next job on the same worker needs, and
+the one that is the tier discipline in a line — is
 
     PExt st st' :  every PERSISTENT handle that denotes in `st`
                    denotes the same in `st'`
 
-`Ext` implies it, `PExt` composes, and `dropScratch` preserves it.  Everything
-the fold carries across a step boundary — the environment, the pending
-records, the pin table — is persistent by construction (that is what
-`Arena/Promote.lean` exists for), so `PExt` transports all of it.
+`Ext` implies it, `PExt` composes, and `dropScratch` and `enableScratch`
+preserve it.  What a job reads across its bracket — the stream's index, the
+records, the pin table — is persistent by construction (the driver builds it
+with no scratch tier open), so `PExt` transports all of it.
 
-The second half of the module is the vocabulary for "by construction":
-`PersE` and its siblings at the four handle kinds, lifted to the declaration
-layer (`PersCV`, `PersCI`, `PersDecl`, `PersVG`, `PersIFEnv`, `PersPins`).  A
-`Pers…` predicate is decided by the handles' tier bits alone — it says nothing
-about any store — which is what lets `Arena/Promote.lean`'s theorems establish
-it and the fold consume it without either mentioning the other's store.
+The module starts with the `AM` bind's inversion, which every run-form proof
+of the tier starts with.  Its second half is the vocabulary for "by
+construction": `PersE` and its siblings at the four handle kinds, lifted to
+the declaration layer (`PersCV`, `PersCI`, `PersDecl`, `PersIFBase`,
+`PersIFEnv`, `PersPins`).  A `Pers…` predicate is decided by the handles' tier
+bits alone — it says nothing about any store.
 -/
 module
 
-public import ConRon.Arena.CheckerSplit
+public import ConRon.Arena.Checker
 public import ConRon.Arena.NatOpPinSet
 import ConRon.Arena.WFProofs
 public import ConRon.Arena.WF
@@ -46,8 +42,8 @@ open ConLeche ConRon.Arena
 /-! ## Running an `AM` do-block
 
 The bind's inversion, at the bottom of the tier: every run-form proof of
-`Bridge/Checker/**` and `Bridge/Promote/**` starts with it, and after it no
-proof in either directory mentions `StateT`. -/
+`Bridge/Checker/**` starts with it, and after it no proof there mentions
+`StateT`. -/
 
 /-- con-leche: none — the `AM` bind, applied. -/
 theorem AM.bind_apply {α β : Type} (x : AM α) (f : α → AM β) (s : AState) :
@@ -397,7 +393,7 @@ theorem PExt.enterScratch {st : EStore} (h : StoreWF st) :
 
 A `Pers…` predicate looks only at the tier bits, so it is a fact about the
 VALUE and not about any store — which is what makes it survive a
-`dropScratch` for free and what lets `Arena/Promote.lean` establish it. -/
+`dropScratch` for free. -/
 
 /-- con-leche: none — a name handle lives in the persistent tier. -/
 abbrev PersN (n : NIdx) : Prop := n.isPersistent = true
@@ -426,6 +422,7 @@ structure PersCV (cv : IConstantVal) : Prop where
 @[expose] def PersFire : IRecRuleFire → Prop
   | .plain => True
   | .nested lvls pins => PersLList lvls ∧ PersEList pins
+  | .levels lvls => PersLList lvls
 
 /-- con-leche: none — a recursor rule is persistent. -/
 structure PersRule (rl : IRecRule) : Prop where
@@ -449,20 +446,17 @@ structure PersProjTable (t : IProjTable) : Prop where
   structName : PersN t.structName
   levelParams : PersNList t.levelParams
   ctor : PersN t.ctor
-  structSort : PersL t.structSort
   bodies : PersEList t.bodies.toList
-  guards : PersLList t.guards
 
 /-- con-leche: none — **a stored constant is persistent**: the clause
-`dropScratch` needs of the environment, and what `Arena/Promote.lean`'s
-`promoteCI` delivers. -/
+`dropScratch` needs of the stream's index. -/
 @[expose] def PersCI : IConstantInfo → Prop
   | .axiomInfo v => PersCV v
   | .defnInfo v e _ => PersCV v ∧ PersE e
   | .thmInfo v => PersCV v
   | .indInfo v c => PersCV v ∧ PersCaps c
   | .ctorInfo v _ _ => PersCV v
-  | .recInfo v _ _ rs => PersCV v ∧ PersRules rs
+  | .recInfo v _ _ _ rs => PersCV v ∧ PersRules rs
 
 /-- con-leche: none — every member of a block is persistent. -/
 @[expose] def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
@@ -470,36 +464,48 @@ structure PersProjTable (t : IProjTable) : Prop where
 /-- con-leche: none — every constant of the environment is persistent. -/
 @[expose] def PersIEnv (e : IEnv) : Prop := PersCIList e.consts
 
-/-- con-leche: none — **the environment index is persistent**: both its lists
-and the rows of both its maps.  The rows matter as much as the lists —
-`Arena/Promote.lean`'s `eraseInstalled`/`indexPromoted` (and their table twins)
-exist because a stale row under a SCRATCH key would answer a different constant
-(or table) once `dropScratch` hands that word back. -/
+/-- con-leche: none — **the frozen layer is persistent**: the rows of both its
+maps.  The driver builds the stream's index with no scratch tier open
+(`Arena/StreamIndex.lean`), so every handle in it is persistent, and every job
+reads it across its own scratch tier and the drop that ends it. -/
+structure PersIFBase (b : IFBase) : Prop where
+  idx : ∀ n p, b.idx[n]? = some p → PersN n ∧ PersCI p.2
+  tbls : ∀ n p, b.tbls[n]? = some p → PersN n ∧ PersProjTable p.2
+
+/-- con-leche: none — **the environment index is persistent**: its lists, the
+rows of both its own maps, and its frozen layer. -/
 structure PersIFEnv (fe : IFEnv) : Prop where
   env : PersIEnv fe.env
-  idx : ∀ n p, fe.idx[n]? = some p → PersN n ∧ PersCI p.2
+  idx : ∀ n ci, fe.idx[n]? = some ci → PersN n ∧ PersCI ci
   tables : ∀ t ∈ fe.env.tables, PersProjTable t
   tbls : ∀ n t, fe.tbls[n]? = some t → PersN n ∧ PersProjTable t
+  base : PersIFBase fe.base
 
-/-- con-leche: none — arena infrastructure; **what a lookup in a persistent
-index answers is persistent**: `IFEnv.find?` reads the index and nothing else,
-so `PersIFEnv`'s row clause covers both the key and the constant.  This is
-what makes `IFEnvOK` survive a `dropScratch` (`Bridge/Checker/Inv.lean`'s
-`IFEnvOK.pmono`) without a re-derivation from the denotation. -/
-theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
-    {ci : IConstantInfo} (hf : fe.find? n = some ci) : PersN n ∧ PersCI ci := by
-  rw [IFEnv.find?] at hf
-  cases hidx : fe.idx[n]? with
-  | none => rw [hidx] at hf; exact absurd hf (by simp)
+/-- con-leche: none — a frozen layer's visible constant is persistent. -/
+theorem PersIFBase.find {b : IFBase} (hp : PersIFBase b) {n : NIdx}
+    {ci : IConstantInfo} (hf : b.find? n = some ci) : PersN n ∧ PersCI ci := by
+  unfold IFBase.find? at hf
+  cases hidx : b.idx[n]? with
+  | none => rw [hidx] at hf; cases hf
   | some p =>
     rw [hidx] at hf
     obtain ⟨c, cj⟩ := p
     simp only at hf
-    by_cases hlt : c < fe.visibleBelow
-    · rw [ite_eq_left hlt] at hf
-      obtain rfl := Option.some.inj hf
-      exact hp.idx n (c, cj) hidx
-    · rw [ite_eq_right hlt] at hf; exact absurd hf (by simp)
+    split at hf
+    · cases hf; exact hp.idx n _ hidx
+    · cases hf
+
+/-- con-leche: none — arena infrastructure; **what a lookup in a persistent
+index answers is persistent**: `IFEnv.find?` reads the own index, then the
+frozen layer, and nothing else. -/
+theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
+    {ci : IConstantInfo} (hf : fe.find? n = some ci) : PersN n ∧ PersCI ci := by
+  simp only [IFEnv.find?, IFEnv.lookup] at hf
+  split at hf
+  · exact hp.base.find hf
+  · cases hidx : fe.idx[n]? with
+    | none => rw [hidx] at hf; exact hp.base.find hf
+    | some cj => rw [hidx] at hf; cases hf; exact hp.idx n _ hidx
 
 /-- con-leche: none — arena infrastructure; a gated table hit is a raw one. -/
 theorem IFEnv.rawTable?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
@@ -519,11 +525,25 @@ theorem IFEnv.find?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
   · cases h
 
 /-- con-leche: none — arena infrastructure; **what a table lookup in a
-persistent index answers is persistent**: `IFEnv.rawTable?` reads the table map
-and nothing else. -/
+persistent index answers is persistent**: `IFEnv.rawTable?` reads the table map,
+then the frozen layer's, and nothing else. -/
 theorem PersIFEnv.rawTable {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
-    {t : IProjTable} (hf : fe.rawTable? n = some t) : PersN n ∧ PersProjTable t :=
-  hp.tbls n t hf
+    {t : IProjTable} (hf : fe.rawTable? n = some t) : PersN n ∧ PersProjTable t := by
+  unfold IFEnv.rawTable? at hf
+  cases ht : fe.tbls[n]? with
+  | some t' => rw [ht] at hf; cases hf; exact hp.tbls n _ ht
+  | none =>
+    rw [ht] at hf
+    unfold IFBase.findTable? at hf
+    cases hb : fe.base.tbls[n]? with
+    | none => rw [hb] at hf; cases hf
+    | some p =>
+      rw [hb] at hf
+      obtain ⟨r, t'⟩ := p
+      simp only at hf
+      split at hf
+      · cases hf; exact hp.base.tbls n _ hb
+      · cases hf
 
 /-- con-leche: none — a declaration record is persistent (the parse builds
 them in the persistent tier, so this is the frontend tier's postcondition). -/
@@ -532,16 +552,8 @@ them in the persistent tier, so this is the frontend tier's postcondition). -/
   | .defnDecl v e _ => PersCV v ∧ PersE e
   | .thmDecl v e => PersCV v ∧ PersE e
   | .opaqueDecl v e => PersCV v ∧ PersE e
-  | .basisDecl _ => True
   | .indDecl block _ => PersCIList block
   | .quotDecl _ v => PersCV v
-
-/-- con-leche: none — the datum that crosses the install/check seam is
-persistent: `Arena/Promote.lean`'s `promoteVG` is what makes it so, and it is
-what lets phase B run after phase A's `dropScratch`. -/
-structure PersVG (g : Arena.ValueGroup) : Prop where
-  cv : PersCV g.cv
-  jv : PersE g.jv
 
 /-- con-leche: none — a type-pin list is persistent: every name and every
 type handle. -/

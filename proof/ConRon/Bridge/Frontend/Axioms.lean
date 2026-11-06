@@ -19,7 +19,7 @@ module -- shake: keep-all (`#print axioms` stores no constant shake can see)
 
 public import ConRon.Bridge.Frontend.Capstone
 import ConRon.Bridge.Frontend.Rel
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.Frontend.Lines
 import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.StoreBind

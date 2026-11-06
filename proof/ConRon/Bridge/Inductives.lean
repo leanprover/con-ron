@@ -54,7 +54,7 @@ public import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.ClassRead
 public import ConRon.Bridge.Inductives.RecCheck
 public import ConRon.Bridge.Inductives.GenRec
-public import ConRon.Bridge.Inductives.StoredRecs
+public import ConRon.Bridge.Inductives.StreamRecs
 public import ConRon.Bridge.Inductives.BlockTail
 public import ConRon.Bridge.Inductives.Decl
 public import ConRon.Bridge.Inductives.Axioms

@@ -59,7 +59,7 @@ import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.Specs
 

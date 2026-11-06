@@ -29,7 +29,6 @@ public import ConRon.Bridge.Checker.Fold
 public import ConRon.Bridge.Checker.Base
 public import ConRon.Bridge.Checker.Basis
 public import ConRon.Bridge.Checker.Pins
-public import ConRon.Bridge.Checker.Split
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.Arms
 import ConRon.Bridge.Checker.Mono

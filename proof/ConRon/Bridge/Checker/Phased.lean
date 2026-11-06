@@ -12,9 +12,7 @@ them.
 -/
 module
 
-import ConRon.Bridge.Checker.Split
 public import ConRon.Arena.Pooled
-public import ConRon.Bridge.Checker.Frame
 public import ConRon.Bridge.Checker.Decl
 public import ConRon.Bridge.Checker.Hyp
 

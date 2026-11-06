@@ -15,10 +15,10 @@ index `fe` the caller holds `CheckOK` at (`checkBlockTailStored_of`,
 module
 
 public import ConRon.Bridge.Inductives.RecCheck
-public import ConRon.Arena.Inductives.StoredRecs
-public import ConLeche.Kernel.Inductives.StoredRecs
+public import ConRon.Arena.Inductives.StreamRecs
+public import ConLeche.Kernel.Inductives.StreamRecs
 import ConLeche.Verify.Cached.BridgeCS3
-import ConLeche.Verify.Inductives.StoredRecsInv
+import ConLeche.Verify.Inductives.StreamRecsInv
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Names

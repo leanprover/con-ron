@@ -60,7 +60,7 @@ Every one of them bottoms out in `checkConstantVal_bridge`
 module
 
 public import ConLeche.Verify.EnvWF
-public import ConRon.Bridge.Promote.Exact
+public import ConRon.Bridge.EnvDenote
 public import ConLeche.Kernel.CheckDecl
 
 public section

@@ -58,7 +58,7 @@ public import ConLeche.Frontend.Prepare
 import ConRon.Bridge.Frontend.Lines
 public import ConRon.Bridge.Frontend.Rel
 import ConRon.Bridge.Checker.Names
-import ConRon.Bridge.Promote.WalkDecl
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.Specs
 
 public section
