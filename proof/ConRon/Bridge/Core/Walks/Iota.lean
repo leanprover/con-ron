@@ -211,27 +211,6 @@ theorem piResAt_cons (x : Expr) (xs : List Expr) (e : Expr) :
   cases e <;> simp only [piResAt, ConLeche.piResidual, exprTag, exprBody] <;>
     first | rfl | rw [if_neg (by decide)]
 
-/-- `instantiate1`'s answer at two optional subjects -/
-@[expose] def Inst1Rel : Option Expr → Option Expr → Option Expr → Prop
-  | some w, some b, o => o = some (b.instantiate1 w)
-  | _, _, _ => True
-
-/-- con-leche: none — `Inst1Rel` at two denoting subjects. -/
-@[bridge_grind =] theorem Inst1Rel.some_eq (w b : Expr) (o : Option Expr) :
-    Inst1Rel (some w) (some b) o = (o = some (b.instantiate1 w)) := rfl
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast — the
-substitution's answer as `Inst1Rel` on the three denotation terms. -/
-theorem instantiate1Fast_specR (s₀ : AState) (b w : EIdx) (hok : CheckOK eager env fe s₀)
-    (hdb : (denoteE s₀.store b).isSome = true) (hdw : (denoteE s₀.store w).isSome = true) :
-    ⦃fun s => s = s₀⦄ instantiate1Fast coreWalkFuel b w 0
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ Inst1Rel (denoteE s₀.store w) (denoteE s₀.store b) (denoteE s'.store r); ⊤⦄ := by
-  obtain ⟨B, hB⟩ := Option.isSome_iff_exists.mp hdb
-  obtain ⟨W, hW⟩ := Option.isSome_iff_exists.mp hdw
-  rw [hB, hW]
-  exact instantiate1Fast_ok_spec s₀ b w B W hok hB hW
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:704-707 piResidual — **THEOREM 1 for
 `piResidual`**: the telescope residual along an argument spine, at whatever the
 telescope handle denotes. -/
