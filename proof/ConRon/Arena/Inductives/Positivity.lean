@@ -19,11 +19,8 @@ and the seeds (`nestSeeds`).  The Rust twin is
   `…_go` walk and a `…_node` step (extraction rule 5); the twin keeps the
   step inline in its `…Go`.  The `MemoInv`s and `_spec`s are proofs.
 * **`NestCtx.find?` is the environment**: every function that reads the
-  environment takes `fe : IFEnv` beside the context.  The Rust record also
-  carries the visibility bound `vis`; over the twin's `IFEnv` the bound is
-  `fe.visibleBelow` (the Rust passes `vis = fe.visible_below` beside the
-  same `fe`), so the twin's record has no `vis` and a function that read
-  only `ctx.vis` (`nestBlockOf`, `nestFrameMates`, `nestArity`,
+  environment takes `fe : IFEnv` beside the context, and a function that
+  reads nothing else of it (`nestBlockOf`, `nestFrameMates`,
   `nestGroupCtors`) does not take the context.  The record carries `lvls`,
   the block's own level parameters as levels (`ctx.lps.map .param`),
   interned once: over handles `List Level` equality is the interned list's
@@ -47,19 +44,16 @@ and the seeds (`nestSeeds`).  The Rust twin is
   cur` (U4, the normal-form record and the returned form) and
   `ty.piBinders` (`nestInstType`).
 * **`NestedPositivity` and `nestedBlockPositivity` are not ported**: the unit
-  tests' entry; the install runs `nestUniform`/`nestRoot` itself.
+  tests' entry; the check runs `nestUniform`/`nestRoot` itself.
 
 ## The twin's shapes against the Rust (for Theorem 2)
 
-* **`vis` dropped** (the campaign lead's ruling): the Rust's `NestCtx.vis`
-  and every `(vis, fe)` pair are the twin's `fe`, related by `absU vis =
-  lfe.visibleBelow`; every caller passes the `fe` whose `visibleBelow` the
-  Rust stores in `ctx.vis` (`shape_nest_ctx(…, fe.visible_below)`).  The
-  twin's `NestCtx` fields are `names lps nP nIdxs params sort lvls`.  Five
-  signatures lose an argument and keep the Rust's order otherwise:
-  `nestContainer fe C` (Rust `vis, fe, c`), `nestBlockOf fe C`,
-  `nestFrameMates fe C`, `nestArity fe C` (Rust `ctx, fe, c`), and
-  `nestGroupCtors fe nPc cs out` (Rust `fe, ctx, n_pc, cs, i, out`).
+* **The context is not passed where only its environment is read**: the
+  twin's `NestCtx` fields are `names lps nP nIdxs params sort formers lvls`,
+  as the Rust's.  Three signatures lose the Rust's context argument and keep
+  its order otherwise: `nestBlockOf fe C`, `nestFrameMates fe C` (Rust `ctx,
+  fe, c`), and `nestGroupCtors fe nPc cs out` (Rust `fe, ctx, n_pc, cs, i,
+  out`).
 * `NestState` is `keys : Array NestKey`, `active : List NestKey` (innermost
   first: the Rust's `group_keys ++ active`), `ctorNfs : Array NestCtorNf`;
   every other Rust `Vec` is a `List`, an index cursor `i` being structural
@@ -75,13 +69,15 @@ and the seeds (`nestSeeds`).  The Rust twin is
   vs. enclosing fuel, two tail calls) is the twin's `if _h : root` around the
   one `nestFields` call.  The helper sets that the Rust splits for
   extraction (`nest_pos_at`/`nest_pos_hole`, `nest_cont_params`,
-  `nest_frame_at`/`nest_frame_walk`, `nest_ctors_typed`/`_walk`/`_done`,
+  `nest_frame_at`/`nest_frame_walk`/`nest_frame_walk_at`,
+  `nest_ctors_typed`/`_walk`/`_done`,
   `nest_u4`, `nest_res_ok`) are inline.
 
 The Rust's index-cursor helpers (`names_contain`, `nest_occ_any`,
 `replace_fvars_list`, `params_closed`, `all_fvar_b_le`, `frame_stack`, …) are
 the list operations they cite (`List.contains`, `List.anyM`, `List.mapM`,
-`List.allM`, `++`); the Rust's `…_at`/`…_typed`/`…_walk`/`…_done`/`_hole`
+`List.allM`, `++`), and `nest_inst_type_at`/`nest_inst_type_sort` and
+`const_vals_dup` are inline or Lean's sharing; the Rust's `…_at`/`…_typed`/`…_walk`/`…_done`/`_hole`
 continuations are inline in the twin they are "part of".  Definitions that the
 twins' mutual recursion needs earlier (`nestKeyMap`, the frame's helpers ahead
 of the `nestPos` block, `nestCtorNf`) are moved up.
@@ -173,6 +169,92 @@ def closeTelescope : List EIdx → Nat → EIdx → AM EIdx
     let closed ← abstract1Fast coreWalkFuel inner i 0
     internForallEE d closed
 
+/-! ## A family's telescope -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:225-248 whnfTelescope
+**Official's telescope loop** (`check_inductive_types`): peel `n` Π binders
+off `e`, reducing the residual to weak head normal form before each binder and
+at the end, where it must be a sort.  Binder `i` is opened at the free
+variable `i`.  The binders are accumulated on the way in (`out`), as the Rust
+pushes them; the messages carry the kernel twin's padding. -/
+def whnfTelescope (mode : CheckMode) (fe : IFEnv) :
+    Nat → Nat → EIdx → List EIdx → AM (List EIdx × LIdx)
+  | i, n, e, out => do
+    let e2 ← whnf mode fe checkFuel i e
+    match ← view e2 with
+    | .sort s =>
+      if n == 0 then pure (out, s)
+      else fail (.invalid "direct sum: type former does not reduce to a telescope                ")
+    | .forallE dom body =>
+      match n with
+      | 0 => fail (.invalid "direct sum: type former does not reduce to a sort                 ")
+      | n' + 1 => do
+        let fv ← internFVarE i dom
+        let b ← instantiate1Fast coreWalkFuel body fv 0
+        whnfTelescope mode fe (i + 1) n' b (out ++ [dom])
+    | _ =>
+      if n == 0 then fail (.invalid "direct sum: type former does not reduce to a sort                 ")
+      else fail (.invalid "direct sum: type former does not reduce to a telescope                ")
+termination_by _ n => n
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:250-254 reducedFormer
+A former at its reduced telescope (official's `whnf` loop, `n` binders),
+closed. -/
+def reducedFormer (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) :
+    AM IConstantVal := do
+  let (bs, s) ← whnfTelescope mode fe 0 n cv.type []
+  let srt ← internSortE s
+  let ty ← closeTelescope bs 0 srt
+  pure { cv with type := ty }
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:256-263 familyTelescope
+**A stored family's type former, at its telescope**: its stored type where that
+shows one, else its reduct at its parameters and indices (`reducedFormer`). -/
+def familyTelescope (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (caps : IIndCaps) :
+    AM EIdx := do
+  if ← formerDefHeaded cv then do
+    let cvR ← reducedFormer mode fe cv (caps.nparams + caps.nIdx)
+    pure cvR.type
+  else pure cv.type
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:265-276 checkSpineAt
+**The arguments of an application against the telescope `t`**: each
+argument's type definitionally equal to its binder's domain (at depth `d`),
+the domains instantiated along the spine. -/
+def checkSpineAt (mode : CheckMode) (fe : IFEnv) (d : Nat) : EIdx → List EIdx → AM Unit
+  | _, [] => pure ()
+  | t, a :: as => do
+    if t.tag == ETag.forallE then
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body) => do
+        let ta ← inferTypeCore mode fe checkFuel d a
+        unless ← isDefEqCore mode fe checkFuel d ta ty do
+          fail (.invalid "application type mismatch at a family's parameters")
+        let b ← instantiate1Fast coreWalkFuel body a 0
+        checkSpineAt mode fe d b as
+    else fail (.invalid "function expected at a family's parameters")
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:278-289 familyKeyCheck
+**A family at a key, typed** (official checks every replaced nested
+application, `tc.check(nested, …)`): the levels its own count, the arguments
+against its telescope (`familyTelescope`).  `find?` is `fe`; `us` is the
+interned level list. -/
+def familyKeyCheck (mode : CheckMode) (fe : IFEnv) (d : Nat) (c : NIdx) (us : LsIdx)
+    (ds : List EIdx) : AM Unit := do
+  match fe.find? c with
+  | some (.indInfo cv caps) =>
+    match ← viewLsLen us with
+    | none => failDanglingLs
+    | some nl =>
+      if nl != cv.levelParams.length then
+        fail (.invalid "incorrect number of universe levels at a family's key")
+      else do
+        let ty ← familyTelescope mode fe cv caps
+        let t ← instLPFast coreWalkFuel cv.levelParams us ty
+        checkSpineAt mode fe d t ds
+  | _ => fail (.invalid "a family's key is no stored family")
+
 /-! ## `nestOcc`: official's `has_ind_occ`, with the holes -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:400-417 Expr.nestOcc
@@ -246,12 +328,13 @@ structure NestKey where
   deriving BEq, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:602-610 NestHole
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.NestHole_bridge, then delete this line
-A HOLE of the walk: the instantiation it stands for, and the first hole index
-of its frame. -/
+A HOLE of the walk: the instantiation it stands for, the first hole index of
+its frame, and the instantiated former's index count (the arguments the hole
+takes). -/
 structure NestHole where
   key : NestKey
   base : Nat
+  nIdx : Nat
   deriving BEq, Inhabited
 
 /-! ## The input-derived fuel -/
@@ -346,8 +429,8 @@ structure NestCtorNf where
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:717-728 NestCtx
 The block, as the function needs it.  `find?` is the `fe` every reader takes
-beside the record (the module note; the Rust's `vis` is `fe.visibleBelow`);
-`lvls` is `lps.map .param`, interned once. -/
+beside the record (the module note); `formers` are the members' type formers
+at their telescopes; `lvls` is `lps.map .param`, interned once. -/
 structure NestCtx where
   names : List NIdx
   lps : List NIdx
@@ -355,6 +438,7 @@ structure NestCtx where
   nIdxs : List Nat
   params : List EIdx
   sort : LIdx
+  formers : List IConstantVal
   lvls : LsIdx
   deriving Inhabited
 
@@ -417,11 +501,11 @@ def NestCtx.hiAt (ctx : NestCtx) (nf : Nat) : Nat :=
   ctx.nP + ctx.names.length + nf
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:799-803 NestCtx.rootHoles
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.NestCtx.rootHoles_bridge, then delete this line
 The ROOT frame's entries: each member at the block's own levels and canonical
-parameters, base `nP`. -/
+parameters, base `nP`, its index count the member's (`nIdxs.getD t 0`). -/
 def NestCtx.rootHoles (ctx : NestCtx) : List NestHole :=
-  ctx.names.map fun n => { key := ⟨n, ctx.lvls, ctx.params⟩, base := ctx.nP }
+  ctx.names.mapIdx fun t n =>
+    { key := ⟨n, ctx.lvls, ctx.params⟩, base := ctx.nP, nIdx := ctx.nIdxs.getD t 0 }
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:805-810 nestHoleAt
 The hole `i`'s entry under the frames `prog`: the stack read root first — the
@@ -712,17 +796,17 @@ def nestCrest (names : List NIdx) (us : LsIdx) (ds holes : List EIdx) (cty : EId
 /-! ## The container's former, and a frame's constructors -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1194-1236 nestInstType
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestInstType_bridge, then delete this line
 The instantiation's type former, checked as official checks the auxiliary
-type before the block exists: the level count, the parameters bound, (N2) the
-index telescope names no member and no hole below `hi`, (N3) the sort is
-`Level.isEquiv` the block's.  Returns the index count and the container's type
-at the key (the type of the frame's hole). -/
-def nestInstType (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (key : NestKey) :
+type before the block exists: the level count, the parameters bound (at the
+container's telescope, `familyTelescope`), (N2) the index telescope names no
+member and no hole below `hi`, (N3) the sort is `Level.isEquiv` the block's.
+Returns the index count and the container's type at the key (the type of the
+frame's hole). -/
+def nestInstType (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (key : NestKey) :
     AM (Nat × EIdx) := do
-  let cvC ← unwrapOr
+  let (cvC, capsC) ← unwrapOr
     (match fe.find? key.cname with
-     | some (.indInfo cv _) => some cv
+     | some (.indInfo cv caps) => some (cv, caps)
      | _ => none)
     (.internal "nested positivity: container vanished")
   match ← viewLsLen key.lvls with
@@ -730,11 +814,12 @@ def nestInstType (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (key : NestKey) :
   | some nl =>
     if nl != cvC.levelParams.length then
       fail (.invalid "nested positivity: incorrect number of universe levels for a nested inductive datatype (official: incorrect number of universe levels)")
-    else
-      match ← stripPis key.ds.length cvC.type with
+    else do
+      let tyC ← familyTelescope mode fe cvC capsC
+      match ← stripPis key.ds.length tyC with
       | none => fail (.invalid "nested positivity: invalid nested inductive datatype, its type does not bind its parameters (official: ill-formed inductive type)")
       | some _ => do
-        let tl ← instLPFast coreWalkFuel cvC.levelParams key.lvls cvC.type
+        let tl ← instLPFast coreWalkFuel cvC.levelParams key.lvls tyC
         match ← instPisWith key.ds tl with
         | none => fail (.invalid "nested positivity: invalid nested inductive datatype, its type does not bind its parameters (official: ill-formed inductive type)")
         | some ty => do
@@ -803,27 +888,15 @@ def nestFrameMates (fe : IFEnv) (C : NIdx) : List NIdx :=
       if n == C || out.contains n then go ns out else go ns (out ++ [n])
   go (nestBlockOf fe C) []
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1293-1307 nestArity
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestArity_bridge, then delete this line
-**A frame hole's full arity**: its container member's recorded type's binder
-count. -/
-def nestArity (fe : IFEnv) (C : NIdx) : AM Nat := do
-  match fe.find? C with
-  | some (.indInfo cv _) => do
-    let (bs, _) ← piBinders coreWalkFuel cv.type
-    pure bs.length
-  | _ => pure 0
-
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1371-1378 nestGrowGroup
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestGrowGroup_bridge, then delete this line
 A frame's group grown by the named containers, each at the frame's
 instantiation, its hole typed by its instantiated former. -/
-def nestGrowGroup (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (us : LsIdx) (ds : List EIdx) :
-    List NIdx → List (NIdx × EIdx) → AM (List (NIdx × EIdx))
+def nestGrowGroup (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (us : LsIdx)
+    (ds : List EIdx) : List NIdx → List (NIdx × EIdx) → AM (List (NIdx × EIdx))
   | [], grp => pure grp
   | c :: cs, grp => do
-    let (_, cty) ← nestInstType fe ctx hi ⟨c, us, ds⟩
-    nestGrowGroup fe ctx hi us ds cs (grp ++ [(c, cty)])
+    let (_, cty) ← nestInstType mode fe ctx hi ⟨c, us, ds⟩
+    nestGrowGroup mode fe ctx hi us ds cs (grp ++ [(c, cty)])
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1380-1387 nestAcceptGroup
 A frame's group accepted with its instantiation: every member at `(us, ds)`
@@ -937,9 +1010,8 @@ termination_by (if root then 1 else 0, fuel, 2, cs.length)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1389-1410 nestFrame
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestFrame_bridge, then delete this line
-**A container frame** at the instantiation `(us, ds)`: the instantiation
-`hn.{us} ds` TYPED at the frame's depth (K.52), its holes the container's
+**A container frame** at the instantiation `(us, ds)`: the family `hn` at the
+key `(us, ds)` TYPED at the frame's depth (K.52, `familyKeyCheck`), its holes the container's
 WHOLE recorded group `grp`, every one of their constructors walked with all
 of them abstracted, in one pass (N2-eager).  `grp` is never empty (it starts
 at the instantiation met); the cited `grp.headD default` falls back to the
@@ -951,10 +1023,11 @@ def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
   let hn ← match grp with
     | [] => internNNode .anonymous
     | (c, _) :: _ => pure c
-  let hc ← internConstE hn us
-  let app ← mkAppN hc ds
-  let _ ← inferTypeCore mode fe checkFuel hi app
-  let prog2 := prog ++ grp.map fun (c, _) => { key := ⟨c, us, ds⟩, base := hi }
+  familyKeyCheck mode fe hi hn us ds
+  let fr ← grp.mapM fun (c, ty) => do
+    let (bs, _) ← piBinders coreWalkFuel ty
+    pure ({ key := ⟨c, us, ds⟩, base := hi, nIdx := bs.length } : NestHole)
+  let prog2 := prog ++ fr
   let names := grp.map (·.1)
   let ctors ← nestGroupCtors fe nPc names []
   let holes ← grp.zipIdx.mapM fun ((_, ty), i) => internFVarE (hi + i) ty
@@ -965,7 +1038,6 @@ termination_by (0, fuel, 3, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1418-1441 nestContNew
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestContNew_bridge, then delete this line
 An instantiation's frame: the group-mates' former checks, the frame walked
 with the whole group in progress, and the whole group cached when its
 parameters mention no frame hole. -/
@@ -975,7 +1047,7 @@ def nestContNew (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
   let wp ← nestWalkStack ctx prog ds
   let mates := nestFrameMates fe n
   let hw := ctx.hiAt wp.length
-  let grp ← nestGrowGroup fe ctx hw us ds mates [(n, cty)]
+  let grp ← nestGrowGroup mode fe ctx hw us ds mates [(n, cty)]
   let act := ns.active
   let active := grp.map (fun (c, _) => (⟨c, us, ds⟩ : NestKey)) ++ ns.active
   let ns1 : NestState := { keys := ns.keys, active, ctorNfs := ns.ctorNfs }
@@ -1008,7 +1080,6 @@ termination_by (0, fuel, 5, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1465-1499 nestCont
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestCont_bridge, then delete this line
 **The container case** of `nestPos`: the reduct is the stored inductive
 `n.{us}` applied to `args`; its constructors looked up (`nestContainer`), its
 checks (enough arguments and hole-free indices, not `Quot`, parameters without
@@ -1040,7 +1111,7 @@ def nestCont (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
           if !pc then
             fail (.invalid "nested positivity: nested inductive datatypes parameters cannot contain local variables")
           else do
-            let (nI, cty) ← nestInstType fe ctx hp ⟨n, us, ds⟩
+            let (nI, cty) ← nestInstType mode fe ctx hp ⟨n, us, ds⟩
             if args.length != nPc + nI then
               fail (.invalid "nested positivity: type expected (a container instance that is not fully applied)")
             else nestContKey mode fe ctx fuel prog kb n us ds nPc cty ns
@@ -1048,13 +1119,12 @@ termination_by (0, fuel, 6, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1501-1554 nestPos
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestPos_bridge, then delete this line
 **The positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 into the field, `prog` the instantiations in progress.  The reduct (the
 kernel's own whnf) mentions no member and no hole — ordinary, its normal form
 the input unless the input mentions one — or it is a `Π` whose domain is
-hole-free (the codomain walked one binder in), a hole application at its full
-arity with hole-free indices (official `is_valid_ind_app`: a member hole is
+hole-free (the codomain walked one binder in), a hole application to exactly
+its entry's index count (`NestHole.nIdx`) of hole-free indices (official `is_valid_ind_app`: a member hole is
 recursive, or reflexive under `Π` binders; a frame hole an instantiation in
 progress), a stored inductive's application (`nestCont`), or official's "non
 valid occurrence".  Running out of fuel DECLINES. -/
@@ -1091,15 +1161,13 @@ def nestPos (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
         | none => fail nestNonValid
         | some h =>
           if ← args.anyM (fun x => nestOcc ctx.names ctx.nP hi x) then fail nestNonValid
-          else do
-            let ar ← nestArity fe h.key.cname
-            if args.length + h.key.ds.length == ar then
-              let k : NestFieldKind :=
-                if i < ctx.hiAt 0 then
-                  (if kb == 0 then .recursive (i - ctx.nP) else .reflexive (i - ctx.nP))
-                else .inProgress
-              pure (k, w, ns)
-            else fail nestNonValid
+          else if args.length == h.nIdx then
+            let k : NestFieldKind :=
+              if i < ctx.hiAt 0 then
+                (if kb == 0 then .recursive (i - ctx.nP) else .reflexive (i - ctx.nP))
+              else .inProgress
+            pure (k, w, ns)
+          else fail nestNonValid
       | .const n us =>
         if ctx.names.contains n then fail nestNonValid
         else do
@@ -1114,23 +1182,22 @@ end
 /-! ## The member holes and the root frame's crest -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1556-1565 nestHoles
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestHoles_bridge, then delete this line
 The member holes: member `m` is the free variable `nP + m`, typed by its
-former's type instantiated at the canonical parameters; `none` when a member
-is not a stored former or its type does not bind the parameters (the cited
-`mapM`, as an accumulator recursion). -/
-def nestHoles (fe : IFEnv) (ctx : NestCtx) : AM (Option (List EIdx)) :=
+former (`ctx.formers`, at its telescope) instantiated at the canonical
+parameters; `none` when a member has no former or its type does not bind the
+parameters (the cited `mapM`, as an accumulator recursion). -/
+def nestHoles (ctx : NestCtx) : AM (Option (List EIdx)) :=
   let rec go : Nat → List NIdx → List EIdx → AM (Option (List EIdx))
     | _, [], out => pure (some out)
-    | mm, n :: ns, out =>
-      match fe.find? n with
-      | some (.indInfo cv _) => do
+    | mm, _ :: ns, out =>
+      match ctx.formers[mm]? with
+      | some cv => do
         match ← instPisWith ctx.params cv.type with
         | none => pure none
         | some t => do
           let v ← internFVarE (ctx.nP + mm) t
           go (mm + 1) ns (out ++ [v])
-      | _ => pure none
+      | none => pure none
   go 0 ctx.names []
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1567-1573 nestRootCanon
@@ -1208,7 +1275,6 @@ def nestSeedOf (ctx : NestCtx) (holes : List EIdx) (I : NIdx) (us : LsIdx)
   pure (⟨I, us, ds2⟩, nPc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1697-1711 nestSeeds
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Positivity.nestSeeds_bridge, then delete this line
 **The seeds walked**, in order, at the root: each class a container instance
 met at the empty frame stack (`nestContKey`), at the fuel its parameters'
 depths give (`key.ds.foldl (fun a d => max a (whnfWalkFuel d)) fuelSlack`,
@@ -1220,7 +1286,7 @@ def nestSeeds (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) :
     let f ← key.ds.foldlM (fun a d => do
       let w ← whnfWalkFuel d
       pure (max a w)) fuelSlack
-    let (_, cty) ← nestInstType fe ctx (ctx.hiAt 0) key
+    let (_, cty) ← nestInstType mode fe ctx (ctx.hiAt 0) key
     let (_, ns2) ← nestContKey mode fe ctx f [] 0 key.cname key.lvls key.ds nPc cty ns
     nestSeeds mode fe ctx seeds ns2
 

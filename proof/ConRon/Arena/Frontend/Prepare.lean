@@ -127,11 +127,13 @@ structure Prepared where
   hoisted : Array NIdx := #[]
 
 /-- con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD —
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Prepare.prepareD_bridge, then delete this line
-`preparePrelude`, with its receipts. -/
-def prepareD (pre : PreludeIx) (ds : Array IDeclaration) : AM Prepared := do
+`preparePrelude`, with its receipts.  `used` says what a record mentions, where
+the record itself does not say: a theorem's record read from an `.olean` holds a
+reference to its value (`Arena/Frontend/Olean/Lazy.lean`). -/
+def prepareD (pre : PreludeIx) (ds : Array IDeclaration)
+    (used : IDeclaration → AM (Array NIdx) := IDeclaration.usedConsts) : AM Prepared := do
   let (front, rest) ← frontOf #[] pre.decls.toList ds
-  let (decls, hoisted) ← hoistNatOpGround (front ++ rest)
+  let (decls, hoisted) ← hoistNatOpGround used (front ++ rest)
   pure ⟨decls, decls.size - ds.size, hoisted⟩
 
 /-- con-leche: ConLeche/Frontend/Prepare.lean:168-175 preparePrelude — the

@@ -1,5 +1,5 @@
 /-
-# `ConRon.Arena.Inductives.BlockInstall` — the uniform inductive install, at k members
+# `ConRon.Arena.Inductives.BlockInstall` — the uniform inductive check, at k members
 (DESIGN.md §8, task #105)
 
 `ConLeche/Kernel/Inductives/BlockInstall.lean` over handles, with its index
@@ -7,38 +7,33 @@ twins `ConLeche/Kernel/Inductives/BlockInstallF.lean` collapsed into it: the
 capability record per member, official's `is_rec`, the formers' stage
 (telescopes, the two agreements, the cons), the constructors' stage, the
 positivity check on the stored constructors, the index sorts and the
-constructors' cons.  The Rust twin is `arena::inductives::block_install`.
+constructors' cons.  Every stage is a check: what the block installs is read
+off it (`Arena/Install.lean`).  The Rust twin is
+`arena::inductives::block_install`.
 
 **The deviations** (the Rust's, item for item):
 
 * **The `…F` twins collapse into these** (task #97c's deviation 1): the arena
   has one environment representation, `IFEnv`, so `checkBlockTeleF`,
   `checkBlockIndsF`, … ARE these functions, cited beside their pure twins.
-  `consBlockRecs` and the member-major recursor cons (con-leche deleted the
-  latter at its task #332) are not ported: the executed stage conses the
-  records of `blockRecInfosTF` (`Arena/Inductives/RecCheck.lean`'s
-  `consBlockRecsTF`); `consBlockRecsBare` is read by nothing executed.
+  The executed recursor stage conses the records of `blockRecInfosTF`
+  (`Arena/Inductives/RecCheck.lean`), so `consBlockRecs` and
+  `consBlockRecsBare` are not ported.
 * **`blockCapsAt`'s record is built by branches**, not `&&`/`!` (AENEAS_FINDINGS
-  F18), and it is an `AM` function: the result sort is a handle, read
-  (`readLevelM`) for its zero-ness.
-* **`checkBlockPositivity`'s `find?` is the environment** (the positivity
-  module's note), and so is `blockNestCtx`'s; the Rust's `NestCtx.vis` (and
-  `BlockShape.nestCtx`'s `vis` argument) is the `fe` the readers take, and
-  `BlockShape.nestCtx` interns the block's levels once.
+  F18).
+* **`blockNestCtx` takes no `find?`**: the port's `NestCtx` carries no lookup
+  (each walk is handed the environment); `BlockShape.nestCtx` interns the
+  block's levels once.
 * **A list reversal is not needed**: the formers are consed in block order
   with member 0 deepest, which over the oldest-first `IFEnv` is pushing in
   block order.
-* **A zipped list is two lists**: `checkBlockCtors` and `checkBlockIdxSorts`
-  walk the members and the checked formers side by side, stopping at the
-  shorter, as the Rust's index recursion does, instead of con-leche's
-  `List (MemberShape × ConstantVal)`.
 * **`piDomsMentionAny` recurses on a handle, so it carries a fuel**
   (`coreWalkFuel`): con-leche's is structural on the term.
 -/
 module
 
 public import ConRon.Arena.Inductives.SumInstall
-public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Inductives.BlockShape
 
 @[expose] public section
 
@@ -49,23 +44,21 @@ open ConLeche
 /-! ## The capability record, per member -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-81 blockCapsAt
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
-(index-free, not `Prop`, the block not recursive), unit-likeness (and no
-field) and rule K (one member, no field, `Prop`); at every member the result
-sort's zero-ness, the block's members, its parameter count and the member's
-constructors.  (`p.members.getD mi default`: the default member has no
-constructor.) -/
-def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
+(index-free, the block not recursive: official's `is_non_rec_structure`) and
+unit-likeness (and no field); at every member the block's members, its
+parameter count, the member's index count and its constructors.
+(`p.members.getD mi default`: the default member has no constructor and no
+index.) -/
+def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : IIndCaps :=
   let names := p.memberNames
   match p.members[mi]? with
   | some ms =>
     match ms.ctors with
-    | [c] => do
+    | [c] =>
       let nIdx := ms.nIdx
       let eta : Bool :=
         if nIdx != 0 then false
-        else if p.isProp then false
         else if isRec then false
         else true
       let unitlike : Bool :=
@@ -73,28 +66,18 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
         else if c.2 != 0 then false
         else if isRec then false
         else true
-      let ruleK : Bool := p.k == 1 && c.2 == 0 && p.isProp
-      let l ← readLevelM p.resSort
-      pure { eta := eta
-             etaCtor := c.1.name
-             etaParams := p.nP
-             etaFields := c.2
-             unitlike := unitlike
-             unitParams := p.nP
-             ruleK := ruleK
-             sortZ := Level.zeronessOf l
-             all := names
-             nparams := p.nP
-             ctors := [c.1.name] }
-    | cs => do
-      -- con-leche's task #349: the result sort's zero-ness is recorded for
-      -- EVERY member (the ι case split reads it)
-      let l ← readLevelM p.resSort
-      pure { sortZ := Level.zeronessOf l, all := names, nparams := p.nP,
-             ctors := cs.map (·.1.name) }
-  | none => do
-    let l ← readLevelM p.resSort
-    pure { sortZ := Level.zeronessOf l, all := names, nparams := p.nP, ctors := [] }
+      { eta := eta
+        etaCtor := c.1.name
+        etaParams := p.nP
+        etaFields := c.2
+        unitlike := unitlike
+        unitParams := p.nP
+        all := names
+        nparams := p.nP
+        nIdx := nIdx
+        ctors := [c.1.name] }
+    | cs => { all := names, nparams := p.nP, nIdx := ms.nIdx, ctors := cs.map (·.1.name) }
+  | none => { all := names, nparams := p.nP, nIdx := 0, ctors := [] }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:83-88 Expr.piDomsMentionAny
 Does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one of
@@ -110,27 +93,24 @@ def piDomsMentionAny (names : List NIdx) : Nat → EIdx → AM Bool
         else piDomsMentionAny names fuel b
     else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:95-107 blockRawRec
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.blockRawRec_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:90-102 blockIsRec
 **Official's `is_rec`**: does SOME member of the block occur in SOME binder
 domain of the syntactic telescope of SOME DECLARED constructor type? -/
-def blockRawRec (p : BlockParts) : AM Bool := do
-  let names := p.shape.memberNames
-  p.shape.members.anyM fun ms =>
+def blockIsRec (p : BlockShape) : AM Bool := do
+  let names := p.memberNames
+  p.members.anyM fun ms =>
     ms.ctors.anyM fun c => piDomsMentionAny names coreWalkFuel c.1.type
 
 /-! ## Stage 1: the formers -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:106-117 checkBlockTele
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 One member's type former: the constant check, official's telescope loop and
 the result sort, without the environment cons. -/
 def checkBlockTele (mode : CheckMode) (fe : IFEnv) (nP : Nat) (ms : MemberShape) :
     AM (IConstantVal × LIdx) := do
-  checkConstantVal mode fe ms.cvT
-  let (cvTa, s) ← checkSumTele mode fe ms.cvT (nP + ms.nIdx) ms.cvT
+  checkConstantVal mode fe ms.cvT false
+  let (cvTa, s) ← checkSumTele (nP + ms.nIdx) ms.cvT
   match ← stripPis (nP + ms.nIdx) cvTa.type with
   | none => fail (.internal "direct sum: type former telescope")
   | some q => do
@@ -191,66 +171,54 @@ con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
 The members' formers consed, in block order (member 0 deepest), each with ITS
 capability record at the block's `is_rec` verdict. -/
 def consBlockInds (p₁ : BlockShape) (isRec : Bool) :
-    List IConstantVal → Nat → IFEnv → AM IFEnv
-  | [], _, fe => pure fe
-  | cvTa :: rest, i, fe => do
-    let caps ← blockCapsAt p₁ i isRec
-    consBlockInds p₁ isRec rest (i + 1) (fe.push (.indInfo cvTa caps))
+    List IConstantVal → Nat → IFEnv → IFEnv
+  | [], _, fe => fe
+  | cvTa :: rest, i, fe =>
+    consBlockInds p₁ isRec rest (i + 1) (fe.push (.indInfo cvTa (blockCapsAt p₁ i isRec)))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:174-186 checkBlockInds
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockInds_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-92 checkBlockIndsF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockInds_bridge, then delete this line
 **Stage 1**: the k type formers, checked, agreed and consed — official's
 `declare_inductive_types`, which puts every former in the environment before
-any constructor is looked at. -/
-def checkBlockInds (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (isRec : Bool) :
-    AM (IFEnv × List IConstantVal × BlockShape) :=
-  match p.shape.members with
+any constructor is looked at; the formers are consed as declared. -/
+def checkBlockInds (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (isRec : Bool) :
+    AM (IFEnv × BlockShape) :=
+  match p.members with
   | [] => fail (.internal "block: no type former")
   | ms₀ :: rest => do
-    let nP := p.shape.nP
+    let nP := p.nP
     let (cvTa₀, s₀) ← checkBlockTele mode fe nP ms₀
     let cvs ← checkBlockTeles mode fe nP rest
     checkBlockAgree mode fe nP cvTa₀ s₀ cvs
-    let p₁ ← p.shape.withSort s₀
-    let cvTas := cvTa₀ :: cvs.map (·.1)
-    let fe₁ ← consBlockInds p₁ isRec cvTas 0 fe
-    pure (fe₁, cvTas, p₁)
+    let p₁ ← p.withSort s₀
+    pure (consBlockInds p₁ isRec (p.members.map (·.declared)) 0 fe, p₁)
 
 /-! ## Stage 1b: the constructors, and the positivity check -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:190-196 BlockShape.nestCtx
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.BlockShape.nestCtx_bridge, then delete this line
 **The block's positivity context** at the canonical parameter variables
-`fvsP`; its lookup is the environment every reader takes beside it (the
-positivity module's note: the Rust's `vis` field is `fe.visibleBelow`);
+`fvsP`, with the members' formers at their telescopes; its lookup is the
+environment every reader takes beside it (the positivity module's note);
 `lvls` the block's own levels, interned. -/
 def BlockShape.nestCtx (p : BlockShape) (fvsP : List EIdx) : AM NestCtx := do
   let lps := p.lps
   let lvls ← paramLevels lps
   pure { names := p.memberNames, lps := lps, nP := p.nP, nIdxs := p.nIdxs,
-         params := fvsP, sort := p.resSort, lvls := lvls }
+         params := fvsP, sort := p.resSort, formers := p.formers, lvls := lvls }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:198-207 checkBlockCtors
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockCtors_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:96-103 checkBlockCtorsF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockCtors_bridge, then delete this line
-The constructors of every member (beside its checked former), at the
-environment holding ALL the formers, each stored as declared; the constructors
-and their fields' sorts, per member. -/
+The constructors of every member (against the member's former at its
+telescope), at the environment holding ALL the formers. -/
 def checkBlockCtors (mode : CheckMode) (fe₀ fe : IFEnv) (p : BlockShape) :
-    List MemberShape → List IConstantVal →
-      AM (List (List (IConstantVal × Nat)) × List (List (List LIdx)))
-  | ms :: rest, cvTa :: cvTas => do
-    let (cs, ss) ← checkSumCtors mode fe₀ fe ms.cvT.name p.lps p.nP ms.nIdx p.resSort
-      p.isProp p.large cvTa ms.ctors
-    let (restC, restS) ← checkBlockCtors mode fe₀ fe p rest cvTas
-    pure (cs :: restC, ss :: restS)
-  | _, _ => pure ([], [])
+    List MemberShape → AM Unit
+  | [] => pure ()
+  | ms :: rest => do
+    checkSumCtors mode fe₀ fe ms.cvT.name p.lps p.nP ms.nIdx p.resSort
+      p.isProp p.large ms.cvT ms.ctors
+    checkBlockCtors mode fe₀ fe p rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:225-247 checkAbsCtorSorts
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkAbsCtorSorts_bridge, then delete this line
 **The fields' universes at the holes**: each constructor's positivity normal
 form within the block's level parameters (internal), its fields opened above
 the holes and their sorts bounded by the block's (the root's line of
@@ -267,7 +235,7 @@ def checkAbsCtorSorts (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (isProp : 
     let hi := ctx.hiAt 0
     let xq ← unwrapOr (← openPisAtFvarsF nF tyN hi)
       (.internal "direct rec: abstracted constructor fields")
-    let _ ← checkStructFieldSortsI mode fe isProp false ctx.sort hi xq.1 [] nF
+    checkStructFieldSortsI mode fe isProp false ctx.sort hi xq.1 [] nF
     checkAbsCtorSorts mode fe ctx isProp cs os
   | _, _ => pure ()
 
@@ -282,69 +250,63 @@ def checkAbsCtorSortsAll (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (isProp
   | _, _ => pure ()
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:257-270 blockNestCtx
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.blockNestCtx_bridge, then delete this line
 **The walk's context** of a block: the canonical parameter variables are the
-first former's opened telescope, the lookup the environment `fe`, with the
-members' holes. -/
-def blockNestCtx (fe : IFEnv) (p : BlockShape) (cvTas : List IConstantVal) :
-    AM (NestCtx × List EIdx) := do
-  match cvTas with
+first former's opened telescope, with the members' holes. -/
+def blockNestCtx (p : BlockShape) : AM (NestCtx × List EIdx) := do
+  match p.formers with
   | [] => fail (.internal "direct rec: no type former")
   | cvTa₀ :: _ => do
     let pq ← unwrapOr (← openPisAtFvarsF p.nP cvTa₀.type 0)
       (.internal "direct rec: type former telescope")
     let ctx ← p.nestCtx pq.1
-    let holes ← unwrapOr (← nestHoles fe ctx)
+    let holes ← unwrapOr (← nestHoles ctx)
       (.internal "direct rec: a member is not a stored former")
     pure (ctx, holes)
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:272-274 nestOutKinds
+The field kinds of the root frame's outputs. -/
+def nestOutKinds (outs : List (List (List NestFieldKind × EIdx))) :
+    List (List (List NestFieldKind)) :=
+  outs.map (·.map (·.1))
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:276-291 checkBlockPositivity
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockPositivity_bridge, then delete this line
 **The block's positivity, on its stored constructors**, at the walk's context:
 official's uniform-occurrence check, the root frame from the empty state, the
-fields' universes at the holes.  Returns the walk's kinds, its normal forms and
-its state. -/
-def checkBlockPositivity (mode : CheckMode) (fe : IFEnv) (p : BlockParts)
-    (cvTas : List IConstantVal) (ctorsAs : List (List (IConstantVal × Nat))) :
-    AM (List (List (List NestFieldKind)) × List (List EIdx) × NestState) := do
-  let (ctx, holes) ← blockNestCtx fe p.shape cvTas
+fields' universes at the holes.  Returns the root frame's outputs (each
+constructor's field kinds and normal form) and the walk's state. -/
+def checkBlockPositivity (mode : CheckMode) (fe : IFEnv) (p : BlockShape) :
+    AM (List (List (List NestFieldKind × EIdx)) × NestState) := do
+  let (ctx, holes) ← blockNestCtx p
   -- official's `check_uniform_ind_occs`, before the walk
-  nestUniform ctx ctorsAs
+  nestUniform ctx p.memberCtors
   -- the root frame on the STORED (declared) constructors
-  let (outs, ns) ← nestRoot mode fe ctx holes ctorsAs {} []
+  let (outs, ns) ← nestRoot mode fe ctx holes p.memberCtors {} []
   let z ← zeroLevel
   let isProp := (← lvlEq? ctx.sort z) == some true
-  checkAbsCtorSortsAll mode fe ctx isProp ctorsAs outs
-  pure (outs.map (·.map (·.1)), outs.map (·.map (·.2)), ns)
+  checkAbsCtorSortsAll mode fe ctx isProp p.memberCtors outs
+  pure (outs, ns)
 
 /-! ## Stage 2: the tail -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:295-305 checkBlockIdxSorts
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockIdxSorts_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:107-115 checkBlockIdxSortsF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.checkBlockIdxSorts_bridge, then delete this line
-Every member's INDEX binders' universes (beside its checked former), read (no
-bound is checked): the member's telescope opened, each index domain's sort
-inferred. -/
+Every member's INDEX binders have sorts: the member's telescope opened at
+variables, each index domain's sort inferred (no bound is checked). -/
 def checkBlockIdxSorts (mode : CheckMode) (fe : IFEnv) (p : BlockShape) :
-    List MemberShape → List IConstantVal → AM (List (List LIdx))
-  | ms :: rest, cvTa :: cvTas => do
-    let tq ← unwrapOr (← openPisAtFvarsF (p.nP + ms.nIdx) cvTa.type 0)
+    List MemberShape → AM Unit
+  | [] => pure ()
+  | ms :: rest => do
+    let tq ← unwrapOr (← openPisAtFvarsF (p.nP + ms.nIdx) ms.cvT.type 0)
       (.internal "direct rec: type former telescope")
-    let isorts ← checkStructFieldSortsI mode fe true false p.resSort p.nP (tq.1.drop p.nP) []
-      ms.nIdx
-    let rs ← checkBlockIdxSorts mode fe p rest cvTas
-    pure (isorts :: rs)
-  | _, _ => pure []
+    checkStructFieldSortsI mode fe true false p.resSort p.nP (tq.1.drop p.nP) [] ms.nIdx
+    checkBlockIdxSorts mode fe p rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:307-311 consBlockCtors
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:117-120 consBlockCtorsF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
 The members' constructors consed, member by member, in block order.  Pure: the
 index push touches no term. -/
 def consBlockCtors (nP : Nat) : List (List (IConstantVal × Nat)) → IFEnv → IFEnv
   | [], fe => fe
-  | ctorsA :: rest, fe => consBlockCtors nP rest (consSumCtors nP ctorsA fe)
+  | ctorList :: rest, fe => consBlockCtors nP rest (consSumCtors nP ctorList fe)
 
 end ConRon.Arena

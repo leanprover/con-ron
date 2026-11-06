@@ -7,7 +7,7 @@ tiers down (DESIGN §8.4, "correctness before proofs"):
 
 > write a declaration list ONCE, as con-leche `Declaration` values; intern it
 > into the arena; run the arena's `checkDecl` / `checkDeclsPure` /
-> `installThenCheck` on handles; read the resulting environment back with
+> `checkStream` on handles; read the resulting environment back with
 > `denoteCIList`, and compare with con-leche's own `checkDecl` /
 > `checkDeclsPure` applied to the SAME values.
 
@@ -21,9 +21,10 @@ the declines below are real tests, not "both sides threw".
 
 **What this file covers.**  The declaration kinds other than inductive
 blocks — a definition checked and installed, a theorem checked against its
-statement, an axiom pinned, a basis block installed, the two folds agreeing —
-on declaration lists that use `basisDecl` for their `Nat` and so need no
-inductive install at all.  The inductive route has its own differential,
+statement, an axiom pinned, a pinned basis block compared with its pin and
+installed at its own level-parameter names, the quotient records, the fold and
+the driver's jobs agreeing — on declaration lists whose `Eq` and `Nat` are the
+pinned blocks and so need no uniform inductive install at all.  The inductive route has its own differential,
 `InductivesTest.lean`, and `scripts/diff-e2e.sh --bin` runs the whole twin on
 the e2e corpus.
 
@@ -34,13 +35,11 @@ module -- shake: keep-all (a `#guard` stores no constant shake can see)
 
 public import ConRon.Arena.Checker
 public import ConLeche.Kernel.CheckDecl
-public import ConLeche.Kernel.CheckerSplit
 /- The `#guard`s below are EVALUATED, so the constants they name have to be
 reachable from meta code too; a module needed at both levels is imported
 twice. -/
 meta import ConRon.Arena.Checker
 meta import ConLeche.Kernel.CheckDecl
-meta import ConLeche.Kernel.CheckerSplit
 
 @[expose] public section
 
@@ -74,12 +73,8 @@ private def errEq : CheckError → ConLeche.CheckError → Bool
   | _, _ => false
 
 /-- con-leche: none — the arena's error against con-leche's: same
-constructor, message NOT compared (DESIGN §3.1).  The two-phase fold's check
-half (`checkValueGroup`) declines with the Rust port's constant messages,
-which carry no declaration name (task #97-T2-LOCKSTEP step 1: the twin reads
-no name on those paths, as `check_value_group_{value,tail}` do not), so
-`chkInstall` compares the kind — and since task #97-T2-LOCKSTEP lane Checker
-so does `errEq`, the one-phase `chkDecl`/`chkDecls`' comparison. -/
+constructor, message NOT compared (DESIGN §3.1), for `chkJobs`, whose failure
+also carries a position. -/
 private def errKindEq : CheckError → ConLeche.CheckError → Bool
   | .notImplemented _, .notImplemented _ => true
   | .invalid _, .invalid _ => true
@@ -120,23 +115,24 @@ private def chkDecls (dsCL : List Declaration) : Bool :=
   | .error a, .error b => errEq a b
   | _, _ => false
 
-/-- con-leche: none — intern a declaration list and run the arena's
-TWO-PHASE fold on it (the one the binary runs), with the startup pin walk in
-front, as `runPipeline` does. -/
-private def runInstall (dsCL : List Declaration) :
-    AM (Except (CheckError × Nat) IFEnv) := do
+/-- con-leche: none — intern a declaration list and run the arena's check of
+a stream as the driver runs it (`checkStream`: the index of the records, then
+every record's job at its view), with the startup pin walk in front. -/
+private def runJobs (dsCL : List Declaration) :
+    AM (Except (CheckError × Nat) Unit) := do
   let (_, ds) ← Frontend.internDecls ∅ dsCL
   let pins ← internAllPins []
-  installThenCheck MU pins ds.toArray
+  checkStream MU pins ds.toArray
 
-/-- con-leche: none — the TWO-PHASE fold against con-leche's ONE-PHASE
-`checkDeclsPure`, over the whole outcome.  con-leche proves the two are the
-same accept (`fullyChecked_checkDecls`); this is that agreement, measured. -/
-private def chkInstall (dsCL : List Declaration) : Bool :=
-  match (do internReservedPins; runInstall dsCL).run (AState.init EStore.empty),
+/-- con-leche: none — the driver's jobs against con-leche's fold
+`checkDeclsPure`: the same accept, or a failure of the same kind.  A job's
+environment is not read back (`checkStream` returns none); its accept is the
+fold's by con-leche's `checkDecls_of_jobs`, and this is that agreement,
+measured. -/
+private def chkJobs (dsCL : List Declaration) : Bool :=
+  match (do internReservedPins; runJobs dsCL).run (AState.init EStore.empty),
       ConLeche.checkDeclsPure MU OPS [] dsCL with
-  | .ok (.ok fe, s'), .ok env =>
-    Frontend.denoteCIList s'.store fe.env.consts == some env.consts
+  | .ok (.ok (), _), .ok _ => true
   | .ok (.error (a, _), _), .error b => errKindEq a b
   | _, _ => false
 
@@ -154,8 +150,9 @@ private def failsWith : ConLeche.CheckM ConLeche.Env → ConLeche.CheckError →
 
 /-! ## The subjects, written once as con-leche values
 
-`Nat` arrives as `.basisDecl .natK` — the fold's own record for "install the
-pinned block" — so none of these lists needs an inductive install. -/
+`Eq` and `Nat` arrive as their pinned blocks (`.indDecl eqBasis 2`, the
+record an export writes), which the names route to the block's comparison with
+its pin, so none of these lists needs the uniform inductive install. -/
 
 /-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def anon : ConLeche.Name := .anonymous
@@ -246,22 +243,49 @@ private def dNatDiv : Declaration :=
 
 /-! ## The lists -/
 
+/-- con-leche: none — the pinned `Eq` block as an export writes it. -/
+private def dEq : Declaration := .indDecl ConLeche.eqBasis 2
+/-- con-leche: none — the pinned `Nat` block as an export writes it. -/
+private def dNat : Declaration := .indDecl ConLeche.natBasis 0
+
 /-- con-leche: none — The basis prefix every accepting list starts with: the pinned `Eq` block,
 then the pinned `Nat` block (which `Eq` does not need, and which the value
 declarations below do). -/
-private def basisPrefix : List Declaration := [.basisDecl .eqK, .basisDecl .natK]
+private def basisPrefix : List Declaration := [dEq, dNat]
+
+/-- con-leche: none — the pinned `Eq` block at other level-parameter names:
+accepted, and stored at the stream's names. -/
+private def dEqOther : Declaration :=
+  let w : ConLeche.Name := anon.str "w"
+  let z : ConLeche.Name := anon.str "z"
+  .indDecl [ConLeche.eqA.atLps [w], ConLeche.eqReflA.atLps [w], ConLeche.eqRecA.atLps [z, w]] 2
+
+/-- con-leche: none — the `Eq` block with the recursor's names swapped, so its rule
+no longer reads the constructor's parameters as the pin's does: invalid. -/
+private def dEqSwapped : Declaration :=
+  let w : ConLeche.Name := anon.str "w"
+  let z : ConLeche.Name := anon.str "z"
+  .indDecl [ConLeche.eqA.atLps [w], ConLeche.eqReflA.atLps [w], ConLeche.eqRecA.atLps [w, z]] 2
+
+/-- con-leche: none — the five quotient records, each at its pin. -/
+private def quotRecords : List Declaration :=
+  [.quotDecl .type ConLeche.quotA.toConstantVal,
+   .quotDecl .ctor ConLeche.quotMkA.toConstantVal,
+   .quotDecl .lift ConLeche.quotLiftA.toConstantVal,
+   .quotDecl .ind ConLeche.quotIndA.toConstantVal,
+   .axiomDecl ConLeche.quotSoundA.toConstantVal]
 
 /-- con-leche: none — The accepting list: the two basis blocks, a definition, a proposition and
 its proof, a theorem, an opaque, and a tolerated `sorryAx`. -/
 private def dsGood : List Declaration :=
   basisPrefix ++ [dTwo, dThm, dOpaque, dSorry]
 
-/-- con-leche: none — The quotient block, which requires the pinned `Eq` basis first. -/
-private def dsQuot : List Declaration := [.basisDecl .eqK, .basisDecl .quotK]
+/-- con-leche: none — The quotient package, whose `Quot` record requires `Eq` stored first. -/
+private def dsQuot : List Declaration := dEq :: quotRecords
 
-/-- con-leche: none — The quotient block WITHOUT the `Eq` basis: a decline, at con-leche's own
+/-- con-leche: none — The quotient package WITHOUT `Eq`: a decline, at con-leche's own
 message. -/
-private def dsQuotBad : List Declaration := [.basisDecl .quotK]
+private def dsQuotBad : List Declaration := quotRecords
 
 /-- con-leche: none — A duplicate declaration: the second `two` is invalid input. -/
 private def dsDup : List Declaration := basisPrefix ++ [dTwo, dTwo]
@@ -276,7 +300,10 @@ differential below is evidence of something. -/
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsGood) 10
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuot) 8
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotBad)
-  (.notImplemented "quotient basis requires the pinned Eq basis")
+  (.notImplemented "quotient declaration before what it needs")
+#guard okSize (ConLeche.checkDeclsPure MU OPS [] [dEqOther]) 3
+#guard failsWith (ConLeche.checkDeclsPure MU OPS [] [dEqSwapped])
+  (.invalid "reserved basis name: the block is not the pinned one")
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsDup)
   (.invalid "duplicate declaration two")
 
@@ -287,8 +314,10 @@ differential below is evidence of something. -/
 #guard chkDecls dsQuot
 #guard chkDecls dsQuotBad
 #guard chkDecls dsDup
-#guard chkDecls [.basisDecl .emptyK]
-#guard chkDecls [.basisDecl .falseK]
+#guard chkDecls [.indDecl ConLeche.emptyBasis 0]
+#guard chkDecls [.indDecl ConLeche.falseBasis 0]
+#guard chkDecls [dEqOther]
+#guard chkDecls [dEqSwapped]
 #guard chkDecls (basisPrefix ++ [dTwoBad])
 #guard chkDecls (basisPrefix ++ [dUnknown])
 #guard chkDecls (basisPrefix ++ [dReserved])
@@ -329,32 +358,30 @@ private def envBasis : ConLeche.Env :=
 #guard chkDecl envBasis dOtherAx
 #guard chkDecl envBasis dNatAdd
 #guard chkDecl envBasis dNatDiv
-#guard chkDecl envBasis (.basisDecl .emptyK)
-#guard chkDecl envBasis (.basisDecl .quotK)
+#guard chkDecl envBasis (.indDecl ConLeche.emptyBasis 0)
+#guard chkDecl envBasis (.quotDecl .type ConLeche.quotA.toConstantVal)
+#guard chkDecl envBasis (.quotDecl .lift ConLeche.quotLiftA.toConstantVal)
 #guard chkDecl envBasis (.quotDecl .type ⟨ConLeche.quotName, [], natTy⟩)
 
-/-! ## The differential: the TWO-PHASE fold
+/-! ## The differential: the driver's jobs
 
-`installThenCheck` is what `runPipeline` runs, and con-leche's own theorem
-(`fullyChecked_checkDecls`) is that its accept is `checkDeclsPure`'s.  Each
-line below is that agreement on one list — and it is also the test of the
-per-declaration BRACKET, since `checkPending` is the only caller of
-`enterScratch`/`dropScratch`: a handle that leaked out of the scratch tier
-would make the readback of the installed environment `none` and the check
-fail. -/
+`checkStream` is what `runPipeline` runs: the stream's index, then every
+record's job at its view, each in its scratch bracket.  con-leche's own theorem
+(`checkDecls_of_jobs`) is that every job passing is the fold's accept; each line
+below is that agreement on one list. -/
 
-#guard chkInstall basisPrefix
-#guard chkInstall dsGood
-#guard chkInstall dsQuot
-#guard chkInstall dsQuotBad
-#guard chkInstall dsDup
-#guard chkInstall (basisPrefix ++ [dTwoBad])
-#guard chkInstall (basisPrefix ++ [dUnknown])
-#guard chkInstall (basisPrefix ++ [dThmBad])
-#guard chkInstall (basisPrefix ++ [dThmNotProp])
-#guard chkInstall (basisPrefix ++ [dOpaque])
-#guard chkInstall (basisPrefix ++ [dNatAdd])
-#guard chkInstall (basisPrefix ++ [dNatDiv])
+#guard chkJobs basisPrefix
+#guard chkJobs dsGood
+#guard chkJobs dsQuot
+#guard chkJobs dsQuotBad
+#guard chkJobs dsDup
+#guard chkJobs (basisPrefix ++ [dTwoBad])
+#guard chkJobs (basisPrefix ++ [dUnknown])
+#guard chkJobs (basisPrefix ++ [dThmBad])
+#guard chkJobs (basisPrefix ++ [dThmNotProp])
+#guard chkJobs (basisPrefix ++ [dOpaque])
+#guard chkJobs (basisPrefix ++ [dNatAdd])
+#guard chkJobs (basisPrefix ++ [dNatDiv])
 
 /-! ## The pieces below `checkDecl`
 
@@ -407,20 +434,48 @@ private def chkCanonList (xs ys : List ConstantInfo) : Bool :=
 #guard chkCanonList (ConLeche.BasisKind.natK.decls) (ConLeche.BasisKind.natK.decls)
 #guard chkCanonList (ConLeche.BasisKind.eqK.decls) (ConLeche.BasisKind.eqK.decls)
 #guard chkCanonList (ConLeche.BasisKind.eqK.decls) (ConLeche.BasisKind.natK.decls)
-#guard chkCanonList (ConLeche.BasisKind.eqK.declsA) (ConLeche.BasisKind.eqK.decls)
 
-/-- con-leche: none — the arena's `basisPinHit` against con-leche's. -/
-private def chkBasisPinHit (block : List ConstantInfo) : Bool :=
+/-- con-leche: none — the arena's `basisNameHit` against con-leche's. -/
+private def chkBasisNameHit (block : List ConstantInfo) : Bool :=
   let prog : AM (Option BasisKind) := do
     let (_, b) ← Frontend.internCIList ∅ block
-    basisPinHit b
+    basisNameHit b
   match (do internReservedPins; prog).run (AState.init EStore.empty) with
-  | .ok (r, _) => r == ConLeche.basisPinHit block
+  | .ok (r, _) => r == ConLeche.basisNameHit block
   | .error _ => false
 
-#guard chkBasisPinHit (ConLeche.BasisKind.natK.decls)
-#guard chkBasisPinHit (ConLeche.BasisKind.eqK.decls)
-#guard chkBasisPinHit (ConLeche.BasisKind.quotK.decls)
-#guard chkBasisPinHit []
+#guard chkBasisNameHit (ConLeche.BasisKind.natK.decls)
+#guard chkBasisNameHit (ConLeche.BasisKind.eqK.decls)
+#guard chkBasisNameHit (ConLeche.BasisKind.quotK.decls)
+#guard chkBasisNameHit []
+
+/-- con-leche: none — the arena's `pinListOk` against con-leche's. -/
+private def chkPinListOk (block pins : List ConstantInfo) : Bool :=
+  let prog : AM Bool := do
+    let (m, b) ← Frontend.internCIList ∅ block
+    let (_, p) ← Frontend.internCIList m pins
+    pinListOk b p
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
+  | .ok (r, _) => r == ConLeche.pinListOk block pins
+  | .error _ => false
+
+#guard chkPinListOk ConLeche.eqBasis ConLeche.eqBasis
+#guard chkPinListOk ConLeche.natBasis ConLeche.eqBasis
+#guard chkPinListOk
+  [ConLeche.eqA.atLps [anon.str "w"], ConLeche.eqReflA.atLps [anon.str "w"],
+    ConLeche.eqRecA.atLps [anon.str "w", anon.str "z"]] ConLeche.eqBasis
+
+/-- con-leche: none — the arena's `quotPinHit` against con-leche's. -/
+private def chkQuotPinHit (k : QuotKind) (cv : ConstantVal) : Bool :=
+  let prog : AM Bool := do
+    let (_, icv) ← Frontend.internCV ∅ cv
+    quotPinHit k icv
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
+  | .ok (r, _) => r == ConLeche.quotPinHit k cv
+  | .error _ => false
+
+#guard chkQuotPinHit .lift ConLeche.quotLiftA.toConstantVal
+#guard chkQuotPinHit .lift (ConLeche.quotLiftA.atLps [anon.str "a", anon.str "b"]).toConstantVal
+#guard chkQuotPinHit .lift ConLeche.quotIndA.toConstantVal
 
 end ConRon.Arena

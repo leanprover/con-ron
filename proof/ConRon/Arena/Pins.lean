@@ -28,7 +28,7 @@ raises `.internal` — a loud stop, never a quiet wrong answer.
 
 ## What is pinned
 
-The fifty-one names below and `reservedBasisNames`' sixteen, plus the three
+The fifty-two names below and `reservedBasisNames`' sixteen, plus the three
 interned values every `pin` site around them needs: the empty
 universe-argument list, the level `0` and the expression `Sort 1`
 (`Arena/Core.lean`'s `emptyLevels`, `zeroLevel` and `sortOne`, which now read
@@ -66,7 +66,7 @@ open ConLeche
 /-! ## The slots -/
 
 /-- con-leche: none — the arena's own pin table; the number of pinned names. -/
-def pinCount : Nat := 51
+def pinCount : Nat := 52
 
 /-- con-leche: none — the arena's own pin table; `eqName`'s slot. -/
 def PIN_EQ : Nat := 0
@@ -174,6 +174,9 @@ def PIN_AND_REC : Nat := 49
 /-- con-leche: none — the arena's own pin table; `eagerReduceName`'s slot (the
 argument check's `eagerReduce` test, `isEagerReduce`). -/
 def PIN_EAGER_REDUCE : Nat := 50
+/-- con-leche: none — the arena's own pin table; `quotMkName`'s slot (a
+quotient record's slots stored before it, `quotPredsOk`). -/
+def PIN_QUOT_MK : Nat := 51
 
 /-! ## Filling the table -/
 
@@ -204,7 +207,7 @@ def pinNames : List ConLeche.Name :=
     ConLeche.reduceNatName, ConLeche.reduceBoolName,
     ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName, ConLeche.quotName,
     ConLeche.andIntroName, ConLeche.andRecName,
-    ConLeche.Name.anonymous.str "eagerReduce"]
+    ConLeche.Name.anonymous.str "eagerReduce", ConLeche.quotMkName]
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the sixteen names a stream may not declare, as con-leche's values.  Its own
@@ -285,7 +288,7 @@ def pinSortOne : AM EIdx := do
   if pinsReady s then pure s.pins.sortOne
   else fail (.internal "arena: reserved-name pins not interned")
 
-/-! ## The fifty-one named readers, one per slot -/
+/-! ## The fifty-two named readers, one per slot -/
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:18 eqName — off the table. -/
 def pinEq : AM NIdx := pinAt PIN_EQ
@@ -393,5 +396,8 @@ def pinAndRec : AM NIdx := pinAt PIN_AND_REC
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:433-435 eagerReduceName — off the
 table (the argument check's `eagerReduce` test). -/
 def pinEagerReduce : AM NIdx := pinAt PIN_EAGER_REDUCE
+/-- con-leche: none — the arena's own pin table; `quotMkName`'s handle, off the
+table (`quotPredsOk`). -/
+def pinQuotMk : AM NIdx := pinAt PIN_QUOT_MK
 
 end ConRon.Arena

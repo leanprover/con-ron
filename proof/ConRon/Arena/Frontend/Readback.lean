@@ -89,12 +89,13 @@ def denoteFire (st : EStore) : IRecRuleFire → Option RecRuleFire
     match denoteLList st.ls lvls, denoteEList st pins with
     | some ls, some ps => some (.nested ls ps)
     | _, _ => none
+  | .levels lvls => (denoteLList st.ls lvls).map .levels
 
 /-- con-leche: none — the denotation of one recursor rule. -/
 def denoteRule (st : EStore) (rl : IRecRule) : Option RecRule :=
   match denoteN st.ns rl.ctor, denoteFire st rl.fire, denoteE st rl.rhs with
   | some c, some f, some r =>
-    some ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta⟩
+    some ⟨c, rl.nfields, f, r⟩
   | _, _, _ => none
 
 /-- con-leche: none — the denotation of a rule list. -/
@@ -105,14 +106,13 @@ def denoteRules (st : EStore) : List IRecRule → Option (List RecRule)
     | some x, some xs => some (x :: xs)
     | _, _ => none
 
-/-- con-leche: none — the denotation of an inductive's capabilities.  `sortZ`
-is con-leche's own `PropWhen` on both sides (`Arena/Env.lean`'s note). -/
+/-- con-leche: none — the denotation of an inductive's capabilities. -/
 def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
   match denoteN st.ns c.etaCtor, denoteNList st.ns c.all,
       denoteNList st.ns c.ctors with
   | some ct, some all, some ctors =>
     some ⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
-          c.ruleK, c.sortZ, all, c.nparams, ctors⟩
+          all, c.nparams, c.nIdx, ctors⟩
   | _, _, _ => none
 
 /-- con-leche: none — the denotation of a projection table. -/
@@ -120,11 +120,9 @@ def denoteProjTable (st : EStore) (t : IProjTable) : Option ProjTable :=
   match denoteN st.ns t.structName, denoteNList st.ns t.levelParams,
         denoteN st.ns t.ctor with
   | some sn, some lps, some c =>
-    match denoteL st.ls t.structSort, denoteEArray st t.bodies,
-          denoteLList st.ls t.guards with
-    | some ss, some bs, some gs =>
-      some ⟨sn, lps, t.numParams, c, t.numFields, ss, bs, gs⟩
-    | _, _, _ => none
+    match denoteEArray st t.bodies with
+    | some bs => some ⟨sn, lps, t.numParams, c, t.numFields, bs⟩
+    | none => none
   | _, _, _ => none
 
 /-- con-leche: none — the denotation of a stored constant. -/
@@ -140,9 +138,9 @@ def denoteCI (st : EStore) : IConstantInfo → Option ConstantInfo
     | some cv, some caps => some (.indInfo cv caps)
     | _, _ => none
   | .ctorInfo v nP nF => (denoteCV st v).map (fun cv => .ctorInfo cv nP nF)
-  | .recInfo v mI rP rs =>
+  | .recInfo v mI rP k rs =>
     match denoteCV st v, denoteRules st rs with
-    | some cv, some rules => some (.recInfo cv mI rP rules)
+    | some cv, some rules => some (.recInfo cv mI rP k rules)
     | _, _ => none
 
 /-- con-leche: none — the denotation of a block's constants. -/
@@ -178,7 +176,6 @@ def denoteDecl (st : EStore) : IDeclaration → Option Declaration
     match denoteCV st v, denoteE st e with
     | some cv, some x => some (.opaqueDecl cv x)
     | _, _ => none
-  | .basisDecl k => some (.basisDecl k)
   | .indDecl block nP =>
     (denoteCIList st block).map (fun b => .indDecl b nP)
   | .quotDecl k v => (denoteCV st v).map (.quotDecl k)
@@ -293,13 +290,16 @@ def internFire (m : EMemo) : RecRuleFire → AM (EMemo × IRecRuleFire)
     let hls ← internLevelList lvls
     let (m, hps) ← internExprList m pins
     pure (m, .nested hls hps)
+  | .levels lvls => do
+    let hls ← internLevelList lvls
+    pure (m, .levels hls)
 
 /-- con-leche: none — intern one recursor rule. -/
 def internRule (m : EMemo) (rl : RecRule) : AM (EMemo × IRecRule) := do
   let c ← internName rl.ctor
   let (m, f) ← internFire m rl.fire
   let (m, r) ← internExprGo m rl.rhs
-  pure (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta⟩)
+  pure (m, ⟨c, rl.nfields, f, r⟩)
 
 /-- con-leche: none — intern a rule list. -/
 def internRules (m : EMemo) : List RecRule → AM (EMemo × List IRecRule)
@@ -315,7 +315,7 @@ def internCaps (c : IndCaps) : AM IIndCaps := do
   let all ← internNameList c.all
   let ctors ← internNameList c.ctors
   pure ⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
-        c.ruleK, c.sortZ, all, c.nparams, ctors⟩
+        all, c.nparams, c.nIdx, ctors⟩
 
 /-- con-leche: none — intern a stored constant. -/
 def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
@@ -336,10 +336,10 @@ def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
   | .ctorInfo v nP nF => do
     let (m, cv) ← internCV m v
     pure (m, .ctorInfo cv nP nF)
-  | .recInfo v mI rP rs => do
+  | .recInfo v mI rP k rs => do
     let (m, cv) ← internCV m v
     let (m, rules) ← internRules m rs
-    pure (m, .recInfo cv mI rP rules)
+    pure (m, .recInfo cv mI rP k rules)
 
 /-- con-leche: none — intern a block's constants. -/
 def internCIList (m : EMemo) : List ConstantInfo → AM (EMemo × List IConstantInfo)
@@ -368,7 +368,6 @@ def internDecl (m : EMemo) : Declaration → AM (EMemo × IDeclaration)
     let (m, cv) ← internCV m v
     let (m, x) ← internExprGo m e
     pure (m, .opaqueDecl cv x)
-  | .basisDecl k => pure (m, .basisDecl k)
   | .indDecl block nP => do
     let (m, b) ← internCIList m block
     pure (m, .indDecl b nP)

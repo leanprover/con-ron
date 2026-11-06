@@ -247,36 +247,19 @@ def indPiTeleLen : Nat → EIdx → AM Nat
     | .forallE _ b => pure ((← indPiTeleLen fuel b) + 1)
     | _ => pure 0
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1164-1168 piResult — the body of a
-syntactic `∀`-telescope, reading the WHOLE `view` at each step: the port's
-`export_c::pi_result`, `validate_ind_d`'s `is_K_target` walk, is written over
-`env::view_e`, where `Arena/ExprOps.lean`'s `piResult` — the twin of
-`expr_ops::pi_result` — reads the binder projection (task #97-P5-Core round
-4), so `validateIndD` calls this one (task #97-T2-LOCKSTEP lane Frontend). -/
-def piResultD : Nat → EIdx → AM EIdx
-  | 0, _ => fail (.internal "fuel exhausted: piResult")
-  | fuel + 1, h => do
-    match ← view h with
-    | .forallE _ b => piResultD fuel b
-    | _ => pure h
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:231-233 ruleOfF — one recursor
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove ExportC.parseRuleD_bridge, then delete this line
 rule of an inductive record, resolved.  The install-computed fields carry
 con-leche's own parse placeholders. -/
 def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
-  pure (IRecRule.mk (← st.name ru.ctor) ru.nfields 0 .plain
-    (← getDeclD st ru.rhs) false false)
+  pure (IRecRule.mk (← st.name ru.ctor) ru.nfields .plain (← getDeclD st ru.rhs))
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:235-371 validateIndF — an
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove ExportC.validateIndD_bridge, then delete this line
 inductive record, VALIDATED: the half of the record's processing that reads
 the state and changes nothing.  Every guard, every verdict and every message
 is con-leche's; what changed is that a name comparison is a handle comparison
 (sound because `denoteN` is injective — task #97a's `denoteN_inj`, DESIGN
-§8.3's exactness obligation), that a structural read of a type is a `view`,
-and that the level algorithm behind `kExpected?` runs on a READ-BACK level
-tree (DESIGN §8.3 lesson 4).
+§8.3's exactness obligation) and that a structural read of a type is a
+`view`.
 
 The two `for`/`mut` loops are con-leche's own; they run over a block's records
 — a handful — and not over the linear store, so DESIGN §8.4's "explicit tail
@@ -337,20 +320,11 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
       ordered := ordered.push c
       j := j + 1
   let cts := ordered.toList
-  -- the recursor records: the counts and the K flag the GENERATED recursor
-  -- carries.  NOT at a NESTED block.
+  -- the recursor records: the counts the GENERATED recursor carries.  NOT at a
+  -- NESTED block.
   let nested := tys.any (·.numNested != 0)
   let nTypes := tys.length
   let nCtors := cts.length
-  -- official's `is_K_target`
-  let kExpected? : Option Bool ← match tyTypes, listed, cts with
-    | [ty], [[_]], [c] => do
-      let r ← piResultD fuel ty
-      match ← view r with
-      | .sort s =>
-        pure (some (c.numFields == 0 && Level.isEquiv (← readLevel s) .zero == some true))
-      | _ => pure none
-    | _, _, _ => pure (some false)
   for r in (if nested then [] else rcs) do
     let rn ← st.name r.cv.name
     unless r.numParams == nPd do
@@ -362,10 +336,6 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
     unless r.numMinors == nCtors do
       return .inl (.invalid s!"recursor {← readName rn} declares {r.numMinors} \
         minor premises; the block has {nCtors} constructors")
-    if let some kE := kExpected? then
-      unless r.k == kE do
-        return .inl (.invalid s!"recursor {← readName rn} declares k := {r.k}; the \
-          generated recursor of this block is{if kE then "" else " not"} K-like")
     -- `numIndices` of `T.rec` is what is left of `T`'s own telescope once the
     -- parameters are peeled
     match ← viewN rn with
@@ -382,7 +352,6 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
   return .inr (cts, nPd)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:373-390 indBlockOfF — an
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove ExportC.installIndD_bridge, then delete this line
 inductive record, INSTALLED: the block's constants, pushed as one `IndDecl`.
 Every change to the state a validated inductive record makes is here.
 
@@ -392,8 +361,8 @@ the `wants`/`inModel` gate); the uniform installer (task #105,
 `Arena/Inductives/**`, the kernel lane's) replaces both, so the parser has
 nothing left to do but push the block.
 
-**EVERY BLOCK IS AN `indDecl`**: the basis-pin match is `preparePrelude`'s and
-the fold's, never the parser's. -/
+**EVERY BLOCK IS AN `indDecl`**: the fold recognises a pinned block by its
+members' names (`basisNameHit`) and its check compares it with the pin. -/
 def installIndD (st : StateD) (tys : List IndTypeRec)
     (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
     AM StateD := do
@@ -405,7 +374,7 @@ def installIndD (st : StateD) (tys : List IndTypeRec)
     let rules ← r.rules.mapM (parseRuleD st)
     pure (IConstantInfo.recInfo (← parseCVD st r.cv)
       (r.numParams + r.numMotives + r.numMinors + r.numIndices)
-      (r.numParams + r.numMotives + r.numMinors) rules)
+      (r.numParams + r.numMotives + r.numMinors) r.k rules)
   let block := types ++ ctors ++ recs
   pushDecl st (.indDecl block nPd)
 

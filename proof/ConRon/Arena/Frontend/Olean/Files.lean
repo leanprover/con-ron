@@ -33,8 +33,9 @@ open ConLeche.Frontend.Olean (Located modFile partExts locateOf hdrWalk HdrWalk 
   Expo)
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Files.OleanFs_bridge, then delete this line
-**The checker's file reads**: a failure is the operation's message. -/
+**The checker's file reads**: a failure is the operation's message; and the read's
+heartbeat (upstream's `ReadNotes`, task #484), two `liftIO` actions that change
+nothing a read returns: the unit, here. -/
 structure OleanFs where
   /-- whether the path names something -/
   pathExists : System.FilePath → Except String Bool
@@ -46,9 +47,14 @@ structure OleanFs where
   readRange : System.FilePath → Nat → Nat → Except String ByteArray
   /-- the size of a regular file in bytes -/
   fileSize : System.FilePath → Except String Nat
+  /-- `ReadNotes.say`: one line of the heartbeat -/
+  readNotesSay : String → Unit := fun _ => ()
+  /-- `ReadNotes.moduleLoaded total size` -/
+  readNotesModuleLoaded : Nat → Nat → Unit := fun _ _ => ()
 
 instance : Inhabited OleanFs :=
-  ⟨⟨fun _ => .error "", fun _ => .error "", fun _ => .error "", fun _ _ _ => .error "", fun _ => .error ""⟩⟩
+  ⟨{ pathExists := fun _ => .error "", realPath := fun _ => .error "", readBinFile := fun _ => .error "",
+     readRange := fun _ _ _ => .error "", fileSize := fun _ => .error "" }⟩
 
 /-- con-leche: none — the Rust's `region::display_path`: a path for a message -/
 def displayPathF (s : String) : String :=

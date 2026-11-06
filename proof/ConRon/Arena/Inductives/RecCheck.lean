@@ -6,9 +6,9 @@
 abstraction (`targetAbs`), the per-component class match (`targetClassMatch`)
 and the table entries it selects (`targetMajorNfs`), a class resolved from a
 major (`targetMajorOf`) and typed (`targetMajorPins`), the recursor records'
-pins (`targetRecPins`), node agreement (`targetK53`), and the stored family's
-rules (`tgtStoredRules`, `consBlockRecsTF`) with the container bit
-(`blockNestedBit`).  The Rust twin is `arena::inductives::rec_check`.
+pins (`targetRecPins`), node agreement (`targetK53`), and the generated
+family's records (`generatedRules`, `recKExpected`, `blockRecInfosTF`) with the
+container bit (`blockNestedBit`).  The Rust twin is `arena::inductives::rec_check`.
 
 **The deviations** (the Rust's, item for item):
 
@@ -16,7 +16,7 @@ rules (`tgtStoredRules`, `consBlockRecsTF`) with the container bit
   of operations per index so that the pure install and the cached fold run the
   same code; the arena has one core and one environment representation, so the
   operations are `Arena/Core.lean`'s entry points at the `IFEnv` they are
-  handed (its visibility bound included), and the cached driver's flushes are
+  handed, and the cached driver's flushes are
   where `shadowOpsC` puts them (`Arena/Inductives/GenRec.lean`).  `ShadowOps`,
   `ShadowOps.ofOps` and `ShadowOps.fueled` are on the skip list, and so are
   `TargetAbsMemoInv` and its lemmas (`Prop`-only apparatus).
@@ -26,29 +26,24 @@ rules (`tgtStoredRules`, `consBlockRecsTF`) with the container bit
   entry.
 * **A function argument is specialised**: `targetParamsDefEq`'s `absM` is
   always `targetAbs names lvls holes` (its one caller), so it takes `names`,
-  `lvls` and `holes`; `tgtStoredRules`' `find?`/`resolves` are the
-  constructors' environment `fe`; `eraseFVarTys`/`targetCanonParams` are
+  `lvls` and `holes`; `eraseFVarTys`/`targetCanonParams` are
   `FvMap` variants of `replaceFVars`.
 * **`Ms.getD c default` is `targetMajorAt`**: the default record interns the
   anonymous name and reads the pinned empty level list (`targetMajorDefault`),
   as the Rust builds it, so the lookup is an `AM` function.
 * **`tgtRs` is not ported**: nothing the executed checker runs reads the
-  install's old recursor-list format.
-* **`tgtStoredRules`' fire is computed once per recursor**: con-leche's
-  `rules.map fun rl => { rl with fire := auxRuleFireR … }` recomputes the same
+  old recursor-list format.
+* **`generatedRules`' fire is computed once per recursor**: con-leche's
+  `rules.map fun rl => { rl with fire := auxRuleFire … }` recomputes the same
   pure reading per rule.
-* **`consBlockRecsTF` takes the constructors' visibility bound `vis₂`**, not
-  `find?`/`resolves`: the rules are read at `fe.restrictTo vis₂` while the
-  recursors are pushed above it, as the Rust passes `vis2` beside the growing
-  index.
 * **Terms read from the store take the state**: `targetHoles`,
   `targetCtorAt`, `targetPiDomsWith`, `eraseFVarTys`, `targetCanonParams`,
-  `auxRuleFireR` and `tgtStoredRules` are `AM` functions.
+  `auxRuleFire`, `generatedRules` and `blockRecInfosTF` are `AM` functions.
 -/
 module
 
 public import ConRon.Arena.Inductives.SumInstall
-public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Inductives.BlockShape
 
 @[expose] public section
 
@@ -246,7 +241,6 @@ def targetMajorNfs (mode : CheckMode) (fe : IFEnv) (p : BlockShape)
     else pure rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:366-370 targetCtorsOf
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetCtorsOf_bridge, then delete this line
 The constructors of a stored inductive `I` and its parameter count
 (`nestContainer`'s reading, which reads nothing of its context but the
 lookup). -/
@@ -254,14 +248,15 @@ def targetCtorsOf (fe : IFEnv) (I : NIdx) : AM (Option (Nat × List (IConstantVa
   nestContainer fe I
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:372-387 targetOutsideInst
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetOutsideInst_bridge, then delete this line
-The instantiated type former of an OUTSIDE major `I.{us} ds`: its index count
-and its result sort. -/
-def targetOutsideInst (fe : IFEnv) (I : NIdx) (us : LsIdx) (ds : List EIdx) :
-    AM (Nat × LIdx) := do
+The instantiated type former of an OUTSIDE major `I.{us} ds` (at its
+telescope, `familyTelescope`): its index count and its result sort.  The
+Rust's `target_outside_inst_at` is the part after the lookup. -/
+def targetOutsideInst (mode : CheckMode) (fe : IFEnv) (I : NIdx) (us : LsIdx)
+    (ds : List EIdx) : AM (Nat × LIdx) := do
   match fe.find? I with
-  | some (.indInfo cvI _) => do
-    let tl ← instLPFast coreWalkFuel cvI.levelParams us cvI.type
+  | some (.indInfo cvI capsI) => do
+    let tyI ← familyTelescope mode fe cvI capsI
+    let tl ← instLPFast coreWalkFuel cvI.levelParams us tyI
     match ← instPisWith ds tl with
     | none => fail (.invalid "target rec: the major's type former does not bind its \
         parameters (official: ill-formed inductive type)")
@@ -276,14 +271,13 @@ def targetOutsideInst (fe : IFEnv) (I : NIdx) (us : LsIdx) (ds : List EIdx) :
 /-! ## A recursor's class, resolved -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:391-448 targetMajorOf
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetMajorOf_bridge, then delete this line
 **A recursor's major, resolved** from its opened type `mty`: a MEMBER of the
 block at the block's levels and parameters, or — a nested block's container —
 any other stored inductive at one of the block's auxiliary types: not `Quot`,
 stored, its parameters closed over the recursor's, some parameter naming a
 member (`nestOcc` at an empty hole range), in the block's universe (Q1). -/
-def targetMajorOf (fe : IFEnv) (p : BlockShape)
-    (ctorsAs : List (List (IConstantVal × Nat))) (pfvs fvs : List EIdx) (mty : EIdx) :
+def targetMajorOf (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (pfvs fvs : List EIdx)
+    (mty : EIdx) :
     AM TargetMajor := do
   let args ← getAppArgs coreWalkFuel mty
   let hd ← getAppFn coreWalkFuel mty
@@ -295,12 +289,11 @@ def targetMajorOf (fe : IFEnv) (p : BlockShape)
       | some t => do
         -- a MEMBER: at the block's levels and parameters
         let ms ← unwrapOr p.members[t]? (.internal "target rec: member")
-        let ctorsA ← unwrapOr ctorsAs[t]? (.internal "target rec: member constructors")
         let blvls ← paramLevels p.lps
         let pf := fvs.take p.nP
         if us == blvls && args.take p.nP == pf then
           pure { ind := I, lvls := us, ds := pf, nPc := p.nP, nIdx := ms.nIdx,
-                 ctors := ctorsA, member := some t, nfs := [], pfvs := pfvs }
+                 ctors := ms.ctors, member := some t, nfs := [], pfvs := pfvs }
         else
           fail (.invalid "target rec: the recursor's major premise is not the member at its \
             parameters and its index binders")
@@ -331,7 +324,7 @@ def targetMajorOf (fe : IFEnv) (p : BlockShape)
                     at an instantiation that is no auxiliary type of the block (official \
                     generates no such auxiliary recursor: `elim_nested_inductive`, \
                     `is_nested`)")
-                let (nIdx, sI) ← targetOutsideInst fe I us ds
+                let (nIdx, sI) ← targetOutsideInst mode fe I us ds
                 unless ← liftFueled "level comparison" (← lvlEq? sI p.resSort) do
                   fail (.invalid "target rec: the recursor's major lives in another \
                     universe than the block (Q1)")
@@ -351,20 +344,16 @@ def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Un
     targetPinTys mode fe d xs
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:469-484 targetMajorPins
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetMajorPins_bridge, then delete this line
 The check at a resolved major: an outside major's parameters typed at the rule
-prefix, and the instantiation `I.{us} D⃗` itself typed there.  Nothing at a
-member. -/
+prefix, and the family at the key `I.{us} D⃗` typed there (`familyKeyCheck`).
+Nothing at a member. -/
 def targetMajorPins (mode : CheckMode) (fe : IFEnv) (rP : Nat) (M : TargetMajor) :
     AM Unit := do
   match M.member with
   | some _ => pure ()
   | none => do
     targetPinTys mode fe rP M.ds
-    let hd ← internConstE M.ind M.lvls
-    let app ← mkAppN hd M.ds
-    let _ ← inferTypeCore mode fe checkFuel rP app
-    pure ()
+    familyKeyCheck mode fe rP M.ind M.lvls M.ds
 
 /-! ## The recursor records' pins -/
 
@@ -504,19 +493,26 @@ def auxRuleFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire := do
   let pins ← abstractPrefixList rP M.ds
   pure (.nested lvls pins)
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.tgtStoredRules_bridge, then delete this line
-**One checked recursor's stored rules, at its major**: `sumRules` at the
-major's parameter count and constructors; at an OUTSIDE major every rule fires
-`auxRuleFire`. -/
-def tgtStoredRules (fe : IFEnv) (cv : IConstantVal) (rP : Nat) (M : TargetMajor)
-    (rhss : List EIdx) : AM (List IRecRule) := do
-  let rules ← sumRules fe cv.name M.nPc M.ctors rhss
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:600-611 generatedRules
+**One generated recursor's rules, at its major**: `sumRules` at the major's
+constructors; at an OUTSIDE major every rule fires `auxRuleFire` (computed
+once).  Reads no environment.  The Rust's `refire` is the `map`. -/
+def generatedRules (rP : Nat) (M : TargetMajor) (rhss : List EIdx) : AM (List IRecRule) := do
+  let rules := sumRules M.ctors rhss
   match M.member with
   | some _ => pure rules
   | none => do
     let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:613-622 recKExpected
+**The K flag a recursor of this block has** (official's `is_K_target`): the
+block is a proposition with one member, and the recursor's major is that member,
+with one constructor and no fields.  An outside major's recursor is never K. -/
+def recKExpected (p : BlockShape) (M : TargetMajor) : Bool :=
+  match M.member, M.ctors with
+  | some _, [c] => p.k == 1 && p.isProp && c.2 == 0
+  | _, _ => false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:635-641 blockNestedBit
 **The block's container bit**: some field kind is not flat or some recursor's
@@ -525,24 +521,16 @@ def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) :
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:643-653 blockRecInfosTF
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 FEnv.pushAll
-con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:80-91 consBlockRecsT
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
-**The checked family consed through the index, at its majors**: each recursor
-with its rules at ITS major, the rules' lookups at the constructors'
-environment, i.e. at its visibility bound `vis₂` while the recursors are pushed
-above it.  con-leche (task #332) builds the records first (`blockRecInfosTF`,
-every lookup at the constructors' `fe₂`) and pushes them after
-(`FEnv.pushAll`); this pushes each as it is built, its lookups bounded at
-`vis₂` — the same environment, so the same records in the same order. -/
-def consBlockRecsTF (vis₂ : Nat) (p : BlockShape) :
-    Nat → List (IConstantVal × TargetMajor × List EIdx) → IFEnv → AM IFEnv
-  | _, [], fe => pure fe
-  | m, (cv, M, rhss) :: rest, fe => do
-    let mI := p.majorIdxAt m
-    let rP := p.rulePrefixAt m
-    let rules ← tgtStoredRules (fe.restrictTo vis₂) cv rP M rhss
-    consBlockRecsTF vis₂ p (m + 1) rest (fe.push (.recInfo cv mI rP rules))
+**The checked family's records, at their majors**, in push order: each recursor
+at its record's major index and rule prefix, its K flag `recKExpected` and its
+rules at ITS major (`generatedRules`).  Every record is built before the first
+push. -/
+def blockRecInfosTF (p : BlockShape) :
+    Nat → List (IConstantVal × TargetMajor × List EIdx) → AM (List IConstantInfo)
+  | _, [] => pure []
+  | m, (cv, M, rhss) :: rest => do
+    let rules ← generatedRules (p.rulePrefixAt m) M rhss
+    let infos ← blockRecInfosTF p (m + 1) rest
+    pure (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) (recKExpected p M) rules :: infos)
 
 end ConRon.Arena

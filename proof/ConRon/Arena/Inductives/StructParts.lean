@@ -5,10 +5,9 @@
 `ConLeche/Kernel/Inductives/StructParts.lean`, over handles, as far as the
 executed checker reads it after con-leche's uniform inductive route (task
 #105): the parameter spines, the elimination level, the constructor-residual
-test, and the projection table's generators (bodies, guards) with the two
-memoised walks they share.  The recogniser and the generated recursor that
-lived here (`structShape`, `structPartsCore?`, the family and spine
-generators) went with the fixpoint route.
+test, the projection table's bodies, and the memoised occurrence walk
+`mentionsConst`.  (The `hasLooseBVarB` walk and `structUsedLater` moved
+upstream to `Kernel/CoreDefs.lean`; their twins are in `Arena/Core.lean`.)
 
 **The systematic deviations** (all of them inherited from task #97c's list,
 which is where they are argued; only what is NEW to this module is spelled out
@@ -21,27 +20,17 @@ here):
   becomes `internE`;
 * a level list `lps.map .param` is one interned `LsIdx` (`paramLevels`), which
   is what a `const` node carries;
-* **the fields' sorts are `List LIdx`, not the census's `LsIdx`.**
-  `Arena/Env.lean`'s `IProjTable.guards` is a `List LIdx` (task #97e), and
-  `structProjGuards` computes exactly that field; interning the list only to
-  read it back at the table would be a round trip with no reader.  A `const`
-  node's universe arguments stay `LsIdx`, as the representation requires;
-* **the pure walk, the cutoff walk and the memoized walk collapse into one
-  twin**, as task #97b's rule has it for the nine `…Go`/`…Fast` triples of
-  `ExprOps`: `hasLooseBVar`, `hasLooseBVarB`, `hasLooseBVarBGo` and
-  `hasLooseBVarBFast` are one algorithm and become one arena function, which
-  cites all four.  The `@[csimp]` equivalence theorems have no arena twin —
-  the substitution they license has already happened here.  Likewise
-  `mentionsConst` / `mentionsConstGo` / `mentionsConstFast`.  The two
-  `…MemoInv` predicates are census class (S), `Prop`-only apparatus the port
-  skips;
-* **the memos stay explicit arguments.**  con-leche threads a
-  `Std.HashMap Expr Bool` through `hasLooseBVarBGo` and `mentionsConstGo`
-  rather than putting it in a state, because the answer depends on data that
-  is fixed for one call (`T`, and for `hasLooseBVarB` the index, which is in
-  the key).  The twins do the same at `EIdx` keys — nothing is added to
-  `AState`, and `structProjGuards`' one shared memo across `nF` calls is
-  con-leche's own task #236 arrangement, unchanged.
+* **the pure walk and the memoized walk collapse into one twin**, as task
+  #97b's rule has it for the `…Go`/`…Fast` triples of `ExprOps`:
+  `mentionsConst` / `mentionsConstGo` / `mentionsConstFast` are one algorithm.
+  The `@[csimp]` equivalence theorem has no arena twin — the substitution it
+  licenses has already happened here.  `MentionsMemoInv` is census class (S),
+  `Prop`-only apparatus the port skips;
+* **the memo stays an explicit argument.**  con-leche threads a
+  `Std.HashMap Expr Bool` through `mentionsConstGo` rather than putting it in
+  a state, because the answer depends on data that is fixed for one call
+  (`T`).  The twin does the same at `EIdx` keys — nothing is added to
+  `AState`.
 -/
 module
 
@@ -116,126 +105,6 @@ first-class node `t.j` (`.proj T j` of the subject). -/
 def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
   let b ← internE (.bvar 0)
   internE (.proj T j b)
-
-/-! ## `hasLooseBVar` — one twin for the pure walk, the cutoff and the memo -/
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:870-875 Expr.hasLooseBVarBIns
-Record one answer for `(e, i)` in the memo the walk hands back. -/
-@[inline] def hasLooseBVarBIns (e : EIdx) (i : Nat)
-    (r : Bool × Std.HashMap (EIdx × Nat) Bool) :
-    Bool × Std.HashMap (EIdx × Nat) Bool :=
-  (r.1, r.2.insert (e, i) r.1)
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:792-805 Expr.hasLooseBVar
-con-leche: ConLeche/Kernel/CoreDefs.lean:807-825 Expr.hasLooseBVarB
-con-leche: ConLeche/Kernel/CoreDefs.lean:877-913 Expr.hasLooseBVarBGo
-Does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
-(`bvarB ≤ i`) and con-leche's per-call memo, both kept: the cutoff stops the
-walk where the variable CANNOT occur, the memo shares a shared node's answer
-across the paths that reach it.  The memo is keyed by the node and the index,
-because the index shifts under binders. -/
-def hasLooseBVarBGo (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat) :
-    Nat → EIdx → AM (Bool × Std.HashMap (EIdx × Nat) Bool)
-  | 0, _ => fail (.internal "fuel exhausted: hasLooseBVarB")
-  | fuel + 1, h => do
-    let bb ← bvarB fuel h
-    if bb ≤ i then pure (false, memo) else
-    match ← view h with
-    | .bvar j => pure (i == j, memo)
-    | .fvar _ _ => pure (false, memo)
-    | .sort _ => pure (false, memo)
-    | .const _ _ => pure (false, memo)
-    | .lit _ => pure (false, memo)
-    | v =>
-      match memo[(h, i)]? with
-      | some r => pure (r, memo)
-      | none => do
-        let r ← match v with
-          | .app f a => do
-            match ← hasLooseBVarBGo memo i fuel f with
-            | (true, memo) => pure (true, memo)
-            | (false, memo) => hasLooseBVarBGo memo i fuel a
-          | .lam ty b => do
-            match ← hasLooseBVarBGo memo i fuel ty with
-            | (true, memo) => pure (true, memo)
-            | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-          | .forallE ty b => do
-            match ← hasLooseBVarBGo memo i fuel ty with
-            | (true, memo) => pure (true, memo)
-            | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-          | .letE t v b => do
-            match ← hasLooseBVarBGo memo i fuel t with
-            | (true, memo) => pure (true, memo)
-            | (false, memo) => do
-              match ← hasLooseBVarBGo memo i fuel v with
-              | (true, memo) => pure (true, memo)
-              | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-          | .proj _ _ sub => hasLooseBVarBGo memo i fuel sub
-          | _ => pure (false, memo)
-        pure (hasLooseBVarBIns h i r)
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1059-1061 Expr.hasLooseBVarBFast
-The executed `hasLooseBVarB` (one memoized DAG walk). -/
-def hasLooseBVarBFast (i : Nat) (e : EIdx) : AM Bool := do
-  pure (← hasLooseBVarBGo ∅ i coreWalkFuel e).1
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1068-1076 structUsedLater
-**Field `j` is used by a later field** — the official `infer_proj`'s
-`has_loose_bvars(binding_body(r))` at step `j`. -/
-def structUsedLater (cty : EIdx) (nP j : Nat) : AM Bool := do
-  match ← stripPis (nP + j + 1) cty with
-  | some (_, rest) => hasLooseBVarBFast 0 rest
-  | none => pure false
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:415-420 structUsedLaterGo
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StructParts.structUsedLaterGo_bridge, then delete this line
-Memoized `structUsedLater`, taking and returning the shared memo. -/
-def structUsedLaterGo (memo : Std.HashMap (EIdx × Nat) Bool) (cty : EIdx)
-    (nP j : Nat) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
-  match ← stripPis (nP + j + 1) cty with
-  | some (_, rest) => hasLooseBVarBGo memo 0 coreWalkFuel rest
-  | none => pure (false, memo)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:431-438 structUsedLaterList
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StructParts.structUsedLaterList_bridge, then delete this line
-`structUsedLater cty nP j` for `j = base, …, base + n - 1`, in order, through
-one shared memo. -/
-def structUsedLaterList (cty : EIdx) (nP : Nat) :
-    Std.HashMap (EIdx × Nat) Bool → Nat → Nat → AM (List Bool)
-  | _, 0, _ => pure []
-  | memo, n + 1, base => do
-    let r ← structUsedLaterGo memo cty nP base
-    let rest ← structUsedLaterList cty nP r.2 n (base + 1)
-    pure (r.1 :: rest)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StructParts.structProjGuards_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StructParts.structProjGuards_bridge, then delete this line
-**The projection guard levels**: for field `i`, its own sort joined with the
-sorts of the earlier fields that a later field uses.  con-leche's two forms
-are one twin here (task #97b's rule): the `nF` `structUsedLater` answers are
-computed first through one shared memo (its task #236 arrangement), then the
-fold runs over the recorded answers.  `sorts` and the result are `List LIdx`
-— see the module note. -/
-def structProjGuards (cty : EIdx) (nP nF : Nat) (sorts : List LIdx) :
-    AM (List LIdx) := do
-  let z ← zeroLevel
-  let used ← structUsedLaterList cty nP ∅ nF 0
-  let rec col : Nat → Nat → LIdx → AM LIdx
-    | _, 0, acc => pure acc
-    | j, k + 1, acc => do
-      if used.getD j false then do
-        let m ← internLNode (.max acc (sorts.getD j z))
-        col (j + 1) k m
-      else col (j + 1) k acc
-  let rec row : Nat → Nat → AM (List LIdx)
-    | _, 0 => pure []
-    | i, k + 1 => do
-      let g ← col 0 i (sorts.getD i z)
-      let rest ← row (i + 1) k
-      pure (g :: rest)
-  row 0 nF
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:99-117 structProjBodiesGo
 **The projection bodies of a recognised block**, one walk of the constructor

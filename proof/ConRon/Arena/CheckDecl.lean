@@ -2,33 +2,29 @@
 # `ConRon.Arena.CheckDecl` — the checker's fold step, over handles
 (DESIGN.md §8, task #105)
 
-The twin of con-leche's `Kernel/CheckDecl.lean` — `checkShapeless`,
-`checkDecl` and `checkDeclsPure`, which upstream moved out of
-`Kernel/Checker.lean` because the uniform inductive route's stages sit above
-the checker's value stages — and the Rust twin of `arena::check_decl`.  The
-stages it dispatches to are this module's `checkBasisDecl` (the pinned basis
-install), `Arena/DeclCheck.lean`'s (values, the certified `Nat` operations,
-the pinned axioms) and `Arena/Inductives/BlockTail.lean`'s (the uniform
-inductive route).
+The twin of con-leche's `Kernel/CheckDecl.lean` — `checkShapeless` and
+`checkDecl` — and of `Cached/Decls.lean`'s spec fold (`declStep`,
+`checkDecls`), and the Rust twin of `arena::check_decl`.  The stages it
+dispatches to are `Arena/DeclCheck.lean`'s (values, the certified `Nat`
+operations, the pinned axioms, the pinned blocks and the quotient records) and
+`Arena/Inductives/BlockTail.lean`'s (the uniform inductive route).
 
 **Deviations:**
 
-* **`checkBasisDecl` lives HERE**, not in `Arena/Checker.lean` beside the
-  Rust's `arena::checker::check_basis_decl`: the Rust's `check_decl` and
-  `checker` modules call each other (a cycle Rust allows), and the arena's
-  import order is fixed by what calls what.  `Arena/Checker.lean` imports
-  this module.
-* **`checkDecl` is one `match`**, where the Rust splits it into a dispatch
-  and seven arm functions so that every arm stays a tail call (task
-  #97-P4c's split rule); each Rust arm cites this function.
-* **The fold steps are bracketed** (`checkDeclStep`), as
-  `Arena/Checker.lean`'s module note explains.
+* **`checkDecl` is one `match`**, where the Rust splits it into a dispatch and
+  six arm functions so that every arm stays a tail call (task #97-P4c's split
+  rule); each Rust arm cites this function.  The gates' reads at the
+  environment WITH the declaration (`fe.overlay [ci]` upstream) are their own
+  `def`s here, as in the Rust (`checkStructuralNatPinAtFe2`).
+* **The spec fold's step** (`checkDeclStep`) is `declStep`'s: the `And` pin,
+  then the record's check from fresh memos (`flushCaches` and an empty
+  `Memos`), the scratch tier OFF, so what the record pushes is persistent and
+  is read by the next step.
 -/
 module
 
 public import ConRon.Arena.Inductives.BlockTail
 public import ConRon.Arena.DeclCheck
-public import ConRon.Arena.Promote
 public import ConRon.Arena.Basis
 
 @[expose] public section
@@ -36,22 +32,6 @@ public import ConRon.Arena.Basis
 namespace ConRon.Arena
 
 open ConLeche
-
-/-! ## The pinned basis install -/
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl —
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkBasisDecl_bridge, then delete this line
-**install the pinned (pre-annotated) basis block.**  The three records that
-install one — the fold's own `basisDecl` kind, a stream block `basisPinHit`
-recognises and a quotient record `quotPinHit` recognises — share this body.
-The quotient block's types mention the pinned equality former, which is why
-it requires the `Eq` basis first. -/
-def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
-  if kind == .quotK then do
-    let en ← pinEq
-    unless fe.find? en == some (← eqA) do
-      fail (.notImplemented "quotient basis requires the pinned Eq basis")
-  installBasisDecls fe (← BasisKind.declsA kind)
 
 /-! ## A block the recogniser does not read -/
 
@@ -66,7 +46,7 @@ def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
   | ci :: rest => do
     match ci with
     | .indInfo cv _ => do
-      checkConstantVal mode fe cv
+      checkConstantVal mode fe cv false
       checkShapelessFormers mode fe rest
     | _ => checkShapelessFormers mode fe rest
 
@@ -86,79 +66,72 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:154-173 checkIndDeclC — **check a
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
-single declaration, extending the environment on success.**  Clause for
-clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
+con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
+environment with the definition): `natOpGuard` and the dependencies' storage,
+then the stored value. -/
+def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
+  let g ← natOpGuard fe2 n
+  let deps ← natOpDeps n
+  let d ← natOpStoredOkAll fe2 deps
+  unless g && d do
+    fail (.notImplemented "nonstandard structural Nat operation environment")
+  match fe2.find? n with
+  | some (.defnInfo _ value' _) => pure value'
+  | _ => fail (.internal "structural Nat operation not stored")
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
+con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+**The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
+the environment without the definition, over the equations with the
+operation's self-references substituted.  Certifying with the definition
+stored would let the operation's own fast path discharge its all-literal
+equations vacuously.  `fe2` is `fe.overlay [ci]`, pushed and popped
+(`IFEnv.popTemp`, the port's overlay); the index comes back. -/
+def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
+    (n : NIdx) : AM IFEnv := do
+  let prev := fe.idx[n]?
+  let fe2 := fe.push ci
+  let value' ← checkStructuralNatPinAtFe2 fe2 n
+  let fe := fe2.popTemp n prev
+  let eqs ← natOpEquations 0 n
+  unless ← certifyNatEqs mode fe (← substConst0Pairs n value' eqs) do
+    fail (.notImplemented "nonstandard structural Nat operation")
+  pure fe
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
+con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+**Check a single declaration, extending the environment on success**: every
+kind is checked in its arm.  A value arm checks the value returning the record
+unpushed, runs its pinned gates, and pushes last. -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   match d with
   | .defnDecl cv value hint => do
-    checkConstantVal mode fe cv
-    let fe2 ← checkDefnVal mode fe cv value hint
-    -- Structural-`Nat` pins: the fast-path ops must be the standard
-    -- structural recursions — their recurrence equations are checked by
-    -- definitional equality here, once, in the PRE-insertion environment with
-    -- the operation's self-references replaced by its stored value.
-    --
-    -- **The pre-insertion environment is `fe2` restricted to `fe`'s counter**
-    -- (task #97-T2-LOCKSTEP lane Checker round 2): the Rust keeps ONE index
-    -- and runs the three pin gates at `restrict(fe2, k_pre)`, so the twin
-    -- does too.  It answers every `find?` exactly as `fe` does (the pushed
-    -- name was fresh), which is all Theorem 1 needs
-    -- (`Bridge/Checker/Inv.lean`'s `IFEnv.find?_push_restrict`).
-    -- The guard, then the dependency list, then the stored-dependency test:
-    -- the Rust's order (`check_structural_nat_pin`).
-    if (← natOpNames).contains cv.name then do
-      let g ← natOpGuard fe2 cv.name
-      let deps ← natOpDeps cv.name
-      unless g && (← natOpStoredOkAll fe2 deps) do
-        fail (.notImplemented
-          "nonstandard structural Nat operation environment")
-      match fe2.find? cv.name with
-      | some (.defnInfo _ value' _) => do
-        let eqs ← natOpEquations 0 cv.name
-        let ok ← certifyNatEqs mode (fe2.restrictTo fe.visibleBelow)
-          (← substConst0Pairs cv.name value' eqs)
-        unless ok do
-          fail (.notImplemented
-            "nonstandard structural Nat operation")
-      | _ => fail (.internal
-          "structural Nat operation not stored")
-    -- WF-recursive `Nat` pins (`Nat.div`/`Nat.mod`): the stored value must be
-    -- definitionally equal to some committed pin variant, and that variant's
-    -- certificates must check.  No variant matching is a decline.
-    if (← natDivModNames).contains cv.name then
-      checkDivModPin mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
-    pure fe2
+    checkConstantVal mode fe cv true
+    let ci ← checkDefnVal mode fe cv value hint
+    let fe ← if (← natOpNames).contains cv.name then checkStructuralNatPin mode fe ci cv.name
+      else pure fe
+    let fe ← if (← natDivModNames).contains cv.name then checkDivModPin mode pins fe ci cv.name
+      else pure fe
+    pure (fe.push ci)
   | .thmDecl cv value => do
-    checkConstantVal mode fe cv
-    checkThmVal mode fe cv value
+    checkConstantVal mode fe cv false
+    let ci ← checkThmVal mode fe cv value
+    pure (fe.push ci)
   | .opaqueDecl cv value => do
-    checkConstantVal mode fe cv
-    let fe2 ← checkOpaqueVal mode fe cv value
-    -- Compiler-trust opaques (`Lean.reduceNat`/`Lean.reduceBool`): the stored
-    -- value must be definitionally equal to the build-time pin.
-    if (← reduceOpNames).contains cv.name then
-      checkReducePin mode (fe2.restrictTo fe.visibleBelow) fe2 cv.name value
-    pure fe2
+    checkConstantVal mode fe cv false
+    let ci ← checkOpaqueVal mode fe cv value
+    let fe ← if (← reduceOpNames).contains cv.name then checkReducePin mode fe ci cv.name value
+      else pure fe
+    pure (fe.push ci)
   | .axiomDecl cv => do
-    -- **`Quot.sound` is the pinned quotient BLOCK's own record**: the export
-    -- writes it as an ordinary axiom record beside the four `#QUOT` ones, so
-    -- it arrives here — compared with the pin and installing NOTHING of its
-    -- own, and DECLINING when it does not match.  The comparison precedes the
-    -- common checks because the name is a reserved basis name: this record IS
-    -- the pinned block's, not a redeclaration of it.
-    if cv.name == (← pinQuotSound) then do
-      let blk ← BasisKind.decls .quotK
-      match blk[4]? with
-      | some pinned =>
-        if ← IConstantInfo.canonEq (.axiomInfo cv) pinned then pure fe
-        else fail (.notImplemented "quotient soundness axiom mismatch")
-      | none => fail (.notImplemented "quotient soundness axiom mismatch")
+    -- **`Quot.sound` is the pinned quotient package's own record**: the export
+    -- writes it as an ordinary axiom record beside the four `#QUOT` ones.  The
+    -- name is a reserved basis name: this record IS the package's.
+    if cv.name == (← pinQuotSound) then checkQuotRecord fe .sound cv
     else do
-      checkConstantVal mode fe cv
+      checkConstantVal mode fe cv false
       if ← stdAxiomOk fe cv then
         pure (fe.push (.axiomInfo cv))
       else if cv.name == (← trustCompilerName) then
@@ -170,8 +143,8 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         else fail (.notImplemented
           "unsupported Lean.trustCompiler shape")
       else if cv.name == (← ofReduceNatName) || cv.name == (← ofReduceBoolName) then
-        -- The pinned `ofReduce*` axioms: over the pinned `Eq` basis, the
-        -- element inductive and the identity-certified reduce opaque,
+        -- The pinned `ofReduce*` axioms: over the stored `Eq`, the element
+        -- inductive and the identity-certified reduce opaque,
         -- `∀ a b, reduce a = b → a = b` interprets to an inhabited
         -- proposition.
         if ← ofReduceAxOk fe cv then
@@ -191,74 +164,56 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         -- that apparently added it (con-leche's own `nonStdAxiomMsg`, over
         -- the name read back from the store).
         fail (.notImplemented (ConLeche.nonStdAxiomMsg (← readNameM cv.name)))
-  | .basisDecl kind => checkBasisDecl fe kind
   | .indDecl block nP => do
     -- **THE PINNED BASIS BLOCKS FIRST**: a stream's `Nat` block arrives as an
-    -- ordinary `indDecl` and is recognised HERE.  A block under a pinned name
-    -- that does not match falls through to the ordinary route, where
-    -- `checkConstantVal`'s reserved-name check REJECTS it.  Then the DECLARED
+    -- ordinary `indDecl`; its members' names say it is the pinned block's
+    -- record, and its check compares it with the pin.  Then the DECLARED
     -- parameter count (task #228: official's own check, one-sided), and ONE
     -- ROUTE: the uniform route takes every block the recogniser reads
-    -- (`blockParts?`), at any number of members, nested ones included; any
+    -- (`blockShape?`), at any number of members, nested ones included; any
     -- other block declines once its formers are checked (`checkShapeless`).
-    match ← basisPinHit block with
-    | some kind => checkBasisDecl fe kind
+    match ← basisNameHit block with
+    | some kind => checkBasisBlock fe kind block
     | none => do
       if !(← indParamsOk nP block) then
         fail (.invalid "number of parameters mismatch")
       else
-        match ← blockParts? nP block with
+        match ← blockShape? nP block with
         | some p => checkBlock mode fe block p
         | none => checkShapeless mode fe block
-  | .quotDecl k cv => do
-    -- **THE QUOTIENT PACKAGE**: the export writes it as four records; each is
-    -- compared with the pinned block's constant at its own kind, and the
-    -- FIRST that matches installs the pinned block whole.
-    if ← quotPinHit k cv then
-      match k with
-      | .type => checkBasisDecl fe .quotK
-      | _ => pure fe
-    else fail (.notImplemented (match k with
-      | .sound => "quotient soundness axiom mismatch"
-      | _ => "quotient declaration mismatch"))
+  | .quotDecl k cv => checkQuotRecord fe k cv
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — **one
-step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
-scratch tier, with the constants it installed promoted before the tier goes.
+/-! ## The spec fold -/
 
-The bracket is `installStep`'s, letter for letter — one `checkDecl` where phase
-A has an install half, and no `ValueGroup` because the pure fold checks what
-it installs in the same step.  DESIGN §8.3's amendment puts it here too, so
-that **the two folds stay one algorithm**: the tier regime is not an
-optimisation of the driver's fold that the theorem's fold may do without, it
-is where every term the checker builds lives, and a Theorem-1 statement about
-a fold with no tiers would say nothing about the fold the binary runs. -/
+/-- con-leche: ConLeche/Cached/Decls.lean:38-52 declStep
+con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+**One record of the fold**: the `And` pin, then the record's check from a
+fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
+`{}`).  The scratch tier stays OFF, so what the record pushes is persistent and
+crosses to the next record, which is all that crosses.  The position the cited
+step threads is the caller's (the fold's error is not tagged here). -/
 def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
-  let vis := fe.visibleBelow
-  let nt := fe.env.tables.length
+  unless ← andPinOk d do
+    fail (.invalid "`And` must be the standard `And`")
   flushCaches
-  enterScratch
-  let fe ← checkDecl mode pins fe d
-  let k := fe.visibleBelow - vis
-  let kt := fe.env.tables.length - nt
-  let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k kt fe
-  dropScratch
-  pure fe
+  let s ← get
+  set { s with memos := Memos.empty }
+  checkDecl mode pins fe d
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — check a
-list of declarations in order, starting from the empty environment.  THE
-THEOREM'S SHAPE (module note): one step per record, install and check
-together.  con-leche's `ds.foldlM (checkDecl mode ops pins) Env.empty` takes a
-closure, which DESIGN §3.4 forbids, so the fold is an explicit list
-recursion. -/
+/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
+con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+The fold over a list of records, one `checkDeclStep` each.  con-leche's
+`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
+the fold is an explicit list recursion. -/
 def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     List IDeclaration → AM IFEnv
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — the fold
-from the empty environment. -/
+/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
+con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+**The spec fold**: from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv :=
   checkDeclsPureGo mode pins (mkIFEnv IEnv.empty) ds

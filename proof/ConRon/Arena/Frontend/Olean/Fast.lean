@@ -107,10 +107,11 @@ def buildPass (pk : OleanPins) (r : Region) (m : ByteArray) (n : Nat) (st : DS) 
   else pure (some st)
 termination_by n - p
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Fast.runPasses_bridge, then delete this line
-**Both passes** from the given name and expression roots. -/
-def runPasses (pk : OleanPins) (r : Region) (names exprs : List UInt64) : AM (Option DS) := do
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:271-282 runMarked
+**Both passes** from the given name and expression roots: how many slots the memo
+has, the marks and the memo. -/
+def runMarked (pk : OleanPins) (r : Region) (names exprs : List UInt64) :
+    AM (Option (Nat × ByteArray × DS)) := do
   let n := maxLoc r exprs (maxLoc r names 0) / 8 + 1
   match names.foldlM (markRoot r kName true) (zeros n) with
   | none => pure none
@@ -119,7 +120,18 @@ def runPasses (pk : OleanPins) (r : Region) (names exprs : List UInt64) : AM (Op
     | none => pure none
     | some m =>
       let m := markPass r m n
-      if failedM m then pure none else buildPass pk r m n (DS.fresh n) 0
+      if failedM m then pure none
+      else
+        match ← buildPass pk r m n (DS.fresh n) 0 with
+        | some st => pure (some (n, m, st))
+        | none => pure none
+
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
+**Both passes**: the memo. -/
+def runPasses (pk : OleanPins) (r : Region) (names exprs : List UInt64) : AM (Option DS) := do
+  match ← runMarked pk r names exprs with
+  | some (_, _, st) => pure (some st)
+  | none => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Fast.lean:290-295 DS.nameOf
 A root's value, from the memo. -/

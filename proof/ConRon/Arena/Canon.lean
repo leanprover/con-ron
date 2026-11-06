@@ -194,10 +194,8 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 con-leche: ConLeche/Kernel/Canon.lean:224-226 ConstantInfo.canonEq
 con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
 are not compared (`canon` resets both to `{}`). -/
 def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
@@ -213,8 +211,8 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .indInfo cv _, .indInfo cv' _ => cv.canonEq cv'
   | .ctorInfo cv nP nF, .ctorInfo cv' nP' nF' => do
     if nP == nP' && nF == nF' then cv.canonEq cv' else pure false
-  | .recInfo cv mI rP rules, .recInfo cv' mI' rP' rules' => do
-    if mI == mI' && rP == rP' then do
+  | .recInfo cv mI rP isK rules, .recInfo cv' mI' rP' isK' rules' => do
+    if mI == mI' && rP == rP' && isK == isK' then do
       if ← cv.canonEq cv' then do
         let cs ← canonNames cv.levelParams.length
         canonRulesEq cv.levelParams cv'.levelParams cs coreWalkFuel rules rules'

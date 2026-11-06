@@ -57,7 +57,6 @@ def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String
   pure (.ok order.size)
 
 /-- con-leche: OleanCompare.lean:150-204 main
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove OleanCompare.main_bridge, then delete this line
 The command line. -/
 def main (args : List String) : IO UInt8 := do
   match args with

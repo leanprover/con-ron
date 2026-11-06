@@ -31,7 +31,7 @@ syntactically, checking nothing.  The Rust twin is
 -/
 module
 
-public import ConRon.Arena.Inductives.BlockParts
+public import ConRon.Arena.Inductives.BlockShape
 
 @[expose] public section
 

@@ -5701,135 +5701,7 @@ is in.  `Ext` does not care which tier grew — it is `view` monotonicity and a
 node count — so these are the same lines as their `intern` siblings.  (The
 INVARIANT does care: `fresh` is transiently broken by a promotion.) -/
 
-theorem EStore.internPersistent_cases (st : EStore) (v : ENodeView) :
-    (st.internPersistent v).1 = st ∨
-      (st.internPersistent v).1 =
-        { st with pers := (st.pers.push v (st.derOfView v) Idx.tierP).1 } := by
-  simp only [EStore.internPersistent]
-  split
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-
-theorem EStore.view_internPersistent_mono (st : EStore) (w : ENodeView)
-    {i : EIdx} {v : ENodeView} (h : st.view i = some v) :
-    (st.internPersistent w).1.view i = some v := by
-  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact h
-  · refine EStore.view_mono_of_tiers _ _ ?_ ?_ ?_ h
-    · rfl
-    · exact fun _ _ hh => ETables.get_push_mono _ _ _ _ hh
-    · exact fun _ _ hh => hh
-
-theorem EStore.lss_internPersistent (st : EStore) (w : ENodeView) :
-    (st.internPersistent w).1.lss = st.lss := by
-  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem EStore.scratchOn_internPersistent (st : EStore) (w : ENodeView) :
-    (st.internPersistent w).1.scratchOn = st.scratchOn := by
-  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem EStore.nodeCount_internPersistent_le (st : EStore) (w : ENodeView) :
-    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
-  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
-  · omega
-  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
-      ETables.count_push]
-    omega
-
 /-! ### The three nested stores' persistent append -/
-
-theorem NStore.internPersistent_cases (st : NStore) (w : NNodeView) :
-    (st.internPersistent w).1 = st ∨
-      (st.internPersistent w).1 =
-        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
-  simp only [NStore.internPersistent]
-  split
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-
-theorem NStore.view_internPersistent_mono (st : NStore) (w : NNodeView) {i : NIdx}
-    {v : NNodeView} (h : st.view i = some v) :
-    (st.internPersistent w).1.view i = some v := by
-  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact h
-  · simp only [NStore.view] at h ⊢
-    by_cases hp : i.isPersistent = true
-    · rw [ite_eq_left hp] at h ⊢; exact NTables.get_push_mono _ _ _ _ h
-    · rw [ite_eq_right hp] at h ⊢; exact h
-
-theorem NStore.scratchOn_internPersistent (st : NStore) (w : NNodeView) :
-    (st.internPersistent w).1.scratchOn = st.scratchOn := by
-  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem NStore.nodeCount_internPersistent_le (st : NStore) (w : NNodeView) :
-    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
-  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact Nat.le_refl _
-  · simp only [NStore.nodeCount, NStore.persCount, NStore.scrCount,
-      NTables.count_push]
-    omega
-
-theorem LStore.internPersistent_cases (st : LStore) (w : LNodeView) :
-    (st.internPersistent w).1 = st ∨
-      (st.internPersistent w).1 =
-        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
-  simp only [LStore.internPersistent]
-  split
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-
-theorem LStore.ns_internPersistent (st : LStore) (w : LNodeView) :
-    (st.internPersistent w).1.ns = st.ns := by
-  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem LStore.view_internPersistent_mono (st : LStore) (w : LNodeView) {i : LIdx}
-    {v : LNodeView} (h : st.view i = some v) :
-    (st.internPersistent w).1.view i = some v := by
-  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact h
-  · simp only [LStore.view] at h ⊢
-    by_cases hp : i.isPersistent = true
-    · rw [ite_eq_left hp] at h ⊢; exact LTables.get_push_mono _ _ _ _ h
-    · rw [ite_eq_right hp] at h ⊢; exact h
-
-theorem LStore.scratchOn_internPersistent (st : LStore) (w : LNodeView) :
-    (st.internPersistent w).1.scratchOn = st.scratchOn := by
-  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem LStore.nodeCount_internPersistent_le (st : LStore) (w : LNodeView) :
-    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
-  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact Nat.le_refl _
-  · simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount,
-      LTables.count_push]
-    omega
-
-theorem LsStore.internPersistent_cases (st : LsStore) (w : LsNodeView) :
-    (st.internPersistent w).1 = st ∨
-      (st.internPersistent w).1 =
-        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
-  simp only [LsStore.internPersistent]
-  split
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-
-theorem LsStore.ls_internPersistent (st : LsStore) (w : LsNodeView) :
-    (st.internPersistent w).1.ls = st.ls := by
-  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
-
-theorem LsStore.view_internPersistent_mono (st : LsStore) (w : LsNodeView)
-    {i : LsIdx} {v : LsNodeView} (h : st.view i = some v) :
-    (st.internPersistent w).1.view i = some v := by
-  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
-  · exact h
-  · simp only [LsStore.view] at h ⊢
-    by_cases hp : i.isPersistent = true
-    · rw [ite_eq_left hp] at h ⊢; exact LsTables.get_push_mono _ _ _ _ h
-    · rw [ite_eq_right hp] at h ⊢; exact h
-
-theorem LsStore.scratchOn_internPersistent (st : LsStore) (w : LsNodeView) :
-    (st.internPersistent w).1.scratchOn = st.scratchOn := by
-  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
 
 /-! ### The `Ext` theorems, one per appending entry point
 
@@ -5837,31 +5709,6 @@ Each is `…Ext.of_view_mono` at the three plumbing lemmas above it.  Together
 with `EStore.intern_ext` they cover every primitive of `Store.lean` that
 appends: the four node stores' `intern` and `internPersistent`, the binder
 entry `internBind`, and the six lifts through the nesting. -/
-
-theorem NStore.internPersistent_ext (st : NStore) (w : NNodeView) :
-    NExt st (st.internPersistent w).1 :=
-  NExt.of_view_mono (fun _ _ h => NStore.view_internPersistent_mono st w h)
-    (NStore.nodeCount_internPersistent_le st w)
-
-theorem LStore.internPersistent_ext (st : LStore) (w : LNodeView) :
-    LExt st (st.internPersistent w).1 :=
-  LExt.of_view_mono (by rw [LStore.ns_internPersistent]; exact NExt.refl _)
-    (fun _ _ h => LStore.view_internPersistent_mono st w h)
-    (LStore.nodeCount_internPersistent_le st w)
-
-theorem LsStore.internPersistent_ext (st : LsStore) (w : LsNodeView) :
-    LsExt st (st.internPersistent w).1 :=
-  LsExt.of_view_mono (by rw [LsStore.ls_internPersistent]; exact LExt.refl _)
-    (fun _ _ h => LsStore.view_internPersistent_mono st w h)
-
-/-- con-leche: none — arena infrastructure; **the promotion's append extends
-the arena** (task #97-P6-2).  This is the conjunct the promotion keeps
-outright, where `StoreWF`'s `fresh` is transiently broken. -/
-theorem EStore.internPersistent_ext (st : EStore) (w : ENodeView) :
-    Ext st (st.internPersistent w).1 :=
-  Ext.of_view_mono (by rw [EStore.lss_internPersistent]; exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internPersistent_mono st w h)
-    (EStore.nodeCount_internPersistent_le st w)
 
 /-! ### The nested interns, lifted
 
@@ -5876,37 +5723,19 @@ theorem LStore.internName_ext (st : LStore) (w : NNodeView) :
     LExt st (st.internName w).1 :=
   LExt.of_view_mono (NStore.intern_ext st.ns w) (fun _ _ h => h) (Nat.le_refl _)
 
-theorem LStore.internNamePersistent_ext (st : LStore) (w : NNodeView) :
-    LExt st (st.internNamePersistent w).1 :=
-  LExt.of_view_mono (NStore.internPersistent_ext st.ns w) (fun _ _ h => h)
-    (Nat.le_refl _)
-
 theorem LsStore.internName_ext (st : LsStore) (w : NNodeView) :
     LsExt st (st.internName w).1 :=
   LsExt.of_view_mono (LStore.internName_ext st.ls w) (fun _ _ h => h)
 
-theorem LsStore.internNamePersistent_ext (st : LsStore) (w : NNodeView) :
-    LsExt st (st.internNamePersistent w).1 :=
-  LsExt.of_view_mono (LStore.internNamePersistent_ext st.ls w) (fun _ _ h => h)
-
 theorem LsStore.internLevel_ext (st : LsStore) (w : LNodeView) :
     LsExt st (st.internLevel w).1 :=
   LsExt.of_view_mono (LStore.intern_ext st.ls w) (fun _ _ h => h)
-
-theorem LsStore.internLevelPersistent_ext (st : LsStore) (w : LNodeView) :
-    LsExt st (st.internLevelPersistent w).1 :=
-  LsExt.of_view_mono (LStore.internPersistent_ext st.ls w) (fun _ _ h => h)
 
 /-- con-leche: none — arena infrastructure; `Monad.lean`'s `internNNode`
 extends the arena. -/
 theorem EStore.internName_ext (st : EStore) (w : NNodeView) :
     Ext st (st.internName w).1 :=
   Ext.of_view_mono (LsStore.internName_ext st.lss w) (fun _ _ h => h)
-    (Nat.le_refl _)
-
-theorem EStore.internNamePersistent_ext (st : EStore) (w : NNodeView) :
-    Ext st (st.internNamePersistent w).1 :=
-  Ext.of_view_mono (LsStore.internNamePersistent_ext st.lss w) (fun _ _ h => h)
     (Nat.le_refl _)
 
 /-- con-leche: none — arena infrastructure; `Monad.lean`'s `internLNode`
@@ -5916,30 +5745,11 @@ theorem EStore.internLevel_ext (st : EStore) (w : LNodeView) :
   Ext.of_view_mono (LsStore.internLevel_ext st.lss w) (fun _ _ h => h)
     (Nat.le_refl _)
 
-theorem EStore.internLevelPersistent_ext (st : EStore) (w : LNodeView) :
-    Ext st (st.internLevelPersistent w).1 :=
-  Ext.of_view_mono (LsStore.internLevelPersistent_ext st.lss w) (fun _ _ h => h)
-    (Nat.le_refl _)
-
 /-- con-leche: none — arena infrastructure; `Monad.lean`'s `internLsNode`
 extends the arena. -/
 theorem EStore.internLevels_ext (st : EStore) (w : LsNodeView) :
     Ext st (st.internLevels w).1 :=
   Ext.of_view_mono (LsStore.intern_ext st.lss w) (fun _ _ h => h) (Nat.le_refl _)
-
-theorem EStore.internLevelsPersistent_ext (st : EStore) (w : LsNodeView) :
-    Ext st (st.internLevelsPersistent w).1 :=
-  Ext.of_view_mono (LsStore.internPersistent_ext st.lss w) (fun _ _ h => h)
-    (Nat.le_refl _)
-
-
-theorem EStore.scratchOn_internNamePersistent (st : EStore) (w : NNodeView) :
-    (st.internNamePersistent w).1.scratchOn = st.scratchOn := rfl
-theorem EStore.scratchOn_internLevelPersistent (st : EStore) (w : LNodeView) :
-    (st.internLevelPersistent w).1.scratchOn = st.scratchOn := rfl
-theorem EStore.scratchOn_internLevelsPersistent (st : EStore) (w : LsNodeView) :
-    (st.internLevelsPersistent w).1.scratchOn = st.scratchOn := rfl
-
 
 end ConRon.Arena
 
@@ -6324,21 +6134,6 @@ theorem NStore.wf_push_pers' {st st' : NStore} {rk : NIdx → Nat} {w : NNodeVie
   case capS => rw [hscr]; exact h.capS
   case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
 
-/-- con-leche: none — arena infrastructure; **`NStore.internPersistent`
-preserves the promote-window invariant.**  The `fresh`-free half of finding
-17's answer at the name tier. -/
-theorem NStore.internPersistent_wf' {st : NStore} {w : NNodeView}
-    (h : NStoreWF' st) (hv : st.ViewOK w) (hp : NViewPers w)
-    (hcap : st.capOKPersistent w) : NStoreWF' (st.internPersistent w).1 := by
-  obtain ⟨rk, h⟩ := h
-  simp only [NStore.capOKPersistent] at hcap
-  simp only [NStore.internPersistent]
-  split
-  · exact ⟨rk, h⟩
-  · rename_i hfp
-    exact NStore.wf_push_pers' h hv hp rfl rfl rfl rfl hcap hfp
-
-
 /-- con-leche: none — arena infrastructure; appending a level to the
 persistent tier with the SCRATCH TIER LIVE keeps the promote-window
 invariant.  `NStore.wf_push_pers'`'s argument one tier up; `hsync` is not
@@ -6525,20 +6320,6 @@ theorem LStore.wf_push_pers' {st st' : LStore} {rk : LIdx → Nat} {w : LNodeVie
   case capS => rw [hscr]; exact h.capS
   case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
 
-/-- con-leche: none — arena infrastructure; **`LStore.internPersistent`
-preserves the promote-window invariant.** -/
-theorem LStore.internPersistent_wf' {st : LStore} {w : LNodeView}
-    (h : LStoreWF' st) (hv : st.ViewOK w) (hp : LViewPers w)
-    (hcap : st.capOKPersistent w) : LStoreWF' (st.internPersistent w).1 := by
-  obtain ⟨rk, h⟩ := h
-  simp only [LStore.capOKPersistent] at hcap
-  simp only [LStore.internPersistent]
-  split
-  · exact ⟨rk, h⟩
-  · rename_i hfp
-    exact LStore.wf_push_pers' h hv hp rfl rfl rfl rfl rfl hcap hfp
-
-
 /-- con-leche: none — arena infrastructure; appending a level list to the
 persistent tier with the SCRATCH TIER LIVE keeps the promote-window
 invariant.  No rank clause at this store (a list node has no `LsIdx`
@@ -6660,19 +6441,6 @@ theorem LsStore.wf_push_pers' {st st' : LsStore} {w : LsNodeView}
   case capP => rw [hpers]; exact hcaptb
   case capS => rw [hscr]; exact h.capS
   case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
-
-/-- con-leche: none — arena infrastructure; **`LsStore.internPersistent`
-preserves the promote-window invariant.** -/
-theorem LsStore.internPersistent_wf' {st : LsStore} {w : LsNodeView}
-    (h : LsStoreWF' st) (hv : st.ViewOK w) (hp : LsViewPers w)
-    (hcap : st.capOKPersistent w) : LsStoreWF' (st.internPersistent w).1 := by
-  simp only [LsStore.capOKPersistent] at hcap
-  simp only [LsStore.internPersistent]
-  split
-  · exact h
-  · rename_i hfp
-    exact LsStore.wf_push_pers' h hv hp rfl rfl rfl rfl rfl hcap hfp
-
 
 /-- con-leche: none — arena infrastructure; appending an expression node to
 the persistent tier with the SCRATCH TIER LIVE keeps the promote-window
@@ -6905,229 +6673,11 @@ store and leave every level above it alone.  These are the
 `StoreWF` by `StoreWF'`, and the extra `…ViewPers` precondition threaded
 through. -/
 
-theorem NStore.derived_internPersistent_eq' {st : NStore} (h : NStoreWF' st)
-    (w : NNodeView) {i : NIdx} {v : NNodeView} (hi : st.view i = some v) :
-    (st.internPersistent w).1.derived i = st.derived i := by
-  obtain ⟨rk, hwf⟩ := h
-  simp only [NStore.internPersistent]
-  split
-  · rfl
-  · exact NStore.derived_congr hi rfl
-      (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
-
-theorem LStore.derived_internPersistent_eq' {st : LStore} (h : LStoreWF' st)
-    (w : LNodeView) {i : LIdx} {v : LNodeView} (hi : st.view i = some v) :
-    (st.internPersistent w).1.derived i = st.derived i := by
-  obtain ⟨rk, hwf⟩ := h
-  simp only [LStore.internPersistent]
-  split
-  · rfl
-  · exact LStore.derived_congr hi rfl
-      (fun j x hj => LTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
-
-theorem LsStore.derived_internPersistent_eq' {st : LsStore} (h : LsStoreWF' st)
-    (w : LsNodeView) {i : LsIdx} {v : LsNodeView} (hi : st.view i = some v) :
-    (st.internPersistent w).1.derived i = st.derived i := by
-  simp only [LsStore.internPersistent]
-  split
-  · rfl
-  · exact LsStore.derived_congr hi rfl
-      (fun j x hj => LsTables.derAt_push_of_get h.sizedP hj) (fun j x hj => rfl)
-
 /-! #### A name, promoted -/
-
-theorem LStore.internNamePersistent_wf' {st : LStore} (h : LStoreWF' st)
-    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
-    (hcap : st.ns.capOKPersistent v) :
-    LStoreWF' (st.internNamePersistent v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  refine ⟨rk, ?_⟩
-  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
-  constructor
-  case ns => rw [hns]; exact NStore.internPersistent_wf' hwf.ns hv hp hcap
-  case childOK => exact hwf.childOK
-  case nchildOK =>
-    intro i u hi c hc
-    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
-    rw [hns]
-    have := (hwf.nchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp this
-    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
-  case rankP => exact hwf.rankP
-  case rankS => exact hwf.rankS
-  case consP => exact hwf.consP
-  case consS => exact hwf.consS
-  case derExact =>
-    intro i u hi
-    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
-      refine LStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
-      have hs := (hwf.nchildOK i u hi c hc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
-      exact NStore.derived_internPersistent_eq' hwf.ns v hx
-    show st.derived i = _
-    rw [hcongr]
-    exact hwf.derExact i u hi
-  case sizedP => exact hwf.sizedP
-  case sizedS => exact hwf.sizedS
-  case capP => exact hwf.capP
-  case capS => exact hwf.capS
-  case scrOff => exact hwf.scrOff
-  case sync => rw [hns, NStore.scratchOn_internPersistent]; exact hwf.sync
-
-theorem LsStore.internNamePersistent_wf' {st : LsStore} (h : LsStoreWF' st)
-    {v : NNodeView} (hv : st.ls.ns.ViewOK v) (hp : NViewPers v)
-    (hcap : st.ls.ns.capOKPersistent v) :
-    LsStoreWF' (st.internNamePersistent v).1 := by
-  refine { h with
-    ls := LStore.internNamePersistent_wf' h.ls hv hp hcap,
-    derExact := ?_ }
-  intro i u hi
-  have hc : (st.internNamePersistent v).1.derOfView u = st.derOfView u :=
-    LsStore.derOfView_congr (st' := (st.internNamePersistent v).1) u (fun c _ => rfl)
-  show st.derived i = _
-  rw [hc]
-  exact h.derExact i u hi
-
-theorem EStore.internNamePersistent_wf' {st : EStore} (h : StoreWF' st)
-    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
-    (hcap : st.ns.capOKPersistent v) :
-    StoreWF' (st.internNamePersistent v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
-  refine ⟨rk, { hwf with lss := ?_, nchildOK := ?_, derExact := ?_ }⟩
-  · exact LsStore.internNamePersistent_wf' hwf.lss hv hp hcap
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
-    rw [hns]
-    have hs := (hwf.nchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
-        (fun c _ => rfl) (fun c _ => rfl)
-      have hs := (hwf.nchildOK i u hi c hc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
-      obtain ⟨rkl, hl⟩ := hwf.lss.ls
-      exact NStore.derived_internPersistent_eq' hl.ns v hx
-    show st.derived i = _
-    rw [hcongr]
-    exact hwf.derExact i u hi
 
 /-! #### A level, promoted -/
 
-theorem LsStore.internLevelPersistent_wf' {st : LsStore} (h : LsStoreWF' st)
-    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
-    (hcap : st.ls.capOKPersistent v) :
-    LsStoreWF' (st.internLevelPersistent v).1 := by
-  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
-  refine { h with ls := ?_, lchildOK := ?_, derExact := ?_, sync := ?_ }
-  · rw [hls]; exact LStore.internPersistent_wf' h.ls hv hp hcap
-  · intro i u hi c hc
-    refine ⟨?_, (h.lchildOK i u hi c hc).2⟩
-    rw [hls]
-    have hsm := (h.lchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
-  · intro i u hi
-    have hc : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
-      refine LsStore.derOfView_congr (st' := (st.internLevelPersistent v).1) u
-        (fun c hcc => ?_)
-      have hsm := (h.lchildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
-      exact LStore.derived_internPersistent_eq' h.ls v hx
-    show st.derived i = _
-    rw [hc]
-    exact h.derExact i u hi
-  · rw [hls, LStore.scratchOn_internPersistent]; exact h.sync
-
-theorem EStore.internLevelPersistent_wf' {st : EStore} (h : StoreWF' st)
-    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
-    (hcap : st.ls.capOKPersistent v) :
-    StoreWF' (st.internLevelPersistent v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
-  have hnsE : (st.internLevelPersistent v).1.ns = st.ns :=
-    LStore.ns_internPersistent st.ls v
-  refine ⟨rk, { hwf with lss := ?_, lchildOK := ?_, nchildOK := ?_, derExact := ?_ }⟩
-  · exact LsStore.internLevelPersistent_wf' hwf.lss hv hp hcap
-  · intro i u hi c hc
-    rw [hnsE]
-    exact hwf.nchildOK i u hi c hc
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.lchildOK i u hi c hc).2⟩
-    rw [hls]
-    have hsm := (hwf.lchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcg : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl)
-        (fun c _ => by
-          show (st.ls.internPersistent v).1.ns.derived c = st.ns.derived c
-          rw [LStore.ns_internPersistent]; rfl)
-        (fun c hcc => ?_) (fun c _ => rfl)
-      have hsm := (hwf.lchildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
-      obtain ⟨rkl, hl⟩ := hwf.lss.ls
-      exact LStore.derived_internPersistent_eq' ⟨rkl, hl⟩ v hx
-    show st.derived i = _
-    rw [hcg]
-    exact hwf.derExact i u hi
-
 /-! #### A level list, promoted -/
-
-theorem EStore.internLevelsPersistent_wf' {st : EStore} (h : StoreWF' st)
-    {v : LsNodeView} (hv : st.lss.ViewOK v) (hp : LsViewPers v)
-    (hcap : st.lss.capOKPersistent v) :
-    StoreWF' (st.internLevelsPersistent v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hlss : (st.internLevelsPersistent v).1.lss = (st.lss.internPersistent v).1 :=
-    rfl
-  have hlsE : (st.internLevelsPersistent v).1.ls = st.ls :=
-    LsStore.ls_internPersistent st.lss v
-  have hnsE : (st.internLevelsPersistent v).1.ns = st.ns := by
-    show (st.lss.internPersistent v).1.ls.ns = st.lss.ls.ns
-    rw [LsStore.ls_internPersistent]
-  refine ⟨rk, { hwf with
-    lss := ?_, nchildOK := ?_, lchildOK := ?_, lschildOK := ?_,
-    derExact := ?_, sync := ?_ }⟩
-  · exact LsStore.internPersistent_wf' hwf.lss hv hp hcap
-  · intro i u hi c hc
-    rw [hnsE]
-    exact hwf.nchildOK i u hi c hc
-  · intro i u hi c hc
-    rw [hlsE]
-    exact hwf.lchildOK i u hi c hc
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.lschildOK i u hi c hc).2⟩
-    rw [hlss]
-    have hsm := (hwf.lschildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LsStore.view_internPersistent_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcg : (st.internLevelsPersistent v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl)
-        (fun c _ => by
-          show (st.lss.internPersistent v).1.ls.ns.derived c = st.ns.derived c
-          rw [LsStore.ls_internPersistent]; rfl)
-        (fun c _ => by
-          show (st.lss.internPersistent v).1.ls.derived c = st.ls.derived c
-          rw [LsStore.ls_internPersistent]; rfl)
-        (fun c hcc => ?_)
-      have hsm := (hwf.lschildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.lss.internPersistent v).1.derived c = st.lss.derived c
-      exact LsStore.derived_internPersistent_eq' hwf.lss v hx
-    show st.derived i = _
-    rw [hcg]
-    exact hwf.derExact i u hi
-  · rw [hlss, LsStore.scratchOn_internPersistent]; exact hwf.sync
-
 
 /-! ### What a promote-intern ANSWERS
 
@@ -7136,89 +6686,6 @@ the weak invariant: the handle is PERSISTENT (which is the whole purpose of
 `internPersistent` — a promotion must hand back a handle that survives
 `dropScratch`) and it decodes to the view that was interned.  Both split
 hit/miss: the hit reads `consP`, the miss reads the push. -/
-
-theorem NStore.internPersistent_pers {st : NStore} (h : NStoreWF' st)
-    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    ((st.internPersistent w).2).isPersistent = true := by
-  obtain ⟨rk, h⟩ := h
-  simp only [NStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).2
-  · rename_i hf
-    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
-    rw [(NTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
-
-theorem NStore.internPersistent_view {st : NStore} (h : NStoreWF' st)
-    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
-  obtain ⟨rk, h⟩ := h
-  simp only [NStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).1
-  · rename_i hf
-    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
-    have hspec := NTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
-    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
-      show (_ == 0) = true
-      rw [hspec.2]; decide
-    simp only [NStore.view]
-    rw [ite_eq_left hp]
-    exact hspec.1
-
-theorem LStore.internPersistent_pers {st : LStore} (h : LStoreWF' st)
-    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    ((st.internPersistent w).2).isPersistent = true := by
-  obtain ⟨rk, h⟩ := h
-  simp only [LStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).2
-  · rename_i hf
-    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
-    rw [(LTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
-
-theorem LStore.internPersistent_view {st : LStore} (h : LStoreWF' st)
-    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
-  obtain ⟨rk, h⟩ := h
-  simp only [LStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).1
-  · rename_i hf
-    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
-    have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
-    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
-      show (_ == 0) = true
-      rw [hspec.2]; decide
-    simp only [LStore.view]
-    rw [ite_eq_left hp]
-    exact hspec.1
-
-theorem LsStore.internPersistent_pers {st : LsStore} (h : LsStoreWF' st)
-    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    ((st.internPersistent w).2).isPersistent = true := by
-  simp only [LsStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).2
-  · rename_i hf
-    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
-    rw [(LsTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
-
-theorem LsStore.internPersistent_view {st : LsStore} (h : LsStoreWF' st)
-    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
-    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
-  simp only [LsStore.internPersistent]
-  split
-  · rename_i i hf; exact ((h.consP w i).mp hf).1
-  · rename_i hf
-    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
-    have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
-    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
-      show (_ == 0) = true
-      rw [hspec.2]; decide
-    simp only [LsStore.view]
-    rw [ite_eq_left hp]
-    exact hspec.1
-
 
 /-! ### The three nested stores, extracted from the weak invariant -/
 
@@ -7303,41 +6770,5 @@ promote window's invariant; this is the composition: `internPersistent` keeps
 `StoreWF'`, and the handle it answers is PERSISTENT and decodes.  (Task #119:
 the binder datum, and with it the datum half and task #97-P5-Fresh's second
 finding — promoting a datum re-keyed the scratch cons table — are gone.) -/
-
-theorem EStore.internPersistent_of_persFind {st : EStore} {rk : EIdx → Nat}
-    (_h : EWFAt' st rk) {w : ENodeView} {i : EIdx} (hf : st.persFind? w = some i) :
-    st.internPersistent w = (st, i) := by
-  simp only [EStore.persFind?] at hf
-  simp only [EStore.internPersistent, hf]
-
-/-- con-leche: none — arena infrastructure; **the promote-intern's spec**, in
-the promote window's invariant: the store stays weakly well formed, the handle
-decodes to the node interned, and it is PERSISTENT — which is the whole point
-of the operation and what the walk above it needs at the next node's
-`EViewPers`. -/
-theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
-    (h : StoreWF' st) (hv : st.ViewOK w) (hp : EViewPers w)
-    (hcapN : st.persCapNode w) :
-    StoreWF' (st.internPersistent w).1 ∧
-      (st.internPersistent w).1.view (st.internPersistent w).2 = some w ∧
-      (st.internPersistent w).2.isPersistent = true := by
-  obtain ⟨rk, h⟩ := h
-  simp only [EStore.persCapNode] at hcapN
-  cases hf : st.pers.find? w with
-  | some i =>
-    have hpf : st.persFind? w = some i := hf
-    rw [EStore.internPersistent_of_persFind h hpf]
-    exact ⟨⟨rk, h⟩, ((h.consP w i).mp hpf).1, ((h.consP w i).mp hpf).2⟩
-  | none =>
-    have hun : st.internPersistent w =
-        ({ st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 },
-          (st.pers.push w (st.derOfView w) Idx.tierP).2) := by
-      simp only [EStore.internPersistent, hf]
-    rw [hun]
-    exact EStore.wf_push_pers'
-      (st' := { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 })
-      (tb := (st.pers.push w (st.derOfView w) Idx.tierP).1)
-      (inew := (st.pers.push w (st.derOfView w) Idx.tierP).2)
-      h hv hp rfl rfl rfl rfl rfl (hcapN hf) hf
 
 end ConRon.Arena

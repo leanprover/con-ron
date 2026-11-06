@@ -16,7 +16,6 @@ the root has to stay importable by any closure (task #97-COMPOSE).
 
 /-- con-leche: Main.lean:32-91 main
 con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
--- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Exe.main_bridge, then delete this line
 Lake's entry point.  A `lean_exe`'s root module must declare a TOP-LEVEL
 `main`, and the driver (`ConRon/Arena/Main.lean`) lives in the `ConRon.Arena` namespace with the
 rest of (B), so this forwards to it — the arrangement `ConRon/Gen/Main.lean`

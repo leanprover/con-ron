@@ -118,13 +118,13 @@ private def internCV (cv : ConstantVal) : AM IConstantVal := do
   let ty ← internExprT cv.type
   pure ⟨n, lps, ty⟩
 
-/-- con-leche: none — intern an `IndCaps`.  `sortZ` is a `PropWhen` over real
-names and crosses unchanged (DESIGN §8.7). -/
+/-- con-leche: none — intern an `IndCaps`: its scalars and its η constructor
+(the fixture's member and constructor lists are empty). -/
 private def internCaps (c : IndCaps) : AM IIndCaps := do
   let ec ← internName c.etaCtor
   pure { eta := c.eta, etaCtor := ec, etaParams := c.etaParams,
          etaFields := c.etaFields, unitlike := c.unitlike,
-         unitParams := c.unitParams, ruleK := c.ruleK, sortZ := c.sortZ }
+         unitParams := c.unitParams, nparams := c.nparams, nIdx := c.nIdx }
 
 /-- con-leche: none — intern a `RecRuleFire`. -/
 private def internFire : RecRuleFire → AM IRecRuleFire
@@ -133,14 +133,16 @@ private def internFire : RecRuleFire → AM IRecRuleFire
     let ls ← internLevelListT lvls
     let ps ← internExprList pins
     pure (.nested ls ps)
+  | .levels lvls => do
+    let ls ← internLevelListT lvls
+    pure (.levels ls)
 
 /-- con-leche: none — intern a `RecRule`. -/
 private def internRule (rl : RecRule) : AM IRecRule := do
   let c ← internName rl.ctor
   let f ← internFire rl.fire
   let rhs ← internExprT rl.rhs
-  pure { ctor := c, nfields := rl.nfields, ctorParams := rl.ctorParams,
-         fire := f, rhs := rhs, k := rl.k, eta := rl.eta }
+  pure { ctor := c, nfields := rl.nfields, fire := f, rhs := rhs }
 
 /-- con-leche: none — intern a list of `RecRule`s. -/
 private def internRules : List RecRule → AM (List IRecRule)
@@ -165,10 +167,10 @@ private def internCI : ConstantInfo → AM IConstantInfo
     let ic ← internCaps caps
     pure (.indInfo icv ic)
   | .ctorInfo cv nP nF => do pure (.ctorInfo (← internCV cv) nP nF)
-  | .recInfo cv mI rP rules => do
+  | .recInfo cv mI rP isK rules => do
     let icv ← internCV cv
     let rs ← internRules rules
-    pure (.recInfo icv mI rP rs)
+    pure (.recInfo icv mI rP isK rs)
 
 /-- con-leche: none — intern a whole environment, newest first. -/
 private def internConsts : List ConstantInfo → AM (List IConstantInfo)
@@ -313,7 +315,7 @@ private structure Fx where
   lam2 : EIdx
   beta2 : EIdx
 
-private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, 0, ∅⟩⟩
+private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, {}, ∅⟩⟩
 private instance : Inhabited Fx := ⟨⟨default, default, default, default, default,
   default, default, default, default, default, default, default, default,
   default, default, default, default, default, default, default, default,
