@@ -6,7 +6,6 @@ judgement of one: whatever the Rust's test answers is the twin's boolean.  Handl
 by `absNIdx`/`absEIdx`, strings by `name::str_eq` with `StrWF`.
 -/
 import ConRon.Refine2.Frontend.Olean.View
-import ConRon.Refine2.Frontend.Olean.Spec
 import ConRon.Arena.Frontend.Olean.Module
 
 open Aeneas Aeneas.Std Result

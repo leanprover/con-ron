@@ -6,7 +6,7 @@ answer that its bytes and its region are upstream's, and that they fit, which th
 What `view.rs` copies, it copies: `region_dup`, `c_entry_dup`, `mod_decoded_dup` are the identity.
 -/
 import ConRon.Refine2.Frontend.Olean.ModFilesRel
-import ConRon.Refine2.Frontend.Olean.SpecEntry
+import ConRon.Refine2.Frontend.Olean.FastMany
 import ConRon.Arena.Frontend.Olean.View
 
 open Aeneas Aeneas.Std Result
@@ -415,23 +415,16 @@ theorem loc_in_two_eq {a b : frontend.olean.region.Part} {addr : Std.U64} {o : B
 /-- A stored constant, as the twin's. -/
 abbrev ERel := EntryRel (N := arena.handle.NIdx) (E := arena.handle.EIdx) absNIdx absEIdx ValRel
 
-/-- **`spec::ModDecoded` against the twin's.** -/
-structure DecRel (d : frontend.olean.spec.ModDecoded) (d' : Arena.Frontend.Olean.ModDecoded) :
-    Prop where
-  isModule : d.is_module = d'.isModule
-  imports : d.imports.val.map (absImportF absNIdx) = d'.imports.toList
-  constants : List.Forall₂ ERel d.constants.val d'.constants.toList
-
 /-- **`view::AllViews` against the twin's.** -/
 structure AllViewsRel (v : frontend.olean.view.AllViews) (v' : Arena.Frontend.Olean.AllViews) :
     Prop where
-  exported : DecRel v.exported v'.exported
-  server : DecRel v.server v'.server
-  «private» : DecRel v.private_part v'.private
+  exported : ModDecodedRel v.exported v'.exported
+  server : ModDecodedRel v.server v'.server
+  «private» : ModDecodedRel v.private_part v'.private
 
 /-- `all_views_at` is `AllViews.at`. -/
 theorem all_views_at_eq {v v' level d} (hv : AllViewsRel v v')
-    (h : all_views_at v level = ok d) : DecRel d (v'.at (absLevel level)) := by
+    (h : all_views_at v level = ok d) : ModDecodedRel d (v'.at (absLevel level)) := by
   cases level
   · cases Result.ok_injective h; exact hv.exported
   · cases Result.ok_injective h; exact hv.server
@@ -455,7 +448,7 @@ theorem mod_files_up_to_eq {f f' level r} (hf : ModFilesRel f f') (h : mod_files
     Array (ConLeche.Frontend.Olean.ImportF NIdx) :=
   (v.val.map (absImportF absNIdx)).toArray
 
-theorem dec_imports {d d'} (hd : DecRel d d') : d'.imports = absImports d.imports := by
+theorem dec_imports {d d'} (hd : ModDecodedRel d d') : d'.imports = absImports d.imports := by
   rw [absImports, hd.imports]
 
 theorem am_pure_bind {α β : Type} (a : α) (g : α → AM β) : (pure a >>= g) = g a := rfl
@@ -511,8 +504,8 @@ theorem take_dec {ds i d ds'} (h : frontend.olean.fast.take_decoded ds i = ok (d
 theorem check_imports_pre_refines {pk pers st lst f f' d d'}
     (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
       (importsPre (absPins pk) (absBytes s)))
-    (hf : ModFilesRel f f') (hd : DecRel d d') :
-    RS pers DecRel st lst (check_imports_pre pk pers st.store f d) (checkImportsPre (absPins pk) f' d') := by
+    (hf : ModFilesRel f f') (hd : ModDecodedRel d d') :
+    RS pers ModDecodedRel st lst (check_imports_pre pk pers st.store f d) (checkImportsPre (absPins pk) f' d') := by
   rw [check_imports_pre, checkImportsPre, hf.exported]
   refine RS.of_eq (RS.bind (g := fun pre => if pre == d'.imports then pure (some d') else pure none)
     (hI st lst _) (fun e s1 => by cases e <;> rfl) fun a b s1 lst1 hab => ?_) ?_
@@ -532,12 +525,10 @@ theorem check_imports_pre_refines {pk pers st lst f f' d d'}
 
 /-- **`parse_view` is `parseView`.** -/
 theorem parse_view_refines {pk pers st lst f f' level}
-    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
-      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
     (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
       (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') :
-    RS pers DecRel st lst (parse_view pk pers st.store f level) (parseView (absPins pk) f' (absLevel level)) := by
+    RS pers ModDecodedRel st lst (parse_view pk pers st.store f level) (parseView (absPins pk) f' (absLevel level)) := by
   rw [parse_view, parseView]
   refine RS.pure_step fun o ho => ?_
   have hV := mod_files_view_region_eq hf ho
@@ -552,7 +543,7 @@ theorem parse_view_refines {pk pers st lst f f' level}
     obtain ⟨e, hfit⟩ := hV bs r hb hr
     rw [e]
     dsimp only
-    refine RS.of_eq (RS.bind (g := fun d => checkImportsPre (absPins pk) f' d) (hP _ _ _ _ _ hfit) ?_ ?_) ?_
+    refine RS.of_eq (RS.bind (g := fun d => checkImportsPre (absPins pk) f' d) (parse_at_refines hfit) ?_ ?_) ?_
     · intros; rfl
     · intro _ _ _ _ hab
       exact check_imports_pre_refines hI hf hab
@@ -562,9 +553,6 @@ theorem parse_view_refines {pk pers st lst f f' level}
 
 /-- **`parse_all_views_module` is `parseAllViewsModule`.** -/
 theorem parse_all_views_module_refines {pk pers st lst f f' s p}
-    (hM : ∀ bs r addrs st lst, RegionFits bs r → RS pers (fun ds l => List.Forall₂ DecRel ds.val l) st lst
-      (frontend.olean.fast.parse_many pk pers st.store bs r addrs)
-      (parseMany (absPins pk) (absRegion bs r) (addrs.val.map absWord)))
     (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
       (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') (hs : f.server = some s) (hp : f.private_part = some p) :
@@ -608,7 +596,7 @@ theorem parse_all_views_module_refines {pk pers st lst f f' s p}
           peel h as a2, h2
           peel h as a3, h3
           peel h as ⟨r2', ar1⟩, hmany
-          have hS := hM _ _ a3 st lst hfit hrel hinv r2' ar1 hmany
+          have hS := parse_many_refines (addrs := a3) hfit hrel hinv r2' ar1 hmany
           have ha : a3.val.map absWord = [absWord ae, absWord a_s, absWord ap] := by
             rw [ConRon.Refine.vec_push_val h3, ConRon.Refine.vec_push_val h2, ConRon.Refine.vec_push_val h1]
             rfl
@@ -720,11 +708,6 @@ theorem parse_all_views_module_refines {pk pers st lst f f' s p}
 
 /-- **`parse_all_views` is `parseAllViews`.** -/
 theorem parse_all_views_refines {pk pers st lst f f'}
-    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
-      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
-    (hM : ∀ bs r addrs st lst, RegionFits bs r → RS pers (fun ds l => List.Forall₂ DecRel ds.val l) st lst
-      (frontend.olean.fast.parse_many pk pers st.store bs r addrs)
-      (parseMany (absPins pk) (absRegion bs r) (addrs.val.map absWord)))
     (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
       (importsPre (absPins pk) (absBytes s)))
     (hf : ModFilesRel f f') :
@@ -740,11 +723,11 @@ theorem parse_all_views_refines {pk pers st lst f f'}
     | some s =>
       cases hp : f.private_part with
       | none => exact RS.none
-      | some p => exact parse_all_views_module_refines hM hI hf hs hp
+      | some p => exact parse_all_views_module_refines hI hf hs hp
   | false =>
     rw [ite_eq_right (by simp), ite_eq_right (by simp)]
     refine RS.of_eq (RS.bind (g := fun d => pure (some ⟨d, d, d⟩))
-      (parse_view_refines (level := .Exported) hP hI hf) ?_ ?_) ?_
+      (parse_view_refines (level := .Exported) hI hf) ?_ ?_) ?_
     · intros; rfl
     · intro d d' s1 lst1 hd
       refine RS.pure_step fun d2 hd2 => ?_
@@ -803,8 +786,6 @@ macro "int_leaf" : tactic =>
 /-- **`view_error` is `viewError`**, thrown: an error at the kind of the twin's.  The name is in
 its message only, so the twin's `m'` is any. -/
 theorem view_error_refines {γ : Type} {pk pers st lst f f' level} {m : arena.handle.NIdx} {m' : ConLeche.Name}
-    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
-      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
     (hf : ModFilesRel f f') (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {ce ar'}
     (h : frontend.olean.view.view_error pk pers st.store m f level = ok (ce, ar')) :
     AErrSim ce ((Arena.Frontend.Olean.viewError (absPins pk) m' f' (absLevel level) >>=
@@ -850,7 +831,7 @@ theorem view_error_refines {γ : Type} {pk pers st lst f f' level} {m : arena.ha
         replace h : (if true = true then _ else _) = ok (ce, ar') := h
         rw [ite_eq_left rfl] at h
         peel h as ⟨r2, ar2⟩, hpa
-        have hS := hP _ _ _ _ _ hfit hrel1 hinv1 r2 ar2 hpa
+        have hS := parse_at_refines hfit hrel1 hinv1 r2 ar2 hpa
         cases r2 with
         | Ok d =>
           obtain ⟨d', lst2, hx2, -, -, -⟩ := hS
