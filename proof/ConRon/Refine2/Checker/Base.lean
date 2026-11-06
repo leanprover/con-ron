@@ -1,71 +1,22 @@
 /-
-# `ConRon.Refine2.Checker.Base` — Theorem 2 for `arena::checker_base` and `arena::checker_split`
+# `ConRon.Refine2.Checker.Base` — Theorem 2 for `arena::checker_base`
 
 **Task #97-P5-Checker**, deliverable 2 (DESIGN.md §8.2).
-`crates/con-ron-core/src/arena/{checker_base,checker_split}.rs` against
-`proof/ConRon/Arena/{CheckerBase,CheckerSplit}.lean`: the declaration
-checker's common ground — the per-declaration constant check, the two
-memoised guard walks, the declared parameter count — and the install/check
-seam of a value declaration.
+`crates/con-ron-core/src/arena/checker_base.rs` against
+`proof/ConRon/Arena/CheckerBase.lean`: the declaration checker's common
+ground — the per-declaration constant check, the two memoised guard walks, the
+declared parameter count — with a value's guards (`decl_check::value_guards`)
+and the temporary push the pinned gates read through
+(`ifenv_push_temp`/`ifenv_pop_temp`).
 
-## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
+Every statement takes the environment as the checker tier does: `IFEnvRel pers
+rf lf` and `IFEnvInv rf`, from which the core tier's `CoreCtx` is built
+(`IFEnvInv.coreCtx`).  A layer carries no reader bound of its own: what a
+lookup sees is the layer's own rows and the frozen base at the layer's two
+bounds, on both sides.
 
-Task #97-P6-6b took the visibility counter OUT of the environment record's
-read path: `ifenv_find(vis, fe, n)` takes `vis : u64` beside `fe`, because
-reading `fe.visible_below` inside the call forced a copy of the record.  The
-twin's `IFEnv.find?` reads `fe.visibleBelow`.  So every statement whose Rust
-takes a `vis` parameter carries
-
-    
-
-and it is discharged at the top by `IFEnvRel.visibleBelow` — the call sites
-all pass `fe.visible_below` — but must be threaded through the tier, because
-inside it `vis` is an ordinary argument.  **Seventy-one statements of this
-tier carry it**, and like task #97-P5-0's finding 3
-it is a fact about the port's own calling convention rather than a
-divergence.
-
-## Where `hvis` is FALSE, and the nine statements that dropped it
-
-**Task #97-P5-Bracket's finding 3, repaired by task #97-P5-Checker round 3.**
-*"The call sites all pass `fe.visible_below`"* is true of phase A and false of
-phase B.  `arena::checker::check_pending` (`checker.rs:1229`) passes
-`pc.vis` — the counter the pending declaration was installed at — against the
-WHOLE environment phase A ended with, and that difference is the entire point
-of phase B.  Paired with `hfe : IFEnvRel rf lf`, whose third clause is
-`lf.visibleBelow = absU rf.visible_below`, the `hvis` above forces
-`vis = rf.visible_below`: the statement is then satisfiable nowhere on phase
-B's path, and `check_pending_refines` has nothing to be proved from.
-
-The repair moves the restriction from the hypothesis to the CONCLUSION:
-`hfe` stays at the unrestricted environment, `hvis` goes, and the twin is
-called at `lf.restrictTo (absU vis)` — which is what the twin's own
-`checkValueGroup mode (fe.restrictTo pc.vis) pc.vg` says anyway.  The old form
-is recovered at a phase-A call site by rewriting with `IFEnvRel.visibleBelow`,
-since `lf.restrictTo lf.visibleBelow = lf`.
-
-**Which nine.**  Exactly the functions the port can reach from
-`check_value_group` while still threading that `vis`, computed from the Rust
-call graph and no wider: `check_value_group`, `check_value_group_value`,
-`check_value_group_tail`, `install_value_guards`, `install_value_guards_tail`
-(`arena::checker_split`) and `consts_resolve_f_{go,node,two,fast}`
-(`arena::checker_base`).  The rest of the closure is `arena::core`'s, where
-the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (lookups only, through the
-layer and the tier, so the counter is the `vis` clause's business alone) — and
-`arena::prop_read`'s five readers and `arena::env::ifenv_find_proj`, which take the general
-form.
-
-Every OTHER `hvis` of this tier and of `Refine2/Checker/DeclCheck.lean` is
-sound as it stands: those functions are phase A's, where the port really is
-only ever called at `fe.visible_below`.
-
-## What these lemmas wait on
-
-`Refine2/Specs.lean`'s `view`/`intern_e` family, `Refine2/ExprOps/**`
-(statements only when this was written; all closed now) and
-`Refine2/Core/**` — P5-Core's tier, which is where `annotateCore`,
-`inferTypeCore`, `isDefEqCore` and `ensureSortCore` live.  `KnotRel` carries
-them here (`Refine2/Checker/KnotHyp.lean`).
+The core front doors (`inferTypeCore`, `isDefEqCore`, `ensureSortCore`) come
+from `Refine2/Core/**` through `KnotRel` (`Refine2/Checker/KnotHyp.lean`).
 -/
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Checker.Spec
@@ -513,14 +464,6 @@ namespace Lockstep
   rw [arena.core.nat_trio_stored, natTrioStoredSpec]
   lockstep
 
-@[lockstep] theorem str_support_stored_ls {pers st lst} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers rf lf) :
-    LS pers (fun a b => b = id a) (arena.core.str_support_stored pers st rf) lst
-      (strSupportStoredSpec lf) := by
-  rw [arena.core.str_support_stored, strSupportStoredSpec]
-  lockstep
-
 end Lockstep
 
 theorem consts_resolve_aux (n : Nat) :
@@ -599,8 +542,7 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
   fun _ h => (memo_b_get_refines hm h).symm
 
 /-- `consts_resolve_f_go` ⊑ `constsResolveFGo`, by induction on the fuel, at
-any twin environment the port's `(vis, rf)` is a `CoreCtx` of (finding 10's
-`vis`: the caller passes `lf.restrictTo (absU vis)`). -/
+any twin environment the port's `rf` is a `CoreCtx` of. -/
 theorem consts_resolve_f_go_aux (n : Nat) :
     ∀ {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
       (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (lm : Std.HashMap EIdx Bool)
@@ -984,6 +926,10 @@ namespace Lockstep
       (fun r => IFEnvRelI pers r (lf.pushTable (absIProjTable t))) :=
   fun _ h => ifenv_push_table_refines hfe.rel hfe.inv h
 
+attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
+
+end Lockstep
+
 /-! ### A temporary push and its pop (con-leche's `FEnv.overlay`)
 
 The pinned gates read the environment with the declared constant on it and then
@@ -1130,10 +1076,6 @@ theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena
     rw [htbl] at hp
     show p.val < rf1.env.tables.val.length
     rw [htb]; exact hfe.inv.tblRange m p hp
-
-attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
-
-end Lockstep
 
 /-! ## The per-declaration constant check -/
 

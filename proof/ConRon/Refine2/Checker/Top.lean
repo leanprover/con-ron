@@ -1,71 +1,31 @@
 /-
-# `ConRon.Refine2.Checker.Top` — Theorem 2 for `arena::checker`, and the tier's capstone
+# `ConRon.Refine2.Checker.Top` — Theorem 2 for `arena::check_decl` and what remains of `arena::checker`
 
 **Task #97-P5-Checker**, deliverables 2 and 3 (DESIGN.md §8.2).
 `crates/con-ron-core/src/arena/{check_decl,checker}.rs` against
-`proof/ConRon/Arena/{CheckDecl,Checker}.lean`: `check_decl`'s seven arms, the
-two phases' per-record steps (`install_decl_step`, `check_pending`) and their
-fold `install_fold`, and the startup walk `intern_all_pins`.
+`proof/ConRon/Arena/{CheckDecl,Checker}.lean`: `check_decl`'s six arms, the
+fold's `And` pin (`and_pin_ok`), and the startup walk `intern_all_pins`.  A
+record's job (`stream_index::record_check`, `checker::run_job`) is
+`Refine2/Checker/Jobs.lean`'s.
 
-The whole-list folds `check_decls_pure` and `install_then_check`, and their
-`_refines` theorems, are gone (task #105: the theorems stated nothing the
-capstone used, and then the Rust had no caller).  The binary's driver
-(`crates/con-ron/src/driver.rs`) folds the steps itself, unverified, record by
-record; each step's statement covers the whole outcome, a port `Native`
-included, as the twin's `native` (task #98-NATIVE).
+Every kind is checked in its arm.  A value arm checks the value returning the
+record unpushed (`Refine2/Checker/DeclCheck.lean`), runs its pinned gates, which
+read the environment with the record pushed and hand it back popped
+(`gate_push_refines`, `SimEnv`), and pushes last.  A pinned block and a quotient
+record are compared with their pins and installed at the names they declare.
 
-## Finding 13 — the fold's error channel is a PAIR, and that is a fifth shape
+## Finding 14 — `check_ind_decl` is the Inductives tier's
 
-`installThenCheck` and its two phases return
-`AM (Except (CheckError × Nat) IFEnv)` — the position travels as a VALUE
-because (B) has ONE monad (DESIGN §8.4), where con-leche changes monad to
-`StateT CState (Except (CheckError × Nat))`.  The port matches that exactly:
-`Result<IFEnv, (CheckError, u64)>`.  So neither side uses its THROW channel at
-the fold, and the refinement's shape is neither `Sim` (whose error arm is
-`AErrSim` on a throw) nor `SimRel₀`: it is **`SimFold`** below, whose error arm
-compares the pair — the kind mirrored, the position equal.
+`arena::check_decl::check_ind_decl` is the pinned-basis test, the declared
+parameter count, the recogniser and ONE route: the uniform install
+`check_block` or the decline `check_shapeless`.  The route's stages are
+`arena::inductives::*`, not this tier's, and `Refine2/Inductives/Top.lean`
+exports them as `@[lockstep]` lemmas over this tier's base
+(`Checker/Base.lean`); `check_ind_decl_refines` is one `lockstep` call over
+them.
 
-The position is real content and is compared: `absU p.2 = n`.  What is not
-compared is the state on the error arm, and it must not be —
-`AState.abandoned` is what the twin hands back there, deliberately (task
-#97g's item 5: a second reference to the whole `AState` held across a step
-made every append inside it copy), and the port's `&mut` state is simply not
-read by anything after an `Err`.
-
-## Finding 14 — `check_ind_decl` is the Inductives tier's, and it is DISCHARGED
-
-`arena::check_decl::check_ind_decl` (task #105: the fold's arms moved out of
-`arena::checker` with con-leche's `Kernel/CheckDecl.lean`) is the pinned-basis
-test, the declared parameter count, the recogniser and ONE route: the uniform
-install `check_block` or the decline `check_shapeless`.  The route's three
-stages are `arena::inductives::*`, not this tier's, and
-`Refine2/Inductives/Top.lean` exports them as `@[lockstep]` lemmas
-(`block_parts_ls`, `check_block_ls`, `check_shapeless_ls`) over this tier's
-base (`Checker/Base.lean`); this file imports that module and proves
-`check_ind_decl_refines` by one `lockstep` call.  A capstone with no
-hypotheses must transitively import every tier that discharges one.
-
-`KnotRel checkFuel` went the same way and needed nothing:
-`Refine2/Checker/KnotHyp.lean`'s `knotRel_checkFuel'` is a theorem of task
-#97-P5-Arms, so the sixty-two binders that carried it were carrying a
-redundant hypothesis.
-
-## What this file's capstone still owes (task #97-T2-LOCKSTEP lane Checker)
-
-**Nothing but its own leaves, and no precondition on the twin.**
-The step statements take `AStateRel₀` and `AStateInv` and nothing else: the statements are lockstep
-(the Rust and the twin do the same operations from related states), so the
-declaration boundary `BrOK`, ruling 2's `DeclResolves` over an abstract `Good`
-and the promote window `AStateRelW` — all Theorem-1 content that had leaked
-into Theorem 2 (task #97-T2-AUDIT §2) — are deleted.  The bracket is three
-`SimS₀` lemmas (`Refine2/Core/Bracket.lean`), and a bracketed step
-(`check_decl_step`, `install_step`, `install_step_promote`, `check_pending`) is
-ONE `lockstep` call over its callees' `@[lockstep]` wrappers.
-
-The spine is `install_fold_refines` / `install_decl_step_refines` /
-`check_pending_refines` (the fold a cursor recursion, by hand: the twin is a
-list recursion with a `tryCatch`, not a zip), all closed, and so are the arms' leaves under them: the spine is `sorry`-free
-(the census at the end of the file).
+The statements take `AStateRel₀` and `AStateInv` and nothing else: lockstep,
+with no precondition on the twin.
 -/
 import ConRon.Refine2.Checker.DeclCheck
 
@@ -77,25 +37,6 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
-
-/-! ## The fold's outcome shape (finding 13) -/
-
-/-- **The outcome of a fold or a fold step.**  The Rust's error channel
-carries the fold POSITION beside the error; the twin's `AM` returns an
-`Except (CheckError × Nat)` as its VALUE.  The success arm is `SimRel₀`'s; the
-error arm compares the kind and the position and claims nothing about the
-state (both sides abandon it). -/
-def SimFold {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result α (kernel.core_types.CheckError × Std.U64) ×
-      arena.monad.AState)
-    (x : AM (Except (Arena.CheckError × Nat) β)) : Prop :=
-  match o.1 with
-  | .Ok r => ∃ v lst', x.run lst = .ok (.ok v, lst') ∧ R r v ∧
-      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2
-  | .Err p => ∀ k, absAErrKind p.1 = some k →
-      ∃ le lst', x.run lst = .ok (.error (le, absU p.2), lst') ∧
-        lAErrKind le = some k
 
 /-! ## The arms' remaining callees in the judgements `lockstep` zips with
 

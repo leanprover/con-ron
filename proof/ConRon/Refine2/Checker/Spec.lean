@@ -5,7 +5,7 @@
 rule 5 — *a `HashMap::get` match that produces a value is its own function; a
 `view`'s loans must be dead at the memo's join* — makes the Rust of the
 declaration checker **finer-grained than the twin**: `check_constant_val` is
-four Rust functions, `check_value_group` is three.
+four Rust functions, `value_guards` two.
 None of those splits has a twin of its own, and DESIGN §3.1's one-to-one rule
 is about the TWIN's granularity, not the port's.
 
@@ -18,7 +18,8 @@ is that transcription, collected rather than scattered, so that
 * each Rust split has exactly one twin-side subject, spelled once;
 * the `_unfold` equations that tie the transcriptions back to the named twins
   are in one place, where a reader can check them against
-  `Arena/CheckerBase.lean` and `Arena/CheckerSplit.lean` clause for clause;
+  `Arena/CheckerBase.lean`, `Arena/DeclCheck.lean` and `Arena/CheckDecl.lean` clause
+  for clause;
 * nothing under `Arena/` is edited to make the refinement convenient, which is
   the standing rule for a twin (DESIGN §8.4).
 
@@ -121,7 +122,7 @@ def indParamsOkAtSpec (nP : Nat) : IConstantInfo → AM Bool
 
 Each says that the named twin IS its transcription composed — the file's whole
 proof obligation, and the only thing a reader has to check against
-`Arena/CheckerBase.lean` and `Arena/CheckerSplit.lean`. -/
+`Arena/CheckerBase.lean` and `Arena/DeclCheck.lean`. -/
 
 /-- `checkConstantVal` is its three pieces and the inference. -/
 theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
@@ -270,7 +271,7 @@ theorem ofReduceAxOk_split (fe : IFEnv) (cv : IConstantVal) :
       let c ← ofReduceOp cv.name
       if !(← eqStored fe) then pure false
       else ofReduceAxOkRestSpec fe cv c) := by
-  simp only [ofReduceAxOk, ofReduceAxOkRestSpec, bind_assoc, pure_bind]
+  simp only [ofReduceAxOk, ofReduceAxOkRestSpec]
 
 /-- `trustCompilerOk` split where the port splits it, the twin's literal arity
 pattern read as the port's explicit test. -/
@@ -799,8 +800,7 @@ theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
   refine ConRon.Refine2.am_bind_congr _ fun g => ConRon.Refine2.am_bind_congr _ fun _ =>
     ConRon.Refine2.am_bind_congr _ fun d => ?_
   cases g <;> cases d <;> simp only [Bool.and_true, Bool.and_false, Bool.false_eq_true,
-    ↓reduceIte, Bool.true_and, Bool.not_false, Bool.not_true, ConRon.Refine2.am_fail_bind] <;>
-    try rfl
+    ↓reduceIte, ConRon.Refine2.am_fail_bind]
   all_goals
     rcases fe2.find? n with _ | ci
     · rfl

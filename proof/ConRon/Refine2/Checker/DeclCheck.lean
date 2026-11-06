@@ -1029,14 +1029,12 @@ private theorem value_tail_name {pers st mode rf} {cv : arena.env.IConstantVal}
     | Ok b =>
       cases b with
       | false =>
-        try simp only [Bool.false_eq_true, ↓reduceIte] at h
         obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain rfl := fail_run hr3
         exact absurd (Result.ok_injective h) (by simp)
       | true =>
-        try simp only [↓reduceIte] at h
         obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
         rw [hmk]
@@ -1074,14 +1072,12 @@ theorem check_defn_val_name {pers st mode rf} {cv : arena.env.IConstantVal}
     | Ok b =>
       cases b with
       | false =>
-        try simp only [Bool.false_eq_true, ↓reduceIte] at h
         obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain rfl := fail_run hr3
         exact absurd (Result.ok_injective h) (by simp)
       | true =>
-        try simp only [↓reduceIte] at h
         obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨rh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
