@@ -548,7 +548,7 @@ theorem stream_unwrap_err {β γ : Type} {x : AM (Except (Arena.CheckError × Na
 Four functions, and their error channel is a PAIR — the position travels as a
 VALUE because (B) has ONE monad (DESIGN §8.4), where con-leche changes monad
 to `StateT CState (Except (CheckError × Nat))`.  The port matches exactly, so
-`SimStream` is `Refine2/Checker/Top.lean`'s `SimFold` at this pair. -/
+the refinement is `SimStream` at this pair. -/
 
 /-- **`size_error`** — THE SIZE GUARD's error: an input of `USize.size` bytes
 or more is refused before any of it is read.  The port drops the interpolated
