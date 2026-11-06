@@ -395,6 +395,76 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
         rw [bp_absICILFrom_cons' hx] at hc'
         cases ii <;> simp_all [absIConstantInfo]
 
+/-- `shape_formers` ⊑ `BlockShape.formers`: the members' type formers. -/
+@[lockstep] theorem shape_formers_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_formers p.members 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (absBlockShape p).formers (o.val.map absIConstantVal)) := by
+  intro o h
+  have key := vec_cursor_copy p.members absIConstantVal (fun m => absIConstantVal m.cv_t)
+    (fun i out => arena.inductives.block_shape.shape_formers p.members i out) ?_ ?_ 0#usize _ o h
+  · rw [TwinEq, key]
+    simp [alloc.vec.Vec.new, BlockShape.formers, absBlockShape, absMemberShape]
+  · intro i out o hn h
+    rw [arena.inductives.block_shape.shape_formers.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len p.members by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.block_shape.shape_formers.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len p.members by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine ⟨i2, iv, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv]
+
+/-- `member_struct_ctor` ⊑ `MemberShape.structCtor?`: the one constructor of an
+index-free member. -/
+@[lockstep] theorem member_struct_ctor_twin (ms : arena.inductives.block_shape.MemberShape) :
+    LSP (arena.inductives.block_shape.member_struct_ctor ms)
+      (fun o => TwinEq (absMemberShape ms).structCtor?
+        (o.map fun c => (absIConstantVal c.1, absU c.2))) := by
+  intro o h
+  rw [arena.inductives.block_shape.member_struct_ctor] at h
+  rw [TwinEq, MemberShape.structCtor?]
+  rcases hc : ms.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
+  · have hlen : ¬ alloc.vec.Vec.len ms.ctors = 1#usize := by
+      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+    rw [ite_eq_right hlen] at h
+    cases Result.ok_injective h
+    simp [absMemberShape, absCtorsL, hc]
+  · have hlen : alloc.vec.Vec.len ms.ctors = 1#usize := by
+      have : (alloc.vec.Vec.len ms.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    rw [ite_eq_left hlen] at h
+    simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil]
+    by_cases hn : ms.n_idx = 0#u64
+    · rw [ite_eq_left hn] at h
+      have hidx0 : alloc.vec.Vec.index
+          (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+          ms.ctors 0#usize = ok (cv, nf) := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [hc]
+      rw [hidx0, bind_ok] at h
+      obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1]
+      simp [hn, absU]
+    · rw [ite_eq_right hn] at h
+      cases Result.ok_injective h
+      have : (absU ms.n_idx == 0) = false := by
+        simp only [absU, beq_eq_false_iff_ne]; intro h0; exact hn (by scalar_tac)
+      simp [this]
+  · have hlen : ¬ alloc.vec.Vec.len ms.ctors = 1#usize := by
+      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+    rw [ite_eq_right hlen] at h
+    cases Result.ok_injective h
+    simp [absMemberShape, absCtorsL, hc]
+
 /-- `block_split` from `0` into an empty accumulator IS `blockSplit`. -/
 @[lockstep] theorem block_split_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
     LSP (arena.inductives.block_shape.block_split block 0#usize (alloc.vec.Vec.new _))
