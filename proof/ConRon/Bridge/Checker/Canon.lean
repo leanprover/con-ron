@@ -1224,14 +1224,21 @@ theorem denoteFire_inj {st : EStore} (hwf : StoreWF st) {f g : IRecRuleFire}
       | some es =>
         rw [hl, he] at h
         exact ⟨ls, es, rfl, rfl, (Option.some.inj h).symm⟩
+  have hlev : ∀ (lvls : List LIdx) (G : RecRuleFire),
+      Frontend.denoteFire st (.levels lvls) = some G →
+      ∃ ls, denoteLList st.ls lvls = some ls ∧ G = .levels ls := by
+    intro lvls G h
+    simp only [Frontend.denoteFire, Option.map_eq_some_iff] at h
+    obtain ⟨ls, hl, rfl⟩ := h
+    exact ⟨ls, hl, rfl⟩
   cases f with
   | plain =>
     simp only [Frontend.denoteFire, Option.some.injEq] at hf
     subst hf
     cases g with
     | plain => rfl
-    | nested l2 p2 =>
-      obtain ⟨u1, u2, u3, u4, hG⟩ := hnest l2 p2 _ hg; simp at hG
+    | nested l2 p2 => obtain ⟨_, _, _, _, hG⟩ := hnest l2 p2 _ hg; simp at hG
+    | levels l2 => obtain ⟨_, _, hG⟩ := hlev l2 _ hg; simp at hG
   | nested l1 p1 =>
     obtain ⟨ls1, es1, hl1, he1, rfl⟩ := hnest l1 p1 _ hf
     cases g with
@@ -1242,14 +1249,24 @@ theorem denoteFire_inj {st : EStore} (hwf : StoreWF st) {f g : IRecRuleFire}
       obtain ⟨rfl, rfl⟩ := hG
       rw [denoteLList_inj hrk.lsWF l1 l2 ls1 hl1 hl2,
         denoteEList_inj ⟨rk, hrk⟩ p1 p2 es1 he1 he2]
+    | levels l2 => obtain ⟨_, _, hG⟩ := hlev l2 _ hg; simp at hG
+  | levels l1 =>
+    obtain ⟨ls1, hl1, rfl⟩ := hlev l1 _ hf
+    cases g with
+    | plain => simp only [Frontend.denoteFire, Option.some.injEq] at hg; simp at hg
+    | nested l2 p2 => obtain ⟨_, _, _, _, hG⟩ := hnest l2 p2 _ hg; simp at hG
+    | levels l2 =>
+      obtain ⟨ls2, hl2, hG⟩ := hlev l2 _ hg
+      simp only [RecRuleFire.levels.injEq] at hG
+      subst hG
+      rw [denoteLList_inj hrk.lsWF l1 l2 ls1 hl1 hl2]
 
 /-- con-leche: none — `Frontend.denoteRule`'s inversion, field by field. -/
 theorem denoteRule_inv {st : EStore} {rl : IRecRule} {R : RecRule}
     (h : Frontend.denoteRule st rl = some R) :
     denoteN st.ns rl.ctor = some R.ctor ∧
       Frontend.denoteFire st rl.fire = some R.fire ∧
-      denoteE st rl.rhs = some R.rhs ∧ rl.nfields = R.nfields ∧
-      rl.ctorParams = R.ctorParams ∧ rl.k = R.k ∧ rl.eta = R.eta := by
+      denoteE st rl.rhs = some R.rhs ∧ rl.nfields = R.nfields := by
   simp only [Frontend.denoteRule] at h
   cases hc : denoteN st.ns rl.ctor with
   | none => rw [hc] at h; simp at h
@@ -1263,7 +1280,7 @@ theorem denoteRule_inv {st : EStore} {rl : IRecRule} {R : RecRule}
         rw [hc, hf, hr] at h
         simp only [Option.some.injEq] at h
         subst h
-        exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — `Frontend.denoteRules`'s cons inversion. -/
 theorem denoteRules_cons {st : EStore} {a : IRecRule} {as : List IRecRule}
@@ -1291,25 +1308,22 @@ theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
     (({ r with rhs := default } : IRecRule) == { r' with rhs := default })
       = ((({ R with rhs := .bvar 0 } : RecRule)) == { R' with rhs := .bvar 0 }) := by
   obtain ⟨rk, hrk⟩ := hwf
-  obtain ⟨hc, hf, -, hn, hp, hk, he⟩ := denoteRule_inv hr
-  obtain ⟨hc', hf', -, hn', hp', hk', he'⟩ := denoteRule_inv hr'
+  obtain ⟨hc, hf, -, hn⟩ := denoteRule_inv hr
+  obtain ⟨hc', hf', -, hn'⟩ := denoteRule_inv hr'
   rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
-  obtain ⟨c1, n1, p1, f1, x1, k1, e1⟩ := r
-  obtain ⟨c2, n2, p2, f2, x2, k2, e2⟩ := r'
-  obtain ⟨C1, N1, P1, F1, X1, K1, E1⟩ := R
-  obtain ⟨C2, N2, P2, F2, X2, K2, E2⟩ := R'
-  simp only at hc hf hn hp hk he hc' hf' hn' hp' hk' he'
-  subst hn; subst hp; subst hk; subst he
-  subst hn'; subst hp'; subst hk'; subst he'
+  obtain ⟨c1, n1, f1, x1⟩ := r
+  obtain ⟨c2, n2, f2, x2⟩ := r'
+  obtain ⟨C1, N1, F1, X1⟩ := R
+  obtain ⟨C2, N2, F2, X2⟩ := R'
+  simp only at hc hf hn hc' hf' hn'
+  subst hn
+  subst hn'
   constructor
   · intro h
     have q1 : c1 = c2 := congrArg IRecRule.ctor h
     have q2 : n1 = n2 := congrArg IRecRule.nfields h
-    have q3 : p1 = p2 := congrArg IRecRule.ctorParams h
     have q4 : f1 = f2 := congrArg IRecRule.fire h
-    have q5 : k1 = k2 := congrArg IRecRule.k h
-    have q6 : e1 = e2 := congrArg IRecRule.eta h
-    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6
+    subst q1; subst q2; subst q4
     rw [hc] at hc'
     rw [hf] at hf'
     obtain rfl := Option.some.inj hc'
@@ -1318,11 +1332,8 @@ theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
   · intro h
     have q1 : C1 = C2 := congrArg RecRule.ctor h
     have q2 : n1 = n2 := congrArg RecRule.nfields h
-    have q3 : p1 = p2 := congrArg RecRule.ctorParams h
     have q4 : F1 = F2 := congrArg RecRule.fire h
-    have q5 : k1 = k2 := congrArg RecRule.k h
-    have q6 : e1 = e2 := congrArg RecRule.eta h
-    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6
+    subst q1; subst q2; subst q4
     obtain rfl := denoteN_inj hrk.nsWF hc hc'
     obtain rfl := denoteFire_inj ⟨rk, hrk⟩ hf hf'
     rfl
@@ -1509,10 +1520,10 @@ theorem denoteCI_ind_inv {st : EStore} {v : IConstantVal} {cap : IIndCaps}
     | none => rw [hcv, hd] at h; simp at h
     | some d => rw [hcv, hd] at h; exact ⟨cv, d, (Option.some.inj h).symm, rfl, rfl⟩
 
-theorem denoteCI_rec_inv {st : EStore} {v : IConstantVal} {mI rP : Nat}
+theorem denoteCI_rec_inv {st : EStore} {v : IConstantVal} {mI rP : Nat} {k : Bool}
     {rs : List IRecRule} {c : ConstantInfo}
-    (h : Frontend.denoteCI st (.recInfo v mI rP rs) = some c) :
-    ∃ cv Rs, c = .recInfo cv mI rP Rs ∧ Frontend.denoteCV st v = some cv ∧
+    (h : Frontend.denoteCI st (.recInfo v mI rP k rs) = some c) :
+    ∃ cv Rs, c = .recInfo cv mI rP k Rs ∧ Frontend.denoteCV st v = some cv ∧
       Frontend.denoteRules st rs = some Rs := by
   simp only [Frontend.denoteCI] at h
   cases hcv : Frontend.denoteCV st v with
@@ -1576,7 +1587,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1661,7 +1672,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1702,7 +1713,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1743,7 +1754,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1791,13 +1802,13 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
         have hbad : ((nPA == nPB) && (nFA == nFB)) = false := by simpa using hc0
         simp only [ConLeche.ConstantInfo.canonEqFast]
         rw [Bool.and_assoc, hbad, Bool.and_false]
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-  | recInfo vA mIA rPA rsA =>
+  | recInfo vA mIA rPA kA rsA =>
     obtain ⟨xV, xR, rfl, hxV, hxR⟩ := denoteCI_rec_inv hci
     cases ci' with
     | axiomInfo vB =>
@@ -1830,7 +1841,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | recInfo vB mIB rPB rsB =>
+    | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       rcases AM.ite_ok hrun with ⟨hc0, kk⟩ | ⟨hc0, kk⟩
       · obtain ⟨b1, s1, g1, k1⟩ := AM.bind_ok kk
@@ -1870,7 +1881,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
             (denoteRules_ext hx2 _ _ (denoteRules_ext hx1 _ _ hyR)) k9
           refine ⟨hok2, hx1.trans hx2, by rw [hca2, hca1], by rw [hp2, hp1], ?_⟩
           rw [he2, ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-          simp only [ConLeche.ConstantInfo.canonEqFast, ← he1, hc1, hc0.1, hc0.2,
+          simp only [ConLeche.ConstantInfo.canonEqFast, ← he1, hc1, hc0.1.1, hc0.1.2, hc0.2,
             Bool.true_and, Bool.and_self]
         · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
           refine ⟨hok1, hx1, hca1, hp1, ?_⟩
@@ -1881,9 +1892,10 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok kk
         refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-        have hbad : ((mIA == mIB) && (rPA == rPB)) = false := by simpa using hc0
+        have hbad : ((mIA == mIB) && (rPA == rPB) && (kA == kB)) = false := by simpa using hc0
         simp only [ConLeche.ConstantInfo.canonEqFast]
-        cases hm : (mIA == mIB) <;> cases hp : (rPA == rPB) <;> simp_all
+        cases hm : (mIA == mIB) <;> cases hp : (rPA == rPB) <;> cases hk : (kA == kB) <;>
+          simp_all
 
 /-- con-leche: none — `Frontend.denoteCIList`'s cons inversion.  (`Base.lean`
 has the same three lines for `denoteEList` and sits above this module.) -/

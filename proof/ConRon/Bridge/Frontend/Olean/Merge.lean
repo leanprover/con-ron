@@ -94,6 +94,11 @@ structure MergedRel (st : EStore) (mg : Merged) (mgC : ConLeche.Frontend.Olean.M
   contains : ∀ {n : NIdx} {nC : ConLeche.Name}, denoteN st.ns n = some nC →
     mg.map.contains n = mgC.map.contains nC
   order : ListRel (NR st) mg.order.toList mgC.order.toList
+  /-- every key of the map denotes -/
+  keys : ∀ {n : NIdx} {p : Nat × Nat}, mg.map[n]? = some p → (denoteN st.ns n).isSome
+  /-- every key of upstream's map is a key's denotation -/
+  keysC : ∀ {nC : ConLeche.Name} {c : ConLeche.Frontend.Olean.CEntry}, mgC.map[nC]? = some c →
+    ∃ n, denoteN st.ns n = some nC ∧ mg.map.contains n = true
 
 /-! ## `isPropCheap` -/
 

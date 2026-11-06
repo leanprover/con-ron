@@ -897,6 +897,33 @@ theorem read_name_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.NIdx
     subst hrun
     exact hdw x rfl
 
+
+/-- **`read_name` ⊑ `readName`**: the store's name read back, the same dangling
+decline. -/
+@[lockstep] theorem read_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
+    LSR pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
+      (arena.monad.read_name pers st h) st lst (Arena.readName (absNIdx h)) := by
+  intro o hm
+  have H := read_name_abs₀ hrel hm
+  have hrun : (Arena.readName (absNIdx h)).run lst =
+      match denoteN lst.store.ns (absNIdx h) with
+      | some x => .ok (x, lst)
+      | none => .error (.internal "arena: dangling name handle") := by
+    show (match denoteN lst.store.ns (absNIdx h) with
+      | some x => (pure x : AM _)
+      | none => Arena.fail (.internal "arena: dangling name handle")).run lst = _
+    cases denoteN lst.store.ns (absNIdx h) <;> rfl
+  rw [hrun]
+  cases hd : denoteN lst.store.ns (absNIdx h) with
+  | none =>
+    rw [hd] at H
+    obtain ⟨e, rfl, hk⟩ := H
+    exact AErrSim.mk rfl (by rw [hk]; rfl)
+  | some x =>
+    rw [hd] at H
+    obtain ⟨y, rfl, hy⟩ := H
+    exact ⟨x, lst, rfl, ⟨read_name_wf hinv hm, hy.symm⟩, hrel, hinv⟩
 theorem read_names_from_wf {pers st} (hinv : AStateInv pers st)
     {ks : alloc.vec.Vec arena.handle.NIdx} :
     ∀ k (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),

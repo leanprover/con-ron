@@ -78,7 +78,7 @@ def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) (allowOp : Bool)
   if (← reservedBasisNames).contains cv.name then
     fail (.invalid "reserved basis name")
   if (← natOpName cv.name) && !allowOp then
-    fail (.invalid s!"a certified Nat operation's name, not a definition: {← readNameM cv.name}")
+    fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
   checkConstantValGuardsRestSpec cv
 
 /-- The failing arm of an unresolved constant, `throw (unresolvedConstsErrorL
@@ -95,6 +95,15 @@ def checkConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit :=
         if r then pure ()
         else unresolvedConstsFailSpec fe "type" cv.type
     else fail (.invalid "undeclared universe parameter in type")
+
+/-- `valueGuards`' tail past the two scope tests (the Rust's `value_guards_tail`). -/
+def valueGuardsTailSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Unit :=
+  allLevelParamsDefined cv.levelParams value >>= fun d =>
+    if d then
+      constsResolveFFast fe value >>= fun r =>
+        if r then pure ()
+        else unresolvedConstsFailSpec fe "value" value
+    else fail (.invalid "undeclared universe parameter in value")
 
 /-! ## `indParamsOk`'s per-member test -/
 
@@ -124,6 +133,16 @@ theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
       let _u ← ensureSortCore mode fe checkFuel 0 stype) := by
   twin_reduce [checkConstantVal, checkConstantValGuardsSpec,
     checkConstantValGuardsRestSpec, checkConstantValTailSpec, unresolvedConstsFailSpec]
+
+/-- `valueGuards` is its two scope tests and its tail. -/
+theorem valueGuards_unfold (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    valueGuards fe cv value = (do
+      unless ← looseBVarsBoundedFast coreWalkFuel 0 value do
+        fail (.invalid "loose bound variable in value")
+      if ← hasFvarFast coreWalkFuel value then
+        fail (.invalid "unexpected free variable in value")
+      valueGuardsTailSpec fe cv value) := by
+  twin_reduce [valueGuards, valueGuardsTailSpec, unresolvedConstsFailSpec]
 
 /-- `indParamsOk` is its per-member test and the `&&` fold. -/
 theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)

@@ -1,16 +1,16 @@
 /-
-# `ConRon.Refine2.Inductives.BlockParts` — Theorem 2 for `arena::inductives::block_parts`
+# `ConRon.Refine2.Inductives.BlockShape` — Theorem 2 for `arena::inductives::block_shape`
 
 **Task #105** (DESIGN.md §8.2, Theorem 2).
-`crates/con-ron-core/src/arena/inductives/block_parts.rs` against
-`proof/ConRon/Arena/Inductives/BlockParts.lean`: the k-ary block's record, its
-projections and the recogniser `blockParts?`, whose companion `block_parts_ls`
-is the tier's contract with the checker lane.
+`crates/con-ron-core/src/arena/inductives/block_shape.rs` against
+`proof/ConRon/Arena/Inductives/BlockShape.lean`: the k-ary block's record, its
+projections and the recogniser `blockShape?`, whose companion `block_shape_ls`
+is the tier's contract with the checker lane and the install.
 
 ## Shapes
 
 * The record copies (`*_dup`) and the Rust-only list builders (`former_names`,
-  `ctors_nf`, `rule_rhss`, `zip_members`, …) are `LSP` steps whose `TwinEq`
+  `ctors_nf`, `zip_members`, …) are `LSP` steps whose `TwinEq`
   names the twin's pure expression (`cvTs.map (·.name)`, …).
 * The Rust's index cursors are the twin's structural recursions from the
   cursor on (`absXLFrom v i`); the accumulator stands in front.
@@ -22,7 +22,7 @@ import ConRon.Refine2.Inductives.Env
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.StructParts
 import ConRon.Refine2.Core.LS.Lits
-import ConRon.Arena.Inductives.BlockParts
+import ConRon.Arena.Inductives.BlockShape
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -75,17 +75,17 @@ macro "bp_copy_head " F:term:max xs:term:max : tactic => `(tactic| (
 /-- `ctors_dup` is the identity on the abstraction from the cursor on. -/
 theorem ctors_dup_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
-      arena.inductives.block_parts.ctors_dup cs i out = ok o →
+      arena.inductives.block_shape.ctors_dup cs i out = ok o →
       absCtorsL o = absCtorsL out ++ absCtorsLFrom cs i := by
   simp only [absCtorsL, absCtorsLFrom]
-  refine vec_cursor_copy cs _ _ (arena.inductives.block_parts.ctors_dup cs) ?_ ?_
+  refine vec_cursor_copy cs _ _ (arena.inductives.block_shape.ctors_dup cs) ?_ ?_
   · intro i out o hn h
-    rw [arena.inductives.block_parts.ctors_dup.eq_def] at h
+    rw [arena.inductives.block_shape.ctors_dup.eq_def] at h
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
-    rw [arena.inductives.block_parts.ctors_dup.eq_def] at h
+    rw [arena.inductives.block_shape.ctors_dup.eq_def] at h
     rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -101,7 +101,7 @@ theorem ctors_dup_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
 /-- `ctors_dup` from `0` into an empty accumulator: the copy of the list. -/
 @[lockstep] theorem ctors_dup_twin0
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
-    LSP (arena.inductives.block_parts.ctors_dup cs 0#usize
+    LSP (arena.inductives.block_shape.ctors_dup cs 0#usize
         (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64)))
       (fun o => TwinEq (absCtorsL cs) (absCtorsL o)) := by
   intro o h
@@ -110,10 +110,10 @@ theorem ctors_dup_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
   simp only [absCtorsL, absCtorsLFrom, Lockstep.vec_new_val', Lockstep.usize_zero_val',
     List.drop_zero, List.map_nil, List.nil_append]
 
-theorem member_shape_dup_abs {m o : arena.inductives.block_parts.MemberShape}
-    (h : arena.inductives.block_parts.member_shape_dup m = ok o) :
+theorem member_shape_dup_abs {m o : arena.inductives.block_shape.MemberShape}
+    (h : arena.inductives.block_shape.member_shape_dup m = ok o) :
     absMemberShape o = absMemberShape m := by
-  rw [arena.inductives.block_parts.member_shape_dup] at h
+  rw [arena.inductives.block_shape.member_shape_dup] at h
   obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
@@ -122,28 +122,28 @@ theorem member_shape_dup_abs {m o : arena.inductives.block_parts.MemberShape}
     List.map_nil, List.nil_append] at hv'
   simp only [absMemberShape, i_constant_val_dup_abs hiv, absCtorsL, hv']
 
-theorem rec_shape_dup_abs {r o : arena.inductives.block_parts.RecShape}
-    (h : arena.inductives.block_parts.rec_shape_dup r = ok o) :
+theorem rec_shape_dup_abs {r o : arena.inductives.block_shape.RecShape}
+    (h : arena.inductives.block_shape.rec_shape_dup r = ok o) :
     absRecShape o = absRecShape r := by
-  rw [arena.inductives.block_parts.rec_shape_dup] at h
+  rw [arena.inductives.block_shape.rec_shape_dup] at h
   obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
   simp only [absRecShape, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
 
-theorem members_dup_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.MemberShape),
-      arena.inductives.block_parts.members_dup ms i out = ok o →
+theorem members_dup_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_shape.MemberShape),
+      arena.inductives.block_shape.members_dup ms i out = ok o →
       o.val.map absMemberShape = out.val.map absMemberShape ++
         (ms.val.drop i.val).map absMemberShape := by
-  refine vec_cursor_copy ms _ _ (arena.inductives.block_parts.members_dup ms) ?_ ?_
+  refine vec_cursor_copy ms _ _ (arena.inductives.block_shape.members_dup ms) ?_ ?_
   · intro i out o hn h
-    rw [arena.inductives.block_parts.members_dup.eq_def] at h
+    rw [arena.inductives.block_shape.members_dup.eq_def] at h
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < ms.val.length := (List.getElem?_eq_some_iff.mp hx).1
-    rw [arena.inductives.block_parts.members_dup.eq_def] at h
+    rw [arena.inductives.block_shape.members_dup.eq_def] at h
     rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -155,19 +155,19 @@ theorem members_dup_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberS
     exact ⟨i2, y, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       member_shape_dup_abs hy, h⟩
 
-theorem recs_dup_abs {rs : alloc.vec.Vec arena.inductives.block_parts.RecShape} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.RecShape),
-      arena.inductives.block_parts.recs_dup rs i out = ok o →
+theorem recs_dup_abs {rs : alloc.vec.Vec arena.inductives.block_shape.RecShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_shape.RecShape),
+      arena.inductives.block_shape.recs_dup rs i out = ok o →
       o.val.map absRecShape = out.val.map absRecShape ++
         (rs.val.drop i.val).map absRecShape := by
-  refine vec_cursor_copy rs _ _ (arena.inductives.block_parts.recs_dup rs) ?_ ?_
+  refine vec_cursor_copy rs _ _ (arena.inductives.block_shape.recs_dup rs) ?_ ?_
   · intro i out o hn h
-    rw [arena.inductives.block_parts.recs_dup.eq_def] at h
+    rw [arena.inductives.block_shape.recs_dup.eq_def] at h
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < rs.val.length := (List.getElem?_eq_some_iff.mp hx).1
-    rw [arena.inductives.block_parts.recs_dup.eq_def] at h
+    rw [arena.inductives.block_shape.recs_dup.eq_def] at h
     rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -179,10 +179,10 @@ theorem recs_dup_abs {rs : alloc.vec.Vec arena.inductives.block_parts.RecShape} 
     exact ⟨i2, y, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       rec_shape_dup_abs hy, h⟩
 
-theorem block_shape_dup_abs {p o : arena.inductives.block_parts.BlockShape}
-    (h : arena.inductives.block_parts.block_shape_dup p = ok o) :
+theorem block_shape_dup_abs {p o : arena.inductives.block_shape.BlockShape}
+    (h : arena.inductives.block_shape.block_shape_dup p = ok o) :
     absBlockShape o = absBlockShape p := by
-  rw [arena.inductives.block_parts.block_shape_dup] at h
+  rw [arena.inductives.block_shape.block_shape_dup] at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -194,8 +194,8 @@ theorem block_shape_dup_abs {p o : arena.inductives.block_parts.BlockShape}
     List.nil_append] at e1 e2
   simp only [absBlockShape, e1, e2, dupId_nidx _ _ hn, dupId_lidx _ _ hl]
 
-@[lockstep] theorem block_shape_dup_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.block_shape_dup p)
+@[lockstep] theorem block_shape_dup_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.block_shape_dup p)
       (fun o => TwinEq (absBlockShape p) (absBlockShape o)) :=
   fun _ h => (block_shape_dup_abs h).symm
 
@@ -251,18 +251,18 @@ theorem blockSplit_of_not_ind (L : List IConstantInfo)
 
 theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (i : Std.Usize) out o,
-      arena.inductives.block_parts.block_split_recs block i out = ok o →
+      arena.inductives.block_shape.block_split_recs block i out = ok o →
       o.map absRecsL = (blockSplitRecs (absICILFrom block i)).map (absRecsL out ++ ·) := by
   refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
-    (fun i out => ∀ o, arena.inductives.block_parts.block_split_recs block i out = ok o →
+    (fun i out => ∀ o, arena.inductives.block_shape.block_split_recs block i out = ok o →
       o.map absRecsL = (blockSplitRecs (absICILFrom block i)).map (absRecsL out ++ ·)) ?_ ?_
   · intro i out hn o h
-    rw [arena.inductives.block_parts.block_split_recs.eq_def] at h
+    rw [arena.inductives.block_shape.block_split_recs.eq_def] at h
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [absICILFrom_nil hn]; simp [blockSplitRecs]
   · intro i out hi ih o h
-    rw [arena.inductives.block_parts.block_split_recs.eq_def] at h
+    rw [arena.inductives.block_shape.block_split_recs.eq_def] at h
     rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨ii, hii, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx := vec_index_some hii
@@ -286,37 +286,37 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
 
 theorem block_split_recs_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
-    (h : arena.inductives.block_parts.block_split_recs block i (alloc.vec.Vec.new _) = ok o) :
+    (h : arena.inductives.block_shape.block_split_recs block i (alloc.vec.Vec.new _) = ok o) :
     o.map absRecsL = blockSplitRecs (absICILFrom block i) := by
   rw [block_split_recs_abs i _ o h]
   cases blockSplitRecs (absICILFrom block i) <;> simp [absRecsL]
 
 theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (i : Std.Usize) out o,
-      arena.inductives.block_parts.block_split_ctors block i out = ok o →
+      arena.inductives.block_shape.block_split_ctors block i out = ok o →
       o.map (fun q => (absCtors3L q.1, absRecsL q.2)) =
         (blockSplitCtors (absICILFrom block i)).map (fun q => (absCtors3L out ++ q.1, q.2)) := by
   refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
-    (fun i out => ∀ o, arena.inductives.block_parts.block_split_ctors block i out = ok o →
+    (fun i out => ∀ o, arena.inductives.block_shape.block_split_ctors block i out = ok o →
       o.map (fun q => (absCtors3L q.1, absRecsL q.2)) =
         (blockSplitCtors (absICILFrom block i)).map (fun q => (absCtors3L out ++ q.1, q.2)))
     ?_ ?_
   · intro i out hn o h
-    rw [arena.inductives.block_parts.block_split_ctors.eq_def] at h
+    rw [arena.inductives.block_shape.block_split_ctors.eq_def] at h
     rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have e := block_split_recs_new_abs ho1
     rw [blockSplitCtors_of_not_ctor _ (by rw [absICILFrom_nil hn]; simp), ← e]
     cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
   · intro i out hi ih o h
-    rw [arena.inductives.block_parts.block_split_ctors.eq_def] at h
+    rw [arena.inductives.block_shape.block_split_ctors.eq_def] at h
     rw [ite_eq_left (show i < alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx := vec_index_some hii
     by_cases hc : ∃ cv np nf, ii = .CtorInfo cv np nf
     · obtain ⟨cv, np, nf, rfl⟩ := hc
-      simp only [arena.inductives.block_parts.is_ctor_info, bind_ok, ite_true,
-        arena.inductives.block_parts.ctor_info_parts] at h
+      simp only [arena.inductives.block_shape.is_ctor_info, bind_ok, ite_true,
+        arena.inductives.block_shape.ctor_info_parts] at h
       obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨iv, hiv, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
       simp only [Result.ok.injEq] at ht
@@ -328,8 +328,8 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       simp only [absIConstantInfo, blockSplitCtors]
       cases blockSplitCtors (absICILFrom block i2) <;>
         simp [absCtors3L, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
-    · have hb : arena.inductives.block_parts.is_ctor_info ii = ok false := by
-        cases ii <;> simp_all [arena.inductives.block_parts.is_ctor_info]
+    · have hb : arena.inductives.block_shape.is_ctor_info ii = ok false := by
+        cases ii <;> simp_all [arena.inductives.block_shape.is_ctor_info]
       rw [hb, bind_ok] at h
       simp only [Bool.false_eq_true, ite_false] at h
       obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -342,37 +342,37 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
 
 theorem block_split_ctors_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo}
     {i : Std.Usize} {o}
-    (h : arena.inductives.block_parts.block_split_ctors block i (alloc.vec.Vec.new _) = ok o) :
+    (h : arena.inductives.block_shape.block_split_ctors block i (alloc.vec.Vec.new _) = ok o) :
     o.map (fun q => (absCtors3L q.1, absRecsL q.2)) = blockSplitCtors (absICILFrom block i) := by
   rw [block_split_ctors_abs i _ o h]
   cases blockSplitCtors (absICILFrom block i) <;> simp [absCtors3L]
 
 theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (i : Std.Usize) out o,
-      arena.inductives.block_parts.block_split block i out = ok o →
+      arena.inductives.block_shape.block_split block i out = ok o →
       o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)) =
         (blockSplit (absICILFrom block i)).map (fun q => (absICVL out ++ q.1, q.2)) := by
   refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
-    (fun i out => ∀ o, arena.inductives.block_parts.block_split block i out = ok o →
+    (fun i out => ∀ o, arena.inductives.block_shape.block_split block i out = ok o →
       o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)) =
         (blockSplit (absICILFrom block i)).map (fun q => (absICVL out ++ q.1, q.2)))
     ?_ ?_
   · intro i out hn o h
-    rw [arena.inductives.block_parts.block_split.eq_def] at h
+    rw [arena.inductives.block_shape.block_split.eq_def] at h
     rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have e := block_split_ctors_new_abs ho1
     rw [blockSplit_of_not_ind _ (by rw [absICILFrom_nil hn]; simp), ← e]
     cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
   · intro i out hi ih o h
-    rw [arena.inductives.block_parts.block_split.eq_def] at h
+    rw [arena.inductives.block_shape.block_split.eq_def] at h
     rw [ite_eq_left (show i < alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx := vec_index_some hii
     by_cases hc : ∃ cv caps, ii = .IndInfo cv caps
     · obtain ⟨cv, caps, rfl⟩ := hc
-      simp only [arena.inductives.block_parts.is_ind_info, bind_ok, ite_true,
-        arena.inductives.block_parts.ind_info_val] at h
+      simp only [arena.inductives.block_shape.is_ind_info, bind_ok, ite_true,
+        arena.inductives.block_shape.ind_info_val] at h
       obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -381,8 +381,8 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       simp only [absIConstantInfo, blockSplit]
       cases blockSplit (absICILFrom block i2) <;>
         simp [absICVL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
-    · have hb : arena.inductives.block_parts.is_ind_info ii = ok false := by
-        cases ii <;> simp_all [arena.inductives.block_parts.is_ind_info]
+    · have hb : arena.inductives.block_shape.is_ind_info ii = ok false := by
+        cases ii <;> simp_all [arena.inductives.block_shape.is_ind_info]
       rw [hb, bind_ok] at h
       simp only [Bool.false_eq_true, ite_false] at h
       obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -395,7 +395,7 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
 
 /-- `block_split` from `0` into an empty accumulator IS `blockSplit`. -/
 @[lockstep] theorem block_split_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
-    LSP (arena.inductives.block_parts.block_split block 0#usize (alloc.vec.Vec.new _))
+    LSP (arena.inductives.block_shape.block_split block 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq (blockSplit (absICIL block))
         (o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)))) := by
   intro o h
@@ -406,14 +406,14 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
 
 theorem former_names_abs {cvs : alloc.vec.Vec arena.env.IConstantVal} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.block_parts.former_names cvs i out = ok o →
+      arena.inductives.block_shape.former_names cvs i out = ok o →
       absNIdxL o = absNIdxL out ++ (absICVLFrom cvs i).map (·.name) := by
   have := vec_cursor_copy cvs absNIdx (fun c => absNIdx c.name)
-    (arena.inductives.block_parts.former_names cvs) ?_ ?_
+    (arena.inductives.block_shape.former_names cvs) ?_ ?_
   · intro i out o h
     simpa [absNIdxL, absICVLFrom, absIConstantVal, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.former_names.eq_def cvs
-  · bp_copy_head arena.inductives.block_parts.former_names.eq_def cvs
+  · bp_copy_stop arena.inductives.block_shape.former_names.eq_def cvs
+  · bp_copy_head arena.inductives.block_shape.former_names.eq_def cvs
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -421,7 +421,7 @@ theorem former_names_abs {cvs : alloc.vec.Vec arena.env.IConstantVal} :
       by rw [dupId_nidx _ _ hn], h⟩
 
 @[lockstep] theorem former_names_twin0 (cvs : alloc.vec.Vec arena.env.IConstantVal) :
-    LSP (arena.inductives.block_parts.former_names cvs 0#usize (alloc.vec.Vec.new _))
+    LSP (arena.inductives.block_shape.former_names cvs 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq ((absICVL cvs).map (·.name)) (absNIdxL o)) := by
   intro o h
   rw [TwinEq, former_names_abs _ _ o h, absICVLFrom_zero]
@@ -429,15 +429,15 @@ theorem former_names_abs {cvs : alloc.vec.Vec arena.env.IConstantVal} :
 
 theorem ctors_nf_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
-      arena.inductives.block_parts.ctors_nf cs i out = ok o →
+      arena.inductives.block_shape.ctors_nf cs i out = ok o →
       absCtorsL o = absCtorsL out ++ (absCtors3LFrom cs i).map (fun c => (c.1, c.2.2)) := by
   have := vec_cursor_copy cs (fun p => (absIConstantVal p.1, absU p.2))
     (fun c => (absIConstantVal c.1, absU c.2.2))
-    (arena.inductives.block_parts.ctors_nf cs) ?_ ?_
+    (arena.inductives.block_shape.ctors_nf cs) ?_ ?_
   · intro i out o h
     simpa [absCtorsL, absCtors3LFrom, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.ctors_nf.eq_def cs
-  · bp_copy_head arena.inductives.block_parts.ctors_nf.eq_def cs
+  · bp_copy_stop arena.inductives.block_shape.ctors_nf.eq_def cs
+  · bp_copy_head arena.inductives.block_shape.ctors_nf.eq_def cs
     obtain ⟨iv, np, nf⟩ := q
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -447,99 +447,76 @@ theorem ctors_nf_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × S
 
 @[lockstep] theorem ctors_nf_twin0
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
-    LSP (arena.inductives.block_parts.ctors_nf cs 0#usize (alloc.vec.Vec.new _))
+    LSP (arena.inductives.block_shape.ctors_nf cs 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq ((absCtors3L cs).map (fun c => (c.1, c.2.2))) (absCtorsL o)) := by
   intro o h
   rw [TwinEq, ctors_nf_abs _ _ o h, absCtors3LFrom_zero]
   simp [absCtorsL]
 
-theorem rule_rhss_abs {rules : alloc.vec.Vec arena.env.IRecRule} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.EIdx),
-      arena.inductives.block_parts.rule_rhss rules i out = ok o →
-      absEIdxL o = absEIdxL out ++ (absIRecRuleLFrom rules i).map (·.rhs) := by
-  have := vec_cursor_copy rules absEIdx (fun r => absEIdx r.rhs)
-    (arena.inductives.block_parts.rule_rhss rules) ?_ ?_
-  · intro i out o h
-    simpa [absEIdxL, absIRecRuleLFrom, absIRecRule, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.rule_rhss.eq_def rules
-  · bp_copy_head arena.inductives.block_parts.rule_rhss.eq_def rules
-    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact ⟨i2, e, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      by rw [dupId_eidx _ _ he], h⟩
-
-@[lockstep] theorem rule_rhss_twin0 (rules : alloc.vec.Vec arena.env.IRecRule) :
-    LSP (arena.inductives.block_parts.rule_rhss rules 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq ((rules.val.map absIRecRule).map (·.rhs)) (absEIdxL o)) := by
-  intro o h
-  rw [TwinEq, rule_rhss_abs _ _ o h]
-  simp [absEIdxL, absIRecRuleLFrom]
-
-theorem member_names_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+theorem member_names_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.block_parts.member_names ms i out = ok o →
+      arena.inductives.block_shape.member_names ms i out = ok o →
       absNIdxL o = absNIdxL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.cvT.name) := by
   have := vec_cursor_copy ms absNIdx (fun m => absNIdx m.cv_t.name)
-    (arena.inductives.block_parts.member_names ms) ?_ ?_
+    (arena.inductives.block_shape.member_names ms) ?_ ?_
   · intro i out o h
     simpa [absNIdxL, absMemberShape, absIConstantVal, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.member_names.eq_def ms
-  · bp_copy_head arena.inductives.block_parts.member_names.eq_def ms
+  · bp_copy_stop arena.inductives.block_shape.member_names.eq_def ms
+  · bp_copy_head arena.inductives.block_shape.member_names.eq_def ms
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       by rw [dupId_nidx _ _ hn], h⟩
 
-@[lockstep] theorem shape_member_names_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_member_names p)
+@[lockstep] theorem shape_member_names_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_member_names p)
       (fun o => TwinEq (absBlockShape p).memberNames (absNIdxL o)) := by
   intro o h
-  rw [arena.inductives.block_parts.shape_member_names] at h
+  rw [arena.inductives.block_shape.shape_member_names] at h
   rw [TwinEq, member_names_abs _ _ o h]
   simp [absNIdxL, BlockShape.memberNames, absBlockShape]
 
-theorem shape_n_idxs_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+theorem shape_n_idxs_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec Std.U64),
-      arena.inductives.block_parts.shape_n_idxs ms i out = ok o →
+      arena.inductives.block_shape.shape_n_idxs ms i out = ok o →
       absNatL o = absNatL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.nIdx) := by
   have := vec_cursor_copy ms absU (fun m => absU m.n_idx)
-    (arena.inductives.block_parts.shape_n_idxs ms) ?_ ?_
+    (arena.inductives.block_shape.shape_n_idxs ms) ?_ ?_
   · intro i out o h
     simpa [absNatL, absMemberShape, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.shape_n_idxs.eq_def ms
-  · bp_copy_head arena.inductives.block_parts.shape_n_idxs.eq_def ms
+  · bp_copy_stop arena.inductives.block_shape.shape_n_idxs.eq_def ms
+  · bp_copy_head arena.inductives.block_shape.shape_n_idxs.eq_def ms
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact ⟨i2, _, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, rfl, h⟩
 
 /-- `shape_n_idxs p.members 0 []` IS `p.nIdxs`. -/
-@[lockstep] theorem shape_n_idxs_twin0 (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_n_idxs p.members 0#usize (alloc.vec.Vec.new _))
+@[lockstep] theorem shape_n_idxs_twin0 (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_n_idxs p.members 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq (absBlockShape p).nIdxs (absNatL o)) := by
   intro o h
   rw [TwinEq, shape_n_idxs_abs _ _ o h]
   simp [absNatL, BlockShape.nIdxs, absBlockShape]
 
-theorem rec_names_abs {rs : alloc.vec.Vec arena.inductives.block_parts.RecShape} :
+theorem rec_names_abs {rs : alloc.vec.Vec arena.inductives.block_shape.RecShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.block_parts.rec_names rs i out = ok o →
+      arena.inductives.block_shape.rec_names rs i out = ok o →
       absNIdxL o = absNIdxL out ++ ((rs.val.drop i.val).map absRecShape).map (·.cvR.name) := by
   have := vec_cursor_copy rs absNIdx (fun r => absNIdx r.cv_r.name)
-    (arena.inductives.block_parts.rec_names rs) ?_ ?_
+    (arena.inductives.block_shape.rec_names rs) ?_ ?_
   · intro i out o h
     simpa [absNIdxL, absRecShape, absIConstantVal, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_parts.rec_names.eq_def rs
-  · bp_copy_head arena.inductives.block_parts.rec_names.eq_def rs
+  · bp_copy_stop arena.inductives.block_shape.rec_names.eq_def rs
+  · bp_copy_head arena.inductives.block_shape.rec_names.eq_def rs
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       by rw [dupId_nidx _ _ hn], h⟩
 
-@[lockstep] theorem rec_names_twin0 (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
-    LSP (arena.inductives.block_parts.rec_names rs 0#usize (alloc.vec.Vec.new _))
+@[lockstep] theorem rec_names_twin0 (rs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
+    LSP (arena.inductives.block_shape.rec_names rs 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq ((rs.val.map absRecShape).map (·.cvR.name)) (absNIdxL o)) := by
   intro o h
   rw [TwinEq, rec_names_abs _ _ o h]
@@ -577,17 +554,17 @@ theorem names_contain0_abs {ns : alloc.vec.Vec arena.handle.NIdx} {n : arena.han
 theorem formers_pinned_abs {reserved lps : alloc.vec.Vec arena.handle.NIdx}
     {cvs : alloc.vec.Vec arena.env.IConstantVal} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.formers_pinned reserved cvs lps i = ok o →
+      arena.inductives.block_shape.formers_pinned reserved cvs lps i = ok o →
       o = (absICVLFrom cvs i).all (fun c =>
         !(absNIdxL reserved).contains c.name && c.levelParams == absNIdxL lps) := by
   have := vec_cursor_all cvs (fun x => (fun c : IConstantVal =>
         !(absNIdxL reserved).contains c.name && c.levelParams == absNIdxL lps)
       (absIConstantVal x))
-    (arena.inductives.block_parts.formers_pinned reserved cvs lps) ?_ ?_
+    (arena.inductives.block_shape.formers_pinned reserved cvs lps) ?_ ?_
   · intro i o h
     rw [this i o h, absICVLFrom, List.all_map]; rfl
-  · bp_all_stop arena.inductives.block_parts.formers_pinned.eq_def cvs
-  · bp_all_head arena.inductives.block_parts.formers_pinned.eq_def cvs
+  · bp_all_stop arena.inductives.block_shape.formers_pinned.eq_def cvs
+  · bp_all_head arena.inductives.block_shape.formers_pinned.eq_def cvs
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv := names_contain0_abs hb
     cases b
@@ -610,7 +587,7 @@ theorem formers_pinned_abs {reserved lps : alloc.vec.Vec arena.handle.NIdx}
 
 @[lockstep] theorem formers_pinned_twin0 (reserved lps : alloc.vec.Vec arena.handle.NIdx)
     (cvs : alloc.vec.Vec arena.env.IConstantVal) :
-    LSP (arena.inductives.block_parts.formers_pinned reserved cvs lps 0#usize)
+    LSP (arena.inductives.block_shape.formers_pinned reserved cvs lps 0#usize)
       (fun o => TwinEq ((absICVL cvs).all (fun c =>
         !(absNIdxL reserved).contains c.name && c.levelParams == absNIdxL lps)) o) := by
   intro o h
@@ -620,14 +597,14 @@ theorem recs_unreserved_abs {reserved : alloc.vec.Vec arena.handle.NIdx}
     {rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.recs_unreserved reserved rs i = ok o →
+      arena.inductives.block_shape.recs_unreserved reserved rs i = ok o →
       o = (absRecsLFrom rs i).all (fun r => !(absNIdxL reserved).contains r.1.name) := by
   have := vec_cursor_all rs (fun x => !(absNIdxL reserved).contains (absNIdx x.1.name))
-    (arena.inductives.block_parts.recs_unreserved reserved rs) ?_ ?_
+    (arena.inductives.block_shape.recs_unreserved reserved rs) ?_ ?_
   · intro i o h
     rw [this i o h, absRecsLFrom, List.all_map]; rfl
-  · bp_all_stop arena.inductives.block_parts.recs_unreserved.eq_def rs
-  · bp_all_head arena.inductives.block_parts.recs_unreserved.eq_def rs
+  · bp_all_stop arena.inductives.block_shape.recs_unreserved.eq_def rs
+  · bp_all_head arena.inductives.block_shape.recs_unreserved.eq_def rs
     obtain ⟨iv, a, b, c⟩ := q
     obtain ⟨bb, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv := names_contain0_abs hb
@@ -645,7 +622,7 @@ theorem recs_unreserved_abs {reserved : alloc.vec.Vec arena.handle.NIdx}
 @[lockstep] theorem recs_unreserved_twin0 (reserved : alloc.vec.Vec arena.handle.NIdx)
     (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))) :
-    LSP (arena.inductives.block_parts.recs_unreserved reserved rs 0#usize)
+    LSP (arena.inductives.block_shape.recs_unreserved reserved rs 0#usize)
       (fun o => TwinEq ((absRecsL rs).all (fun r => !(absNIdxL reserved).contains r.1.name)) o) := by
   intro o h
   rw [TwinEq, recs_unreserved_abs _ o h, absRecsLFrom_zero]
@@ -653,17 +630,17 @@ theorem recs_unreserved_abs {reserved : alloc.vec.Vec arena.handle.NIdx}
 theorem ctors_pinned_abs {reserved lps : alloc.vec.Vec arena.handle.NIdx}
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} {n_p : Std.U64} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.ctors_pinned reserved cs n_p lps i = ok o →
+      arena.inductives.block_shape.ctors_pinned reserved cs n_p lps i = ok o →
       o = (absCtors3LFrom cs i).all (fun c => c.2.1 == absU n_p &&
         c.1.levelParams == absNIdxL lps && !(absNIdxL reserved).contains c.1.name) := by
   have := vec_cursor_all cs (fun x => (fun c : IConstantVal × Nat × Nat => c.2.1 == absU n_p &&
         c.1.levelParams == absNIdxL lps && !(absNIdxL reserved).contains c.1.name)
       (absIConstantVal x.1, absU x.2.1, absU x.2.2))
-    (arena.inductives.block_parts.ctors_pinned reserved cs n_p lps) ?_ ?_
+    (arena.inductives.block_shape.ctors_pinned reserved cs n_p lps) ?_ ?_
   · intro i o h
     rw [this i o h, absCtors3LFrom, List.all_map]; rfl
-  · bp_all_stop arena.inductives.block_parts.ctors_pinned.eq_def cs
-  · bp_all_head arena.inductives.block_parts.ctors_pinned.eq_def cs
+  · bp_all_stop arena.inductives.block_shape.ctors_pinned.eq_def cs
+  · bp_all_head arena.inductives.block_shape.ctors_pinned.eq_def cs
     obtain ⟨iv, np, nf⟩ := q
     change (if np = n_p then _ else _) = ok o at h
     by_cases hnp : np = n_p
@@ -697,7 +674,7 @@ theorem ctors_pinned_abs {reserved lps : alloc.vec.Vec arena.handle.NIdx}
 
 @[lockstep] theorem ctors_pinned_twin0 (reserved lps : alloc.vec.Vec arena.handle.NIdx)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) (n_p : Std.U64) :
-    LSP (arena.inductives.block_parts.ctors_pinned reserved cs n_p lps 0#usize)
+    LSP (arena.inductives.block_shape.ctors_pinned reserved cs n_p lps 0#usize)
       (fun o => TwinEq ((absCtors3L cs).all (fun c => c.2.1 == absU n_p &&
         c.1.levelParams == absNIdxL lps && !(absNIdxL reserved).contains c.1.name)) o) := by
   intro o h
@@ -705,14 +682,14 @@ theorem ctors_pinned_abs {reserved lps : alloc.vec.Vec arena.handle.NIdx}
 
 theorem names_all_in_abs {xs ys : alloc.vec.Vec arena.handle.NIdx} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.names_all_in xs ys i = ok o →
+      arena.inductives.block_shape.names_all_in xs ys i = ok o →
       o = (absNIdxLFrom xs i).all (fun n => (absNIdxL ys).contains n) := by
   have := vec_cursor_all xs (fun x => (absNIdxL ys).contains (absNIdx x))
-    (arena.inductives.block_parts.names_all_in xs ys) ?_ ?_
+    (arena.inductives.block_shape.names_all_in xs ys) ?_ ?_
   · intro i o h
     rw [this i o h, absNIdxLFrom, List.all_map]; rfl
-  · bp_all_stop arena.inductives.block_parts.names_all_in.eq_def xs
-  · bp_all_head arena.inductives.block_parts.names_all_in.eq_def xs
+  · bp_all_stop arena.inductives.block_shape.names_all_in.eq_def xs
+  · bp_all_head arena.inductives.block_shape.names_all_in.eq_def xs
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv := names_contain0_abs hb
     cases b
@@ -723,7 +700,7 @@ theorem names_all_in_abs {xs ys : alloc.vec.Vec arena.handle.NIdx} :
       exact Or.inl ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
 
 @[lockstep] theorem names_all_in_twin0 (xs ys : alloc.vec.Vec arena.handle.NIdx) :
-    LSP (arena.inductives.block_parts.names_all_in xs ys 0#usize)
+    LSP (arena.inductives.block_shape.names_all_in xs ys 0#usize)
       (fun o => TwinEq ((absNIdxL xs).all (fun n => (absNIdxL ys).contains n)) o) := by
   intro o h
   rw [TwinEq, names_all_in_abs _ o h, absNIdxLFrom_zero]
@@ -733,7 +710,7 @@ theorem nidx_vec_beq_off_cmp {a b : alloc.vec.Vec arena.handle.NIdx} {off i i1 :
     (hi1v : i1.val = off.val + i.val) (hi : i.val < b.val.length)
     (hlt : off.val + i.val < a.val.length)
     (ih : ∀ (j : Std.Usize) (o : Bool), j.val = i.val + 1 →
-      arena.inductives.block_parts.nidx_vec_beq_off a off b j = ok o →
+      arena.inductives.block_shape.nidx_vec_beq_off a off b j = ok o →
       o = ((a.val.drop (off.val + j.val)).map absNIdx == (b.val.drop j.val).map absNIdx))
     {o : Bool}
     (h : (do
@@ -744,7 +721,7 @@ theorem nidx_vec_beq_off_cmp {a b : alloc.vec.Vec arena.handle.NIdx} {off i i1 :
         let b1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n n1
         if b1 then do
           let i6 ← i + 1#usize
-          arena.inductives.block_parts.nidx_vec_beq_off a off b i6
+          arena.inductives.block_shape.nidx_vec_beq_off a off b i6
         else ok false) = ok o) :
     o = ((a.val.drop (off.val + i.val)).map absNIdx == (b.val.drop i.val).map absNIdx) := by
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -771,15 +748,15 @@ theorem nidx_vec_beq_off_cmp {a b : alloc.vec.Vec arena.handle.NIdx} {off i i1 :
 /-- `nidx_vec_beq_off a off b i` compares `a` from `off + i` with `b` from `i`. -/
 theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.Usize} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.nidx_vec_beq_off a off b i = ok o →
+      arena.inductives.block_shape.nidx_vec_beq_off a off b i = ok o →
       o = ((a.val.drop (off.val + i.val)).map absNIdx == (b.val.drop i.val).map absNIdx) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) b.val.length
-    (fun i (_ : Unit) => ∀ o, arena.inductives.block_parts.nidx_vec_beq_off a off b i = ok o →
+    (fun i (_ : Unit) => ∀ o, arena.inductives.block_shape.nidx_vec_beq_off a off b i = ok o →
       o = ((a.val.drop (off.val + i.val)).map absNIdx == (b.val.drop i.val).map absNIdx))
     ?_ ?_ i ()
   · intro i _ hn o h
-    rw [arena.inductives.block_parts.nidx_vec_beq_off.eq_def] at h
+    rw [arena.inductives.block_shape.nidx_vec_beq_off.eq_def] at h
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hi1v : i1.val = off.val + i.val := ConRon.Refine.Nat.uadd_val hi1
     rw [List.drop_eq_nil_of_le hn]
@@ -790,7 +767,7 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
         Result.ok.injEq] at h
       rw [← h, List.drop_eq_getElem_cons (by omega : off.val + i.val < a.val.length)]; rfl
   · intro i _ hi ih o h
-    rw [arena.inductives.block_parts.nidx_vec_beq_off.eq_def] at h
+    rw [arena.inductives.block_shape.nidx_vec_beq_off.eq_def] at h
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hi1v : i1.val = off.val + i.val := ConRon.Refine.Nat.uadd_val hi1
     by_cases ha : a.val.length ≤ i1.val
@@ -802,7 +779,7 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
 
 /-- `nidx_vec_beq_off a 1 b 0`: `a`'s tail against `b`. -/
 @[lockstep] theorem nidx_vec_beq_off_twin1 (a b : alloc.vec.Vec arena.handle.NIdx) :
-    LSP (arena.inductives.block_parts.nidx_vec_beq_off a 1#usize b 0#usize)
+    LSP (arena.inductives.block_shape.nidx_vec_beq_off a 1#usize b 0#usize)
       (fun o => TwinEq ((a.val.drop 1).map absNIdx == b.val.map absNIdx) o) := by
   intro o h
   rw [TwinEq, nidx_vec_beq_off_abs _ o h]
@@ -815,13 +792,13 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
     (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (m_i : Std.U64)
     (ty : arena.handle.EIdx) :
     LSR pers (fun a b => b = absU a)
-      (arena.inductives.block_parts.rec_target_of pers st names m_i ty) st lst
+      (arena.inductives.block_shape.rec_target_of pers st names m_i ty) st lst
       (recTargetOf (absNIdxL names) (absU m_i) (absEIdx ty)) := by
   apply LSR.of_LS
-  rw [arena.inductives.block_parts.rec_target_of, recTargetOf]
+  rw [arena.inductives.block_shape.rec_target_of, recTargetOf]
   lockstep
 
-attribute [local lockstep_inline] arena.inductives.block_parts.block_counts_rec
+attribute [local lockstep_inline] arena.inductives.block_shape.block_counts_rec
 attribute [local lockstep_simp] absNatPair
 
 set_option maxHeartbeats 2000000 in
@@ -831,11 +808,11 @@ second arm, unfolded in place). -/
     (hinv : AStateInv pers st) (n_pd k n_c n_r : Std.U64) (cv_t : arena.env.IConstantVal)
     (r : Option (Std.U64 × Std.U64)) :
     LSR pers (fun a b => b = a.map absNatPair)
-      (arena.inductives.block_parts.block_counts pers st n_pd k n_c n_r cv_t r) st lst
+      (arena.inductives.block_shape.block_counts pers st n_pd k n_c n_r cv_t r) st lst
       (blockCounts? (absU n_pd) (absU k) (absU n_c) (absU n_r) (absIConstantVal cv_t)
         (r.map absNatPair)) := by
   apply LSR.of_LS
-  rw [arena.inductives.block_parts.block_counts, blockCounts?.eq_def]
+  rw [arena.inductives.block_shape.block_counts, blockCounts?.eq_def]
   lockstep
   refine LS.pure ?_ hrel hinv
   simp_all [absNatPair, absU, absBinderL]
@@ -845,11 +822,11 @@ second arm, unfolded in place). -/
     (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
     (lvls : arena.handle.LsIdx) (n_p : Std.U64) (c : arena.env.IConstantVal × Std.U64) :
     LSR pers (fun a b => b = a.map absU)
-      (arena.inductives.block_parts.ctor_member pers st names lvls n_p c) st lst
+      (arena.inductives.block_shape.ctor_member pers st names lvls n_p c) st lst
       (ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) (absIConstantVal c.1, absU c.2)) := by
   apply LSR.of_LS
   obtain ⟨cv, n⟩ := c
-  rw [arena.inductives.block_parts.ctor_member, ctorMember?]
+  rw [arena.inductives.block_shape.ctor_member, ctorMember?]
   lockstep
 
 theorem absRecsLFrom_cons {rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
@@ -867,7 +844,7 @@ theorem rec_for_member_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
       (alloc.vec.Vec arena.env.IRecRule))) (m : Std.U64) :
     ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
     LSR pers (fun a b => b = a.map absNatPair)
-      (arena.inductives.block_parts.rec_for_member pers st names rs m i) st lst
+      (arena.inductives.block_shape.rec_for_member pers st names rs m i) st lst
       (do
         let q ← (absRecsLFrom rs i).findM? fun q => do
           pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)
@@ -876,20 +853,20 @@ theorem rec_for_member_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
   refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
     (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = a.map absNatPair)
-        (arena.inductives.block_parts.rec_for_member pers st names rs m i) st lst
+        (arena.inductives.block_shape.rec_for_member pers st names rs m i) st lst
         (do
           let q ← (absRecsLFrom rs i).findM? fun q => do
             pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)
           pure (q.map fun q => (q.2.1, q.2.2.1)))) ?_ ?_ i ()
   · intro i _ hn lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.rec_for_member.eq_def,
+    rw [arena.inductives.block_shape.rec_for_member.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac)]
     rw [absRecsLFrom, List.drop_eq_nil_of_le hn, List.map_nil, List.findM?]
     lockstep
   · intro i _ hi ih lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.rec_for_member.eq_def,
+    rw [arena.inductives.block_shape.rec_for_member.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)]
     rw [absRecsLFrom_cons hi, List.findM?]
     lockstep
@@ -929,7 +906,7 @@ theorem LSR.of_map {α β γ : Type} {pers : arena.store.PersTier} {R : α → �
     (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))) (m : Std.U64) :
     LSR pers (fun a q => q.map (fun q => (q.2.1, q.2.2.1)) = a.map absNatPair)
-      (arena.inductives.block_parts.rec_for_member pers st names rs m 0#usize) st lst
+      (arena.inductives.block_shape.rec_for_member pers st names rs m 0#usize) st lst
       ((absRecsL rs).findM? fun q => do
           pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)) := by
   have h := rec_for_member_ls names rs m 0#usize lst hrel hinv
@@ -976,7 +953,7 @@ theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
     ∀ (m : Std.U64) (out : alloc.vec.Vec Std.U64) lst, AStateRel₀ pers st lst →
       AStateInv pers st →
       LSR pers (fun a b => b = a.map absNatL)
-        (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
+        (arena.inductives.block_shape.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
         st lst
         (do
           let r ← blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names)
@@ -986,7 +963,7 @@ theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
     (fun m (out : alloc.vec.Vec Std.U64) => ∀ lst, AStateRel₀ pers st lst →
       AStateInv pers st →
       LSR pers (fun a b => b = a.map absNatL)
-        (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
+        (arena.inductives.block_shape.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
         st lst
         (do
           let r ← blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names)
@@ -994,12 +971,12 @@ theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
           pure (r.map (absNatL out ++ ·)))) ?_ ?_
   · intro m out hn lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_member_counts.eq_def,
+    rw [arena.inductives.block_shape.block_member_counts.eq_def,
       List.drop_eq_nil_of_le (by simpa [absICVL] using hn), blockMemberCounts?]
     lockstep
   · intro m out hm ih lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_member_counts.eq_def, absICVL_drop_cons hm,
+    rw [arena.inductives.block_shape.block_member_counts.eq_def, absICVL_drop_cons hm,
       blockMemberCounts?_cons]
     lockstep
     rename_i sn out1 hout1
@@ -1017,7 +994,7 @@ theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
     (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))) (cv_ts : alloc.vec.Vec arena.env.IConstantVal) :
     LSR pers (fun a b => b = a.map absNatL)
-      (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs 0#u64 cv_ts
+      (arena.inductives.block_shape.block_member_counts pers st n_pd k n_c names rs 0#u64 cv_ts
         (alloc.vec.Vec.new _)) st lst
       (blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names) (absRecsL rs) 0
         (absICVL cv_ts)) := by
@@ -1061,7 +1038,7 @@ theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = absCtorsL a)
-        (arena.inductives.block_parts.block_group pers st names lvls n_p m cs i out) st lst
+        (arena.inductives.block_shape.block_group pers st names lvls n_p m cs i out) st lst
         (do
           let r ← List.filterAuxM (fun c =>
               ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
@@ -1071,7 +1048,7 @@ theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = absCtorsL a)
-        (arena.inductives.block_parts.block_group pers st names lvls n_p m cs i out) st lst
+        (arena.inductives.block_shape.block_group pers st names lvls n_p m cs i out) st lst
         (do
           let r ← List.filterAuxM (fun c =>
               ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
@@ -1080,13 +1057,13 @@ theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
           pure r.reverse)) ?_ ?_
   · intro i out hn lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_group.eq_def,
+    rw [arena.inductives.block_shape.block_group.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, List.filterAuxM]
     lockstep
   · intro i out hi ih lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_group.eq_def,
+    rw [arena.inductives.block_shape.block_group.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom_cons hi,
       List.filterAuxM]
     lockstep
@@ -1097,7 +1074,7 @@ theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     (lvls : arena.handle.LsIdx) (n_p m : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LSR pers (fun a b => b = absCtorsL a)
-      (arena.inductives.block_parts.block_group pers st names lvls n_p m cs 0#usize
+      (arena.inductives.block_shape.block_group pers st names lvls n_p m cs 0#usize
         (alloc.vec.Vec.new _)) st lst
       ((absCtorsL cs).filterM fun c =>
         ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
@@ -1115,7 +1092,7 @@ theorem block_groups_from_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     ∀ (m : Std.U64) (out : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = a.val.map absCtorsL)
-        (arena.inductives.block_parts.block_groups_from pers st names lvls n_p k m cs out) st lst
+        (arena.inductives.block_shape.block_groups_from pers st names lvls n_p k m cs out) st lst
         (do
           let r ← (List.range' (absU m) (absU k - absU m)).mapM fun m =>
             (absCtorsL cs).filterM fun c =>
@@ -1125,7 +1102,7 @@ theorem block_groups_from_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
   refine cursor_induction (fun m : Std.U64 => m.val) k.val
     (fun m out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = a.val.map absCtorsL)
-        (arena.inductives.block_parts.block_groups_from pers st names lvls n_p k m cs out) st lst
+        (arena.inductives.block_shape.block_groups_from pers st names lvls n_p k m cs out) st lst
         (do
           let r ← (List.range' (absU m) (absU k - absU m)).mapM fun m =>
             (absCtorsL cs).filterM fun c =>
@@ -1134,13 +1111,13 @@ theorem block_groups_from_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
           pure (out.val.map absCtorsL ++ r))) ?_ ?_
   · intro m out hn lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_groups_from.eq_def,
+    rw [arena.inductives.block_shape.block_groups_from.eq_def,
       ite_eq_left (show m ≥ k by scalar_tac), show absU k - absU m = 0 by simp only [absU]; omega,
       List.range'_zero, List.mapM_nil]
     lockstep
   · intro m out hm ih lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.block_groups_from.eq_def,
+    rw [arena.inductives.block_shape.block_groups_from.eq_def,
       ite_eq_right (show ¬ m ≥ k by scalar_tac),
       show absU k - absU m = (absU k - (absU m + 1)) + 1 by simp only [absU]; omega,
       List.range'_succ, List.mapM_cons]
@@ -1153,14 +1130,14 @@ twin shares). -/
     (lvls : arena.handle.LsIdx) (n_p k : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LSR pers (fun a b => b = a.val.map absCtorsL)
-      (arena.inductives.block_parts.block_groups pers st names lvls n_p k cs) st lst
+      (arena.inductives.block_shape.block_groups pers st names lvls n_p k cs) st lst
       (blockGroups (absNIdxL names) (absLsIdx lvls) (absU n_p) (absU k) (absCtorsL cs)) := by
   have hf := block_groups_from_ls (pers := pers) (st := st) names lvls n_p k cs 0#u64
     (alloc.vec.Vec.new _) lst hrel hinv
   have e : absU (0#u64 : Std.U64) = 0 := rfl
   simp only [e, Nat.sub_zero, Lockstep.vec_new_val', List.map_nil, List.nil_append, bind_pure] at hf
   apply LSR.of_LS
-  rw [arena.inductives.block_parts.block_groups, blockGroups_eq, List.range_eq_range']
+  rw [arena.inductives.block_shape.block_groups, blockGroups_eq, List.range_eq_range']
   lockstep
 
 /-! ## The members and the recursors -/
@@ -1168,25 +1145,25 @@ twin shares). -/
 theorem zip_members_abs {cvs : alloc.vec.Vec arena.env.IConstantVal}
     {n_idxs : alloc.vec.Vec Std.U64}
     {groups : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.MemberShape),
-      arena.inductives.block_parts.zip_members cvs n_idxs groups i out = ok o →
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_shape.MemberShape),
+      arena.inductives.block_shape.zip_members cvs n_idxs groups i out = ok o →
       o.val.map absMemberShape = out.val.map absMemberShape ++
         ((((cvs.val.drop i.val).map absIConstantVal).zip ((n_idxs.val.drop i.val).map absU)).zip
           ((groups.val.drop i.val).map absCtorsL)).map
           (fun a => (⟨a.1.1, a.1.2, a.2⟩ : MemberShape)) := by
   refine cursor_induction (fun i : Std.Usize => i.val) cvs.val.length
-    (fun i out => ∀ o, arena.inductives.block_parts.zip_members cvs n_idxs groups i out = ok o →
+    (fun i out => ∀ o, arena.inductives.block_shape.zip_members cvs n_idxs groups i out = ok o →
       o.val.map absMemberShape = out.val.map absMemberShape ++
         ((((cvs.val.drop i.val).map absIConstantVal).zip ((n_idxs.val.drop i.val).map absU)).zip
           ((groups.val.drop i.val).map absCtorsL)).map
           (fun a => (⟨a.1.1, a.1.2, a.2⟩ : MemberShape))) ?_ ?_
   · intro i out hn o h
-    rw [arena.inductives.block_parts.zip_members.eq_def,
+    rw [arena.inductives.block_shape.zip_members.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h
     subst h
     simp [List.drop_eq_nil_of_le hn]
   · intro i out hi ih o h
-    rw [arena.inductives.block_parts.zip_members.eq_def,
+    rw [arena.inductives.block_shape.zip_members.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cvs by scalar_tac)] at h
     by_cases h2 : n_idxs.val.length ≤ i.val
     · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len n_idxs by scalar_tac), Result.ok.injEq] at h
@@ -1220,7 +1197,7 @@ theorem zip_members_abs {cvs : alloc.vec.Vec arena.env.IConstantVal}
 @[lockstep] theorem zip_members_twin0 (cvs : alloc.vec.Vec arena.env.IConstantVal)
     (n_idxs : alloc.vec.Vec Std.U64)
     (groups : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
-    LSP (arena.inductives.block_parts.zip_members cvs n_idxs groups 0#usize (alloc.vec.Vec.new _))
+    LSP (arena.inductives.block_shape.zip_members cvs n_idxs groups 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq ((((absICVL cvs).zip (absNatL n_idxs)).zip (groups.val.map absCtorsL)).map
           (fun a => (⟨a.1.1, a.1.2, a.2⟩ : MemberShape)))
         (o.val.map absMemberShape)) := by
@@ -1233,10 +1210,10 @@ records in front. -/
 theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))) :
-    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.block_parts.RecShape) lst,
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.block_shape.RecShape) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = a.val.map absRecShape)
-        (arena.inductives.block_parts.rec_shapes pers st names rs i out) st lst
+        (arena.inductives.block_shape.rec_shapes pers st names rs i out) st lst
         (do
           let r ← (absRecsLFrom rs i).mapM fun r => do
             let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
@@ -1245,7 +1222,7 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
   refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
     (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = a.val.map absRecShape)
-        (arena.inductives.block_parts.rec_shapes pers st names rs i out) st lst
+        (arena.inductives.block_shape.rec_shapes pers st names rs i out) st lst
         (do
           let r ← (absRecsLFrom rs i).mapM fun r => do
             let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
@@ -1253,13 +1230,13 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
           pure (out.val.map absRecShape ++ r))) ?_ ?_
   · intro i out hn lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.rec_shapes.eq_def,
+    rw [arena.inductives.block_shape.rec_shapes.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), absRecsLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, List.mapM_nil]
     lockstep
   · intro i out hi ih lst hrel hinv
     apply LSR.of_LS
-    rw [arena.inductives.block_parts.rec_shapes.eq_def,
+    rw [arena.inductives.block_shape.rec_shapes.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac), absRecsLFrom_cons hi,
       List.mapM_cons]
     lockstep
@@ -1276,7 +1253,7 @@ theorem rec_shapes_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))) :
     LSR pers (fun a b => b = a.val.map absRecShape)
-      (arena.inductives.block_parts.rec_shapes pers st names rs 0#usize (alloc.vec.Vec.new _))
+      (arena.inductives.block_shape.rec_shapes pers st names rs 0#usize (alloc.vec.Vec.new _))
       st lst
       ((absRecsL rs).mapM fun r => do
         let tgt ← recTargetOf (absNIdxL names) r.2.1 r.1.type
@@ -1418,14 +1395,14 @@ section elim
 /-- `block_shape_elim` ⊑ `elimTwin`. -/
 @[lockstep] theorem block_shape_elim_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
-    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) (n_p : Std.U64)
+    (members : alloc.vec.Vec arena.inductives.block_shape.MemberShape)
+    (recs : alloc.vec.Vec arena.inductives.block_shape.RecShape) (n_p : Std.U64)
     (s : arena.handle.LIdx) (is_prop : Bool) (lps rl0 : alloc.vec.Vec arena.handle.NIdx) :
     LS pers (fun a b => b = a.map absBlockShape)
-      (arena.inductives.block_parts.block_shape_elim pers st members recs n_p s is_prop lps rl0) lst
+      (arena.inductives.block_shape.block_shape_elim pers st members recs n_p s is_prop lps rl0) lst
       (elimTwin (members.val.map absMemberShape) (recs.val.map absRecShape) (absU n_p)
         (absLIdx s) is_prop (absNIdxL rl0) (absNIdxL lps)) := by
-  rw [arena.inductives.block_parts.block_shape_elim, elimTwin_eq]
+  rw [arena.inductives.block_shape.block_shape_elim, elimTwin_eq]
   lockstep
 
 end elim
@@ -1471,18 +1448,18 @@ theorem block_shape_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (lps : alloc.vec.Vec arena.handle.NIdx) (n_p : Std.U64) (s : arena.handle.LIdx)
     (hrs : 0 < rs.val.length) :
     LS pers (fun a b => b = a.map absBlockShape)
-      (arena.inductives.block_parts.block_shape_sort pers st cv_ts cs rs names n_idxs lps n_p s)
+      (arena.inductives.block_shape.block_shape_sort pers st cv_ts cs rs names n_idxs lps n_p s)
       lst
       (bsTail (absU n_p) (absICVL cv_ts) (absCtors3L cs) (absRecsL rs) (absNIdxL names)
         (absNatL n_idxs) (absNIdxL lps) ((rs.val[0]'hrs).1.level_params.val.map absNIdx)
         (absLIdx s)) := by
-  rw [arena.inductives.block_parts.block_shape_sort]
+  rw [arena.inductives.block_shape.block_shape_sort]
   unfold bsTail
   lockstep
 
 end sort
 
-attribute [local lockstep_inline] arena.inductives.block_parts.block_shape_at
+attribute [local lockstep_inline] arena.inductives.block_shape.block_shape_at
 
 set_option maxHeartbeats 4000000 in
 /-- `block_shape` ⊑ `blockShape?` (`block_shape_at` is its middle stretch,
@@ -1490,9 +1467,9 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
 @[lockstep] theorem block_shape_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n_pd : Std.U64) (block : alloc.vec.Vec arena.env.IConstantInfo) :
     LS pers (fun a b => b = a.map absBlockShape)
-      (arena.inductives.block_parts.block_shape pers st n_pd block) lst
+      (arena.inductives.block_shape.block_shape pers st n_pd block) lst
       (blockShape? (absU n_pd) (absICIL block)) := by
-  rw [arena.inductives.block_parts.block_shape, blockShape?]
+  rw [arena.inductives.block_shape.block_shape, blockShape?]
   lockstep
   · split
     · rename_i heqT _
@@ -1541,16 +1518,6 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
 
 end recogniser
 
-/-- **`block_parts::block_parts` ⊑ `blockParts?`** — the recogniser. -/
-@[lockstep] theorem block_parts_ls {pers st lst} {n_pd : Std.U64}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = Option.map absBlockParts a)
-      (arena.inductives.block_parts.block_parts pers st n_pd block) lst
-      (blockParts? (absU n_pd) (absICIL block)) := by
-  rw [arena.inductives.block_parts.block_parts, blockParts?]
-  lockstep
-
 
 end ConRon.Refine2
 
@@ -1562,37 +1529,29 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-@[lockstep] theorem complete_twin (p0 : arena.inductives.block_parts.BlockParts)
-    (p1 : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.complete p0 p1)
-      (fun o => TwinEq ((absBlockParts p0).complete (absBlockShape p1)) (absBlockParts o)) := by
-  intro o h
-  simp only [arena.inductives.block_parts.complete, Result.ok.injEq] at h
-  subst h; rfl
-
-@[lockstep] theorem shape_k_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_k p)
+@[lockstep] theorem shape_k_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_k p)
       (fun o => TwinEq (absBlockShape p).k (absU o)) := by
   intro o h
-  simp only [arena.inductives.block_parts.shape_k, Result.ok.injEq] at h
+  simp only [arena.inductives.block_shape.shape_k, Result.ok.injEq] at h
   subst h
   simp only [TwinEq, BlockShape.k, absBlockShape, List.length_map, absU]
   rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
 
-theorem num_ctors_of_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
-    ∀ (i : Std.Usize) (o : Std.U64), arena.inductives.block_parts.num_ctors_of ms i = ok o →
+theorem num_ctors_of_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
+    ∀ (i : Std.Usize) (o : Std.U64), arena.inductives.block_shape.num_ctors_of ms i = ok o →
       absU o = numCtorsOf ((ms.val.drop i.val).map absMemberShape) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
-    (fun i (_ : Unit) => ∀ o, arena.inductives.block_parts.num_ctors_of ms i = ok o →
+    (fun i (_ : Unit) => ∀ o, arena.inductives.block_shape.num_ctors_of ms i = ok o →
       absU o = numCtorsOf ((ms.val.drop i.val).map absMemberShape)) ?_ ?_ i ()
   · intro i _ hn o h
-    rw [arena.inductives.block_parts.num_ctors_of.eq_def,
+    rw [arena.inductives.block_shape.num_ctors_of.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le hn]; rfl
   · intro i _ hi ih o h
-    rw [arena.inductives.block_parts.num_ctors_of.eq_def,
+    rw [arena.inductives.block_shape.num_ctors_of.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
     obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1607,18 +1566,18 @@ theorem num_ctors_of_abs {ms : alloc.vec.Vec arena.inductives.block_parts.Member
     simp only [absU, e2, absMemberShape, absCtorsL, List.length_map]
     rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
 
-@[lockstep] theorem shape_num_ctors_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_num_ctors p)
+@[lockstep] theorem shape_num_ctors_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_num_ctors p)
       (fun o => TwinEq (absBlockShape p).numCtors (absU o)) := by
   intro o h
-  rw [arena.inductives.block_parts.shape_num_ctors] at h
+  rw [arena.inductives.block_shape.shape_num_ctors] at h
   rw [TwinEq, num_ctors_of_abs _ o h, Lockstep.usize_zero_val', List.drop_zero]; rfl
 
-@[lockstep] theorem shape_lps_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_lps p)
+@[lockstep] theorem shape_lps_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.shape_lps p)
       (fun o => TwinEq (absBlockShape p).lps (absNIdxL o)) := by
   intro o h
-  rw [arena.inductives.block_parts.shape_lps] at h
+  rw [arena.inductives.block_shape.shape_lps] at h
   simp only [TwinEq, BlockShape.lps, absBlockShape]
   by_cases h0 : alloc.vec.Vec.len p.members = 0#usize
   · rw [ite_eq_left h0, Result.ok.injEq] at h
@@ -1637,22 +1596,22 @@ theorem num_ctors_of_abs {ms : alloc.vec.Vec arena.inductives.block_parts.Member
       subst hmv
       simp [absNIdxL, absMemberShape, absIConstantVal, nidx_vec_dup_val h]
 
-theorem all_ctors_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+theorem all_ctors_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
-      arena.inductives.block_parts.all_ctors ms i out = ok o →
+      arena.inductives.block_shape.all_ctors ms i out = ok o →
       absCtorsL o = absCtorsL out ++
         (((ms.val.drop i.val).map absMemberShape).map (·.ctors)).flatten := by
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
-    (fun i out => ∀ o, arena.inductives.block_parts.all_ctors ms i out = ok o →
+    (fun i out => ∀ o, arena.inductives.block_shape.all_ctors ms i out = ok o →
       absCtorsL o = absCtorsL out ++
         (((ms.val.drop i.val).map absMemberShape).map (·.ctors)).flatten) ?_ ?_
   · intro i out hn o h
-    rw [arena.inductives.block_parts.all_ctors.eq_def,
+    rw [arena.inductives.block_shape.all_ctors.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
     subst h
     simp [List.drop_eq_nil_of_le hn]
   · intro i out hi ih o h
-    rw [arena.inductives.block_parts.all_ctors.eq_def,
+    rw [arena.inductives.block_shape.all_ctors.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
     obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1662,8 +1621,8 @@ theorem all_ctors_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberSha
     rw [ih i2 o1 hi2v o h, ctors_dup_abs _ _ o1 ho1, hi2v, List.drop_eq_getElem_cons hi, hmv]
     simp [absMemberShape, absCtorsL, absCtorsLFrom]
 
-@[lockstep] theorem all_ctors_twin0 (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
+@[lockstep] theorem all_ctors_twin0 (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq (absBlockShape p).allCtors (absCtorsL o)) := by
   intro o h
   rw [TwinEq, all_ctors_abs _ _ o h]
@@ -1709,42 +1668,42 @@ theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → 
     simp only [absU] at hrv ⊢
     rw [List.getElem?_eq_none (by omega)]; rfl
 
-@[lockstep] theorem rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.rule_prefix_at p r)
+@[lockstep] theorem rule_prefix_at_twin (p : arena.inductives.block_shape.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_shape.rule_prefix_at p r)
       (fun o => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU o)) := by
   intro o h
-  rw [arena.inductives.block_parts.rule_prefix_at] at h
+  rw [arena.inductives.block_shape.rule_prefix_at] at h
   rw [TwinEq, idx_at_abs p.recs r (·.r_p) o h]
   simp only [BlockShape.rulePrefixAt, absBlockShape, List.getElem?_map]
   cases p.recs.val[absU r]? <;> rfl
 
-@[lockstep] theorem major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.major_idx_at p r)
+@[lockstep] theorem major_idx_at_twin (p : arena.inductives.block_shape.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_shape.major_idx_at p r)
       (fun o => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU o)) := by
   intro o h
-  rw [arena.inductives.block_parts.major_idx_at] at h
+  rw [arena.inductives.block_shape.major_idx_at] at h
   rw [TwinEq, idx_at_abs p.recs r (·.m_i) o h]
   simp only [BlockShape.majorIdxAt, absBlockShape, List.getElem?_map]
   cases p.recs.val[absU r]? <;> rfl
 
 /-- `with_sort` ⊑ `BlockShape.withSort`. -/
 @[lockstep] theorem with_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
     (s : arena.handle.LIdx) :
-    LS pers (fun a b => b = absBlockShape a) (arena.inductives.block_parts.with_sort pers st p s)
+    LS pers (fun a b => b = absBlockShape a) (arena.inductives.block_shape.with_sort pers st p s)
       lst ((absBlockShape p).withSort (absLIdx s)) := by
-  rw [arena.inductives.block_parts.with_sort, BlockShape.withSort]
+  rw [arena.inductives.block_shape.with_sort, BlockShape.withSort]
   lockstep
   all_goals (split <;> (refine LS.pure ?_ ‹_› ‹_›; simp_all [absBlockShape]))
 
 /-! ## The recursor records' pins -/
 
-theorem rec_lps_ok_abs {p : arena.inductives.block_parts.BlockShape}
+theorem rec_lps_ok_abs {p : arena.inductives.block_shape.BlockShape}
     {lps rl : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
-    (h : arena.inductives.block_parts.rec_lps_ok p lps rl = ok o) :
+    (h : arena.inductives.block_shape.rec_lps_ok p lps rl = ok o) :
     o = if p.large then (absNIdxL rl == absNIdx p.elim :: absNIdxL lps)
       else (absNIdxL rl == absNIdxL lps) := by
-  rw [arena.inductives.block_parts.rec_lps_ok] at h
+  rw [arena.inductives.block_shape.rec_lps_ok] at h
   cases hl : p.large
   · rw [ite_eq_right (by simp [hl])] at h
     simp only [Bool.false_eq_true, ↓reduceIte]
@@ -1782,21 +1741,21 @@ theorem rec_lps_ok_abs {p : arena.inductives.block_parts.BlockShape}
       apply hlen
       scalar_tac
 
-theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_parts.BlockShape}
+theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_shape.BlockShape}
     {lps : alloc.vec.Vec arena.handle.NIdx} :
     ∀ (i : Std.Usize) (o : Bool),
-      arena.inductives.block_parts.block_rec_lps_ok_from p lps i = ok o →
+      arena.inductives.block_shape.block_rec_lps_ok_from p lps i = ok o →
       o = ((p.recs.val.drop i.val).map absRecShape).all fun rc =>
         if p.large then rc.cvR.levelParams == absNIdx p.elim :: absNIdxL lps
         else rc.cvR.levelParams == absNIdxL lps := by
   have := vec_cursor_all p.recs (fun x => (fun rc : RecShape =>
         if p.large then rc.cvR.levelParams == absNIdx p.elim :: absNIdxL lps
         else rc.cvR.levelParams == absNIdxL lps) (absRecShape x))
-    (arena.inductives.block_parts.block_rec_lps_ok_from p lps) ?_ ?_
+    (arena.inductives.block_shape.block_rec_lps_ok_from p lps) ?_ ?_
   · intro i o h
     rw [this i o h, List.all_map]; rfl
-  · bp_all_stop arena.inductives.block_parts.block_rec_lps_ok_from.eq_def p.recs
-  · bp_all_head arena.inductives.block_parts.block_rec_lps_ok_from.eq_def p.recs
+  · bp_all_stop arena.inductives.block_shape.block_rec_lps_ok_from.eq_def p.recs
+  · bp_all_head arena.inductives.block_shape.block_rec_lps_ok_from.eq_def p.recs
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv := rec_lps_ok_abs hb
     have e : (if p.large then (absRecShape q).cvR.levelParams == absNIdx p.elim :: absNIdxL lps
@@ -1809,11 +1768,11 @@ theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_parts.BlockShape}
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       exact Or.inl ⟨e, i2, absSz_add_one hi2, h⟩
 
-@[lockstep] theorem block_rec_lps_ok_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.block_rec_lps_ok p)
+@[lockstep] theorem block_rec_lps_ok_twin (p : arena.inductives.block_shape.BlockShape) :
+    LSP (arena.inductives.block_shape.block_rec_lps_ok p)
       (fun o => TwinEq (blockRecLpsOk (absBlockShape p)) o) := by
   intro o h
-  rw [arena.inductives.block_parts.block_rec_lps_ok] at h
+  rw [arena.inductives.block_shape.block_rec_lps_ok] at h
   obtain ⟨lps, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have e := (shape_lps_twin p lps hl : (absBlockShape p).lps = absNIdxL lps)
   rw [TwinEq, block_rec_lps_ok_from_abs _ o h, blockRecLpsOk, e, Lockstep.usize_zero_val', List.drop_zero]
@@ -1821,44 +1780,44 @@ theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_parts.BlockShape}
 
 /-- `block_rec_names_unreserved` ⊑ `blockRecNamesUnreserved` from the cursor on. -/
 theorem block_rec_names_unreserved_ls {pers}
-    (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    (rs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.inductives.block_parts.block_rec_names_unreserved st rs i) lst
+        (arena.inductives.block_shape.block_rec_names_unreserved st rs i) lst
         (blockRecNamesUnreserved ((rs.val.drop i.val).map absRecShape)) := by
   refine ls_cursor rs absRecShape blockRecNamesUnreserved
-    (fun st i => arena.inductives.block_parts.block_rec_names_unreserved st rs i) ?_ ?_
+    (fun st i => arena.inductives.block_shape.block_rec_names_unreserved st rs i) ?_ ?_
   · intro st lst i hn hrel hinv
-    rw [arena.inductives.block_parts.block_rec_names_unreserved.eq_def,
+    rw [arena.inductives.block_shape.block_rec_names_unreserved.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), blockRecNamesUnreserved]
     lockstep
   · intro st lst i hi hrel hinv ih
-    rw [arena.inductives.block_parts.block_rec_names_unreserved.eq_def,
+    rw [arena.inductives.block_shape.block_rec_names_unreserved.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac), blockRecNamesUnreserved]
     lockstep
 
 @[lockstep] theorem block_rec_names_unreserved_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    (hinv : AStateInv pers st) (rs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
     LS pers (fun a b => b = a)
-      (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
+      (arena.inductives.block_shape.block_rec_names_unreserved st rs 0#usize) lst
       (blockRecNamesUnreserved (rs.val.map absRecShape)) := by
   have h := block_rec_names_unreserved_ls (pers := pers) rs 0#usize st lst hrel hinv
   rwa [Lockstep.usize_zero_val', List.drop_zero] at h
 
 /-! ## The recursor names (the name part `rec`; its string steps are `Inductives/Prims`') -/
 
-theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
+theorem absMemberShape_cvT (m : arena.inductives.block_shape.MemberShape) :
     (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
 
 attribute [local lockstep_simp] absMemberShape_cvT
 
 /-- `want_rec_names` ⊑ `members.mapM (internNNode (.str · "rec"))` from the cursor on. -/
 theorem want_rec_names_ls {pers}
-    (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) :
+    (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) :
     ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.NIdx),
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absNIdxL a)
-        (arena.inductives.block_parts.want_rec_names pers st ms i out) lst
+        (arena.inductives.block_shape.want_rec_names pers st ms i out) lst
         (do
           let r ← ((ms.val.drop i.val).map absMemberShape).mapM fun m =>
             internNNode (.str m.cvT.name "rec")
@@ -1867,20 +1826,20 @@ theorem want_rec_names_ls {pers}
     (fun (w : alloc.vec.Vec arena.handle.NIdx) L =>
       (do let r ← L.mapM fun m => internNNode (.str m.cvT.name "rec"); pure (absNIdxL w ++ r) :
         AM (List NIdx)))
-    (fun st i w => arena.inductives.block_parts.want_rec_names pers st ms i w) ?_ ?_
+    (fun st i w => arena.inductives.block_shape.want_rec_names pers st ms i w) ?_ ?_
   · intro st lst i w hn hrel hinv
-    rw [arena.inductives.block_parts.want_rec_names.eq_def,
+    rw [arena.inductives.block_shape.want_rec_names.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), List.mapM_nil]
     lockstep
   · intro st lst i w hi hrel hinv ih
-    rw [arena.inductives.block_parts.want_rec_names.eq_def,
+    rw [arena.inductives.block_shape.want_rec_names.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac), List.mapM_cons]
     lockstep
 
 @[lockstep] theorem want_rec_names_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) :
+    (hinv : AStateInv pers st) (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) :
     LS pers (fun a b => b = absNIdxL a)
-      (arena.inductives.block_parts.want_rec_names pers st ms 0#usize (alloc.vec.Vec.new _)) lst
+      (arena.inductives.block_shape.want_rec_names pers st ms 0#usize (alloc.vec.Vec.new _)) lst
       ((ms.val.map absMemberShape).mapM fun m => internNNode (.str m.cvT.name "rec")) := by
   have h := want_rec_names_ls (pers := pers) ms 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
   simp only [Lockstep.usize_zero_val', List.drop_zero, absNIdxL, Lockstep.vec_new_val', List.map_nil, List.nil_append,
@@ -1890,12 +1849,12 @@ theorem want_rec_names_ls {pers}
 /-- `block_rec_name_set_ok` ⊑ `blockRecNameSetOk`. -/
 @[lockstep] theorem block_rec_name_set_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
-    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    (members : alloc.vec.Vec arena.inductives.block_shape.MemberShape)
+    (recs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
     LS pers (fun a b => b = a)
-      (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
+      (arena.inductives.block_shape.block_rec_name_set_ok pers st members recs) lst
       (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape)) := by
-  rw [arena.inductives.block_parts.block_rec_name_set_ok, blockRecNameSetOk]
+  rw [arena.inductives.block_shape.block_rec_name_set_ok, blockRecNameSetOk]
   lockstep
   have hlen : ∀ (x y : alloc.vec.Vec arena.handle.NIdx), x.len = y.len →
       x.val.length = y.val.length := fun x y h => by
@@ -1907,8 +1866,8 @@ theorem want_rec_names_ls {pers}
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.block_parts_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms block_parts_ls
+/-- info: 'ConRon.Refine2.block_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_shape_ls
 
 /-- info: 'ConRon.Refine2.block_rec_name_set_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms block_rec_name_set_ok_ls

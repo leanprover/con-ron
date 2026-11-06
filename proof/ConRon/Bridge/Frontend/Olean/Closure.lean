@@ -6,13 +6,18 @@ names (`SetRel`), so each `contains` answers alike, `denoteN` being injective on
 store, and the twin's run is a value outcome of upstream's at `ModelIO`, which `closureOrder_ok`
 speaks of.
 
-`uses` is upstream's `partial` `constsOf`, so that no equation relates the two; nothing proved of
-the merge or the emission reads what it holds.  The theorem here says only that its handles
-denote (`constsGo_run`): a twin's `CEntry` denotes upstream's with those names as its `uses`.
+A module's load (`loadAt`) is upstream's `loadAt_spec` over handles: its constants are the
+specification's lazy entries (`LazyOf`), a theorem's value the reference upstream's is.  `uses`
+is read by upstream's `partial` byte walk (`usesOf`), so no equation relates it to anything; nothing
+proved of the merge or the emission reads what it holds, and the theorem here says only that its
+handles denote (`usesRead_den`).  Nothing of the records reads the frontier either, so
+`LoadedRel` leaves it out.
 -/
 module
 
 public import ConRon.Bridge.Frontend.Olean.Files
+public import ConLeche.Verify.Frontend.Olean.Lazy
+import Std.Data.HashSet.Lemmas
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.Specs
 
@@ -23,8 +28,10 @@ namespace ConRon.Bridge.Frontend.Olean
 set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
-open ConRon.Arena.Frontend.Olean (OleanPins OleanFs closureGo addN constsGo CEntry entryDeps)
-open ConLeche.Frontend.Olean (ImportF ImportRec SearchPath CEntryF CKindF mkN)
+open ConRon.Arena.Frontend.Olean (OleanPins OleanFs closureGo CEntry DS)
+open ConLeche.Frontend.Olean (ImportF ImportRec SearchPath CEntryF CKindF mkN Region ModSkel LazyOf
+  lazyEntry lazyRoots usesNames usesNat usesStr nameP exprP moduleSkel constSkel nameAt levelAt levelsAt
+  exprAt IsKind kName kLevel kLevels kExpr)
 
 /-! ## Lists, sets -/
 
@@ -377,171 +384,21 @@ theorem oleanPins_run {pk : OleanPins} {s s' : AState} (hok : StateOK s)
     denoteN_ext d4 e5, denoteN_ext d6 e7, denoteN_ext d8 e9, denoteN_ext d9 e10,
     denoteN_ext d10 e11, denoteN_ext d11 e12, denoteN_ext d12 e13, d13⟩⟩
 
-/-! ## What a constant mentions -/
-
-theorem opt2_isSome {α β γ : Type} {f : α → β → γ} {a : Option α} {b : Option β}
-    (h : (opt2 f a b).isSome = true) : a.isSome = true ∧ b.isSome = true := by
-  cases a <;> cases b <;> simp_all [opt2]
-
-theorem opt3_isSome {α β γ δ : Type} {f : α → β → γ → δ} {a : Option α} {b : Option β}
-    {c : Option γ} (h : (opt3 f a b c).isSome = true) :
-    a.isSome = true ∧ b.isSome = true ∧ c.isSome = true := by
-  cases a <;> cases b <;> cases c <;> simp_all [opt3]
-
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo — **the names it finds
-denote**, on a store it leaves alone. -/
-theorem constsGo_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hp : PinsRel s.store pk) :
-    ∀ (fuel : Nat) (es : List EIdx) (seen : Std.HashSet EIdx) (seenN : Std.HashSet NIdx)
-      (out out' : Array NIdx) {s' : AState},
-      (∀ e ∈ es, (denoteE s.store e).isSome) → (∀ n ∈ out, (denoteN s.store.ns n).isSome) →
-      constsGo pk fuel es seen seenN out s = .ok (out', s') →
-      s' = s ∧ ∀ n ∈ out', (denoteN s.store.ns n).isSome := by
-  have hadd : ∀ {seenN : Std.HashSet NIdx} {out : Array NIdx} {n : NIdx},
-      (∀ k ∈ out, (denoteN s.store.ns k).isSome) → (denoteN s.store.ns n).isSome →
-      ∀ k ∈ (addN seenN out n).2, (denoteN s.store.ns k).isSome := by
-    intro seenN out n ho hn k hk
-    simp only [addN] at hk
-    split at hk
-    · exact ho k hk
-    · simp only [Array.mem_push] at hk
-      rcases hk with hk | rfl
-      · exact ho k hk
-      · exact hn
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro es seen seenN out out' s' he ho h
-    cases es with
-    | nil =>
-      rw [constsGo] at h
-      obtain ⟨hv, hs⟩ := AM.pure_ok h
-      cases hv
-      exact ⟨hs, ho⟩
-    | cons _ _ =>
-      rw [constsGo] at h
-      cases h
-  | succ fuel ih =>
-    intro es seen seenN out out' s' he ho h
-    cases es with
-    | nil =>
-      rw [constsGo] at h
-      obtain ⟨hv, hs⟩ := AM.pure_ok h
-      cases hv
-      exact ⟨hs, ho⟩
-    | cons e rest =>
-      rw [constsGo] at h
-      have hem : (denoteE s.store e).isSome := he e (by simp)
-      have hrest : ∀ x ∈ rest, (denoteE s.store x).isSome :=
-        fun x hx => he x (List.mem_cons_of_mem _ hx)
-      have hwk : ∀ {seen : Std.HashSet EIdx} {seenN : Std.HashSet NIdx} {out : Array NIdx}
-          {xs : List EIdx}, (∀ x ∈ xs, (denoteE s.store x).isSome) →
-          (∀ n ∈ out, (denoteN s.store.ns n).isSome) →
-          constsGo pk fuel (xs ++ rest) seen seenN out s = .ok (out', s') →
-          s' = s ∧ ∀ n ∈ out', (denoteN s.store.ns n).isSome := by
-        intro seen seenN out xs hx hn hr
-        refine ih _ _ _ _ _ (fun x hm => ?_) hn hr
-        rcases List.mem_append.mp hm with hm | hm
-        · exact hx x hm
-        · exact hrest x hm
-      have hnil : ∀ {seen : Std.HashSet EIdx} {seenN : Std.HashSet NIdx} {out : Array NIdx},
-          (∀ n ∈ out, (denoteN s.store.ns n).isSome) →
-          constsGo pk fuel rest seen seenN out s = .ok (out', s') →
-          s' = s ∧ ∀ n ∈ out', (denoteN s.store.ns n).isSome :=
-        fun hn hr => hwk (xs := []) (by simp) hn hr
-      by_cases c1 : (e.tag == ETag.const || e.tag == ETag.lit) = true
-      · simp only [c1, ↓reduceIte] at h
-        obtain ⟨v, s₁, h1, h2⟩ := AM.bind_ok h
-        obtain ⟨hs1, hv⟩ := view_run h1
-        rw [hs1] at h2
-        rw [denoteE_view_eq hok.wf hv] at hem
-        cases v with
-        | const n us =>
-          exact hnil (hadd ho (opt2_isSome hem).1) h2
-        | lit l =>
-          cases l with
-          | natVal k => exact hnil (hadd ho (by rw [hp.nNat]; rfl)) h2
-          | strVal t =>
-            exact hnil (hadd (hadd ho (by rw [hp.nCharOfNat]; rfl))
-              (by rw [hp.nStringOfList]; rfl)) h2
-        | bvar _ => exact hnil ho h2
-        | fvar _ _ => exact hnil ho h2
-        | sort _ => exact hnil ho h2
-        | app _ _ => exact hnil ho h2
-        | lam _ _ => exact hnil ho h2
-        | forallE _ _ => exact hnil ho h2
-        | letE _ _ _ => exact hnil ho h2
-        | proj _ _ _ => exact hnil ho h2
-      · simp only [c1, Bool.false_eq_true, ↓reduceIte] at h
-        by_cases c2 : (e.tag == ETag.bvar || e.tag == ETag.sort || seen.contains e) = true
-        · simp only [c2, ↓reduceIte] at h
-          exact hnil ho h
-        · simp only [c2, Bool.false_eq_true, ↓reduceIte] at h
-          by_cases c3 : ETag.proj < e.tag
-          · simp only [c3, ↓reduceIte] at h
-            exact hnil ho h
-          simp only [c3, ↓reduceIte] at h
-          obtain ⟨v, s₁, h1, h2⟩ := AM.bind_ok h
-          obtain ⟨hs1, hv⟩ := view_run h1
-          rw [hs1] at h2
-          rw [denoteE_view_eq hok.wf hv] at hem
-          cases v with
-          | app f a =>
-            have := opt2_isSome hem
-            exact hwk (xs := [f, a]) (by simpa using this) ho h2
-          | lam t b =>
-            have := opt2_isSome hem
-            exact hwk (xs := [t, b]) (by simpa using this) ho h2
-          | forallE t b =>
-            have := opt2_isSome hem
-            exact hwk (xs := [t, b]) (by simpa using this) ho h2
-          | letE t w b =>
-            have := opt3_isSome hem
-            exact hwk (xs := [t, w, b]) (by simpa using this) ho h2
-          | proj n i x =>
-            have := opt2_isSome hem
-            exact hwk (xs := [x]) (by simpa using this.2) ho h2
-          | fvar k t =>
-            have : (denoteE s.store t).isSome := by simpa [denoteEView] using hem
-            exact hwk (xs := [t]) (by simpa using this) ho h2
-          | bvar _ => exact hnil ho h2
-          | sort _ => exact hnil ho h2
-          | const _ _ => exact hnil ho h2
-          | lit _ => exact hnil ho h2
-
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:64-69 constsOf -/
-theorem constsOf_run {pk : OleanPins} {s s' : AState} (hok : StateOK s) (hp : PinsRel s.store pk)
-    {es : List EIdx} {out : Array NIdx} (he : ∀ e ∈ es, (denoteE s.store e).isSome)
-    (h : ConRon.Arena.Frontend.Olean.constsOf pk es s = .ok (out, s')) :
-    s' = s ∧ ∀ n ∈ out, (denoteN s.store.ns n).isSome :=
-  constsGo_run hok hp _ _ _ _ _ _ he (fun _ hn => by simp at hn) h
-
 /-! ## A loaded constant, a loaded module -/
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:71-75 CEntry — **a stored constant read
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:154-158 CEntry — **a stored constant read
 back**, with the twin's own `uses`. -/
 @[expose] def denoteCEntry (st : EStore) (x : CEntry) : Option ConLeche.Frontend.Olean.CEntry := do
   let e ← denoteEntry st x.c
   let u ← x.uses.toList.mapM (denoteN st.ns)
   pure { toCEntryF := e, uses := u.toArray }
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:135-138 Loaded -/
-@[expose] def denoteLoaded (st : EStore) (l : ConRon.Arena.Frontend.Olean.Loaded) :
-    Option ConLeche.Frontend.Olean.Loaded := do
-  let n ← denoteN st.ns l.name
-  let cs ← l.constants.toList.mapM (denoteCEntry st)
-  pure ⟨n, cs.toArray⟩
-
-theorem list_some_of {α β : Type} {f : α → Option β} :
-    ∀ (l : List α), (∀ x ∈ l, (f x).isSome) → ∃ ys, l.mapM f = some ys
-  | [], _ => ⟨[], rfl⟩
-  | x :: l, h => by
-    obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp (h x (by simp))
-    obtain ⟨ys, hys⟩ := list_some_of l (fun w hw => h w (List.mem_cons_of_mem _ hw))
-    exact ⟨y :: ys, by simp only [List.mapM_cons, hy, hys]; rfl⟩
-
-theorem entryDeps_eq (c : CEntryF NIdx EIdx) : entryDeps c = c.exprs := by
-  rcases c with ⟨n, l, t, k⟩
-  cases k <;> rfl
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:165-170 Loaded — **a loaded module read back**:
+its name and its constants.  The frontier is not related: nothing of the records reads it. -/
+structure LoadedRel (st : EStore) (l : ConRon.Arena.Frontend.Olean.Loaded)
+    (lC : ConLeche.Frontend.Olean.Loaded) : Prop where
+  name : denoteN st.ns l.name = some lC.name
+  constants : l.constants.toList.mapM (denoteCEntry st) = some lC.constants.toList
 
 theorem denoteCEntry_ext {st st' : EStore} (hx : Ext st st') {c : CEntry}
     {z : ConLeche.Frontend.Olean.CEntry} (h : denoteCEntry st c = some z) :
@@ -552,98 +409,584 @@ theorem denoteCEntry_ext {st st' : EStore} (hx : Ext st st') {c : CEntry}
   simp only [denoteEntry_ext hx h1, list_mono (fun _ _ hy => denoteN_ext hy hx) _ h2]
   exact h
 
-theorem denoteLoaded_ext {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Frontend.Olean.Loaded}
-    {z : ConLeche.Frontend.Olean.Loaded} (h : denoteLoaded st c = some z) :
-    denoteLoaded st' c = some z := by
-  unfold denoteLoaded at h ⊢
-  obtain ⟨e, h1, h⟩ := ConLeche.Frontend.Olean.bind_some_left h
-  obtain ⟨u, h2, h⟩ := ConLeche.Frontend.Olean.bind_some_left h
-  simp only [denoteN_ext h1 hx, list_mono (fun _ _ hy => denoteCEntry_ext hx hy) _ h2]
-  exact h
+theorem LoadedRel.ext {st st' : EStore} (hx : Ext st st') {l : ConRon.Arena.Frontend.Olean.Loaded}
+    {lC : ConLeche.Frontend.Olean.Loaded} (h : LoadedRel st l lC) : LoadedRel st' l lC :=
+  ⟨denoteN_ext h.name hx, list_mono (fun _ _ hy => denoteCEntry_ext hx hy) _ h.constants⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:89-92 CEntry.ofRead -/
-theorem ofRead_run {pk : OleanPins} {s s' : AState} (hok : StateOK s) (hp : PinsRel s.store pk)
-    {c : CEntryF NIdx EIdx} {e : CEntryF ConLeche.Name Expr} (hc : denoteEntry s.store c = some e)
-    {x : CEntry} (h : ConRon.Arena.Frontend.Olean.CEntry.ofRead pk c s = .ok (x, s')) :
-    s' = s ∧ ∃ z, denoteCEntry s.store x = some z ∧ z.toCEntryF = e := by
-  unfold ConRon.Arena.Frontend.Olean.CEntry.ofRead at h
-  obtain ⟨u, s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨hv, hs⟩ := AM.pure_ok h2
-  cases hv
-  subst hs
-  obtain ⟨hs1, hu⟩ := constsOf_run hok hp (es := entryDeps c) (fun y hy => by
-    rw [entryDeps_eq] at hy
-    exact (ConLeche.Frontend.Olean.CEntryF.mapM_some c hc).2 y hy) h1
-  obtain ⟨ys, hys⟩ := list_some_of (f := denoteN s.store.ns) u.toList (fun n hn => hu n (by simpa using hn))
-  subst hs1
-  refine ⟨rfl, { toCEntryF := e, uses := ys.toArray }, ?_, rfl⟩
-  simp only [denoteCEntry, hc, hys]
-  rfl
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — **what a module's load
+is, by the specification**: the constants of the private view of its files, up to the theorems'
+values, which are references (`LazyOf`). -/
+@[expose] def LoadSpec (f : ConLeche.Frontend.Olean.ModFiles) (i : Nat)
+    (lC : ConLeche.Frontend.Olean.Loaded) : Prop :=
+  ∃ r a sk skels, f.viewRegion .private = some (r, a) ∧ moduleSkel r a = some sk ∧
+    sk.consts.mapM (constSkel r) = some skels ∧ LazyOf r i skels lC.constants.toList
 
-/-- The constants of a module with what each mentions. -/
-theorem ofReadAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hp : PinsRel s.store pk) :
-    ∀ (cs : List (CEntryF NIdx EIdx)) {es : List (CEntryF ConLeche.Name Expr)} {xs : List CEntry}
-      {s' : AState}, cs.mapM (denoteEntry s.store) = some es →
-      cs.mapM (ConRon.Arena.Frontend.Olean.CEntry.ofRead pk) s = .ok (xs, s') →
-      s' = s ∧ ∃ zs, xs.mapM (denoteCEntry s.store) = some zs ∧ zs.map (·.toCEntryF) = es
-  | [], es, xs, s', he, h => by
-    simp only [List.mapM_nil] at he h
+/-! ## What a constant mentions -/
+
+theorem usesNames_go_sub : ∀ (out : List UInt64) (acc : Array UInt64),
+    ∀ v ∈ acc, v ∈ out.foldl (fun acc v =>
+      if v == usesNat || v == usesStr then acc else acc.push v) acc
+  | [], acc, v, hv => hv
+  | w :: out, acc, v, hv => by
+    simp only [List.foldl_cons]
+    apply usesNames_go_sub out
+    split
+    · exact hv
+    · exact Array.mem_push_of_mem _ hv
+
+theorem usesNames_go_mem : ∀ (out : List UInt64) (acc : Array UInt64),
+    ∀ v ∈ out, v ≠ usesNat → v ≠ usesStr → v ∈ out.foldl (fun acc v =>
+      if v == usesNat || v == usesStr then acc else acc.push v) acc
+  | [], acc, v, hv, _, _ => by simp at hv
+  | w :: out, acc, v, hv, h1, h2 => by
+    simp only [List.foldl_cons]
+    rcases List.mem_cons.mp hv with rfl | hv
+    · apply usesNames_go_sub
+      have : (v == usesNat || v == usesStr) = false := by
+        simp [h1, h2]
+      rw [this]
+      exact Array.mem_push_self
+    · exact usesNames_go_mem out _ v hv h1 h2
+
+theorem usesNames_outer_sub : ∀ (outs : List (Array UInt64)) (acc : Array UInt64),
+    ∀ v ∈ acc, v ∈ outs.foldl (fun acc out => out.foldl (fun acc v =>
+      if v == usesNat || v == usesStr then acc else acc.push v) acc) acc
+  | [], acc, v, hv => hv
+  | o :: outs, acc, v, hv => by
+    simp only [List.foldl_cons]
+    apply usesNames_outer_sub outs
+    rw [← Array.foldl_toList]
+    exact usesNames_go_sub _ _ v hv
+
+theorem usesNames_outer_mem : ∀ (outs : List (Array UInt64)) (acc : Array UInt64),
+    ∀ o ∈ outs, ∀ v ∈ o, v ≠ usesNat → v ≠ usesStr → v ∈ outs.foldl (fun acc out => out.foldl
+      (fun acc v => if v == usesNat || v == usesStr then acc else acc.push v) acc) acc
+  | [], acc, o, ho, _, _, _, _ => by simp at ho
+  | o' :: outs, acc, o, ho, v, hv, h1, h2 => by
+    simp only [List.foldl_cons]
+    rcases List.mem_cons.mp ho with rfl | ho
+    · apply usesNames_outer_sub
+      rw [← Array.foldl_toList]
+      exact usesNames_go_mem _ _ v (by simpa using hv) h1 h2
+    · exact usesNames_outer_mem outs _ o ho v hv h1 h2
+
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:128-132 usesNames — every name the walk wrote
+is a root of the load. -/
+theorem mem_usesNames {outs : Array (Array UInt64)} {k : Nat} {v : UInt64}
+    (hv : v ∈ outs.getD k #[]) (h1 : v ≠ usesNat) (h2 : v ≠ usesStr) : v ∈ usesNames outs := by
+  unfold usesNames
+  rw [← Array.foldl_toList, Array.mem_toList_iff]
+  by_cases hk : k < outs.size
+  · rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hk, Option.getD_some] at hv
+    exact usesNames_outer_mem _ _ _ (by simp) v hv h1 h2
+  · rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega), Option.getD_none] at hv
+    simp at hv
+
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:139-150 usesRead — **the names it keeps
+denote**: the reader's pins, and the names of the memo. -/
+theorem usesRead_den {st : EStore} {pk : OleanPins} (hp : PinsRel st pk)
+    {nm : UInt64 → Option NIdx} (out : Array UInt64)
+    (hn : ∀ v ∈ out, v ≠ usesNat → v ≠ usesStr → ∀ y, nm v = some y → (denoteN st.ns y).isSome) :
+    ∀ n ∈ ConRon.Arena.Frontend.Olean.usesRead pk nm out, (denoteN st.ns n).isSome := by
+  have hadd : ∀ {x : Std.HashSet NIdx × Array NIdx} {n : NIdx},
+      (∀ k ∈ x.2, (denoteN st.ns k).isSome) → (denoteN st.ns n).isSome →
+      ∀ k ∈ (ConRon.Arena.Frontend.Olean.addUse x n).2, (denoteN st.ns k).isSome := by
+    intro x n ho hn k hk
+    simp only [ConRon.Arena.Frontend.Olean.addUse] at hk
+    split at hk
+    · exact ho k hk
+    · simp only [Array.mem_push] at hk
+      rcases hk with hk | rfl
+      · exact ho k hk
+      · exact hn
+  have hgo : ∀ (l : List UInt64) (x : Std.HashSet NIdx × Array NIdx),
+      (∀ v ∈ l, v ≠ usesNat → v ≠ usesStr → ∀ y, nm v = some y → (denoteN st.ns y).isSome) →
+      (∀ k ∈ x.2, (denoteN st.ns k).isSome) →
+      ∀ k ∈ (l.foldl (fun x v =>
+        if v == usesNat then ConRon.Arena.Frontend.Olean.addUse x pk.nNat
+        else if v == usesStr then ConRon.Arena.Frontend.Olean.addUse
+          (ConRon.Arena.Frontend.Olean.addUse x pk.nCharOfNat) pk.nStringOfList
+        else match nm v with
+          | some n => ConRon.Arena.Frontend.Olean.addUse x n
+          | none => x) x).2, (denoteN st.ns k).isSome := by
+    intro l
+    induction l with
+    | nil => intro x _ hx; exact hx
+    | cons v l ih =>
+      intro x hl hx
+      simp only [List.foldl_cons]
+      apply ih _ (fun w hw => hl w (List.mem_cons_of_mem _ hw))
+      by_cases h1 : v = usesNat
+      · simp only [h1, BEq.rfl, ↓reduceIte]
+        exact hadd hx (by simp [hp.nNat])
+      · simp only [beq_iff_eq, h1, ↓reduceIte]
+        by_cases h2 : v = usesStr
+        · simp only [h2, ↓reduceIte]
+          exact hadd (hadd hx (by simp [hp.nCharOfNat])) (by simp [hp.nStringOfList])
+        · simp only [h2, ↓reduceIte]
+          cases hv : nm v with
+          | none => exact hx
+          | some y => exact hadd hx (hl v (by simp) h1 h2 y hv)
+  unfold ConRon.Arena.Frontend.Olean.usesRead
+  rw [← Array.foldl_toList]
+  exact hgo out.toList _ (fun v hv => hn v (by simpa using hv)) (by simp)
+
+theorem list_some_of {α β : Type} {f : α → Option β} :
+    ∀ (l : List α), (∀ x ∈ l, (f x).isSome) → ∃ ys, l.mapM f = some ys
+  | [], _ => ⟨[], rfl⟩
+  | x :: l, h => by
+    obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp (h x (by simp))
+    obtain ⟨ys, hys⟩ := list_some_of l (fun w hw => h w (List.mem_cons_of_mem _ hw))
+    exact ⟨y :: ys, by simp only [List.mapM_cons, hy, hys]; rfl⟩
+
+/-! ## The frontier -/
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:50 Table.Good — **a table whose every
+entry satisfies `P`**, its two arrays of one length (upstream's `Table.Sized`). -/
+structure TableRel {α : Type} (P : Nat → α → Prop) (t : ConLeche.Frontend.Olean.Table α) : Prop where
+  sized : t.keys.size = t.vals.size
+  good : ∀ (i c : Nat) (v : α), t.keys[i]? = some c → t.vals[i]? = some v → P c v
+
+theorem TableRel.empty {α : Type} (P : Nat → α → Prop) : TableRel P ({} : ConLeche.Frontend.Olean.Table α) :=
+  ⟨rfl, fun i c v h => by simp at h⟩
+
+theorem TableRel.mono {α : Type} {P Q : Nat → α → Prop} (hm : ∀ c v, P c v → Q c v)
+    {t : ConLeche.Frontend.Olean.Table α} (h : TableRel P t) : TableRel Q t :=
+  ⟨h.sized, fun i c v h1 h2 => hm c v (h.good i c v h1 h2)⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:53 Table.search_good -/
+theorem TableRel.search {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} :
+    ∀ (d lo hi : Nat), hi - lo = d → ∀ {v : α}, t.search c lo hi = some v → P c v := by
+  intro d
+  induction d using Nat.strongRecOn with
+  | _ d ih =>
+    intro lo hi hd v h
+    rw [ConLeche.Frontend.Olean.Table.search] at h
+    split at h
+    · dsimp only at h
+      split at h
+      · cases h
+      · rename_i k hk
+        split at h
+        · rename_i hkc
+          subst hkc
+          exact ht.good _ _ _ hk h
+        · split at h
+          · exact ih _ (by omega) _ _ rfl h
+          · exact ih _ (by omega) _ _ rfl h
+    · cases h
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:75 Table.get_good -/
+theorem TableRel.get {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} {v : α} (h : t.get c = some v) : P c v :=
+  ht.search _ _ _ rfl h
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:38 Table.add_good -/
+theorem TableRel.add {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} {v : α} (hp : P c v) : TableRel P (t.add c v) := by
+  obtain ⟨keys, vals⟩ := t
+  obtain ⟨hs, hg⟩ := ht
+  refine ⟨by simp [ConLeche.Frontend.Olean.Table.add, hs], fun i c' v' h1 h2 => ?_⟩
+  simp only [ConLeche.Frontend.Olean.Table.add, Array.getElem?_push] at h1 h2
+  by_cases hi : i = keys.size
+  · simp only [hi, ite_true] at h1
+    simp only [hi.trans hs, ite_true] at h2
+    cases h1; cases h2; exact hp
+  · simp only [hi, ite_false] at h1
+    simp only [show ¬ i = vals.size from fun e => hi (e.trans hs.symm), ite_false] at h2
+    exact hg i c' v' h1 h2
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:81 Frontier.Good — **a frontier of
+handles that denote the specification's values** at their locations. -/
+structure FrontierGood (st : EStore) (r : Region) (b : ConRon.Arena.Frontend.Olean.Frontier) : Prop where
+  names : TableRel (fun c h => ∃ n, nameAt r c = some n ∧ denoteN st.ns h = some n) b.names
+  levels : TableRel (fun c h => ∃ u, levelAt r c = some u ∧ denoteL st.ls h = some u) b.levels
+  lists : TableRel (fun c h => ∃ us, levelsAt r c = some us ∧ denoteLs st.lss h = some us) b.lists
+  exprs : TableRel (fun c h => ∃ e, exprAt r c = some e ∧ denoteE st h = some e) b.exprs
+
+theorem FrontierGood.empty (st : EStore) (r : Region) : FrontierGood st r {} :=
+  ⟨TableRel.empty _, TableRel.empty _, TableRel.empty _, TableRel.empty _⟩
+
+theorem FrontierGood.ext {st st' : EStore} {r : Region} {b : ConRon.Arena.Frontend.Olean.Frontier}
+    (h : FrontierGood st r b) (hx : Ext st st') : FrontierGood st' r b :=
+  ⟨h.names.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteN_ext b hx⟩,
+   h.levels.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteL_ext b hx⟩,
+   h.lists.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteLs_ext b hx⟩,
+   h.exprs.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denote_ext b hx⟩⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:109 frontierOf_good — **the frontier takes
+only values the passes built**: a slot it adds is one the marks hold, so `Built` answers. -/
+theorem frontierOf_good {st : EStore} {r : Region} {m fr : ByteArray} {memo : DS} {n : Nat}
+    (hb : Built st r m memo n) :
+    ∀ (d p : Nat), n - p = d → ∀ (b : ConRon.Arena.Frontend.Olean.Frontier), FrontierGood st r b →
+      FrontierGood st r (ConRon.Arena.Frontend.Olean.frontierOf m fr memo n p b) := by
+  have hk1 : IsKind kName := Or.inl rfl
+  have hk2 : IsKind kLevel := Or.inr (Or.inl rfl)
+  have hk3 : IsKind kExpr := Or.inr (Or.inr (Or.inl rfl))
+  have hk4 : IsKind kLevels := Or.inr (Or.inr (Or.inr rfl))
+  intro d
+  induction d with
+  | zero =>
+    intro p hd b hgood
+    rw [ConRon.Arena.Frontend.Olean.frontierOf, ite_eq_right (by omega)]
+    exact hgood
+  | succ d ih =>
+    intro p hd b hgood
+    have hp : p < n := by omega
+    rw [ConRon.Arena.Frontend.Olean.frontierOf, ite_eq_left hp]
+    apply ih (p + 1) (by omega)
+    unfold ConRon.Arena.Frontend.Olean.frontierStep
+    split
+    · exact hgood
+    obtain ⟨names, levels, lists, exprs⟩ := b
+    obtain ⟨g1, g2, g3, g4⟩ := hgood
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g1.add ((hb p hp kName hk1 hm.2).1 rfl)
+      · exact g1
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g2.add ((hb p hp kLevel hk2 hm.2).2.1 rfl)
+      · exact g2
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g3.add ((hb p hp kLevels hk4 hm.2).2.2.1 rfl)
+      · exact g3
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g4.add ((hb p hp kExpr hk3 hm.2).2.2.2 rfl)
+      · exact g4
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — the frontier of a load
+is good on the region of the files it was loaded from. -/
+@[expose] def FrontGoodAt (st : EStore) (f : ConLeche.Frontend.Olean.ModFiles)
+    (b : ConRon.Arena.Frontend.Olean.Frontier) : Prop :=
+  ∃ r a, f.viewRegion .private = some (r, a) ∧ FrontierGood st r b
+
+theorem FrontGoodAt.ext {st st' : EStore} {f : ConLeche.Frontend.Olean.ModFiles}
+    {b : ConRon.Arena.Frontend.Olean.Frontier} (h : FrontGoodAt st f b) (hx : Ext st st') :
+    FrontGoodAt st' f b :=
+  let ⟨r, a, h1, h2⟩ := h
+  ⟨r, a, h1, h2.ext hx⟩
+
+/-! ## A module's load -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:298-305 CEntryF.mapM — a constant read off the
+memo, every name and expression: the specification's, read back. -/
+theorem entryMap_run {pk : OleanPins} {r : Region} {st : DS} {c : CEntryF UInt64 UInt64}
+    {e : CEntryF NIdx EIdx} {s s' : AState}
+    (hN : ∀ x ∈ c.names, ∀ y, st.nameOf pk r x = some y →
+      ∃ z, nameP r x = some z ∧ denoteN s.store.ns y = some z)
+    (hE : ∀ x ∈ c.exprs, ∀ y, st.exprOf r x = some y →
+      ∃ z, exprP r x = some z ∧ denoteE s.store y = some z)
+    (h : ConRon.Arena.Frontend.Olean.entryMap (DS.read pk r st) c s = .ok (some e, s')) :
+    s' = s ∧ ∃ z, c.mapM (nameP r) (exprP r) = some z ∧ denoteEntry s.store e = some z := by
+  have hpr := PR.entryMap (fn := fun v => OptionT.mk ((DS.read pk r st).rdName v))
+    (fe := fun v => OptionT.mk ((DS.read pk r st).rdExpr v))
+    (gn := st.nameOf pk r) (ge := st.exprOf r) (fun _ _ => rfl) (fun _ _ => rfl) c s
+  have h2 : ConRon.Arena.Frontend.Olean.entryMap (DS.read pk r st) c s =
+      .ok (c.mapM (st.nameOf pk r) (st.exprOf r), s) := hpr
+  rw [h2] at h
+  injection h with h
+  simp only [Prod.mk.injEq] at h
+  obtain ⟨hm, rfl⟩ := h
+  obtain ⟨z, hz, hdz⟩ := entry_sim (fnC := nameP r) (feC := exprP r) (dn := denoteN s.store.ns)
+    (de := denoteE s.store) c hm hN hE
+  exact ⟨rfl, z, hz, hdz⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:194-206 lazyEntry — **a constant read off the
+memo is the specification's lazy entry**: a theorem's value is the reference upstream's is. -/
+theorem lazyEntry_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
+    {sk : CEntryF UInt64 UInt64} {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (hN : ∀ x ∈ sk.names, ∀ y, st.nameOf pk r x = some y →
+      ∃ z, nameP r x = some z ∧ denoteN s.store.ns y = some z)
+    (hE : ∀ x ∈ lazyRoots sk, ∀ y, st.exprOf r x = some y →
+      ∃ z, exprP r x = some z ∧ denoteE s.store y = some z)
+    (h : ConRon.Arena.Frontend.Olean.lazyEntry pk r st i sk s = .ok (some e, s')) :
+    ParseStep s s' ∧ ∃ eC, denoteEntry s'.store e = some eC ∧
+      lazyEntry (nameP r) (exprP r) r i sk = some eC := by
+  rcases sk with ⟨name, lps, type, kind⟩
+  cases kind with
+  | thm v all =>
+    simp only [ConRon.Arena.Frontend.Olean.lazyEntry] at h
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i hi
+    obtain ⟨u, s₁, h1, h⟩ := AM.bind_ok h
+    obtain ⟨-, rfl⟩ := AM.pure_ok h1
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i g hg
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    obtain ⟨u, s₁, h1, h⟩ := AM.bind_ok h
+    obtain ⟨-, rfl⟩ := AM.pure_ok h1
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i n hn
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i lps' hl
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i t ht
+    split at h
+    rotate_left
+    · cases (AM.pure_ok h).1
+    rename_i all' ha
+    simp only [pure_bind] at h
+    obtain ⟨vh, s₂, hv, h⟩ := AM.bind_ok h
+    obtain ⟨he, rfl⟩ := AM.pure_ok h
     cases he
-    obtain ⟨hv, hs⟩ := AM.pure_ok h
-    cases hv
-    exact ⟨hs, [], rfl, rfl⟩
-  | c :: cs, es, xs, s', he, h => by
-    simp only [List.mapM_cons] at he h
-    obtain ⟨e, he1, he⟩ := ConLeche.Frontend.Olean.bind_some_left he
-    obtain ⟨es', he2, he⟩ := ConLeche.Frontend.Olean.bind_some_left he
-    simp only [pure, Option.some.injEq] at he
-    subst he
-    obtain ⟨x, s₁, h1, h⟩ := AM.bind_ok h
-    obtain ⟨xs', s₂, h2, h⟩ := AM.bind_ok h
+    unfold ConRon.Arena.Frontend.Olean.valueRef at hv
+    obtain ⟨hst, -, hden⟩ := internE_istep hctx.ok hctx.off viewOK_bvar hv
+    have hmemN : ∀ x ∈ lps, x ∈ (CEntryF.mk name lps type (.thm v all)).names := fun x hx => by
+      simp [ConLeche.Frontend.Olean.CEntryF.names, hx]
+    have hmemA : ∀ x ∈ all, x ∈ (CEntryF.mk name lps type (.thm v all)).names := fun x hx => by
+      simp [ConLeche.Frontend.Olean.CEntryF.names, hx]
+    obtain ⟨zn, hzn, hdn⟩ := hN name (by simp [ConLeche.Frontend.Olean.CEntryF.names]) n hn
+    obtain ⟨zl, hzl, hdl⟩ := list_sim lps hl
+      (fun x hx y hy => hN x (hmemN x hx) y hy)
+    obtain ⟨zt, hzt, hdt⟩ := hE type (by simp [lazyRoots]) t ht
+    obtain ⟨za, hza, hda⟩ := list_sim all ha
+      (fun x hx y hy => hN x (hmemA x hx) y hy)
+    refine ⟨hst.toParse hctx.off, ⟨zn, zl, zt, .thm (.bvar (g * ConLeche.Frontend.Olean.refBase + i)) za⟩,
+      ?_, ?_⟩
+    · simp only [denoteEntry, ConLeche.Frontend.Olean.CEntryF.mapM, ConLeche.Frontend.Olean.CKindF.mapM,
+        denoteN_ext hdn hst.ext, list_mono (fun _ _ hy => denoteN_ext hy hst.ext) _ hdl,
+        denote_ext hdt hst.ext, hden, denoteEView,
+        list_mono (fun _ _ hy => denoteN_ext hy hst.ext) _ hda]
+      rfl
+    · simp only [lazyEntry, hi, hg, hzn, hzl, hzt, hza]
+      rfl
+  | _ =>
+    simp only [ConRon.Arena.Frontend.Olean.lazyEntry] at h
+    obtain ⟨rfl, z, hz, hdz⟩ := entryMap_run hN (fun x hx => hE x (by simpa [lazyRoots] using hx)) h
+    exact ⟨ParseStep.refl hctx.ok, z, hdz, by simpa only [lazyEntry] using hz⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:208-218 lazyEntries -/
+theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
+    {outs : Array (Array UInt64)} :
+    ∀ (ss : List (CEntryF UInt64 UInt64)) (k : Nat) {cs : List CEntry} {s s' : AState},
+      Ctx pk s → PinsRel s.store pk →
+      (∀ sk ∈ ss, ∀ x ∈ sk.names, ∀ y, st.nameOf pk r x = some y →
+        ∃ z, nameP r x = some z ∧ denoteN s.store.ns y = some z) →
+      (∀ sk ∈ ss, ∀ x ∈ lazyRoots sk, ∀ y, st.exprOf r x = some y →
+        ∃ z, exprP r x = some z ∧ denoteE s.store y = some z) →
+      (∀ k, ∀ n ∈ ConRon.Arena.Frontend.Olean.usesRead pk (st.nameOf pk r) (outs.getD k #[]),
+        (denoteN s.store.ns n).isSome) →
+      ConRon.Arena.Frontend.Olean.lazyEntries pk r st i outs k ss s = .ok (some cs, s') →
+      ParseStep s s' ∧ ∃ csC, cs.mapM (denoteCEntry s'.store) = some csC ∧ LazyOf r i ss csC
+  | [], k, cs, s, s', hctx, _, _, _, _, h => by
+    rw [ConRon.Arena.Frontend.Olean.lazyEntries] at h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
     cases hv
     subst hs
-    obtain ⟨hs1, z, hz, hzc⟩ := ofRead_run hok hp he1 h1
-    subst hs1
-    obtain ⟨hs2, zs, hzs, hmap⟩ := ofReadAll_run hok hp cs he2 h2
-    subst hs2
-    refine ⟨rfl, z :: zs, ?_, by simp [hzc, hmap]⟩
-    simp only [List.mapM_cons, hz, hzs]
-    rfl
+    exact ⟨ParseStep.refl hctx.ok, [], rfl, ⟨by simp, by simp⟩⟩
+  | sk :: ss, k, cs, s, s', hctx, hp, hN, hE, hU, h => by
+    rw [ConRon.Arena.Frontend.Olean.lazyEntries] at h
+    obtain ⟨o, s₁, h1, h⟩ := AM.bind_ok h
+    cases o with
+    | none => cases (AM.pure_ok h).1
+    | some e =>
+    obtain ⟨o', s₂, h2, h⟩ := AM.bind_ok h
+    cases o' with
+    | none => cases (AM.pure_ok h).1
+    | some es =>
+    obtain ⟨hv, hs⟩ := AM.pure_ok h
+    cases hv
+    subst hs
+    obtain ⟨hst1, eC, hde, hle⟩ := lazyEntry_run hctx (hN sk (by simp)) (hE sk (by simp)) h1
+    obtain ⟨hst2, esC, hes, hlazy⟩ := lazyEntries_run ss (k + 1) (hctx.step hst1) (hp.ext hst1.ext)
+      (fun sk' hsk x hx y hy => by
+        obtain ⟨z, hz, hd⟩ := hN sk' (List.mem_cons_of_mem _ hsk) x hx y hy
+        exact ⟨z, hz, denoteN_ext hd hst1.ext⟩)
+      (fun sk' hsk x hx y hy => by
+        obtain ⟨z, hz, hd⟩ := hE sk' (List.mem_cons_of_mem _ hsk) x hx y hy
+        exact ⟨z, hz, denote_ext hd hst1.ext⟩)
+      (fun k' n hn => by
+        obtain ⟨z, hz⟩ := Option.isSome_iff_exists.mp (hU k' n hn)
+        rw [denoteN_ext hz hst1.ext]
+        rfl) h2
+    have hx := hst1.ext.trans hst2.ext
+    obtain ⟨us, hus⟩ := list_some_of (f := denoteN s'.store.ns)
+      (ConRon.Arena.Frontend.Olean.usesRead pk (st.nameOf pk r) (outs.getD k #[])).toList
+      (fun n hn => by
+        obtain ⟨z, hz⟩ := Option.isSome_iff_exists.mp (hU k n (by simpa using hn))
+        rw [denoteN_ext hz hx]
+        rfl)
+    refine ⟨hst1.trans hst2, { toCEntryF := eC, uses := us.toArray } :: esC, ?_, ?_⟩
+    · simp only [List.mapM_cons, hes, denoteCEntry, denoteEntry_ext hst2.ext hde, hus]
+      rfl
+    · refine ⟨fun s0 hs0 => ?_, fun e0 he0 => ?_⟩
+      · rcases List.mem_cons.mp hs0 with rfl | hs0
+        · exact ⟨_, List.mem_cons_self, hle⟩
+        · obtain ⟨x, hx, h⟩ := hlazy.of_skel s0 hs0
+          exact ⟨x, List.mem_cons_of_mem _ hx, h⟩
+      · rcases List.mem_cons.mp he0 with rfl | he0
+        · exact ⟨sk, List.mem_cons_self, hle⟩
+        · obtain ⟨x, hx, h⟩ := hlazy.to_skel e0 he0
+          exact ⟨x, List.mem_cons_of_mem _ hx, h⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:140-146 loadModule -/
-theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx} {mn : ConLeche.Name}
-    {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState} (hctx : Ctx pk s)
-    (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
-    (h : ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp m s = .ok (l, s')) :
-    ParseStep s s' ∧ ∃ lC dC, denoteLoaded s'.store l = some lC ∧ lC.name = mn ∧
-      (ConLeche.Frontend.Olean.readView sp mn .private : ModelIO _) F (.ok (.ok dC)) ∧
-      lC.constants.map (·.toCEntryF) = dC.constants := by
-  unfold ConRon.Arena.Frontend.Olean.loadModule at h
-  obtain ⟨d, s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨hst, dC, hd1, hd2⟩ := readView_run hm hctx h1
-  have hctx1 := hctx.step hst
-  have hp1 := hp.ext hst.ext
-  obtain ⟨u, s₂, h3, h4⟩ := AM.bind_ok h2
-  obtain ⟨hv, hs⟩ := AM.pure_ok h4
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt — the imports' check moves the
+state as a read does. -/
+theorem loadImports_run {pk : OleanPins} {r : Region} {st : DS} {sk : ModSkel}
+    {f : ConLeche.Frontend.Olean.ModFiles} {s s' : AState} (hctx : Ctx pk s)
+    (h : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f s = .ok (true, s')) :
+    ParseStep s s' := by
+  generalize hF : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f = fn at h
+  unfold ConRon.Arena.Frontend.Olean.loadImports at hF
+  split at hF
+  · subst hF
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
+    cases o with
+    | none => cases (AM.pure_ok h2).1
+    | some pre =>
+      obtain ⟨-, hs⟩ := AM.pure_ok h2
+      subst hs
+      exact (importsPre_run hctx h1).1
+  · subst hF
+    cases (AM.pure_ok h).1
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — **the twin's load of a
+module's private view is the specification's, up to its theorems' values.** -/
+theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
+    {f : ConLeche.Frontend.Olean.ModFiles} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
+    (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
+    (h : ConRon.Arena.Frontend.Olean.loadAt pk i m f s = .ok (some l, s')) :
+    ParseStep s s' ∧ FrontGoodAt s'.store f l.frontier ∧
+      ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC := by
+  generalize hF : ConRon.Arena.Frontend.Olean.loadAt pk i m f = fn at h
+  unfold ConRon.Arena.Frontend.Olean.loadAt at hF
+  split at hF
+  rotate_left
+  · subst hF
+    cases (AM.pure_ok h).1
+  rename_i r a hvr
+  subst hF
+  obtain ⟨b, s₁, h1, h⟩ := AM.bind_ok h
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at h
+    cases (AM.pure_ok h).1
+  | true =>
+  obtain ⟨hst1, -⟩ := constNamesOk_run hctx h1
+  simp only [↓reduceIte, pure_bind] at h
+  cases hsk : moduleSkel r a with
+  | none =>
+    simp only [hsk] at h
+    cases (AM.pure_ok h).1
+  | some sk =>
+  simp only [hsk] at h
+  obtain ⟨o, s₂, h2, h⟩ := AM.bind_ok h
+  cases o with
+  | none => cases (AM.pure_ok h).1
+  | some skels =>
+  obtain ⟨hs2, hskels⟩ := constsSkel_run _ h2
+  rw [hs2] at h
+  cases hU : ConRon.Arena.Frontend.Olean.usesOf r (Array.replicate
+      (ConLeche.Frontend.Olean.maxLoc r (ConRon.Arena.Frontend.Olean.loadRoots sk skels).snd
+        (ConLeche.Frontend.Olean.maxLoc r (ConRon.Arena.Frontend.Olean.loadRoots sk skels).fst 0)
+        / 8 + 1) 0) 1 skels (Array.mkEmpty skels.length) with
+  | none =>
+    simp only [hU] at h
+    cases (AM.pure_ok h).1
+  | some outs =>
+  simp only [hU] at h
+  obtain ⟨o, s₃, h3, h⟩ := AM.bind_ok h
+  rcases o with _ | ⟨nm, ms, st⟩
+  · cases (AM.pure_ok h).1
+  obtain ⟨hst3, hN, hE, hbuilt⟩ := runMarked_run (hctx.step hst1) h3
+  obtain ⟨b, s₄, h4, h⟩ := AM.bind_ok h
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at h
+    cases (AM.pure_ok h).1
+  | true =>
+  have hst4 := loadImports_run (hctx.step (hst1.trans hst3)) h4
+  simp only [↓reduceIte] at h
+  obtain ⟨o, s₅, h5, h⟩ := AM.bind_ok h
+  cases o with
+  | none => cases (AM.pure_ok h).1
+  | some cs =>
+  obtain ⟨hv, hs⟩ := AM.pure_ok h
   cases hv
   subst hs
-  rw [Array.mapM_eq_mapM_toList, map_eq_pure_bind] at h3
-  obtain ⟨xs, s₃, h5, h6⟩ := AM.bind_ok h3
+  have hst := (hst1.trans hst3).trans hst4
+  obtain ⟨hst5, csC, hcs, hlazy⟩ := lazyEntries_run skels 0 (hctx.step hst) (hp.ext hst.ext)
+    (fun sk' hsk' x hx y hy => by
+      obtain ⟨z, hz, hd⟩ := hN x (List.mem_append_left _ (List.mem_append_right _
+        (List.mem_flatMap.mpr ⟨sk', hsk', hx⟩))) y hy
+      exact ⟨z, hz, denoteN_ext hd hst4.ext⟩)
+    (fun sk' hsk' x hx y hy => by
+      obtain ⟨z, hz, hd⟩ := hE x (List.mem_flatMap.mpr ⟨sk', hsk', hx⟩) y hy
+      exact ⟨z, hz, denote_ext hd hst4.ext⟩)
+    (fun k => usesRead_den (hp.ext hst.ext) (outs.getD k #[]) (fun v hv h1 h2 y hy => by
+      obtain ⟨z, -, hd⟩ := hN v (List.mem_append_right _ (mem_usesNames hv h1 h2)) y hy
+      rw [denoteN_ext hd hst4.ext]
+      rfl)) h5
+  refine ⟨hst.trans hst5, ⟨r, a, hvr, (frontierOf_good hbuilt _ 0 rfl _ (FrontierGood.empty _ r)).ext
+      (hst4.ext.trans hst5.ext)⟩, { name := mn, constants := csC.toArray, frontier := {} },
+    ⟨denoteN_ext hm (hst.trans hst5).ext, by simpa using hcs⟩, rfl,
+    r, a, sk, skels, hvr, hsk, hskels, by simpa using hlazy⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule -/
+theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} {m : NIdx}
+    {mn : ConLeche.Name} {idx : Nat} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
+    (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
+    (h : ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total m idx s = .ok (l, s')) :
+    ParseStep s s' ∧ ∃ lC f, LoadedRel s'.store l lC ∧ lC.name = mn ∧
+      (ConLeche.Frontend.Olean.readFiles sp mn .private : ModelIO _) F (.ok (.ok f)) ∧
+      LoadSpec f idx lC ∧ FrontGoodAt s'.store f l.frontier := by
+  unfold ConRon.Arena.Frontend.Olean.loadModule at h
+  obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨hs1, hd1⟩ := readName_run h1
+  subst hs1
+  have hmn : mn' = mn := Option.some.inj (hd1.symm.trans hm)
+  subst hmn
+  obtain ⟨f, s₂, h3, h4⟩ := AM.bind_ok h2
+  cases hrf : ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp mn' .private with
+  | error e =>
+    simp only [hrf, ConRon.Arena.Frontend.Olean.liftE] at h3
+    cases h3
+  | ok f' =>
+  simp only [hrf, ConRon.Arena.Frontend.Olean.liftE] at h3
+  obtain ⟨hv, hs⟩ := AM.pure_ok h3
+  cases hv
+  rw [hs] at h4
+  obtain ⟨l', s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨hv, hs⟩ := AM.pure_ok h6
   cases hv
-  subst hs
-  unfold denoteMod at hd2
-  obtain ⟨is, h7, hd2⟩ := ConLeche.Frontend.Olean.bind_some_left hd2
-  obtain ⟨es, h8, hd2⟩ := ConLeche.Frontend.Olean.bind_some_left hd2
-  simp only [pure, Option.some.injEq] at hd2
-  subst hd2
-  obtain ⟨hs3, zs, hzs, hmap⟩ := ofReadAll_run hctx1.ok hp1 _ h8 h5
-  subst hs3
-  refine ⟨hst, ⟨mn, zs.toArray⟩, _, ?_, rfl, hd1, ?_⟩
-  · simp only [denoteLoaded, denoteN_ext hm hst.ext, hzs]
-    rfl
-  · simp [hmap]
+  rw [← hs] at h5
+  unfold ConRon.Arena.Frontend.Olean.loadView at h5
+  obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h5
+  cases o with
+  | none =>
+    obtain ⟨e, s₅, -, h9⟩ := AM.bind_ok h8
+    obtain ⟨e', s₆, -, h10⟩ := AM.bind_ok h9
+    exact absurd (AM.fail_ok h10) (by simp)
+  | some l'' =>
+  obtain ⟨hv, hs⟩ := AM.pure_ok h8
+  cases hv
+  rw [← hs] at h7
+  obtain ⟨hst, hfg, lC, hrel, hn, hspec⟩ := loadAt_run hctx hp hm h7
+  exact ⟨hst, lC, f, hrel, hn, readFiles_sim hrf, hspec, hfg⟩
 
 /-! ## The closure -/
 
@@ -663,44 +1006,72 @@ theorem closureOrder_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots orde
       ListRel (NR s'.store) order.toList orderC.toList :=
   closureGo_run _ _ _ _ _ _ _ _ _ _ hctx (rootsStack_rel hr) (SetRel.empty _) (SetRel.empty _) .nil h
 
-/-- The modules of the order, loaded. -/
-theorem loadAll_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
-    ∀ (l : List NIdx) {ns : List ConLeche.Name} {ys : List ConRon.Arena.Frontend.Olean.Loaded}
-      {s s' : AState}, Ctx pk s → PinsRel s.store pk → ListRel (NR s.store) l ns →
-      l.mapM (ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp) s = .ok (ys, s') →
-      ParseStep s s' ∧ ∃ lsC, ListRel (fun y c => denoteLoaded s'.store y = some c) ys lsC ∧
-        lsC.map (·.name) = ns ∧ ∀ lC ∈ lsC, ∃ dC,
-          (ConLeche.Frontend.Olean.readView sp lC.name .private : ModelIO _) F (.ok (.ok dC)) ∧
-          lC.constants.map (·.toCEntryF) = dC.constants
+/-- Two related lists, numbered alike. -/
+theorem listRel_zipIdx {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {l' : List β}, ListRel R l l' → ∀ (n : Nat),
+      ListRel (fun a b => R a.1 b.1 ∧ a.2 = b.2) (l.zipIdx n) (l'.zipIdx n)
+  | _, _, .nil, _ => .nil
+  | _, _, .cons hab hr, n => .cons ⟨hab, rfl⟩ (listRel_zipIdx hr (n + 1))
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef — a loaded module's frontier is
+good on the region of its files on the snapshot. -/
+@[expose] def ModFront (sp : SearchPath) (F : FS) (st : EStore)
+    (l : ConRon.Arena.Frontend.Olean.Loaded) (lC : ConLeche.Frontend.Olean.Loaded) : Prop :=
+  ∃ f, (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+    FrontGoodAt st f l.frontier
+
+theorem ModFront.ext {sp : SearchPath} {F : FS} {st st' : EStore}
+    {l : ConRon.Arena.Frontend.Olean.Loaded} {lC : ConLeche.Frontend.Olean.Loaded}
+    (h : ModFront sp F st l lC) (hx : Ext st st') : ModFront sp F st' l lC :=
+  let ⟨f, h1, h2⟩ := h
+  ⟨f, h1, h2.ext hx⟩
+
+/-- The modules of the order, loaded, each at its position. -/
+theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
+    ∀ (l : List (NIdx × Nat)) {ns : List (ConLeche.Name × Nat)}
+      {ys : List ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}, Ctx pk s →
+      PinsRel s.store pk → ListRel (fun a b => NR s.store a.1 b.1 ∧ a.2 = b.2) l ns →
+      l.mapM (fun (p : NIdx × Nat) =>
+        ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total p.1 p.2) s = .ok (ys, s') →
+      ParseStep s s' ∧ ∃ lsC, ListRel (LoadedRel s'.store) ys lsC ∧
+        ListRel (ModFront sp F s'.store) ys lsC ∧ lsC.map (·.name) = ns.map (·.1) ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ ns ∧
+          (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+          LoadSpec f i lC
   | [], ns, ys, s, s', hctx, _, hl, h => by
     cases hl
     simp only [List.mapM_nil] at h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
     cases hv
     subst hs
-    exact ⟨ParseStep.refl hctx.ok, [], .nil, rfl, by simp⟩
-  | m :: l, ns, ys, s, s', hctx, hp, hl, h => by
+    exact ⟨ParseStep.refl hctx.ok, [], .nil, .nil, rfl, by simp⟩
+  | p :: l, ns, ys, s, s', hctx, hp, hl, h => by
     cases hl with
-    | @cons _ mn _ ns' hm hrest =>
+    | @cons _ q _ ns' hm hrest =>
+      obtain ⟨hm, hi⟩ := hm
       simp only [List.mapM_cons] at h
       obtain ⟨y, s₁, h1, h⟩ := AM.bind_ok h
       obtain ⟨ys', s₂, h2, h⟩ := AM.bind_ok h
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      obtain ⟨hst1, lC, dC, hd, hn, hv, hc⟩ := loadModule_run hctx hp hm h1
-      obtain ⟨hst2, lsC, hR, hmap, hall⟩ := loadAll_run l (hctx.step hst1) (hp.ext hst1.ext)
-        (NR_list_ext hst1.ext hrest) h2
-      refine ⟨hst1.trans hst2, lC :: lsC, .cons (denoteLoaded_ext hst2.ext hd) hR, ?_, ?_⟩
+      obtain ⟨hst1, lC, f, hd, hn, hf, hspec, hfg⟩ := loadModule_run hctx hp hm h1
+      obtain ⟨hst2, lsC, hR, hF, hmap, hall⟩ := loadAll_go l (hctx.step hst1) (hp.ext hst1.ext)
+        (ListRel.mono' (fun a b hab => ⟨denoteN_ext hab.1 hst1.ext, hab.2⟩) hrest) h2
+      refine ⟨hst1.trans hst2, lC :: lsC, .cons (hd.ext hst2.ext) hR,
+        .cons ⟨f, by rw [hn]; exact hf, hfg.ext hst2.ext⟩ hF, ?_, ?_⟩
       · simp [hn, hmap]
       · intro x hx
         simp only [List.mem_cons] at hx
         rcases hx with rfl | hx
-        · exact ⟨dC, by rw [hn]; exact hv, hc⟩
-        · exact hall x hx
+        · refine ⟨q.2, f, ?_, by rw [hn]; exact hf, by rw [← hi]; exact hspec⟩
+          rw [hn]
+          exact List.mem_cons_self
+        · obtain ⟨i, f', h1, h2, h3⟩ := hall x hx
+          exact ⟨i, f', List.mem_cons_of_mem _ h1, h2, h3⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:148-158 loadClosure — **the closure,
-loaded, on the snapshot**: the walk's order is upstream's, and each module its private view. -/
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure — **the closure,
+loaded, on the snapshot**: the walk's order is upstream's, and each module is its files'
+private view, loaded (`LoadSpec`) at its position in the order. -/
 theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Array NIdx}
     {rootsC : Array ConLeche.Name} {ls : Array ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
     (hctx : Ctx pk s) (hp : PinsRel s.store pk)
@@ -708,19 +1079,28 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
     (h : ConRon.Arena.Frontend.Olean.loadClosure (modelFs F) pk sp roots s = .ok (ls, s')) :
     ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (lsC : List ConLeche.Frontend.Olean.Loaded),
       (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok (.ok orderC)) ∧
-      ListRel (fun y c => denoteLoaded s'.store y = some c) ls.toList lsC ∧
-      lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ dC,
-        (ConLeche.Frontend.Olean.readView sp lC.name .private : ModelIO _) F (.ok (.ok dC)) ∧
-        lC.constants.map (·.toCEntryF) = dC.constants := by
+      ListRel (LoadedRel s'.store) ls.toList lsC ∧ ListRel (ModFront sp F s'.store) ls.toList lsC ∧
+      lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
+        (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+        LoadSpec f i lC := by
   unfold ConRon.Arena.Frontend.Olean.loadClosure at h
   obtain ⟨order, s₁, h1, h⟩ := AM.bind_ok h
   obtain ⟨hst1, orderC, hC, hR⟩ := closureOrder_run hctx hr h1
-  rw [Array.mapM_eq_mapM_toList, map_eq_pure_bind] at h
-  obtain ⟨ys, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨hv, hs⟩ := AM.pure_ok h
-  cases hv
-  subst hs
-  obtain ⟨hst2, lsC, hL, hmap, hall⟩ := loadAll_run _ (hctx.step hst1) (hp.ext hst1.ext) hR h2
-  exact ⟨hst1.trans hst2, orderC, lsC, hC, by simpa using hL, hmap, hall⟩
+  unfold ConRon.Arena.Frontend.Olean.loadAll at h
+  simp only [StateT.map] at h
+  cases h2 : (order.toList.zipIdx.mapM fun (p : NIdx × Nat) =>
+      ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp order.size p.1 p.2) s₁ with
+  | error e =>
+    rw [h2] at h
+    cases h
+  | ok p =>
+  obtain ⟨ys, s₂⟩ := p
+  rw [h2] at h
+  cases h
+  obtain ⟨hst2, lsC, hL, hF, hmap, hall⟩ := loadAll_go _ (hctx.step hst1) (hp.ext hst1.ext)
+    (listRel_zipIdx hR 0) h2
+  refine ⟨hst1.trans hst2, orderC, lsC, hC, by simpa using hL, by simpa using hF, ?_, hall⟩
+  rw [hmap]
+  simp
 
 end ConRon.Bridge.Frontend.Olean

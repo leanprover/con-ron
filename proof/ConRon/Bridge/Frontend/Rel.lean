@@ -541,6 +541,11 @@ theorem PersFire_of_denote {st : EStore} (hwf : StoreWF st)
     | none => rw [h1, h2] at hd; simp at hd
     | some ps =>
     exact ⟨PersLList_of_denote hwf hoff h1, PersEList_of_denote hwf hoff h2⟩
+  | levels lvls =>
+    rw [denoteFire] at hd
+    cases h1 : denoteLList st.ls lvls with
+    | none => rw [h1] at hd; simp at hd
+    | some ls => exact PersLList_of_denote hwf hoff h1
 
 /-- con-leche: none — one recursor rule. -/
 theorem PersRule_of_denote {st : EStore} (hwf : StoreWF st)
@@ -679,7 +684,6 @@ theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
     (hd : denoteDecl st di = some d) :
     PersDecl di := by
   cases di with
-  | basisDecl k => trivial
   | axiomDecl v =>
     rw [denoteDecl] at hd
     cases h1 : denoteCV st v with
@@ -809,10 +813,6 @@ theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
         obtain rfl := Option.some.inj hd
         simp only [IDeclaration.names, Declaration.names,
           ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
-  | basisDecl k =>
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
-    subst hd
-    rfl
   | quotDecl k v =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨cv, hv, rfl⟩ := hd
@@ -885,7 +885,6 @@ theorem denoteDecl_ext {st st' : EStore} (hx : Ext st st') {pd : IDeclaration}
     (h : ConRon.Arena.Frontend.denoteDecl st pd = some d) :
     ConRon.Arena.Frontend.denoteDecl st' pd = some d := by
   cases pd with
-  | basisDecl k => exact h
   | axiomDecl v =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
     obtain ⟨cv, hcv, hc⟩ := h

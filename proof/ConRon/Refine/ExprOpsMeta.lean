@@ -210,5 +210,100 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
       have e2 := ih2 hy b hb
       simp [ConLeche.Level.allParamsDefined, ← e1, e2]
 
+/-! ## The zero-ness tests at use (`level.rs`, upstream task #480)
+
+`is_always_zero` and `zero_where_zero` read two zero-ness data where the stored
+guards used to; `names_all_in_from` is `List.all` of `List.contains`. -/
+
+/-- `level::names_all_in_from`: every name of `qs` from `i` on is in `ps`. -/
+theorem names_all_in_from_refines {qs ps : alloc.vec.Vec name.Name}
+    (hqs : NamesWF qs) (hps : NamesWF ps) :
+    ∀ k : Nat, ∀ (i : Std.Usize) (c : Bool), qs.length - i.val ≤ k →
+      level.names_all_in_from qs ps i = ok c →
+      c = ((absNames qs).drop i.val).all (absNames ps).contains := by
+  intro k
+  induction k with
+  | zero =>
+    intro i c hk h
+    rw [level.names_all_in_from.eq_def] at h; simp only [] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len qs by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by simp [absNames]; scalar_tac)]; rfl
+  | succ k ih =>
+    intro i c hk h
+    rw [level.names_all_in_from.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ qs.length
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len qs by scalar_tac), Result.ok.injEq] at h
+      rw [← h, List.drop_eq_nil_of_le (by simp [absNames]; scalar_tac)]; rfl
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len qs by scalar_tac)] at h
+      have hlt : i.val < qs.val.length := by scalar_tac
+      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec qs i hlt)
+      subst hyv
+      simp only [alloc.vec.Vec.index_slice_index, hy, bind_ok] at h
+      obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+      have hyw : NameWF qs.val[i.val] := hqs _ (List.getElem_mem hlt)
+      have hbv := Name.contains_refines hps hyw hb
+      have hdrop : (absNames qs).drop i.val = absName qs.val[i.val] ::
+          (absNames qs).drop (i.val + 1) := by
+        simp only [absNames]
+        rw [← List.map_drop, List.drop_eq_getElem_cons hlt, List.map_cons, List.map_drop]
+      rw [hdrop, List.all_cons]
+      cases b with
+      | false =>
+        simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
+        rw [← h, ← hbv]; rfl
+      | true =>
+        simp only [ite_true] at h
+        have hmax : i.val + 1 ≤ Std.Usize.max := by have := qs.slice.property; scalar_tac
+        obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
+        rw [hw, bind_ok] at h
+        rw [← hbv, ih w c (by scalar_tac) h, hwv]; rfl
+
+/-- **`level::is_always_zero` refines `Level.isAlwaysZero`**: the datum is
+`ifAllZero []`. -/
+theorem is_always_zero_refines {s : level.Level} (hs : LevelWF s) {b : Bool}
+    (h : level.is_always_zero s = ok b) :
+    b = ConLeche.Level.isAlwaysZero (absLevel s) := by
+  rw [level.is_always_zero] at h
+  obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨apw, -⟩ := zeroness_of_refines hs pw hpw
+  rw [ConLeche.Level.isAlwaysZero, ← apw]
+  cases pw with
+  | Never => simp only [Result.ok.injEq] at h; rw [← h]; rfl
+  | IfAllZero ps =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    cases hp : ps.val with
+    | nil =>
+      have : ps.len = 0#usize := by
+        apply Std.UScalar.eq_of_val_eq; simp [alloc.vec.Vec.len, hp]
+      rw [this]
+      simp [absPropWhen, absNames, hp]
+    | cons x r =>
+      have : ps.len ≠ 0#usize := by
+        intro hc; have := congrArg Std.UScalar.val hc; simp [alloc.vec.Vec.len, hp] at this
+      rw [decide_eq_false this]
+      simp [absPropWhen, absNames, hp]
+
+/-- **`level::zero_where_zero` refines `Level.zeroWhereZero`**. -/
+theorem zero_where_zero_refines {s u : level.Level} (hs : LevelWF s) (hu : LevelWF u)
+    {b : Bool} (h : level.zero_where_zero s u = ok b) :
+    b = ConLeche.Level.zeroWhereZero (absLevel s) (absLevel u) := by
+  rw [level.zero_where_zero] at h
+  obtain ⟨zs, hzs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨zu, hzu, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨aS, ws⟩ := zeroness_of_refines hs zs hzs
+  obtain ⟨au, wu⟩ := zeroness_of_refines hu zu hzu
+  rw [ConLeche.Level.zeroWhereZero, ← aS, ← au]
+  cases zs with
+  | Never => simp only [Result.ok.injEq] at h; rw [← h]; rfl
+  | IfAllZero ps =>
+    cases zu with
+    | Never => simp only [Result.ok.injEq] at h; rw [← h]; rfl
+    | IfAllZero qs =>
+      simp only [] at h
+      have hc := names_all_in_from_refines wu ws qs.length 0#usize b (by scalar_tac) h
+      simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hc
+      rw [hc]; rfl
+
 end ConRon.Refine.ExprOps
 

@@ -25,7 +25,7 @@ public import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.StreamRecs
 import ConLeche.Verify.Inductives.PositivityInv
 public import ConRon.Bridge.Inductives.ClassRead
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructInstall
 import ConRon.Bridge.Inductives.StructParts
@@ -364,7 +364,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       obtain ⟨hstep, hrel⟩ := checkBlockTables_spec p pP ms msP' css cssP' sss sssP' fe env
         s₀ s' fe' hok hpins hcoh hienv hfe hsh hms' hcss' hsss' h
       exact ⟨hstep, hrel.imp fun e he => FOk.bind hx he⟩
-    obtain ⟨hcvT, hnI, hcsm⟩ := dMember_inv hm
+    obtain ⟨hcvT, hnI, hcsm, -⟩ := dMember_inv hm
     match cs, ss, csP, ssP, hcs, hss with
     | [(cA, nF)], [sorts], csP, ssP, hcs, hss =>
       obtain ⟨cAP', csP', rfl, hcA, hcs'⟩ := mapM_option_cons_inv hcs
@@ -801,7 +801,7 @@ theorem checkBlockPass_of (hk : CoreSpec Arena.checkFuel)
   dsimp only at hparN
   have x4 := c4.ext
   have x14 : Ext s₁.store s₄.store := x2.trans (x3.trans x4)
-  obtain ⟨namesP, lpsP, paramsP, sortP, hctxEq, -, -, hparams, -, -⟩ := dCtx_inv hctx
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, hctxEq, -, -, hparams, -, -, _⟩ := dCtx_inv hctx
   -- the classes
   obtain ⟨⟨rd, ms⟩, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨c5, ⟨rdP, msP⟩, ⟨hrd, hmsP, hMsc⟩, hF5⟩ :=

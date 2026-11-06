@@ -99,27 +99,29 @@ an index except through `find?` and the raw table lookup (`IFEnvOK`'s
 clauses; `CacheOK` and `PinsOK` do not mention it), so the invariant at `fe` IS
 the invariant at any index answering `fe`'s lookups. -/
 
-/-- con-leche: none — **a push popped answers the old `find?`**: the row under
-the pushed name is put back as it was. -/
-theorem IFEnv.find?_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
-    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).find? n = fe.find? n := by
-  rw [IFEnv.find?_eq, IFEnv.find?_eq]
+/-- con-leche: none — a push popped puts the own index back as it was, row for row. -/
+theorem IFEnv.idx_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
+    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).idx[n]? = fe.idx[n]? := by
   simp only [IFEnv.popTemp, IFEnv.push]
   cases hp : fe.idx[ci.name]? with
   | some r =>
-    simp only [Std.HashMap.insert_insert]
-    rw [Std.HashMap.getElem?_insert]
-    split
-    · rename_i hb
-      obtain rfl : ci.name = n := by simpa using hb
-      rw [hp]
-    · rfl
+    simp only [Std.HashMap.getElem?_insert]
+    by_cases hb : (ci.name == n) = true
+    · obtain rfl : ci.name = n := by simpa using hb
+      simp [hp]
+    · simp [hb]
   | none =>
     simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
     by_cases hb : (ci.name == n) = true
     · obtain rfl : ci.name = n := by simpa using hb
       simp [hp]
     · simp [hb]
+
+/-- con-leche: none — **a push popped answers the old `find?`**. -/
+theorem IFEnv.find?_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
+    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).find? n = fe.find? n := by
+  rw [IFEnv.find?_eq, IFEnv.find?_eq, IFEnv.idx_popTemp]
+  rfl
 
 /-- con-leche: none — `IFEnvOK` reads its index through `find?` and the raw
 table lookup only. -/

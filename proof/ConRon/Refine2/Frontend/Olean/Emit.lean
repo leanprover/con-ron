@@ -182,7 +182,7 @@ theorem emit_names_rel {st : frontend.olean.emit.Emit} {lst : Emit} (hs : EmitRe
   exact emit_names_loop_rel ns _ st lst _ #[] 0#usize o hs rfl rfl h
 
 theorem emit_cv_rel {st : frontend.olean.emit.Emit} {lst : Emit} (hs : EmitRel st lst)
-    {c : frontend.olean.closure.CEntry} {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c')
+    {c : frontend.olean.lazy.CEntry} {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c')
     {o} (h : emit_cv st c = ok o) :
     absCVRec o.1 = (lst.cv c').2 ∧ EmitRel o.2 (lst.cv c').1 := by
   rw [emit_cv] at h
@@ -277,7 +277,7 @@ theorem one_eq_oneK (st : Emit) (c : Arena.Frontend.Olean.CEntry) :
 
 /-- **`emit_one` is `Emit.one`.** -/
 theorem emit_one_rel {st : frontend.olean.emit.Emit} {lst : Emit} (hs : EmitRel st lst)
-    {c : frontend.olean.closure.CEntry} {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c')
+    {c : frontend.olean.lazy.CEntry} {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c')
     {st' : frontend.olean.emit.Emit} (h : emit_one st c = ok st') : EmitRel st' (lst.one c') := by
   rw [emit_one] at h
   peel h as q, hq
@@ -349,7 +349,7 @@ theorem acc_push {T T' : Type} {A : T → T'} {acc acc1 : alloc.vec.Vec T} {l : 
   rw [ConRon.Refine.vec_push_val h, List.map_append, ha, ← e]; simp
 
 theorem emit_ty_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Array IndTypeRec}
-    (hx : StAcc absIndTypeRec (st, acc) y) {c : frontend.olean.closure.CEntry}
+    (hx : StAcc absIndTypeRec (st, acc) y) {c : frontend.olean.lazy.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {o}
     (h : emit_ty_step st acc c = ok o) : StAcc absIndTypeRec o (Emit.tyStep y c') := by
   obtain ⟨lst, lacc⟩ := y
@@ -385,7 +385,7 @@ theorem emit_ty_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Arra
     rw [a1, a2]
 
 theorem emit_ctor_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Array IndCtorRec}
-    (hx : StAcc absIndCtorRec (st, acc) y) {c : frontend.olean.closure.CEntry}
+    (hx : StAcc absIndCtorRec (st, acc) y) {c : frontend.olean.lazy.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {o}
     (h : emit_ctor_step st acc c = ok o) : StAcc absIndCtorRec o (Emit.ctorStep y c') := by
   obtain ⟨lst, lacc⟩ := y
@@ -476,7 +476,7 @@ theorem emit_rec_step_loop_rel (rules : alloc.vec.Vec (arena.handle.NIdx × Std.
       exact hl
 
 theorem emit_rec_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Array IndRecRec}
-    (hx : StAcc absIndRecRec (st, acc) y) {c : frontend.olean.closure.CEntry}
+    (hx : StAcc absIndRecRec (st, acc) y) {c : frontend.olean.lazy.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {o}
     (h : emit_rec_step st acc c = ok o) : StAcc absIndRecRec o (Emit.recStep y c') := by
   obtain ⟨lst, lacc⟩ := y
@@ -535,7 +535,7 @@ theorem entries_foldl {β : Type} (f : β → Arena.Frontend.Olean.CEntry → β
 
 /-- **A step at a name**: the Rust's `mg_get` and the twin's `Merged.get` agree. -/
 theorem named_rel {S S' : Type} {Rel : S → S' → Prop}
-    {step : S → frontend.olean.closure.CEntry → Result S}
+    {step : S → frontend.olean.lazy.CEntry → Result S}
     {f : S' → Arena.Frontend.Olean.CEntry → S'}
     (hstep : ∀ s y c c' o, Rel s y → CEntryRel c c' → step s c = ok o → Rel o (f y c'))
     {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg')
@@ -806,12 +806,12 @@ structure RecMapRel (m : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec 
 theorem block_recs_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
     (hm : MergedRel mg mg') {m m'} (hr : RecMapRel m m') {n : arena.handle.NIdx}
     {o : alloc.vec.Vec arena.handle.NIdx} (h : block_recs mg m n = ok o) :
-    o.val.map absNIdx = blockRecs mg' m' (absNIdx n) := by
+    o.val.map absNIdx = Arena.Frontend.Olean.blockRecs mg' m' (absNIdx n) := by
   rw [block_recs] at h
   peel h as o1, h1
   have hk := hr.map n trivial
   rw [← nidx_get hr.inv h1] at hk
-  rw [blockRecs, ← hk]
+  rw [Arena.Frontend.Olean.blockRecs, ← hk]
   cases o1 with
   | none =>
     cases Result.ok_injective h

@@ -98,7 +98,7 @@ theorem blockCtors_rel {st : EStore} {mg : Merged} {mgC : ConLeche.Frontend.Olea
   | _, _, .nil => .nil
   | t :: ts, z :: zs, .cons ⟨_, x, hg, hx⟩ hr => by
     have ih := blockCtors_rel hc hr
-    simp only [blockCtors, ConLeche.Frontend.Olean.blockCtors, List.flatMap_cons] at ih ⊢
+    simp only [ConRon.Arena.Frontend.Olean.blockCtors, ConLeche.Frontend.Olean.blockCtors, List.flatMap_cons] at ih ⊢
     refine ListRel.append ?_ ih
     simp only [hg]
     obtain ⟨-, -, -, hk⟩ := denoteCEntry_parts hx

@@ -47,7 +47,7 @@ public import ConRon.Bridge.Inductives.StructInstall
 public import ConRon.Bridge.Inductives.FieldTele
 public import ConRon.Bridge.Inductives.SumInstall
 public import ConRon.Bridge.Inductives.Positivity
-public import ConRon.Bridge.Inductives.BlockParts
+public import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.BlockRec
 public import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.ClassRead

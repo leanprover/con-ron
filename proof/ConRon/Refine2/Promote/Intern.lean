@@ -1025,6 +1025,12 @@ theorem intern_fire_ls {pers st lst rm lm} {f : kernel.env.RecRuleFire}
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
     exact LSMI.pure hms2 rfl hrel2 hinv2
+  | Levels lvls =>
+    rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
+    refine LSMI.bindS (intern_level_list0_ls hrel hinv lvls hwf) (by lsm_err) ?_
+    intro a b st1 lst1 hR hrel1 hinv1
+    subst hR
+    exact LSMI.pure hm rfl hrel1 hinv1
 
 
 open Lockstep in
@@ -1109,7 +1115,7 @@ private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : IndCapsWF c) :
     LS pers (fun a b => b = absIIndCaps a) (arena.intern.intern_caps pers st c) lst
       (Frontend.internCaps (ConRon.Refine.absIndCaps c)) := by
-  obtain ⟨hn, -, hall, hctors⟩ := hwf
+  obtain ⟨hn, hall, hctors⟩ := hwf
   rw [arena.intern.intern_caps]
   simp only [Frontend.internCaps, ConRon.Refine.absIndCaps]
   refine LS.bind (intern_name_ls' hrel hinv _ hn) rfl (fun _ _ => errArm_ok) ?_
@@ -1121,8 +1127,6 @@ private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
   refine LS.bind (intern_name_list_ls hrel2 hinv2 _ hctors) rfl (fun _ _ => errArm_ok) ?_
   intro cl dl st3 lst3 hR3 hrel3 hinv3
   subst hR3
-  refine LS.bind_eq fun pw hpw => ?_
-  rw [ConRon.Refine.PropWhen.dup_eq hpw]
   exact LS.pure rfl hrel3 hinv3
 
 
@@ -1176,7 +1180,7 @@ theorem intern_ci_go_ls {pers st lst rm lm} {c : kernel.env.ConstantInfo}
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
     exact LSMI.pure hms rfl hrel1 hinv1
-  | RecInfo v mi rp rs =>
+  | RecInfo v mi rp k rs =>
     obtain ⟨hv, hrs⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
     refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_

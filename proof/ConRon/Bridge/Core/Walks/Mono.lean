@@ -58,6 +58,7 @@ twin moves.
 module
 
 public import ConLeche.Verify.Mono
+public import ConLeche.Verify.Fueled
 /- `fst_tac`/`snd_tac` close the projection equations by `rfl` through
 `pairFns`'s body, which con-leche's `Verify/PairM` (a plain `public section`)
 does not expose; `import all` makes it visible to these proofs. -/
@@ -102,7 +103,7 @@ theorem reduceNat_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
   rwa [reduceNat_fst_proj, reduceNat_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the full-grade
-ι telescope certificate** (`iotaCase3`), a `List` recursion over `r.infer` and
+ι telescope certificate** (`iotaCase3At`'s case 3), a `List` recursion over `r.infer` and
 `r.defeq`. -/
 theorem iotaCertsFull_mono (h : FnsRefines r₁ r₂) (d : Nat) (ty : Expr) (args : List Expr) :
     MRefines (iotaCertsFull r₁ env d ty args) (iotaCertsFull r₂ env d ty args) := by
@@ -398,6 +399,82 @@ theorem lazyDeltaProjReductionFueled_mono {f f' : Nat} (hle : f ≤ f')
     lazyDeltaProjReduction mode (pureFns mode eager env f') env d sn i n a b = .ok r :=
   lazyDeltaProjReduction_mono (pureFns_mono env hle) d sn i n a b r hr
 
+/-! ## 3b. The walks to a family's sort and the projection guard
+
+These take the knot's slots as plain functions (`wh`, `inf`) rather than the
+record, so con-leche has no `PairM` projection for them; its `FueledM`
+family carries the monotonicity in its `.property`, and `Verify/Fueled.lean`'s
+`…_atF` reads it back at the pure record. -/
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:223 formerSortLoop_atF — the merge at
+the walk to a family's sort. -/
+theorem formerSortLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat} {e : Expr}
+    {r : Option Level}
+    (hr : formerSortLoop (pureFns mode eager env f).whnf d n e = .ok r) :
+    formerSortLoop (pureFns mode eager env f').whnf d n e = .ok r := by
+  have h := (formerSortLoop (fueledFns mode eager env).whnf d n e).property (v := r) hle
+  rw [formerSortLoop_atF, formerSortLoop_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:239 formerNeverZeroAt_atF — the merge
+at the never-zero test. -/
+theorem formerNeverZeroAtFueled_mono {f f' : Nat} (hle : f ≤ f') {cvT : ConstantVal}
+    {caps : IndCaps} {us : List Level} {r : Bool}
+    (hr : formerNeverZeroAt (pureFns mode eager env f).whnf cvT caps us = .ok r) :
+    formerNeverZeroAt (pureFns mode eager env f').whnf cvT caps us = .ok r := by
+  have h := (formerNeverZeroAt (fueledFns mode eager env).whnf cvT caps us).property
+    (v := r) hle
+  rw [formerNeverZeroAt_atF, formerNeverZeroAt_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:249 iotaCase3At_atF — the merge at
+the ι case split. -/
+theorem iotaCase3AtFueled_mono {f f' : Nat} (hle : f ≤ f') {isK : Bool}
+    {cvj : ConstantVal} {us : List Level} {r : Bool}
+    (hr : iotaCase3At (pureFns mode eager env f).whnf env.find? isK cvj us = .ok r) :
+    iotaCase3At (pureFns mode eager env f').whnf env.find? isK cvj us = .ok r := by
+  have h := (iotaCase3At (fueledFns mode eager env).whnf env.find? isK cvj us).property
+    (v := r) hle
+  rw [iotaCase3At_atF, iotaCase3At_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:262 projGuardSort_atF — the merge at
+the projection guard's sort. -/
+theorem projGuardSortFueled_mono {f f' : Nat} (hle : f ≤ f') {cvT : ConstantVal}
+    {caps : IndCaps} {us : List Level} {r : Option Level}
+    (hr : projGuardSort (pureFns mode eager env f).whnf cvT caps us = .ok r) :
+    projGuardSort (pureFns mode eager env f').whnf cvT caps us = .ok r := by
+  have h := (projGuardSort (fueledFns mode eager env).whnf cvT caps us).property
+    (v := r) hle
+  rw [projGuardSort_atF, projGuardSort_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:206 checkGuardRows_atF — the merge at
+the guard's rows. -/
+theorem checkGuardRowsFueled_mono {f f' : Nat} (hle : f ≤ f') {g : Level}
+    {rows : List (Nat × Expr)} {r : Unit}
+    (hr : checkGuardRows (pureFns mode eager env f).inferIO (pureFns mode eager env f).whnf
+      g rows = .ok r) :
+    checkGuardRows (pureFns mode eager env f').inferIO (pureFns mode eager env f').whnf
+      g rows = .ok r := by
+  have h := (checkGuardRows (fueledFns mode eager env).inferIO
+    (fueledFns mode eager env).whnf g rows).property (v := r) hle
+  rw [checkGuardRows_atF, checkGuardRows_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:272 checkProjGuard_atF — the merge at
+the projection guard. -/
+theorem checkProjGuardFueled_mono {f f' : Nat} (hle : f ≤ f') {entry : ProjEntry}
+    {us : List Level} {r : Unit}
+    (hr : checkProjGuard (pureFns mode eager env f).inferIO (pureFns mode eager env f).whnf
+      env entry us = .ok r) :
+    checkProjGuard (pureFns mode eager env f').inferIO (pureFns mode eager env f').whnf
+      env entry us = .ok r := by
+  have h := (checkProjGuard (fueledFns mode eager env).inferIO
+    (fueledFns mode eager env).whnf env entry us).property (v := r) hle
+  rw [checkProjGuard_atF, checkProjGuard_atF] at h
+  exact h hr
+
 /-! ## 4. The axiom census -/
 
 section Census
@@ -406,6 +483,9 @@ section Census
 #print axioms defEqListFueled_mono
 #print axioms whnfLoopFueled_mono
 #print axioms lazyDeltaProjReductionFueled_mono
+#print axioms formerSortLoopFueled_mono
+#print axioms iotaCase3AtFueled_mono
+#print axioms checkProjGuardFueled_mono
 
 end Census
 

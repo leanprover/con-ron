@@ -831,7 +831,7 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   subst hs2
   obtain ⟨hv, hst⟩ := AM.pure_ok h2
   subst hv; subst hst
-  refine ⟨rfl, RecRule.mk n ru.nfields 0 .plain e false false, ?_,
+  refine ⟨rfl, RecRule.mk n ru.nfields .plain e, ?_,
     by simp only [denoteRule, hdn, hde, denoteFire]⟩
   rw [ruleOfF]
   simp only [hcln, hclr]
@@ -907,9 +907,8 @@ term — the twin is built with `backward.do.legacy` (an `MProd` state,
 `(none, ordered, j)`) — so the proof never compares loop terms: `forIn_sim`
 relates a read-only `AM` loop to an `Except String` one through ANY relation on
 the two states, and every step is proved by splitting the twin's branch and
-taking con-leche's same branch.  The legacy elaborator inlines the
-`kExpected?` join point into three copies of the recursor loop; the step is
-the same in all three, so it is written once as the tactic macros below. -/
+taking con-leche's same branch.  The steps are written once as the tactic
+macros below. -/
 
 /-- con-leche: none — `Except`'s bind at a success, as a rewrite. -/
 theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
@@ -1099,40 +1098,6 @@ theorem view_str_of_denoteN {st : NStore} {rk : NIdx → Nat}
     ∃ p, v = .str p t ∧ denoteN st p = some q := by
   rw [denoteN_unfold hw hv] at hd
   exact denoteNView_str hd
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the run form
-of `validateIndD`'s own `piResultD` (the full-`view` walk): at a denoting
-handle it is con-leche's `piResult`, as `Arena/ExprOps.lean`'s `piResult`
-is. -/
-theorem piResultD_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
-    (hok : StateOK s) (hd : denoteE s.store h = some e)
-    (hrun : piResultD fuel h s = .ok (r, s')) :
-    s' = s ∧ denoteE s.store r = some e.piResult := by
-  induction fuel generalizing h e with
-  | zero =>
-    rw [piResultD] at hrun
-    exact absurd (AM.fail_ok hrun) (by simp)
-  | succ n ih =>
-    rw [piResultD] at hrun
-    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, hview⟩ := view_run hv
-    rw [hs1] at hrest
-    have hde : denoteEView s.store v = some e := by
-      rw [denoteE_view_eq hok.wf hview] at hd; exact hd
-    cases v
-    case forallE ty b =>
-      obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview hd
-      obtain ⟨hs, hr⟩ := ih hb hrest
-      exact ⟨hs, by rw [hr]; rfl⟩
-    all_goals
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
-      refine ⟨rfl, ?_⟩
-      rw [hd]
-      cases e with
-      | forallE x y =>
-        obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
-        exact absurd hc (by simp)
-      | _ => rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:342-344 indPiTeleLen — the
 constructor's own `∀`-telescope length, a read-only fuel walk. -/
@@ -1373,7 +1338,7 @@ macro "vind_rec_loop" : tactic => `(tactic| (
       ?_ (ListRel.refl_eq _) (c := (none, ())) ⟨rfl, VInv.nil⟩ hloop2) ?_))
 
 set_option hygiene false in
-/-- con-leche: none — the recursor-loop step up to the `k` guard: the name and the three count guards. -/
+/-- con-leche: none — the recursor-loop step's head: the name and the three count guards. -/
 macro "vind_rec_head" : tactic => `(tactic| (
   subst hEq
   obtain ⟨rn, s₁, hn1, hstep⟩ := AM.bind_ok hstep
@@ -1430,9 +1395,7 @@ macro "vind_rec_fin" : tactic => `(tactic| (
 
 set_option hygiene false in
 /-- con-leche: none — the tail of `validateIndD`'s recursor-loop step, after
-the `k` guard: the `T.rec` readback and the index-count loop.  The step is the
-same in all three `kExpected?` copies the elaborator's join-point inlining
-leaves, so it is written once. -/
+the three count guards: the `T.rec` readback and the index-count loop. -/
 macro "vind_rec_tail" : tactic => `(tactic| (
   obtain ⟨v, s₂, hv, hstep⟩ := AM.bind_ok hstep
   obtain ⟨hs2, hview⟩ := viewN_run hv
@@ -1715,97 +1678,12 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     simp only []
     rw [← hord]
     generalize hO : r.snd.toList = O at hrun ⊢
-    split at hrun
-    · -- one type, one listed constructor, one constructor record
-      rename_i ty hd1 c1
-      obtain ⟨tyC, rfl, htyd⟩ := ListRel.singleton_left httR
-      obtain ⟨lC, rfl, hlC⟩ := ListRel.singleton_left hlsR
-      obtain ⟨hC, rfl, -⟩ := ListRel.singleton_left hlC
-      obtain ⟨pr, s₂, hpr, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hs2, hdpr⟩ := piResultD_run hok htyd hpr
-      rw [hs2] at hrun
-      obtain ⟨v, s₂, hv, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hs2, hview⟩ := view_run hv
-      rw [hs2] at hrun
-      split at hrun
-      · -- the former's type ends in a sort: `kExpected?` reads the level
-        rename_i u
-        obtain ⟨l, hpil, hdl⟩ := denote_sort_inv hok.wf hview hdpr
-        obtain ⟨lv, s₂, hlv, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hs2, hdlv⟩ := readLevel_run hlv
-        rw [hs2] at hrun
-        obtain rfl : lv = l := Option.some.inj (hdlv.symm.trans hdl)
-        dsimp only
-        rw [hpil]
-        dsimp only
-        vind_rec_loop
-        · intro r0 r0' b c0 s0' st hEq hR hstep
-          vind_rec_head
-          split at hstep
-          rotate_left
-          · rename_i hk; rw [ite_eq_right hk]
-            obtain ⟨x, hstep⟩ := readName_bind hstep
-            obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-            exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-          rename_i hk; rw [ite_eq_left hk]
-          vind_rec_tail
-        · rintro c2 ⟨hs2, hn2, hl2⟩
-          vind_rec_fin
-      · -- it does not: `kExpected?` is `none`
-        rename_i hnsort
-        have hpin : ∀ l, tyC.piResult ≠ .sort l := by
-          intro l hl
-          rw [hl] at hdpr
-          obtain ⟨u, rfl, -⟩ := denoteEView_sort (by rw [← denoteE_view_eq hok.wf hview]; exact hdpr)
-          exact hnsort u rfl
-        dsimp only
-        vind_rec_loop
-        · intro r0 r0' b c0 s0' st hEq hR hstep
-          vind_rec_head
-          split
-          · rename_i kE0 kE heq
-            exfalso
-            split at heq
-            · rename_i l hl
-              exact hpin l hl
-            · cases heq
-          · vind_rec_tail
-        · rintro c2 ⟨hs2, hn2, hl2⟩
-          vind_rec_fin
-    · -- the fallback shapes: con-leche's `kExpected?` is `some false` too
-      rename_i hnot
-      vind_rec_loop
-      · intro r0 r0' b c0 s0' st hEq hR hstep
-        vind_rec_head
-        split
-        · rename_i kE0 kE heq
-          split at heq
-          · exfalso
-            obtain ⟨ty1, rfl, -⟩ := ListRel.singleton_right httR
-            obtain ⟨l1, rfl, hl1⟩ := ListRel.singleton_right hlsR
-            obtain ⟨hd1, rfl, -⟩ := ListRel.singleton_right hl1
-            exact hnot ty1 hd1 _ rfl rfl rfl
-          · obtain rfl : false = kE := Option.some.inj heq
-            by_cases hk : (r0.k == false) = true
-            rotate_left
-            · rw [ite_eq_right hk] at hstep; rw [ite_eq_right hk]
-              obtain ⟨x, hstep⟩ := readName_bind hstep
-              obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-              exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-            rw [ite_eq_left hk] at hstep; rw [ite_eq_left hk]
-            vind_rec_tail
-        · rename_i kE0 hne
-          exfalso
-          apply hne false
-          split
-          · exfalso
-            obtain ⟨ty1, rfl, -⟩ := ListRel.singleton_right httR
-            obtain ⟨l1, rfl, hl1⟩ := ListRel.singleton_right hlsR
-            obtain ⟨hd1, rfl, -⟩ := ListRel.singleton_right hl1
-            exact hnot ty1 hd1 _ rfl rfl rfl
-          · rfl
-      · rintro c2 ⟨hs2, hn2, hl2⟩
-        vind_rec_fin
+    vind_rec_loop
+    · intro r0 r0' b c0 s0' st hEq hR hstep
+      vind_rec_head
+      vind_rec_tail
+    · rintro c2 ⟨hs2, hn2, hl2⟩
+      vind_rec_fin
 
 /-! ## `installIndD`'s machinery
 
@@ -1943,12 +1821,12 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
         let rules ← x.rules.mapM (parseRuleD sd)
         pure (IConstantInfo.recInfo (← parseCVD sd x.cv)
           (x.numParams + x.numMotives + x.numMinors + x.numIndices)
-          (x.numParams + x.numMotives + x.numMinors) rules)) s = .ok (out, t) →
+          (x.numParams + x.numMotives + x.numMinors) x.k rules)) s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
           let rules ← x.rules.mapM (ruleOfF sc.name sc.level sc.expr)
           pure (ConstantInfo.recInfo (← cvOfF sc.name sc.level sc.expr x.cv)
             (x.numParams + x.numMotives + x.numMinors + x.numIndices)
-            (x.numParams + x.numMotives + x.numMinors) rules)) = .ok outP ∧
+            (x.numParams + x.numMotives + x.numMinors) x.k rules)) = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
     intro ts
@@ -1979,7 +1857,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       refine ⟨rfl,
         ConstantInfo.recInfo cvP
           (x.numParams + x.numMotives + x.numMinors + x.numIndices)
-          (x.numParams + x.numMotives + x.numMinors) rsP :: ysP, ?_,
+          (x.numParams + x.numMotives + x.numMinors) x.k rsP :: ysP, ?_,
         .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclrs, hclcv, hclys]; rfl
       · simp only [denoteCI, hdcv, hdrs]

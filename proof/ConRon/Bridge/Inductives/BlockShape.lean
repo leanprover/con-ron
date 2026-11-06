@@ -1,22 +1,22 @@
 /-
-# `ConRon.Bridge.Inductives.BlockParts` — Theorem 1 for the block recogniser
+# `ConRon.Bridge.Inductives.BlockShape` — Theorem 1 for the block recogniser
 
-`Arena/Inductives/BlockParts.lean`'s twins against
-`ConLeche/Kernel/Inductives/BlockParts.lean` (task #105): the record's
-projections, `withSort`, `complete`, the split, the per-member readers
+`Arena/Inductives/BlockShape.lean`'s twins against
+`ConLeche/Kernel/Inductives/BlockShape.lean` (task #105): the record's
+projections, `withSort`, the split, the per-member readers
 (`recTargetOf`, `blockCounts?`, `ctorMember?`, `blockGroups`), the recursor
 records' pins (`blockRecLpsOk`, `blockRecNameSetOk`,
 `blockRecNamesUnreserved`) and the recogniser (`blockMemberCounts?`,
-`blockShape?`, `blockParts?`).
+`blockShape?`).
 
 **Grades.**  The projections, the split and the level pin are pure on both
 sides and their statements are plain equations.  The readers are `PSpec`
 (they intern and read, nothing more); `blockRecNamesUnreserved` reads the pin
-table (`PSpecP`); `withSort`, `blockShape?` and `blockParts?` ask `lvlEq?` for
+table (`PSpecP`); `withSort` and `blockShape?` ask `lvlEq?` for
 `isProp`, whose cached verdict is the denotation only under `CheckOK` — so
 they are `CSpec`, the old `withSort_spec`/`nativeShape?_spec` argument.
 
-**`blockParts?_spec` is TWO-SIDED** (`ROp`): the dispatch between
+**`blockShape?_spec` is TWO-SIDED** (`ROp`): the dispatch between
 `checkBlock` and `checkShapeless` reads it and nothing else.
 -/
 module
@@ -45,7 +45,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## The record's projections -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:123-127 numCtorsOf —
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:123-127 numCtorsOf —
 the constructor count survives the denotation. -/
 theorem numCtorsOf_spec {st : EStore} :
     ∀ {ms : List Arena.MemberShape} {msP : List ConLeche.MemberShape},
@@ -59,17 +59,17 @@ theorem numCtorsOf_spec {st : EStore} :
   | cons m ms ih =>
     intro msP h
     obtain ⟨mP, msP', rfl, hm, hms⟩ := mapM_option_cons_inv h
-    obtain ⟨-, -, hcs⟩ := dMember_inv hm
+    obtain ⟨-, -, hcs, -⟩ := dMember_inv hm
     simp only [Arena.numCtorsOf, ConLeche.numCtorsOf, ih hms,
       ConLeche.option_mapM_length (f := dCtor st) hcs]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:131-132 BlockShape.k -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:131-132 BlockShape.k -/
 theorem BlockShape.k_spec {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (h : dShape st p = some pP) : p.k = pP.k := by
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, ConLeche.option_mapM_length hms]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:133-134 BlockShape.numCtors -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:133-134 BlockShape.numCtors -/
 theorem BlockShape.numCtors_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     p.numCtors = pP.numCtors := by
@@ -93,7 +93,7 @@ theorem memberNames_go {st : EStore} :
     obtain ⟨hcv, -, -⟩ := dMember_inv hm
     simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hms]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:137-138 BlockShape.memberNames
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:137-138 BlockShape.memberNames
 — the twin's name-handle list denotes con-leche's names. -/
 theorem BlockShape.memberNames_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
@@ -101,7 +101,7 @@ theorem BlockShape.memberNames_spec {st : EStore} {p : Arena.BlockShape}
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   exact memberNames_go hms
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:139-140 BlockShape.nIdxs -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:139-140 BlockShape.nIdxs -/
 theorem BlockShape.nIdxs_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) : p.nIdxs = pP.nIdxs := by
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
@@ -117,7 +117,7 @@ theorem BlockShape.nIdxs_spec {st : EStore} {p : Arena.BlockShape}
     obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
     simp only [List.map_cons, ih msP' hxs, (dMember_inv hm).2.1]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:141-144 BlockShape.lps -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:141-144 BlockShape.lps -/
 theorem BlockShape.lps_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     Frontend.denoteNList st.ns p.lps = some pP.lps := by
@@ -135,7 +135,7 @@ theorem BlockShape.lps_spec {st : EStore} {p : Arena.BlockShape}
     obtain ⟨hcv, -, -⟩ := dMember_inv hm
     simpa using denoteCV_lps hcv
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:145-147 BlockShape.allCtors -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:145-147 BlockShape.allCtors -/
 theorem BlockShape.allCtors_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     dCtors st p.allCtors = some pP.allCtors := by
@@ -150,13 +150,13 @@ theorem BlockShape.allCtors_spec {st : EStore} {p : Arena.BlockShape}
     subst hms; rfl
   | cons m xs ih =>
     obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
-    obtain ⟨-, -, hcs⟩ := dMember_inv hm
+    obtain ⟨-, -, hcs, -⟩ := dMember_inv hm
     have h2 := ih msP' hxs
     simp only [dCtors] at h2 hcs ⊢
     simp only [List.map_cons, List.flatten_cons, List.mapM_append, hcs, h2,
       Option.bind_eq_bind, Option.pure_def, Option.bind_some]
 
-/-! ## `withSort` and `complete` -/
+/-! ## `withSort` -/
 
 /-- con-leche: none — the twin's three-way `match` on `lvlEq?`'s verdict is
 con-leche's `== some true`. -/
@@ -183,7 +183,7 @@ theorem lvlEqZero_run {env : Env} {fe : IFEnv}
   cases hlu; cases hlv
   exact ⟨q.trans (lvlEq?_pstep q.ok hr), ha⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:167-171 BlockShape.withSort
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:167-171 BlockShape.withSort
 The record completed with the former stage's result sort.  **CORE grade**:
 `isProp` is `lvlEq?`'s verdict, the denotation only under `CheckOK` (the old
 tier's `withSort_spec` argument). -/
@@ -209,42 +209,42 @@ theorem BlockShape.withSort_spec {env : Env} (fe : IFEnv)
 
 /-! ## The split -/
 
-/-- con-leche: none — a recursor's four-tuple, as `blockSplitRecs` answers
-it, denotes. -/
-def dRec4 (st : EStore) (r : IConstantVal × Nat × Nat × List IRecRule) :
-    Option (ConstantVal × Nat × Nat × List RecRule) := do
+/-- con-leche: none — a recursor's tuple (constant, major index, rule
+prefix, K flag, rules), as `blockSplitRecs` answers it, denotes. -/
+def dRecT (st : EStore) (r : IConstantVal × Nat × Nat × Bool × List IRecRule) :
+    Option (ConstantVal × Nat × Nat × Bool × List RecRule) := do
   let cv ← Frontend.denoteCV st r.1
-  let rules ← Frontend.denoteRules st r.2.2.2
-  pure (cv, r.2.1, r.2.2.1, rules)
+  let rules ← Frontend.denoteRules st r.2.2.2.2
+  pure (cv, r.2.1, r.2.2.1, r.2.2.2.1, rules)
 
-theorem dRec4_ext : DExt dRec4 := by
+theorem dRecT_ext : DExt dRecT := by
   intro st st' hx r y h
-  simp only [dRec4, Option.bind_eq_bind, Option.pure_def] at h ⊢
+  simp only [dRecT, Option.bind_eq_bind, Option.pure_def] at h ⊢
   cases h1 : Frontend.denoteCV st r.1 with
   | none => rw [h1] at h; exact nomatch h
   | some cv =>
-  cases h2 : Frontend.denoteRules st r.2.2.2 with
+  cases h2 : Frontend.denoteRules st r.2.2.2.2 with
   | none => rw [h1, h2] at h; exact nomatch h
   | some rules =>
   rw [h1, h2] at h
   rw [denoteCV_ext h1 hx, denoteRules_ext hx _ _ h2]
   exact h
 
-/-- con-leche: none — `dRec4`, inverted. -/
-theorem dRec4_inv {st : EStore} {r : IConstantVal × Nat × Nat × List IRecRule}
-    {q : ConstantVal × Nat × Nat × List RecRule} (h : dRec4 st r = some q) :
+/-- con-leche: none — `dRecT`, inverted. -/
+theorem dRecT_inv {st : EStore} {r : IConstantVal × Nat × Nat × Bool × List IRecRule}
+    {q : ConstantVal × Nat × Nat × Bool × List RecRule} (h : dRecT st r = some q) :
     Frontend.denoteCV st r.1 = some q.1 ∧ r.2.1 = q.2.1 ∧ r.2.2.1 = q.2.2.1 ∧
-      Frontend.denoteRules st r.2.2.2 = some q.2.2.2 := by
-  simp only [dRec4, Option.bind_eq_bind, Option.pure_def] at h
+      Frontend.denoteRules st r.2.2.2.2 = some q.2.2.2.2 ∧ r.2.2.2.1 = q.2.2.2.1 := by
+  simp only [dRecT, Option.bind_eq_bind, Option.pure_def] at h
   cases h1 : Frontend.denoteCV st r.1 with
   | none => rw [h1] at h; exact nomatch h
   | some cv =>
-  cases h2 : Frontend.denoteRules st r.2.2.2 with
+  cases h2 : Frontend.denoteRules st r.2.2.2.2 with
   | none => rw [h1, h2] at h; exact nomatch h
   | some rules =>
   rw [h1, h2] at h
   obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl, rfl⟩
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — `denoteCIList` at a cons, inverted. -/
 theorem denoteCIList_cons_inv {st : EStore} {c : IConstantInfo} {cs : List IConstantInfo}
@@ -269,8 +269,9 @@ def CIShape (st : EStore) : IConstantInfo → ConstantInfo → Prop
   | .thmInfo _, .thmInfo _ => True
   | .indInfo v _, .indInfo cv _ => Frontend.denoteCV st v = some cv
   | .ctorInfo v a b, .ctorInfo cv a' b' => Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b'
-  | .recInfo v a b rs, .recInfo cv a' b' rs' =>
-    Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b' ∧ Frontend.denoteRules st rs = some rs'
+  | .recInfo v a b k rs, .recInfo cv a' b' k' rs' =>
+    Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b' ∧ k = k' ∧
+      Frontend.denoteRules st rs = some rs'
   | _, _ => False
 
 theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
@@ -296,19 +297,19 @@ theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
   | ctorInfo v a b =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨hcv, rfl, rfl⟩
-  | recInfo v a b rs =>
+  | recInfo v a b k rs =>
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv rules hcv hr
-      obtain rfl := Option.some.inj h; exact ⟨hcv, rfl, rfl, hr⟩
+      obtain rfl := Option.some.inj h; exact ⟨hcv, rfl, rfl, rfl, hr⟩
     · exact nomatch h
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:231-237 blockSplitRecs
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:231-237 blockSplitRecs
 The closing recursors, two-sided. -/
 theorem blockSplitRecs_spec (st : EStore) :
     ∀ (block : List IConstantInfo) (blockP : List ConstantInfo),
       Frontend.denoteCIList st block = some blockP →
-      ROp (fun q st r => r.mapM (dRec4 st) = some q) (ConLeche.blockSplitRecs blockP) st
+      ROp (fun q st r => r.mapM (dRecT st) = some q) (ConLeche.blockSplitRecs blockP) st
         (Arena.blockSplitRecs block) := by
   intro block
   induction block with
@@ -322,8 +323,8 @@ theorem blockSplitRecs_spec (st : EStore) :
     obtain ⟨x, xs, rfl, hc, hcs⟩ := denoteCIList_cons_inv h
     have hsh := denoteCI_shape hc
     cases c <;> cases x <;> (try exact hsh.elim) <;> (try rfl)
-    rename_i v mI rP rs cv mI' rP' rs'
-    obtain ⟨hv, rfl, rfl, hr⟩ := hsh
+    rename_i v mI rP k rs cv mI' rP' k' rs'
+    obtain ⟨hv, rfl, rfl, rfl, hr⟩ := hsh
     have hih := ih xs hcs
     simp only [Arena.blockSplitRecs, ConLeche.blockSplitRecs]
     cases ha : Arena.blockSplitRecs cs with
@@ -337,14 +338,14 @@ theorem blockSplitRecs_spec (st : EStore) :
       obtain ⟨b, hb, hrel⟩ := hih
       simp only [hb, Option.map_some]
       refine ⟨_, rfl, mapM_option_cons ?_ hrel⟩
-      simp only [dRec4, hv, hr, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+      simp only [dRecT, hv, hr, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:239-244 blockSplitCtors
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:239-244 blockSplitCtors
 The constructors, then the recursors, two-sided. -/
 theorem blockSplitCtors_spec (st : EStore) :
     ∀ (block : List IConstantInfo) (blockP : List ConstantInfo),
       Frontend.denoteCIList st block = some blockP →
-      ROp (fun q st r => denoteCtors3 st r.1 = some q.1 ∧ r.2.mapM (dRec4 st) = some q.2)
+      ROp (fun q st r => denoteCtors3 st r.1 = some q.1 ∧ r.2.mapM (dRecT st) = some q.2)
         (ConLeche.blockSplitCtors blockP) st (Arena.blockSplitCtors block) := by
   intro block
   induction block with
@@ -401,13 +402,13 @@ theorem blockSplitCtors_spec (st : EStore) :
 /-- con-leche: none — the split's answer denotes: the formers, the
 constructors with their two counts, the recursors' four-tuples. -/
 @[expose] def RSplit (q : List ConstantVal × List (ConstantVal × Nat × Nat) ×
-      List (ConstantVal × Nat × Nat × List RecRule)) (st : EStore)
+      List (ConstantVal × Nat × Nat × Bool × List RecRule)) (st : EStore)
     (r : List IConstantVal × List (IConstantVal × Nat × Nat) ×
-      List (IConstantVal × Nat × Nat × List IRecRule)) : Prop :=
+      List (IConstantVal × Nat × Nat × Bool × List IRecRule)) : Prop :=
   r.1.mapM (Frontend.denoteCV st) = some q.1 ∧ denoteCtors3 st r.2.1 = some q.2.1 ∧
-    r.2.2.mapM (dRec4 st) = some q.2.2
+    r.2.2.mapM (dRecT st) = some q.2.2
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:246-252 blockSplit
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:246-252 blockSplit
 The type formers, the constructors and the recursors, two-sided. -/
 theorem blockSplit_spec (st : EStore) :
     ∀ (block : List IConstantInfo) (blockP : List ConstantInfo),
@@ -465,7 +466,7 @@ theorem blockSplit_spec (st : EStore) :
 
 /-! ## The per-member readers -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:254-271 recTargetOf
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:254-271 recTargetOf
 The member a recursor's MAJOR names: `stripPis`, the `forallE` view, the head
 through `getAppFn`, the name through `findIdx_handle_eq`. -/
 theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI : Nat)
@@ -551,7 +552,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
       | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
 — the non-sort tail: the recursor's argument sums. -/
 def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat × Nat)
   | none => none
@@ -561,7 +562,7 @@ def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat ×
     else if k < nR && nPd + nR + nC ≤ rP then some (nPd, mI - rP)
     else none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
 — con-leche's `match` on the whole pair re-read as a match on the residual,
 which is what the twin's `view` dispatch decides. -/
 private theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat × Nat)) :
@@ -576,7 +577,7 @@ private theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Opt
   | mk bs body =>
     cases body <;> rcases r with _ | ⟨mI, rP⟩ <;> rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
 One member's parameter and index counts: `piBinders_spec`, the ten-way `view`
 dispatch at the residual, `denoteEList_length` for the telescope's
 length. -/
@@ -638,7 +639,7 @@ theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : Const
            · rename_i hc3; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
              exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:301-308 ctorMember?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:301-308 ctorMember?
 The member a constructor belongs to: `stripPis`, `getAppFn`, then
 `memberIdxAt?_spec` at the block's interned level list. -/
 theorem ctorMember?_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls : LsIdx)
@@ -745,7 +746,7 @@ theorem ListRel.toMapM {β γ : Type} {d : EStore → β → Option γ} {st : ES
     | nil => exact h.elim
     | cons c cs => exact mapM_option_cons h.1 (ih h.2)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:310-323 blockGroups
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:310-323 blockGroups
 The constructors grouped by member: one `mapM` over the members, one `filterM`
 over the constructors (`filterM_pstep`), `ctorMember?_spec` at each. -/
 theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls : LsIdx)
@@ -807,7 +808,7 @@ theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
 
 /-! ## The recursor records' pins -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:325-333 blockRecLpsOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:325-333 blockRecLpsOk
 Pure on both sides: `beq_nhandleList_eq` at every recursor, against the
 block's level parameters (with the eliminator consed in front at the large
 eliminator). -/
@@ -909,7 +910,7 @@ theorem all_contains_eq {st : EStore} (hwf : StoreWF st) {bs : List NIdx}
         obtain rfl := Option.some.inj h
         simp only [List.all_cons, contains_handle_eq hwf ha hb, ih has]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:335-357 blockRecNameSetOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:335-357 blockRecNameSetOk
 The recursor names as a SET.  The twin takes the members and the recursors
 apart (the caller's `{ p with recs := own }` is an argument): stated at any
 pure record `pP` whose two lists they denote. -/
@@ -1115,7 +1116,7 @@ theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b :
           obtain ⟨rfl, hb⟩ := reservedRecBool_run p1.ok hp1 hn1 h8
           exact ⟨p1, by rw [hb]; simp only [hc, hc2, hc3, hc4, Bool.false_or, Bool.or_assoc]⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:359-368 blockRecNamesUnreserved
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:359-368 blockRecNamesUnreserved
 No recursor takes a reserved name: the twin stops at the first hit, the pure
 side is an `all`; `reservedRecName_run` at each.  **`PSpecP`**: the lists are
 read off the pin table. -/
@@ -1155,15 +1156,15 @@ theorem blockRecNamesUnreserved_spec (pP : ConLeche.BlockShape) :
 
 /-! ## The members' counts -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:370-383 blockMemberCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:370-383 blockMemberCounts?
 (`rec_for_member`) — the twin's `findM?` over the recursors is con-leche's
 `find?`, read at the two counts the member's reader takes. -/
 theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : Nat) :
-    ∀ (rs : List (IConstantVal × Nat × Nat × List IRecRule))
-      (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (s₀ s' : AState)
-      (o : Option (IConstantVal × Nat × Nat × List IRecRule)), StateOK s₀ →
+    ∀ (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
+      (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) (s₀ s' : AState)
+      (o : Option (IConstantVal × Nat × Nat × Bool × List IRecRule)), StateOK s₀ →
       Frontend.denoteNList s₀.store.ns names = some namesP →
-      rs.mapM (dRec4 s₀.store) = some rsP →
+      rs.mapM (dRecT s₀.store) = some rsP →
       (rs.findM? (fun q => (do pure ((← Arena.recTargetOf names q.2.1 q.1.type) == m) :
         AM Bool)) : AM _) s₀ = .ok (o, s') →
       PStep s₀ s' ∧ o.map (fun q => (q.2.1, q.2.2.1)) =
@@ -1181,7 +1182,7 @@ theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : 
   | cons q qs ih =>
     intro rsP s₀ s' o hok hN hrs hrun
     obtain ⟨qP, qsP, rfl, hq, hqs⟩ := mapM_option_cons_inv hrs
-    obtain ⟨hcv, hmI, hrP, -⟩ := dRec4_inv hq
+    obtain ⟨hcv, hmI, hrP, -⟩ := dRecT_inv hq
     simp only [List.findM?] at hrun
     obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨t, s₂, h3, h4⟩ := AM.bind_ok h1
@@ -1199,18 +1200,18 @@ theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : 
     | false =>
       rw [hmI, hb] at h2
       obtain ⟨p4, h5⟩ := ih qsP _ s' o p3.ok (denoteNListE_ext p3.ext _ _ hN)
-        (mapM_option_ext (fun x y h => dRec4_ext p3.ext x y h) _ _ hqs) h2
+        (mapM_option_ext (fun x y h => dRecT_ext p3.ext x y h) _ _ hqs) h2
       exact ⟨p3.trans p4, h5⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:370-383 blockMemberCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:370-383 blockMemberCounts?
 The members' index counts, member by member: `recForMember_run`, then
 `blockCounts?_spec`. -/
 theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
-    (namesP : List ConLeche.Name) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
-    (rsP : List (ConstantVal × Nat × Nat × List RecRule)) :
+    (namesP : List ConLeche.Name) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
+    (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) :
     ∀ (m : Nat) (cvTs : List IConstantVal) (cvTsP : List ConstantVal),
     PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
-        rs.mapM (dRec4 st) = some rsP ∧ cvTs.mapM (Frontend.denoteCV st) = some cvTsP)
+        rs.mapM (dRecT st) = some rsP ∧ cvTs.mapM (Frontend.denoteCV st) = some cvTsP)
       (Arena.blockMemberCounts? nPd k nC names rs m cvTs)
       (RV (ConLeche.blockMemberCounts? nPd k nC namesP rsP m cvTsP)) := by
   intro m cvTs
@@ -1259,7 +1260,7 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
       have x3 := p1.ext.trans p3.ext
       obtain ⟨p5, hns⟩ := ih (m + 1) tsP s₂ s₃ ns p3.ok
         ⟨denoteNListE_ext x3 _ _ hN,
-         mapM_option_ext (fun x y h => dRec4_ext x3 x y h) _ _ hrs,
+         mapM_option_ext (fun x y h => dRecT_ext x3 x y h) _ _ hrs,
          mapM_option_ext (fun x y h => denoteCV_ext h x3) _ _ hts⟩ h5
       simp only [RV] at hns
       subst hns
@@ -1275,24 +1276,24 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
 
 /-! ## The recogniser -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 (the result sort) — member 0's sort, or the placeholder `0`. -/
 def resSortOfP (ty : Expr) (k : Nat) : Level :=
   match ty.stripPis k with
   | some (_, .sort s) => s
   | _ => .zero
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 (`large?`) — which eliminator the first recursor claims. -/
 def largeOfP (lps : List ConLeche.Name) : List ConLeche.Name → Option ConLeche.Name
   | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
   | [] => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 (after the pins) — the record, the pure side's stretch the twin duplicates
 into its three result-sort arms. -/
 def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
-    (cs : List (ConstantVal × Nat × Nat)) (rs : List (ConstantVal × Nat × Nat × List RecRule))
+    (cs : List (ConstantVal × Nat × Nat)) (rs : List (ConstantVal × Nat × Nat × Bool × List RecRule))
     (nIdxs : List Nat) : Option ConLeche.BlockShape :=
   let lps := cvT0.levelParams
   let names := cvTs.map (·.name)
@@ -1303,20 +1304,20 @@ def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
   let groups := ConLeche.blockGroups names lps nPd k ctors
   let members := ((cvTs.zip nIdxs).zip groups).map
     fun (a : (ConstantVal × Nat) × List (ConstantVal × Nat)) =>
-      (⟨a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape)
-  let recsL := rs.map fun (r : ConstantVal × Nat × Nat × List RecRule) =>
+      (⟨a.1.1, a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape)
+  let recsL := rs.map fun (r : ConstantVal × Nat × Nat × Bool × List RecRule) =>
     (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf names r.2.1 r.1.type,
-      r.2.2.2⟩ : ConLeche.RecShape)
+      r.2.2.2.2, r.2.2.2.1⟩ : ConLeche.RecShape)
   match largeOfP lps cvR0.levelParams with
   | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp⟩
   | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 (after the split) — the pure recogniser with its inline `match`es named. -/
 def shapeOfSplitP (nPd : Nat) (cvTs : List ConstantVal) (cs : List (ConstantVal × Nat × Nat))
-    (rs : List (ConstantVal × Nat × Nat × List RecRule)) : Option ConLeche.BlockShape :=
+    (rs : List (ConstantVal × Nat × Nat × Bool × List RecRule)) : Option ConLeche.BlockShape :=
   match cvTs, rs with
-  | cvT0 :: _, (cvR0, _, _, _) :: _ =>
+  | cvT0 :: _, (cvR0, _, _, _, _) :: _ =>
     let lps := cvT0.levelParams
     let names := cvTs.map (·.name)
     let k := cvTs.length
@@ -1339,13 +1340,13 @@ theorem blockShape_eq (nPd : Nat) (block : List ConstantInfo) :
   rcases ConLeche.blockSplit block with _ | ⟨cvTs, cs, rs⟩
   · rfl
   · simp only [Option.bind_some, shapeOfSplitP]
-    rcases cvTs with _ | ⟨cvT0, cvTs⟩ <;> rcases rs with _ | ⟨⟨cvR0, a, b, c⟩, rs⟩ <;> rfl
+    rcases cvTs with _ | ⟨cvT0, cvTs⟩ <;> rcases rs with _ | ⟨⟨cvR0, a, b, c, d⟩, rs⟩ <;> rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 (after the result sort) — the twin's stretch its `do` block duplicates into
 the three result-sort arms, written once. -/
 def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
-    (cs : List (IConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+    (cs : List (IConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
     (nIdxs : List Nat) (y : LIdx) : AM (Option Arena.BlockShape) := do
   let z ← zeroLevel
   let eq ← lvlEq? y z
@@ -1354,7 +1355,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
     (cs.map fun c => (c.1, c.2.2))
   let recsL ← rs.mapM fun r => do
     let tgt ← Arena.recTargetOf (cvTs.map (·.name)) r.2.1 r.1.type
-    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : Arena.RecShape)
+    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.2, r.2.2.2.1⟩ : Arena.RecShape)
   match (match cvR0.levelParams with
       | [] => none
       | elim :: relps =>
@@ -1362,7 +1363,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
         else none) with
   | some elim =>
     pure (some { members := ((cvTs.zip nIdxs).zip groups).map
-                   (fun a => { cvT := a.1.1, nIdx := a.1.2, ctors := a.2 }),
+                   (fun a => { cvT := a.1.1, declared := a.1.1, nIdx := a.1.2, ctors := a.2 }),
                  recs := recsL, nP := nPd, elim := elim, resSort := y, large := true,
                  isProp := match eq with
                    | some true => true
@@ -1371,7 +1372,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
   | none => do
     let anon ← internNNode NNodeView.anonymous
     pure (some { members := ((cvTs.zip nIdxs).zip groups).map
-                   (fun a => { cvT := a.1.1, nIdx := a.1.2, ctors := a.2 }),
+                   (fun a => { cvT := a.1.1, declared := a.1.1, nIdx := a.1.2, ctors := a.2 }),
                  recs := recsL, nP := nPd, elim := anon, resSort := y, large := false,
                  isProp := match eq with
                    | some true => true
@@ -1444,19 +1445,19 @@ theorem denoteCtors3_ext {st st' : EStore} (hx : Ext st st') :
 /-- con-leche: none — the recursor records, each with the member its MAJOR
 names (`recTargetOf_spec` at each). -/
 theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
-    ∀ (rs : List (IConstantVal × Nat × Nat × List IRecRule))
-      (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (s₀ s' : AState)
+    ∀ (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
+      (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) (s₀ s' : AState)
       (out : List Arena.RecShape), StateOK s₀ →
       Frontend.denoteNList s₀.store.ns names = some namesP →
-      rs.mapM (dRec4 s₀.store) = some rsP →
+      rs.mapM (dRecT s₀.store) = some rsP →
       (rs.mapM fun r => (do
           let tgt ← Arena.recTargetOf names r.2.1 r.1.type
-          pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2⟩ : Arena.RecShape) :
+          pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.2, r.2.2.2.1⟩ : Arena.RecShape) :
             AM Arena.RecShape)) s₀ =
         .ok (out, s') →
       PStep s₀ s' ∧ out.mapM (dRec s'.store) = some (rsP.map fun r =>
         (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf namesP r.2.1 r.1.type,
-          r.2.2.2⟩ : ConLeche.RecShape)) := by
+          r.2.2.2.2, r.2.2.2.1⟩ : ConLeche.RecShape)) := by
   intro rs
   induction rs with
   | nil =>
@@ -1469,7 +1470,7 @@ theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
   | cons q qs ih =>
     intro rsP s₀ s' out hok hN hrs hrun
     obtain ⟨qP, qsP, rfl, hq, hqs⟩ := mapM_option_cons_inv hrs
-    obtain ⟨hcv, hmI, hrP, hru⟩ := dRec4_inv hq
+    obtain ⟨hcv, hmI, hrP, hru, hk⟩ := dRecT_inv hq
     simp only [List.mapM_cons] at hrun
     obtain ⟨x, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨t, s₂, h3, h4⟩ := AM.bind_ok h1
@@ -1480,14 +1481,14 @@ theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
     obtain ⟨xs, s₃, h5, h6⟩ := AM.bind_ok h2
     obtain ⟨p5, h7⟩ := ih qsP _ s₃ xs p3.ok (denoteNListE_ext p3.ext _ _ hN)
-      (mapM_option_ext (fun x y h => dRec4_ext p3.ext x y h) _ _ hqs) h5
+      (mapM_option_ext (fun x y h => dRecT_ext p3.ext x y h) _ _ hqs) h5
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
     refine ⟨p3.trans p5, ?_⟩
     have x5 := p3.ext.trans p5.ext
     simp only [List.map_cons]
     refine mapM_option_cons ?_ h7
     simp only [dRec, denoteCV_ext hcv x5, denoteRules_ext x5 _ _ hru,
-      Option.bind_eq_bind, Option.bind_some, Option.pure_def, hmI, hrP]
+      Option.bind_eq_bind, Option.bind_some, Option.pure_def, hmI, hrP, hk]
 
 /-- con-leche: none — the members, zipped from the formers, their counts and
 their groups. -/
@@ -1496,10 +1497,10 @@ theorem members_denote {st : EStore} :
       (groups : List (List (IConstantVal × Nat))) (groupsP : List (List (ConstantVal × Nat))),
       cvTs.mapM (Frontend.denoteCV st) = some cvTsP → groups.mapM (dCtors st) = some groupsP →
       (((cvTs.zip nIdxs).zip groups).map
-          (fun a => ({ cvT := a.1.1, nIdx := a.1.2, ctors := a.2 } : Arena.MemberShape))).mapM
+          (fun a => ({ cvT := a.1.1, declared := a.1.1, nIdx := a.1.2, ctors := a.2 } : Arena.MemberShape))).mapM
         (dMember st) =
         some (((cvTsP.zip nIdxs).zip groupsP).map
-          (fun a => (⟨a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape))) := by
+          (fun a => (⟨a.1.1, a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape))) := by
   intro cvTs
   induction cvTs with
   | nil =>
@@ -1522,20 +1523,20 @@ theorem members_denote {st : EStore} :
         refine mapM_option_cons ?_ (ih csP ns gs gsP hcs hgs)
         simp only [dMember, hc, hg, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 — **the record, once the result sort is read**: `lvlEq?` (CORE: the cache
 licence), `paramLevels`, `blockGroups_spec`, `recsL_run`, the eliminator. -/
 theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (cvT0 cvR0 : IConstantVal) (cvT0P cvR0P : ConstantVal) (cvTs : List IConstantVal)
     (cvTsP : List ConstantVal) (cs : List (IConstantVal × Nat × Nat))
-    (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
-    (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (nIdxs : List Nat) (y : LIdx)
+    (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
+    (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) (nIdxs : List Nat) (y : LIdx)
     {s₀ s s' : AState} {r : Option Arena.BlockShape}
     (hc : CheckOK false env fe s₀) (q : PStep s₀ s)
     (hT0 : Frontend.denoteCV s.store cvT0 = some cvT0P)
     (hR0 : Frontend.denoteCV s.store cvR0 = some cvR0P)
     (hTs : cvTs.mapM (Frontend.denoteCV s.store) = some cvTsP)
-    (hcs : denoteCtors3 s.store cs = some csP) (hrs : rs.mapM (dRec4 s.store) = some rsP)
+    (hcs : denoteCtors3 s.store cs = some csP) (hrs : rs.mapM (dRecT s.store) = some rsP)
     (hy : denoteL s.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)))
     (hrun : shapeTailM nPd cvT0 cvR0 cvTs cs rs nIdxs y s = .ok (r, s')) :
     PStep s₀ s' ∧ ROp (fun q st p => dShape st p = some q)
@@ -1571,7 +1572,7 @@ theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
   obtain ⟨recsL, s5, k5, z5⟩ := AM.bind_ok z4
   obtain ⟨p5, hR⟩ := recsL_run (cvTs.map (·.name)) (cvTsP.map (·.name)) rs rsP s4 s5 recsL
     p4.ok (denoteNListE_ext x4 _ _ (cvNames_go hTs))
-    (mapM_option_ext (fun a b h => dRec4_ext x4 a b h) _ _ hrs) k5
+    (mapM_option_ext (fun a b h => dRecT_ext x4 a b h) _ _ hrs) k5
   have x5 := x4.trans p5.ext
   have q5 : PStep s1 s5 := ((p2.trans p3).trans p4).trans p5
   have hmem := members_denote cvTs cvTsP nIdxs groups _
@@ -1687,7 +1688,7 @@ theorem all_and_split {α : Type} (p q : α → Bool) :
 theorem not_eq_beq_false {a b : Bool} (h : a = b) : (!a) = (b == false) := by
   subst h; cases a <;> rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
 — **the recogniser's run, inverted once**: the split (`blockSplit_spec`), the
 counts, the pins (reassociated: the twin reads the formers' two pins in one
 pass), the result sort's three arms, each into `shapeTail_run`. -/
@@ -1731,7 +1732,7 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
       rcases cvTsP <;> rfl
     obtain ⟨cvT0P, cvTsP', rfl, hT0, -⟩ := mapM_option_cons_inv hTs
     obtain ⟨r0P, rsP', rfl, hr0, -⟩ := mapM_option_cons_inv hrs
-    obtain ⟨hR0, -, -, -⟩ := dRec4_inv hr0
+    obtain ⟨hR0, -, -, -⟩ := dRecT_inv hr0
     obtain ⟨cvR0P, mI0P, rP0P, rules0P⟩ := r0P
     dsimp only at hR0 hrun
     simp only [shapeOfSplitP]
@@ -1777,8 +1778,8 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
         = (rsP.all fun r => reservedBasisNames.contains r.1.name == false) :=
       all_mapM_eq (fun x y h => by
         rw [not_eq_beq_false (denoteNList_contains hwf _ _ hres _ _
-          (denoteCV_name (dRec4_inv h).1))])
-        rs rsP (mapM_option_ext (fun a b h => dRec4_ext x2 a b h) _ _ hrs)
+          (denoteCV_name (dRecT_inv h).1))])
+        rs rsP (mapM_option_ext (fun a b h => dRecT_ext x2 a b h) _ _ hrs)
     have E3 : (cs.all fun c => c.2.1 == nPd && c.1.levelParams == cvT0.levelParams &&
           !reserved.contains c.1.name)
         = (csP.all fun c => c.2.1 == nPd && c.1.levelParams == cvT0P.levelParams &&
@@ -1806,7 +1807,7 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
     have hR0' := denoteCV_ext hR0 x2
     have hTs' := mapM_option_ext (fun a b h => denoteCV_ext h x2) _ _ hTs
     have hcs' := denoteCtors3_ext x2 _ _ hcs
-    have hrs' := mapM_option_ext (fun a b h => dRec4_ext x2 a b h) _ _ hrs
+    have hrs' := mapM_option_ext (fun a b h => dRecT_ext x2 a b h) _ _ hrs
     have hp2 := hc.pins.mono q2.ext q2.pins
     cases o with
     | none =>
@@ -1848,29 +1849,17 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
          exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc q2
            hT0' hR0' hTs' hcs' hrs' hyP z5)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:444-449 blockParts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
 **THE DISPATCH'S RECOGNISER** — `checkBlock` against `checkShapeless` routes
 on this, so its two-sidedness (`ROp`) is the soundness of the route choice.
-CORE grade, for `blockShape?`'s reason. -/
-theorem blockParts?_spec {env : Env} (fe : IFEnv) (nP : Nat)
+CORE grade: `isProp` is `lvlEq?`'s cached verdict. -/
+theorem blockShape?_spec {env : Env} (fe : IFEnv) (nP : Nat)
     (block : List IConstantInfo) (b : List ConstantInfo) :
     CSpec env fe (fun st => Frontend.denoteCIList st block = some b)
-      (Arena.blockParts? nP block)
-      (ROp (fun q st p => dParts st p = some q) (ConLeche.blockParts? nP b)) := by
+      (Arena.blockShape? nP block)
+      (ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b)) := by
   intro s₀ s' r hok hb hrun
-  simp only [Arena.blockParts?] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
-  obtain ⟨p1, hrel⟩ := blockShape?_run nP block b s₀ s₁ o hok hb h1
-  cases o with
-  | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    refine ⟨p1.toCore hok, ?_⟩
-    show ConLeche.blockParts? nP b = none
-    simp only [ConLeche.blockParts?, show ConLeche.blockShape? nP b = none from hrel]
-  | some p =>
-    obtain ⟨q, hq, hpq⟩ := hrel
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    refine ⟨p1.toCore hok, ⟨q⟩, by simp only [ConLeche.blockParts?, hq], ?_⟩
-    simp only [dParts, hpq, Option.map_some]
+  obtain ⟨p1, hrel⟩ := blockShape?_run nP block b s₀ s' r hok hb hrun
+  exact ⟨p1.toCore hok, hrel⟩
 
 end ConRon.Bridge.Inductives

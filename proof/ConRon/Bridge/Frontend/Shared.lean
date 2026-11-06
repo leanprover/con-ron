@@ -116,6 +116,11 @@ theorem IStepS.toIStep {s s' : AState} (h : IStepS s s')
     (hoff : s.store.scratchOn = false) : IStep s s' :=
   ⟨h.ok, h.ext, h.off hoff, h.memos, h.caches, h.pins⟩
 
+/-- con-leche: none — a step that leaves the scratch flag alone is a parse step, whichever the
+flag is. -/
+theorem IStepS.toParse' {s s' : AState} (h : IStepS s s') : ParseStep s s' :=
+  ParseStep.of_caches h.ok h.ext h.scratch h.caches h.pins
+
 /-! ## The four leaf interns, in run form -/
 
 theorem internE_sstep {s s' : AState} (hok : StateOK s)
@@ -654,6 +659,16 @@ theorem internFire_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
     exact ⟨hstep1.trans hstep2, hd, hm2⟩
+  | levels lvls =>
+    rw [ConRon.Arena.Frontend.internFire] at hrun
+    obtain ⟨hls, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hdls⟩ := internLevelList_sstep lvls hok h1
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, by simp only [denoteFire, hdls, Option.map_some], hm.mono hstep1.ext⟩
 
 theorem internRule_sstep {s s' : AState} (hok : StateOK s)
     {m m' : EMemo} (hm : EMemoOK s.store m)
@@ -675,7 +690,7 @@ theorem internRule_sstep {s s' : AState} (hok : StateOK s)
     internExprGo_sstep rl.rhs hstep2.ok hm2 h3
   simp only [] at hrest3
   have hd : denoteRule s₃.store
-      ⟨hc, rl.nfields, rl.ctorParams, hf, hr, rl.k, rl.eta⟩
+      ⟨hc, rl.nfields, hf, hr⟩
       = some rl := by
     simp only [denoteRule, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
       denoteFire_ext hdf hstep3.ext, hdr]
@@ -830,8 +845,8 @@ theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hstep2, hdrs, hm2⟩ :=
       internRules_sstep rs hstep1.ok hm1 h2
     simp only [] at hrest2
-    have hd : denoteCI s₂.store (.recInfo cv mI rP rules)
-        = some (.recInfo v mI rP rs) := by
+    have hd : denoteCI s₂.store (.recInfo cv mI rP k rules)
+        = some (.recInfo v mI rP k rs) := by
       simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdrs]
     obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
     subst hst
@@ -894,6 +909,15 @@ theorem internE_istep {s s' : AState} (hok : StateOK s)
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
   rw [hoff] at hon
   exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, PersE_of_view hwf hon hview, hden⟩
+
+/-- con-leche: none — a NAME node, in the frame that does not ask for the flag. -/
+theorem internNNode_sstep {s s' : AState} (hok : StateOK s) {v : NNodeView}
+    (hv : s.store.ns.ViewOK v) {h : NIdx}
+    (hrun : internNNode v s = .ok (h, s')) :
+    IStepS s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, -, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
 
 /-- con-leche: none — a NAME node: a view leaf. -/
 theorem internNNode_istep {s s' : AState} (hok : StateOK s)
