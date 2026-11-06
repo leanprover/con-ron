@@ -71,14 +71,14 @@ theorem kind_code_eq {k : Std.U8} {c : Std.U64} (h : kind_code k = ok c) :
   rw [ConLeche.Frontend.Olean.kindCode]
   simp only [← absByte_k_name, ← absByte_k_level, ← absByte_k_levels]
   by_cases h1 : k = frontend.olean.fast.K_NAME
-  · rw [if_pos h1] at h; rw [if_pos (kind_test.mp h1)]; cases Result.ok_injective h; rfl
-  · rw [if_neg h1] at h; rw [if_neg (fun he => h1 (kind_test.mpr he))]
+  · rw [ite_eq_left h1] at h; rw [ite_eq_left (kind_test.mp h1)]; cases Result.ok_injective h; rfl
+  · rw [ite_eq_right h1] at h; rw [ite_eq_right (fun he => h1 (kind_test.mpr he))]
     by_cases h2 : k = frontend.olean.fast.K_LEVEL
-    · rw [if_pos h2] at h; rw [if_pos (kind_test.mp h2)]; cases Result.ok_injective h; rfl
-    · rw [if_neg h2] at h; rw [if_neg (fun he => h2 (kind_test.mpr he))]
+    · rw [ite_eq_left h2] at h; rw [ite_eq_left (kind_test.mp h2)]; cases Result.ok_injective h; rfl
+    · rw [ite_eq_right h2] at h; rw [ite_eq_right (fun he => h2 (kind_test.mpr he))]
       by_cases h3 : k = frontend.olean.fast.K_LEVELS
-      · rw [if_pos h3] at h; rw [if_pos (kind_test.mp h3)]; cases Result.ok_injective h; rfl
-      · rw [if_neg h3] at h; rw [if_neg (fun he => h3 (kind_test.mpr he))]
+      · rw [ite_eq_left h3] at h; rw [ite_eq_left (kind_test.mp h3)]; cases Result.ok_injective h; rfl
+      · rw [ite_eq_right h3] at h; rw [ite_eq_right (fun he => h3 (kind_test.mpr he))]
         cases Result.ok_injective h; rfl
 
 /-! ## The roots of a load -/
@@ -182,7 +182,105 @@ theorem uses_names_val {o3 : alloc.vec.Vec (alloc.vec.Vec Std.U64)} {outs : Arra
     (ho : OutsRel o3 outs) {acc acc' : alloc.vec.Vec Std.U64}
     (h : uses_names o3 acc = ok acc') :
     acc'.val.map absWord = acc.val.map absWord ++ usesNames outs := by
-  sorry -- T143-STUB
+  -- the twin's two folds, as a `flatMap` of `filter`s
+  have hpush : ∀ (l : List UInt64) (a : Array UInt64),
+      (l.foldl (fun acc v => if v == ConLeche.Frontend.Olean.usesNat ||
+          v == ConLeche.Frontend.Olean.usesStr then acc else acc.push v) a).toList =
+        a.toList ++ l.filter (fun v => !(v == ConLeche.Frontend.Olean.usesNat ||
+          v == ConLeche.Frontend.Olean.usesStr)) := by
+    intro l
+    induction l with
+    | nil => intro a; simp
+    | cons x t ih =>
+      intro a
+      rw [List.foldl_cons, ih, List.filter_cons]
+      by_cases hx : (x == ConLeche.Frontend.Olean.usesNat || x == ConLeche.Frontend.Olean.usesStr) = true
+      · simp [hx]
+      · simp only [Bool.not_eq_true] at hx
+        simp [hx]
+  have hwords : ∀ (l : List (Array UInt64)) (a : Array UInt64),
+      (l.foldl (fun acc out => out.foldl (fun acc v => if v == ConLeche.Frontend.Olean.usesNat ||
+          v == ConLeche.Frontend.Olean.usesStr then acc else acc.push v) acc) a).toList =
+        a.toList ++ l.flatMap (fun o => o.toList.filter (fun v => !(v == ConLeche.Frontend.Olean.usesNat ||
+          v == ConLeche.Frontend.Olean.usesStr))) := by
+    intro l
+    induction l with
+    | nil => intro a; simp
+    | cons x t ih =>
+      intro a
+      rw [List.foldl_cons, ih, List.flatMap_cons, ← List.append_assoc, ← Array.foldl_toList, hpush]
+  have hun : usesNames outs = outs.toList.flatMap (fun o => o.toList.filter (fun v =>
+      !(v == ConLeche.Frontend.Olean.usesNat || v == ConLeche.Frontend.Olean.usesStr))) := by
+    rw [usesNames, ← Array.foldl_toList, hwords]; rfl
+  -- the Rust's two loops
+  let g : Std.U64 → List Std.U64 := fun v =>
+    if v = frontend.olean.lazy.USES_NAT then [] else if v = frontend.olean.lazy.USES_STR then [] else [v]
+  have inner : ∀ (i : Std.Usize) (x : alloc.vec.Vec Std.U64), o3.val[i.val]? = some x →
+      ∀ s j o, uses_names_loop0_loop0 o3 s i j = ok o → (x.val.length ≤ j.val ∧ o = s) ∨
+        ∃ y s1 j1, x.val[j.val]? = some y ∧ s1.val = s.val ++ g y ∧ j1.val = j.val + 1 ∧
+          uses_names_loop0_loop0 o3 s1 i j1 = ok o := by
+    intro i x hx s j o h
+    rw [uses_names_loop0_loop0] at h
+    peel h as w, hw
+    have hw2 := ConRon.Refine.ExprOps.vec_index_getElem? hw
+    rw [hx] at hw2
+    cases Option.some.inj hw2
+    by_cases hj : j < alloc.vec.Vec.len x
+    · right
+      rw [ite_eq_left hj] at h
+      peel h as y, hy
+      peel h as s1, hs1
+      peel h as j1, hj1
+      refine ⟨y, s1, j1, ConRon.Refine.ExprOps.vec_index_getElem? hy, ?_,
+        ConRon.Refine.HashMap.uscalar_add_eq hj1, h⟩
+      by_cases h0 : y = frontend.olean.lazy.USES_NAT
+      · rw [ite_eq_left h0] at hs1; cases Result.ok_injective hs1; simp [g, h0]
+      · rw [ite_eq_right h0] at hs1
+        by_cases h2 : y = frontend.olean.lazy.USES_STR
+        · rw [ite_eq_left h2] at hs1; cases Result.ok_injective hs1; simp [g, h0, h2]
+        · rw [ite_eq_right h2] at hs1; rw [ConRon.Refine.vec_push_val hs1]; simp [g, h0, h2]
+    · left
+      rw [ite_eq_right hj] at h
+      exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩
+  have e := append_loop0 (src := o3.val) (Ab := fun s : alloc.vec.Vec Std.U64 => s.val)
+    (f := fun x => x.val.flatMap g) (loop := uses_names_loop0 o3) (fun s i o h => by
+      rw [uses_names_loop0] at h
+      by_cases hi : i < alloc.vec.Vec.len o3
+      · right
+        rw [ite_eq_left hi] at h
+        have hlt : i.val < o3.val.length := by scalar_tac
+        have hx : o3.val[i.val]? = some (o3.val[i.val]'hlt) := List.getElem?_eq_getElem hlt
+        peel h as s1, hs1
+        peel h as i2, hi2
+        exact ⟨_, s1, i2, hx, append_loop0 (src := (o3.val[i.val]'hlt).val)
+          (Ab := fun s : alloc.vec.Vec Std.U64 => s.val) (f := g)
+          (loop := fun s j => uses_names_loop0_loop0 o3 s i j) (inner i _ hx) hs1,
+          ConRon.Refine.HashMap.uscalar_add_eq hi2, h⟩
+      · left
+        rw [ite_eq_right hi] at h
+        exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩) h
+  rw [e, List.map_append, hun]
+  congr 1
+  refine forall₂_flatMap_map (fun x t hxt => ?_) ho
+  rw [← (hxt : x.val.map absWord = t.toList)]
+  induction x.val with
+  | nil => rfl
+  | cons y l ih =>
+    rw [List.flatMap_cons, List.map_append, ih, List.map_cons, List.filter_cons]
+    have hn : (absWord y == ConLeche.Frontend.Olean.usesNat) = decide (y = frontend.olean.lazy.USES_NAT) := by
+      rw [show ConLeche.Frontend.Olean.usesNat = absWord frontend.olean.lazy.USES_NAT by
+        unfold frontend.olean.lazy.USES_NAT; rfl]
+      rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, absWord_eq_iff]
+    have hs : (absWord y == ConLeche.Frontend.Olean.usesStr) = decide (y = frontend.olean.lazy.USES_STR) := by
+      rw [show ConLeche.Frontend.Olean.usesStr = absWord frontend.olean.lazy.USES_STR by
+        unfold frontend.olean.lazy.USES_STR; rfl]
+      rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, absWord_eq_iff]
+    rw [hn, hs]
+    by_cases h0 : y = frontend.olean.lazy.USES_NAT
+    · simp [g, h0, hn, hs]
+    · by_cases h2 : y = frontend.olean.lazy.USES_STR
+      · simp [g, h0, h2, hn, hs]
+      · simp [g, h0, h2, hn, hs]
 
 /-- **`load_at`'s loop collects `lazyRoots`.** -/
 theorem load_at_loop_val {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
