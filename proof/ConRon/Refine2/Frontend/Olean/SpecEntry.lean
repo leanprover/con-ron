@@ -195,4 +195,459 @@ theorem import_map_refines {R : Type} {inst : frontend.olean.spec.PtrRead R} {rd
   cases hR
   exact RS.some rfl
 
+/-! ## The pins -/
+
+/-- `intern_name`, in the store's own channel. -/
+theorem CS.intern_name {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {v : arena.store.NNodeView} (hv : NNodeViewWF v) :
+    CS pers (EqA absNIdx) st lst (arena.store.EStore.intern_name st.store pers v)
+      (internNNode (absNNodeView v)) := by
+  intro hrel hinv o s' h
+  have hS := intern_n_node_run₀ hrel hinv v hv (o := (o, withStore st s'))
+    (by rw [arena.monad.intern_n_node, h]; simp only [bind_ok]; rfl)
+  cases o with
+  | Ok a =>
+    obtain ⟨lst1, hx, hrel1, hinv1⟩ := Sim₀.apply hS
+    exact ⟨_, lst1, hx, rfl, hrel1, hinv1⟩
+  | Err e => exact Sim₀.apply_err hS
+
+/-- `intern_level`, in the store's own channel. -/
+theorem CS.intern_level {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {v : arena.store.LNodeView} :
+    CS pers (EqA absLIdx) st lst (arena.store.EStore.intern_level st.store pers v)
+      (internLNode (absLNodeView v)) := by
+  intro hrel hinv o s' h
+  have hS := intern_l_node_run₀ hrel hinv v (o := (o, withStore st s'))
+    (by rw [arena.monad.intern_l_node, h]; simp only [bind_ok]; rfl)
+  cases o with
+  | Ok a =>
+    obtain ⟨lst1, hx, hrel1, hinv1⟩ := Sim₀.apply hS
+    exact ⟨_, lst1, hx, rfl, hrel1, hinv1⟩
+  | Err e => exact Sim₀.apply_err hS
+
+/-- `intern_levels`, in the store's own channel. -/
+theorem CS.intern_levels {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {v : alloc.vec.Vec arena.handle.LIdx} :
+    CS pers (EqA absLsIdx) st lst (arena.store.EStore.intern_levels st.store pers v)
+      (internLsNode (absLsNodeView v)) := by
+  intro hrel hinv o s' h
+  have hS := intern_ls_node_run₀ hrel hinv v (o := (o, withStore st s'))
+    (by rw [arena.monad.intern_ls_node, h]; simp only [bind_ok]; rfl)
+  cases o with
+  | Ok a =>
+    obtain ⟨lst1, hx, hrel1, hinv1⟩ := Sim₀.apply hS
+    exact ⟨_, lst1, hx, rfl, hrel1, hinv1⟩
+  | Err e => exact Sim₀.apply_err hS
+
+/-- `mk_n_step`, a name spelled by the reader. -/
+theorem mk_n_step_refines {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {p : arena.handle.NIdx} {v : alloc.vec.Vec Std.U32} {S : String}
+    (h : ConRon.Refine.absString v = S ∧ ConRon.Refine.StrWF v) :
+    CS pers (EqA absNIdx) st lst (frontend.olean.spec.mk_n_step pers st.store p v)
+      (internNNode (.str (absNIdx p) S)) := by
+  rw [frontend.olean.spec.mk_n_step, ← h.1]
+  exact CS.intern_name (v := .Str p v) h.2
+
+/-- One name of the pins. -/
+macro "pin_step " S:str M:ident : tactic =>
+  `(tactic| (refine CS.pure_step fun s hs => CS.pure_step fun v hv => ?_
+             refine CS.bind (mk_n_step_refines
+                 (lit_str (S := $S) hs hv (by unfold $M:ident; decide) (by unfold $M:ident; rfl)))
+               (fun _ _ => by rfl) fun a b s1 lst1 hR => ?_
+             cases hR))
+
+/-- **`olean_pins` is `oleanPins`.** -/
+theorem olean_pins_refines {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} :
+    CS pers (fun a b => b = absPins a) st lst (frontend.olean.spec.olean_pins pers st.store)
+      Arena.Frontend.Olean.oleanPins := by
+  rw [frontend.olean.spec.olean_pins, Arena.Frontend.Olean.oleanPins]
+  refine CS.bind (CS.intern_name (v := .Anonymous) trivial) (fun _ _ => by rfl)
+    fun h b s1 lst1 hR => ?_
+  cases hR
+  refine CS.bind (CS.intern_level (v := .Zero)) (fun _ _ => by rfl)
+    fun h1 b s1 lst1 hR => ?_
+  cases hR
+  refine CS.bind (CS.intern_levels (v := alloc.vec.Vec.new _)) (fun _ _ => by rfl)
+    fun h2 b s1 lst1 hR => ?_
+  cases hR
+  refine CS.pure_step fun n hn => ?_
+  obtain rfl := nidx_dup2_ok hn
+  pin_step "Nat" frontend.olean.spec.olean_pins.M
+  pin_step "Char" frontend.olean.spec.olean_pins.M_1
+  pin_step "ofNat" frontend.olean.spec.olean_pins.M_2
+  pin_step "String" frontend.olean.spec.olean_pins.M_3
+  pin_step "ofList" frontend.olean.spec.olean_pins.M_4
+  pin_step "Eq" frontend.olean.spec.olean_pins.M_5
+  pin_step "Quot" frontend.olean.spec.olean_pins.M_6
+  refine CS.pure_step fun n1 hn1 => ?_
+  obtain rfl := nidx_dup2_ok hn1
+  pin_step "mk" frontend.olean.spec.olean_pins.M_7
+  pin_step "lift" frontend.olean.spec.olean_pins.M_8
+  pin_step "ind" frontend.olean.spec.olean_pins.M_9
+  exact CS.pure rfl
+
+
+/-! ## `skelFits` -/
+
+/-- `SatRel`'s test, as the twin's. -/
+theorem sat_big {k : Std.U64} {n : Nat} (h : SatRel k n) :
+    decide (k = core.num.U64.MAX) = decide (Arena.Frontend.Olean.wordMax ≤ n) := by
+  have hw : Arena.Frontend.Olean.wordMax = 2 ^ 64 - 1 := rfl
+  rw [hw]
+  exact decide_eq_decide.mpr h.max_iff
+
+/-- `rules_too_big`'s loop is the twin's `any`. -/
+theorem rules_too_big_eq {N N' E E' : Type} {AN : N → N'} {AE : E → E'}
+    {rules : alloc.vec.Vec (N × Std.U64 × E)} {l : List (N' × Nat × E')}
+    (hl : List.Forall₂ (RuleRel AN AE SatRel) rules.val l) {b : Bool}
+    (h : frontend.olean.spec.rules_too_big rules = ok b) :
+    b = l.any fun x => decide (Arena.Frontend.Olean.wordMax ≤ x.2.1) := by
+  have aux : ∀ {src1 : List (N × Std.U64 × E)} {l1 : List (N' × Nat × E')},
+      List.Forall₂ (RuleRel AN AE SatRel) src1 l1 → ∀ (i : Std.Usize) (b : Bool),
+        rules.val.drop i.val = src1 →
+        frontend.olean.spec.rules_too_big_loop rules i = ok b →
+        b = l1.any fun x => decide (Arena.Frontend.Olean.wordMax ≤ x.2.1) := by
+    intro src1 l1 hF
+    induction hF with
+    | nil =>
+      intro i b hd h
+      have hle := List.drop_eq_nil_iff.mp hd
+      rw [frontend.olean.spec.rules_too_big_loop, ite_eq_right (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rfl
+    | @cons x x' src2 l2 hS _ ih =>
+      intro i b hd h
+      have hlt : i.val < rules.val.length := by
+        apply Classical.byContradiction
+        intro hn
+        rw [List.drop_eq_nil_of_le (by omega)] at hd
+        cases hd
+      rw [List.drop_eq_getElem_cons hlt] at hd
+      obtain ⟨hx, hd2⟩ := List.cons.inj hd
+      rw [frontend.olean.spec.rules_too_big_loop, ite_eq_left (by scalar_tac)] at h
+      peel h as y, hy
+      have hy3 := ConRon.Refine.ExprOps.vec_index_getElem? hy
+      rw [List.getElem?_eq_getElem hlt, hx] at hy3
+      cases Option.some.inj hy3
+      obtain ⟨c, k, e⟩ := x
+      have hbig : decide (k = core.num.U64.MAX) = _ := sat_big hS.2.1
+      have h : (if k = core.num.U64.MAX then ok true else do
+          let i3 ← i + 1#usize
+          frontend.olean.spec.rules_too_big_loop rules i3) = ok b := h
+      rw [List.any_cons]
+      split at h
+      · rename_i hk
+        cases Result.ok_injective h
+        rw [← hbig]
+        simp [hk]
+      · rename_i hk
+        peel h as i3, hi3
+        have hiv := uscalar_add_eq hi3
+        rw [← hbig, decide_eq_false hk, Bool.false_or]
+        exact ih i3 b (by rw [hiv]; exact hd2) h
+  exact aux hl 0#usize b (by rfl) h
+
+/-- Rules no number of which is too big hold their values. -/
+theorem rules_val {N N' E E' : Type} {AN : N → N'} {AE : E → E'}
+    {l : List (N × Std.U64 × E)} {l' : List (N' × Nat × E')}
+    (hl : List.Forall₂ (RuleRel AN AE SatRel) l l')
+    (h : (l'.any fun x => decide (Arena.Frontend.Olean.wordMax ≤ x.2.1)) = false) :
+    List.Forall₂ (RuleRel AN AE ValRel) l l' := by
+  induction hl with
+  | nil => exact List.Forall₂.nil
+  | @cons x x' _ _ hS _ ih =>
+    rw [List.any_cons, Bool.or_eq_false_iff] at h
+    refine List.Forall₂.cons ⟨hS.1, ?_, hS.2.2⟩ (ih h.2)
+    have hb := sat_big hS.2.1
+    rw [h.1] at hb
+    exact hS.2.1.val_of_ne (of_decide_eq_false hb)
+
+/-- What `skelFits` tests of a constant. -/
+def twinBad {N E : Type} (c : CEntryF N E) : Bool :=
+  match c.kind with
+  | .induct np ni _ _ nn .. =>
+    decide (Arena.Frontend.Olean.wordMax ≤ np) || decide (Arena.Frontend.Olean.wordMax ≤ ni) ||
+      decide (Arena.Frontend.Olean.wordMax ≤ nn)
+  | .ctor _ ci np nf _ =>
+    decide (Arena.Frontend.Olean.wordMax ≤ ci) || decide (Arena.Frontend.Olean.wordMax ≤ np) ||
+      decide (Arena.Frontend.Olean.wordMax ≤ nf)
+  | .recur _ np ni nmo nmi rules .. =>
+    decide (Arena.Frontend.Olean.wordMax ≤ np) || decide (Arena.Frontend.Olean.wordMax ≤ ni) ||
+      decide (Arena.Frontend.Olean.wordMax ≤ nmo) || decide (Arena.Frontend.Olean.wordMax ≤ nmi) ||
+      rules.any fun x => decide (Arena.Frontend.Olean.wordMax ≤ x.2.1)
+  | _ => false
+
+theorem skelFits_eq {N E : Type} (c : CEntryF N E) :
+    Arena.Frontend.Olean.skelFits c =
+      if twinBad c = true then
+        (do let _ ← Arena.Frontend.Olean.natWord Arena.Frontend.Olean.wordMax; pure ())
+      else pure () := by
+  obtain ⟨_, _, _, k⟩ := c
+  cases k <;> rfl
+
+/-- Three numbers of a constant, tested in turn. -/
+theorem bad3 {a b c : Std.U64} {A B C : Nat} {bad : Bool} (ha : SatRel a A) (hb : SatRel b B)
+    (hc : SatRel c C)
+    (h : (if a = core.num.U64.MAX then ok true else if b = core.num.U64.MAX then ok true
+      else ok (decide (c = core.num.U64.MAX))) = ok bad) :
+    bad = (decide (Arena.Frontend.Olean.wordMax ≤ A) || decide (Arena.Frontend.Olean.wordMax ≤ B) ||
+      decide (Arena.Frontend.Olean.wordMax ≤ C)) ∧
+    (bad = false → a.val = A ∧ b.val = B ∧ c.val = C) := by
+  have e : bad = (decide (a = core.num.U64.MAX) || decide (b = core.num.U64.MAX) ||
+      decide (c = core.num.U64.MAX)) := by
+    by_cases h1 : a = core.num.U64.MAX
+    · rw [ite_eq_left h1] at h
+      cases Result.ok_injective h
+      simp [h1]
+    · rw [ite_eq_right h1] at h
+      by_cases h2 : b = core.num.U64.MAX
+      · rw [ite_eq_left h2] at h
+        cases Result.ok_injective h
+        simp [h2]
+      · rw [ite_eq_right h2] at h
+        cases Result.ok_injective h
+        simp [h1, h2]
+  refine ⟨by rw [e, sat_big ha, sat_big hb, sat_big hc], fun hf => ?_⟩
+  rw [e] at hf
+  simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not] at hf
+  exact ⟨ha.val_of_ne hf.1.1, hb.val_of_ne hf.1.2, hc.val_of_ne hf.2⟩
+
+/-- **`skel_fits` is `skelFits`**: from there on a skeleton's numbers are their values. -/
+theorem skel_fits_refines {c : frontend.olean.spec.CEntryF Std.U64 Std.U64}
+    {c' : CEntryF UInt64 UInt64} (hc : SkelRel c c') {o}
+    (h : frontend.olean.spec.skel_fits c = ok o) {lst : AState} :
+    match o with
+    | .Ok _ => (Arena.Frontend.Olean.skelFits c').run lst = .ok ((), lst) ∧
+        EntryRel absWord absWord ValRel c c'
+    | .Err .Bad => False
+    | .Err (.Err e) => AErrSim e ((Arena.Frontend.Olean.skelFits c').run lst) := by
+  rw [frontend.olean.spec.skel_fits] at h
+  peel h as bad, hbad
+  have key : bad = twinBad c' ∧ (bad = false → EntryRel absWord absWord ValRel c c') := by
+    obtain ⟨cn, cl, cty, ck⟩ := c
+    obtain ⟨c1, c2, c3, c4⟩ := c'
+    obtain ⟨h1, h2, h3, hk⟩ := hc
+    cases ck <;> cases c4 <;> try exact hk.elim
+    case Ax.ax =>
+      cases Result.ok_injective hbad
+      exact ⟨rfl, fun _ => ⟨h1, h2, h3, hk⟩⟩
+    case Defn.defn =>
+      cases Result.ok_injective hbad
+      exact ⟨rfl, fun _ => ⟨h1, h2, h3, hk⟩⟩
+    case Thm.thm =>
+      cases Result.ok_injective hbad
+      exact ⟨rfl, fun _ => ⟨h1, h2, h3, hk⟩⟩
+    case Opaq.opaq =>
+      cases Result.ok_injective hbad
+      exact ⟨rfl, fun _ => ⟨h1, h2, h3, hk⟩⟩
+    case Quot.quot =>
+      cases Result.ok_injective hbad
+      exact ⟨rfl, fun _ => ⟨h1, h2, h3, hk⟩⟩
+    case Induct.induct =>
+      obtain ⟨n1, n2, l1, l2, n3, a1, a2, a3⟩ := hk
+      obtain ⟨e, hv⟩ := bad3 n1 n2 n3 hbad
+      refine ⟨e, fun hf => ?_⟩
+      obtain ⟨v1, v2, v3⟩ := hv hf
+      exact ⟨h1, h2, h3, v1, v2, l1, l2, v3, a1, a2, a3⟩
+    case Ctor.ctor =>
+      obtain ⟨n0, n1, n2, n3, a1⟩ := hk
+      obtain ⟨e, hv⟩ := bad3 n1 n2 n3 hbad
+      refine ⟨e, fun hf => ?_⟩
+      obtain ⟨v1, v2, v3⟩ := hv hf
+      exact ⟨h1, h2, h3, n0, v1, v2, v3, a1⟩
+    case Recur.recur _a np ni nmo nmi _r _k _u _a' _np' _ni' _nmo' _nmi' _r' _k' _u' =>
+      obtain ⟨l1, n1, n2, n3, n4, hr, a1, a2⟩ := hk
+      have s1 := sat_big n1
+      have s2 := sat_big n2
+      have s3 := sat_big n3
+      have s4 := sat_big n4
+      dsimp only at hbad
+      by_cases b1 : np = core.num.U64.MAX
+      · rw [ite_eq_left b1] at hbad
+        cases Result.ok_injective hbad
+        rw [decide_eq_true b1] at s1
+        simp [twinBad, ← s1]
+      rw [ite_eq_right b1] at hbad
+      by_cases b2 : ni = core.num.U64.MAX
+      · rw [ite_eq_left b2] at hbad
+        cases Result.ok_injective hbad
+        rw [decide_eq_true b2] at s2
+        simp [twinBad, ← s2]
+      rw [ite_eq_right b2] at hbad
+      by_cases b3 : nmo = core.num.U64.MAX
+      · rw [ite_eq_left b3] at hbad
+        cases Result.ok_injective hbad
+        rw [decide_eq_true b3] at s3
+        simp [twinBad, ← s3]
+      rw [ite_eq_right b3] at hbad
+      by_cases b4 : nmi = core.num.U64.MAX
+      · rw [ite_eq_left b4] at hbad
+        cases Result.ok_injective hbad
+        rw [decide_eq_true b4] at s4
+        simp [twinBad, ← s4]
+      rw [ite_eq_right b4] at hbad
+      have er := rules_too_big_eq hr hbad
+      refine ⟨?_, fun hf => ?_⟩
+      · simp only [twinBad]
+        rw [← s1, ← s2, ← s3, ← s4, decide_eq_false b1, decide_eq_false b2, decide_eq_false b3,
+          decide_eq_false b4, er]
+        rfl
+      · rw [er] at hf
+        exact ⟨h1, h2, h3, l1, n1.val_of_ne b1, n2.val_of_ne b2, n3.val_of_ne b3,
+          n4.val_of_ne b4, rules_val hr hf, a1, a2⟩
+  obtain ⟨e, hv⟩ := key
+  rw [skelFits_eq, ← e]
+  cases bad with
+  | false =>
+    rw [ite_eq_right Bool.false_ne_true] at h ⊢
+    cases Result.ok_injective h
+    exact ⟨rfl, hv rfl⟩
+  | true =>
+    rw [ite_eq_left rfl] at h ⊢
+    peel h as r0, hr0
+    have hm : ∃ e, r0 = .Err (.Err e) := by
+      rw [nat_word, ite_eq_left rfl] at hr0
+      peel hr0 as s0, -
+      peel hr0 as v0, -
+      peel hr0 as ce, -
+      exact ⟨ce, (Result.ok_injective hr0).symm⟩
+    obtain ⟨ce, rfl⟩ := hm
+    have hs : SatRel core.num.U64.MAX Arena.Frontend.Olean.wordMax := by
+      show _ = _
+      rw [u64_max_val]
+      rfl
+    have hw := nat_word_eq hs hr0 (lst := lst)
+    cases Result.ok_injective h
+    show AErrSim ce _
+    rw [StateT.run_bind]
+    exact AErrSim.bind hw _
+
+/-! ## The imports -/
+
+/-- The handles' test, as the twin's `==`. -/
+theorem nidx_beq_abs {a b : arena.handle.NIdx} {c : Bool}
+    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok c) :
+    c = (absNIdx a == absNIdx b) := by
+  rw [nidx_eq2 a b c trivial trivial h]
+  by_cases hab : a = b
+  · subst hab; simp
+  · have : absNIdx a ≠ absNIdx b := fun he => hab (absNIdx_inj he)
+    simp [hab, this]
+
+/-- **`import_rec_beq` is `==` on `ImportF`.** -/
+theorem import_rec_beq_eq {a b : frontend.olean.spec.ImportF arena.handle.NIdx} {c : Bool}
+    (h : frontend.olean.spec.import_rec_beq a b = ok c) :
+    c = (absImportF absNIdx a == absImportF absNIdx b) := by
+  rw [frontend.olean.spec.import_rec_beq] at h
+  peel h as b1, hb1
+  have e := nidx_beq_abs hb1
+  show c = ((absNIdx a.module == absNIdx b.module) && a.import_all == b.import_all &&
+    a.is_exported == b.is_exported && a.is_meta == b.is_meta)
+  rw [← e]
+  cases b1 with
+  | false =>
+    rw [ite_eq_right Bool.false_ne_true] at h
+    cases Result.ok_injective h
+    rfl
+  | true =>
+    rw [ite_eq_left rfl] at h
+    split at h
+    · rename_i h1
+      split at h
+      · rename_i h2
+        cases Result.ok_injective h
+        simp [h1, h2, beq_eq_decide]
+      · rename_i h2
+        cases Result.ok_injective h
+        simp [h1, h2]
+    · rename_i h1
+      cases Result.ok_injective h
+      simp [h1]
+
+/-- **`imports_beq` is `==` on the twin's arrays.** -/
+theorem imports_beq_eq {a b : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
+    {c : Bool} (h : frontend.olean.spec.imports_beq a b = ok c) :
+    c = ((a.val.map (absImportF absNIdx)).toArray == (b.val.map (absImportF absNIdx)).toArray) := by
+  rw [frontend.olean.spec.imports_beq] at h
+  rw [List.beq_toArray]
+  split at h
+  · rename_i hne
+    cases Result.ok_injective h
+    have hl : a.val.length ≠ b.val.length := by
+      intro he
+      have : alloc.vec.Vec.len a = alloc.vec.Vec.len b := UScalar.eq_of_val_eq (by simp only [alloc.vec.Vec.len_val]; exact he)
+      simp [this] at hne
+    symm
+    rw [Bool.eq_false_iff]
+    intro he
+    exact hl (by simpa using List.length_eq_of_beq he)
+  · rename_i he
+    have hl : a.val.length = b.val.length := by
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at he
+      have := congrArg UScalar.val he
+      simpa only [alloc.vec.Vec.len_val] using this
+    have aux : ∀ (k : Nat) (i : Std.Usize) (c : Bool), a.val.length - i.val ≤ k →
+        frontend.olean.spec.imports_beq_loop a b i = ok c →
+        c = ((a.val.drop i.val).map (absImportF absNIdx) ==
+          (b.val.drop i.val).map (absImportF absNIdx)) := by
+      intro k
+      induction k with
+      | zero =>
+        intro i c hk h
+        rw [frontend.olean.spec.imports_beq_loop, ite_eq_right (by scalar_tac)] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]
+        rfl
+      | succ k ih =>
+        intro i c hk h
+        rw [frontend.olean.spec.imports_beq_loop] at h
+        by_cases hi : i < alloc.vec.Vec.len a
+        · rw [ite_eq_left hi] at h
+          have hlt : i.val < a.val.length := by scalar_tac
+          have hlt2 : i.val < b.val.length := by omega
+          peel h as x, hx
+          peel h as y, hy
+          peel h as b1, hb1
+          have ex := ConRon.Refine.ExprOps.vec_index_getElem? hx
+          have ey := ConRon.Refine.ExprOps.vec_index_getElem? hy
+          rw [List.getElem?_eq_getElem hlt] at ex
+          rw [List.getElem?_eq_getElem hlt2] at ey
+          rw [List.drop_eq_getElem_cons hlt, List.drop_eq_getElem_cons hlt2, Option.some.inj ex,
+            Option.some.inj ey, List.map_cons, List.map_cons, List.cons_beq_cons,
+            ← import_rec_beq_eq hb1]
+          cases b1 with
+          | false =>
+            rw [ite_eq_right Bool.false_ne_true] at h
+            cases Result.ok_injective h
+            rfl
+          | true =>
+            rw [ite_eq_left rfl] at h
+            peel h as i2, hi2
+            have hiv : i2.val = i.val + 1 := uscalar_add_eq hi2
+            rw [Bool.true_and, ih i2 c (by omega) h, hiv]
+        · rw [ite_eq_right hi] at h
+          cases Result.ok_injective h
+          rw [List.drop_eq_nil_of_le (by scalar_tac), List.drop_eq_nil_of_le (by scalar_tac)]
+          rfl
+    simpa using aux _ 0#usize c (Nat.le_refl _) h
+
+/-- A stored constant's statement, as the twin's. -/
+def absStmt (s : frontend.olean.spec.StmtRec) : Arena.Frontend.Olean.StmtRec :=
+  ⟨absNIdx s.name, s.level_params.val.map absNIdx, absEIdx s.ty⟩
+
+/-- **`c_entry_stmt` is `entryStmt`.** -/
+theorem c_entry_stmt_eq {c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
+    {c' : CEntryF NIdx EIdx} {RN : NatRel} (hc : EntryRel absNIdx absEIdx RN c c') {s}
+    (h : frontend.olean.spec.c_entry_stmt c = ok s) :
+    absStmt s = Arena.Frontend.Olean.entryStmt c' := by
+  rw [frontend.olean.spec.c_entry_stmt] at h
+  peel h as n, hn
+  peel h as v, hv
+  peel h as e, he
+  cases Result.ok_injective h
+  obtain ⟨n', l', ty', k'⟩ := c'
+  obtain ⟨rfl, rfl, rfl, -⟩ := hc
+  simp [absStmt, Arena.Frontend.Olean.entryStmt, nidx_dup2_ok hn, eidx_dup2_ok he,
+    nidx_vec_dup_val hv]
+
 end ConRon.Refine2.Frontend.Olean
