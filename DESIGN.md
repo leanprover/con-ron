@@ -71716,3 +71716,149 @@ capstone included) and `lake build ConRon.Bridge ConRon.Refine2`: green, no proo
 `scripts/dead-census-gate.sh`, with `ConRon.Arena.OleanCompareExe` as a new executable root so that the
 twin reader is reachable: OK.  `con-ron-lean` on diff-e2e: 640/640, command-line gate 10/10, display gate
 6/9, the three #139 recorded.  `scripts/gates.sh` as a whole was not run.
+
+### Task #143 — con-leche sync 7cb7a45c → 701d72ae: the install phase goes (2026-11-06, Opus)
+
+Upstream tasks absorbed: #480 (the install reads the declaration group and nothing else; no
+install phase: parse, then check), #481 (a theorem's value stays in the `.olean` until its check),
+#484 (`--progress[=N|P%|Ss]` and the `read:` lines), and the short `--help`.  Maintainer: "the install
+phase essentially vanishes, so we have code to remove"; standing rule, "we don't want to diverge from
+con-leche without a very good reason", data-type and signature changes mirrored as upstream has them.
+This was the Rust and twin lane; Theorem 1, Theorem 2 and the capstone are the lanes that follow.
+
+**What was ported.**  Every one of the 962 markers the classifier left (395 changed + 173 deleted
+Rust core, 53 + 15 unverified Rust, 180 + 89 twin, 13 moved by name) is reconciled; none is left, and
+`coverage` has no new uncovered declaration without a skip line.
+
+* **The types** (`Kernel/Env.lean`, `FEnv.lean`): `RecRule` is the record's `(ctor, nfields, fire,
+  rhs)`, `RecRuleFire` gains `.levels` (the quotient eliminators' rule), `IndCaps` loses `ruleK`/`sortZ`
+  and gains `nIdx`, `ProjTable`/`ProjEntry` lose the guards and sorts, `recInfo` carries the record's
+  `isK`, `Declaration.basisDecl` is gone.  The environment is upstream's: a job's `IFEnv` is an empty
+  layer over the frozen stream index (`FBase`), its own entries always visible (no counter, no
+  `visibleBelow`, no `restrictTo`), the base gated by `below`/`belowRec`, and an empty layer is not
+  hashed into (`FEnv.lookup`).  Every reader lost its `vis` parameter, crate- and twin-wide.
+* **What a declaration installs** is `arena::install` (`Kernel/Install.lean`): `decl_constants`,
+  `decl_tables`, `block_constants`, `rec_fire`, `expr_drop_vars`, …, read off the record with no
+  inference and no reduction; a pinned block or quotient record as the pin at the record's names
+  (`basis_name_hit`, `basis_kind_at_block`, `quot_at`, `pin_list_ok`, `block_links_ok`).
+* **Derived data at use** (`core.rs`/`Core.lean`): `former_sort_loop`, `former_never_zero_at`,
+  `iota_case3_at`, `eta_rescue_ok`, `proj_guard_rows`, `check_proj_guard`, `check_guard_rows`
+  (`Level.zeroWhereZero`), `nat_lit_stored`/`str_lit_stored`, `lit_shape_ok` at the declaration; K
+  read off the record and checked against `rec_k_expected` (`stream_k_check`); def-headed formers at
+  their stored type, reduced once in the block's check (`reduce_member(s)`, `reduced_former`,
+  `family_telescope`, `family_key_check`).  `BlockParts` → `BlockShape`, `StoredRecs` → `StreamRecs`.
+  `openPisAtFvars*`, the loose-bvar walk and `structUsedLater` moved to `core.rs` as upstream moved them
+  to CoreDefs (they are what broke the twin's import cycle).
+* **The driver** (`arena::stream_index`, `StreamIndex.lean`): after the parse and `prepare`,
+  `build_index` reads every record once (on the driver's store, no scratch tier open, so the index
+  holds persistent handles only), `freeze_tier` moves it into the `PersTier`, and every record's check
+  is a job, `record_job` = `enter_record`; the `And` pin and `check_decl` at
+  `stream_index_view(k)`; `leave_record`.  `checker::run_job` tags the error with the position.  The
+  first failure in fold order is the verdict, with no phase in front: a failing guard no longer
+  overtakes an earlier failing value.  `check_decl`'s arms now check everything their kind asks (the
+  theorem arm is `checkThmValCI`; axioms and pinned operations are just arms).
+* **#481**: `frontend/olean/lazy.rs` (`loadAt`, `valueRef`, `usesGo`, `frontierWalk`, …), the frontier
+  decoder in `sparse.rs`, `records::read_value` with a per-worker `ValueCache`; an `--olean` run's
+  theorem record holds `.thmDecl cv (.bvar code)` and `driver::olean_job` reads the value inside the
+  job's bracket, then calls `stream_index::record_check` (the verified job without its bracket).
+* **#484**: `frontend/pace.rs` (`Pace`, `on`, `trace`, the counting arms of `due`; the clock arm is
+  the driver's), the `read:` lines with time and VmRSS in `olean_fs.rs`, and the check phase's lines
+  as upstream's (`checking: N declarations on W workers`, `check n (p%)[ decl]`, `check done`, `done:
+  parse …, check …`).  `--progress` parses as `progressPace`.
+* **The CLI**: con-leche's synopsis, help text and `Try 'con-ron --help'` after a usage error; no
+  arguments prints the two forms.  The twin's `Main.lean` likewise, with con-leche's own `Pace`.
+* **The pool**: `CheckerIO.parMapWorkersIO`'s contract is what `pool::parallel_all` already did (one
+  claim per job off one counter, a failure lowering the shared limit, results merged by index, the
+  first failure in list order); the citations follow it.  Two deviations, both outside an accepting
+  run: `init` takes no worker index, and a panicking worker is `Panicked` where con-leche's IO error
+  restarts the worker at `init`.
+
+**What was deleted, all the way down.**  Phase A (`install_fold(_hooked)`, `install_step*`,
+`install_block_step`, `install_decl_step`, `install_prefix`, `phase_a_failure`, `phase_a_own_job`,
+`block_failure`, `block_check`, `pushes_agree`, `job_order`, `check_pending`, `PendingCheck`,
+`BlockCheck`, `InstallHook`, `fold_start`, `check_layer`), `arena/promote.rs` and the persistent-intern
+family under it (`intern_persistent_*`, `PersTier::intern_*`, the stores' `thaw`, `EStore::of_tier`),
+`inductives/stored_install.rs` with the `beqP` family, `checker_split.rs`, `kernel/basis_tables.rs`
+and `basis_pins.rs` (BasisA/BasisGen), `enter_scratch`/`drop_scratch`, the parser's `k` check; in the
+twin `Promote.lean`, `PromoteExt.lean`, `PersistentRun.lean`, `StoredInstall.lean`, `CheckerSplit.lean`,
+`BlockParts.lean`, `StoredRecs.lean`, `installThenCheck`, `phaseAFailure`, the `internPersistent*`
+definitions and the 51 `WFProofs` theorems about them.  Lines (from `5d3fdf89`): Rust +8 509 / −11 960,
+twin +2 912 / −4 985, generated +56 067 / −45 877.
+
+**The restore goes** (coordinator's ruling).  `scratchRun`, `scratch_save`/`scratch_restore`,
+`EStore.persSizes`'s test and the stored install's scratch-flag tests existed only because phase A ran
+checker walks after an unchecked stored block.  With no phase A nothing runs before a job but the
+parse, the pin walk and the index build, none of which checks anything, so they are deleted, Rust and
+twin, and no run was found that still needs them.  A job starts from the worker's state with an empty
+scratch tier and fresh memos (`enter_record`) and leaves it with the scratch tier empty and the caches
+flushed (`leave_record`); the twin's `recordJob` is `enterScratch` … `dropScratch`.
+
+**Deviations, each with its reason** (beyond the port's standing ones):
+* The stream index stores every record's constants in counter order (a constant's slot is its counter)
+  and indexes a name's first entry; upstream's `FBase.idx` maps a name to `(counter, constant)`.  Same
+  answers.  `build_index` is fallible (it interns) and tags a store failure with the record's position.
+* `check_block` pushes the block's recursors and tables onto the constructors' environment the tail
+  hands back rather than `blockConstants` onto the original `fe`: equal, since that environment holds
+  exactly the declared formers and constructors, and the arena has no `IFEnv` copy.  `FEnv.overlay`
+  stays the port's `ifenv_push_temp`/`ifenv_pop_temp`.
+* `const_named` returns a copy: Aeneas could not translate a borrow handed out of the recursion.
+* `proj_guard_rows` follows the cached twin's shape (`const_ty_at` and the one-pass
+  `open_pis_at_fvars_f`).  A rule's λ-domains are checked at `feR` "mentioning none of the pushed
+  recursors", equivalent to upstream's `feT` because a generated name is never already in `fe`.
+* The certified-operation-name reject carries the name, as upstream's message does (upstream's olean
+  gate greps for it); the port's other messages keep dropping names.
+* The twin's `--olean` pipeline reads every theorem's value up front (`readOleansFull`, upstream's own
+  eager read); the binary reads each in its job.  The twin imports upstream's byte-level walks
+  (`usesGo`, `frontierWalk`) where the Rust ports them with fuel.
+* The heartbeat's ` busy=…, oldest …` suffix and the `stats:` lines stay unported, as before; the parse
+  line keeps the store's node counts.
+
+**Verdicts.**  `diff-e2e --timeout=60`: 682/682 at `--jobs=1` and at `--jobs=4`, display gate 9/9,
+command-line gate 10/10.  Master's binary at the new pin differed on 10 (natop_typepin_foreign,
+rec_record_k_on_nested_bad, defer_value_reject_then_axiom, ind_defhead_lit_family,
+basis_eq_rec_swapped_names_bad, basis_eq_refl_other_name_bad, natop_foreign_thm, natop_foreign_former,
+ind_lit_shape_char, ind_defhead_lit_char); all agree now.  `con-ron-lean` via `--bin`: 682/682,
+command line 10/10, display 6/9 (the three of task #139).  `diff-olean.sh`: 122/122 (upstream's new
+cases picked up; its header and `--upstream` normalisation follow).  `diff-olean.sh --lean` (the twin): 116/122; the six
+it misses are #484's `--progress` `read:` lines, which the twin does not print: its reader is pure,
+and a `Unit`-valued note call in it is erased by the compiler (tried with con-leche's own `ReadNotes`
+behind the file seam: no line came out).  Threading an effect through the twin's reader is not worth
+it for a log line; recorded as a deviation.
+
+**Measured** (one run each, `perf stat -e instructions:u`, `--verified`, peak RSS from `time -v`,
+`ulimit -v 27000000`, master `ce200a4a`'s binary against this branch's final Rust, every run accepting):
+
+| run | master | this branch |
+|---|---:|---:|
+| `Init`, 1 worker (`bump-con-leche.sh measure`) | 191 471 077 410 | 188 473 415 384 (**−1.57 %**) |
+| `Init`, peak RSS | 509 MB | 505 MB |
+| Mathlib `--olean`, 8 workers | 3 515 711 543 721 | 3 746 166 851 625 (**+6.56 %**) |
+| Mathlib `--olean`, peak RSS | 6.78 GiB | **3.79 GiB** (−44 %) |
+| Mathlib `.ndjson`, 1 worker | 3 435 452 937 330 | 3 394 677 787 345 (**−1.19 %**) |
+| Mathlib `.ndjson`, peak RSS | 6.52 GiB | 6.46 GiB |
+
+The `--olean` instruction rise is #481's: each theorem's value is decoded in its job, past the frontier
+the load kept, where master decoded everything once (upstream measured +5.7 % for #481 alone, then
+−1.91 % with the install gone; the port had no install pool to lose).  The resident set is what #481 is
+for.  Wall times (one run each, the machine shared, indicative only): `--olean` 101 s → 75 s, `.ndjson`
+393 s → 430 s.
+
+**For the theorem lanes.**  The capstone's pipeline after `h5` is now: the index
+(`stream_index::build_index pers st5 stream_index_empty() ds 0 = ok ix`), the boundary
+(`checker::freeze_tier st.store ix`), and the pool (`ParallelAll ds.len (worker_state pins)
+(fun w k => checker::run_job tier w mode pins ds k)`), then `thaw_tier`.  This replaces `h6`
+(`install_fold_hooked`), `hord` (`job_order`) and `hlayer` (`check_layer`); `h7` keeps `freeze_tier`
+with the index as its second argument, `h8` keeps `ParallelAll` over `run_job`'s new signature.  A
+worker's jobs: `parallel_all` claims one index at a time off one monotone counter, so each worker's
+claims are increasing (the pool's test asserts it); the stated contract (`ParallelAll`) still promises
+only coverage, and would have to be strengthened if Theorem 1's induction wants the order.  No restore:
+each job starts from the worker's state with the scratch tier emptied and fresh memos, caches flushed by
+the previous job's close.  The twin's statement shapes: `Arena/Checker.lean`'s `checkStream`
+(`buildIndex`, then `checkJobList` over `List.range ds.size` from `s₁.worker`), `runJob mode pins I ds t`,
+`Arena/Pooled.lean`'s `PooledAccepts` (index built, job lists covering the positions, each accepted from
+the worker), and `CheckDecl.lean`'s spec fold `checkDeclsPure`, whose step is now upstream's `declStep`
+(the `And` pin, fresh memos, `checkDecl` with the scratch tier off, no promotion).  The helpers' lists of
+deleted, new and changed twin signatures are in this task's report; the notable ones: `checkConstantVal
+… (allowOp)`, `blockCapsAt` pure, `checkBlock` over `BlockShape` ending in `pushDelta`, `majorToCtor`/
+`prepareMajor` take `isK`, the value checks return the record unpushed, `checkDivModPin`/`checkReducePin`
+take `ci` and return the environment, `prepareD`/the hoist take `used`, `readOleans` returns `OleanRead`.

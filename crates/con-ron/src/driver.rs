@@ -3,7 +3,7 @@
 //! `proof/ConRon/Arena/Main.lean`.
 //!
 //! The module is that driver in its order: the reads,
-//! the two phases with the boundary visible, the `--progress` heartbeat behind
+//! the index and the check phase with the boundary visible, the `--progress` heartbeat behind
 //! one observer trait, the verdict lines, the exit-code mapping, and the flag
 //! parsers.  Task #97-SWAP put it here, under the name the shipping driver
 //! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
@@ -26,27 +26,25 @@
 //!
 //! 1. **The state is one `AState`** (`con_ron_core::arena::monad::AState`: the
 //!    store, the per-call memos, the per-declaration caches), threaded as a
-//!    `&mut` through the parse, the preparation, the pin walk and both phases.
+//!    `&mut` through the parse, the preparation, the pin walk and the index.
 //!    The `Expr`-tree driver threaded a `CState` and the declarations carried
 //!    their own terms; here the terms are in the state and the records are
 //!    handles into it, so nothing may be run against a state that is not the
 //!    one they were interned into.
-//! 2. **`intern_all_pins` runs once, before the fold, with the scratch tier
+//! 2. **`intern_all_pins` runs once, before the index, with the scratch tier
 //!    off** (DESIGN.md §8.6 P2d, task #97-P4d's "for P4f"): every pinned datum
 //!    is in the PERSISTENT cons table before any declaration's check can
 //!    intern one into a tier that is about to vanish.  Its result — the
-//!    interned pin list — is the fold's parameter.
-//! 3. **Phase B's bracket is `run_job`'s** (`check_pending`'s and
-//!    `block_check`'s), which empties the scratch tier around each job.  A
-//!    driver that checked records itself without it would grow the scratch tier
-//!    without bound; the pool calls it once per job and nothing else opens a
-//!    tier.
-//! 4. **Phase B runs on [`crate::pool`] at every `--jobs=<n>`**, which is
-//!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
-//!    and the installed index are immutable in phase B, so they are shared by
+//!    interned pin list — is every job's parameter.
+//! 3. **A job's bracket is `record_job`'s**, which empties the scratch tier
+//!    around each job.  A driver that checked records itself without it would
+//!    grow the scratch tier without bound; the pool calls it once per job and
+//!    nothing else opens a tier.
+//! 4. **The check phase runs on [`crate::pool`] at every `--jobs=<n>`**, which
+//!    is DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
+//!    and the stream's index are immutable once frozen, so they are shared by
 //!    reference, and each worker owns a scratch tier, its own caches and a copy
-//!    of the pin handles.  `--jobs=1` is the same install and the same jobs on
-//!    one worker.
+//!    of the pin handles.  `--jobs=1` is the same jobs on one worker.
 //!
 //! ## The read loop
 //!

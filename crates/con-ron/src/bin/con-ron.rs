@@ -340,7 +340,7 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // THE RESERVED-NAME PINS, interned once into that persistent tier before
     // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
     // tier is closed here, so every pinned handle is persistent and survives
-    // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+    // every job's bracket.  Until this has run, every `pin_*`
     // read raises `Internal` rather than answering — which is what makes the
     // initialisation-order hazard task #97c named impossible rather than
     // unlikely.

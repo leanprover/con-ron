@@ -348,7 +348,9 @@ the chunks' fold, the tail.  The roots and constants are interned first.
 Deviation: the twin reads every theorem's value up front (`readOleansFull`,
 upstream's own eager read), where the binary reads each in its job
 (`driver::olean_job`, con-leche's `oleanJobRun`); upstream's `buildIndex_fill`
-says the index is the same at any values. -/
+says the index is the same at any values.  Nor does the twin print the read's
+`read:` lines: its reader is pure, and the file seam's two note fields are no-ops
+here (a `Unit`-valued call a pure reader discards is erased by the compiler). -/
 def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
     (mode : CheckMode) (pins : List NatOpPinSet) : AM (Except CheckError Nat) := do
   match ← runPipelineHead with

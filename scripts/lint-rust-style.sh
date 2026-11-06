@@ -73,7 +73,7 @@ check_str_consts
 # four tag bits so that no `std` smart pointer can express it.  Task #97-SWAP
 # then measured what it was still FOR -- the arena checker holds no `Expr`, so
 # the only `Expr` values a run builds are the PINNED DATA
-# (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,trust_pins,
+# (`kernel::{basis_raw,std_axioms,trust_axioms,trust_pins,
 # pins_decode}`), walked once at startup by `arena::intern` -- and task
 # #97-SWAP-2 put those few thousand nodes back on `ron::ptr::P` =
 # `std::sync::Arc` and deleted `ron/{tagged,node}.rs`.  So this check asserts

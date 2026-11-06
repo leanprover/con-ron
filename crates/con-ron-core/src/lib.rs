@@ -48,8 +48,6 @@
 //! | `basis_names` | `ConLeche/Kernel/Basis/Names.lean` |
 //! | `basis_builder` | `ConLeche/Kernel/Basis/Builder.lean` (the raw-pin DSL) |
 //! | `basis_raw` | `ConLeche/Kernel/Basis.lean`'s `BasisKind.decls` |
-//! | `basis_tables` | `ConLeche/Kernel/BasisA.lean`'s `BasisKind.declsA` — **generated** from con-leche's own value (task #22) |
-//! | `basis_pins` | `ConLeche/Kernel/BasisA.lean`'s two exactly-compared pins (`eqA`, `natA`), read off `basis_tables` (task #27) |
 //! | `std_axioms` | `ConLeche/Kernel/StdAxioms.lean` |
 //! | `trust_pins` | `ConLeche/Kernel/TrustPins.lean` |
 //! | `trust_axioms` | `ConLeche/Kernel/TrustAxioms.lean` |
@@ -58,7 +56,7 @@
 //!
 //! **Why `Expr` survives the arena rewrite.**  Three families of con-leche
 //! declaration are pure `Expr` / `ConstantInfo` *values* written out by hand or
-//! spliced by an elaborator: the basis blocks (`BasisKind.decls` / `declsA`),
+//! spliced by an elaborator: the basis blocks (`BasisKind.decls`),
 //! the standard- and compiler-trust axiom pins, and the `Nat`-operation pin
 //! variants.  DESIGN.md §8.7's ruling is that the port IMPORTS con-leche's
 //! representation-free data rather than copying it, and the Rust's import of
