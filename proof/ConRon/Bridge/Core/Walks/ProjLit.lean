@@ -4,7 +4,7 @@
 `projLitToCtor` is the `.proj` clause's second step: a string-literal
 scrutinee expands to its constructor form (`Walks/StrCtor.lean`) and is
 head-normalised before the projection table is consulted, when the stored
-declarations support it (`strLitSupported`, `Walks/StrLit.lean`).
+declarations support it (`strLitStored`, `Walks/StrLit.lean`).
 
 The proof is `sym only [bridge_grind] => vcgen […] <;> finish`: the answer
 is a named predicate (`ProjLitAns`) with one `grind` lemma per exit
@@ -38,8 +38,7 @@ variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 The projection table's entries as `grind` reads them: a lookup's answer as
 ONE named predicate (`ProjAns`), a denoting entry's fields as equations
 (`EntryFields`), a found entry as `some` of its projection (`projOf_eta`),
-and the lookup and a callee in that shape (`projAnsAt`,
-`IProjEntry.fireOk_specA`). -/
+and the lookup in that shape (`projAnsAt`). -/
 
 /-- con-leche: none — the index's projection-table answer against the
 environment's: a found entry denotes the environment's (which is found), a
@@ -74,7 +73,7 @@ theorem entryFields (st : EStore) (en : IProjEntry) :
   cases h : denoteProjEntry st en with
   | none => trivial
   | some p =>
-    obtain ⟨_, hl, hc, _, _, _, _, hnp, hnf⟩ := denoteProjEntry_inv h
+    obtain ⟨_, hl, hc, _, _, hnp, hnf⟩ := denoteProjEntry_inv h
     exact ⟨hc, hl, hnp, hnf⟩
 grind_pattern [bridge_grind] entryFields => denoteProjEntry st en
 
@@ -104,27 +103,10 @@ grind_pattern [bridge_grind] projAnsAt =>
   CheckOK eager env fe s, fe.findProj? T i, env.findProj? Tn i where
   guard denoteN s.store.ns T = some Tn
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
-`IProjEntry.fireOk_spec` at a denoting entry and level list, its answer over
-their denotations (`projOf`, `Option.getD`): no record or list variable for
-`grind` to bind. -/
-theorem IProjEntry.fireOk_specA (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
-    (hok : CheckOK eager env fe s₀)
-    (hden : (denoteProjEntry s₀.store entry).isSome = true)
-    (hus : (denoteLs s₀.store.lss us).isSome = true) :
-    ⦃fun s => s = s₀⦄ entry.fireOk us
-    ⦃fun b s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧
-        b = (projOf (denoteProjEntry s₀.store entry)).fireOk
-          ((denoteLs s₀.store.lss us).getD []); ⊤⦄ := by
-  obtain ⟨ls, hls⟩ := Option.isSome_iff_exists.mp hus
-  rw [hls]
-  exact IProjEntry.fireOk_spec s₀ entry us _ ls hok (projOf_eta hden) hls
-
 /-- con-leche: ConLeche/Kernel/Core.lean:680-685 projLitToCtor — does the
 expansion fire: a string literal, and the stored declarations support it. -/
 def projLitFires (env : Env) (x : Expr) : Bool :=
-  exprTag x == ETag.lit && (litStr? (exprLit x)).isSome && ConLeche.strLitSupported env
+  exprTag x == ETag.lit && (litStr? (exprLit x)).isSome && ConLeche.strLitStored env
 attribute [bridge_grind =] projLitFires
 
 /-- con-leche: ConLeche/Kernel/Core.lean:680-685 projLitToCtor — **the
@@ -155,7 +137,7 @@ pass-through exit: the subject is its own answer. -/
 expansion exit: the `whnf` slot's answer at the constructor form. -/
 theorem ProjLitAns.whnf {d : Nat} {x : Expr} {st : EStore} {r : EIdx} {str : String}
     (ht : exprTag x = ETag.lit) (hs : litStr? (exprLit x) = some str)
-    (hsup : ConLeche.strLitSupported env = true)
+    (hsup : ConLeche.strLitStored env = true)
     (hr : SimE (ConLeche.whnf mode eager env) d (ConLeche.strLitToConstructor str) st r) :
     ProjLitAns mode eager env d x st r := by
   obtain ⟨w, hw, hww, F, hF⟩ := hr
@@ -184,7 +166,7 @@ theorem projLitToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
       | .lit l =>
         match litStr? l with
         | some s => do
-          if ← ConRon.Arena.strLitSupported fe then do
+          if ← ConRon.Arena.strLitStored fe then do
             let c ← ConRon.Arena.strLitToConstructor s
             r.whnf d c
           else pure h
@@ -212,7 +194,7 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ProjLitAns .verified eager env d x s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [projLitToCtor_split, strLitSupported_spec (eager := eager) (env := env) (fe := fe),
+    vcgen [projLitToCtor_split, strLitStored_spec (eager := eager) (env := env) (fe := fe),
       strLitToConstructor_spec (eager := eager) (env := env) (fe := fe),
       KnotSpec.whnfS hsim] <;> finish
 
