@@ -550,6 +550,11 @@ theorem memberNames_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.B
     | some cv =>
     rw [hcv] at hx
     simp only [Option.bind_some] at hx
+    cases hdv : Frontend.denoteCV st x.declared with
+    | none => rw [hdv] at hx; simp at hx
+    | some dv =>
+    rw [hdv] at hx
+    simp only [Option.bind_some] at hx
     cases hcs : dCtors st x.ctors with
     | none => rw [hcs] at hx; simp at hx
     | some cs =>
