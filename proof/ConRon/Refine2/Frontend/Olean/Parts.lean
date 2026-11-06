@@ -669,7 +669,7 @@ theorem region_of_parts3_eq {a b c : frontend.olean.region.Part} {o} (ha : PartF
       refine ⟨?_, ?_⟩
       · simp only [emptyCap_append, emptyCap_size, absPart, absBytes_size', absRegion, es, List.map_cons,
           List.map_nil, seg_abs, hl0, hl1, hl2, hla, hlb, hlc, List.cons_append, List.nil_append,
-          List.append_nil, ByteArray.size_append, Nat.zero_add]
+          ByteArray.size_append]
         congr 2
         rw [← join_bytes (x := bytes1) (a := a.bytes) (b := b.bytes) vb1]
         exact (join_bytes (x := bytes2) (a := bytes1) (b := c.bytes) vb2).symm
@@ -678,7 +678,7 @@ theorem region_of_parts3_eq {a b c : frontend.olean.region.Part} {o} (ha : PartF
         have hxl : bytes2.val.length = a.bytes.val.length + b.bytes.val.length + c.bytes.val.length := by
           rw [vb2, vb1]; simp; omega
         simp only [deref_val, hxl]
-        simp only [List.cons_append, List.nil_append, List.append_nil, List.mem_cons, List.not_mem_nil, or_false] at hm
+        simp only [List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hm
         rcases hm with rfl | rfl | rfl
         · show (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len (alloc.vec.Vec.with_capacity Std.U8 i4))).val + (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len a.bytes)).val ≤ _ ∧ (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len (alloc.vec.Vec.with_capacity Std.U8 i4))).val + (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len a.bytes)).val < _
           omega
@@ -695,9 +695,7 @@ theorem region_of_parts3_eq {a b c : frontend.olean.region.Part} {o} (ha : PartF
       cases Result.ok_injective hce
       exact ⟨rfl, _, rfl⟩
   · rw [ite_eq_right ho] at h
-    have : (decide ((absPart a).base.toNat + (absPart a).bytes.size ≤ (absPart b).base.toNat)) = false := by
-      rw [← eo]; simpa using ho
-    rw [ite_eq_right (by simp [← eo, ho])]
+    rw [ite_eq_right (by simp [ho])]
     peel h as s, -
     peel h as v, -
     peel h as ce, hce
