@@ -563,6 +563,283 @@ theorem lazy_entry_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.r
     simp only [lazy_entry, ConRon.Arena.Frontend.Olean.lazyEntry]
     exact hmap st lst
 
+/-! ## What a constant mentions, as names -/
+
+/-- **The memo's `rd_name` is `nameOf`**: the store untouched, `Ok` its `some`. -/
+theorem ds_rd_name_eq {pk : frontend.olean.spec.OleanPins} {pers} {bs : Slice Std.U8}
+    {r : frontend.olean.region.Region} {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r)
+    (hd : DSRel d t) {ar : arena.store.EStore} {v : Std.U64} {o ar'}
+    (h : frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name d pk pers ar bs r v =
+      ok (o, ar')) :
+    ar' = ar ∧ (match o with | .Ok n => some (absNIdx n) | .Err _ => none) =
+      ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t (absWord v) := by
+  rw [frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name] at h
+  simp only [ConRon.Arena.Frontend.Olean.DS.nameOf]
+  by_cases hv : v = 1#u64
+  · rw [ite_eq_left hv] at h
+    rw [ite_eq_left (word_eq_one.mpr hv)]
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨rfl, rfl⟩
+  · rw [ite_eq_right hv] at h
+    rw [ite_eq_right (fun he => hv (word_eq_one.mp he))]
+    peel h as o1, ho
+    rw [← region_loc_eq bs ho]
+    cases o1 with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+      exact ⟨rfl, rfl⟩
+    | some c =>
+      simp only [lift, bind_ok] at h
+      peel h as i, hi
+      peel h as x, hx
+      peel h as n, hn
+      cases Result.ok_injective hn
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+      refine ⟨rfl, ?_⟩
+      simp only [locOf, Option.map_some]
+      rw [memo_word hd.names (region_loc_fits hr ho) hi hx]
+
+/-- What a constant's mentions read so far, as the twin's: the set seen and the names. -/
+def UsesRel (q : ron.hashmap2.HashMap2 arena.handle.NIdx Bool × alloc.vec.Vec arena.handle.NIdx)
+    (x : _root_.Std.HashSet NIdx × Array NIdx) : Prop :=
+  SetRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx q.1 x.1 ∧
+    q.2.val.map absNIdx = x.2.toList
+
+/-- `add_use` is `addUse`. -/
+theorem add_use_rel {seen acc x} (hx : UsesRel (seen, acc) x) {n : arena.handle.NIdx} {q}
+    (h : add_use seen acc n = ok q) :
+    UsesRel q (ConRon.Arena.Frontend.Olean.addUse x (absNIdx n)) := by
+  rw [add_use] at h
+  peel h as b, hb
+  have eb := SetRel.contains_key nidx_eq2 hx.1 hb
+  simp only [ConRon.Arena.Frontend.Olean.addUse]
+  cases b with
+  | true =>
+    cases Result.ok_injective h
+    rw [ite_eq_left eb.symm]
+    exact hx
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at h
+    rw [ite_eq_right (by rw [← eb]; simp)]
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    obtain ⟨⟨old, seen1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    peel h as acc1, hacc
+    cases Result.ok_injective h
+    refine ⟨SetRel.insert nidx_eq2 (fun a b e => absNIdx_inj e) hx.1 hins, ?_⟩
+    show acc1.val.map absNIdx = _
+    rw [ConRon.Refine.vec_push_val hacc, List.map_append, hx.2]
+    simp
+
+/-- The twin's step of `usesRead`. -/
+def usesStep (pk : ConRon.Arena.Frontend.Olean.OleanPins) (nm : UInt64 → Option NIdx)
+    (x : _root_.Std.HashSet NIdx × Array NIdx) (v : UInt64) : _root_.Std.HashSet NIdx × Array NIdx :=
+  if v == ConLeche.Frontend.Olean.usesNat then ConRon.Arena.Frontend.Olean.addUse x pk.nNat
+  else if v == ConLeche.Frontend.Olean.usesStr then
+    ConRon.Arena.Frontend.Olean.addUse (ConRon.Arena.Frontend.Olean.addUse x pk.nCharOfNat) pk.nStringOfList
+  else match nm v with
+    | some n => ConRon.Arena.Frontend.Olean.addUse x n
+    | none => x
+
+theorem word_uses_nat (y : Std.U64) :
+    (absWord y == ConLeche.Frontend.Olean.usesNat) = decide (y = frontend.olean.lazy.USES_NAT) := by
+  rw [show ConLeche.Frontend.Olean.usesNat = absWord frontend.olean.lazy.USES_NAT by
+    unfold frontend.olean.lazy.USES_NAT; rfl]
+  rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, absWord_eq_iff]
+
+theorem word_uses_str (y : Std.U64) :
+    (absWord y == ConLeche.Frontend.Olean.usesStr) = decide (y = frontend.olean.lazy.USES_STR) := by
+  rw [show ConLeche.Frontend.Olean.usesStr = absWord frontend.olean.lazy.USES_STR by
+    unfold frontend.olean.lazy.USES_STR; rfl]
+  rw [Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_eq, absWord_eq_iff]
+
+/-- **`uses_read`'s loop is `usesRead`'s fold**, the store untouched. -/
+theorem uses_read_loop_eq {pk pers} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t)
+    {out : alloc.vec.Vec Std.U64} :
+    ∀ (k : Nat) (i : Std.Usize) (ar : arena.store.EStore) (seen) (acc) (x) {acc' ar'},
+      out.val.length - i.val = k → UsesRel (seen, acc) x →
+      uses_read_loop pk pers ar bs r d out seen acc i = ok (acc', ar') →
+      ar' = ar ∧ acc'.val.map absNIdx = (((out.val.drop i.val).map absWord).foldl
+        (usesStep (absPins pk) (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t)) x).2.toList := by
+  intro k
+  induction k with
+  | zero =>
+    intro i ar seen acc x acc' ar' hk hx h
+    rw [uses_read_loop] at h
+    have hi : ¬ i < alloc.vec.Vec.len out := by
+      have : ¬ i.val < out.val.length := by omega
+      exact this
+    rw [ite_eq_right hi] at h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    rw [List.drop_of_length_le (by omega)]
+    exact ⟨rfl, hx.2⟩
+  | succ k ih =>
+    intro i ar seen acc x acc' ar' hk hx h
+    rw [uses_read_loop] at h
+    have hlt : i.val < out.val.length := by omega
+    have hi : i < alloc.vec.Vec.len out := hlt
+    rw [ite_eq_left hi] at h
+    peel h as v, hv
+    obtain ⟨_hl, rfl⟩ := vec_index_eq hv
+    rw [List.drop_eq_getElem_cons hlt, List.map_cons, List.foldl_cons]
+    obtain ⟨⟨pk1, ar1, seen1, acc1⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    peel h as i2, hi2
+    have ei := ConRon.Refine.HashMap.uscalar_add_eq hi2
+    have e2 : i2.val = i.val + 1 := by rw [ei]; rfl
+    have step : pk1 = pk ∧ ar1 = ar ∧ UsesRel (seen1, acc1)
+        (usesStep (absPins pk) (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t) x
+          (absWord out.val[i.val])) := by
+      simp only [usesStep, word_uses_nat, word_uses_str]
+      by_cases h0 : out.val[i.val] = frontend.olean.lazy.USES_NAT
+      · rw [ite_eq_left h0] at hq
+        simp only [decide_eq_true h0, ↓reduceIte]
+        obtain ⟨⟨s2, a2⟩, hu, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+        cases Result.ok_injective hq
+        exact ⟨rfl, rfl, add_use_rel hx hu⟩
+      · rw [ite_eq_right h0] at hq
+        simp only [decide_eq_false h0, Bool.false_eq_true, ↓reduceIte]
+        by_cases h2 : out.val[i.val] = frontend.olean.lazy.USES_STR
+        · rw [ite_eq_left h2] at hq
+          simp only [decide_eq_true h2, ↓reduceIte]
+          obtain ⟨⟨s2, a2⟩, hu, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+          obtain ⟨⟨s3, a3⟩, hu3, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+          cases Result.ok_injective hq
+          exact ⟨rfl, rfl, add_use_rel (add_use_rel hx hu) hu3⟩
+        · rw [ite_eq_right h2] at hq
+          simp only [decide_eq_false h2, Bool.false_eq_true, ↓reduceIte]
+          obtain ⟨⟨r1, ar2⟩, hn, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+          obtain ⟨rfl, en⟩ := ds_rd_name_eq hr hd hn
+          rw [← en]
+          cases r1 with
+          | Ok n =>
+            obtain ⟨⟨s2, a2⟩, hu, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+            cases Result.ok_injective hq
+            exact ⟨rfl, rfl, add_use_rel hx hu⟩
+          | Err e =>
+            obtain ⟨⟨s2, a2⟩, hu, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+            cases Result.ok_injective hu
+            cases Result.ok_injective hq
+            exact ⟨rfl, rfl, hx⟩
+    obtain ⟨ep, ea, hx1⟩ := step
+    rw [ep, ea] at h
+    rw [← e2]
+    exact ih i2 _ seen1 acc1 _ (by rw [e2]; omega) hx1 h
+
+/-- **`uses_read` is `usesRead`**, the store untouched. -/
+theorem uses_read_eq {pk pers} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t)
+    {out : alloc.vec.Vec Std.U64} {out' : Array UInt64} (ho : OutRel out out') {ar acc' ar'}
+    (h : uses_read pk pers ar bs r d out = ok (acc', ar')) :
+    ar' = ar ∧ acc'.val.map absNIdx = (ConRon.Arena.Frontend.Olean.usesRead (absPins pk)
+      (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t) out').toList := by
+  rw [uses_read] at h
+  peel h as seen, hseen
+  have hs : UsesRel (seen, alloc.vec.Vec.new arena.handle.NIdx)
+      ((_root_.Std.HashSet.emptyWithCapacity 64 : _root_.Std.HashSet NIdx), #[]) :=
+    ⟨SetRel.with_capacity hseen, by simp⟩
+  obtain ⟨rfl, e⟩ := uses_read_loop_eq hr hd _ 0#usize ar seen _ _ rfl hs h
+  refine ⟨rfl, ?_⟩
+  rw [e, ConRon.Arena.Frontend.Olean.usesRead, ← Array.foldl_toList, ← (ho : out.val.map absWord = out'.toList)]
+  rfl
+
+/-- Related lists, at a position. -/
+theorem forall₂_getElem {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') {i : Nat} (h1 : i < l.length) (h2 : i < l'.length) : R l[i] l'[i] := by
+  simpa using (List.forall₂_iff_get.mp h).2 i h1 h2
+
+/-- **`lazy_entries`' loop is `lazyEntries`** from constant `k` on. -/
+theorem lazy_entries_loop_ok {pk pers st} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t) {i : Std.U64}
+    {o3 : alloc.vec.Vec (alloc.vec.Vec Std.U64)} {outs : Array (Array UInt64)} (ho : OutsRel o3 outs)
+    {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels) :
+    ∀ (n : Nat) (k : Std.Usize) (ar : arena.store.EStore) (es : alloc.vec.Vec frontend.olean.lazy.CEntry)
+      (lst : AState) {es' s'}, v.val.length - k.val = n →
+      AStateRel₀ pers (withStore st ar) lst → AStateInv pers (withStore st ar) →
+      lazy_entries_loop pk pers ar bs r d i o3 v es k = ok (.Ok es', s') →
+      ∃ L lst', (ConRon.Arena.Frontend.Olean.lazyEntries (absPins pk) (absRegion bs r) t i.val outs k.val
+          (skels.drop k.val)).run lst = .ok (some L, lst') ∧
+        es'.val = es.val ++ es'.val.drop es.val.length ∧ List.Forall₂ CEntryRel (es'.val.drop es.val.length) L ∧
+        AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') := by
+  have hlen := hv.length_eq
+  have hlo : o3.val.length = outs.size := by rw [ho.length_eq]; simp
+  intro n
+  induction n with
+  | zero =>
+    intro k ar es lst es' s' hk hrel hinv h
+    rw [lazy_entries_loop] at h
+    have hi : ¬ k < alloc.vec.Vec.len v := by
+      have : ¬ k.val < v.val.length := by omega
+      exact this
+    rw [ite_eq_right hi] at h
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    refine ⟨[], lst, ?_, by simp, by simp, hrel, hinv⟩
+    rw [List.drop_of_length_le (by omega)]
+    rfl
+  | succ n ih =>
+    intro k ar es lst es' s' hk hrel hinv h
+    rw [lazy_entries_loop] at h
+    have hlt : k.val < v.val.length := by omega
+    have hi : k < alloc.vec.Vec.len v := hlt
+    rw [ite_eq_left hi] at h
+    peel h as cf, hcf
+    obtain ⟨_hl, rfl⟩ := vec_index_eq hcf
+    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | Ok c =>
+    have hlt' : k.val < skels.length := by omega
+    have hEV : EV v.val[k.val] skels[k.val] := forall₂_getElem hv hlt hlt'
+    obtain ⟨c', lst1, hx1, hc, hrel1, hinv1⟩ := (lazy_entry_ok (pk := pk) (i := i) hr hd hEV) hrel hinv _ _ h1
+    obtain ⟨⟨ar2, uses⟩, hq, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    clear h
+    have hu : ar2 = ar1 ∧ uses.val.map absNIdx = (ConRon.Arena.Frontend.Olean.usesRead (absPins pk)
+        (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t) (outs.getD k.val #[])).toList := by
+      by_cases ho2 : k < alloc.vec.Vec.len o3
+      · rw [ite_eq_left ho2] at hq
+        peel hq as w, hw
+        obtain ⟨hwl, rfl⟩ := vec_index_eq hw
+        obtain ⟨⟨u1, ar3⟩, hu1, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hq)
+        have hkl : k.val < outs.size := by rw [← hlo]; exact hwl
+        have hor : OutRel o3.val[k.val] outs[k.val] := by
+          have := forall₂_getElem ho hwl (by simpa using hkl)
+          simpa using this
+        rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hkl, Option.getD_some]
+        exact uses_read_eq hr hd hor hu1
+      · rw [ite_eq_right ho2] at hq
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hq)
+        have hkl : ¬ k.val < outs.size := by rw [← hlo]; exact ho2
+        rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega), Option.getD_none]
+        exact ⟨rfl, by simp [Slice.from_val]; rfl⟩
+    obtain ⟨rfl, hU⟩ := hu
+    peel h2 as es1, hes1
+    peel h2 as k1, hk1
+    have ek : k1.val = k.val + 1 := by rw [ConRon.Refine.HashMap.uscalar_add_eq hk1]; rfl
+    obtain ⟨L, lst', hxL, hpre, hL, hrel2, hinv2⟩ := ih k1 _ es1 lst1 (by omega) hrel1 hinv1 h2
+    have hes1v := ConRon.Refine.vec_push_val hes1
+    refine ⟨{ c := c', uses := (ConRon.Arena.Frontend.Olean.usesRead (absPins pk)
+        (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t) (outs.getD k.val #[])) } :: L,
+      lst', ?_, ?_, ?_, hrel2, hinv2⟩
+    · rw [List.drop_eq_getElem_cons hlt', ConRon.Arena.Frontend.Olean.lazyEntries, am_bind_ok hx1]
+      dsimp only
+      rw [← ek, am_bind_ok hxL]
+      rfl
+    · rw [hes1v] at hpre
+      simp only [List.length_append, List.length_singleton] at hpre
+      rw [hpre]
+      simp
+    · rw [hes1v] at hpre hL
+      simp only [List.length_append, List.length_singleton] at hpre hL
+      have : es'.val.drop es.val.length = { c := c, uses := uses } :: es'.val.drop (es.val.length + 1) := by
+        rw [hpre]; simp
+      rw [this]
+      exact List.Forall₂.cons ⟨hc, hU⟩ hL
+
 /-- **`lazy_entries`' accept is `lazyEntries`'**: each constant read, a theorem's value its
 reference, with what it mentions. -/
 theorem lazy_entries_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
@@ -573,7 +850,13 @@ theorem lazy_entries_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean
     AR pers (fun cs L => List.Forall₂ CEntryRel cs.val L) st lst
       (lazy_entries pk pers st.store bs r d i o3 v)
       (lazyEntries (absPins pk) (absRegion bs r) t i.val outs 0 skels) := by
-  sorry -- T143-STUB
+  intro hrel hinv es' s' h
+  rw [lazy_entries] at h
+  obtain ⟨L, lst', hx, -, hL, hrel1, hinv1⟩ :=
+    lazy_entries_loop_ok hr hd ho hv _ 0#usize st.store _ lst rfl hrel hinv h
+  have e0 : (alloc.vec.Vec.with_capacity frontend.olean.lazy.CEntry (alloc.vec.Vec.len v)).val = [] := rfl
+  rw [e0] at hL
+  exact ⟨L, lst', hx, by simpa using hL, hrel1, hinv1⟩
 
 /-- **`value_roots` is `valueRoots`.** -/
 theorem value_roots_val {bs : Slice Std.U8} {r : frontend.olean.region.Region}
