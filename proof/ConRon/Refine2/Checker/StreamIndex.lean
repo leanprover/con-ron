@@ -61,7 +61,7 @@ theorem StreamIndexRel.baseRel {ix : arena.stream_index.IStreamIndex} {I : IStre
 /-- A tier holding a related index is a well-formed base. -/
 theorem StreamIndexRel.baseOK {pers : arena.store.PersTier} {I : IStreamIndex}
     (h : StreamIndexRel pers.env I) : BaseOK pers :=
-  ⟨h.consts.inv, h.tables.inv⟩
+  ⟨h.consts.inv, h.tables.inv, h.consts.range, h.tables.range⟩
 
 /-! ## The copies -/
 
