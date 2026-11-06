@@ -322,7 +322,20 @@ its binder's domain, the domains instantiated along the spine. -/
         (checkSpineAt (ConRon.Refine.absMode mode) lf (absU d) (absEIdx t)
           (absEIdxLFrom as_ i)) := by
   intro i t st lst hrel hinv
-  sorry -- T143-STUB
+  simp only [absEIdxLFrom]
+  refine ls_cursor_acc as_ absEIdx
+    (fun (w : arena.handle.EIdx) l =>
+      checkSpineAt (ConRon.Refine.absMode mode) lf (absU d) (absEIdx w) l)
+    (fun st k w => arena.inductives.positivity.check_spine_at pers st mode rf d w as_ k)
+    ?_ ?_ i st lst t hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.check_spine_at.eq_def,
+      ite_eq_left (show k ≥ alloc.vec.Vec.len as_ by scalar_tac), checkSpineAt]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    rw [arena.inductives.positivity.check_spine_at.eq_def,
+      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len as_ by scalar_tac), checkSpineAt]
+    lockstep
 
 /-- `family_key_check` ⊑ `familyKeyCheck`: a family at a key, typed. -/
 @[lockstep] theorem family_key_check_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
@@ -965,9 +978,9 @@ theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
     lockstep
     all_goals
       first
-      | (rw [if_neg (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+      | (rw [ite_eq_right (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
          lockstep)
-      | (rw [if_pos (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+      | (rw [ite_eq_left (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
          apply LS.pure _ (by assumption) (by assumption)
          show _ = _
          simp only [absNestFieldKind, Prod.mk.injEq, and_true]
@@ -1133,16 +1146,16 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_container_ls
+/-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_container_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_inst_type_ls
+/-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_inst_type_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_ctors_ls
+/-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_ctors_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_holes_ls
+/-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_holes_ls
 
 end ConRon.Refine2

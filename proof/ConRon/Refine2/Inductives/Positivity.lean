@@ -1783,7 +1783,8 @@ theorem frame_stack_aux {pers st} (us : arena.handle.LsIdx) (ds : alloc.vec.Vec 
     rw [arena.inductives.positivity.frame_stack.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len grp by scalar_tac)]
     lockstep
-    all_goals sorry -- T143-STUB
+    refine LS.pure ?_ ‹_› ‹_›
+    simp_all [absNestHole, absNestKey, absBinderL, absU]
 
 /-- `frame_stack` ⊑ `nestFrame`'s frame holes, onto the accumulator. -/
 @[lockstep] theorem frame_stack_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

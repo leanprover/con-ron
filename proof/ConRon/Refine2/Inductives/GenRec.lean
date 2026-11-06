@@ -1451,16 +1451,16 @@ theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen) :
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_gen_rule_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_gen_rule_ls
+/-- info: 'ConRon.Refine2.class_gen_rule_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_gen_rule_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.prefix_binders_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms prefix_binders_ls
+/-- info: 'ConRon.Refine2.prefix_binders_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms prefix_binders_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_gen_rec_ty_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_gen_rec_ty_ls
+/-- info: 'ConRon.Refine2.class_gen_rec_ty_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_gen_rec_ty_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.minor_ty_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms minor_ty_ls
+/-- info: 'ConRon.Refine2.minor_ty_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms minor_ty_ls
 
 end ConRon.Refine2

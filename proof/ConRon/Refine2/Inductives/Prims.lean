@@ -118,9 +118,13 @@ open Lockstep in
   rw [e, e]
   cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
 
-/-! ## The core tier's telescope openers, until the core tier states them -/
+/-! ## The core tier's readers, in this tier's list spelling
 
-namespace IndStub
+`Core/LS/ProjGuard.lean` states the telescope openers over `absEIdxList` and the
+counter's value; this tier's statements spell the lists `absEIdxL` and the
+counter `absU`, the same terms. -/
+
+namespace IndCore
 
 open Lockstep
 
@@ -129,31 +133,30 @@ open Lockstep
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
       (arena.core.open_pis_at_fvars pers st n h i) lst
-      (openPisAtFvars (absU n) (absEIdx h) (absU i)) := by
-  sorry -- T143-STUB
+      (openPisAtFvars (absU n) (absEIdx h) (absU i)) :=
+  LS.tail (open_pis_at_fvars_ls hrel hinv n h i) rfl
+    (fun _ _ hr => by simpa [absEIdxList, absEIdxL] using hr)
 
 @[lockstep] theorem ind_open_pis_at_fvars_f_ls {pers st lst}
     {n : Std.U64} {e : arena.handle.EIdx} {i : Std.U64}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
       (arena.core.open_pis_at_fvars_f pers st n e i) lst
-      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
-  sorry -- T143-STUB
+      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) :=
+  LS.tail (open_pis_at_fvars_f_ls hrel hinv n e i) rfl
+    (fun _ _ hr => by simpa [absEIdxList, absEIdxL] using hr)
 
+/-- `former_def_headed` ⊑ `formerDefHeaded`: a former whose type does not show its
+telescope. -/
 @[lockstep] theorem ind_former_def_headed_ls {pers st lst} {cv : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = a)
       (arena.core.former_def_headed pers st cv) st lst
       (formerDefHeaded (absIConstantVal cv)) := by
-  sorry -- T143-STUB
+  apply LSR.of_LS
+  rw [arena.core.former_def_headed, formerDefHeaded]
+  lockstep
 
-@[lockstep] theorem ind_struct_used_later_ls {pers st lst} {cty : arena.handle.EIdx}
-    {n_p j : Std.U64} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a)
-      (arena.core.struct_used_later pers st cty n_p j) lst
-      (structUsedLater (absEIdx cty) (absU n_p) (absU j)) := by
-  sorry -- T143-STUB
-
-end IndStub
+end IndCore
 
 end ConRon.Refine2
