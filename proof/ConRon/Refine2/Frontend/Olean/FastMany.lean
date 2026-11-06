@@ -448,4 +448,360 @@ theorem mod_skel_read_refines {R : Type} {inst : frontend.olean.spec.PtrRead R} 
   · simpa using forall₂_eqA hR
   · simpa using hR2
 
+/-- The pairs of `MsRel`, as `many_read` walks them. -/
+theorem ms_zip {sks : List frontend.olean.spec.ModSkel}
+    {skels : List (alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64))} :
+    ∀ {ms : List (ModSkel × List (CEntryF UInt64 UInt64))},
+      List.Forall₂ ModSkelRel sks (ms.map (·.1)) →
+      List.Forall₂ (fun v l => List.Forall₂ EV v.val l) skels (ms.map (·.2)) →
+      List.Forall₂ (fun x x' => ModSkelRel x.1 x'.1 ∧ List.Forall₂ EV x.2.val x'.2) (sks.zip skels) ms := by
+  induction sks generalizing skels with
+  | nil =>
+    intro ms h1 _
+    cases ms with
+    | nil => exact List.Forall₂.nil
+    | cons _ _ => cases h1
+  | cons a t ih =>
+    intro ms h1 h2
+    cases ms with
+    | nil => cases h1
+    | cons q ms' =>
+      cases h1 with
+      | cons ha ht =>
+        cases h2 with
+        | cons hb hs => exact List.Forall₂.cons ⟨ha, hb⟩ (ih ht hs)
+
+/-- **`many_read` is `parseMany`'s last step.** -/
+theorem many_read_refines {pk bs r pers} {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r)
+    (hd : DSRel d t) {p ms} (hm : MsRel p ms) (st lst) :
+    RS pers (fun v l => List.Forall₂ ModDecodedRel v.val l) st lst
+      (many_read d pk pers st.store bs r p.1 p.2)
+      (ms.mapM (m := OptionT AM) fun q => OptionT.mk
+        (Arena.Frontend.Olean.ModSkel.read (ConRon.Arena.Frontend.Olean.DS.read (absPins pk) (absRegion bs r) t) q.1 q.2)) := by
+  have hp := ds_ptr_rel (pk := pk) (pers := pers) hr hd
+  have hl1 : p.1.val.length = ms.length := by simpa using hm.sks.length_eq
+  rw [many_read]
+  refine RS.vec_map (R := ModDecodedRel) (src := p.1.val.zip p.2.val)
+    (loop := fun ar out i => many_read_loop d pk pers ar bs r p.1 p.2 out i)
+    (ms_zip hm.sks hm.skels) ?_ ?_ (by simp) (by rfl)
+  · intro ar out i hi
+    have hl2 : p.2.val.length = ms.length := by simpa using hm.skels.length_eq
+    show many_read_loop d pk pers ar bs r p.1 p.2 out i = _
+    have : p.1.val.length ≤ i.val := by
+      rw [List.length_zip] at hi
+      omega
+    rw [many_read_loop, ite_eq_right (by scalar_tac)]
+  · intro i out x x' K Rf st lst hx hS hK
+    obtain ⟨hx1, hx2⟩ := List.getElem?_zip_eq_some.mp hx
+    show RS _ _ _ _ (many_read_loop d pk pers st.store bs r p.1 p.2 out i) _
+    rw [many_read_loop,
+      ite_eq_left (by have := (List.getElem?_eq_some_iff.mp hx1).1; scalar_tac)]
+    refine RS.pure_step fun y hy => RS.pure_step fun y2 hy2 => ?_
+    have e1 := ConRon.Refine.ExprOps.vec_index_getElem? hy
+    have e2 := ConRon.Refine.ExprOps.vec_index_getElem? hy2
+    rw [hx1] at e1
+    rw [hx2] at e2
+    cases Option.some.inj e1
+    cases Option.some.inj e2
+    refine RS.bindT (mod_skel_read_refines hp hS.1 hS.2 st lst) (fun _ _ => by rfl)
+      fun a b s1 lst1 hR => RS.pure_step fun out1 ho => RS.pure_step fun i3 hi3 => ?_
+    exact hK a b s1 lst1 out1 i3 hR (ConRon.Refine.vec_push_val ho) (uscalar_add_eq hi3)
+
+/-! ## The name tables -/
+
+/-- `all_const_names_ok`'s loop. -/
+theorem all_const_names_ok_loop_cs {pk bs r pers} {addrs : alloc.vec.Vec Std.U64}
+    (hr : RegionFits bs r) :
+    ∀ (k : Nat) {i : Std.Usize} {st lst}, addrs.val.length - i.val ≤ k →
+      CS pers (· = ·) st lst (all_const_names_ok_loop pk pers st.store bs r addrs i)
+        (allConstNamesOk (absPins pk) (absRegion bs r) ((addrs.val.drop i.val).map absWord)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i st lst hk
+    rw [all_const_names_ok_loop, ite_eq_right (by scalar_tac), List.drop_eq_nil_of_le (by omega)]
+    exact CS.pure rfl
+  | succ k ih =>
+    intro i st lst hk
+    rw [all_const_names_ok_loop]
+    by_cases hi : i < alloc.vec.Vec.len addrs
+    · rw [ite_eq_left hi]
+      have hlt : i.val < addrs.val.length := by scalar_tac
+      refine CS.pure_step fun a ha => ?_
+      obtain ⟨_, hae⟩ := vec_index_eq ha
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, ← hae, allConstNamesOk]
+      intro hrel hinv o s' hm
+      obtain ⟨⟨r1, ar1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+      have hF := const_names_ok_refines (pk := pk) (root := a) hr hrel hinv r1 ar1 h1
+      cases r1 with
+      | Err e =>
+        cases Result.ok_injective h2
+        show AErrSim e _
+        rw [StateT.run_bind]
+        exact AErrSim.bind hF _
+      | Ok b =>
+        obtain ⟨b', lst1, hx, hb, h3, h4⟩ := hF
+        cases hb
+        rw [am_bind_ok hx]
+        cases b with
+        | false =>
+          cases Result.ok_injective h2
+          exact ⟨false, lst1, rfl, rfl, h3, h4⟩
+        | true =>
+          simp only [↓reduceIte] at h2 ⊢
+          peel h2 as i3, hi3
+          have hiv : i3.val = i.val + 1 := uscalar_add_eq hi3
+          rw [← hiv]
+          exact ih (st := withStore st ar1) (by omega) h3 h4 o s' h2
+    · rw [ite_eq_right hi, List.drop_eq_nil_of_le (by scalar_tac)]
+      exact CS.pure rfl
+
+/-- A check in `CS`, then a read that goes on with its answer. -/
+theorem RS.cs_bool {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {st : arena.monad.AState} {lst : AState}
+    {f : Result (core.result.Result Bool kernel.core_types.CheckError × arena.store.EStore)}
+    {x : AM Bool} {g : Bool → AM (Option β)}
+    {K : core.result.Result Bool kernel.core_types.CheckError × arena.store.EStore →
+      Result (core.result.Result α frontend.olean.spec.RdErr × arena.store.EStore)}
+    (hf : CS pers (· = ·) st lst f x)
+    (he : ∀ e s1, K (.Err e, s1) = ok (.Err (.Err e), s1))
+    (hk : ∀ b s1 lst1, RS pers R (withStore st s1) lst1 (K (.Ok b, s1)) (g b)) :
+    RS pers R st lst (Std.bind f K) (x >>= g) := by
+  intro hrel hinv o s' hm
+  obtain ⟨⟨r1, ar1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hF := hf hrel hinv r1 ar1 h1
+  cases r1 with
+  | Ok b =>
+    obtain ⟨b', lst1, hx, hb, h3, h4⟩ := hF
+    cases hb
+    rw [am_bind_ok hx]
+    exact hk b ar1 lst1 h3 h4 o s' h2
+  | Err e =>
+    rw [he e ar1] at h2
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
+    show AErrSim e _
+    rw [StateT.run_bind]
+    exact AErrSim.bind hF _
+
+/-- **`all_const_names_ok` is `allConstNamesOk`.** -/
+theorem all_const_names_ok_cs {pk bs r pers st lst} {addrs : alloc.vec.Vec Std.U64}
+    (hr : RegionFits bs r) :
+    CS pers (· = ·) st lst (all_const_names_ok pk pers st.store bs r addrs)
+      (allConstNamesOk (absPins pk) (absRegion bs r) (addrs.val.map absWord)) := by
+  rw [all_const_names_ok]
+  simpa using all_const_names_ok_loop_cs (pk := pk) (pers := pers) (addrs := addrs) hr _
+    (i := 0#usize) (st := st) (lst := lst) (Nat.le_refl _)
+
+/-! ## `parse_many`, `parse_at` -/
+
+/-- **`parse_many` is `parseMany`.** -/
+theorem parse_many_refines {pk bs r pers st lst} {addrs : alloc.vec.Vec Std.U64}
+    (hr : RegionFits bs r) :
+    RS pers (fun v l => List.Forall₂ ModDecodedRel v.val l) st lst
+      (parse_many pk pers st.store bs r addrs)
+      (parseMany (absPins pk) (absRegion bs r) (addrs.val.map absWord)) := by
+  rw [parse_many, parseMany]
+  refine RS.cs_bool (all_const_names_ok_cs hr) (fun _ _ => rfl) fun b s1 lst1 => ?_
+  cases b with
+  | false => exact RS.none
+  | true =>
+    simp only [↓reduceIte, pure_bind]
+    refine RS.ps_bind (many_skels_ps hr) (fun _ => rfl) rfl fun p ms hm => ?_
+    obtain ⟨sks, skels⟩ := p
+    dsimp only
+    refine RS.pure_step fun q hq => ?_
+    obtain ⟨n, e⟩ := q
+    obtain ⟨hn, he⟩ := many_roots_abs hm hq
+    rw [← hn, ← he]
+    exact RS.bind_of (run_passes_refines hr) (fun _ _ => rfl) rfl
+      fun d t s2 lst2 hd => many_read_refines hr hd hm _ _
+
+/-- `take_decoded`: entry `i`. -/
+theorem take_decoded_eq {ds : alloc.vec.Vec frontend.olean.spec.ModDecoded} {i : Std.Usize} {o}
+    (h : take_decoded ds i = ok o) : ds.val[i.val]? = some o.1 := by
+  rw [take_decoded] at h
+  peel h as q, hq
+  obtain ⟨y, f⟩ := q
+  rw [alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize] at hq
+  simp only [bind_tc_eq, ConRon.Refine.bind_eq_ok_iff] at hq
+  obtain ⟨z, hz, hq⟩ := hq
+  have hyz : z = y := congrArg Prod.fst (Result.ok_injective hq)
+  subst hyz
+  have e := ConRon.Refine.ExprOps.vec_index_getElem? (show alloc.vec.Vec.index
+    (core.slice.index.SliceIndexUsizeSlice _) ds i = ok z by
+      rw [alloc.vec.Vec.index_slice_index]; exact hz)
+  cases Result.ok_injective h
+  exact e
+
+/-- **`parse_at` is `parseAt`.** -/
+theorem parse_at_refines {pk bs r pers st lst} {addr : Std.U64} (hr : RegionFits bs r) :
+    RS pers ModDecodedRel st lst (parse_at pk pers st.store bs r addr)
+      (parseAt (absPins pk) (absRegion bs r) (absWord addr)) := by
+  rw [parse_at, parseAt]
+  refine RS.pure_step fun addrs ha => ?_
+  have hv : addrs.val = [addr] := by
+    rw [ConRon.Refine.vec_push_val ha]; rfl
+  have hm := parse_many_refines (pk := pk) (pers := pers) (st := st) (lst := lst) (addrs := addrs) hr
+  rw [hv] at hm
+  refine RS.bind_of hm (fun _ _ => rfl) rfl fun ds l s1 lst1 hR => ?_
+  by_cases hl : alloc.vec.Vec.len ds = 1#usize
+  · have hl' : ds.val.length = 1 := by
+      have := congrArg UScalar.val hl
+      rw [alloc.vec.Vec.len_val] at this
+      exact this
+    show RS _ _ _ _ (if alloc.vec.Vec.len ds = 1#usize then _ else _) _
+    rw [ite_eq_left hl]
+    refine RS.pure_step fun q hq => ?_
+    obtain ⟨md, ds1⟩ := q
+    have he := take_decoded_eq hq
+    obtain ⟨hlt, hmd⟩ := List.getElem?_eq_some_iff.mp he
+    dsimp only at hmd
+    cases hds : ds.val with
+    | nil => rw [hds] at hl'; cases hl'
+    | cons x t =>
+      rw [hds] at hl' hR
+      have ht : t = [] := List.eq_nil_of_length_eq_zero (by simpa using hl')
+      subst ht
+      cases hR with
+      | cons hx hnil =>
+        cases hnil
+        have : md = x := by
+          have e0 : (0#usize : Std.Usize).val = 0 := by decide
+          simp only [e0] at hmd
+          simpa [hds] using hmd.symm
+        subst this
+        exact RS.some hx
+  · show RS _ _ _ _ (if alloc.vec.Vec.len ds = 1#usize then _ else _) _
+    rw [ite_eq_right hl]
+    have hne : l.length ≠ 1 := by
+      rw [← hR.length_eq]
+      intro he
+      apply hl
+      apply UScalar.eq_of_val_eq
+      simp only [alloc.vec.Vec.len_val]
+      exact he
+    cases l with
+    | nil => exact RS.none
+    | cons x t =>
+      cases t with
+      | nil => exact absurd rfl hne
+      | cons y u => exact RS.none
+
+/-! ## `stmts_fast` -/
+
+/-- A pure `mapM` at `Option`, as `mapM` at `OptionT AM`. -/
+theorem mapM_pure_option {α β : Type} (f : α → Option β) (l : List α) :
+    (l.mapM (m := OptionT AM) fun a => OptionT.mk (pure (f a))) = OptionT.mk (pure (l.mapM f)) := by
+  induction l with
+  | nil => rfl
+  | cons a t ih =>
+    rw [List.mapM_cons, List.mapM_cons, ih]
+    cases f a with
+    | none => rfl
+    | some b =>
+      show (OptionT.mk (pure (t.mapM f)) >>= fun r => pure (b :: r) : OptionT AM _) = _
+      cases t.mapM f <;> rfl
+
+/-- The twin's statement of a constant, at `OptionT AM`. -/
+def stmtT (t : ConRon.Arena.Frontend.Olean.PtrRead) (s : CEntryF UInt64 UInt64) :
+    OptionT AM ConRon.Arena.Frontend.Olean.StmtRec :=
+  OptionT.mk (t.rdName s.name) >>= fun n =>
+    (s.levelParams.mapM (m := OptionT AM) fun v => OptionT.mk (t.rdName v)) >>= fun lps =>
+      OptionT.mk (t.rdExpr s.type) >>= fun e => pure ⟨n, lps, e⟩
+
+/-- `stmtT` of the memo is the twin's pure function. -/
+theorem stmtT_eq (P : ConRon.Arena.Frontend.Olean.OleanPins) (R : ConLeche.Frontend.Olean.Region) (t : TDS)
+    (s : CEntryF UInt64 UInt64) :
+    stmtT (ConRon.Arena.Frontend.Olean.DS.read P R t) s = OptionT.mk (pure (do
+      pure ⟨← ConRon.Arena.Frontend.Olean.DS.nameOf P R t s.name,
+        ← s.levelParams.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf P R t),
+        ← ConRon.Arena.Frontend.Olean.DS.exprOf R t s.type⟩)) := by
+  rw [stmtT]
+  show (OptionT.mk (pure (ConRon.Arena.Frontend.Olean.DS.nameOf P R t s.name)) >>= fun n =>
+    (s.levelParams.mapM (m := OptionT AM) fun v => OptionT.mk (pure (ConRon.Arena.Frontend.Olean.DS.nameOf P R t v))) >>= fun lps =>
+      OptionT.mk (pure (ConRon.Arena.Frontend.Olean.DS.exprOf R t s.type)) >>= fun e =>
+        pure (⟨n, lps, e⟩ : ConRon.Arena.Frontend.Olean.StmtRec) : OptionT AM _) = _
+  rw [mapM_pure_option]
+  cases ConRon.Arena.Frontend.Olean.DS.nameOf P R t s.name with
+  | none => rfl
+  | some n =>
+    show (OptionT.mk (pure (s.levelParams.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf P R t))) >>= _ : OptionT AM _) = _
+    cases s.levelParams.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf P R t) with
+    | none => rfl
+    | some lps =>
+      show (OptionT.mk (pure (ConRon.Arena.Frontend.Olean.DS.exprOf R t s.type)) >>= _ : OptionT AM _) = _
+      cases ConRon.Arena.Frontend.Olean.DS.exprOf R t s.type <;> rfl
+
+/-- **`stmts_read` is `stmtsFast`'s last step.** -/
+theorem stmts_read_refines {pk bs r pers} {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r)
+    (hd : DSRel d t) {sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {l : List (CEntryF UInt64 UInt64)} (hl : List.Forall₂ EV sks.val l) (st lst) :
+    RS pers (fun v l' => List.Forall₂ (EqA absStmt) v.val l') st lst
+      (stmts_read d pk pers st.store bs r sks)
+      (l.mapM (m := OptionT AM) (stmtT (ConRon.Arena.Frontend.Olean.DS.read (absPins pk) (absRegion bs r) t))) := by
+  have hp := ds_ptr_rel (pk := pk) (pers := pers) hr hd
+  rw [stmts_read]
+  refine RS.vec_map (R := EqA absStmt)
+    (loop := fun ar out i => stmts_read_loop d pk pers ar bs r sks out i)
+    hl ?_ ?_ (by simp) (by rfl)
+  · intro ar out i hi
+    show stmts_read_loop d pk pers ar bs r sks out i = _
+    rw [stmts_read_loop, ite_eq_right (by scalar_tac)]
+  · intro i out x x' K Rf st lst hx hS hK
+    show RS _ _ _ _ (stmts_read_loop d pk pers st.store bs r sks out i) _
+    rw [stmts_read_loop,
+      ite_eq_left (by have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)]
+    refine RS.pure_step fun y hy => ?_
+    have hy3 := ConRon.Refine.ExprOps.vec_index_getElem? hy
+    rw [hx] at hy3
+    cases Option.some.inj hy3
+    obtain ⟨n', lp', ty', k'⟩ := x'
+    obtain ⟨hn, hlp, he, -⟩ := hS
+    dsimp only at hn he hlp
+    subst hn he
+    simp only [stmtT, bind_assoc, pure_bind]
+    refine RS.bindT (hp.nm st lst x.name) (fun _ _ => by rfl)
+      fun a b s1 lst1 hR => RS.bindT
+        (names_map_refines hp hlp (withStore st s1) lst1) (fun _ _ => by rfl)
+        fun a2 b2 s2 lst2 hR2 => RS.bindT (hp.ex (withStore (withStore st s1) s2) lst2 x.ty) (fun _ _ => by rfl)
+          fun a3 b3 s3 lst3 hR3 => RS.pure_step fun out1 ho => RS.pure_step fun i3 hi3 => ?_
+    cases hR; cases hR3
+    cases (show _ = b2 from hR2)
+    exact hK _ _ s3 lst3 out1 i3 rfl (ConRon.Refine.vec_push_val ho) (uscalar_add_eq hi3)
+
+theorem stmts_names_abs {l0 : List (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {l : List (CEntryF UInt64 UInt64)} (h : List.Forall₂ EV l0 l) :
+    (l0.flatMap fun s => s.name :: s.level_params.val).map absWord =
+      l.flatMap fun s => s.name :: s.levelParams := by
+  induction h with
+  | nil => rfl
+  | cons h0 _ ih =>
+    simp only [List.flatMap_cons, List.map_append, ih, List.map_cons, List.cons_append, h0.name]
+    rw [show List.map absWord _ = _ from h0.levelParams]
+
+theorem stmts_types_abs {l0 : List (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {l : List (CEntryF UInt64 UInt64)} (h : List.Forall₂ EV l0 l) :
+    (l0.map (·.ty)).map absWord = l.map (·.type) := by
+  induction h with
+  | nil => rfl
+  | cons h0 _ ih => simp only [List.map_cons, ih, h0.type]
+
+/-- **`stmts_fast` is `stmtsFast`.** -/
+theorem stmts_fast_refines {pk bs r pers st lst}
+    {sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {l : List (CEntryF UInt64 UInt64)} (hr : RegionFits bs r) (hl : List.Forall₂ EV sks.val l) :
+    RS pers (fun v l' => List.Forall₂ (EqA absStmt) v.val l') st lst
+      (stmts_fast pk pers st.store bs r sks)
+      (stmtsFast (absPins pk) (absRegion bs r) l) := by
+  rw [stmts_fast, stmtsFast]
+  refine RS.pure_step fun q hq => ?_
+  obtain ⟨n, e⟩ := q
+  obtain ⟨hn, he⟩ := stmts_roots_val hq
+  rw [← stmts_names_abs hl, ← stmts_types_abs hl, ← hn, ← he]
+  refine RS.bind_of (run_passes_refines hr) (fun _ _ => rfl) rfl fun d t s1 lst1 hd => ?_
+  refine RS.of_eq (stmts_read_refines hr hd hl _ _) ?_
+  rw [show stmtT (ConRon.Arena.Frontend.Olean.DS.read (absPins pk) (absRegion bs r) t) = _ from
+    funext (stmtT_eq _ _ t), mapM_pure_option]
+  rfl
+
 end ConRon.Refine2.Frontend.Olean
