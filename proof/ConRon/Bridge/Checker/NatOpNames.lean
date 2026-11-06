@@ -231,4 +231,61 @@ theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
   have nb14 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z14 (b14.mpr h)
   exact frame _ v14 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_right nb11, ite_eq_right nb12, ite_eq_right nb13, ite_eq_right nb14]; exact trivial)
 
+/-- con-leche: none — `natOpDeps` reads fifteen pins and returns a literal
+list; it leaves the state alone (`natOpDeps_run` carries the frame as four
+clauses, this is the equation the `RunsB` chain needs). -/
+theorem natOpDeps_state {cn : NIdx} {ds : List NIdx} {s s' : AState}
+    (hp : PinsOK s) (hr : natOpDeps cn s = .ok (ds, s')) : s' = s := by
+  simp only [Arena.natOpDeps] at hr
+  obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hr
+  obtain ⟨p0, -⟩ := pinAt_run (x := ConLeche.natPredName) hp rfl q0
+  rw [p0] at w0
+  obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
+  obtain ⟨p1, -⟩ := pinAt_run (x := ConLeche.natAddName) hp rfl q1
+  rw [p1] at w1
+  obtain ⟨_, u2, q2, w2⟩ := AM.bind_ok w1
+  obtain ⟨p2, -⟩ := pinAt_run (x := ConLeche.natSubName) hp rfl q2
+  rw [p2] at w2
+  obtain ⟨_, u3, q3, w3⟩ := AM.bind_ok w2
+  obtain ⟨p3, -⟩ := pinAt_run (x := ConLeche.natMulName) hp rfl q3
+  rw [p3] at w3
+  obtain ⟨_, u4, q4, w4⟩ := AM.bind_ok w3
+  obtain ⟨p4, -⟩ := pinAt_run (x := ConLeche.natPowName) hp rfl q4
+  rw [p4] at w4
+  obtain ⟨_, u5, q5, w5⟩ := AM.bind_ok w4
+  obtain ⟨p5, -⟩ := pinAt_run (x := ConLeche.natBeqName) hp rfl q5
+  rw [p5] at w5
+  obtain ⟨_, u6, q6, w6⟩ := AM.bind_ok w5
+  obtain ⟨p6, -⟩ := pinAt_run (x := ConLeche.natBleName) hp rfl q6
+  rw [p6] at w6
+  obtain ⟨_, u7, q7, w7⟩ := AM.bind_ok w6
+  obtain ⟨p7, -⟩ := pinAt_run (x := ConLeche.natDivName) hp rfl q7
+  rw [p7] at w7
+  obtain ⟨_, u8, q8, w8⟩ := AM.bind_ok w7
+  obtain ⟨p8, -⟩ := pinAt_run (x := ConLeche.natModName) hp rfl q8
+  rw [p8] at w8
+  obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
+  obtain ⟨p9, -⟩ := pinAt_run (x := ConLeche.natGcdName) hp rfl q9
+  rw [p9] at w9
+  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
+  obtain ⟨p10, -⟩ := pinAt_run (x := ConLeche.natLandName) hp rfl q10
+  rw [p10] at w10
+  obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
+  obtain ⟨p11, -⟩ := pinAt_run (x := ConLeche.natLorName) hp rfl q11
+  rw [p11] at w11
+  obtain ⟨_, u12, q12, w12⟩ := AM.bind_ok w11
+  obtain ⟨p12, -⟩ := pinAt_run (x := ConLeche.natXorName) hp rfl q12
+  rw [p12] at w12
+  obtain ⟨_, u13, q13, w13⟩ := AM.bind_ok w12
+  obtain ⟨p13, -⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp rfl q13
+  rw [p13] at w13
+  obtain ⟨_, u14, q14, w14⟩ := AM.bind_ok w13
+  obtain ⟨p14, -⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp rfl q14
+  rw [p14] at w14
+  clear hr
+  repeat' first
+    | (obtain ⟨-, rfl⟩ := AM.pure_ok w14; rfl)
+    | (rcases AM.ite_ok w14 with ⟨-, w14⟩ | ⟨-, w14⟩)
+
+
 end ConRon.Bridge
