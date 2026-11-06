@@ -85,10 +85,9 @@ theorem i_constant_val_dup_id {cv o : arena.env.IConstantVal}
   intro o h
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw,
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn,
     alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)]
 
 theorem i_rec_rule_fire_dup_id {f o : arena.env.IRecRuleFire}
@@ -104,6 +103,12 @@ theorem i_rec_rule_fire_dup_id {f o : arena.env.IRecRuleFire}
       vec_eq_of_val (lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv))
     have e2 : v1 = pins := vec_eq_of_val (eidx_vec_dup_val hv1)
     rw [← Result.ok_injective h, e1, e2]
+  | Levels lvls =>
+    simp only [] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have e1 : v = lvls :=
+      vec_eq_of_val (lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv))
+    rw [← Result.ok_injective h, e1]
 
 theorem i_rec_rule_dup_id {r o : arena.env.IRecRule}
     (h : arena.env.i_rec_rule_dup r = ok o) : o = r := by
