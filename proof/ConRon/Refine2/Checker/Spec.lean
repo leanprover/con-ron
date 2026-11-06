@@ -781,6 +781,41 @@ theorem checkDivModPinAtFe2_split (fe2 : IFEnv) (c : NIdx) :
     · rfl
     · cases ci <;> rfl
 
+/-- `checkStructuralNatPinAtFe2` in the Rust's arrangement: the two guards nested,
+the stored value as `defn_value` reads it. -/
+theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
+    checkStructuralNatPinAtFe2 fe2 n = (do
+      let g ← natOpGuard fe2 n
+      let deps ← natOpDeps n
+      let d ← natOpStoredOkAll fe2 deps
+      if g then
+        if d then
+          match defnValueOf fe2 n with
+          | some v => pure v
+          | none => fail (.internal "structural Nat operation not stored")
+        else fail (.notImplemented "nonstandard structural Nat operation environment")
+      else fail (.notImplemented "nonstandard structural Nat operation environment")) := by
+  unfold checkStructuralNatPinAtFe2 defnValueOf
+  refine ConRon.Refine2.am_bind_congr _ fun g => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun d => ?_
+  cases g <;> cases d <;> simp only [Bool.and_true, Bool.and_false, Bool.false_eq_true,
+    ↓reduceIte, Bool.true_and, Bool.not_false, Bool.not_true, ConRon.Refine2.am_fail_bind] <;>
+    try rfl
+  all_goals
+    rcases fe2.find? n with _ | ci
+    · rfl
+    · cases ci <;> rfl
+
+/-- `checkStructuralNatPin` is the reads at the environment with the definition,
+the pop, and the certification (`check_structural_nat_pin_eqs`). -/
+theorem checkStructuralNatPin_split (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
+    (n : NIdx) :
+    checkStructuralNatPin mode fe ci n = (do
+      let v ← checkStructuralNatPinAtFe2 (fe.push ci) n
+      checkStructuralNatPinEqsSpec mode ((fe.push ci).popTemp n fe.idx[n]?) n v
+      pure ((fe.push ci).popTemp n fe.idx[n]?)) := by
+  twin_reduce [checkStructuralNatPin, checkStructuralNatPinEqsSpec]
+
 theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
     checkDecl mode pins fe (.defnDecl cv value hint) =

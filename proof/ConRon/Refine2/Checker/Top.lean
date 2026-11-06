@@ -449,60 +449,304 @@ theorem check_axiom_decl_refines {pers st lst} {rf lf}
   rw [arena.check_decl.check_axiom_decl, checkAxiomDeclSpec]
   lockstep
 
+/-! ## A pinned gate, then the push
+
+The two value arms' tails share one shape: a name list read, membership, the gate
+(which hands its environment back), and the record pushed onto whichever
+environment came back.  `gate_push_refines` is that shape once. -/
+
+theorem gate_push_refines {pers lst} {rf lf} {ci : arena.env.IConstantInfo}
+    {n : arena.handle.NIdx}
+    {names : Result (core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+      kernel.core_types.CheckError × arena.monad.AState)}
+    {namesT : AM (List NIdx)}
+    {gate : arena.monad.AState → Result (core.result.Result Unit kernel.core_types.CheckError ×
+      arena.monad.AState × arena.env.IFEnv)}
+    {gateT : AM IFEnv} {o}
+    (hfe : IFEnvRelI pers rf lf)
+    (hnames : ∀ o, names = ok o → Sim₀ absNIdxL pers lst o namesT)
+    (hgate : ∀ {st1 lst1} o, AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
+      gate st1 = ok o → SimEnv pers lst1 o gateT)
+    (hrun : (do
+      let (r, st1) ← names
+      match r with
+      | core.result.Result.Ok ns =>
+        let b ← arena.checker_base.nidx_contains_from ns 0#usize n
+        if b then
+          let (r1, st2, fe1) ← gate st1
+          match r1 with
+          | core.result.Result.Ok _ =>
+            let i ← arena.env.ifenv_push fe1 ci
+            ok (core.result.Result.Ok i, st2)
+          | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+        else
+          let i ← arena.env.ifenv_push rf ci
+          ok (core.result.Result.Ok i, st1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)) = ok o) :
+    SimRel₀ (IFEnvRelI pers) pers lst o (do
+      let fe' ← if (← namesT).contains (absNIdx n) then gateT else pure lf
+      pure (fe'.push (absIConstantInfo ci))) := by
+  obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hN := hnames _ h1
+  simp only [SimRel₀]
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]
+    exact AErrSim.bind hN _
+  | Ok ns =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hN.apply
+    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hbv := nidx_contains_from_refines hb
+    have hb' : b = (absNIdxL ns).contains (absNIdx n) := by
+      rw [hbv]; simp [absNIdxLFrom, absNIdxL]
+    rw [Lockstep.run_bind_ok hx1]
+    simp only [← hb']
+    cases b with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte] at hrun ⊢
+      obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := (Result.ok_injective hrun).symm
+      exact ⟨_, lst1, rfl, ifenv_push_refines hfe.rel hfe.inv hi, hrel1, hinv1⟩
+    | true =>
+      simp only [↓reduceIte] at hrun ⊢
+      obtain ⟨⟨r1, st2, fe1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hG := hgate _ hrel1 hinv1 h2
+      simp only [SimEnv] at hG
+      cases r1 with
+      | Err e =>
+        obtain rfl := (Result.ok_injective hrun).symm
+        show AErrSim e _
+        rw [StateT.run_bind]; exact AErrSim.bind hG _
+      | Ok u =>
+        obtain ⟨lf', lst2, hx2, hfe2, hrel2, hinv2⟩ := hG
+        obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := (Result.ok_injective hrun).symm
+        rw [Lockstep.run_bind_ok hx2]
+        exact ⟨_, lst2, rfl, ifenv_push_refines hfe2.rel hfe2.inv hi, hrel2, hinv2⟩
+
+/-! ## The structural-`Nat` gate -/
+
+/-- `check_structural_nat_pin_at_fe2` ⊑ `checkStructuralNatPinAtFe2`. -/
+theorem check_structural_nat_pin_at_fe2_refines {pers st lst} {rf2 lf2}
+    {n : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel pers rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hrun : arena.check_decl.check_structural_nat_pin_at_fe2 pers st rf2 n = ok o) :
+    Sim₀ absEIdx pers lst o (checkStructuralNatPinAtFe2 lf2 (absNIdx n)) := by
+  have hfeI : IFEnvRelI pers rf2 lf2 := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.check_decl.check_structural_nat_pin_at_fe2, checkStructuralNatPinAtFe2_split]
+  lockstep
+
+/-- `check_structural_nat_pin_eqs` ⊑ the certification at the environment without
+the definition. -/
+theorem check_structural_nat_pin_eqs_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {n : arena.handle.NIdx} {value2 : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.check_decl.check_structural_nat_pin_eqs pers st mode rf n value2 = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkStructuralNatPinEqsSpec (ConRon.Refine.absMode mode) lf (absNIdx n)
+        (absEIdx value2)) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.check_decl.check_structural_nat_pin_eqs]
+  unfold checkStructuralNatPinEqsSpec
+  lockstep
+
+/-- **`check_structural_nat_pin` ⊑ `checkStructuralNatPin`**: the reads at the
+environment with the definition pushed, then the certification at the
+environment without it.  `hname`: the caller passes the definition's own name. -/
+theorem check_structural_nat_pin_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hname : absNIdx n = (absIConstantInfo ci).name)
+    (hrun : arena.check_decl.check_structural_nat_pin pers st mode rf ci n = ok o) :
+    SimEnv pers lst o
+      (checkStructuralNatPin (ConRon.Refine.absMode mode) lf (absIConstantInfo ci)
+        (absNIdx n)) := by
+  rw [arena.check_decl.check_structural_nat_pin] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdup := i_constant_info_dup_abs hii
+  obtain ⟨⟨prev, fe1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hfe1 := (ifenv_push_temp_refines hfeI h1).1
+  rw [hdup] at hfe1
+  obtain ⟨⟨at2, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := check_structural_nat_pin_at_fe2_refines hrel hinv hfe1.rel hfe1.inv h2
+  obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2
+  simp only [SimEnv, checkStructuralNatPin_split]
+  cases at2 with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok value2 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS.apply
+    rw [Lockstep.run_bind_ok hx1]
+    obtain ⟨⟨r, st2⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    have hP := check_structural_nat_pin_eqs_refines hrel1 hinv1 hfe2.rel hfe2.inv h4
+    cases r with
+    | Err e =>
+      show AErrSim e _
+      rw [StateT.run_bind]; exact AErrSim.bind hP _
+    | Ok u =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hP.apply
+      exact ⟨_, lst2, by rw [StateT.run_bind, hx2]; rfl, hfe2, hrel2, hinv2⟩
+
 /-! ## The three value arms
 
 Each checks the value returning the record unpushed, runs its pinned gates
 (which push the record for their reads at the environment with it and pop it,
-handing the environment back) and pushes last. -/
+handing the environment back) and pushes last.  The gates pop at the declared
+name, so these tails take `hname`: the record's own name, which the value check
+returned it at (`check_opaque_val_name`, `check_defn_val_name`). -/
 
 /-- `check_opaque_reduce_pin` — the reduce-operation gate, then the push. -/
-theorem check_opaque_reduce_pin_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {ci : arena.env.IConstantInfo}
+theorem check_opaque_reduce_pin_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {ci : arena.env.IConstantInfo}
     {n : arena.handle.NIdx} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hname : absNIdx n = (absIConstantInfo ci).name)
     (hrun : arena.check_decl.check_opaque_reduce_pin pers st mode rf ci n value = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkOpaqueReducePinSpec (ConRon.Refine.absMode mode) lf (absIConstantInfo ci) (absNIdx n) (absEIdx value)) := by
-  sorry -- T143-STUB
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkOpaqueReducePinSpec (ConRon.Refine.absMode mode) lf (absIConstantInfo ci)
+        (absNIdx n) (absEIdx value)) := by
+  rw [arena.check_decl.check_opaque_reduce_pin] at hrun
+  unfold checkOpaqueReducePinSpec
+  exact gate_push_refines (gate := fun s =>
+      arena.decl_check.check_reduce_pin pers s mode rf ci n value) ⟨hfe, hfinv⟩
+    (fun _ h => reduce_op_names_refines hrel hinv h)
+    (fun _ hr hi h => check_reduce_pin_refines hr hi hfe hfinv hname h) hrun
 
-open Lockstep in
-@[lockstep] theorem check_opaque_reduce_pin_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {ci : arena.env.IConstantInfo}
-    {n : arena.handle.NIdx} {value : arena.handle.EIdx}
+/-- `check_defn_div_mod_pin` — the `Nat.div`/`Nat.mod` gate at a definition, then
+the push. -/
+theorem check_defn_div_mod_pin_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_opaque_reduce_pin pers st mode rf ci n value) lst
-      (checkOpaqueReducePinSpec (ConRon.Refine.absMode mode) lf (absIConstantInfo ci) (absNIdx n) (absEIdx value)) :=
-  LS.ofSimRel₀ fun _ h => check_opaque_reduce_pin_refines hrel hinv hfe.rel hfe.inv h
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hname : absNIdx n = (absIConstantInfo ci).name)
+    (hrun : arena.check_decl.check_defn_div_mod_pin pers st mode pins rf ci n = ok o) :
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+        (absIConstantInfo ci) (absNIdx n)) := by
+  rw [arena.check_decl.check_defn_div_mod_pin] at hrun
+  unfold checkDefnDivModPinSpec
+  exact gate_push_refines (gate := fun s =>
+      arena.decl_check.check_div_mod_pin pers s mode pins rf ci n) ⟨hfe, hfinv⟩
+    (fun _ h => nat_div_mod_names_refines hrel hinv h)
+    (fun _ hr hi h => check_div_mod_pin_refines hr hi hfe hfinv hname h) hrun
 
-/-- **`check_opaque_decl` ⊑ `checkDecl`'s `.opaqueDecl` arm**. -/
-theorem check_opaque_decl_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+/-- `check_defn_pins` — both pin gates, in the twin's order: the structural gate
+hands its environment to the `div`/`mod` gate. -/
+theorem check_defn_pins_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hname : absNIdx n = (absIConstantInfo ci).name)
+    (hrun : arena.check_decl.check_defn_pins pers st mode pins rf ci n = ok o) :
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+        (absIConstantInfo ci) (absNIdx n)) := by
+  rw [arena.check_decl.check_defn_pins] at hrun
+  unfold checkDefnPinsSpec
+  obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hN := nat_op_names_refines hrel hinv h1
+  simp only [SimRel₀]
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]
+    exact AErrSim.bind hN _
+  | Ok ns =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hN.apply
+    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hbv := nidx_contains_from_refines hb
+    have hb' : b = (absNIdxL ns).contains (absNIdx n) := by
+      rw [hbv]; simp [absNIdxLFrom, absNIdxL]
+    rw [Lockstep.run_bind_ok hx1]
+    simp only [← hb']
+    cases b with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte] at hrun ⊢
+      exact check_defn_div_mod_pin_refines hrel1 hinv1 hfe hfinv hname hrun
+    | true =>
+      simp only [↓reduceIte] at hrun ⊢
+      obtain ⟨⟨r1, st2, fe1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hG := check_structural_nat_pin_refines hrel1 hinv1 hfe hfinv hname h2
+      simp only [SimEnv] at hG
+      cases r1 with
+      | Err e =>
+        obtain rfl := (Result.ok_injective hrun).symm
+        show AErrSim e _
+        rw [StateT.run_bind]; exact AErrSim.bind hG _
+      | Ok u =>
+        obtain ⟨lf', lst2, hx2, hfe2, hrel2, hinv2⟩ := hG
+        rw [Lockstep.run_bind_ok hx2]
+        exact check_defn_div_mod_pin_refines hrel2 hinv2 hfe2.rel hfe2.inv hname hrun
+
+/-- **`check_opaque_decl` ⊑ `checkDecl`'s `.opaqueDecl` arm**: the constant, the
+value, the reduce-operation gate and the push. -/
+theorem check_opaque_decl_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.check_decl.check_opaque_decl pers st mode rf cv value = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkOpaqueDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absEIdx value)) := by
-  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv
-  refine Lockstep.LS.toSimRel₀ ?_ hrun
-  rw [arena.check_decl.check_opaque_decl]
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkOpaqueDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) := by
+  rw [arena.check_decl.check_opaque_decl] at hrun
   unfold checkOpaqueDeclSpec
-  lockstep
+  simp only [SimRel₀]
+  obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hC := check_constant_val_refines hrel hinv hfe hfinv h1
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hC _
+  | Ok u =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hC.apply
+    rw [Lockstep.run_bind_ok hx1]
+    obtain ⟨⟨r1, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hV := check_opaque_val_refines hrel1 hinv1 hfe hfinv h2
+    cases r1 with
+    | Err e =>
+      obtain rfl := (Result.ok_injective hrun).symm
+      show AErrSim e _
+      rw [StateT.run_bind]; exact AErrSim.bind hV _
+    | Ok ci =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hV.apply
+      rw [Lockstep.run_bind_ok hx2]
+      have hname : absNIdx cv.name = (absIConstantInfo ci).name :=
+        (check_opaque_val_name h2).symm
+      exact check_opaque_reduce_pin_refines hrel2 hinv2 hfe hfinv hname hrun
 
-open Lockstep in
-@[lockstep] theorem check_opaque_decl_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_opaque_decl pers st mode rf cv value) lst
-      (checkOpaqueDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absEIdx value)) :=
-  LS.ofSimRel₀ fun _ h => check_opaque_decl_refines hrel hinv hfe.rel hfe.inv h
-
-/-- **`check_thm_decl` ⊑ `checkDecl`'s `.thmDecl` arm**: the constant, the theorem's value, the push. -/
-theorem check_thm_decl_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+/-- **`check_thm_decl` ⊑ `checkDecl`'s `.thmDecl` arm**: the constant, the theorem's
+value, the push. -/
+theorem check_thm_decl_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.check_decl.check_thm_decl pers st mode rf cv value = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkThmDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absEIdx value)) := by
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkThmDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) := by
   have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSimRel₀ ?_ hrun
@@ -510,83 +754,45 @@ theorem check_thm_decl_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMod
   unfold checkThmDeclSpec
   lockstep
 
-open Lockstep in
-@[lockstep] theorem check_thm_decl_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_thm_decl pers st mode rf cv value) lst
-      (checkThmDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absEIdx value)) :=
-  LS.ofSimRel₀ fun _ h => check_thm_decl_refines hrel hinv hfe.rel hfe.inv h
-
-/-- `check_defn_div_mod_pin` — the `Nat.div`/`Nat.mod` gate at a definition, then the push. -/
-theorem check_defn_div_mod_pin_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.check_decl.check_defn_div_mod_pin pers st mode pins rf ci n = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantInfo ci) (absNIdx n)) := by
-  sorry -- T143-STUB
-
-open Lockstep in
-@[lockstep] theorem check_defn_div_mod_pin_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_defn_div_mod_pin pers st mode pins rf ci n) lst
-      (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantInfo ci) (absNIdx n)) :=
-  LS.ofSimRel₀ fun _ h => check_defn_div_mod_pin_refines hrel hinv hfe.rel hfe.inv h
-
-/-- `check_defn_pins` — both pin gates, in the twin's order. -/
-theorem check_defn_pins_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.check_decl.check_defn_pins pers st mode pins rf ci n = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantInfo ci) (absNIdx n)) := by
-  sorry -- T143-STUB
-
-open Lockstep in
-@[lockstep] theorem check_defn_pins_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_defn_pins pers st mode pins rf ci n) lst
-      (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantInfo ci) (absNIdx n)) :=
-  LS.ofSimRel₀ fun _ h => check_defn_pins_refines hrel hinv hfe.rel hfe.inv h
-
-/-- **`check_defn_decl` ⊑ `checkDecl`'s `.defnDecl` arm**. -/
-theorem check_defn_decl_refines {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+/-- **`check_defn_decl` ⊑ `checkDecl`'s `.defnDecl` arm**: the constant (a
+certified operation's name allowed), the value, both pin gates and the push. -/
+theorem check_defn_decl_refines {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx}
     {hint : kernel.env.ReducibilityHint} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.check_decl.check_defn_decl pers st mode pins rf cv value hint = ok o) :
-    SimRel₀ (IFEnvRelI pers) pers lst o (checkDefnDeclSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantVal cv) (absEIdx value)
-        (ConRon.Refine.absHint hint)) := by
-  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtx hfe hfinv
-  refine Lockstep.LS.toSimRel₀ ?_ hrun
-  rw [arena.check_decl.check_defn_decl]
+    SimRel₀ (IFEnvRelI pers) pers lst o
+      (checkDefnDeclSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+        (absIConstantVal cv) (absEIdx value) (ConRon.Refine.absHint hint)) := by
+  rw [arena.check_decl.check_defn_decl] at hrun
   unfold checkDefnDeclSpec
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem check_defn_decl_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {cv : arena.env.IConstantVal} {value : arena.handle.EIdx}
-    {hint : kernel.env.ReducibilityHint}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers) (arena.check_decl.check_defn_decl pers st mode pins rf cv value hint) lst
-      (checkDefnDeclSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIConstantVal cv) (absEIdx value)
-        (ConRon.Refine.absHint hint)) :=
-  LS.ofSimRel₀ fun _ h => check_defn_decl_refines hrel hinv hfe.rel hfe.inv h
+  simp only [SimRel₀]
+  obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hC := check_constant_val_refines hrel hinv hfe hfinv h1
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hC _
+  | Ok u =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hC.apply
+    rw [Lockstep.run_bind_ok hx1]
+    obtain ⟨⟨r1, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hV := check_defn_val_refines hrel1 hinv1 hfe hfinv h2
+    cases r1 with
+    | Err e =>
+      obtain rfl := (Result.ok_injective hrun).symm
+      show AErrSim e _
+      rw [StateT.run_bind]; exact AErrSim.bind hV _
+    | Ok ci =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hV.apply
+      rw [Lockstep.run_bind_ok hx2]
+      have hname : absNIdx cv.name = (absIConstantInfo ci).name :=
+        (check_defn_val_name h2).symm
+      exact check_defn_pins_refines hrel2 hinv2 hfe hfinv hname hrun
 
 /-! ## One declaration -/
 
