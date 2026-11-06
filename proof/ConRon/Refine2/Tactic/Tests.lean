@@ -87,19 +87,19 @@ example {pers st lst} {e : arena.handle.EIdx}
 /-- A twin-only argument of a LOCAL hypothesis (an induction hypothesis over
 the div/mod loop, quantified over the twin's `tried` list), at a list the goal
 builds (`tried ++ [msg]`). -/
-example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+example {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx} {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
     {ltried : List String}
     (hloop : ∀ {st lst} (ltried' : List String), AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = (fun _ : Unit => ()) a)
-        (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i)
+        (arena.decl_check.check_div_mod_pin_loop pers st mode rf c value2 variants i)
         lst
         (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c) (absEIdx value2)
           (absINatOpPinSetLFrom variants i) ltried'))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2 variants i) lst
+      (arena.decl_check.check_div_mod_pin_loop pers st mode rf c value2 variants i) lst
       (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c) (absEIdx value2)
         (absINatOpPinSetLFrom variants i) (ltried ++ ["absent"])) := by
   lockstep
@@ -111,11 +111,11 @@ by hand, then `unresolved_consts_error` at a specialised copy fixed at
 `"value"`/`"type"`.  Both are one `lockstep` call now (since task #119 the
 value install is the guard-only `install_value_guards_tail`). -/
 
-theorem install_value_guards_tail_refines' {E₀ : IEnv} {pers st lst} {vis : Std.U64} {rf lf}
+theorem install_value_guards_tail_refines' {E₀ : IEnv} {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value_guards_tail pers vis st rf cv value = ok o) :
+    (hrun : arena.checker_split.install_value_guards_tail pers st rf cv value = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value)) := by
@@ -261,15 +261,15 @@ abbrev BMemoR (p : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
 
 /-- `consts_resolve_f_two`: two memoised state walks in a row, the memo
 threaded, the two answers combined. -/
-example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+example {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
     {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx}
     (hgo : ∀ {st lst rm lm} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
       AStateInv pers st → ExprOps.LMemoRel rm lm →
-      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers st rf rm fuel h) lst
         (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ExprOps.LMemoRel rm lm) :
-    LSM pers BMemoR (arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b) lst
+    LSM pers BMemoR (arena.checker_base.consts_resolve_f_two pers st rf rm fuel a b) lst
       (do
         let (b₁, memo) ← constsResolveFGo lf lm (absU fuel) (absEIdx a)
         let (b₂, memo) ← constsResolveFGo lf memo (absU fuel) (absEIdx b)

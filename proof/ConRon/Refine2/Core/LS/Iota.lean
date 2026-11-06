@@ -261,21 +261,21 @@ count) against `teleArityOk`. -/
   lockstep_c2
 
 @[lockstep] theorem proj_cert_ls
-    {pers vis st fe lfe c args lst}
+    {pers st fe lfe c args lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
+    (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.proj_cert pers vis st fe c args) lst
+      (arena.core.proj_cert pers st fe c args) lst
       (projCert lfe (absNIdx c) (absEIdxList args)) := by
   rw [arena.core.proj_cert, projCert]
   lockstep_c2
 
 @[lockstep] theorem proj_cert_at_ls
-    {pers vis st fe lfe verified c args lst}
+    {pers st fe lfe verified c args lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
+    (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.proj_cert_at pers vis st fe verified c args) lst
+      (arena.core.proj_cert_at pers st fe verified c args) lst
       (projCertAt lfe verified (absNIdx c) (absEIdxList args)) := by
   rw [arena.core.proj_cert_at, projCertAt]
   lockstep_c2
@@ -285,22 +285,22 @@ count) against `teleArityOk`. -/
 attribute [local lockstep_simp] ConRon.Refine.absLiteral
 
 @[lockstep] theorem lit_major_to_ctor_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth h lst}
+    {pers st mode eager lane fu fe lfe depth h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.lit_major_to_ctor pers vis st mode eager lane fu fe depth h) lst
+      (arena.core.lit_major_to_ctor pers st mode eager lane fu fe depth h) lst
       (litMajorToCtor (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx h)) := by
   rw [arena.core.lit_major_to_ctor, litMajorToCtor]
   lockstep_c2
 
 @[lockstep] theorem proj_lit_to_ctor_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth h lst}
+    {pers st mode eager lane fu fe lfe depth h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.proj_lit_to_ctor pers vis st mode eager lane fu fe depth h) lst
+      (arena.core.proj_lit_to_ctor pers st mode eager lane fu fe depth h) lst
       (projLitToCtor (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx h)) := by
   rw [arena.core.proj_lit_to_ctor, projLitToCtor]
@@ -333,12 +333,12 @@ attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_k absIRecRule_eta
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem major_to_ctor_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth recName rules major lst}
+    {pers st mode eager lane fu fe lfe depth recName rules major lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.major_to_ctor pers vis st mode eager lane fu fe depth recName rules major) lst
+      (arena.core.major_to_ctor pers st mode eager lane fu fe depth recName rules major) lst
       (majorToCtor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         lfe (absU depth) (absNIdx recName) (rules.val.map absIRecRule) (absEIdx major)) := by
   rw [arena.core.major_to_ctor, majorToCtor.eq_def]
@@ -379,12 +379,12 @@ attribute [lockstep_inline] arena.core.prepare_major_whnf
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth recName rules major lst}
+    {pers st mode eager lane fu fe lfe depth recName rules major lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.prepare_major pers vis st mode eager lane fu fe depth recName rules major) lst
+      (arena.core.prepare_major pers st mode eager lane fu fe depth recName rules major) lst
       (prepareMajor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         lfe (absU depth) (absNIdx recName) (rules.val.map absIRecRule) (absEIdx major)) := by
   rw [arena.core.prepare_major, prepareMajor]
@@ -406,19 +406,19 @@ attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule
 
 /-- `iota_ctor_never_prop` (the ι case split's test) against
 `iotaCtorNeverProp`. -/
-@[lockstep] theorem iota_ctor_never_prop_ls {pers vis st fe lfe cvj us lst}
+@[lockstep] theorem iota_ctor_never_prop_ls {pers st fe lfe cvj us lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.iota_ctor_never_prop pers vis st fe cvj us) lst
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.iota_ctor_never_prop pers st fe cvj us) lst
       (iotaCtorNeverProp lfe (absIConstantVal cvj) (absLsIdx us)) := by
   rw [arena.core.iota_ctor_never_prop, iotaCtorNeverProp]
   lockstep_c2
 
 /-- `iota_case3` (case 3 of the ι case split) against `iotaCase3`. -/
-@[lockstep] theorem iota_case3_ls {pers vis st fe lfe rl cvj us lst}
+@[lockstep] theorem iota_case3_ls {pers st fe lfe rl cvj us lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.iota_case3 pers vis st fe rl cvj us) lst
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.iota_case3 pers st fe rl cvj us) lst
       (iotaCase3 lfe (absIRecRule rl) (absIConstantVal cvj) (absLsIdx us)) := by
   rw [arena.core.iota_case3, iotaCase3]
   lockstep_c2
@@ -429,12 +429,12 @@ attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem iota_rec_at_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth hd sargs n lst}
+    {pers st mode eager lane fu fe lfe depth hd sargs n lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.iota_rec_at pers vis st mode eager lane fu fe depth hd sargs n) lst
+      (arena.core.iota_rec_at pers st mode eager lane fu fe depth hd sargs n) lst
       (iotaRecAt (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         lfe (absU depth) (absEIdx hd) (absEIdxArr sargs) (absSz n)) := by
   rw [arena.core.iota_rec_at, iotaRecAt]

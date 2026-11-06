@@ -186,7 +186,7 @@ are never compared). -/
 
 theorem knotRel_zero : KnotRel 0 := by
   constructor
-  · intro pers vis st mode eager lane fu fe lfe cheap depth e lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe cheap depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf_core, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -194,7 +194,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _ _ _))
-  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -202,7 +202,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _ _))
-  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -210,7 +210,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _ _))
-  · intro pers vis st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer_io, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -218,7 +218,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _ _))
-  · intro pers vis st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
     rw [arena.core.knot_defeq, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -226,7 +226,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _ _))
-  · intro pers vis st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
+  · intro pers st mode eager lane fu fe lfe depth a b lst o _ _ _ hf hrun
     rw [arena.core.knot_defeq_e, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -272,10 +272,10 @@ theorem coreKnot_succ_defeq_miss (mode eager lfe f d a b lst)
   rw [coreKnot_succ_defeq_split, h]
 
 theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst o}
+    {pers st mode eager lane fu fe lfe depth a b lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_defeq pers vis st mode eager lane fu fe depth a b = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_defeq pers st mode eager lane fu fe depth a b = ok o) :
     Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeq
         (absU depth) (absEIdx a) (absEIdx b)) := by
@@ -405,10 +405,10 @@ theorem coreKnot_succ_defeqE_miss (mode eager lfe f d a b lst lsv lst1)
   rw [h]
 
 theorem knotRel_succ_defeqE {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst o}
+    {pers st mode eager lane fu fe lfe depth a b lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_defeq_e pers vis st mode eager lane fu fe depth a b = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_defeq_e pers st mode eager lane fu fe depth a b = ok o) :
     Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).defeqE
         (absU depth) (absEIdx a) (absEIdx b)) := by
@@ -511,10 +511,10 @@ theorem coreKnot_succ_infer_miss (mode eager lfe f d e lst)
   rw [coreKnot_succ_infer_split, h]
 
 theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst o}
+    {pers st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_infer pers vis st mode eager lane fu fe depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_infer pers st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).infer
         (absU depth) (absEIdx e)) := by
@@ -608,10 +608,10 @@ theorem coreKnot_succ_inferIO_miss (mode eager lfe f d e lst)
   rw [coreKnot_succ_inferIO_split, h]
 
 theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst o}
+    {pers st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_infer_io pers vis st mode eager lane fu fe depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_infer_io pers st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).inferIO
         (absU depth) (absEIdx e)) := by
@@ -835,10 +835,10 @@ theorem coreKnot_succ_whnfCoreCheap_miss (mode eager lfe f d e lst)
   rw [coreKnot_succ_whnfCoreCheap_split _ _ _ _ _ _ _ hs, h]
 
 theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe cheap depth e lst o}
+    {pers st mode eager lane fu fe lfe cheap depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_whnf_core pers vis st mode eager lane fu fe cheap depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_whnf_core pers st mode eager lane fu fe cheap depth e = ok o) :
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnfCore cheap
         (absU depth) (absEIdx e)) := by
@@ -1019,10 +1019,10 @@ theorem coreKnot_succ_whnf_miss (mode eager lfe f d e lst)
   rw [coreKnot_succ_whnf_split _ _ _ _ _ _ _ hs, h]
 
 theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst o}
+    {pers st mode eager lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_whnf pers vis st mode eager lane fu fe depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f + 1)
+    (hrun : arena.core.knot_whnf pers st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) eager lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)) := by

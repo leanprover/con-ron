@@ -69,8 +69,8 @@ attribute [lockstep_inline] arena.inductives.positivity.ind_caps_ctors
 
 /-- `nest_ctor_entry_of` ⊑ `nestContainer`'s `filterMapM` lambda. -/
 @[lockstep] theorem nest_ctor_entry_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers vis rf lf) (c n : arena.handle.NIdx) :
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hctx : CoreCtx pers rf lf) (c n : arena.handle.NIdx) :
     LSR pers (fun a b => b = a.map fun p => (absIConstantVal p.1, absU p.2.1, absU p.2.2))
       (arena.inductives.positivity.nest_ctor_entry_of pers st vis rf c n) st lst
       (match lf.find? (absNIdx n) with
@@ -100,8 +100,8 @@ abbrev nestCtorEntryOf (lf : IFEnv) (C n : NIdx) : AM (Option (IConstantVal × N
 
 /-- `nest_container_ctors` ⊑ `filterMapM` of the lookup from the cursor on,
 behind the accumulator. -/
-@[lockstep] theorem nest_container_ctors_ls {pers st} {vis : Std.U64} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (c : arena.handle.NIdx)
+@[lockstep] theorem nest_container_ctors_ls {pers st} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx)
     (ns : alloc.vec.Vec arena.handle.NIdx) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -144,8 +144,8 @@ behind the accumulator. -/
     lockstep
 
 @[lockstep] theorem nest_container_ctors_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (c : arena.handle.NIdx)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx)
     (ns : alloc.vec.Vec arena.handle.NIdx) :
     LSR pers (fun a b => b = absCtors3L a)
       (arena.inductives.positivity.nest_container_ctors pers st vis rf c ns 0#usize
@@ -161,8 +161,8 @@ behind the accumulator. -/
 
 /-- `nest_container` ⊑ `nestContainer` (Rust `vis, fe, c`; twin `fe C`). -/
 @[lockstep] theorem nest_container_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers vis rf lf) (c : arena.handle.NIdx) :
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx) :
     LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
       (arena.inductives.positivity.nest_container pers st vis rf c) st lst
       (nestContainer lf (absNIdx c)) := by

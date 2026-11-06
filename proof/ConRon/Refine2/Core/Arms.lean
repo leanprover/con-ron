@@ -84,11 +84,11 @@ the loops of `Core/Arms/Loops.lean` (`whnf_body_refines`;
 /-- `arena::core::whnf_core_body` against `Arena.whnfCoreBody` — the
 head-normalization body.  Lockstep (task #97-P5-Core round 5). -/
 theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe cheap depth e lst o}
+    {pers st mode eager lane fu fe lfe cheap depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.whnf_core_body pers vis st mode eager lane fu fe cheap depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.whnf_core_body pers st mode eager lane fu fe cheap depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe cheap
@@ -97,11 +97,11 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
 
 /-- `arena::core::infer_body` against `Arena.inferBody`.  Lockstep (task #97-P5-Core round 5). -/
 theorem infer_body_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst o}
+    {pers st mode eager lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.infer_body pers vis st mode eager lane fu fe depth e = ok o) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.infer_body pers st mode eager lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (inferBody
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
@@ -110,12 +110,12 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
 
 /-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  Lockstep (task #97-P5-Core round 5). -/
 theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane io fu fe lfe depth e lst o}
+    {pers st mode eager lane io fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
     (hio : io = true ∨ lane = arena.core.LANE_IO)
-    (hrun : arena.core.infer_body_io pers vis st mode eager lane io fu fe depth e = ok o) :
+    (hrun : arena.core.infer_body_io pers st mode eager lane io fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (inferBodyIO
         (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe

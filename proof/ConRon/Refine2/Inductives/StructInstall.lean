@@ -102,7 +102,7 @@ the last binder to the first, which is why the counter is the twin's `j + 1`
 recursion and not a cursor. -/
 @[lockstep] theorem check_struct_doms_at_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {mode : kernel.env.CheckMode}
     {off : Std.U64}
@@ -112,7 +112,7 @@ recursion and not a cursor. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install.check_struct_doms_at pers vis st mode rf off fvs doms k) lst
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install.check_struct_doms_at pers st mode rf off fvs doms k) lst
       (checkStructDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
   induction hk : k.val generalizing k st lst with
@@ -145,7 +145,7 @@ open Lockstep in
 cursor on. -/
 @[lockstep] theorem proj_bodies_scoped_ls {E₀ : IEnv}
     {pers st lst}
-    {vis : Std.U64}
+   
     {rf lf}
     {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p : Std.U64}
@@ -155,14 +155,14 @@ cursor on. -/
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers E₀ rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.inductives.struct_install.proj_bodies_scoped pers vis st rf lps n_p bodies i) lst
+    LS pers (fun a b => b = id a) (arena.inductives.struct_install.proj_bodies_scoped pers st rf lps n_p bodies i) lst
       (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p)
         (absEIdxLFrom bodies i)) := by
   revert st lst hrel hinv
   simp only [absEIdxLFrom]
   intro st lst hrel hinv
   refine ls_cursor bodies absEIdx (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p))
-    (fun st i => arena.inductives.struct_install.proj_bodies_scoped pers vis st rf lps n_p bodies i)
+    (fun st i => arena.inductives.struct_install.proj_bodies_scoped pers st rf lps n_p bodies i)
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]

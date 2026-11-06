@@ -1093,7 +1093,7 @@ hypotheses are at the tier (`htf`), the conclusion at the caller's reader
 (`hpers`).  `hk` and `hkt` are finding C's bounds, at the counter and at the
 table list. -/
 theorem install_step_promote_refines {pers tier st lst} {rf lf}
-    {i vis k kt : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {i k kt : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {vg : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st)
     (htf : tier.frozen = true) (hpers : pers.frozen = false)

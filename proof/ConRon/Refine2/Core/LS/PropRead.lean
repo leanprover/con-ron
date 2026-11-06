@@ -170,20 +170,20 @@ theorem lam_proj_aux (n : Nat) :
   lam_proj_aux _ fuel k h rfl hrel hinv
 
 theorem unwrap_id_defs_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
       {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
       (fuel nn : Std.U64) (e : arena.handle.EIdx),
-      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
       LS pers (fun a b => b = absEIdx a)
-        (arena.prop_read.unwrap_id_defs pers vis st fe fuel nn e)
+        (arena.prop_read.unwrap_id_defs pers st fe fuel nn e)
         lst (unwrapIdDefs lfe (absU fuel) n (absEIdx e)) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst fuel nn e hn hrel hinv hctx
+    intro pers st fe lfe lst fuel nn e hn hrel hinv hctx
     rw [arena.prop_read.unwrap_id_defs, unwrapIdDefs]
     lockstep
   | succ m ih =>
-    intro pers vis st fe lfe lst fuel nn e hn hrel hinv hctx
+    intro pers st fe lfe lst fuel nn e hn hrel hinv hctx
     rw [arena.prop_read.unwrap_id_defs, unwrapIdDefs]
     lockstep
     -- glue: the twin's `args.getD (k - 1 - j) e` is the port's `args[k - 1 - j]`
@@ -194,37 +194,37 @@ theorem unwrap_id_defs_aux (n : Nat) :
     congr 2
     scalar_tac
 
-@[lockstep] theorem unwrap_id_defs_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem unwrap_id_defs_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel n : Std.U64) (e : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.prop_read.unwrap_id_defs pers vis st fe fuel n e)
+      (arena.prop_read.unwrap_id_defs pers st fe fuel n e)
       lst (unwrapIdDefs lfe (absU fuel) (absU n) (absEIdx e)) :=
   unwrap_id_defs_aux _ fuel n e rfl hrel hinv hctx
 
 theorem peel_pis_w_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
       {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
       (fuel k : Std.U64) (h : arena.handle.EIdx),
-      k.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
       LS pers (fun a b => b = a.map absEIdx)
-        (arena.prop_read.peel_pis_w pers vis st fe fuel k h)
+        (arena.prop_read.peel_pis_w pers st fe fuel k h)
         lst (peelPisW lfe (absU fuel) n (absEIdx h)) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst fuel k h hn hrel hinv hctx
+    intro pers st fe lfe lst fuel k h hn hrel hinv hctx
     rw [arena.prop_read.peel_pis_w, peelPisW]
     lockstep
   | succ m ih =>
-    intro pers vis st fe lfe lst fuel k h hn hrel hinv hctx
+    intro pers st fe lfe lst fuel k h hn hrel hinv hctx
     rw [arena.prop_read.peel_pis_w, peelPisW]
     lockstep
 
-@[lockstep] theorem peel_pis_w_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem peel_pis_w_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel k : Std.U64) (h : arena.handle.EIdx) :
     LS pers (fun a b => b = a.map absEIdx)
-      (arena.prop_read.peel_pis_w pers vis st fe fuel k h)
+      (arena.prop_read.peel_pis_w pers st fe fuel k h)
       lst (peelPisW lfe (absU fuel) (absU k) (absEIdx h)) :=
   peel_pis_w_aux _ fuel k h rfl hrel hinv hctx
 
@@ -266,98 +266,98 @@ theorem peel_pis_w_aux (n : Nat) :
             ConRon.Refine.absLevels]⟩,
           by assumption, by assumption⟩
 
-@[lockstep] theorem head_type_pw_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem head_type_pw_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (root : arena.handle.EIdx) (d : Std.U64) (h : arena.handle.EIdx)
     (n : Std.U64) :
     LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-      (arena.prop_read.head_type_pw pers vis st fe fuel root d h n)
+      (arena.prop_read.head_type_pw pers st fe fuel root d h n)
       lst (headTypePW lfe (absU fuel) (absEIdx root) (absU d) (absEIdx h) (absU n)) := by
   rw [arena.prop_read.head_type_pw, headTypePW]
   lockstep
 
 theorem type_sort_pw_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
       {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
       (fuel : Std.U64) (root t : arena.handle.EIdx) (d : Std.U64),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
       LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-        (arena.prop_read.type_sort_pw_go pers vis st fe fuel root t d)
+        (arena.prop_read.type_sort_pw_go pers st fe fuel root t d)
         lst (typeSortPWGo lfe (absEIdx root) n (absEIdx t) (absU d)) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst fuel root t d hn hrel hinv hctx
+    intro pers st fe lfe lst fuel root t d hn hrel hinv hctx
     rw [arena.prop_read.type_sort_pw_go, typeSortPWGo]
     lockstep
   | succ m ih =>
-    intro pers vis st fe lfe lst fuel root t d hn hrel hinv hctx
+    intro pers st fe lfe lst fuel root t d hn hrel hinv hctx
     rw [arena.prop_read.type_sort_pw_go, typeSortPWGo]
     lockstep
 
-@[lockstep] theorem type_sort_pw_go_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem type_sort_pw_go_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (root t : arena.handle.EIdx) (d : Std.U64) :
     LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-      (arena.prop_read.type_sort_pw_go pers vis st fe fuel root t d)
+      (arena.prop_read.type_sort_pw_go pers st fe fuel root t d)
       lst (typeSortPWGo lfe (absEIdx root) (absU fuel) (absEIdx t) (absU d)) :=
   type_sort_pw_go_aux _ fuel root t d rfl hrel hinv hctx
 
-@[lockstep] theorem type_sort_pw_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem type_sort_pw_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (t : arena.handle.EIdx) :
     LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-      (arena.prop_read.type_sort_pw pers vis st fe fuel t)
+      (arena.prop_read.type_sort_pw pers st fe fuel t)
       lst (typeSortPW lfe (absU fuel) (absEIdx t)) := by
   rw [arena.prop_read.type_sort_pw, typeSortPW]
   exact type_sort_pw_go_ls hrel hinv hctx fuel t t 0#u64
 
-@[lockstep] theorem head_proof_pw_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem head_proof_pw_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (h : arena.handle.EIdx) :
     LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-      (arena.prop_read.head_proof_pw pers vis st fe fuel h)
+      (arena.prop_read.head_proof_pw pers st fe fuel h)
       lst (headProofPW lfe (absU fuel) (absEIdx h)) := by
   rw [arena.prop_read.head_proof_pw, headProofPW]
   lockstep
 
 theorem proof_pw_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
       {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
       (fuel : Std.U64) (a : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe →
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
       LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-        (arena.prop_read.proof_pw pers vis st fe fuel a)
+        (arena.prop_read.proof_pw pers st fe fuel a)
         lst (proofPW lfe n (absEIdx a)) := by
   induction n with
   | zero =>
-    intro pers vis st fe lfe lst fuel a hn hrel hinv hctx
+    intro pers st fe lfe lst fuel a hn hrel hinv hctx
     rw [arena.prop_read.proof_pw, proofPW]
     lockstep
   | succ m ih =>
-    intro pers vis st fe lfe lst fuel a hn hrel hinv hctx
+    intro pers st fe lfe lst fuel a hn hrel hinv hctx
     rw [arena.prop_read.proof_pw, proofPW]
     lockstep
 
-@[lockstep] theorem proof_pw_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem proof_pw_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (a : arena.handle.EIdx) :
     LS pers (fun a b => PG2.optPwWF a ∧ b = ExprOps.absPwOpt a)
-      (arena.prop_read.proof_pw pers vis st fe fuel a)
+      (arena.prop_read.proof_pw pers st fe fuel a)
       lst (proofPW lfe (absU fuel) (absEIdx a)) :=
   proof_pw_aux _ fuel a rfl hrel hinv hctx
 
-@[lockstep] theorem is_proof_fast_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem is_proof_fast_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (a : arena.handle.EIdx) :
-    LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers vis st fe fuel a)
+    LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers st fe fuel a)
       lst (isProofFast lfe (absU fuel) (absEIdx a)) := by
   rw [arena.prop_read.is_proof_fast, isProofFast]
   lockstep
 
-@[lockstep] theorem not_proof_fast_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
+@[lockstep] theorem not_proof_fast_ls {pers st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
     (fuel : Std.U64) (a : arena.handle.EIdx) :
-    LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers vis st fe fuel a)
+    LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers st fe fuel a)
       lst (notProofFast lfe (absU fuel) (absEIdx a)) := by
   rw [arena.prop_read.not_proof_fast, notProofFast]
   lockstep
@@ -376,15 +376,15 @@ theorem LS.weaken {α β : Type} {pers : arena.store.PersTier} {R R' : α → β
     obtain ⟨b, lst', hx, hr, h1, h2⟩ := H
     exact ⟨b, lst', hx, hR a b hr, h1, h2⟩
 
-theorem proof_pw_sim {pers st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
-    (hrun : arena.prop_read.proof_pw pers vis st fe fuel a = ok o) :
+theorem proof_pw_sim {pers st lst fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
+    (hrun : arena.prop_read.proof_pw pers st fe fuel a = ok o) :
     Sim₀ ExprOps.absPwOpt pers lst o (proofPW lfe (absU fuel) (absEIdx a)) :=
   LS.toSim₀ (LS.weaken (proof_pw_ls hrel hinv hctx fuel a) fun _ _ h => h.2) hrun
 
-theorem type_sort_pw_sim {pers st lst vis fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe)
-    (hrun : arena.prop_read.type_sort_pw pers vis st fe fuel t = ok o) :
+theorem type_sort_pw_sim {pers st lst fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
+    (hrun : arena.prop_read.type_sort_pw pers st fe fuel t = ok o) :
     Sim₀ ExprOps.absPwOpt pers lst o (typeSortPW lfe (absU fuel) (absEIdx t)) :=
   LS.toSim₀ (LS.weaken (type_sort_pw_ls hrel hinv hctx fuel t) fun _ _ h => h.2) hrun
 

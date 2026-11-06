@@ -211,9 +211,9 @@ end
   rcases ci <;> rw [arena.core.nat_succ_ok.eq_def] <;>
     simp only [Option.map_some, absIConstantInfo, natSuccOk] <;> lockstep
 
-@[lockstep] theorem nat_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
+@[lockstep] theorem nat_lit_supported_ls {pers st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers st fe) lst
       (natLitSupported lfe) := by
   rw [arena.core.nat_lit_supported, natLitSupported]
   lockstep
@@ -246,9 +246,9 @@ attribute [local simp] ConRon.Refine.LiteralWF
   obtain ⟨hwf, rfl⟩ := hR
   lockstep
 
-@[lockstep] theorem lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers vis st fe h) lst
+@[lockstep] theorem lit_to_ctor_if_nat_ls {pers st fe lfe h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers st fe h) lst
       (litToCtorIfNat lfe (absEIdx h)) := by
   rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
   lockstep
@@ -450,9 +450,9 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
   rcases ci with _ | c <;> rw [arena.core.list_cons_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep_lp
 
-@[lockstep] theorem str_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
+@[lockstep] theorem str_lit_supported_ls {pers st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers st fe) lst
       (strLitSupported lfe) := by
   rw [arena.core.str_lit_supported, strLitSupported]
   lockstep
@@ -516,9 +516,9 @@ theorem natOpStored_pure (fe : IFEnv) (c : NIdx) :
   · rfl
   · cases ci <;> rfl
 
-@[lockstep] theorem nat_op_stored_spec {pers : arena.store.PersTier} {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers vis fe lfe) (c : arena.handle.NIdx) :
-    LSP (arena.core.nat_op_stored pers vis fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
+@[lockstep] theorem nat_op_stored_spec {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) (c : arena.handle.NIdx) :
+    LSP (arena.core.nat_op_stored pers fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
   intro a ha
   rw [arena.core.nat_op_stored] at ha
   obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
@@ -537,11 +537,11 @@ attribute [local lockstep_simp] natOpStored_pure
 set_option maxHeartbeats 4000000 in
 /-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B. -/
 @[lockstep] theorem reduce_nat_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst}
+    {pers st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.reduce_nat pers vis st mode eager lane fu fe depth e) lst
+      (arena.core.reduce_nat pers st mode eager lane fu fe depth e) lst
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.reduce_nat, reduceNat]

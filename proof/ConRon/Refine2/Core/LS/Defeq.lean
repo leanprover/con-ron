@@ -213,12 +213,12 @@ macro "lockstep_f" : tactic =>
 /-! ## The batched binder descent's leaf -/
 
 @[lockstep] theorem defeq_peel_leaf_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe d a b k fvs lst}
+    {pers st mode eager lane fu fe lfe d a b k fvs lst}
     (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_peel_leaf pers vis st mode eager lane fu fe d a b k fvs) lst
+      (arena.core.defeq_peel_leaf pers st mode eager lane fu fe d a b k fvs) lst
       (defeqPeelLeaf (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) := by
   rw [arena.core.defeq_peel_leaf, defeqPeelLeaf]
@@ -227,11 +227,11 @@ macro "lockstep_f" : tactic =>
 /-! ## The eq-true shortcut and the same-head spine -/
 
 @[lockstep] theorem bool_true_shortcut_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a lst}
+    {pers st mode eager lane fu fe lfe depth a lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.bool_true_shortcut pers vis st mode eager lane fu fe depth a) lst
+      (arena.core.bool_true_shortcut pers st mode eager lane fu fe depth a) lst
       (boolTrueShortcut (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth)
         (absEIdx a)) := by
   rw [arena.core.bool_true_shortcut, boolTrueShortcut]
@@ -289,11 +289,11 @@ context may present the first call's `aa.len()` as `bb.len()`. -/
 
 set_option maxHeartbeats 2000000 in
 @[lockstep] theorem defeq_spine_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_spine pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.defeq_spine pers st mode eager lane fu fe depth a b) lst
       (defeqSpine (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_spine, defeqSpine]
@@ -343,13 +343,13 @@ theorem defeqPeel_succ (r : CoreFnsA) (d m : Nat) (a b : EIdx) (k : Nat)
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
-    (hx : ExprOpsHyp pers) {vis mode eager lane fu fe lfe} (hctx : CoreCtx pers vis fe lfe)
+    (hx : ExprOpsHyp pers) {mode eager lane fu fe lfe} (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f) (d : Std.U64) (n : Nat) :
     ∀ {st : arena.monad.AState} {lst : AState} (peel : Std.U64) (a b : arena.handle.EIdx)
       (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx),
       peel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.core.defeq_peel pers vis st mode eager lane fu fe d peel a b k fvs) lst
+        (arena.core.defeq_peel pers st mode eager lane fu fe d peel a b k fvs) lst
         (defeqPeel (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
           (absU d) n (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) := by
   induction n with
@@ -364,12 +364,12 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
     lockstep_f
 
 @[lockstep] theorem defeq_peel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe d peel a b k fvs lst}
+    {pers st mode eager lane fu fe lfe d peel a b k fvs lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_peel pers vis st mode eager lane fu fe d peel a b k fvs) lst
+      (arena.core.defeq_peel pers st mode eager lane fu fe d peel a b k fvs) lst
       (defeqPeel (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absU d) (absU peel) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) :=
   defeq_peel_aux hk hx hctx hf d _ peel a b k fvs rfl hrel hinv
@@ -377,12 +377,12 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
 /-! ## The binder-congruence arm -/
 
 @[lockstep] theorem defeq_binders_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth ty1 body1 ty2 body2 lst}
+    {pers st mode eager lane fu fe lfe depth ty1 body1 ty2 body2 lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_binders pers vis st mode eager lane fu fe depth ty1 body1 ty2 body2) lst
+      (arena.core.defeq_binders pers st mode eager lane fu fe depth ty1 body1 ty2 body2) lst
       (defeqBinders (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absU depth) (absEIdx ty1) (absEIdx body1) (absEIdx ty2) (absEIdx body2)) := by
   have hpush := @PF.vec_push_eidx_ls
@@ -403,11 +403,11 @@ projections) against `lamPair?`. -/
   lockstep_f
 
 @[lockstep] theorem defeq_lams_inner_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth b1 b2 lst}
+    {pers st mode eager lane fu fe lfe depth b1 b2 lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_lams_inner pers vis st mode eager lane fu fe depth b1 b2) lst
+      (arena.core.defeq_lams_inner pers st mode eager lane fu fe depth b1 b2) lst
       (defeqLamsInner (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth) (absEIdx b1)
         (absEIdx b2)) := by
@@ -416,33 +416,33 @@ projections) against `lamPair?`. -/
 
 set_option maxHeartbeats 2000000 in
 theorem defeq_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
-    ∀ {pers vis st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst},
+    ∀ {pers st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst},
       ExprOpsHyp pers → (lfuel : Std.U64).val = n →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers vis fe lfe → absU fu = f →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
       LS pers (fun a b => b = a)
-        (arena.core.defeq_lams pers vis st mode eager lane fu fe lfuel depth ty1 body1 ty2 body2) lst
+        (arena.core.defeq_lams pers st mode eager lane fu fe lfuel depth ty1 body1 ty2 body2) lst
         (defeqLams (ConRon.Refine.absMode mode)
           (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) n (absU depth) (absEIdx ty1)
           (absEIdx body1) (absEIdx ty2) (absEIdx body2)) := by
   induction n with
   | zero =>
-    intro pers vis st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
+    intro pers st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
       hctx hf
     rw [arena.core.defeq_lams, defeqLams]
     lockstep_f
   | succ m ih =>
-    intro pers vis st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
+    intro pers st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
       hctx hf
     rw [arena.core.defeq_lams, defeqLams]
     lockstep_f
 
 @[lockstep] theorem defeq_lams_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst}
+    {pers st mode eager lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_lams pers vis st mode eager lane fu fe lfuel depth ty1 body1 ty2 body2) lst
+      (arena.core.defeq_lams pers st mode eager lane fu fe lfuel depth ty1 body1 ty2 body2) lst
       (defeqLams (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU lfuel) (absU depth)
         (absEIdx ty1) (absEIdx body1) (absEIdx ty2) (absEIdx body2)) :=
@@ -490,12 +490,12 @@ theorem lift_fueled_level_ls {pers : arena.store.PersTier} {st : arena.monad.ASt
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 @[lockstep] theorem quick_defeq_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.quick_defeq pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.quick_defeq pers st mode eager lane fu fe depth a b) lst
       (quickDefEq (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absU depth) (absEIdx a) (absEIdx b)) := by
   have hview := @PF.view_wf_ls
@@ -522,11 +522,11 @@ set_option maxHeartbeats 8000000 in
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 @[lockstep] theorem defeq_offset_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_offset pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.defeq_offset pers st mode eager lane fu fe depth a b) lst
       (defeqOffset (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_offset, defeqOffset]
@@ -542,11 +542,11 @@ set_option maxHeartbeats 8000000 in
   lockstep_f
 
 @[lockstep] theorem try_unfold_proj_app_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth e lst}
+    {pers st mode eager lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.try_unfold_proj_app pers vis st mode eager lane fu fe depth e) lst
+      (arena.core.try_unfold_proj_app pers st mode eager lane fu fe depth e) lst
       (tryUnfoldProjApp (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth)
         (absEIdx e)) := by
   rw [arena.core.try_unfold_proj_app, tryUnfoldProjApp]
@@ -572,12 +572,12 @@ def absLazyResA : arena.core.LazyResA → LazyResA
 attribute [local lockstep_simp] absDeltaStepA absLazyResA
 
 @[lockstep] theorem delta_quick_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absDeltaStepA a)
-      (arena.core.delta_quick pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.delta_quick pers st mode eager lane fu fe depth a b) lst
       (deltaQuick (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absU depth) (absEIdx a) (absEIdx b)) := by
   rw [arena.core.delta_quick, deltaQuick]
@@ -593,12 +593,12 @@ attribute [lockstep_inline] arena.core.lazy_delta_side arena.core.lazy_delta_one
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 @[lockstep] theorem lazy_delta_step_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absDeltaStepA a)
-      (arena.core.lazy_delta_step pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.lazy_delta_step pers st mode eager lane fu fe depth a b) lst
       (lazyDeltaStep (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) := by
@@ -628,12 +628,12 @@ theorem lazyDeltaReduction_zero (mode : ConLeche.CheckMode) (eager : Bool) (r : 
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 theorem lazy_delta_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
-    (hx : ExprOpsHyp pers) {vis mode eager lane fu fe lfe} (hctx : CoreCtx pers vis fe lfe)
+    (hx : ExprOpsHyp pers) {mode eager lane fu fe lfe} (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f) (depth : Std.U64) (m : Nat) :
     ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (a b : arena.handle.EIdx),
       absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absLazyResA a)
-        (arena.core.lazy_delta_reduction pers vis st mode eager lane fu fe depth n a b) lst
+        (arena.core.lazy_delta_reduction pers st mode eager lane fu fe depth n a b) lst
         (lazyDeltaReduction (ConRon.Refine.absMode mode) eager
           (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) m
           (absEIdx a) (absEIdx b)) := by
@@ -649,12 +649,12 @@ theorem lazy_delta_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.
 
 /-- `arena::core::lazy_delta_reduction` against `Arena.lazyDeltaReduction`. -/
 @[lockstep] theorem lazy_delta_reduction_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth n a b lst}
+    {pers st mode eager lane fu fe lfe depth n a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absLazyResA a)
-      (arena.core.lazy_delta_reduction pers vis st mode eager lane fu fe depth n a b) lst
+      (arena.core.lazy_delta_reduction pers st mode eager lane fu fe depth n a b) lst
       (lazyDeltaReduction (ConRon.Refine.absMode mode) eager
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absU n)
         (absEIdx a) (absEIdx b)) :=
@@ -669,12 +669,12 @@ theorem lazyDeltaProjReduction_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
-    (hx : ExprOpsHyp pers) {vis mode eager lane fu fe lfe} (hctx : CoreCtx pers vis fe lfe)
+    (hx : ExprOpsHyp pers) {mode eager lane fu fe lfe} (hctx : CoreCtx pers fe lfe)
     (hf : absU fu = f) (depth : Std.U64) (sn : arena.handle.NIdx) (i : Std.U64) (m : Nat) :
     ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (a b : arena.handle.EIdx),
       absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.core.lazy_delta_proj_reduction pers vis st mode eager lane fu fe depth sn i n a b) lst
+        (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i n a b) lst
         (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
           (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absNIdx sn)
           (absU i) m (absEIdx a) (absEIdx b)) := by
@@ -691,12 +691,12 @@ theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.s
 /-- `arena::core::lazy_delta_proj_reduction` against
 `Arena.lazyDeltaProjReduction`. -/
 @[lockstep] theorem lazy_delta_proj_reduction_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth sn i n a b lst}
+    {pers st mode eager lane fu fe lfe depth sn i n a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.lazy_delta_proj_reduction pers vis st mode eager lane fu fe depth sn i n a b) lst
+      (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i n a b) lst
       (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absNIdx sn)
         (absU i) (absU n) (absEIdx a) (absEIdx b)) :=
@@ -712,12 +712,12 @@ theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.s
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 @[lockstep] theorem defeq_proj_pair_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_proj_pair pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.defeq_proj_pair pers st mode eager lane fu fe depth a b) lst
       (defeqProjPair (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) := by
@@ -732,12 +732,12 @@ attribute [lockstep_inline] arena.core.defeq_str_app arena.core.defeq_apps
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 40000000 in
 @[lockstep] theorem defeq_stuck_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_stuck pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.defeq_stuck pers st mode eager lane fu fe depth a b) lst
       (defeqStuck (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) := by
@@ -759,12 +759,12 @@ set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 /-- `arena::core::defeq_body` against `Arena.defeqBody`. -/
 theorem defeq_body_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode eager lane fu fe lfe depth a b lst}
+    {pers st mode eager lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_body pers vis st mode eager lane fu fe depth a b) lst
+      (arena.core.defeq_body pers st mode eager lane fu fe depth a b) lst
       (defeqBody (ConRon.Refine.absMode mode) eager
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) := by

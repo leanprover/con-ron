@@ -114,16 +114,16 @@ finding 3 said did not exist.
 pending declaration was installed at; the twin sees `lf.restrictTo (absU vis)`
 and nothing else.  There is no hypothesis tying the two counters together,
 because at this call site they genuinely differ. -/
-theorem IFEnvInv.coreCtxAt {E₀ : IEnv} (vis : Std.U64) {pers : arena.store.PersTier}
+theorem IFEnvInv.coreCtxAt {E₀ : IEnv} {pers : arena.store.PersTier}
     {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf) :
-    CoreCtx pers vis rf (lf.restrictTo (absU vis)) :=
+    CoreCtx pers rf (lf.restrictTo (absU vis)) :=
   ⟨hfe.idx, hfe.tbls, rfl, hfinv, hfe.envWF, hfe.base⟩
 
 /-- The Core tier's ambient argument, built from the checker tier's own. -/
-theorem IFEnvInv.coreCtx {pers : arena.store.PersTier} {E₀ : IEnv} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+theorem IFEnvInv.coreCtx {pers : arena.store.PersTier} {E₀ : IEnv} {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hvis : absU vis = lf.visibleBelow) : CoreCtx pers vis rf lf := by
+    (hvis : absU vis = lf.visibleBelow) : CoreCtx pers rf lf := by
   have hr : lf.restrictTo (absU vis) = lf := by
     rw [IFEnv.restrictTo, hvis]
   exact hr ▸ IFEnvInv.coreCtxAt vis hfe hfinv
@@ -217,41 +217,41 @@ filed for the `lockstep` tactic at that fuel, with the knot discharged by
 attribute [lockstep_simp] check_fuel_abs core_walk_fuel_abs
 
 open Lockstep in
-@[lockstep] theorem infer_type_core_ls {pers vis st mode fe lfe fu depth e lst}
+@[lockstep] theorem infer_type_core_ls {pers st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.infer_type_core pers vis st mode fe fu depth e) lst
+      (arena.core.infer_type_core pers st mode fe fu depth e) lst
       (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
         (absEIdx e)) :=
   LS.ofSim₀ fun _ h => infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
-@[lockstep] theorem ensure_sort_core_ls {pers vis st mode fe lfe fu depth e lst}
+@[lockstep] theorem ensure_sort_core_ls {pers st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absLIdx a)
-      (arena.core.ensure_sort_core pers vis st mode fe fu depth e) lst
+      (arena.core.ensure_sort_core pers st mode fe fu depth e) lst
       (ensureSortCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
         (absEIdx e)) :=
   LS.ofSim₀ fun _ h => ensure_sort_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
-@[lockstep] theorem is_def_eq_core_ls {pers vis st mode fe lfe fu depth a b lst}
+@[lockstep] theorem is_def_eq_core_ls {pers st mode fe lfe fu depth a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = id a)
-      (arena.core.is_def_eq_core pers vis st mode fe fu depth a b) lst
+      (arena.core.is_def_eq_core pers st mode fe fu depth a b) lst
       (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
         (absEIdx a) (absEIdx b)) :=
   LS.ofSim₀ fun _ h => is_def_eq_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
-@[lockstep] theorem whnf_ls {pers vis st mode fe lfe fu depth e lst}
+@[lockstep] theorem whnf_ls {pers st mode fe lfe fu depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers vis fe lfe) (hf : absU fu = checkFuel) :
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = checkFuel) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.whnf pers vis st mode fe fu depth e) lst
+      (arena.core.whnf pers st mode fe fu depth e) lst
       (Arena.whnf (ConRon.Refine.absMode mode) lfe checkFuel (absU depth) (absEIdx e)) :=
   LS.ofSim₀ fun _ h => whnf_refines knotRel_checkFuel' hrel hinv hctx hf h
 
