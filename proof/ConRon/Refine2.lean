@@ -75,3 +75,7 @@ import ConRon.Refine2.Frontend.ExportC
 import ConRon.Refine2.Frontend.ExportCInd
 import ConRon.Refine2.Frontend.PreludeText
 import ConRon.Refine2.Frontend.Top
+import ConRon.Refine2.Frontend.Olean.Shape
+import ConRon.Refine2.Frontend.Olean.Skel
+import ConRon.Refine2.Frontend.Olean.Spec
+import ConRon.Refine2.Frontend.Olean.SpecEntry

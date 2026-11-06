@@ -650,4 +650,352 @@ theorem c_entry_stmt_eq {c : frontend.olean.spec.CEntryF arena.handle.NIdx arena
   simp [absStmt, Arena.Frontend.Olean.entryStmt, nidx_dup2_ok hn, eidx_dup2_ok he,
     nidx_vec_dup_val hv]
 
+
+/-! ## The name table -/
+
+/-- The second half of `constNamesGo`'s test of an entry: entry `n` names the constant
+whose name the pointer `v` is: the same object, or the same name read. -/
+def goSame (pk : Arena.Frontend.Olean.OleanPins) (r : ConLeche.Frontend.Olean.Region) (n : Nat)
+    (v : UInt64) (a : NIdx) : AM Bool :=
+  if (r.loc v == some n) = true then pure true
+  else do
+    match ← Arena.Frontend.Olean.nameP pk r v with
+    | none => pure false
+    | some b => pure (b == a)
+
+/-- **`name_entry_agrees` is `constNamesGo`'s test.** -/
+theorem name_entry_agrees_refines {pk bs r pers st lst} {n v : Std.U64} {a : arena.handle.NIdx}
+    (hr : RegionFits bs r) :
+    CS pers (· = ·) st lst
+      (frontend.olean.spec.name_entry_agrees pk pers st.store bs r n v a)
+      (goSame (absPins pk) (absRegion bs r) n.val (absWord v) (absNIdx a)) := by
+  intro hrel hinv o s' h
+  rw [frontend.olean.spec.name_entry_agrees] at h
+  peel h as ol, hol
+  have eL := region_loc_eq bs hol
+  peel h as same, hsame
+  have es : same = ((absRegion bs r).loc (absWord v) == some n.val) := by
+    rw [← eL]
+    cases ol with
+    | none => exact (Result.ok_injective hsame).symm
+    | some l =>
+      cases Result.ok_injective hsame
+      by_cases hln : l = n
+      · subst hln; simp
+      · have : l.val ≠ n.val := fun he => hln (UScalar.eq_of_val_eq he)
+        simp [hln, this]
+  rw [goSame, ← es]
+  cases same with
+  | true =>
+    rw [ite_eq_left rfl] at h ⊢
+    cases Result.ok_injective h
+    exact ⟨true, lst, rfl, rfl, hrel, hinv⟩
+  | false =>
+    rw [ite_eq_right Bool.false_ne_true] at h ⊢
+    peel h as p, hp
+    obtain ⟨r1, ar1⟩ := p
+    have hn := name_p_refines (pk := pk) (v := v) hr hrel hinv r1 ar1 hp
+    cases r1 with
+    | Ok b =>
+      obtain ⟨b', lst1, hx, hR, rel, inv⟩ := hn
+      cases hR
+      rw [am_bind_ok hx]
+      peel h as b1, hb1
+      cases Result.ok_injective h
+      exact ⟨_, lst1, rfl, nidx_beq_abs hb1, rel, inv⟩
+    | Err re =>
+      cases re with
+      | Bad =>
+        obtain ⟨lst1, hx, rel, inv⟩ := hn
+        cases Result.ok_injective h
+        rw [am_bind_ok hx]
+        exact ⟨false, lst1, rfl, rfl, rel, inv⟩
+      | Err e =>
+        cases Result.ok_injective h
+        show AErrSim e _
+        rw [StateT.run_bind]
+        exact AErrSim.bind hn _
+
+/-- One entry of `constNamesGo`, with `K` the rest of the walk. -/
+def goStep (pk : Arena.Frontend.Olean.OleanPins) (r : ConLeche.Frontend.Olean.Region) (n c : Nat)
+    (seen : _root_.Std.HashSet NIdx) (K : _root_.Std.HashSet NIdx → AM Bool) : AM Bool :=
+  match ConLeche.Frontend.Olean.constSkel r c with
+  | none => pure false
+  | some sk => do
+    match ← Arena.Frontend.Olean.nameAt pk r n with
+    | none => pure false
+    | some a =>
+      let sameName ← goSame pk r n sk.name a
+      if !sameName then pure false
+      else
+        let (b, seen) := seen.containsThenInsert a
+        if b then pure false else K seen
+
+theorem constNamesGo_cons (pk : Arena.Frontend.Olean.OleanPins)
+    (r : ConLeche.Frontend.Olean.Region) (n c : Nat) (ns cs : List Nat)
+    (seen : _root_.Std.HashSet NIdx) :
+    Arena.Frontend.Olean.constNamesGo pk r (n :: ns) (c :: cs) seen =
+      goStep pk r n c seen (Arena.Frontend.Olean.constNamesGo pk r ns cs) := by
+  rw [Arena.Frontend.Olean.constNamesGo, goStep]
+  cases ConLeche.Frontend.Olean.constSkel r c with
+  | none => rfl
+  | some sk =>
+    refine congrArg (Arena.Frontend.Olean.nameAt pk r n >>= ·) (funext fun o => ?_)
+    cases o with
+    | none => rfl
+    | some a =>
+      dsimp only [goSame]
+      cases (r.loc sk.name == some n) with
+      | true => rfl
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte, bind_assoc]
+        refine congrArg (Arena.Frontend.Olean.nameP pk r sk.name >>= ·) (funext fun o => ?_)
+        cases o <;> rfl
+
+/-- The `seen` table of the name table: the handles, as the twin's. -/
+abbrev SeenRel := SetRel arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable absNIdx
+
+/-- What a step of the name table claims of the twin's run `x`, whose answer `true` goes on
+with `K`. -/
+def StepOut (pers : arena.store.PersTier) (st' : arena.monad.AState)
+    (seen1 : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (K : _root_.Std.HashSet NIdx → AM Bool)
+    (x : AM Bool) (lst : AState) : core.result.Result Bool kernel.core_types.CheckError → Prop
+  | .Ok false => ∃ lst1, x.run lst = .ok (false, lst1) ∧ AStateRel₀ pers st' lst1 ∧ AStateInv pers st'
+  | .Ok true => ∃ se1 lst1, x.run lst = (K se1).run lst1 ∧ SeenRel seen1 se1 ∧
+      AStateRel₀ pers st' lst1 ∧ AStateInv pers st'
+  | .Err e => AErrSim e (x.run lst)
+
+/-- `StepOut` only asks of `x`'s run. -/
+theorem StepOut.of_run {pers st' seen1 K} {x y : AM Bool} {lst lst1 : AState} {r}
+    (e : x.run lst = y.run lst1) (h : StepOut pers st' seen1 K y lst1 r) :
+    StepOut pers st' seen1 K x lst r := by
+  cases r with
+  | Ok b =>
+    cases b with
+    | false => rw [StepOut] at h ⊢; rw [e]; exact h
+    | true => rw [StepOut] at h ⊢; rw [e]; exact h
+  | Err e' => rw [StepOut] at h ⊢; rw [e]; exact h
+
+/-- **`const_name_step` is one entry of `constNamesGo`.** -/
+theorem const_name_step_refines {pk bs r pers st lst} {n c : Std.U64} {seen seen1 s1 r1}
+    {se : _root_.Std.HashSet NIdx} {K : _root_.Std.HashSet NIdx → AM Bool} (hr : RegionFits bs r)
+    (hS : SeenRel seen se) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (h : frontend.olean.spec.const_name_step pk pers st.store bs r n c seen = ok (r1, s1, seen1)) :
+    StepOut pers (withStore st s1) seen1 K
+      (goStep (absPins pk) (absRegion bs r) n.val c.val se K) lst r1 := by
+  rw [frontend.olean.spec.const_name_step] at h
+  rw [goStep]
+  peel h as o, ho
+  refine sat_elim (const_skel_eq (bs := bs) (r := r) ho) (fun hA hy => ?_)
+    (fun sk sk' hA hy hSk => ?_)
+  · subst hA
+    rw [hy]
+    cases Result.ok_injective h
+    exact ⟨lst, rfl, hrel, hinv⟩
+  subst hA
+  rw [hy]
+  dsimp only at h ⊢
+  rw [← hSk.«name»]
+  peel h as p1, hp1
+  obtain ⟨r2, ar1⟩ := p1
+  have hn := name_at_refines (pk := pk) hr _ n st lst (Nat.lt_succ_self _) hrel hinv r2 ar1 hp1
+  cases r2 with
+  | Err re =>
+    cases re with
+    | Bad =>
+      obtain ⟨lst1, hx, rel, inv⟩ := hn
+      cases Result.ok_injective h
+      rw [StepOut, am_bind_ok hx]
+      exact ⟨lst1, rfl, rel, inv⟩
+    | Err e =>
+      cases Result.ok_injective h
+      rw [StepOut, StateT.run_bind]
+      exact AErrSim.bind hn _
+  | Ok a =>
+    obtain ⟨b, lst1, hx, hR, rel1, inv1⟩ := hn
+    cases hR
+    refine StepOut.of_run (am_bind_ok hx) ?_
+    dsimp only
+    peel h as p2, hp2
+    obtain ⟨r3, ar2⟩ := p2
+    have hE := name_entry_agrees_refines (pk := pk) (n := n) (v := sk.name) (a := a)
+      (st := withStore st ar1) hr rel1 inv1 r3 ar2 hp2
+    cases r3 with
+    | Err e =>
+      cases Result.ok_injective h
+      rw [StepOut, StateT.run_bind]
+      exact AErrSim.bind hE _
+    | Ok bb =>
+      obtain ⟨bb', lst2, hx2, hR2, rel2, inv2⟩ := hE
+      cases hR2
+      refine StepOut.of_run (am_bind_ok hx2) ?_
+      cases bb with
+      | false =>
+        cases Result.ok_injective h
+        rw [StepOut]
+        exact ⟨lst2, rfl, rel2, inv2⟩
+      | true =>
+        have h : (do
+            let b1 ← ron.hashmap2.HashMap2.contains_key
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen a
+            if b1 = true then ok (core.result.Result.Ok false, ar2, seen)
+            else do
+              let (_, seen1) ← ron.hashmap2.HashMap2.insert
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen a true
+              ok (core.result.Result.Ok true, ar2, seen1)) = ok (r1, s1, seen1) := h
+        have hsp : se.containsThenInsert (absNIdx a) =
+            (se.contains (absNIdx a), se.insert (absNIdx a)) :=
+          Prod.ext _root_.Std.HashSet.containsThenInsert_fst
+            _root_.Std.HashSet.containsThenInsert_snd
+        rw [ite_eq_right (by decide), hsp]
+        dsimp only
+        peel h as b1, hb1
+        rw [← SetRel.contains_key nidx_eq2 hS hb1]
+        cases b1 with
+        | true =>
+          rw [ite_eq_left rfl] at h
+          cases Result.ok_injective h
+          rw [StepOut]
+          exact ⟨lst2, rfl, rel2, inv2⟩
+        | false =>
+          rw [ite_eq_right Bool.false_ne_true] at h
+          peel h as p3, hp3
+          obtain ⟨old, seen2⟩ := p3
+          cases Result.ok_injective h
+          rw [StepOut]
+          exact ⟨se.insert (absNIdx a), lst2, rfl,
+            SetRel.insert nidx_eq2 absNIdx_inj hS hp3, rel2, inv2⟩
+
+/-- **`const_names_go`'s loop is `constNamesGo`** on what is left of the two lists. -/
+theorem const_names_go_loop_refines {pk bs r pers} {ns cs : alloc.vec.Vec Std.U64}
+    (hr : RegionFits bs r) (hlen : ns.val.length = cs.val.length) :
+    ∀ (k : Nat) (i : Std.Usize) (st : arena.monad.AState) (lst : AState) seen se r1 s1 seen1,
+      ns.val.length - i.val ≤ k → SeenRel seen se → AStateRel₀ pers st lst → AStateInv pers st →
+      frontend.olean.spec.const_names_go_loop pk pers st.store bs r ns cs seen i =
+        ok (r1, s1, seen1) →
+      match r1 with
+      | .Ok b => ∃ lst1,
+          (Arena.Frontend.Olean.constNamesGo (absPins pk) (absRegion bs r)
+            ((ns.val.drop i.val).map (·.val)) ((cs.val.drop i.val).map (·.val)) se).run lst =
+              .ok (b, lst1) ∧
+          AStateRel₀ pers (withStore st s1) lst1 ∧ AStateInv pers (withStore st s1)
+      | .Err e => AErrSim e ((Arena.Frontend.Olean.constNamesGo (absPins pk) (absRegion bs r)
+            ((ns.val.drop i.val).map (·.val)) ((cs.val.drop i.val).map (·.val)) se).run lst) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i st lst seen se r1 s1 seen1 hk _ hrel hinv h
+    rw [frontend.olean.spec.const_names_go_loop, ite_eq_right (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]
+    exact ⟨lst, rfl, hrel, hinv⟩
+  | succ k ih =>
+    intro i st lst seen se r1 s1 seen1 hk hS hrel hinv h
+    rw [frontend.olean.spec.const_names_go_loop] at h
+    by_cases hi : i < alloc.vec.Vec.len ns
+    · rw [ite_eq_left hi] at h
+      have hlt : i.val < ns.val.length := by scalar_tac
+      have hlt2 : i.val < cs.val.length := by omega
+      peel h as n, hn
+      peel h as c, hc
+      peel h as p, hp
+      obtain ⟨r2, ar1, seen2⟩ := p
+      have en := ConRon.Refine.ExprOps.vec_index_getElem? hn
+      have ec := ConRon.Refine.ExprOps.vec_index_getElem? hc
+      rw [List.getElem?_eq_getElem hlt] at en
+      rw [List.getElem?_eq_getElem hlt2] at ec
+      rw [List.drop_eq_getElem_cons hlt, List.drop_eq_getElem_cons hlt2, Option.some.inj en,
+        Option.some.inj ec, List.map_cons, List.map_cons, constNamesGo_cons]
+      have hO := const_name_step_refines (se := se)
+        (K := Arena.Frontend.Olean.constNamesGo (absPins pk) (absRegion bs r)
+          ((ns.val.drop (i.val + 1)).map (·.val)) ((cs.val.drop (i.val + 1)).map (·.val)))
+        hr hS hrel hinv hp
+      cases r2 with
+      | Err e =>
+        cases Result.ok_injective h
+        exact hO
+      | Ok b =>
+        cases b with
+        | false =>
+          cases Result.ok_injective h
+          exact hO
+        | true =>
+          obtain ⟨se1, lst1, hrun, hS1, rel1, inv1⟩ := hO
+          peel h as i4, hi4
+          have hiv : i4.val = i.val + 1 := uscalar_add_eq hi4
+          have hI := ih i4 (withStore st ar1) lst1 seen2 se1 r1 s1 seen1 (by omega) hS1 rel1 inv1 h
+          rw [hiv] at hI
+          rw [hrun]
+          exact hI
+    · rw [ite_eq_right hi] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by scalar_tac), List.drop_eq_nil_of_le (by scalar_tac)]
+      exact ⟨lst, rfl, hrel, hinv⟩
+
+/-- **`const_names_ok` is `constNamesOk`.** -/
+theorem const_names_ok_refines {pk bs r pers st lst} {root : Std.U64} (hr : RegionFits bs r) :
+    CS pers (· = ·) st lst (frontend.olean.spec.const_names_ok pk pers st.store bs r root)
+      (Arena.Frontend.Olean.constNamesOk (absPins pk) (absRegion bs r) (absWord root)) := by
+  rw [frontend.olean.spec.const_names_ok, Arena.Frontend.Olean.constNamesOk]
+  refine CS.pure_step fun o ho => ?_
+  rw [← region_loc_eq bs ho]
+  cases o with
+  | none => exact CS.pure rfl
+  | some g =>
+    dsimp only [locOf, Option.map_some]
+    refine CS.pure_step fun b hb => ?_
+    rw [← (ctor_at bs 0 5 hb)]
+    cases b with
+    | false =>
+      rw [ite_eq_right Bool.false_ne_true, ite_eq_right Bool.false_ne_true]
+      exact CS.pure rfl
+    | true =>
+      rw [ite_eq_left rfl, ite_eq_left rfl]
+      refine CS.pure_step fun i hi => CS.pure_step fun o1 ho1 => ?_
+      have e1 := region_obj_array_eq hr ho1
+      rw [← (show (absRegion bs r).fld g.val 1 = absWord i from fld_1 hi), ] at e1
+      rw [← e1]
+      cases o1 with
+      | none => exact CS.pure rfl
+      | some v =>
+        refine CS.pure_step fun i1 hi1 => CS.pure_step fun o2 ho2 => ?_
+        have e2 := region_obj_array_eq hr ho2
+        rw [← (show (absRegion bs r).fld g.val 2 = absWord i1 from fld_2 hi1)] at e2
+        rw [← e2]
+        cases o2 with
+        | none => exact CS.pure rfl
+        | some v1 =>
+          simp only [Option.map_some]
+          by_cases hl : v.val.length = v1.val.length
+          · have hle : alloc.vec.Vec.len v = alloc.vec.Vec.len v1 :=
+              UScalar.eq_of_val_eq (by simp only [alloc.vec.Vec.len_val]; exact hl)
+            have hs : (absLocs v).size = (absLocs v1).size := by simp [absLocs, hl]
+            rw [ite_eq_right (by simp [hle]), ite_eq_left (by simp [hs])]
+            refine CS.pure_step fun seen hseen => ?_
+            intro hrel hinv o s' h
+            peel h as p, hp
+            obtain ⟨r1, ar1, sn⟩ := p
+            obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+            rw [frontend.olean.spec.const_names_go] at hp
+            have hG := const_names_go_loop_refines hr hl _ 0#usize st lst seen
+              (_root_.Std.HashSet.emptyWithCapacity (absLocs v).size) r1 ar1 sn (Nat.le_refl _)
+              (SetRel.with_capacity hseen) hrel hinv hp
+            have t0 : (0#usize : Std.Usize).val = 0 := by decide
+            rw [t0, List.drop_zero, List.drop_zero] at hG
+            rw [show (absLocs v).toList = v.val.map (·.val) by simp [absLocs],
+              show (absLocs v1).toList = v1.val.map (·.val) by simp [absLocs]]
+            cases r1 with
+            | Ok b =>
+              obtain ⟨lst1, hrun, rel, inv⟩ := hG
+              exact ⟨b, lst1, hrun, rfl, rel, inv⟩
+            | Err e => exact hG
+          · have hne : alloc.vec.Vec.len v ≠ alloc.vec.Vec.len v1 := fun he => hl (by
+              have := congrArg UScalar.val he
+              simpa only [alloc.vec.Vec.len_val] using this)
+            have hs : (absLocs v).size ≠ (absLocs v1).size := by simp [absLocs, hl]
+            rw [ite_eq_left (by simp [hne]), ite_eq_right (by simp [hs])]
+            exact CS.pure rfl
+
 end ConRon.Refine2.Frontend.Olean
