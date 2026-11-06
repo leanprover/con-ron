@@ -196,14 +196,7 @@ def EntryAt (st : EStore) (en : IProjEntry) : Option ProjEntry → Prop
 theorem entryAt (st : EStore) (en : IProjEntry) : EntryAt st en (denoteProjEntry st en) := by
   cases h : denoteProjEntry st en with
   | none => trivial
-  | some p =>
-    simp only [denoteProjEntry] at h
-    split at h
-    · split at h
-      · rename_i b _ _ hb _ _
-        cases h; exact hb
-      · simp at h
-    · simp at h
+  | some p => exact (denoteProjEntry_inv h).2.2.2.1
 grind_pattern [bridge_grind] entryAt => denoteProjEntry st en
 
 /-- con-leche: none — a projection entry, or a default. -/

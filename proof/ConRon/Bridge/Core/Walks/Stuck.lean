@@ -531,8 +531,8 @@ theorem structEtaCertWith_spec {fuel : Nat}
               env_ind_of_index hok hTn hfdT
             have hcapsD : ∃ ct als cts, denoteN s₀.store.ns icaps.etaCtor = some ct ∧
                 dcaps = ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
-                  icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
-                  als, icaps.nparams, cts⟩ := by
+                  icaps.unitlike, icaps.unitParams, 
+                  als, icaps.nparams, icaps.nIdx, cts⟩ := by
               simp only [Frontend.denoteCaps] at hdcaps
               split at hdcaps
               · rename_i ct als cts hct _ _
@@ -572,8 +572,8 @@ theorem structEtaCertWith_spec {fuel : Nat}
                 icvc.levelParams = icvT.levelParams ∧ slots = true) ↔
                 EtaGuard env w cn Tn ls' dcvc dcvT
                   ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
-                    icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
-                    als, icaps.nparams, cts⟩ := by
+                    icaps.unitlike, icaps.unitParams, 
+                    als, icaps.nparams, icaps.nIdx, cts⟩ := by
               unfold EtaGuard
               rw [hctr, denoteNList_contains hwf5 res _ hres T Tn
                   (denoteN_ext hTn hx5),

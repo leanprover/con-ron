@@ -53,15 +53,14 @@ A read that carries the Rust datum's well-formedness states it as
 `∀ l, o = some l → WF l`; after the case split on `o` that is
 `∀ l, some x = some l → WF l`, which these reduce to `WF x`. -/
 
-attribute [local lockstep_simp] Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF
+attribute [local lockstep_simp] Option.some.injEq forall_eq' ConRon.Refine.LiteralWF
 
 /-! ## The environment -/
 
 /-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
 def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
   ⟨absNIdx e.struct_name, absU e.idx, e.level_params.val.map absNIdx, absU e.num_params,
-    absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
-    absLIdx e.struct_sort⟩
+    absNIdx e.ctor, absU e.num_fields, absEIdx e.body⟩
 
 attribute [local lockstep_simp] absIProjEntry
 
@@ -70,15 +69,12 @@ attribute [local lockstep_simp] absIProjEntry
 attribute [local lockstep_simp] absIConstantInfo
 
 /-- `arena::env::ifenv_find` against `IFEnv.find?`: the twin's lookup is a
-pure expression, so the pair is a `TwinEq` the twin side is rewritten with;
-and the constant found is canonical Rust data (the coordinator's ruling (d) of
-task #97-P5-Core round 5). -/
+pure expression, so the pair is a `TwinEq` the twin side is rewritten with. -/
 @[lockstep] theorem ifenv_find_ls {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
     (hctx : CoreCtx pers fe lfe) (n : arena.handle.NIdx) :
     LSP (arena.env.ifenv_find pers fe n)
-      (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo) ∧
-        ∀ ci, o = some ci → IConstantInfoWF ci) :=
-  fun _ h => ⟨(ifenv_find_abs' hctx h).1.symm, (ifenv_find_abs' hctx h).2⟩
+      (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
 
 @[lockstep] theorem reducibility_hint_dup_ls (h : kernel.env.ReducibilityHint) :
     LSP (kernel.env.reducibility_hint_dup h) (fun r => r = h) := by
@@ -136,17 +132,11 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
     simp only [lift, Result.ok.injEq] at hi2; subst hi2
     simp
   obtain ⟨body, hbody, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hi4v : i4.val = tbl.guards.val.length := by
-    simp only [lift, Result.ok.injEq] at hi4; subst hi4
-    simp
-  obtain ⟨fs, hfs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [dupId_nidx _ _ hn, dupId_nidx _ _ hn1, dupId_lidx _ _ hl]
+  rw [dupId_nidx _ _ hn, dupId_nidx _ _ hn1]
   have hvv := nidx_vec_dup_val hv
   have hb : absEIdx body = (tbl.bodies.val.map absEIdx).toArray.getD i.val default := by
     split at hbody
@@ -167,26 +157,7 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
       rw [← Result.ok_injective hbody]
       have : ¬ i.val < tbl.bodies.val.length := by scalar_tac
       simp [Array.getD, this]; rfl
-  have hg : absLIdx fs = (tbl.guards.val.map absLIdx).getD i.val default := by
-    split at hfs
-    · rename_i hlt
-      obtain ⟨j, hj, hfs⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfs
-      obtain ⟨e, he, hfs⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfs
-      have hjv : j.val = i.val := by
-        simp only [lift, Result.ok.injEq] at hj; subst hj
-        have hlen := tbl.guards.property
-        exact ConRon.Refine.ExprOps.u64_cast_usize_val_of_lt (n := tbl.guards.val.length)
-          hlen (by scalar_tac)
-      obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
-      rw [dupId_lidx _ _ hfs]
-      subst hx
-      have : i.val < tbl.guards.val.length := by scalar_tac
-      simp [List.getD, this, hjv]
-    · rename_i hge
-      rw [← Result.ok_injective hfs]
-      have : ¬ i.val < tbl.guards.val.length := by scalar_tac
-      simp [List.getD, this]; rfl
-  simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
+  simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hvv]
 
 /-- A stored slot in range is read. -/
 private theorem read_tbl_slot {ts : alloc.vec.Vec arena.env.IProjTable} {s : Std.U64} {o}
@@ -200,7 +171,7 @@ private theorem read_tbl_slot {ts : alloc.vec.Vec arena.env.IProjTable} {s : Std
               (core.slice.index.SliceIndexUsizeSlice arena.env.IProjTable) ts i4
             ok (some it))
         else ok none : Result (Option arena.env.IProjTable)) = ok o) :
-    o.map absIProjTable = tblOf ts s := by
+    o.map absIProjTable = (ts.val[s.val]?).map absIProjTable := by
   have hsfit : s.val ≤ Std.Usize.max := le_of_lt (lt_of_lt_of_le hslt ts.property)
   obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hi2v : i2.val = s.val := by
@@ -219,54 +190,50 @@ private theorem read_tbl_slot {ts : alloc.vec.Vec arena.env.IProjTable} {s : Std
     exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi4).symm
   have hit' := vec_index_some hit
   rw [hi4v] at hit'
-  simp [tblOf, hit']
+  simp [hit']
 
-/-- **`arena::env::ifenv_table_base` against `baseTbl`**: gated on the structure's
-row at the layer's bound. -/
+/-- **`arena::env::ifenv_table_base` against the stream index's table**
+(`ixTbl`), visible below the layer's record bound. -/
 theorem ifenv_table_base_abs {pers : arena.store.PersTier} {below : Std.U64}
     (hb : BaseOK pers) {t : arena.handle.NIdx} {o : Option arena.env.IProjTable}
     (hrun : arena.env.ifenv_table_base pers below t = ok o) :
-    o.map absIProjTable = baseTbl pers below t := by
+    o.map absIProjTable =
+      (ixTbl pers.env t).bind fun r => if r.1 < absU below then some r.2 else none := by
   rw [arena.env.ifenv_table_base] at hrun
-  obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hf := (ifenv_find_base_abs hb hoc).1
-  have hgate : oc.isSome = (baseRow pers below t).isSome := by
-    have hrow : rowAt (absU below) (baseRow pers below t) =
-        (baseRow pers below t).map Prod.snd := by
-      unfold baseRow
-      cases ConRon.Refine.HashMap2.toFun pers.env.idx t with
-      | none => rfl
-      | some p =>
-        simp only [Option.bind_some]
-        by_cases hd : absU p.1 < absU below
-        · rw [ite_eq_left hd, rowOf]
-          cases pers.env.env.consts.val[p.2.val]? with
-          | none => rfl
-          | some ci => simp [rowAt, hd]
-        · rw [ite_eq_right hd]; rfl
-    rw [hrow] at hf
-    have := congrArg Option.isSome hf
-    simpa using this
-  unfold baseTbl
-  rw [← hgate]
-  simp only [core.option.Option.is_some] at hrun
-  cases oc with
-  | none =>
-    simp at hrun ⊢
-    cases hrun; rfl
-  | some ci =>
-    simp only [Option.isSome_some, ite_true] at hrun ⊢
-    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.inv.2.2.2.1
-      ConRon.Refine.HashMap2.KeysOk_true trivial hr
-    rw [← hto]
-    cases r with
-    | none => cases Result.ok_injective hrun; rfl
-    | some s =>
-      exact read_tbl_slot (hb.inv.2.2.2.2 t s hto.symm) hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.tbls
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  unfold ixTbl
+  rw [← hto]
+  cases r with
+  | none => cases Result.ok_injective hrun; rfl
+  | some e =>
+    obtain ⟨rp, sl⟩ := e
+    simp only [Option.bind_some] at ⊢
+    change (if rp < below then _ else ok none) = ok o at hrun
+    by_cases hd : rp < below
+    · rw [ite_eq_left hd] at hrun
+      have hd' : absU rp < absU below := (Std.UScalar.lt_equiv rp below).mp hd
+      have hrd := read_tbl_slot (hb.tblRange t (rp, sl) hto.symm) hrun
+      rw [hrd]
+      cases pers.env.tables.val[sl.val]? <;> simp [hd']
+    · rw [ite_eq_right hd] at hrun
+      cases Result.ok_injective hrun
+      have hd' : ¬ absU rp < absU below := fun h => hd ((Std.UScalar.lt_equiv rp below).mpr h)
+      cases pers.env.tables.val[sl.val]? <;> simp [hd']
+
+/-- The twin's base table lookup, as `BaseRel` and the layer's record bound read it. -/
+theorem IFBase_findTable?_of_rel {ix : arena.stream_index.IStreamIndex} {b : IFBase}
+    (hb : BaseRel ix b) (t : arena.handle.NIdx) :
+    b.findTable? (absNIdx t) =
+      (ixTbl ix t).bind fun r => if r.1 < b.belowRec then some r.2 else none := by
+  rw [IFBase.findTable?, ← hb.tbls t]
+  cases ixTbl ix t with
+  | none => rfl
+  | some r => obtain ⟨c, tb⟩ := r; rfl
 
 /-- **`arena::env::ifenv_raw_table` against `IFEnv.rawTable?`**: the own map, then the
-base's, gated: `CoreCtx.tbls` is that composition. -/
+base's at the layer's record bound. -/
 theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
     {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {t : arena.handle.NIdx}
     {o : Option arena.env.IProjTable}
@@ -275,13 +242,20 @@ theorem ifenv_raw_table_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
   rw [IFEnv.rawTable?, ← hctx.tbls t]
   rw [arena.env.ifenv_raw_table] at hrun
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.inv.2.2.2.1
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.inv.2.2.1
     ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  unfold layerTbl
+  unfold ownTbl
   rw [← hto]
   cases r with
-  | none => exact ifenv_table_base_abs hctx.base hrun
-  | some s => exact read_tbl_slot (hctx.inv.2.2.2.2 t s hto.symm) hrun
+  | none =>
+    simp only [Option.bind_none]
+    rw [IFBase_findTable?_of_rel hctx.base t, hctx.belowRec]
+    exact ifenv_table_base_abs hctx.baseOK hrun
+  | some s =>
+    simp only [Option.bind_some]
+    have hlt := hctx.inv.2.2.2 t s hto.symm
+    rw [read_tbl_slot hlt hrun, List.getElem?_eq_getElem hlt]
+    rfl
 
 /-- **`arena::env::ifenv_find_table` against `IFEnv.findTable?`**: gated by
 the structure's own lookup, as the twin is. -/
@@ -362,5 +336,5 @@ open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
 attribute [scoped lockstep_simp] core_walk_fuel_val etag_const_abs etag_lit_abs
   etag_fvar_abs Option.some.injEq forall_eq' ConRon.Refine.LiteralWF
-  IConstantInfoWF absIProjEntry absIConstantInfo
+  absIProjEntry absIConstantInfo
 end ConRon.Refine2.Lockstep.CoreLSReg

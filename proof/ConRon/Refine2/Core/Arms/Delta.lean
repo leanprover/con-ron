@@ -152,17 +152,15 @@ theorem core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
 
 /-! ## The environment index's one reader -/
 
-/-- A row's visibility at a reader's bound, as `IFEnv.find?` tests it. -/
-def rowAt (v : Nat) : Option (Nat × IConstantInfo) → Option IConstantInfo
-  | some (c, ci) => if c < v then some ci else none
-  | none => none
-
-theorem IFEnv.find?_eq_rowAt (lf : IFEnv) (n : NIdx) :
-    lf.find? n = rowAt lf.visibleBelow lf.idx[n]? := by
-  rw [IFEnv.find?]
-  cases lf.idx[n]? with
-  | none => rfl
-  | some r => obtain ⟨c, ci⟩ := r; rfl
+/-- **The twin's lookup is the own row, else the base's**: `IFEnv.lookup`'s
+emptiness test is a fast path, since an empty own map has no row. -/
+theorem IFEnv.find?_eq_or (lf : IFEnv) (n : NIdx) :
+    lf.find? n = (lf.idx[n]?).or (lf.base.find? n) := by
+  rw [IFEnv.find?, IFEnv.lookup]
+  split
+  · rename_i he
+    rw [_root_.Std.HashMap.getElem?_of_isEmpty he]; rfl
+  · cases lf.idx[n]? <;> rfl
 
 /-- A stored position in range is read: the cast is the identity, the test passes. -/
 private theorem read_slot {cs : alloc.vec.Vec arena.env.IConstantInfo} {pos : Std.U64} {o}
@@ -197,141 +195,84 @@ private theorem read_slot {cs : alloc.vec.Vec arena.env.IConstantInfo} {pos : St
   refine ⟨ii, ?_, (Result.ok_injective hrun).symm⟩
   rw [List.getElem?_eq_getElem hl, hne]
 
-/-- **The base layer's lookup**: `ifenv_find_base` is `baseRow` at the reader's bound,
-and what it finds is canonical. -/
+/-- **The base layer's lookup**: `ifenv_find_base` at the layer's bound is the
+stream index's entry (`ixRow`), visible below the bound. -/
 theorem ifenv_find_base_abs {pers : arena.store.PersTier} {below : Std.U64}
     (hb : BaseOK pers) {n : arena.handle.NIdx} {o : Option arena.env.IConstantInfo}
     (hrun : arena.env.ifenv_find_base pers below n = ok o) :
-    o.map absIConstantInfo = rowAt (absU vis) (baseRow pers below n) ∧
-      ∀ ci, o = some ci → IConstantInfoWF ci := by
+    o.map absIConstantInfo =
+      (ixRow pers.env n).bind fun r => if r.1 < absU below then some r.2 else none := by
   rw [arena.env.ifenv_find_base] at hrun
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.inv.1
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hb.idx
     ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  unfold baseRow
+  unfold ixRow
   rw [← hto]
   cases r with
   | none =>
     cases Result.ok_injective hrun
-    exact ⟨rfl, by simp⟩
-  | some p =>
-    obtain ⟨c, pos⟩ := p
-    have hlt : pos.val < pers.env.env.consts.val.length := hb.inv.2.2.1 n (c, pos) hto.symm
+    rfl
+  | some c =>
     simp only [Option.bind_some] at hrun ⊢
-    replace hrun : (if c < vis then (if c < below then (do
-          let i2 ← lift (Std.UScalar.cast .Usize pos)
-          if i2 < alloc.vec.Vec.len pers.env.env.consts then
-            (do
-              let i4 ← lift (Std.UScalar.cast .Usize pos)
-              let ii ← alloc.vec.Vec.index
-                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo) pers.env.env.consts i4
-              ok (some ii))
-          else ok none)
-        else ok none) else (ok none : Result (Option arena.env.IConstantInfo))) = ok o := hrun
-    by_cases hc : c < vis
-    · rw [ite_eq_left hc] at hrun
-      by_cases hd : c < below
-      · rw [ite_eq_left hd] at hrun
-        obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
-        have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
-        have hd' : absU c < absU below := (Std.UScalar.lt_equiv c below).mp hd
-        rw [ite_eq_left hd', rowOf]
-        simp only [hci, Option.map_some, rowAt, ite_eq_left hc']
-        exact ⟨trivial, fun ci' h => by
-          cases h; exact hb.envWF ci (List.mem_of_getElem? hci)⟩
-      · rw [ite_eq_right hd] at hrun
-        cases Result.ok_injective hrun
-        have hd' : ¬ absU c < absU below := fun h => hd ((Std.UScalar.lt_equiv c below).mpr h)
-        rw [ite_eq_right hd']
-        exact ⟨rfl, by simp⟩
-    · rw [ite_eq_right hc] at hrun
+    by_cases hd : c < below
+    · rw [ite_eq_left hd] at hrun
+      have hd' : absU c < absU below := (Std.UScalar.lt_equiv c below).mp hd
+      have hlt : c.val < pers.env.consts.val.length := hb.idxRange n c hto.symm
+      obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
+      simp [hci, hd']
+    · rw [ite_eq_right hd] at hrun
       cases Result.ok_injective hrun
-      refine ⟨?_, by simp⟩
-      have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)
-      by_cases hd' : absU c < absU below
-      · rw [ite_eq_left hd', rowOf]
-        cases hci : pers.env.env.consts.val[pos.val]? with
-        | none => rfl
-        | some ci => simp [rowAt, hc']
-      · rw [ite_eq_right hd']; rfl
+      have hd' : ¬ absU c < absU below := fun h => hd ((Std.UScalar.lt_equiv c below).mpr h)
+      cases hci : pers.env.consts.val[c.val]? <;> simp [hd']
 
-/-- **`arena::env::ifenv_find` against `IFEnv.find?`**, and what it finds is canonical
-Rust data.  The own layer, then the base: `CoreCtx.idx` is that composition, with the
-position read through.  A layer with no constant has no row, so the fast path is the
-miss. -/
-theorem ifenv_find_abs' {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
+/-- The twin's base lookup, as `BaseRel` and the layer's bound read it. -/
+theorem IFBase_find?_of_rel {ix : arena.stream_index.IStreamIndex} {b : IFBase}
+    (hb : BaseRel ix b) (n : arena.handle.NIdx) :
+    b.find? (absNIdx n) =
+      (ixRow ix n).bind fun r => if r.1 < b.below then some r.2 else none := by
+  rw [IFBase.find?, ← hb.idx n]
+  cases ixRow ix n with
+  | none => rfl
+  | some r => obtain ⟨c, ci⟩ := r; rfl
+
+/-- **`arena::env::ifenv_find` against `IFEnv.find?`**: the one lemma every reader of
+the tiers above consumes.  The own layer's row (`CoreCtx.idx`, the slot in range by
+`IFEnvInv`), else the base at the layer's bound; an own map with no entry is the
+fast path to the base on both sides. -/
+theorem ifenv_find_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
     {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {n : arena.handle.NIdx}
     {o : Option arena.env.IConstantInfo}
     (hrun : arena.env.ifenv_find pers fe n = ok o) :
-    o.map absIConstantInfo = lfe.find? (absNIdx n) ∧ ∀ ci, o = some ci → IConstantInfoWF ci := by
-  rw [IFEnv.find?_eq_rowAt, ← hctx.vis, ← hctx.idx n]
+    o.map absIConstantInfo = lfe.find? (absNIdx n) := by
+  rw [IFEnv.find?_eq_or, ← hctx.idx n, IFBase_find?_of_rel hctx.base n, hctx.below]
   have hmiss : ConRon.Refine.HashMap2.toFun fe.idx n = none →
       arena.env.ifenv_find_base pers fe.base_below n = ok o →
-      o.map absIConstantInfo = rowAt (absU vis) (layerRow pers fe n) ∧
-        ∀ ci, o = some ci → IConstantInfoWF ci := by
+      o.map absIConstantInfo = (ownRow fe n).or
+        ((ixRow pers.env n).bind fun r => if r.1 < absU fe.base_below then some r.2 else none) := by
     intro hn hb
-    unfold layerRow
-    rw [hn]
-    exact ifenv_find_base_abs hctx.base hb
+    rw [ownRow, hn]
+    exact ifenv_find_base_abs hctx.baseOK hb
   rw [arena.env.ifenv_find] at hrun
-  simp only at hrun
+  obtain ⟨len, hlen, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   split at hrun
   · rename_i hz
-    have hlen : fe.env.consts.val.length = 0 := by
-      have := congrArg Aeneas.Std.UScalar.val hz
-      simpa [alloc.vec.Vec.len_val] using this
     refine hmiss ?_ hrun
-    cases hp : ConRon.Refine.HashMap2.toFun fe.idx n with
-    | none => rfl
-    | some p =>
-      have := hctx.inv.2.2.1 n p hp
-      omega
+    have hl := (ConRon.Refine.HashMap2.len_refines hctx.inv.1 hlen).1
+    rw [hz] at hl
+    have hnil : ConRon.Refine.HashMap2.sl_v fe.idx = [] :=
+      List.eq_nil_of_length_eq_zero (by simpa using hl.symm)
+    exact ConRon.Refine.HashMap2.toFun_eq_none_iff.mpr hnil n
   · obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.inv.1
       ConRon.Refine.HashMap2.KeysOk_true trivial hr
     cases r with
     | none => exact hmiss hto.symm hrun
-    | some p =>
-      obtain ⟨c, pos⟩ := p
-      have hlt : pos.val < fe.env.consts.val.length := hctx.inv.2.2.1 n (c, pos) hto.symm
-      unfold layerRow
-      rw [← hto]
-      simp only at hrun ⊢
-      replace hrun : (if c < vis then (do
-          let i2 ← lift (Std.UScalar.cast .Usize pos)
-          if i2 < alloc.vec.Vec.len fe.env.consts then
-            (do
-              let i4 ← lift (Std.UScalar.cast .Usize pos)
-              let ii ← alloc.vec.Vec.index
-                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo) fe.env.consts i4
-              ok (some ii))
-          else ok none)
-        else (ok none : Result (Option arena.env.IConstantInfo))) = ok o := hrun
-      by_cases hc : c < vis
-      · rw [ite_eq_left hc] at hrun
-        obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
-        have hc' : absU c < absU vis := (Std.UScalar.lt_equiv c vis).mp hc
-        rw [rowOf]
-        simp only [hci, Option.map_some, rowAt, ite_eq_left hc']
-        exact ⟨trivial, fun ci' h => by
-          cases h; exact hctx.envWF ci (List.mem_of_getElem? hci)⟩
-      · rw [ite_eq_right hc] at hrun
-        cases Result.ok_injective hrun
-        refine ⟨?_, by simp⟩
-        have hc' : ¬ absU c < absU vis := fun h => hc ((Std.UScalar.lt_equiv c vis).mpr h)
-        rw [rowOf]
-        cases hci : fe.env.consts.val[pos.val]? with
-        | none => rfl
-        | some ci => simp [rowAt, hc']
-
-/-- **`arena::env::ifenv_find` against `IFEnv.find?`**: the one lemma every reader of
-the tiers above consumes. -/
-theorem ifenv_find_abs {pers : arena.store.PersTier} {fe : arena.env.IFEnv}
-    {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) {n : arena.handle.NIdx}
-    {o : Option arena.env.IConstantInfo}
-    (hrun : arena.env.ifenv_find pers fe n = ok o) :
-    o.map absIConstantInfo = lfe.find? (absNIdx n) :=
-  (ifenv_find_abs' hctx hrun).1
+    | some sl =>
+      have hlt : sl.val < fe.env.consts.val.length := hctx.inv.2.1 n sl hto.symm
+      rw [ownRow, ← hto]
+      simp only [Option.bind_some] at hrun ⊢
+      obtain ⟨ci, hci, rfl⟩ := read_slot hlt hrun
+      simp [hci]
 
 -- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
 -- round 2), beside the other `arena::env` copies.

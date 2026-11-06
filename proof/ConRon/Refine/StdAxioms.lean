@@ -19,7 +19,7 @@ one through `matchesPin`'s `erasePw`.  A binder carries no datum any more, so
 ## What is stated against what
 
 * A **pin builder** gets a closed equality in the style of
-  `Refine/BasisTables.lean`: `absConstantInfo <the port's pin> = <the
+  `Refine/BasisRaw.lean`: `absConstantInfo <the port's pin> = <the
   con-leche pin>`, with the hereditary `ConstantInfoWF` beside it.  Nothing is
   hypothesised; the pins are closed terms on both sides.
 * A **pinned name** gets `Refine/BasisNames.lean`'s shape
@@ -55,15 +55,6 @@ one Rust function and `lm`/`lmI` another, because `Expr` carries no binder
 name, so each `bb_*` step concludes the *node* (`.forallE ty b`) and
 `BasisDSL_pi_eq`/`BasisDSL_lm_eq` say that node is every one of the cited
 spellings.
-
-## What is not this file's
-
-`kernel::basis_pins::eq_basis_pinned` — the `decide (fe.find? eqName = some
-eqA)` conjunct of `stdAxiomOk`'s `propext` arm — is `kernel/basis_pins.rs`, a
-different module (task #24's three stubs).  Its refinement is named here as
-`EqBasisPinned` and carried as a hypothesis by `std_axiom_ok_refines`, so the
-dependency is visible in every downstream lemma and `Refine/BasisPins.lean`
-discharges it in one place.
 
 `sorry` count in this file: 0.
 -/
@@ -321,7 +312,7 @@ theorem levels_singleton {v : alloc.vec.Vec level.Level} {u : level.Level}
 
 /-! ## The pins (`StdAxioms.lean:93-166`)
 
-Each is a closed equality in the style of `Refine/BasisTables.lean`: what the
+Each is a closed equality in the style of `Refine/BasisRaw.lean`: what the
 port builds *is* the con-leche pin, with the hereditary `*WF` beside it.  The
 pins are plain values since task #119. -/
 

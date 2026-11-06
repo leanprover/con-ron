@@ -218,6 +218,30 @@ end
   rw [arena.core.nat_lit_supported, natLitSupported]
   lockstep
 
+/-- `arena::core::stored` is an index probe: the twin's `find?` test. -/
+@[lockstep] theorem stored_ls {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx pers rf lf) :
+    LSP (arena.core.stored pers rf n)
+      (fun b => TwinEq ((lf.find? (absNIdx n)).isSome) b) := by
+  intro b h
+  rw [arena.core.stored] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx ho
+  show (lf.find? (absNIdx n)).isSome = b
+  rw [← hf]
+  cases o with
+  | none => simp only [Result.ok.injEq] at h; subst h; rfl
+  | some _ => simp only [Result.ok.injEq] at h; subst h; rfl
+
+/-- `nat_lit_stored` (`nat_trio_stored`) ⊑ `natLitStored`: the three pin reads,
+then the three probes. -/
+@[lockstep] theorem nat_lit_stored_ls {pers st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.nat_lit_stored pers st fe) lst
+      (natLitStored lfe) := by
+  rw [arena.core.nat_lit_stored, arena.core.nat_trio_stored, natLitStored]
+  lockstep
+
 /-! ## Constructor forms and the literal reading -/
 
 attribute [local lockstep_simp] Nat.add_sub_cancel
@@ -410,7 +434,7 @@ macro "lockstep_lp" : tactic =>
     simp only [Option.map_none, Option.map_some, charOfNatTyOk] <;> lockstep
 
 attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_nil_ty_body
-  arena.core.list_cons_ty_body arena.core.list_cons_ty_at arena.core.str_lit_supported_rest
+  arena.core.list_cons_ty_body arena.core.list_cons_ty_at
 
 @[lockstep] theorem string_of_list_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -450,11 +474,35 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
   rcases ci with _ | c <;> rw [arena.core.list_cons_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep_lp
 
-@[lockstep] theorem str_lit_supported_ls {pers st fe lfe lst}
+attribute [lockstep_inline] arena.core.str_support_stored
+
+/-- `str_lit_stored` ⊑ `strLitStored`: the `Nat` trio, then the seven string-support
+pins and probes. -/
+@[lockstep] theorem str_lit_stored_ls {pers st fe lfe lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers st fe) lst
-      (strLitSupported lfe) := by
-  rw [arena.core.str_lit_supported, strLitSupported]
+    LS pers (fun a b => b = a) (arena.core.str_lit_stored pers st fe) lst
+      (strLitStored lfe) := by
+  rw [arena.core.str_lit_stored, strLitStored]
+  lockstep
+
+attribute [lockstep_inline] arena.core.lit_shape_ok_str arena.core.lit_shape_ok_rest
+
+/-- `arena::env::i_constant_info_name` is the twin's `IConstantInfo.name`. -/
+@[lockstep] theorem i_constant_info_name_ls (c : arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_info_name c)
+      (fun o => TwinEq (absIConstantInfo c).name (absNIdx o)) := by
+  intro o h
+  rw [arena.env.i_constant_info_name.eq_def] at h
+  cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
+    dupId_nidx _ _ h] <;> rfl
+
+/-- `lit_shape_ok` ⊑ `litShapeOk`: the declaration's name against the ten literal
+pins in order, each match the shape test at the declaration. -/
+@[lockstep] theorem lit_shape_ok_ls {pers st c lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lit_shape_ok pers st c) lst
+      (litShapeOk (absIConstantInfo c)) := by
+  rw [arena.core.lit_shape_ok, litShapeOk]
   lockstep
 
 /-! ## `reduceNat` -/
@@ -502,37 +550,10 @@ theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
   rw [nidx_vec_contains_from_any ns n _ 0#usize o rfl h]
   simp [absNIdxList, List.any_eq]
 
-/-- The twin's `natOpStored` reads the environment and nothing else. -/
-def natOpStoredB (fe : IFEnv) (c : NIdx) : Bool :=
-  match fe.find? c with
-  | some (.defnInfo _ _ _) => true
-  | _ => false
-
-theorem natOpStored_pure (fe : IFEnv) (c : NIdx) :
-    natOpStored fe c = pure (natOpStoredB fe c) := by
-  unfold natOpStored natOpStoredB
-  generalize fe.find? c = o
-  rcases o with _ | ci
-  · rfl
-  · cases ci <;> rfl
-
-@[lockstep] theorem nat_op_stored_spec {pers : arena.store.PersTier} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (hctx : CoreCtx pers fe lfe) (c : arena.handle.NIdx) :
-    LSP (arena.core.nat_op_stored pers fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
-  intro a ha
-  rw [arena.core.nat_op_stored] at ha
-  obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-  have hf := ifenv_find_abs hctx ho
-  rw [natOpStoredB, ← hf]
-  rcases o with _ | ii
-  · cases Result.ok_injective ha; rfl
-  · cases ii <;> (cases Result.ok_injective ha; rfl)
-
 attribute [lockstep_inline] arena.core.reduce_nat_succ arena.core.reduce_nat_bin
   arena.core.reduce_nat_wf
 
 section
-attribute [local lockstep_simp] natOpStored_pure
 
 set_option maxHeartbeats 4000000 in
 /-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B. -/
@@ -585,8 +606,8 @@ four reserved lists and the `Bool` tail. -/
 /-- info: 'ConRon.Refine2.Lockstep.reduce_nat_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms reduce_nat_ls
 
-/-- info: 'ConRon.Refine2.Lockstep.str_lit_supported_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms str_lit_supported_ls
+/-- info: 'ConRon.Refine2.Lockstep.str_lit_stored_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms str_lit_stored_ls
 
 /-- info: 'ConRon.Refine2.Lockstep.str_lit_to_constructor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms str_lit_to_constructor_ls
