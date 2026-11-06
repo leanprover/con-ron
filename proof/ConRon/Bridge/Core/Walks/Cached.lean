@@ -179,10 +179,10 @@ theorem RuleRhsCacheOK.insert
     {tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx} {st : EStore}
     (h : RuleRhsCacheOK env tbl st) {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
-    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st.ns rn = some rnv) (hc : denoteN st.ns cn = some cnv)
     (hus : denoteLs st.lss us = some ls)
-    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
     (hi : denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
     RuleRhsCacheOK env
@@ -196,7 +196,7 @@ theorem RuleRhsCacheOK.insert
     next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
-      exact ⟨rnv, cnv, ls, cv, mi, rp, rules, rl, hr, hc, hus, hf, hrl, hi⟩
+      exact ⟨rnv, cnv, ls, cv, mi, rp, isK, rules, rl, hr, hc, hus, hf, hrl, hi⟩
     next => exact ht k j hl
   exact key _ h
 
@@ -254,10 +254,10 @@ theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK eager env s)
 theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK eager env s)
     {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
-    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN s.store.ns rn = some rnv) (hcn : denoteN s.store.ns cn = some cnv)
     (hus : denoteLs s.store.lss us = some ls)
-    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
     (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
     CacheOK eager env { s with caches := { s.caches with
@@ -334,10 +334,10 @@ theorem CheckOK.insertConstVal {st₀ : EStore} {n : NIdx} {us : LsIdx}
 /-- con-leche: none — `CheckOK` past the ι right-hand-side insert. -/
 theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
-    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st₀.ns rn = some rnv) (hcn : denoteN st₀.ns cn = some cnv)
     (hus : denoteLs st₀.lss us = some ls)
-    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState} {i : EIdx}
     (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store)
     (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
@@ -408,15 +408,15 @@ theorem CheckOK.constVal_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a rule-RHS-cache HIT. -/
 theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
-    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st₀.ns rn = some rnv) (hcn : denoteN st₀.ns cn = some cnv)
     (hus : denoteLs st₀.lss us = some ls)
-    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState}
     (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store) :
     Ans (fun i => denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls))
       (s.caches.ruleRhsC[(rn, cn, us)]?) := fun i hhit => by
-  obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
+  obtain ⟨rn', cn', ls', cv', mi', rp', isK', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
     h.caches.ruleRhs _ i hhit
   obtain rfl := Option.some.inj ((denoteN_ext hr hx).symm.trans hr')
   obtain rfl := Option.some.inj ((denoteN_ext hcn hx).symm.trans hc')
@@ -667,14 +667,14 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
 side at the recursor's universe instantiation). -/
 theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (rhs : EIdx) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
-    (cv : ConstantVal) (mi rp : Nat) (rules : List RecRule) (rl : RecRule)
+    (cv : ConstantVal) (mi rp : Nat) (isK : Bool) (rules : List RecRule) (rl : RecRule)
     (hok : CheckOK eager env fe s₀)
     (hr : denoteN s₀.store.ns recName = some rnv)
     (hc : denoteN s₀.store.ns ctor = some cnv)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hlps : Frontend.denoteNList s₀.store.ns lps = some cv.levelParams)
     (hrhs : denoteE s₀.store rhs = some rl.rhs)
-    (hfr : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hfr : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) :
     ⦃fun s => s = s₀⦄ ruleRhsAt recName ctor lps rhs us
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧

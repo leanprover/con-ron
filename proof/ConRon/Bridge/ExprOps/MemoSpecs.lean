@@ -58,6 +58,55 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+
+/-! ### `internE`'s runs
+
+`internE` at a `lam`/`forallE` view is `internLamE` / `internForallEE` (the
+port's `intern_lam` / `intern_forall_e`), and at every other view
+`internNodeE`; their runs are read off once, here. -/
+
+private theorem failRun {α : Type} (e : Arena.CheckError) (s : AState) :
+    (fail e : AM α) s = .error e := rfl
+
+/-- con-leche: none — `internNodeE` (the eight non-binder
+arms of `internE`) either answers a cons hit and moves nothing, or ends at
+`EStore.intern`. -/
+theorem internNodeE_ok {v : ENodeView} {s : AState} {r : EIdx} {s' : AState}
+    (h : internNodeE v s = .ok (r, s')) :
+    (s.store.find? v = some r ∧ s' = s) ∨
+      (s.store.find? v = none ∧ r = (s.store.intern v).2 ∧
+        s' = { s with store := (s.store.intern v).1 }) := by
+  cases hf : s.store.find? v with
+  | some i =>
+    simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
+      StateT.get, pure, StateT.pure, Except.bind, Except.pure, hf, Except.ok.injEq,
+      Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact Or.inl ⟨rfl, rfl⟩
+  | none =>
+    by_cases hc : (if s.store.scratchOn then s.store.scr.sizeOf v
+        else s.store.pers.sizeOf v) < v.cap
+    · simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
+        StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact Or.inr ⟨rfl, rfl, rfl⟩
+    · simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
+        StateT.get, pure, set, Except.bind, Except.pure, hf,
+        ite_eq_right hc, failRun] at h
+      exact absurd h (by simp)
+
+/-- con-leche: none — **`internE` at a `lam` view is
+`internLamE`**. -/
+theorem internE_lam_split {ty b : EIdx} {s : AState}
+    {r : EIdx} {s' : AState} (h : internE (.lam ty b) s = .ok (r, s')) :
+    internLamE ty b s = .ok (r, s') := h
+
+/-- con-leche: none — the same at a `forallE` view. -/
+theorem internE_forallE_split {ty b : EIdx} {s : AState}
+    {r : EIdx} {s' : AState} (h : internE (.forallE ty b) s = .ok (r, s')) :
+    internForallEE ty b s = .ok (r, s') := h
+
 open scoped Lean.Order
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for

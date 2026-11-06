@@ -581,7 +581,7 @@ theorem RunsB.matchInd {x : Option IConstantInfo} {y : Option ConstantInfo}
       obtain ⟨v', x, rfl, -⟩ := denoteCI_defn_inv hd; exact RunsB.ret hok
     | thmInfo v =>
       obtain ⟨v', rfl, -⟩ := denoteCI_thm_inv hd; exact RunsB.ret hok
-    | recInfo v mI rP rs =>
+    | recInfo v mI rP k rs =>
       obtain ⟨v', x, rfl, -⟩ := denoteCI_rec_inv hd; exact RunsB.ret hok
 
 /-- The index lookups of the shape tests, one per constructor pattern. -/

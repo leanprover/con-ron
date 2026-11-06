@@ -152,7 +152,7 @@ theorem findProjAt {s : AState} {T : NIdx} {Tn : ConLeche.Name} {i : Nat}
     split
     · rename_i hlt
       simp [denoteProjEntryO,
-        denoteProjTable_entry hpt (by rw [hok.bodies]; exact hlt) (by rw [hok.guards]; exact hlt)]
+        denoteProjTable_entry hpt (by rw [hok.bodies]; exact hlt)]
     · rfl
 grind_pattern [bridge_grind] findProjAt =>
   CheckOK eager env fe s, fe.findProj? T i, env.findProj? Tn i where
@@ -177,9 +177,7 @@ theorem IFEnv.findProj?_spec {s : AState} (T : NIdx) (i : Nat)
   · rw [he] at h6
     exact (Option.some.inj h6).symm
 
-/-! ## 4. `IProjEntry.fireOk`
-
-The module note's §2 frame, then the walk. -/
+/-! ## 4. The readback frame of a name list -/
 
 /-- con-leche: none — **the frame of a `readNamesM` call**, as
 `ReadbackFrame` with the list's denotation.  One list induction over
@@ -198,31 +196,6 @@ theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
   | cons a as ih =>
     sym only [bridge_grind, Frontend.denoteNList] =>
       vcgen [-readNamesM_spec, ConRon.Arena.readNamesM, readNameM_spec, ih] <;> finish
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
-**THEOREM 1 for the tower-fire guard**: at a `Prop`-declared structure the
-field's guard level must be a proposition at this instantiation; at every
-other family the rule fires unconditionally.
-
-`lvlEq?_specA` (`Bridge/Core/Walks/Cached.lean`) decides the
-structure sort against the zero pin, the three readbacks give the level
-parameters, the instantiation levels and the field sort, and the rest is
-`Level.subst`/`Level.isEquiv` on values both tiers share — no `ExprOps` rule,
-no fuel, no `∃ F`. -/
-theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
-    (p : ProjEntry) (ls : List Level) (hok : CheckOK eager env fe s₀)
-    (hden : denoteProjEntry s₀.store entry = some p)
-    (hus : denoteLs s₀.store.lss us = some ls) :
-    ⦃fun s => s = s₀⦄ entry.fireOk us
-    ⦃fun b s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = p.fireOk ls; ⊤⦄ := by
-  obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf⟩ :=
-    denoteProjEntry_inv hden
-  simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
-  sym only [bridge_grind, ConLeche.ProjEntry.fireOk, → CheckOK.readL', → CheckOK.readLs',
-      → CheckOK.readN', hok.pins] =>
-    vcgen [lvlEq?_specA (eager := eager) (env := env) (fe := fe), -readNamesM_spec,
-      readNamesM_frame] <;> finish
 
 /-! ## 5. The two that stand on `ExprOps` -/
 
@@ -260,7 +233,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (p.typeAt ls xs x); ⊤⦄ := by
-  obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf⟩ :=
+  obtain ⟨_hs, hlps, _hc, hb, _hi, _hnp, _hnf⟩ :=
     denoteProjEntry_inv hden
   have hvec : ExprOps.InstLVec s₀.store (targs.toArray.push pe)
       (x :: xs.reverse) := by
@@ -605,7 +578,7 @@ theorem denoteCI_ctor_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
       cases hc : Frontend.denoteCaps st c with
       | none => rw [hv, hc] at h; simp at h
       | some cc => rw [hv, hc] at h; simp at h
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h
     cases hv : Frontend.denoteCV st v with
     | none => rw [hv] at h; simp at h
@@ -729,7 +702,7 @@ ONE equation over the environment's constructor projections. -/
   match o with
   | some (.ctorInfo _ _ _) => rfl
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.defnInfo _ _ _)
-  | some (.recInfo _ _ _ _) | none => rfl
+  | some (.recInfo _ _ _ _ _) | none => rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
 the structural projection's certificate**: the constructor's stored type has
@@ -770,7 +743,6 @@ section Census
 #print axioms findTable?_at
 #print axioms findProjAt
 #print axioms IFEnv.findProj?_spec
-#print axioms IProjEntry.fireOk_spec
 #print axioms instantiateListFast_specC
 #print axioms readNamesM_frame
 #print axioms IProjEntry.typeAt_spec

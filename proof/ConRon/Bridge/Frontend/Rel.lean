@@ -638,7 +638,7 @@ theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
     | none => rw [h1, h2] at hd; simp at hd
     | some caps =>
       exact ⟨PersCV_of_denote hwf hoff h1, PersCaps_of_denote hwf hoff h2⟩
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     rw [denoteCI] at hd
     cases h1 : denoteCV st v with
     | none => rw [h1] at hd; simp at hd

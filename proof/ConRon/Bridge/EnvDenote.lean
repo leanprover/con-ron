@@ -333,7 +333,7 @@ theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
   | thmInfo v => exact (show PersCV v from h).name
   | indInfo v c => exact h.1.name
   | ctorInfo v nP nF => exact (show PersCV v from h).name
-  | recInfo v mI rP rs => exact h.1.name
+  | recInfo v mI rP k rs => exact h.1.name
 
 /-! ## A persistent record reads the same at both ends of a `PExt` -/
 
@@ -465,7 +465,7 @@ theorem PExt.denoteCI {a b : EStore} (hx : PExt a b) {ci : IConstantInfo} (hp : 
     rw [denoteCI_ind_opt, opt2_eq_some_iff] at h ⊢
     obtain ⟨p, q, h1, h2, rfl⟩ := h
     exact ⟨p, q, hx.denoteCV hp.1 p h1, hx.denoteCaps hp.2 q h2, rfl⟩
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     rw [denoteCI_rec_opt, opt2_eq_some_iff] at h ⊢
     obtain ⟨p, q, h1, h2, rfl⟩ := h
     exact ⟨p, q, hx.denoteCV hp.1 p h1, hx.denoteRules _ hp.2 q h2, rfl⟩

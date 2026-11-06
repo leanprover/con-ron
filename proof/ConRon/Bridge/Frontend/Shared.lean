@@ -819,7 +819,7 @@ theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
     exact ⟨hstep1.trans hstep2, hd, hm1.mono hstep2.ext⟩
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, cv⟩ := p1

@@ -504,7 +504,7 @@ ONE equation over the projections. -/
   match o with
   | some (.indInfo _ _) => rfl
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
-  | some (.ctorInfo _ _ _) | some (.recInfo _ _ _ _) => rfl
+  | some (.ctorInfo _ _ _) | some (.recInfo _ _ _ _ _) => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:179-182 natZeroOk — the function
 as ONE equation over the projections. -/
@@ -514,7 +514,7 @@ as ONE equation over the projections. -/
   match o with
   | some (.ctorInfo _ _ _) => rfl
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
-  | some (.indInfo _ _) | some (.recInfo _ _ _ _) => rfl
+  | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:185-192 natSuccOk — the function
 as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
@@ -540,7 +540,7 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
       subst h1 h2
       exact hne _ _ rfl
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
-  | some (.indInfo _ _) | some (.recInfo _ _ _ _) => rfl
+  | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
 for `natIndOk`**, at the index's lookup of a denoted name. -/

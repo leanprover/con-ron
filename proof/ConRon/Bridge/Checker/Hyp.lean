@@ -90,30 +90,36 @@ theorem CoreStep.trans {env : Env} {fe : IFEnv} {a b c : AState}
     CoreStep env fe a c :=
   ⟨h₂.ok, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
 
-/-! ## The pre-insertion view
+/-! ## The overlay's inverse
 
-The Rust keeps ONE environment index and runs `checkDecl`'s three pin gates
-at `restrict(fe2, k_pre)` — the post-install index at the pre-install
-counter — and the twin does the same.  Nothing in the
-invariant reads an index except through `find?` (`IFEnvOK`'s three clauses;
-`CacheOK` and `PinsOK` do not mention it), so the invariant at `fe` IS the
-invariant at any index answering `fe`'s `find?`, and the core knot, which is
-stated for every index, needs nothing more. -/
+The Rust keeps ONE environment index and runs `checkDecl`'s structural-`Nat`
+gate at the index with the definition pushed, then pops it again
+(`IFEnv.popTemp`, con-leche's `FEnv.overlay`).  Nothing in the invariant reads
+an index except through `find?` and the raw table lookup (`IFEnvOK`'s
+clauses; `CacheOK` and `PinsOK` do not mention it), so the invariant at `fe` IS
+the invariant at any index answering `fe`'s lookups. -/
 
-/-- con-leche: none — **the restricted push answers the old `find?`**: the
-pushed key is fresh, and its row sits at the old counter, which the
-restriction hides. -/
-theorem IFEnv.find?_push_restrict (fe : IFEnv) (ci : IConstantInfo)
-    (hfresh : fe.find? ci.name = none) (n : NIdx) :
-    ((fe.push ci).restrictTo fe.visibleBelow).find? n = fe.find? n := by
-  simp only [IFEnv.find?, IFEnv.push, IFEnv.restrictTo, Std.HashMap.getElem?_insert]
-  by_cases h : (ci.name == n) = true
-  · have hn : ci.name = n := by simpa using h
-    subst hn
-    simp only [IFEnv.find?] at hfresh
-    simp only [h, ite_true, Nat.lt_irrefl, ite_false]
-    rw [hfresh]
-  · simp only [h, Bool.false_eq_true, ite_false]
+/-- con-leche: none — **a push popped answers the old `find?`**: the row under
+the pushed name is put back as it was. -/
+theorem IFEnv.find?_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
+    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).find? n = fe.find? n := by
+  rw [IFEnv.find?_eq, IFEnv.find?_eq]
+  simp only [IFEnv.popTemp, IFEnv.push]
+  cases hp : fe.idx[ci.name]? with
+  | some r =>
+    simp only [Std.HashMap.insert_insert]
+    rw [Std.HashMap.getElem?_insert]
+    split
+    · rename_i hb
+      obtain rfl : ci.name = n := by simpa using hb
+      rw [hp]
+    · rfl
+  | none =>
+    simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
+    by_cases hb : (ci.name == n) = true
+    · obtain rfl : ci.name = n := by simpa using hb
+      simp [hp]
+    · simp [hb]
 
 /-- con-leche: none — `IFEnvOK` reads its index through `find?` and the raw
 table lookup only. -/
@@ -135,23 +141,24 @@ theorem IFEnvOK.congr_lookup {env : Env} {fe fe' : IFEnv} {s : AState}
 /-- con-leche: none — `IFEnvOK.congr_lookup` at the same table map. -/
 theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
-    (ht : fe'.tbls = fe.tbls) :
+    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) :
     IFEnvOK env fe' s :=
-  h.congr_lookup hf fun n => by simp only [IFEnv.rawTable?, ht]
+  h.congr_lookup hf fun n => by simp only [IFEnv.rawTable?, ht, hb]
 
 /-- con-leche: none — so does the whole checker invariant. -/
 theorem CheckOK.congr_find {env : Env} {fe fe' : IFEnv}
     {s : AState} (h : CheckOK false env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
-    (ht : fe'.tbls = fe.tbls) :
+    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) :
     CheckOK false env fe' s :=
-  ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht⟩
+  ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht hb⟩
 
 /-- con-leche: none — and so does a core step's frame. -/
 theorem CoreStep.congr_find {env : Env} {fe fe' : IFEnv}
     {s s' : AState} (h : CoreStep env fe s s')
-    (hf : ∀ n, fe'.find? n = fe.find? n) (ht : fe'.tbls = fe.tbls) :
+    (hf : ∀ n, fe'.find? n = fe.find? n) (ht : fe'.tbls = fe.tbls)
+    (hb : fe'.base = fe.base) :
     CoreStep env fe' s s' :=
-  ⟨h.ok.congr_find hf ht, h.ext, h.pins⟩
+  ⟨h.ok.congr_find hf ht hb, h.ext, h.pins⟩
 
 /-- con-leche: none — **a name the environment lacks, the index lacks**:
 `IFEnvOK.hit`'s contrapositive at a handle that denotes it. -/
@@ -238,17 +245,17 @@ theorem CoreSpec.of_core :
 
 /-! ## The inductive install -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:180-200 checkDecl (the
-`.indDecl` arm past `basisPinHit`) — **the unpinned inductive route, named**:
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:163-182 checkDecl (the
+`.indDecl` arm past `basisNameHit`) — **the unpinned inductive route, named**:
 `Arena/CheckDecl.lean`'s `checkDecl` arm after the pin recogniser declined,
-verbatim: con-leche's uniform inductive route (DESIGN `### Task #105`).
-`checkDecl`'s `.indDecl` arm unfolds to it by `rfl`. -/
+verbatim: con-leche's uniform inductive route.  `checkDecl`'s `.indDecl` arm
+unfolds to it by `rfl`. -/
 @[expose] def checkIndRoute (fe : IFEnv) (block : List IConstantInfo)
     (nP : Nat) : AM IFEnv := do
   if !(← indParamsOk nP block) then
     fail (.invalid "number of parameters mismatch")
   else
-    match ← blockParts? nP block with
+    match ← blockShape? nP block with
     | some p => checkBlock .verified fe block p
     | none => checkShapeless .verified fe block
 
@@ -263,96 +270,30 @@ theorem checkShapeless_ne_ok {mode : CheckMode} {fe fe' : IFEnv}
   obtain ⟨_, s1, _, h2⟩ := AM.bind_ok h
   exact nomatch h2
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:167-200 checkDecl (the `.indDecl`
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:163-182 checkDecl (the `.indDecl`
 arm) — **THE INDUCTIVES TIER'S THEOREM, as this tier's hypothesis**.
 
 The hypothesis `hpin` is the arena's own dispatch, already taken: this clause
-covers the route `basisPinHit` did NOT recognise, which is the one
+covers the route `basisNameHit` did NOT recognise, which is the one
 `checkIndRoute` runs.  The recogniser's own exactness is
 `Bridge/Checker/Basis.lean`'s and is not part of this hypothesis.
 
-The precedent is `RefineOld/Main.lean`'s `hind : IndRoutesSpec .Verified`:
-one named hypothesis for the whole inductive install, discharged by a tier of
-its own.
-
-**What the conclusion leaves out, and what it includes.**
-
-* `PersIFEnv fe'` is **false of this arm**, so it is not a clause.
-  `Arena/Checker.lean`'s bracket is `flushCaches; enterScratch; <the step>;
-  promoteNew; dropScratch`, so `checkDecl` — and with it `checkIndRoute` — runs
-  with the scratch tier OPEN and every constant the route installs carries a
-  freshly interned, hence scratch, type.  Persistence is `promoteNew`'s, one
-  level up. `Bridge/Checker/Decl.lean`'s `DeclOut` says exactly this in prose
-  and omits the clause too.
-* `Pushed fe fe'` and `TPushed fe fe'` are clauses because the consumer needs
-  them: `checkDecl_bridge_ind`'s conclusion is `DeclOut`, whose `pushed` /
-  `tpushed` clauses are what make `checkDeclStep`'s promotion counters `k` and
-  `kt` mean "the constants (tables) this step installed", and only the arm can
-  supply them.
-* **`EnvWF env'`**: the fold boundary after a declaration needs the pushed
-  index's environment well formed; `Bridge/Inductives/Rel.lean`'s `IndOut`
-  carries the same clause and `indSpec_of_bridge` passes it through.
-* **The membership-shaped projection-table clause**: every table of the new
-  index's table list is an old one or well shaped.
-  `IndOut.proj` (`ProjOut`) carries it; the one table push,
-  `checkStructProjTable`, has `IProjTableOK` in hand (`ProjOut.pushTable`).
-  With it `IndSpec.wf` below is a projection.
-
-No fold theorem reads `IndSpec`; they pass it down to `checkDecl_bridge_ind`,
-and `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` discharges it. -/
+What the route's environment becomes is not a clause: con-leche's `checkDecl`
+pushes what the declaration says (`Bridge/Checker/Pushes.lean`), the job's
+environment is dropped with its scratch tier, and the next record checks at
+its own view of the stream's index.  No fold theorem reads `IndSpec`; they pass
+it down to `checkDecl_bridge_ind`, and `Bridge/Inductives/Decl.lean`'s
+`indSpec_of_bridge` discharges it. -/
 structure IndSpec : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat}
       {pinsP : List NatOpPinSet},
     FoldOK env fe s → Frontend.denoteCIList s.store block = some b →
-    ConLeche.basisPinHit b = none →
+    ConLeche.basisNameHit b = none →
     checkIndRoute fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      IFEnvCoh fe' ∧ Pushed fe fe' ∧ TPushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
-      ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
+      ∃ env' F,
         ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
-          = .ok env' ∧ EnvWF env' ∧
-        ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
-
-/-- con-leche: ConLeche/Verify/Inductives/{BlockWF,DirectInv}.lean
-direct_block_inds_wf / direct_block_ctors_wf / direct_table_wf — **what the
-inductive route owes `DeclOut`'s `envWF` and `proj` clauses**: the environment
-the route's index denotes is well formed, and every projection table of that
-index is an old one or well shaped.
-
-**Owed by the INDUCTIVES tier**: `IndSpec.run` concludes both clauses —
-`EnvWF` and the membership-shaped table clause (`Bridge/Inductives/Rel.lean`'s
-`ProjOut`).  The table clause is asked for over MEMBERSHIP, not over the
-gated `findTable?`: that is the shape the bracket's close consumes
-(`IFEnvOK_of_denote`), and a lookup does not reach a table whose structure is
-hidden.  The route pushes its tables explicitly, so it can state this shape
-directly.
-
-Since `IndSpec.run` concludes both clauses, `IndSpec.wf` below is a record
-projection. -/
-structure IndWFSpec : Prop where
-  run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
-      {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat},
-    FoldOK env fe s → Frontend.denoteCIList s.store block = some b →
-    ConLeche.basisPinHit b = none →
-    checkIndRoute fe block nP s = .ok (fe', s') →
-    (∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env') ∧
-      ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
-
-/-- con-leche: none — **the Inductives tier's debt to `DeclOut`, at the
-hypothesis the capstone already takes**.
-
-A projection of `IndSpec.run`, whose last two conjuncts are exactly
-`IndWFSpec.run`'s two clauses.  It is stated from `IndSpec` so that no
-statement above this tier changes: the capstones take
-`hind : IndSpec`, and `IndSpec.run` carries both of `IndWFSpec.run`'s
-clauses, so this is a projection (`denoteFEnv` is a function, which turns the
-witnessed `EnvWF` into the universal one). -/
-theorem IndSpec.wf (hind : IndSpec) :
-    IndWFSpec := by
-  refine ⟨fun {env fe fe' s s' block b nP} hok hb hpin hrun => ?_⟩
-  obtain ⟨-, -, -, -, -, -, -, env', -, hden, -, hwf, hproj⟩ :=
-    hind.run (pinsP := []) hok hb hpin hrun
-  exact ⟨fun env'' h => by rw [hden] at h; cases h; exact hwf, hproj⟩
+          = .ok env'
 
 end ConRon.Bridge

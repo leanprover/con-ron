@@ -171,7 +171,7 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
           refine ⟨hstep, ?_⟩
           rw [hr]
           simp only [ConLeche.indParamsOk, List.all_cons]
-        | recInfo v mI rP rs =>
+        | recInfo v mI rP k rs =>
           simp only [Frontend.denoteCI] at hc
           split at hc
           · obtain rfl := Option.some.inj hc

@@ -257,7 +257,7 @@ theorem etaCtorShape_eq (x : Expr) :
     match o with
     | some (.ctorInfo _ _ _) => rfl
     | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
-    | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _) | none => rfl
+    | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _ _) | none => rfl
   | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape — **THEOREM
@@ -825,7 +825,7 @@ theorem structUnitCert_run {F d : Nat} {x y t w : Expr}
         match o, hnot with
         | some (.indInfo cv caps), hnot => exact absurd rfl (hnot cv caps)
         | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
-        | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _
+        | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _
         | none, _ => rfl
       simp [hc, pure, Except.pure]
   | _ => simp [exprTag, ETag.const, ETag.bvar, ETag.fvar, ETag.sort, ETag.app, ETag.lam,
