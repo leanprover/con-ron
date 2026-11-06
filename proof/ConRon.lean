@@ -42,7 +42,6 @@ import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.Env
 import ConRon.Refine.FEnv
 import ConRon.Refine.Canon
-import ConRon.Refine.BasisTables
 import ConRon.Refine.CoreKBase
 import ConRon.Refine.BasisNames
 import ConRon.Refine.BasisRaw
@@ -53,7 +52,6 @@ import ConRon.Refine.PinsBytes
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.PinsRecords
 import ConRon.Refine.PinsRun
-import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
 import ConRon.Dump.Pins
