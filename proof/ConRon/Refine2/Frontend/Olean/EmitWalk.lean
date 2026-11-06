@@ -574,14 +574,19 @@ theorem work_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean.
 
 /-! ## The walk -/
 
+/-- What a Rust outcome claims of a twin run from `s`. -/
+def POut {α β : Type} (R : α → β → Prop) (s : AState)
+    (o : core.result.Result α kernel.core_types.CheckError)
+    (y : Except Arena.CheckError (β × AState)) : Prop :=
+  match o with
+  | .Ok a => ∃ b, y = .ok (b, s) ∧ R a b
+  | .Err e => AErrSim e y
+
 /-- **The lockstep judgement of a function that reads no state**: the twin's action leaves any
 state alone, and a Rust error is a twin failure of the kind. -/
 def PR {α β : Type} (R : α → β → Prop)
     (m : Result (core.result.Result α kernel.core_types.CheckError)) (x : AM β) : Prop :=
-  ∀ o, m = ok o → ∀ s,
-    match o with
-    | .Ok a => ∃ b, x.run s = .ok (b, s) ∧ R a b
-    | .Err e => AErrSim e (x.run s)
+  ∀ o, m = ok o → ∀ s, POut R s o (x.run s)
 
 theorem out_of_fuel_err {T : Type} {r} (h : frontend.olean.closure.out_of_fuel T = ok r) :
     ∃ v, r = .Err (.Internal v) := by
@@ -601,16 +606,12 @@ theorem emit_loop_loop_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.o
       (l : List Work) (st : frontend.olean.emit.Emit) (lst : Emit) (r stack' st'),
       fuel.val = F → StackRel stack sp l → EmitRel st lst →
       emit_loop_loop pk mg rec_map stack st sp fuel = ok (r, stack', st') → ∀ s,
-        match r with
-        | .Ok _ => ∃ le, (emitLoop (absPins pk) mg' rm F l lst).run s = .ok (le, s) ∧ EmitRel st' le
-        | .Err e => AErrSim e ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
+        POut (fun _ le => EmitRel st' le) s r ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
   have hstop : ∀ (F : Nat) (fuel : Std.U64) (stack : alloc.vec.Vec frontend.olean.emit.Work)
       (sp : Std.Usize) (l : List Work) (st : frontend.olean.emit.Emit) (lst : Emit) (r stack' st') s,
       sp.val = 0 → StackRel stack sp l → EmitRel st lst →
       emit_loop_loop pk mg rec_map stack st sp fuel = ok (r, stack', st') →
-      match r with
-      | .Ok _ => ∃ le, (emitLoop (absPins pk) mg' rm F l lst).run s = .ok (le, s) ∧ EmitRel st' le
-      | .Err e => AErrSim e ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
+      POut (fun _ le => EmitRel st' le) s r ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
     intro F fuel stack sp l st lst r stack' st' s hsp hs he h
     rw [emit_loop_loop, ite_eq_right (by scalar_tac)] at h
     cases Result.ok_injective h
