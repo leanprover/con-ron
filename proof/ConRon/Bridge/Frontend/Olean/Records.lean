@@ -3,11 +3,12 @@
 
 `readOleans_run`: on the record `modelFs F` of a snapshot `F`, where the twin's whole read
 answers, its records denote a stream `ds`, and a theorem of the private view of a module of the
-closure is among them, with its statement.  It is upstream's `readOleans_thm` (`Verify/Frontend/
-Olean/Files.lean`), re-run over the lemmas it rests on: upstream's `readOleans_ok` states its
-`Loaded`s through `CEntry.ofRead`, whose `constsOf` is `partial`, so it cannot speak of the twin's
-`uses`; `mergeAll_ok`, `blocksOk_good`, `declsOf_thm` hold of any `Merged`, and nothing of the
-emission reads what `uses` holds.
+closure is among them, with its statement; its value is the reference the check reads.  It is
+upstream's `readOleans_thm` (`Verify/Frontend/Olean/Files.lean`), re-run over the lemmas it rests
+on: upstream's `readOleans_ok` states its `Loaded`s through upstream's `loadAt`, whose `usesOf`
+and `frontierWalk` are `partial`, so it cannot speak of the twin's `uses` or frontier;
+`loadAt_spec`'s `LazyOf` (`Closure.lean`'s `loadAt_run`), `mergeAll_ok`, `blocksOk_good`,
+`declsOf_thm` hold of any `Merged`, and nothing of the emission reads what `uses` holds.
 
 The records are built by the stream parser's own `processLineCoreD`, so `Lines.lean`'s theorem
 about it is what relates them, and upstream's `declOfF` over the emitter's tables is that function
@@ -20,6 +21,7 @@ public import ConRon.Bridge.Frontend.Olean.Blocks
 public import ConLeche.Frontend.Olean.Records
 public import ConLeche.Verify.Frontend.Olean.Files
 public import ConLeche.Verify.Frontend.Olean.Emit
+public import ConRon.Bridge.Frontend.Prepare
 
 public section
 
@@ -166,18 +168,125 @@ theorem declsOf_run {em : Emit} {emC : ConLeche.Frontend.Olean.Emit} {r : ParseR
       (by rw [hrel.out] at h1; exact h1)
     exact ⟨hst, hp.decls, ds, hds, hden⟩
 
+/-! ## What a record mentions -/
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:102-104 usedOf — upstream's side of the twin's
+`OleanRead.usedOf`, over a merged map: a theorem's record mentions what its stored constant's
+load read off the file, any other record what its expressions mention. -/
+@[expose] def usedOfC (mgC : ConLeche.Frontend.Olean.Merged) (d : Declaration) :
+    Array ConLeche.Name :=
+  match d with
+  | .thmDecl cv _ => (mgC.map[cv.name]?.map (·.uses)).getD d.usedConsts
+  | _ => d.usedConsts
+
+/-- con-leche: none — `denoteNList` is the `mapM` of `denoteN`. -/
+theorem denoteNList_eq_mapM (st : NStore) :
+    ∀ (l : List NIdx), denoteNList st l = l.mapM (denoteN st)
+  | [] => rfl
+  | h :: hs => by
+    simp only [denoteNList, List.mapM_cons, denoteNList_eq_mapM st hs]
+    cases denoteN st h <;> cases hs.mapM (denoteN st) <;> rfl
+
+/-- The reads of a merge do not look at a module's frontier. -/
+theorem MergedRel.strip {st : EStore} {mg : Merged} {mgC : ConLeche.Frontend.Olean.Merged}
+    (h : MergedRel st mg mgC) :
+    MergedRel st { mg with ls := mg.ls.map fun l => { l with frontier := {} } } mgC := by
+  have hget : ∀ n, ({ mg with ls := mg.ls.map fun l => { l with frontier := {} } } : Merged).get n
+      = mg.get n := by
+    intro n
+    simp only [Merged.get, Array.getElem?_map, Option.bind_map]
+    rfl
+  exact ⟨fun hdn hx => h.got hdn (by rw [← hget]; exact hx),
+    fun hdn hx => h.absent hdn (by rw [← hget]; exact hx), h.contains, h.order, h.keys, h.keysC⟩
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:102-104 usedOf — **what the twin's `usedOf` says
+of a record is what upstream's says**, on a store that extends the merge's: a theorem's record
+through the merged map (`MergedRel`; its keys denote on both sides), any other through
+`usedConsts_run`. -/
+theorem usedRel_usedOf {st0 : EStore} {rd : ConRon.Arena.Frontend.Olean.OleanRead}
+    {mgC : ConLeche.Frontend.Olean.Merged} (hm : MergedRel st0 rd.merged mgC) :
+    UsedRel st0 rd.usedOf (usedOfC mgC) := by
+  intro s s' d dP ns hx hok hoff hd hrun
+  have hw := nsWF_of_StateOK hok
+  have hother : ConRon.Arena.Frontend.Olean.OleanRead.thmUses rd d = none →
+      ConLeche.Declaration.usedConsts dP = usedOfC mgC dP →
+      ParseStep s s' ∧ denoteNList s'.store.ns ns.toList = some (usedOfC mgC dP).toList := by
+    intro hu he
+    simp only [ConRon.Arena.Frontend.Olean.OleanRead.usedOf, hu] at hrun
+    rw [← he]
+    exact usedConsts_run hok hoff hd hrun
+  cases d with
+  | thmDecl cv v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hcv : ConRon.Arena.Frontend.denoteCV s.store cv with
+    | none => simp [hcv] at hd
+    | some cvP =>
+    cases he : denoteE s.store v with
+    | none => simp [hcv, he] at hd
+    | some vP =>
+    simp only [hcv, he, Option.some.injEq] at hd
+    subst hd
+    have hname := denoteCV_name hcv
+    cases hg : rd.merged.get cv.name with
+    | none =>
+      have habs : mgC.map[cvP.name]? = none := by
+        cases hc : mgC.map[cvP.name]? with
+        | none => rfl
+        | some z =>
+          obtain ⟨n0, hd0, hc0⟩ := hm.keysC hc
+          obtain rfl : n0 = cv.name := denoteN_inj hw (denoteN_ext hd0 hx) hname
+          rw [hm.absent hd0 hg] at hc
+          cases hc
+      refine hother (by simp [ConRon.Arena.Frontend.Olean.OleanRead.thmUses, hg]) ?_
+      simp [usedOfC, habs]
+    | some c =>
+      simp only [ConRon.Arena.Frontend.Olean.OleanRead.usedOf,
+        ConRon.Arena.Frontend.Olean.OleanRead.thmUses, hg, Option.map_some] at hrun
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+      subst hv
+      have hkey : ∃ p, rd.merged.map[cv.name]? = some p := by
+        simp only [Merged.get] at hg
+        split at hg
+        · cases hg
+        · exact ⟨_, by assumption⟩
+      obtain ⟨p, hp⟩ := hkey
+      obtain ⟨n0, hn0⟩ := Option.isSome_iff_exists.mp (hm.keys hp)
+      obtain rfl : n0 = cvP.name :=
+        Option.some.inj ((denoteN_ext hn0 hx).symm.trans hname)
+      obtain ⟨cC, hcC, hdc⟩ := hm.got hn0 hg
+      unfold denoteCEntry at hdc
+      obtain ⟨e, -, hdc⟩ := ConLeche.Frontend.Olean.bind_some_left hdc
+      obtain ⟨u, hu, hdc⟩ := ConLeche.Frontend.Olean.bind_some_left hdc
+      simp only [pure, Option.some.injEq] at hdc
+      subst hdc
+      refine ⟨ParseStep.refl hok, ?_⟩
+      simp only [usedOfC, hcC, Option.map_some, Option.getD_some, List.toList_toArray]
+      rw [denoteNList_eq_mapM]
+      exact list_mono (fun _ _ hy => denoteN_ext hy hx) _ hu
+  | _ =>
+    exact hother rfl (by
+      first
+      | (simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+         obtain ⟨_, -, rfl⟩ := hd; rfl)
+      | (simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+         split at hd <;> simp at hd
+         subst hd; rfl))
+
 /-! ## The whole read -/
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:619 readOleans_thm — **THEOREM 1 FOR THE
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:698 readOleans_thm — **THEOREM 1 FOR THE
 READER**: the twin's accepting read on a snapshot leaves a store its records denote in, and a
 theorem of the private view of a module of the closure, by the specification, is among them with
-its statement.  `hroots` is the roots' denotation. -/
+its statement.  The record's value is the reference to where the theorem's value is stored (a
+`bvar`, upstream's `valueRef`): the check reads it.  `hroots` is the roots' denotation. -/
 theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
-    {rootsC : Array ConLeche.Name} {r : ParseResultD} {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    {rootsC : Array ConLeche.Name} {rd : ConRon.Arena.Frontend.Olean.OleanRead} {s s' : AState}
+    (hok : StateOK s) (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hroots : ListRel (NR s.store) roots.toList rootsC.toList)
-    (h : ConRon.Arena.Frontend.Olean.readOleans (modelFs F) sp roots none s = .ok (.ok r, s')) :
-    ParseStep s s' ∧ PersParseResult r ∧ ∃ ds, denoteDeclArray s'.store r.decls = some ds ∧
+    (h : ConRon.Arena.Frontend.Olean.readOleans (modelFs F) sp roots none s = .ok (.ok rd, s')) :
+    ParseStep s s' ∧ PersDecls rd.decls ∧ PinsRel s'.store rd.pins ∧
+      (∃ usedC, UsedRel s'.store rd.usedOf usedC) ∧
+      ∃ ds, denoteDeclArray s'.store rd.decls = some ds ∧
       ∀ {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded} {c : CEntryF ConLeche.Name Expr}
         {v : Expr} {all : List ConLeche.Name}, InClosure sp F rootsC m → ViewOf sp F m d →
         c ∈ d.constants → c.kind = .thm v all →
@@ -187,7 +296,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨hst1, hp1⟩ := oleanPins_run hok hoff h1
   have hctx1 : Ctx pk s₁ := ⟨hst1.ok, by rw [hst1.scratch]; exact hoff, hp1.nulls⟩
   obtain ⟨ls, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨hst2, orderC, lsC, ho, hlsR, hnames, hviews⟩ :=
+  obtain ⟨hst2, orderC, lsC, ho, hlsR, hnames, hloads⟩ :=
     loadClosure_run hctx1 hp1 (NR_list_ext hst1.ext hroots) h2
   have hctx2 := hctx1.step hst2
   have hp2 := hp1.ext hst2.ext
@@ -208,9 +317,18 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨em, s₆, h6, h⟩ := AM.bind_ok h
   obtain ⟨hs6, hem⟩ := emitAll_run hwc hp2 hmr.order h6
   rw [hs6] at h
+  obtain ⟨x, s₇, h7, h⟩ := AM.bind_ok h
+  cases x with
+  | error e => cases (AM.pure_ok h).1
+  | ok r =>
+  simp only [ConRon.Arena.Frontend.Olean.modRefs] at h
+  obtain ⟨hv, hs⟩ := AM.pure_ok h
+  cases hv
+  subst hs
   have hpinsS : PinsOK s₂ := (hpins.mono (hst1.trans hst2).ext (hst1.trans hst2).pins)
-  obtain ⟨hst3, hpers, ds, hds, hden⟩ := declsOf_run hctx2.ok hctx2.off hpinsS hem h
-  refine ⟨(hst1.trans hst2).trans hst3, hpers, ds, hden, ?_⟩
+  obtain ⟨hst3, hpers, ds, hds, hden⟩ := declsOf_run hctx2.ok hctx2.off hpinsS hem h7
+  refine ⟨(hst1.trans hst2).trans hst3, hpers, hp2.ext hst3.ext,
+    ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩, ds, hden, ?_⟩
   intro m d c v all hcl hv hc hk
   obtain ⟨hco, hcr⟩ := ConLeche.Frontend.Olean.closureOrder_ok ho
   have hmo := hcl.mem_order hco hcr
@@ -218,20 +336,26 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
     rw [hnames]
     simpa using hmo
   obtain ⟨l, hl, rfl⟩ := List.mem_map.mp hmem
-  obtain ⟨d', hv', hconst⟩ := hviews l hl
-  obtain rfl := ConLeche.Frontend.Olean.readView_unique
-    (ConLeche.Frontend.Olean.readView_of_viewOf hv) hv'
-  have hce : c ∈ l.constants.map (·.toCEntryF) := by
-    rw [hconst]
-    exact hc
-  obtain ⟨e, he, rfl⟩ := Array.mem_map.mp hce
-  obtain ⟨c', hc', hs⟩ := hk1 l (by simpa using hl) e he
+  obtain ⟨i, f, -, hf, r, a, sk, skels, hreg, hsk, hskels, hlazy⟩ := hloads l hl
+  obtain ⟨f', hf', hview⟩ := hv
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  obtain ⟨sk', hsk', hspec⟩ := ConLeche.Frontend.Olean.view_parts hreg hview
+  rw [hsk] at hsk'
+  cases hsk'
+  obtain ⟨loc, hloc, hcs⟩ := ConLeche.Frontend.Olean.mapM_mem_inv hspec (by simpa using hc)
+  obtain ⟨sc, hs1, hs2⟩ := ConLeche.Frontend.Olean.constSpec_parts hcs
+  obtain ⟨sc', hs'mem, hs'⟩ := ConLeche.Frontend.Olean.mapM_mem hskels hloc
+  rw [hs1] at hs'
+  cases hs'
+  obtain ⟨e, he, hent⟩ := hlazy.of_skel _ hs'mem
+  obtain ⟨hn, hlp, hty, hth⟩ := ConLeche.Frontend.Olean.lazyEntry_of_spec hs2 hent
+  obtain ⟨_, g, _, _, hkind, _, _⟩ := hth v all hk
+  obtain ⟨c', hc', hs⟩ := hk1 l (by simpa using hl) e (by simpa using he)
   have hst : ∃ v' all', c'.kind = .thm v' all' ∧ c'.name = e.name ∧ c'.levelParams = e.levelParams ∧
       c'.type = e.type := by
     rcases hs with rfl | ⟨n1, t1, l1, k1⟩
-    · exact ⟨v, all, hk, rfl, rfl, rfl⟩
-    · have hk' : e.kind = .thm v all := hk
-      rw [hk'] at k1
+    · exact ⟨_, all, hkind, rfl, rfl, rfl⟩
+    · rw [hkind] at k1
       cases hk2' : c'.kind with
       | thm v' all' => exact ⟨v', all', rfl, n1, l1, t1⟩
       | ax _ => rw [hk2'] at k1; exact k1.elim
@@ -241,10 +365,11 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
       | induct _ _ _ _ _ _ _ _ => rw [hk2'] at k1; exact k1.elim
       | ctor _ _ _ _ _ => rw [hk2'] at k1; exact k1.elim
       | recur _ _ _ _ _ _ _ _ => rw [hk2'] at k1; exact k1.elim
-  obtain ⟨v', all', hk5, hn, hlp, hty⟩ := hst
+  obtain ⟨v', all', hk5, hn', hlp', hty'⟩ := hst
   have := ConLeche.Frontend.Olean.declsOf_thm hN hk3 hds hb
     ((hk3 _).2 (ConLeche.Frontend.Olean.contains_of_getElem hc')) hc' hk5
-  rw [hn, hlp, hty] at this
+  rw [hn', hlp', hty', show e.name = c.name from hn, show e.levelParams = c.levelParams from hlp,
+    show e.type = c.type from hty] at this
   exact ⟨v', this⟩
 
 end ConRon.Bridge.Frontend.Olean

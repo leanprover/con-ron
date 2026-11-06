@@ -52,7 +52,9 @@ module
 import ConRon.Bridge.Frontend.Chunks
 public import ConRon.Arena.Frontend.Prelude
 public import ConLeche.Frontend.NatOpGround
-import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.NatOpNames
+import ConRon.Bridge.Frontend.Shared
+import Std.Data.HashSet.Lemmas
 public import Init.Internal.Order.While
 public import ConLeche.Frontend.Prepare
 import ConRon.Bridge.Frontend.Lines
@@ -741,7 +743,7 @@ recursor. -/
     Std.HashSet ConLeche.Expr × Array ConLeche.Name :=
   let q := ConLeche.Frontend.usedConstsGo p.1 p.2 ci.toConstantVal.type
   match ci with
-  | .recInfo _ _ _ rules => rules.foldl ucRuleStep q
+  | .recInfo _ _ _ _ rules => rules.foldl ucRuleStep q
   | _ => q
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:87-93 Declaration.usedConsts
@@ -817,11 +819,11 @@ theorem usedConstsRules_run {s : AState} (hok : StateOK s) :
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo — the denotation
 preserves the CONSTRUCTOR: only a recursor denotes a recursor. -/
 theorem denoteCI_recInfo {st : EStore} {ci : IConstantInfo}
-    {v : ConLeche.ConstantVal} {mI rP : Nat} {rs : List ConLeche.RecRule}
-    (hd : ConRon.Arena.Frontend.denoteCI st ci = some (.recInfo v mI rP rs)) :
-    ∃ iv imI irP irs, ci = .recInfo iv imI irP irs := by
+    {v : ConLeche.ConstantVal} {mI rP : Nat} {k : Bool} {rs : List ConLeche.RecRule}
+    (hd : ConRon.Arena.Frontend.denoteCI st ci = some (.recInfo v mI rP k rs)) :
+    ∃ iv imI irP ik irs, ci = .recInfo iv imI irP ik irs := by
   cases ci with
-  | recInfo w a b c => exact ⟨w, a, b, c, rfl⟩
+  | recInfo w a b k' c => exact ⟨w, a, b, k', c, rfl⟩
   | axiomInfo w =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
     rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
@@ -848,14 +850,14 @@ that is not a recursor on the twin's side the fold's rule branch is dead. -/
 theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
     {x : ConLeche.ConstantInfo}
     (hd : ConRon.Arena.Frontend.denoteCI st ci = some x)
-    (h : ∀ v mI rP rs, ci ≠ .recInfo v mI rP rs)
+    (h : ∀ v mI rP k rs, ci ≠ .recInfo v mI rP k rs)
     (p : Std.HashSet ConLeche.Expr × Array ConLeche.Name) :
     ucBlockStep p x
       = ConLeche.Frontend.usedConstsGo p.1 p.2 x.toConstantVal.type := by
   cases x with
-  | recInfo a b c d =>
-    obtain ⟨iv, imI, irP, irs, hh⟩ := denoteCI_recInfo hd
-    exact absurd hh (h iv imI irP irs)
+  | recInfo a b c k d =>
+    obtain ⟨iv, imI, irP, ik, irs, hh⟩ := denoteCI_recInfo hd
+    exact absurd hh (h iv imI irP ik irs)
   | axiomInfo _ => rfl
   | defnInfo _ _ _ => rfl
   | thmInfo _ => rfl
@@ -939,7 +941,7 @@ theorem usedConstsBlock_run :
           obtain ⟨hv2, hs2⟩ := AM.pure_ok hg2
           subst hs2; subst hv2
           exact hr2
-        have hgen : (∀ v mI rP rs, ci ≠ IConstantInfo.recInfo v mI rP rs) →
+        have hgen : (∀ v mI rP k rs, ci ≠ IConstantInfo.recInfo v mI rP k rs) →
             usedConstsBlock sn1 ac1 cs s = .ok ((seen', acc'), s') →
             ParseStep s s' ∧
               UCSeen s'.store seen' ((x :: xs).foldl ucBlockStep (seenP, accP)).1 ∧
@@ -949,7 +951,7 @@ theorem usedConstsBlock_run :
           exact tail (by rw [ucBlockStep_denote h1 hne]; exact hs1)
             (by rw [ucBlockStep_denote h1 hne]; exact ha1) hh
         cases ci with
-        | recInfo v mI rP rls =>
+        | recInfo v mI rP k rls =>
           rw [ConRon.Arena.Frontend.denoteCI] at h1
           cases hc : ConRon.Arena.Frontend.denoteCV s.store v with
           | none => rw [hc] at h1; simp at h1
@@ -968,15 +970,15 @@ theorem usedConstsBlock_run :
               exact tail (by simpa only [ucBlockStep] using hq2)
                 (by simpa only [ucBlockStep] using hq3) hr2
         | axiomInfo v =>
-          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+          exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | defnInfo v e hint =>
-          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+          exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | thmInfo v =>
-          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+          exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | indInfo v c =>
-          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+          exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | ctorInfo v a b =>
-          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+          exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:82 Declaration.usedConsts —
 the constants a record mentions.  A walk over the record's terms with a `seen`
@@ -1036,13 +1038,6 @@ theorem usedConsts_run {s s' : AState} (hok : StateOK s)
     subst hss; subst hvv
     exact ⟨ParseStep.refl hok, ha2⟩
   cases d with
-  | basisDecl k =>
-    rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
-    obtain ⟨hvv, hss⟩ := AM.pure_ok hrun
-    subst hss; subst hvv
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
-    subst hd
-    exact ⟨ParseStep.refl hok, rfl⟩
   | quotDecl k w =>
     rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
     obtain ⟨hvv, hss⟩ := AM.pure_ok hrun
@@ -1109,6 +1104,28 @@ theorem usedConsts_run {s s' : AState} (hok : StateOK s)
     subst hss; subst hvv
     rw [usedConsts_indDecl_eq]
     exact ⟨hstep1, ha1⟩
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:110 hoistTargets — **what a record mentions,
+on both sides**: the twin's `used` at a denoting record moves the state as a parse step does and
+answers the names con-leche's `usedC` answers.  `IDeclaration.usedConsts` against
+`Declaration.usedConsts` is `usedConsts_run`. -/
+@[expose] def UsedRel (st0 : EStore) (used : IDeclaration → AM (Array NIdx))
+    (usedC : Declaration → Array ConLeche.Name) : Prop :=
+  ∀ {s s' : AState} {d : IDeclaration} {dP : Declaration} {ns : Array NIdx}, Ext st0 s.store →
+    StateOK s → s.store.scratchOn = false →
+    ConRon.Arena.Frontend.denoteDecl s.store d = some dP → used d s = .ok (ns, s') →
+    ParseStep s s' ∧ denoteNList s'.store.ns ns.toList = some (usedC dP).toList
+
+theorem UsedRel.mono {st0 st1 : EStore} {used : IDeclaration → AM (Array NIdx)}
+    {usedC : Declaration → Array ConLeche.Name} (hx : Ext st0 st1) (h : UsedRel st0 used usedC) :
+    UsedRel st1 used usedC :=
+  fun hx' hok hoff hd hrun => h (hx.trans hx') hok hoff hd hrun
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:82-95 usedConsts — the stream path's
+`used`. -/
+theorem usedRel_usedConsts (st0 : EStore) :
+    UsedRel st0 IDeclaration.usedConsts ConLeche.Declaration.usedConsts :=
+  fun _ hok hoff hd hrun => usedConsts_run hok hoff hd hrun
 
 /-! ## The target map
 
@@ -1251,21 +1268,23 @@ theorem arr_rev_cons {arr : Array Nat} {k : Nat} {L : List Nat}
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets — one
 turn of con-leche's worklist `while`, as a value: pop the top, `continue` if
 its record already precedes `i`, else mark it and push its dependencies. -/
-def clCloseStep (dsP : Array Declaration) (idxP : Std.HashMap ConLeche.Name Nat)
+def clCloseStep (dsP : Array Declaration) (usedC : Declaration → Array ConLeche.Name)
+    (idxP : Std.HashMap ConLeche.Name Nat)
     (i : Nat) (tg : Std.HashMap Nat Nat) (st : Array Nat) :
     ForInStep (Std.HashMap Nat Nat × Array Nat) :=
   if h : st.size > 0 then
     if hoistDone tg st[st.size - 1] i then .yield (tg, st.pop)
     else .yield (tg.insert st[st.size - 1] i,
-      clPushDeps idxP i st[st.size - 1] (dsP[st[st.size - 1]]!.usedConsts.toList) st.pop)
+      clPushDeps idxP i st[st.size - 1] (usedC dsP[st[st.size - 1]]!).toList st.pop)
   else .done (tg, st)
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets — the
 `continue` pops, run in a batch: they are the twin's `hoistDropDone`. -/
-theorem loop_drop {dsP : Array Declaration} {idxP : Std.HashMap ConLeche.Name Nat}
+theorem loop_drop {dsP : Array Declaration}
+    {usedC : Declaration → Array ConLeche.Name} {idxP : Std.HashMap ConLeche.Name Nat}
     {i : Nat} (B : Unit → Std.HashMap Nat Nat × Array Nat →
       Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
-    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP idxP i tg st)
+    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP usedC idxP i tg st)
     (target : Std.HashMap Nat Nat) :
     ∀ (L : List Nat) (arr : Array Nat), arr.toList.reverse = L →
       ∃ arr' : Array Nat, arr'.toList.reverse = hoistDropDone target i L ∧
@@ -1307,22 +1326,23 @@ sides, with `usedConsts_run` for the pushed references and `pushOne_sim` for
 the push loop.  Fuel exhaustion is a `fail`, so an accepting run never meets
 it. -/
 theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Unit → Std.HashMap Nat Nat × Array Nat →
       Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
-    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP idxP i tg st) :
+    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (fuel : Nat) (s : AState) (target : Std.HashMap Nat Nat) (L : List Nat)
       (arr : Array Nat) (t' : Std.HashMap Nat Nat) (s' : AState),
-      StateOK s → s.store.scratchOn = false →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
       (∀ x ∈ L, x < ds.size) → arr.toList.reverse = L →
-      hoistClosure ds idx i fuel target L s = .ok (t', s') →
+      hoistClosure used ds idx i fuel target L s = .ok (t', s') →
       ParseStep s s' ∧ t' = (forIn Lean.Loop.mk (target, arr) B : Id _).1 := by
   intro fuel
   induction fuel with
   | zero =>
-    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    intro s target L arr t' s' hok hx hoff hds hr hL harr hrun
     obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
     rw [hoistClosure] at hrun
     rw [hloop]
@@ -1340,7 +1360,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       simp only [hdrop] at hrun
       exact (AM.fail_ok hrun).elim
   | succ f ih =>
-    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    intro s target L arr t' s' hok hx hoff hds hr hL harr hrun
     obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
     rw [hoistClosure] at hrun
     rw [hloop]
@@ -1370,11 +1390,11 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       rw [dite_eq_left hk] at hpush
       obtain ⟨ns, s₂, hus, hpure⟩ := AM.bind_ok hpush
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hpure
-      obtain ⟨hstep, hns⟩ := usedConsts_run hok hoff (declAt_denote hds hk) hus
+      obtain ⟨hstep, hns⟩ := hU hx hok hoff (declAt_denote hds hk) hus
       have hr1 := hr.mono hstep.ext (nsWF_of_StateOK hstep.ok)
       have hpushP := pushOne_sim hr1 i k ns.toList _ hns arr'.pop rest hpop
       have hoff1 : s₁.store.scratchOn = false := by rw [hstep.scratch]; exact hoff
-      obtain ⟨hstep2, hres⟩ := ih s₁ (target.insert k i) _ _ t' s' hstep.ok hoff1
+      obtain ⟨hstep2, hres⟩ := ih s₁ (target.insert k i) _ _ t' s' hstep.ok (hx.trans hstep.ext) hoff1
         (denoteDeclArray_ext hstep.ext hds) hr1
         (hoistClosure_pushOne_lt hidx k _ rest hrest) hpushP hrun
       refine ⟨hstep.trans hstep2, ?_⟩
@@ -1445,12 +1465,6 @@ theorem isNatOpRecord_run {s s' : AState} (hok : StateOK s) (hpins : PinsOK s)
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨rfl, trivial⟩
     · simp at hd
-  | basisDecl k =>
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
-    subst hd
-    simp only [isNatOpRecord] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨rfl, trivial⟩
   | indDecl block nP =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨_, _, rfl⟩ := hd
@@ -1478,22 +1492,23 @@ def clDepStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:119-134 hoistTargets — the
 twin's `hoistDeps` is con-leche's `for g in natOpDeps c` loop. -/
 theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
       Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
-    (hB : ∀ tg st, B i () (tg, st) = clCloseStep dsP idxP i tg st) :
+    (hB : ∀ tg st, B i () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (gs : List NIdx) (gsP : List ConLeche.Name) (s : AState)
       (target t' : Std.HashMap Nat Nat) (s' : AState),
-      StateOK s → s.store.scratchOn = false →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
       denoteNL s.store gs gsP →
-      hoistTargetsGo.hoistDeps ds idx target i gs s = .ok (t', s') →
+      hoistTargetsGo.hoistDeps used ds idx target i gs s = .ok (t', s') →
       ParseStep s s' ∧ t' = gsP.foldl (clDepStep B idxP i) target := by
   intro gs
   induction gs with
   | nil =>
-    intro gsP s target t' s' hok _ _ _ hgs hrun
+    intro gsP s target t' s' hok _ _ _ _ hgs hrun
     cases gsP with
     | cons _ _ => exact hgs.elim
     | nil =>
@@ -1501,7 +1516,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨ParseStep.refl hok, rfl⟩
   | cons g gs ih =>
-    intro gsP s target t' s' hok hoff hds hr hgs hrun
+    intro gsP s target t' s' hok hx hoff hds hr hgs hrun
     cases gsP with
     | nil => exact hgs.elim
     | cons gP gsP =>
@@ -1513,7 +1528,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       cases hj : idx[g]? with
       | none =>
         rw [hj] at hrun
-        exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+        exact ih gsP s target t' s' hok hx hoff hds hr hgs hrun
       | some j =>
         rw [hj] at hrun
         simp only [] at hrun ⊢
@@ -1521,17 +1536,17 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         · rw [ite_eq_left hji] at hrun
           rw [ite_eq_left hji]
           obtain ⟨t1, s₁, h1, hrun⟩ := AM.bind_ok hrun
-          obtain ⟨hstep1, rfl⟩ := hoistClosure_sim hidx (B i) hB ds.size s target [j] #[j]
-            t1 s₁ hok hoff hds hr (by simpa using hidx g j hj) (by simp) h1
+          obtain ⟨hstep1, rfl⟩ := hoistClosure_sim hU hidx (B i) hB ds.size s target [j] #[j]
+            t1 s₁ hok hx hoff hds hr (by simpa using hidx g j hj) (by simp) h1
           have hoff1 : s₁.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
-          obtain ⟨hstep2, hres⟩ := ih gsP s₁ _ t' s' hstep1.ok hoff1
+          obtain ⟨hstep2, hres⟩ := ih gsP s₁ _ t' s' hstep1.ok (hx.trans hstep1.ext) hoff1
             (denoteDeclArray_ext hstep1.ext hds)
             (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok))
             (denoteNL_ext hstep1.ext _ _ hgs) hrun
           exact ⟨hstep1.trans hstep2, hres⟩
         · rw [ite_eq_right hji] at hrun
           rw [ite_eq_right hji]
-          exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+          exact ih gsP s target t' s' hok hx hoff hds hr hgs hrun
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:117-134 hoistTargets — one
 turn of the outer `for i in [0:ds.size]` loop, as a value. -/
@@ -1547,26 +1562,27 @@ def clOuterStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
 twin's `hoistTargetsGo` (a tail recursion from `i`) is con-leche's outer loop
 over the rest of the index range. -/
 theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
       Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
-    (hB : ∀ i tg st, B i () (tg, st) = clCloseStep dsP idxP i tg st) :
+    (hB : ∀ i tg st, B i () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (n i : Nat) (s : AState) (target t' : Std.HashMap Nat Nat) (s' : AState),
       ds.size - i = n →
-      StateOK s → s.store.scratchOn = false → PinsOK s →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false → PinsOK s →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
-      hoistTargetsGo ds idx target i s = .ok (t', s') →
+      hoistTargetsGo used ds idx target i s = .ok (t', s') →
       ParseStep s s' ∧ t' = (List.range' i n).foldl (clOuterStep B dsP idxP) target := by
   intro n
   induction n with
   | zero =>
-    intro i s target t' s' hn hok _ _ _ _ hrun
+    intro i s target t' s' hn hok _ _ _ _ _ hrun
     rw [hoistTargetsGo, dite_eq_right (by omega)] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨ParseStep.refl hok, rfl⟩
   | succ n ih =>
-    intro i s target t' s' hn hok hoff hpins hds hr hrun
+    intro i s target t' s' hn hok hx hoff hpins hds hr hrun
     have hi : i < ds.size := by omega
     rw [hoistTargetsGo, dite_eq_left hi] at hrun
     obtain ⟨r, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -1580,7 +1596,7 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         cases h : ConLeche.Frontend.isNatOpRecord dsP[i]! with
         | none => rfl
         | some _ => rw [h] at hopt; exact hopt.elim
-      have := ih (i + 1) s target t' s' (by omega) hok hoff hpins hds hr hrun
+      have := ih (i + 1) s target t' s' (by omega) hok hx hoff hpins hds hr hrun
       simpa [clOuterStep, hcl] using this
     | some c =>
       simp only [] at hrun
@@ -1593,10 +1609,10 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         have hs2 := natOpDeps_state hpins h2
         rw [hs2] at hrun hgs
         obtain ⟨t1, s₃, h3, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hstep1, rfl⟩ := hoistDeps_sim hidx B (hB i) gs _ s target t1 s₃ hok hoff hds hr
+        obtain ⟨hstep1, rfl⟩ := hoistDeps_sim hU hidx B (hB i) gs _ s target t1 s₃ hok hx hoff hds hr
           hgs h3
         have hoff1 : s₃.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
-        obtain ⟨hstep2, hres⟩ := ih (i + 1) s₃ _ t' s' (by omega) hstep1.ok hoff1
+        obtain ⟨hstep2, hres⟩ := ih (i + 1) s₃ _ t' s' (by omega) hstep1.ok (hx.trans hstep1.ext) hoff1
           (hpins.mono hstep1.ext hstep1.pins) (denoteDeclArray_ext hstep1.ext hds)
           (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok)) hrun
         refine ⟨hstep1.trans hstep2, ?_⟩
@@ -1635,19 +1651,19 @@ def clIdx (dsP : Array Declaration) : Std.HashMap ConLeche.Name Nat :=
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets —
 con-leche's `while` body, at the index `I`, as the function `clCloseStep`. -/
-def clB (dsP : Array Declaration) (I : Std.HashMap ConLeche.Name Nat) (i : Nat) :
+def clB (dsP : Array Declaration) (usedC : Declaration → Array ConLeche.Name) (I : Std.HashMap ConLeche.Name Nat) (i : Nat) :
     Unit → Std.HashMap Nat Nat × Array Nat →
       Id (ForInStep (Std.HashMap Nat Nat × Array Nat)) :=
-  fun _ p => clCloseStep dsP I i p.1 p.2
+  fun _ p => clCloseStep dsP usedC I i p.1 p.2
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:110-136 hoistTargets —
 **con-leche's `hoistTargets`, as folds**: the name index is `clIdx`, the outer
 loop a fold of `clOuterStep`, and the worklist `while` the `Loop` at the body
 `clB` (`clCloseStep`).  Every `for` of the definition yields on every turn,
 so each is a `foldl`; the `while` stays a `Loop.forIn`. -/
-theorem clHoistTargets_eq (dsP : Array Declaration) :
-    ConLeche.Frontend.hoistTargets dsP =
-      List.foldl (clOuterStep (clB dsP (clIdx dsP)) dsP (clIdx dsP)) ∅
+theorem clHoistTargets_eq (dsP : Array Declaration) (usedC : Declaration → Array ConLeche.Name) :
+    ConLeche.Frontend.hoistTargets usedC dsP =
+      List.foldl (clOuterStep (clB dsP usedC (clIdx dsP)) dsP (clIdx dsP)) ∅
         (List.range' 0 dsP.size) := by
   symm
   unfold ConLeche.Frontend.hoistTargets
@@ -1656,7 +1672,7 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
   rw [show [:dsP.size].size = dsP.size by simp [Std.Legacy.Range.size]]
   simp only [Id.run]
   refine Eq.trans ?_ (forIn_id_yield _ _ _
-    (fun a b => clOuterStep (clB dsP (clIdx dsP)) dsP (clIdx dsP) b a) ?hF).symm
+    (fun a b => clOuterStep (clB dsP usedC (clIdx dsP)) dsP (clIdx dsP) b a) ?hF).symm
   · rfl
   · intro a b
     unfold clOuterStep
@@ -1664,7 +1680,7 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
     | none => rfl
     | some c =>
       refine congrArg ForInStep.yield (forIn_id_yield _ _ _
-        (fun g t => clDepStep (clB dsP (clIdx dsP)) (clIdx dsP) a t g) ?_)
+        (fun g t => clDepStep (clB dsP usedC (clIdx dsP)) (clIdx dsP) a t g) ?_)
       intro g t
       unfold clDepStep
       split
@@ -1872,8 +1888,10 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
     (_hwf : StoreWF s.store)
     (hds : denoteDeclArray s.store ds = some dsP)
-    {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
-    ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
+    {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
+    (hU : UsedRel s.store used usedC)
+    {target : Std.HashMap Nat Nat} (hrun : hoistTargets used ds s = .ok (target, s')) :
+    ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets usedC dsP := by
   have hnw := nsWF_of_StateOK hok
   have hsz : ds.size = dsP.size := by
     have := denoteDecls_length _ _ (denoteDeclArray_iff.mp hds); simpa using this
@@ -1884,10 +1902,10 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     have := nameIndex_sim hnw hds ds.size 0 ∅ ∅ (by simp) hempty
     rw [clIdx, ← hsz]; exact this
   have hidx := nameIndex_lt ds ds.size 0 ∅ (by simp) (by simp)
-  obtain ⟨hstep, hres⟩ := hoistTargetsGo_sim hidx (clB dsP (clIdx dsP)) (fun _ _ _ => rfl)
-    ds.size 0 s ∅ target s' (by simp) hok hoff hpins hds hr0 hrun
+  obtain ⟨hstep, hres⟩ := hoistTargetsGo_sim hU hidx (clB dsP usedC (clIdx dsP)) (fun _ _ _ => rfl)
+    ds.size 0 s ∅ target s' (by simp) hok (Ext.refl _) hoff hpins hds hr0 hrun
   refine ⟨hstep, ?_⟩
-  rw [hres, clHoistTargets_eq, hsz]
+  rw [hres, clHoistTargets_eq dsP usedC, hsz]
 
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
@@ -2070,19 +2088,21 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
+    {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
+    (hU : UsedRel s.store used usedC)
     {out : Array IDeclaration} {moved : Array NIdx}
-    (hrun : hoistNatOpGround ds s = .ok ((out, moved), s')) :
+    (hrun : hoistNatOpGround used ds s = .ok ((out, moved), s')) :
     ParseStep s s' ∧ PersDecls out ∧
       denoteDeclArray s'.store out
-        = some (ConLeche.Frontend.hoistNatOpGround dsP).1 ∧
+        = some (ConLeche.Frontend.hoistNatOpGround usedC dsP).1 ∧
       denoteNList s'.store.ns moved.toList
-        = some (ConLeche.Frontend.hoistNatOpGround dsP).2.toList := by
+        = some (ConLeche.Frontend.hoistNatOpGround usedC dsP).2.toList := by
   rw [hoistNatOpGround] at hrun
   rw [ConLeche.Frontend.hoistNatOpGround]
   obtain ⟨target, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hstep, rfl⟩ := hoistTargets_run hok hoff hpins hwf hds h1
+  obtain ⟨hstep, rfl⟩ := hoistTargets_run hok hoff hpins hwf hds hU h1
   have hds1 := denoteDeclArray_ext hstep.ext hds
-  by_cases he : (ConLeche.Frontend.hoistTargets dsP).isEmpty = true
+  by_cases he : (ConLeche.Frontend.hoistTargets usedC dsP).isEmpty = true
   · rw [ite_eq_left he] at hrun
     rw [ite_eq_left he]
     obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
@@ -2092,37 +2112,33 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
   · rw [ite_eq_right he] at hrun
     rw [ite_eq_right he]
     obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
-    obtain ⟨h1, h2, h3⟩ := applyHoist_run hds1 hpds (ConLeche.Frontend.hoistTargets dsP)
+    obtain ⟨h1, h2, h3⟩ := applyHoist_run hds1 hpds (ConLeche.Frontend.hoistTargets usedC dsP)
     rw [← hv] at h1 h2 h3
     exact ⟨hstep, h1, h2, h3⟩
 
 /-! ## The prepared stream -/
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:171 preparePrelude — **the
-prepared stream denotes con-leche's prepared stream**, which is the second
-half of what the capstone's chain needs: the parse's exactness gets the
-records, and this carries them across the two permuting passes into the
-fold's argument.
+/-- con-leche: ConLeche/Frontend/Prepare.lean:162-166 prepareD — **the prepared stream denotes
+con-leche's prepared stream**, at a `used` that says what con-leche's `usedC` says
+(`UsedRel`): the parse's exactness gets the records, and this carries them across the two
+permuting passes into the fold's argument.
 
 `frontOf_run` and `hoistNatOpGround_run` composed. -/
-theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
+theorem prepareD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
     (hprep : PersPreludeIx pre)
     {ds : Array IDeclaration}
     {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
     (hpds : PersDecls ds)
-    {out : Array IDeclaration}
-    (hrun : preparePrelude pre ds s = .ok (out, s')) :
-    ParseStep s s' ∧ PersDecls out ∧
-      denoteDeclArray s'.store out
-        = some (ConLeche.Frontend.preparePrelude preC dsP) := by
-  rw [preparePrelude] at hrun
-  obtain ⟨prep, s₁, hprepD, hrest⟩ := AM.bind_ok hrun
-  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
-  subst hv; subst hs
-  rw [prepareD] at hprepD
-  obtain ⟨fr, s₂, hfront, hrest2⟩ := AM.bind_ok hprepD
+    {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
+    (hU : UsedRel s.store used usedC) {prep : Prepared}
+    (hrun : prepareD pre ds used s = .ok (prep, s')) :
+    ParseStep s s' ∧ PersDecls prep.decls ∧
+      denoteDeclArray s'.store prep.decls
+        = some (ConLeche.Frontend.prepareD preC dsP usedC).decls := by
+  rw [prepareD] at hrun
+  obtain ⟨fr, s₂, hfront, hrest2⟩ := AM.bind_ok hrun
   obtain ⟨front, rest⟩ := fr
   simp only [] at hrest2
   obtain ⟨dh, s₃, hhoist, hrest3⟩ := AM.bind_ok hrest2
@@ -2146,11 +2162,30 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
         rcases Array.mem_append.mp hd with h | h
         · exact hpf d h
         · exact hpr d h)
-      hhoist
+      (hU.mono hstep1.ext) hhoist
   have hdecls : prep.decls = decls := by rw [hv2]
   refine ⟨hstep1.trans hstep2, ?_, ?_⟩
   · rw [hdecls]; exact hpo
-  · rw [hdecls, hclo, ConLeche.Frontend.preparePrelude,
-      ConLeche.Frontend.prepareD]
+  · rw [hdecls, hclo, ConLeche.Frontend.prepareD]
+
+/-- con-leche: ConLeche/Frontend/Prepare.lean:174-175 preparePrelude — `prepareD_run` at the
+stream path's `used` (`usedRel_usedConsts`). -/
+theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
+    {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
+    (hprep : PersPreludeIx pre)
+    {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
+    (hpds : PersDecls ds)
+    {out : Array IDeclaration}
+    (hrun : preparePrelude pre ds s = .ok (out, s')) :
+    ParseStep s s' ∧ PersDecls out ∧
+      denoteDeclArray s'.store out
+        = some (ConLeche.Frontend.preparePrelude preC dsP) := by
+  rw [preparePrelude] at hrun
+  obtain ⟨prep, s₁, hprepD, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+  subst hv; subst hs
+  exact prepareD_run hok hoff hpins hpre hprep hds hpds (usedRel_usedConsts _) hprepD
 
 end ConRon.Bridge.Frontend
