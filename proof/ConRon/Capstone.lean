@@ -1237,8 +1237,7 @@ the specification (`InClosure`, `ViewOf`), holds a theorem whose type is `False`
 cannot all succeed.  The files are a premise: `hsnap`, the instance answers as one snapshot `F`.
 
 Composition only: `no_False_oleans_of` at `read_oleans_refines` (Theorem 2 at the reader). -/
-theorem no_False_oleans
-    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
     {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
     {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
     {all : List ConLeche.Name}
@@ -1290,8 +1289,7 @@ theorem no_False_oleans
 `--olean` accepts has a model**, in every set theory, on a snapshot of the files (`hsnap`).
 
 Composition only: `model_exists_oleans_of` at `read_oleans_refines` (Theorem 2 at the reader). -/
-theorem model_exists_oleans
-    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
     {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     {st1 st2 stR st4 st5 st6 : arena.monad.AState}
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))

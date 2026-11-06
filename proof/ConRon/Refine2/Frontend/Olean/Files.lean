@@ -11,7 +11,7 @@ carry no theorem: they choose between two messages of one failure, and a message
 compared.
 -/
 import ConRon.Refine2.Frontend.Olean.ModFilesRel
-import ConRon.Refine2.Frontend.Olean.Names
+import ConRon.Refine2.Frontend.Olean.Region
 import ConRon.Refine2.Frontend.Olean.Contract
 
 open Aeneas Aeneas.Std Result
@@ -30,6 +30,10 @@ open ConLeche.Frontend.Olean (locateOf partExts)
 open Arena.Frontend.Olean (locateIn locateHits findModule)
 
 /-! ## The relations -/
+
+theorem vec_len_val {α : Type} (v : alloc.vec.Vec α) : (alloc.vec.Vec.len v).val = v.val.length := by
+  simp
+
 
 /-- A file of a directory, as the twin's. -/
 abbrev absFile (o : Option (alloc.vec.Vec Std.U32)) : Option String := o.map absString

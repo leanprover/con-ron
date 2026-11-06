@@ -286,7 +286,6 @@ theorem olean_pins_refines {pers : arena.store.PersTier} {st : arena.monad.AStat
   pin_step "ind" frontend.olean.spec.olean_pins.M_9
   exact CS.pure rfl
 
-
 /-! ## `skelFits` -/
 
 /-- `SatRel`'s test, as the twin's. -/
@@ -630,26 +629,6 @@ theorem imports_beq_eq {a b : alloc.vec.Vec (frontend.olean.spec.ImportF arena.h
           rw [List.drop_eq_nil_of_le (by scalar_tac), List.drop_eq_nil_of_le (by scalar_tac)]
           rfl
     simpa using aux _ 0#usize c (Nat.le_refl _) h
-
-/-- A stored constant's statement, as the twin's. -/
-def absStmt (s : frontend.olean.spec.StmtRec) : Arena.Frontend.Olean.StmtRec :=
-  ⟨absNIdx s.name, s.level_params.val.map absNIdx, absEIdx s.ty⟩
-
-/-- **`c_entry_stmt` is `entryStmt`.** -/
-theorem c_entry_stmt_eq {c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
-    {c' : CEntryF NIdx EIdx} {RN : NatRel} (hc : EntryRel absNIdx absEIdx RN c c') {s}
-    (h : frontend.olean.spec.c_entry_stmt c = ok s) :
-    absStmt s = Arena.Frontend.Olean.entryStmt c' := by
-  rw [frontend.olean.spec.c_entry_stmt] at h
-  peel h as n, hn
-  peel h as v, hv
-  peel h as e, he
-  cases Result.ok_injective h
-  obtain ⟨n', l', ty', k'⟩ := c'
-  obtain ⟨rfl, rfl, rfl, -⟩ := hc
-  simp [absStmt, Arena.Frontend.Olean.entryStmt, nidx_dup2_ok hn, eidx_dup2_ok he,
-    nidx_vec_dup_val hv]
-
 
 /-! ## The name table -/
 

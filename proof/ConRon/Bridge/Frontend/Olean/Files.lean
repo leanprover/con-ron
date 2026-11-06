@@ -44,16 +44,6 @@ record of a snapshot**: `ModelIO`'s operations, a message where they have no val
     | some b => .ok b.size
     | none => .error "no such file"
 
-theorem modelFs_realPath {F : FS} {p q : System.FilePath} (h : (modelFs F).realPath p = .ok q) :
-    F.real p = some q := by
-  simp only [modelFs] at h
-  cases hr : F.real p with
-  | none => simp [hr] at h
-  | some r =>
-    simp only [hr] at h
-    cases h
-    rfl
-
 theorem modelFs_readBinFile {F : FS} {p : System.FilePath} {b : ByteArray}
     (h : (modelFs F).readBinFile p = .ok b) : F.file p = some b := by
   simp only [modelFs] at h

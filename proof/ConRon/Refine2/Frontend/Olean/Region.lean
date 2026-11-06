@@ -120,11 +120,6 @@ theorem sat_mul8_spec {n c : Std.U64} (h : sat_mul8 n = ok c) :
     rw [u64_val_lit8] at this
     omega
 
-/-- A saturated sum compared with something below `u64::MAX` answers as `Nat`'s. -/
-theorem sat_le_iff {x : Nat} {f : Nat} (hf : f < 2 ^ 64 - 1) :
-    min x (2 ^ 64 - 1) ≤ f ↔ x ≤ f := by
-  omega
-
 /-! ## Byte reads -/
 
 theorem absBytes_getElem (b : Slice Std.U8) (i : Nat) (h : i < (absBytes b).size)
@@ -802,7 +797,6 @@ theorem region_is_ctor_eq (bs : Slice Std.U8) {r : frontend.olean.region.Region}
     have : i.val ≠ t.val := fun he => hc (UScalar.eq_of_val_eq he)
     simp [this]
 
-
 /-! ## The runtime's own object kinds -/
 
 /-- **`limbs_fold` is `limbsFold`**, a well-formed number. -/
@@ -1006,7 +1000,6 @@ theorem region_mpz_at_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} 
     have hc' : (absRegion bs r).tag c.val ≠ 250 := by
       intro he; apply hc; apply UScalar.eq_of_val_eq; rw [et, he, tv2]
     simp [tv, hc']
-
 
 /-- **`region_nat_p` is `Region.natP`**, a well-formed number. -/
 theorem region_nat_p_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} {g v : Std.U64}

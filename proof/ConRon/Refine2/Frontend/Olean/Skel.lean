@@ -72,9 +72,6 @@ structure EntryRel {N N' E E' : Type} (AN : N → N') (AE : E → E') (RN : NatR
 /-- A skeleton, against upstream's. -/
 abbrev SkelRel := EntryRel absWord absWord SatRel
 
-/-- An `Option` of a skeleton read: `Rel`, with the answers as a relation. -/
-abbrev OptRel {α β : Type} (R : α → β → Prop) := Option.Rel R
-
 /-! ## Reading a field -/
 
 open ConLeche.Frontend.Olean in

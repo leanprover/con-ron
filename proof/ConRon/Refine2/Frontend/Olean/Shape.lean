@@ -71,11 +71,6 @@ def RS {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
   AStateRel₀ pers st lst → AStateInv pers st →
     ∀ o s', m = ok (o, s') → RdOut pers R (withStore st s') o (x.run lst)
 
-theorem withStore_self (st : arena.monad.AState) : withStore st st.store = st := rfl
-
-theorem am_run_pure {α : Type} (a : α) (lst : AState) :
-    (pure a : AM α).run lst = .ok (a, lst) := rfl
-
 theorem am_bind_ok {β δ : Type} {x : AM β} {g : β → AM δ} {lst lst' : AState} {b : β}
     (hx : x.run lst = .ok (b, lst')) : (x >>= g).run lst = (g b).run lst' := by
   rw [StateT.run_bind, hx]; rfl
@@ -106,14 +101,6 @@ theorem RS.pure_step {α β γ : Type} {pers : arena.store.PersTier} {R : α →
   intro hrel hinv o s' hm
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact h a h1 hrel hinv o s' h2
-
-/-- `ok v` on the Rust side. -/
-theorem RS.ok_bind {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState} {v : γ}
-    {k : γ → Result (core.result.Result α frontend.olean.spec.RdErr × arena.store.EStore)}
-    {x : AM (Option β)} (h : RS pers R st lst (k v) x) :
-    RS pers R st lst (Std.bind (ok v) k) x := by
-  rw [bind_ok]; exact h
 
 /-- **The bind of two reads**: the first's `Ok` feeds the second, its failures are the
 answer, and the twin's `match ← x with | none => pure none | some b => g b`. -/
@@ -175,12 +162,6 @@ theorem RS.mono {α β : Type} {pers : arena.store.PersTier} {R R' : α → β �
     cases e with
     | Bad => exact h1
     | Err e => exact h1
-
-/-- A Rust `if`, against the twin's `if` on the same test, split by the caller. -/
-theorem RS.pure_none_of {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState} {m} (h : m = ok ((.Err .Bad : core.result.Result α frontend.olean.spec.RdErr), st.store)) :
-    RS pers R st lst m (pure Option.none : AM (Option β)) := by
-  rw [h]; exact RS.none
 
 /-! ## `RdP`: a pure read -/
 

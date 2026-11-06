@@ -541,15 +541,10 @@ theorem emptyCap_append (n : Nat) (x : ByteArray) : ByteArray.emptyWithCapacity 
   show #[] ++ x.data = x.data
   simp
 
-theorem emptyCap_size (n : Nat) : (ByteArray.emptyWithCapacity n).size = 0 := rfl
-
 /-- The bytes of two parts. -/
 theorem join_bytes {x a b : alloc.vec.Vec Std.U8} (h : x.val = a.val ++ b.val) :
     absBytes (alloc.vec.Vec.deref x) = absBytes (alloc.vec.Vec.deref a) ++ absBytes (alloc.vec.Vec.deref b) :=
   absBytes_append (by simp only [deref_val]; exact h)
-
-theorem seg_abs (b o sz : Std.U64) :
-    absSeg (frontend.olean.region.Seg.mk b o sz) = ⟨absWord b, o.val, sz.val⟩ := rfl
 
 /-- **`region_of_parts2` is `Region.ofParts`**, at two files. -/
 theorem region_of_parts2_eq {a b : frontend.olean.region.Part} {o} (ha : PartFits a) (hb : PartFits b)
@@ -589,8 +584,9 @@ theorem region_of_parts2_eq {a b : frontend.olean.region.Part} {o} (ha : PartFit
     have hA := ha.size
     have hB := hb.size
     refine ⟨?_, ?_⟩
-    · simp only [emptyCap_append, emptyCap_size, absPart, absBytes_size', absRegion, es, List.map_cons,
-        List.map_nil, seg_abs, hl0, hl1, hla, hlb, List.cons_append, List.nil_append]
+    · simp only [emptyCap_append, (show ∀ n, (ByteArray.emptyWithCapacity n).size = 0 from fun _ => rfl),
+        absPart, absBytes_size', absRegion, es, List.map_cons,
+        List.map_nil, absSeg, hl0, hl1, hla, hlb, List.cons_append, List.nil_append]
       congr 2
       exact (join_bytes (x := bytes1) (a := a.bytes) (b := b.bytes)
         (by rw [show bytes1.val = _ from v2, v1])).symm
@@ -667,8 +663,9 @@ theorem region_of_parts3_eq {a b c : frontend.olean.region.Part} {o} (ha : PartF
       have hB := hb.size
       have hC := hc.size
       refine ⟨?_, ?_⟩
-      · simp only [emptyCap_append, emptyCap_size, absPart, absBytes_size', absRegion, es, List.map_cons,
-          List.map_nil, seg_abs, hl0, hl1, hl2, hla, hlb, hlc, List.cons_append, List.nil_append,
+      · simp only [emptyCap_append, (show ∀ n, (ByteArray.emptyWithCapacity n).size = 0 from fun _ => rfl),
+        absPart, absBytes_size', absRegion, es, List.map_cons,
+          List.map_nil, absSeg, hl0, hl1, hl2, hla, hlb, hlc, List.cons_append, List.nil_append,
           ByteArray.size_append]
         congr 2
         rw [← join_bytes (x := bytes1) (a := a.bytes) (b := b.bytes) vb1]

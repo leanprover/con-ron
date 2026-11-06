@@ -344,11 +344,6 @@ theorem subsumes_ax_false {pk : OleanPins} {mg : Merged} {c1 c2 : CEntry} {u : B
 
 /-! ## One constant -/
 
-theorem Merged.get_eq (mg : Merged) (n : NIdx) :
-    mg.get n = match mg.map[n]? with
-      | none => none
-      | some (m, i) => (mg.ls[m]?).bind (·.constants[i]?) := rfl
-
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry — a constant stored under its
 name, on both sides. -/
 theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
@@ -365,10 +360,10 @@ theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
     intro n hne
     have hbne : (c.c.name == n) = false := by
       simpa using fun e : c.c.name = n => hne e.symm
-    simp only [Merged.get_eq, Std.HashMap.getElem?_insert, hbne, Bool.false_eq_true, ↓reduceIte]
+    simp only [Merged.get, Std.HashMap.getElem?_insert, hbne, Bool.false_eq_true, ↓reduceIte]
   have hself : ({ ls := mg.ls, map := mg.map.insert c.c.name (m, i), order := ord } : Merged).get
       c.c.name = some c := by
-    simp only [Merged.get_eq, Std.HashMap.getElem?_insert_self]
+    simp only [Merged.get, Std.HashMap.getElem?_insert_self]
     exact hc
   refine ⟨fun {n nC x} hdn hx => ?_, fun {n nC} hdn hx => ?_, fun {n nC} hdn => ?_, hord⟩
   · by_cases e : n = c.c.name
@@ -534,7 +529,7 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
   subst hv
   subst hs
   have hinit : MergedRel s.store { ls := ls } ({} : ConLeche.Frontend.Olean.Merged) :=
-    ⟨fun {n nC c} _ hc => by simp [Merged.get_eq] at hc,
+    ⟨fun {n nC c} _ hc => by simp [Merged.get] at hc,
      fun {n nC} _ _ => by simp,
      fun {n nC} _ => by simp,
      .nil⟩

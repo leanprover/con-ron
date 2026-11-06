@@ -41,47 +41,4 @@ def AS {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
       ∃ b lst', x.run lst = .ok (b, lst') ∧ R a b ∧
         AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s')
 
-/-- A full judgement gives its accept. -/
-theorem AS.of_CS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState} {m} {x : AM β} (h : CS pers R st lst m x) :
-    AS pers R st lst (α := α) m x :=
-  fun hrel hinv a s' hm => h hrel hinv (.Ok a) s' hm
-
-/-- The Rust `Ok` with no store change against the twin's `pure`. -/
-theorem AS.pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState} {a : α} {b : β} (hR : R a b) :
-    AS pers R st lst (ok (.Ok a, st.store)) (Pure.pure b) :=
-  AS.of_CS (CS.pure hR)
-
-/-- A step of the Rust alone. -/
-theorem AS.pure_step {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState} {f : Result γ}
-    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
-    {x : AM β} (h : ∀ a, f = ok a → AS pers R st lst (k a) x) :
-    AS pers R st lst (Std.bind f k) x := by
-  intro hrel hinv a s' hm
-  obtain ⟨v, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  exact h v h1 hrel hinv a s' h2
-
-/-- **The bind of two accepts**: the continuation carries an `Err` to an `Err`, which is all
-that is asked of it. -/
-theorem AS.bind {α₁ β₁ α β : Type} {pers : arena.store.PersTier} {R₁ : α₁ → β₁ → Prop}
-    {R : α → β → Prop} {st : arena.monad.AState} {lst : AState}
-    {f : Result (core.result.Result α₁ kernel.core_types.CheckError × arena.store.EStore)}
-    {k : core.result.Result α₁ kernel.core_types.CheckError × arena.store.EStore →
-      Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
-    {x : AM β₁} {g : β₁ → AM β}
-    (hf : AS pers R₁ st lst f x)
-    (he : ∀ e s1 a s', k (.Err e, s1) ≠ ok (.Ok a, s'))
-    (hk : ∀ a b s1 lst1, R₁ a b → AS pers R (withStore st s1) lst1 (k (.Ok a, s1)) (g b)) :
-    AS pers R st lst (Std.bind f k) (x >>= g) := by
-  intro hrel hinv a s' hm
-  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  cases r with
-  | Ok a1 =>
-    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := hf hrel hinv a1 s1 hf1
-    rw [am_bind_ok hx]
-    exact hk a1 b s1 lst1 hR hrel1 hinv1 a s' hk1
-  | Err e => exact absurd hk1 (he e s1 a s')
-
 end ConRon.Refine2.Frontend.Olean
