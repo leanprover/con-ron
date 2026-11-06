@@ -57,6 +57,7 @@ def constsGo (pk : OleanPins) : Nat → List EIdx → Std.HashSet EIdx → Std.H
       constsGo pk fuel rest seen seenN out
     else
       let seen := seen.insert e
+      if ETag.proj < e.tag then constsGo pk fuel rest seen seenN out else
       match ← view e with
       | .app f a => constsGo pk fuel (f :: a :: rest) seen seenN out
       | .lam t b | .forallE t b => constsGo pk fuel (t :: b :: rest) seen seenN out
