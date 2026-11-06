@@ -407,4 +407,42 @@ theorem loc_in_two_eq {a b : frontend.olean.region.Part} {addr : Std.U64} {o : B
     rw [em]
     exact loc_is_some_eq _ h
 
+/-! ## A decoded view -/
+
+/-- A stored constant, as the twin's. -/
+abbrev ERel := EntryRel (N := arena.handle.NIdx) (E := arena.handle.EIdx) absNIdx absEIdx ValRel
+
+/-- **`spec::ModDecoded` against the twin's.** -/
+structure DecRel (d : frontend.olean.spec.ModDecoded) (d' : Arena.Frontend.Olean.ModDecoded) :
+    Prop where
+  isModule : d.is_module = d'.isModule
+  imports : d.imports.val.map (absImportF absNIdx) = d'.imports.toList
+  constants : List.Forall₂ ERel d.constants.val d'.constants.toList
+
+/-- **`view::AllViews` against the twin's.** -/
+structure AllViewsRel (v : frontend.olean.view.AllViews) (v' : Arena.Frontend.Olean.AllViews) :
+    Prop where
+  exported : DecRel v.exported v'.exported
+  server : DecRel v.server v'.server
+  «private» : DecRel v.private_part v'.private
+
+/-- `all_views_at` is `AllViews.at`. -/
+theorem all_views_at_eq {v v' level d} (hv : AllViewsRel v v')
+    (h : all_views_at v level = ok d) : DecRel d (v'.at (absLevel level)) := by
+  cases level
+  · cases Result.ok_injective h; exact hv.exported
+  · cases Result.ok_injective h; exact hv.server
+  · cases Result.ok_injective h; exact hv.private
+
+/-- `mod_files_up_to` is `ModFiles.upTo`. -/
+theorem mod_files_up_to_eq {f f' level r} (hf : ModFilesRel f f') (h : mod_files_up_to f level = ok r) :
+    ModFilesRel r (f'.upTo (absLevel level)) := by
+  cases level
+  · cases Result.ok_injective h
+    exact ⟨hf.exported, rfl, rfl, hf.fitsE, by simp, by simp⟩
+  · cases Result.ok_injective h
+    exact ⟨hf.exported, hf.server, rfl, hf.fitsE, hf.fitsS, by simp⟩
+  · cases Result.ok_injective h
+    exact hf
+
 end ConRon.Refine2.Frontend.Olean

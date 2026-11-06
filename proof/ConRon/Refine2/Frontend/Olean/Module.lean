@@ -5,7 +5,7 @@
 judgement of one: whatever the Rust's test answers is the twin's boolean.  Handles compare
 by `absNIdx`/`absEIdx`, strings by `name::str_eq` with `StrWF`.
 -/
-import ConRon.Refine2.Frontend.Olean.Skel
+import ConRon.Refine2.Frontend.Olean.View
 import ConRon.Refine2.Frontend.Olean.Spec
 import ConRon.Arena.Frontend.Olean.Module
 
@@ -367,9 +367,6 @@ theorem kinds_same_bt {a b : frontend.olean.spec.CKindF arena.handle.NIdx arena.
     exact (BT.and (nidx_list_eq_bt _ _) <| BT.andc (u64_iff _ _) <| BT.andc (u64_iff _ _) <|
       BT.andc (u64_iff _ _) <| BT.andc (u64_iff _ _) <| BT.and (rules_eq_bt _ _) <|
       BT.andc (bool_iff _ _) <| BT.dec (bool_iff _ _)).of_eq (by simp only [kindsSameT, Bool.and_assoc])
-
-/-- A stored constant, as the twin's. -/
-abbrev ERel := EntryRel (N := arena.handle.NIdx) (E := arena.handle.EIdx) absNIdx absEIdx ValRel
 
 theorem entrySame_eq (a b : CEntryF NIdx EIdx) :
     entrySame a b = (a.name == b.name && a.levelParams == b.levelParams && a.type == b.type &&
@@ -1182,5 +1179,213 @@ theorem expo_of_parts_refines {pk bs r pers st lst} {priv_addr exp_addr : Std.U6
       | Err ee =>
         cases Result.ok_injective h
         cases ee <;> exact hS
+
+/-! ## `check_views` -/
+
+/-- A `bad_module` path: pure steps, ending in the error. -/
+def CeLeaf {α : Type}
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)) : Prop :=
+  ∀ o s', m = ok (o, s') → ∃ ce, o = .Err ce ∧ absAErrKind ce = some .internal
+
+theorem bad_module_kind {pers ar m what ce} (h : frontend.olean.module.bad_module pers ar m what = ok ce) :
+    absAErrKind ce = some .internal := by
+  rw [frontend.olean.module.bad_module] at h
+  simp only [lift, bind_ok] at h
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  peel h as _, _
+  rw [kernel.core_types.internal] at h
+  cases Result.ok_injective h
+  rfl
+
+theorem CeLeaf.done {α : Type} {pers ar m} (v : alloc.vec.Vec Std.U32) :
+    CeLeaf (α := α) (Std.bind (frontend.olean.module.bad_module pers ar m v) fun ce => ok (.Err ce, ar)) := by
+  intro o s' h
+  peel h as ce, hce
+  cases Result.ok_injective h
+  exact ⟨ce, rfl, bad_module_kind hce⟩
+
+theorem CeLeaf.step {α δ : Type} {f : Result δ}
+    {k : δ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
+    (h : ∀ a, CeLeaf (k a)) : CeLeaf (Std.bind f k) := by
+  intro o s' hm
+  obtain ⟨a, _, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  exact h a o s' h2
+
+/-- A `bad_module` path. -/
+macro "ce_leaf" : tactic =>
+  `(tactic| repeat' first | exact CeLeaf.done _ | refine CeLeaf.step fun _ => ?_)
+
+/-- A `bad_module` path `h` against the twin's `.internal`. -/
+macro "ce_close " h:ident : tactic =>
+  `(tactic| (obtain ⟨ce, e, hk⟩ := (show CeLeaf _ by ce_leaf) _ _ $h:ident
+             subst e
+             exact ConRon.Refine2.AErrSim.of_kind rfl hk rfl))
+
+theorem am_pure_bind {α β : Type} (a : α) (g : α → AM β) : (pure a >>= g) = g a := rfl
+
+/-- **`check_views_module` is the module-system arm of `checkViews`.** -/
+theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v s p} {m' : ConLeche.Name}
+    {f' : ConLeche.Frontend.Olean.ModFiles} {v' : Arena.Frontend.Olean.AllViews} {s' p'}
+    (hE : ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (entryAt (absPins pk) (absRegion bs r) c.val))
+    (hf : ModFilesRel f f') (hv : AllViewsRel v v') (hs : f.server = some s) (hp : f.private_part = some p)
+    (hs' : f'.server = some s') (hp' : f'.private = some p') (hmod : f'.isModule = true) :
+    CS pers ExpoRel st lst (frontend.olean.module.check_views_module pk pers st.store m f v s p)
+      (Arena.Frontend.Olean.checkViews (absPins pk) m' f' v') := by
+  intro hrel hinv o s1 h
+  have es : s' = absPart s := by simpa [hs] using hs'.symm.trans hf.server
+  have ep : p' = absPart p := by simpa [hp] using hp'.symm.trans hf.private
+  subst es ep
+  unfold Arena.Frontend.Olean.checkViews
+  rw [hs', hp', hmod, hf.exported]
+  dsimp only
+  rw [ite_eq_left rfl]
+  simp only [am_pure_bind]
+  rw [frontend.olean.module.check_views_module] at h
+  peel h as r0, hr0
+  have e0 := region_of_parts3_eq hf.fitsE (hf.fitsS s hs) (hf.fitsP p hp) hr0
+  cases r0 with
+  | Err e =>
+    cases Result.ok_injective h
+    obtain ⟨hk, t, em⟩ := e0
+    rw [em]
+    exact ConRon.Refine2.AErrSim.of_kind rfl hk rfl
+  | Ok b =>
+    obtain ⟨em, hfit⟩ := e0
+    rw [em]
+    dsimp only at h ⊢
+    rw [← hv.server.isModule, ← hv.private.isModule]
+    have hcs := hv.private.constants
+    by_cases h1 : v.server.is_module = true
+    · rw [ite_eq_left h1] at h ⊢
+      by_cases h2 : v.private_part.is_module = true
+      · rw [ite_eq_left h2] at h ⊢
+        peel h as ap, hap
+        have eap := part_module_data_addr_eq hap
+        peel h as i, hi
+        have ei := part_module_data_addr_eq hi
+        rw [← eap, ← ei]
+        peel h as ⟨r1, ar1⟩, he1
+        have hS1 := expo_of_parts_refines (hE _ _) hfit hcs hrel hinv he1
+        cases r1 with
+        | Ok x =>
+          obtain ⟨b1, lst1, hy1, hb1, hrel1, hinv1⟩ := hS1
+          rw [am_bind_ok hy1]
+          peel h as i1, hi1
+          rw [← part_module_data_addr_eq hi1]
+          peel h as ⟨r2, ar2⟩, he2
+          have hS2 := expo_of_parts_refines (st := withStore st ar1) (hE _ _) hfit hcs hrel1 hinv1 he2
+          cases r2 with
+          | Ok y =>
+            obtain ⟨b2, lst2, hy2, -, hrel2, hinv2⟩ := hS2
+            rw [am_bind_ok hy2]
+            cases Result.ok_injective h
+            exact ⟨b1, lst2, rfl, hb1, hrel2, hinv2⟩
+          | Err ee =>
+            cases ee with
+            | Msg t =>
+              obtain ⟨m2, lst2, hy2, -, -⟩ := hS2
+              rw [am_bind_ok hy2]
+              ce_close h
+            | Err e =>
+              cases Result.ok_injective h
+              show AErrSim e _
+              rw [StateT.run_bind]
+              exact AErrSim.bind hS2 _
+        | Err ee =>
+          cases ee with
+          | Err e =>
+            cases Result.ok_injective h
+            show AErrSim e _
+            rw [StateT.run_bind]
+            exact AErrSim.bind hS1 _
+          | Msg t =>
+            obtain ⟨m1, lst1, hy1, hrel1, hinv1⟩ := hS1
+            rw [am_bind_ok hy1]
+            peel h as i1, hi1
+            rw [← part_module_data_addr_eq hi1]
+            peel h as ⟨r2, ar2⟩, he2
+            have hS2 := expo_of_parts_refines (st := withStore st ar1) (hE _ _) hfit hcs hrel1 hinv1 he2
+            cases r2 with
+            | Ok y =>
+              obtain ⟨b2, lst2, hy2, -, -, -⟩ := hS2
+              rw [am_bind_ok hy2]
+              ce_close h
+            | Err ee =>
+              cases ee with
+              | Msg t2 =>
+                obtain ⟨m2, lst2, hy2, -, -⟩ := hS2
+                rw [am_bind_ok hy2]
+                ce_close h
+              | Err e =>
+                cases Result.ok_injective h
+                show AErrSim e _
+                rw [StateT.run_bind]
+                exact AErrSim.bind hS2 _
+      · rw [ite_eq_right h2] at h ⊢
+        ce_close h
+    · rw [ite_eq_right h1] at h ⊢
+      ce_close h
+
+/-- `expo_fill` at the private constants: the twin's `.same` for each. -/
+theorem expo_same {v v'} (hv : AllViewsRel v v') {r}
+    (h : frontend.olean.module.expo_fill (alloc.vec.Vec.len v.private_part.constants)
+      frontend.olean.module.Expo.Same = ok r) :
+    ExpoRel r (v'.private.constants.map fun _ => Expo.same) :=
+  expo_fill_rel (by simpa using hv.private.constants.length_eq) h
+
+/-- **`check_views` is `checkViews`.** -/
+theorem check_views_refines {pk pers st lst} {m : arena.handle.NIdx} {f v} {m' : ConLeche.Name}
+    {f' : ConLeche.Frontend.Olean.ModFiles} {v' : Arena.Frontend.Olean.AllViews}
+    (hE : ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (entryAt (absPins pk) (absRegion bs r) c.val))
+    (hf : ModFilesRel f f') (hv : AllViewsRel v v') :
+    CS pers ExpoRel st lst (frontend.olean.module.check_views pk pers st.store m f v)
+      (Arena.Frontend.Olean.checkViews (absPins pk) m' f' v') := by
+  intro hrel hinv o s1 h
+  rw [frontend.olean.module.check_views] at h
+  have es := hf.server
+  have ep := hf.private
+  cases hs : f.server with
+  | none =>
+    rw [hs] at h es
+    dsimp only at h
+    peel h as r, hr
+    cases Result.ok_injective h
+    unfold Arena.Frontend.Olean.checkViews
+    simp only [es, Option.map_none]
+    exact ⟨_, lst, rfl, expo_same hv hr, hrel, hinv⟩
+  | some s =>
+    rw [hs] at h es
+    dsimp only at h
+    cases hp : f.private_part with
+    | none =>
+      rw [hp] at h ep
+      dsimp only at h
+      peel h as r, hr
+      cases Result.ok_injective h
+      unfold Arena.Frontend.Olean.checkViews
+      simp only [es, ep, Option.map_none, Option.map_some]
+      exact ⟨_, lst, rfl, expo_same hv hr, hrel, hinv⟩
+    | some p =>
+      rw [hp] at h ep
+      dsimp only at h
+      peel h as b, hb
+      have e := mod_files_is_module_eq hf hb
+      cases b with
+      | true =>
+        rw [ite_eq_left rfl] at h
+        exact check_views_module_refines hE hf hv hs hp (es.trans rfl) (ep.trans rfl) e.symm hrel hinv o s1 h
+      | false =>
+        rw [ite_eq_right (by simp)] at h
+        peel h as r, hr
+        cases Result.ok_injective h
+        unfold Arena.Frontend.Olean.checkViews
+        simp only [es, ep, Option.map_some, ← e]
+        exact ⟨_, lst, rfl, expo_same hv hr, hrel, hinv⟩
 
 end ConRon.Refine2.Frontend.Olean
