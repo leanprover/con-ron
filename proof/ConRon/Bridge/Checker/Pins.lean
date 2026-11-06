@@ -43,6 +43,7 @@ public import ConRon.Bridge.Checker.Decl
 public import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Checker.NatOpNames
 import ConRon.Bridge.Specs
 public import ConRon.Arena.Checker
 
@@ -583,18 +584,6 @@ theorem BasisKind.decls_sstep {k : BasisKind} {r : List IConstantInfo}
   exact (Frontend.internCIList_sstep (ConLeche.BasisKind.decls k) hok
     (Frontend.EMemoOK.empty s.store) hgo).1
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:51-57 BasisKind.declsA — the
-annotated pinned block's intern, as one scratch-agnostic step. -/
-theorem BasisKind.declsA_sstep {k : BasisKind} {r : List IConstantInfo}
-    {s s' : AState} (hok : StateOK s)
-    (hrun : BasisKind.declsA k s = .ok (r, s')) : Frontend.IStepS s s' := by
-  simp only [ConRon.Arena.BasisKind.declsA, ConRon.Arena.internCIList] at hrun
-  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
-  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
-  subst hst
-  exact (Frontend.internCIList_sstep (ConLeche.BasisKind.declsA k) hok
-    (Frontend.EMemoOK.empty s.store) hgo).1
-
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:72-73 reduceOpNames — two pin
 reads; the state is left alone. -/
 theorem reduceOpNames_state {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
@@ -623,7 +612,6 @@ theorem reservedBasisNames_sstep {s s' : AState} {hs : List NIdx}
   exact Frontend.IStepS.refl hst
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
 **THE STARTUP WALK**: `internAllPins` interns every datum the checker compares
 a stream record against, and hands back the interned pin list.  Its
 postcondition is the fold's precondition — `PinsOK`, `PersPins`,
@@ -644,8 +632,8 @@ with the rest.  `Bridge/Frontend/Capstone.lean`'s
 `runPipelineM` makes between `preparePrelude` and `installThenCheck`.
 
 **Proof**, relative to `internPinSets_run`:
-thirty-six links, each a scratch-agnostic `IStepS` — the twelve basis blocks
-(`BasisKind.decls_sstep` / `declsA_sstep`), eighteen fresh-memo interns
+one link per bind, each a scratch-agnostic `IStepS` — the five basis blocks
+(`BasisKind.decls_sstep`), eighteen fresh-memo interns
 (`internCI_fresh`, `internCV_fresh`, `Frontend.internExpr_sstep`),
 `reservedBasisNames_sstep` (a table read), and six pin
 reads that leave the state alone —
@@ -664,24 +652,14 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
   obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hrun
   have a1 := a0.trans (BasisKind.decls_sstep a0.ok q0)
   obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
-  have a2 := a1.trans (BasisKind.declsA_sstep a1.ok q1)
+  have a2 := a1.trans (BasisKind.decls_sstep a1.ok q1)
   obtain ⟨_, u2, q2, w2⟩ := AM.bind_ok w1
   have a3 := a2.trans (BasisKind.decls_sstep a2.ok q2)
   obtain ⟨_, u3, q3, w3⟩ := AM.bind_ok w2
-  have a4 := a3.trans (BasisKind.declsA_sstep a3.ok q3)
+  have a4 := a3.trans (BasisKind.decls_sstep a3.ok q3)
   obtain ⟨_, u4, q4, w4⟩ := AM.bind_ok w3
-  have a5 := a4.trans (BasisKind.decls_sstep a4.ok q4)
-  obtain ⟨_, u5, q5, w5⟩ := AM.bind_ok w4
-  have a6 := a5.trans (BasisKind.declsA_sstep a5.ok q5)
-  obtain ⟨_, u6, q6, w6⟩ := AM.bind_ok w5
-  have a7 := a6.trans (BasisKind.decls_sstep a6.ok q6)
-  obtain ⟨_, u7, q7, w7⟩ := AM.bind_ok w6
-  have a8 := a7.trans (BasisKind.declsA_sstep a7.ok q7)
-  obtain ⟨_, u8, q8, w8⟩ := AM.bind_ok w7
-  have a9 := a8.trans (BasisKind.decls_sstep a8.ok q8)
-  obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
-  have a10 := a9.trans (BasisKind.declsA_sstep a9.ok q9)
-  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
+  have a10 := a4.trans (BasisKind.decls_sstep a4.ok q4)
+  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w4
   have a11 := a10.trans (internCI_fresh a10.ok q10).1
   obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
   have a12 := a11.trans (internCI_fresh a11.ok q11).1

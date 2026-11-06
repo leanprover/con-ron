@@ -103,23 +103,23 @@ the invariant at any index answering `fe`'s lookups. -/
 the pushed name is put back as it was. -/
 theorem IFEnv.find?_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
     ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).find? n = fe.find? n := by
-  rw [IFEnv.find?_eq, IFEnv.find?_eq]
-  simp only [IFEnv.popTemp, IFEnv.push]
-  cases hp : fe.idx[ci.name]? with
-  | some r =>
-    simp only [Std.HashMap.insert_insert]
-    rw [Std.HashMap.getElem?_insert]
-    split
-    · rename_i hb
-      obtain rfl : ci.name = n := by simpa using hb
-      rw [hp]
-    · rfl
-  | none =>
-    simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
-    by_cases hb : (ci.name == n) = true
-    · obtain rfl : ci.name = n := by simpa using hb
-      simp [hp]
-    · simp [hb]
+  have key : ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).idx[n]? = fe.idx[n]? := by
+    simp only [IFEnv.popTemp, IFEnv.push]
+    cases hp : fe.idx[ci.name]? with
+    | some r =>
+      simp only [Std.HashMap.getElem?_insert]
+      by_cases hb : (ci.name == n) = true
+      · obtain rfl : ci.name = n := by simpa using hb
+        simp [hp]
+      · simp [hb]
+    | none =>
+      simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
+      by_cases hb : (ci.name == n) = true
+      · obtain rfl : ci.name = n := by simpa using hb
+        simp [hp]
+      · simp [hb]
+  rw [IFEnv.find?_eq, IFEnv.find?_eq, key]
+  rfl
 
 /-- con-leche: none — `IFEnvOK` reads its index through `find?` and the raw
 table lookup only. -/

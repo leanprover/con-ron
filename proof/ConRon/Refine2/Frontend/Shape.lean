@@ -530,4 +530,17 @@ structure ScanSpec : Prop where
     frontend.scan_fast.newline_from b i = ok v →
     v = ConLeche.Frontend.newlineFrom (absBytes b) (absPos i)
 
+/-- `usize as u64`: a widening, so the value is kept. -/
+theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
+    (h : lift (UScalar.cast .U64 i) = ok r) : r.val = i.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have := i.hBounds
+  simp only [UScalarTy.numBits] at this ⊢
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h] at this; omega
+  | inr h => rw [h] at this; omega
+
 end ConRon.Refine2.Frontend

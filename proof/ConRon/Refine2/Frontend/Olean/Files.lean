@@ -12,7 +12,6 @@ compared.
 -/
 import ConRon.Refine2.Frontend.Olean.ModFilesRel
 import ConRon.Refine2.Frontend.Olean.Region
-import ConRon.Refine2.Frontend.Olean.Contract
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

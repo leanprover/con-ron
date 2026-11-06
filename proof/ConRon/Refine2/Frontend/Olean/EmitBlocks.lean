@@ -99,12 +99,12 @@ macro "bad_arm" : tactic =>
 /-! ## A block member, a constructor -/
 
 /-- The test of a member's `skipped` against the type's. -/
-theorem skip_arm {m : frontend.olean.closure.CEntry} {m' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel m m')
+theorem skip_arm {m : frontend.olean.lazy.CEntry} {m' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel m m')
     {sk : Bool} {x : AM Unit}
     {k : Result (core.result.Result Unit kernel.core_types.CheckError)}
     (hk : PR (fun _ _ => True) k x) :
     PR (fun _ _ => True) (do
-        let b1 ← frontend.olean.closure.c_entry_skipped m
+        let b1 ← frontend.olean.lazy.c_entry_skipped m
         if b1 = sk then ok (core.result.Result.Ok ()) else k)
       (if (m'.skipped == sk) = true then Pure.pure () else x) := by
   refine PR.pure_step fun b1 hb1 => ?_

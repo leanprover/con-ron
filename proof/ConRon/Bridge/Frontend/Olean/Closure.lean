@@ -30,7 +30,8 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
 open ConRon.Arena.Frontend.Olean (OleanPins OleanFs closureGo CEntry DS)
 open ConLeche.Frontend.Olean (ImportF ImportRec SearchPath CEntryF CKindF mkN Region ModSkel LazyOf
-  lazyEntry lazyRoots usesNames usesNat usesStr nameP exprP moduleSkel constSkel)
+  lazyEntry lazyRoots usesNames usesNat usesStr nameP exprP moduleSkel constSkel nameAt levelAt levelsAt
+  exprAt IsKind kName kLevel kLevels kExpr)
 
 /-! ## Lists, sets -/
 
@@ -538,6 +539,146 @@ theorem list_some_of {α β : Type} {f : α → Option β} :
     obtain ⟨ys, hys⟩ := list_some_of l (fun w hw => h w (List.mem_cons_of_mem _ hw))
     exact ⟨y :: ys, by simp only [List.mapM_cons, hy, hys]; rfl⟩
 
+/-! ## The frontier -/
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:50 Table.Good — **a table whose every
+entry satisfies `P`**, its two arrays of one length (upstream's `Table.Sized`). -/
+structure TableRel {α : Type} (P : Nat → α → Prop) (t : ConLeche.Frontend.Olean.Table α) : Prop where
+  sized : t.keys.size = t.vals.size
+  good : ∀ (i c : Nat) (v : α), t.keys[i]? = some c → t.vals[i]? = some v → P c v
+
+theorem TableRel.empty {α : Type} (P : Nat → α → Prop) : TableRel P ({} : ConLeche.Frontend.Olean.Table α) :=
+  ⟨rfl, fun i c v h => by simp at h⟩
+
+theorem TableRel.mono {α : Type} {P Q : Nat → α → Prop} (hm : ∀ c v, P c v → Q c v)
+    {t : ConLeche.Frontend.Olean.Table α} (h : TableRel P t) : TableRel Q t :=
+  ⟨h.sized, fun i c v h1 h2 => hm c v (h.good i c v h1 h2)⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:53 Table.search_good -/
+theorem TableRel.search {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} :
+    ∀ (d lo hi : Nat), hi - lo = d → ∀ {v : α}, t.search c lo hi = some v → P c v := by
+  intro d
+  induction d using Nat.strongRecOn with
+  | _ d ih =>
+    intro lo hi hd v h
+    rw [ConLeche.Frontend.Olean.Table.search] at h
+    split at h
+    · dsimp only at h
+      split at h
+      · cases h
+      · rename_i k hk
+        split at h
+        · rename_i hkc
+          subst hkc
+          exact ht.good _ _ _ hk h
+        · split at h
+          · exact ih _ (by omega) _ _ rfl h
+          · exact ih _ (by omega) _ _ rfl h
+    · cases h
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:75 Table.get_good -/
+theorem TableRel.get {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} {v : α} (h : t.get c = some v) : P c v :=
+  ht.search _ _ _ rfl h
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:38 Table.add_good -/
+theorem TableRel.add {α : Type} {P : Nat → α → Prop} {t : ConLeche.Frontend.Olean.Table α}
+    (ht : TableRel P t) {c : Nat} {v : α} (hp : P c v) : TableRel P (t.add c v) := by
+  obtain ⟨keys, vals⟩ := t
+  obtain ⟨hs, hg⟩ := ht
+  refine ⟨by simp [ConLeche.Frontend.Olean.Table.add, hs], fun i c' v' h1 h2 => ?_⟩
+  simp only [ConLeche.Frontend.Olean.Table.add, Array.getElem?_push] at h1 h2
+  by_cases hi : i = keys.size
+  · simp only [hi, ite_true] at h1
+    simp only [hi.trans hs, ite_true] at h2
+    cases h1; cases h2; exact hp
+  · simp only [hi, ite_false] at h1
+    simp only [show ¬ i = vals.size from fun e => hi (e.trans hs.symm), ite_false] at h2
+    exact hg i c' v' h1 h2
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:81 Frontier.Good — **a frontier of
+handles that denote the specification's values** at their locations. -/
+structure FrontierGood (st : EStore) (r : Region) (b : ConRon.Arena.Frontend.Olean.Frontier) : Prop where
+  names : TableRel (fun c h => ∃ n, nameAt r c = some n ∧ denoteN st.ns h = some n) b.names
+  levels : TableRel (fun c h => ∃ u, levelAt r c = some u ∧ denoteL st.ls h = some u) b.levels
+  lists : TableRel (fun c h => ∃ us, levelsAt r c = some us ∧ denoteLs st.lss h = some us) b.lists
+  exprs : TableRel (fun c h => ∃ e, exprAt r c = some e ∧ denoteE st h = some e) b.exprs
+
+theorem FrontierGood.empty (st : EStore) (r : Region) : FrontierGood st r {} :=
+  ⟨TableRel.empty _, TableRel.empty _, TableRel.empty _, TableRel.empty _⟩
+
+theorem FrontierGood.ext {st st' : EStore} {r : Region} {b : ConRon.Arena.Frontend.Olean.Frontier}
+    (h : FrontierGood st r b) (hx : Ext st st') : FrontierGood st' r b :=
+  ⟨h.names.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteN_ext b hx⟩,
+   h.levels.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteL_ext b hx⟩,
+   h.lists.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denoteLs_ext b hx⟩,
+   h.exprs.mono fun _ _ ⟨n, a, b⟩ => ⟨n, a, denote_ext b hx⟩⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:109 frontierOf_good — **the frontier takes
+only values the passes built**: a slot it adds is one the marks hold, so `Built` answers. -/
+theorem frontierOf_good {st : EStore} {r : Region} {m fr : ByteArray} {memo : DS} {n : Nat}
+    (hb : Built st r m memo n) :
+    ∀ (d p : Nat), n - p = d → ∀ (b : ConRon.Arena.Frontend.Olean.Frontier), FrontierGood st r b →
+      FrontierGood st r (ConRon.Arena.Frontend.Olean.frontierOf m fr memo n p b) := by
+  have hk1 : IsKind kName := Or.inl rfl
+  have hk2 : IsKind kLevel := Or.inr (Or.inl rfl)
+  have hk3 : IsKind kExpr := Or.inr (Or.inr (Or.inl rfl))
+  have hk4 : IsKind kLevels := Or.inr (Or.inr (Or.inr rfl))
+  intro d
+  induction d with
+  | zero =>
+    intro p hd b hgood
+    rw [ConRon.Arena.Frontend.Olean.frontierOf, ite_eq_right (by omega)]
+    exact hgood
+  | succ d ih =>
+    intro p hd b hgood
+    have hp : p < n := by omega
+    rw [ConRon.Arena.Frontend.Olean.frontierOf, ite_eq_left hp]
+    apply ih (p + 1) (by omega)
+    unfold ConRon.Arena.Frontend.Olean.frontierStep
+    split
+    · exact hgood
+    obtain ⟨names, levels, lists, exprs⟩ := b
+    obtain ⟨g1, g2, g3, g4⟩ := hgood
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g1.add ((hb p hp kName hk1 hm.2).1 rfl)
+      · exact g1
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g2.add ((hb p hp kLevel hk2 hm.2).2.1 rfl)
+      · exact g2
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g3.add ((hb p hp kLevels hk4 hm.2).2.2.1 rfl)
+      · exact g3
+    · dsimp only
+      split
+      · rename_i hm
+        simp only [Bool.and_eq_true] at hm
+        exact g4.add ((hb p hp kExpr hk3 hm.2).2.2.2 rfl)
+      · exact g4
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — the frontier of a load
+is good on the region of the files it was loaded from. -/
+@[expose] def FrontGoodAt (st : EStore) (f : ConLeche.Frontend.Olean.ModFiles)
+    (b : ConRon.Arena.Frontend.Olean.Frontier) : Prop :=
+  ∃ r a, f.viewRegion .private = some (r, a) ∧ FrontierGood st r b
+
+theorem FrontGoodAt.ext {st st' : EStore} {f : ConLeche.Frontend.Olean.ModFiles}
+    {b : ConRon.Arena.Frontend.Olean.Frontier} (h : FrontGoodAt st f b) (hx : Ext st st') :
+    FrontGoodAt st' f b :=
+  let ⟨r, a, h1, h2⟩ := h
+  ⟨r, a, h1, h2.ext hx⟩
+
 /-! ## A module's load -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:298-305 CEntryF.mapM — a constant read off the
@@ -729,7 +870,8 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
     {f : ConLeche.Frontend.Olean.ModFiles} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
     (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
     (h : ConRon.Arena.Frontend.Olean.loadAt pk i m f s = .ok (some l, s')) :
-    ParseStep s s' ∧ ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC := by
+    ParseStep s s' ∧ FrontGoodAt s'.store f l.frontier ∧
+      ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC := by
   generalize hF : ConRon.Arena.Frontend.Olean.loadAt pk i m f = fn at h
   unfold ConRon.Arena.Frontend.Olean.loadAt at hF
   split at hF
@@ -770,7 +912,7 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
   obtain ⟨o, s₃, h3, h⟩ := AM.bind_ok h
   rcases o with _ | ⟨nm, ms, st⟩
   · cases (AM.pure_ok h).1
-  obtain ⟨hst3, hN, hE⟩ := runMarked_run (hctx.step hst1) h3
+  obtain ⟨hst3, hN, hE, hbuilt⟩ := runMarked_run (hctx.step hst1) h3
   obtain ⟨b, s₄, h4, h⟩ := AM.bind_ok h
   cases b with
   | false =>
@@ -799,7 +941,8 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
       obtain ⟨z, -, hd⟩ := hN v (List.mem_append_right _ (mem_usesNames hv h1 h2)) y hy
       rw [denoteN_ext hd hst4.ext]
       rfl)) h5
-  refine ⟨hst.trans hst5, { name := mn, constants := csC.toArray, frontier := {} },
+  refine ⟨hst.trans hst5, ⟨r, a, hvr, (frontierOf_good hbuilt _ 0 rfl _ (FrontierGood.empty _ r)).ext
+      (hst4.ext.trans hst5.ext)⟩, { name := mn, constants := csC.toArray, frontier := {} },
     ⟨denoteN_ext hm (hst.trans hst5).ext, by simpa using hcs⟩, rfl,
     r, a, sk, skels, hvr, hsk, hskels, by simpa using hlazy⟩
 
@@ -810,7 +953,7 @@ theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat}
     (h : ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total m idx s = .ok (l, s')) :
     ParseStep s s' ∧ ∃ lC f, LoadedRel s'.store l lC ∧ lC.name = mn ∧
       (ConLeche.Frontend.Olean.readFiles sp mn .private : ModelIO _) F (.ok (.ok f)) ∧
-      LoadSpec f idx lC := by
+      LoadSpec f idx lC ∧ FrontGoodAt s'.store f l.frontier := by
   unfold ConRon.Arena.Frontend.Olean.loadModule at h
   obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
   obtain ⟨hs1, hd1⟩ := readName_run h1
@@ -842,8 +985,8 @@ theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat}
   obtain ⟨hv, hs⟩ := AM.pure_ok h8
   cases hv
   rw [← hs] at h7
-  obtain ⟨hst, lC, hrel, hn, hspec⟩ := loadAt_run hctx hp hm h7
-  exact ⟨hst, lC, f, hrel, hn, readFiles_sim hrf, hspec⟩
+  obtain ⟨hst, hfg, lC, hrel, hn, hspec⟩ := loadAt_run hctx hp hm h7
+  exact ⟨hst, lC, f, hrel, hn, readFiles_sim hrf, hspec, hfg⟩
 
 /-! ## The closure -/
 
@@ -870,6 +1013,19 @@ theorem listRel_zipIdx {α β : Type} {R : α → β → Prop} :
   | _, _, .nil, _ => .nil
   | _, _, .cons hab hr, n => .cons ⟨hab, rfl⟩ (listRel_zipIdx hr (n + 1))
 
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef — a loaded module's frontier is
+good on the region of its files on the snapshot. -/
+@[expose] def ModFront (sp : SearchPath) (F : FS) (st : EStore)
+    (l : ConRon.Arena.Frontend.Olean.Loaded) (lC : ConLeche.Frontend.Olean.Loaded) : Prop :=
+  ∃ f, (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+    FrontGoodAt st f l.frontier
+
+theorem ModFront.ext {sp : SearchPath} {F : FS} {st st' : EStore}
+    {l : ConRon.Arena.Frontend.Olean.Loaded} {lC : ConLeche.Frontend.Olean.Loaded}
+    (h : ModFront sp F st l lC) (hx : Ext st st') : ModFront sp F st' l lC :=
+  let ⟨f, h1, h2⟩ := h
+  ⟨f, h1, h2.ext hx⟩
+
 /-- The modules of the order, loaded, each at its position. -/
 theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
     ∀ (l : List (NIdx × Nat)) {ns : List (ConLeche.Name × Nat)}
@@ -878,7 +1034,7 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
       l.mapM (fun (p : NIdx × Nat) =>
         ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total p.1 p.2) s = .ok (ys, s') →
       ParseStep s s' ∧ ∃ lsC, ListRel (LoadedRel s'.store) ys lsC ∧
-        lsC.map (·.name) = ns.map (·.1) ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ ns ∧
+        ListRel (ModFront sp F s'.store) ys lsC ∧ lsC.map (·.name) = ns.map (·.1) ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ ns ∧
           (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
           LoadSpec f i lC
   | [], ns, ys, s, s', hctx, _, hl, h => by
@@ -887,7 +1043,7 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
     obtain ⟨hv, hs⟩ := AM.pure_ok h
     cases hv
     subst hs
-    exact ⟨ParseStep.refl hctx.ok, [], .nil, rfl, by simp⟩
+    exact ⟨ParseStep.refl hctx.ok, [], .nil, .nil, rfl, by simp⟩
   | p :: l, ns, ys, s, s', hctx, hp, hl, h => by
     cases hl with
     | @cons _ q _ ns' hm hrest =>
@@ -898,10 +1054,11 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      obtain ⟨hst1, lC, f, hd, hn, hf, hspec⟩ := loadModule_run hctx hp hm h1
-      obtain ⟨hst2, lsC, hR, hmap, hall⟩ := loadAll_go l (hctx.step hst1) (hp.ext hst1.ext)
+      obtain ⟨hst1, lC, f, hd, hn, hf, hspec, hfg⟩ := loadModule_run hctx hp hm h1
+      obtain ⟨hst2, lsC, hR, hF, hmap, hall⟩ := loadAll_go l (hctx.step hst1) (hp.ext hst1.ext)
         (ListRel.mono' (fun a b hab => ⟨denoteN_ext hab.1 hst1.ext, hab.2⟩) hrest) h2
-      refine ⟨hst1.trans hst2, lC :: lsC, .cons (hd.ext hst2.ext) hR, ?_, ?_⟩
+      refine ⟨hst1.trans hst2, lC :: lsC, .cons (hd.ext hst2.ext) hR,
+        .cons ⟨f, by rw [hn]; exact hf, hfg.ext hst2.ext⟩ hF, ?_, ?_⟩
       · simp [hn, hmap]
       · intro x hx
         simp only [List.mem_cons] at hx
@@ -922,7 +1079,7 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
     (h : ConRon.Arena.Frontend.Olean.loadClosure (modelFs F) pk sp roots s = .ok (ls, s')) :
     ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (lsC : List ConLeche.Frontend.Olean.Loaded),
       (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok (.ok orderC)) ∧
-      ListRel (LoadedRel s'.store) ls.toList lsC ∧
+      ListRel (LoadedRel s'.store) ls.toList lsC ∧ ListRel (ModFront sp F s'.store) ls.toList lsC ∧
       lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
         (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
         LoadSpec f i lC := by
@@ -940,9 +1097,9 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
   obtain ⟨ys, s₂⟩ := p
   rw [h2] at h
   cases h
-  obtain ⟨hst2, lsC, hL, hmap, hall⟩ := loadAll_go _ (hctx.step hst1) (hp.ext hst1.ext)
+  obtain ⟨hst2, lsC, hL, hF, hmap, hall⟩ := loadAll_go _ (hctx.step hst1) (hp.ext hst1.ext)
     (listRel_zipIdx hR 0) h2
-  refine ⟨hst1.trans hst2, orderC, lsC, hC, by simpa using hL, ?_, hall⟩
+  refine ⟨hst1.trans hst2, orderC, lsC, hC, by simpa using hL, by simpa using hF, ?_, hall⟩
   rw [hmap]
   simp
 
