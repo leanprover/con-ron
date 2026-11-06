@@ -198,7 +198,7 @@ from a worker's state and cache, accepted. -/
 
 /-- con-leche: ConLeche/Verify/Cached/Fill.lean:21 fillDecl — the filled stream: every
 reference replaced by the snapshot's value there. -/
-noncomputable def fillStream (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS)
+@[expose] noncomputable def fillStream (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS)
     (valuesP : Array ConLeche.Frontend.Olean.ModRef) (dsP : List Declaration) : List Declaration :=
   dsP.map (ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)))
 

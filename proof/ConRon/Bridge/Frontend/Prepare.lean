@@ -75,7 +75,7 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
 /-- con-leche: ConLeche/Frontend/Prepare.lean:87-88 PreludeIx — a prelude
 index denotes con-leche's: its records, in order. -/
-def PreludeIxRel (st : EStore) (pre : PreludeIx)
+@[expose] def PreludeIxRel (st : EStore) (pre : PreludeIx)
     (preC : ConLeche.Frontend.PreludeIx) : Prop :=
   denoteDeclArray st pre.decls = some preC.decls
 
