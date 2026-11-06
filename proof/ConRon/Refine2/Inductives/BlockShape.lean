@@ -1869,8 +1869,8 @@ theorem want_rec_names_ls {pers}
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.block_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms block_shape_ls
+/-- info: 'ConRon.Refine2.block_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_shape_ls
 
 /-- info: 'ConRon.Refine2.block_rec_name_set_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms block_rec_name_set_ok_ls

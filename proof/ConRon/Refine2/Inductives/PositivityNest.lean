@@ -978,9 +978,9 @@ theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
     lockstep
     all_goals
       first
-      | (rw [if_neg (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+      | (rw [ite_eq_right (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
          lockstep)
-      | (rw [if_pos (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+      | (rw [ite_eq_left (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
          apply LS.pure _ (by assumption) (by assumption)
          show _ = _
          simp only [absNestFieldKind, Prod.mk.injEq, and_true]
@@ -1146,16 +1146,16 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_container_ls
+/-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_container_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_inst_type_ls
+/-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_inst_type_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_ctors_ls
+/-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_ctors_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms nest_holes_ls
+/-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_holes_ls
 
 end ConRon.Refine2

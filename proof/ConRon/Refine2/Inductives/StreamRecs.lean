@@ -445,9 +445,9 @@ theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShap
         have hj : a.val = i.val + 1 := by scalar_tac
         have := ih a () hj lst ‹_› ‹_› _ ho'
         rw [hj] at this
-        rw [if_pos (by simp_all [absRecShape, absRecOut, TwinEq])]
+        rw [ite_eq_left (by simp_all [absRecShape, absRecOut, TwinEq])]
         exact this
-      · rw [if_neg (by simp_all [absRecShape, absRecOut, TwinEq])]
+      · rw [ite_eq_right (by simp_all [absRecShape, absRecOut, TwinEq])]
         lockstep
     · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len gs by scalar_tac),
         List.drop_eq_nil_of_le (by omega : gs.val.length ≤ i.val), List.map_nil,
@@ -469,20 +469,20 @@ theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShap
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.rec_doms_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms rec_doms_at_ls
+/-- info: 'ConRon.Refine2.rec_doms_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_doms_at_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.rec_ty_opened_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms rec_ty_opened_ls
+/-- info: 'ConRon.Refine2.rec_ty_opened_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_ty_opened_ls
 
 /-- info: 'ConRon.Refine2.stored_closed_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_closed_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms rec_ty_check_ls
+/-- info: 'ConRon.Refine2.rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_ty_check_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.rule_agree_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms rule_agree_ls
+/-- info: 'ConRon.Refine2.rule_agree_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rule_agree_ls
 
 /-- info: 'ConRon.Refine2.stored_nested_pins_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_nested_pins_ls
@@ -496,25 +496,19 @@ theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShap
 /-- info: 'ConRon.Refine2.stored_nested_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_nested_ok_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_fire_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_fire_of_ls
-
 /-- info: 'ConRon.Refine2.stored_rules_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_rules_shape_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rules_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_rules_check_ls
+/-- info: 'ConRon.Refine2.stored_rules_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rules_check_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rec_compare_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_rec_compare_ls
+/-- info: 'ConRon.Refine2.stored_rec_compare_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rec_compare_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_rec_check_ls
+/-- info: 'ConRon.Refine2.stored_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_rec_check_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_recs_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_recs_check_ls
-
--- T143-CENSUS /-- info: 'ConRon.Refine2.stored_out_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms stored_out_twin
+/-- info: 'ConRon.Refine2.stored_recs_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms stored_recs_check_ls
 
 end ConRon.Refine2

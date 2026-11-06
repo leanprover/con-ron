@@ -67,7 +67,45 @@ theorem sum_rules_abs (ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
       arena.inductives.sum_install.sum_rules ctors rhss i out = ok o →
       o.val.map absIRecRule = out.val.map absIRecRule ++
         sumRules (absCtorsLFrom ctors i) (absEIdxLFrom rhss i) := by
-  sorry -- T143-STUB
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
+    (fun i (_ : Unit) => ∀ (out o : alloc.vec.Vec arena.env.IRecRule),
+      arena.inductives.sum_install.sum_rules ctors rhss i out = ok o →
+      o.val.map absIRecRule = out.val.map absIRecRule ++
+        sumRules (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)) ?_ ?_ i ()
+  · intro i _ hn out o h
+    rw [arena.inductives.sum_install.sum_rules.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ctors by scalar_tac), Result.ok.injEq] at h
+    subst h
+    simp [absCtorsLFrom, List.drop_eq_nil_of_le hn, sumRules]
+  · intro i _ hlt ih out o h
+    rw [arena.inductives.sum_install.sum_rules.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    by_cases hr : i.val < rhss.val.length
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rhss by scalar_tac)] at h
+      obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨iv, nf⟩ := q
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      have hq' : ctors.val[i.val] = (iv, nf) := by
+        have h1 := vec_index_some hq; rw [List.getElem?_eq_getElem hlt] at h1
+        exact Option.some_inj.mp h1
+      have he' : rhss.val[i.val] = e := by
+        have h1 := vec_index_some he; rw [List.getElem?_eq_getElem hr] at h1
+        exact Option.some_inj.mp h1
+      rw [ih i2 () hi2v out1 o h, ConRon.Refine.vec_push_val hout1]
+      simp only [absCtorsLFrom, absEIdxLFrom, hi2v]
+      rw [List.drop_eq_getElem_cons hlt, List.drop_eq_getElem_cons hr, hq', he']
+      simp [sumRules, absIConstantVal, absIRecRule, absIRecRuleFire,
+        dupId_nidx _ _ hn, dupId_eidx _ _ he1]
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rhss by scalar_tac), Result.ok.injEq] at h
+      subst h
+      rw [absEIdxLFrom, List.drop_eq_nil_of_le (by omega : rhss.val.length ≤ i.val), List.map_nil]
+      cases absCtorsLFrom ctors i <;> simp [sumRules]
 
 /-- `sum_rules` from `0` into an empty accumulator IS `sumRules`. -/
 @[lockstep] theorem sum_rules_twin0 (ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
@@ -996,7 +1034,12 @@ attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
         (absEIdxL fvs) (absEIdx mty)) := by
   rw [arena.inductives.rec_check.target_major_of, targetMajorOf]
   lockstep
-  all_goals sorry -- T143-STUB
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [absTargetMajor, absMemberShape]
+  casesm* _ ∨ _
+  all_goals try (exfalso; scalar_tac)
+  simp only [*, absEIdxL, absU, Option.map_some, alloc.vec.Vec.new]
+  rfl
 
 /-! ## The recursor records' pins: the auxiliary names `T₀.rec_1 … T₀.rec_n` -/
 
@@ -1326,7 +1369,6 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
       (generatedRules (absU r_p) (absTargetMajor m) (absEIdxL rhss)) := by
   rw [arena.inductives.rec_check.generated_rules, generatedRules]
   lockstep
-  all_goals sorry -- T143-STUB
 
 /-- `rec_k_expected` ⊑ `recKExpected`: the K flag a recursor of this block has. -/
 @[lockstep] theorem rec_k_expected_twin (p : arena.inductives.block_shape.BlockShape)
@@ -1348,7 +1390,7 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
       have hl : alloc.vec.Vec.len m.ctors = 1#usize := by
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
         scalar_tac
-      rw [if_pos hl] at h
+      rw [ite_eq_left hl] at h
       obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hk' := shape_k_twin p k hk
       simp only [TwinEq] at hk'
@@ -1359,28 +1401,28 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
         rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
         simp [hc]
       by_cases hk1 : k = 1#u64
-      · rw [if_pos hk1] at h
+      · rw [ite_eq_left hk1] at h
         have hk1' : (absBlockShape p).k = 1 := by rw [hk', hk1]; rfl
         rw [hk1']
         cases hp : p.is_prop
-        · rw [if_neg (by simp [hp])] at h
+        · rw [ite_eq_right (by simp [hp])] at h
           cases Result.ok_injective h
           simp [absBlockShape, hp]
-        · rw [if_pos hp, hidx, bind_ok] at h
+        · rw [ite_eq_left hp, hidx, bind_ok] at h
           cases Result.ok_injective h
           simp only [absBlockShape, hp, absU]
           by_cases hc0 : c.2 = 0#u64
           · simp [hc0]
           · have : c.2.val ≠ 0 := fun hv => hc0 (by scalar_tac)
             simp [hc0, this]
-      · rw [if_neg hk1] at h
+      · rw [ite_eq_right hk1] at h
         cases Result.ok_injective h
         have : (absBlockShape p).k ≠ 1 := by
           rw [hk']; intro hv; exact hk1 (by simp [absU] at hv; scalar_tac)
         simp [this]
     · have hl : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro hv; exact h1 (by have := congrArg (·.val) hv; simpa [alloc.vec.Vec.len] using this)
-      rw [if_neg hl] at h
+      rw [ite_eq_right hl] at h
       cases Result.ok_injective h
       rcases hc : m.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
       · simp [absCtorsL, hc]
@@ -1392,6 +1434,48 @@ def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMa
     alloc.vec.Vec arena.handle.EIdx) : IConstantVal × TargetMajor × List EIdx :=
   (absIConstantVal x.1, absTargetMajor x.2.1, absEIdxL x.2.2)
 
+theorem block_rec_infos_tf_aux {pers} (p : arena.inductives.block_shape.BlockShape)
+    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+      alloc.vec.Vec arena.handle.EIdx)) :
+    ∀ (m : Std.U64) st lst (acc : alloc.vec.Vec arena.env.IConstantInfo),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absIConstantInfo = acc.val.map absIConstantInfo ++ b)
+        (arena.inductives.rec_check.block_rec_infos_tf pers st p m out acc) lst
+        (blockRecInfosTF (absBlockShape p) (absU m) ((out.val.drop m.val).map absRecOut)) := by
+  intro m
+  refine cursor_induction (fun m : Std.U64 => m.val) out.val.length
+    (fun m (_ : Unit) => ∀ st lst (acc : alloc.vec.Vec arena.env.IConstantInfo),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absIConstantInfo = acc.val.map absIConstantInfo ++ b)
+        (arena.inductives.rec_check.block_rec_infos_tf pers st p m out acc) lst
+        (blockRecInfosTF (absBlockShape p) (absU m) ((out.val.drop m.val).map absRecOut)))
+    ?_ ?_ m ()
+  · intro m _ hn st lst acc hrel hinv
+    rw [arena.inductives.rec_check.block_rec_infos_tf.eq_def, List.drop_eq_nil_of_le hn,
+      List.map_nil, blockRecInfosTF]
+    lockstep
+  · intro m _ hlt ih st lst acc hrel hinv
+    rw [arena.inductives.rec_check.block_rec_infos_tf.eq_def, List.drop_eq_getElem_cons hlt,
+      List.map_cons]
+    have ih' : ∀ (j : Std.U64), j.val = m.val + 1 → ∀ st lst
+        (acc : alloc.vec.Vec arena.env.IConstantInfo),
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => a.val.map absIConstantInfo = acc.val.map absIConstantInfo ++ b)
+          (arena.inductives.rec_check.block_rec_infos_tf pers st p j out acc) lst
+          (blockRecInfosTF (absBlockShape p) (m.val + 1)
+            ((out.val.drop (m.val + 1)).map absRecOut)) := by
+      intro j hj
+      simpa only [absU, hj] using ih j () hj
+    rcases hx : out.val[m.val] with ⟨cv, tm, v⟩
+    simp only [absRecOut, blockRecInfosTF]
+    lockstep
+    casesm* _ ∨ _
+    all_goals try (exfalso; scalar_tac)
+    refine ls_map_twin (ih' _ (by scalar_tac) _ _ _ ‹_› ‹_›) ?_
+    intro r b hr
+    rw [hr]
+    simp_all [absIConstantInfo, TwinEq]
+
 /-- `block_rec_infos_tf` ⊑ `blockRecInfosTF` from the recursor cursor on, behind
 the accumulator: each generated recursor's record at its major. -/
 @[lockstep] theorem block_rec_infos_tf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -1400,8 +1484,8 @@ the accumulator: each generated recursor's record at its major. -/
       alloc.vec.Vec arena.handle.EIdx)) (acc : alloc.vec.Vec arena.env.IConstantInfo) :
     LS pers (fun a b => a.val.map absIConstantInfo = acc.val.map absIConstantInfo ++ b)
       (arena.inductives.rec_check.block_rec_infos_tf pers st p m out acc) lst
-      (blockRecInfosTF (absBlockShape p) (absU m) ((out.val.drop m.val).map absRecOut)) := by
-  sorry -- T143-STUB
+      (blockRecInfosTF (absBlockShape p) (absU m) ((out.val.drop m.val).map absRecOut)) :=
+  block_rec_infos_tf_aux p out m st lst acc hrel hinv
 
 /-- `recs_by_target … true`: the member recursors (`p.recs.filter (·.tgt < k)`). -/
 @[lockstep] theorem recs_by_target_own_twin (rs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
@@ -1515,17 +1599,14 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
 /-- info: 'ConRon.Refine2.target_abs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms target_abs_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.target_major_nfs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms target_major_nfs_ls
+/-- info: 'ConRon.Refine2.target_major_nfs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_major_nfs_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.target_major_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms target_major_of_ls
+/-- info: 'ConRon.Refine2.target_major_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_major_of_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.target_k53_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms target_k53_ls
-
--- T143-CENSUS /-- info: 'ConRon.Refine2.cons_block_recs_t_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms cons_block_recs_t_ls
+/-- info: 'ConRon.Refine2.target_k53_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_k53_ls
 
 /-- info: 'ConRon.Refine2.target_rec_pins_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms target_rec_pins_ls

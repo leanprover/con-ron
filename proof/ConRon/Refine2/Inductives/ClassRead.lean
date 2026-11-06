@@ -711,17 +711,17 @@ theorem classRead_eq : classRead = classRead' := rfl
 
 /-! ## The axiom census -/
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_read_ls
+/-- info: 'ConRon.Refine2.class_read_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_slots_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_read_slots_ls
+/-- info: 'ConRon.Refine2.class_read_slots_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_slots_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_minor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_read_minor_ls
+/-- info: 'ConRon.Refine2.class_read_minor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_minor_ls
 
--- T143-CENSUS /-- info: 'ConRon.Refine2.class_n_pc_of_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- T143-CENSUS #guard_msgs in #print axioms class_n_pc_of_twin
+/-- info: 'ConRon.Refine2.class_n_pc_of_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_n_pc_of_twin
 
 /-- info: 'ConRon.Refine2.motive_slot_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms motive_slot_twin
