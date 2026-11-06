@@ -12,9 +12,9 @@ run forms those stages share.
   is the bridge from the pure grade.
 * **The install frame**: `InstStep`, `ReadOK`, `IFEnvOKS`, for runs that push
   constants and call the knot at the pushed index.
-* **The environment relations**: `InstRel` (an install's answer), `ProjOut`
-  (the projection-table obligation), `IndOut` (the route's conclusion, what
-  `IndSpec` reads).
+* **The environment relations**: `EnvRel` (an index answers for an
+  environment), `InstRel` (an install's answer), `IndOut` (the route's
+  conclusion, what `IndSpec` reads).
 * **Run forms**: `stripPis`/`stripLams`, the spine readers, the interners the
   generators call, `lvlEq?`/`readLevelM` at the pure frame, `List.mapM`/
   `allM`/`anyM` of a pure-grade step, `fvarB` (with `FvarBSpec` discharged),
@@ -439,195 +439,87 @@ theorem denoteCI_not_ctor {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
 list and the environment.  This tier needs both, because every install
 function grows the arena while the environment it was handed stands still. -/
 
-/-! ## The projection table's obligation
-
-`Bridge/StateOK.lean`'s `IProjTableOK` is the shape `IFEnvOK.tblHit` asks of
-every visible table, and `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` takes
-it over the table list as the hypothesis `hproj`.  Its ONE debtor is
-`Arena.checkStructProjTablePush` — the only function of the whole arena that
-pushes a table — and this tier owns it.
-
-One of the record's two clauses the install itself tests (`unless
-bodies.size = nF` is `bodies` verbatim).  The other, `guards.length =
-numFields`, is about an ARGUMENT, so it cannot be tested there and its site
-is the CALLER: `Arena/Inductives/BlockTail.lean`'s structure tail builds the
-guards with `structProjGuards`, whose answer has length `nF` by construction
-(`structProjGuards_length`).  So `checkStructProjTable_spec` takes
-`guards.length = nF` as a HYPOTHESIS and `BlockTail.lean` discharges it.
-
-The clause an install can actually CONCLUDE is RELATIVE — "the table list only
-grew, and every table the new index holds was already in the old one, or is
-well shaped" — because the route chains many installs and only the structure
-tail pushes one.  `ProjOut` is that clause; it composes (`ProjOut.trans`), and
-it is a FIELD of `InstRel` so that every install of the tier carries it rather
-than each caller restating it. -/
-
-/-- con-leche: none — a level-handle list's denotation has its own length.
-What `BlockTail.lean` reads `guards.length = nF` off, against
-`structProjGuards_length`. -/
-theorem denoteLList_length {st : LStore} :
-    ∀ (us : List LIdx) (xs : List Level), denoteLList st us = some xs →
-      us.length = xs.length := by
-  intro us
-  induction us with
-  | nil => intro xs h; simp only [denoteLList, Option.some.injEq] at h; simp [← h]
-  | cons u us ih =>
-    intro xs h
-    simp only [denoteLList, opt2] at h
-    cases hu : denoteL st u with
-    | none => rw [hu] at h; simp at h
-    | some y =>
-      cases hus : denoteLList st us with
-      | none => rw [hu, hus] at h; simp at h
-      | some ys =>
-        rw [hu, hus] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [List.length_cons, ih _ hus]
-
-/-- con-leche: ConLeche/Verify/EnvWF.lean:161-168 TableWF — **what an install
-owes about projection tables**: it only pushed onto the table list
-(`TPushed`, what makes the promotion's `kt` the install's tables), and every
-table of the new list is an old one or well shaped. -/
-@[expose] def ProjOut (fe fe' : IFEnv) : Prop :=
-  TPushed fe fe' ∧ ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
-
-/-- con-leche: none — an install that changes nothing owes nothing. -/
-theorem ProjOut.refl (fe : IFEnv) : ProjOut fe fe :=
-  ⟨TPushed.refl fe, fun _ h => Or.inl h⟩
-
-/-- con-leche: none — **the obligation chains**, which is what a route's
-dozen stages need of it. -/
-theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv}
-    (h₁ : ProjOut fe₀ fe₁) (h₂ : ProjOut fe₁ fe₂) : ProjOut fe₀ fe₂ := by
-  refine ⟨h₁.1.trans h₂.1, fun t hm => ?_⟩
-  rcases h₂.2 t hm with h' | h'
-  · exact h₁.2 t h'
-  · exact Or.inr h'
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:189-197 FEnv.push — **a constant's
-push owes nothing**: it leaves the table list alone.  Every install of the
-tier but `checkStructProjTablePush` needs exactly this. -/
-theorem ProjOut.push (fe : IFEnv) (ci : IConstantInfo) : ProjOut fe (fe.push ci) :=
-  ⟨TPushed.push fe ci, fun _ h => Or.inl h⟩
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **a pushed table
-owes its own shape**: the one install that pushes a table
-(`checkStructProjTablePush`) discharges `ProjOut` with the new table's
-`IProjTableOK`. -/
-theorem ProjOut.pushTable (fe : IFEnv) {t : IProjTable} (ht : IProjTableOK t) :
-    ProjOut fe (fe.pushTable t) := by
-  refine ⟨TPushed.pushTable fe t, fun t' hm => ?_⟩
-  rcases List.mem_cons.1 hm with h | h
-  · subst h; exact Or.inr ht
-  · exact Or.inl h
-
 /-! ## The environment's own relation
 
-An install route's argument and answer are `IFEnv`s, and the pure side's are
-`Env`s; `Bridge/Promote/Exact.lean`'s `denoteFEnv` is the function that
-relates them and `Bridge/Checker/Inv.lean`'s `FoldOK` is where it is carried.
-`IndOut` is what an install route CONCLUDES, and it is
-`Bridge/Checker/Decl.lean`'s `DeclOut` with the run at the route rather than
-at `checkDecl`. -/
+An install's argument and answer are `IFEnv`s, and the pure side's are
+`Env`s.  There is no denotation of a whole index (the stream's index under a
+job's layer is frozen and never read back as a list): an index is related to an
+environment by its LOOKUPS (`IFEnvOK`), and that is what every knot call of the
+tier needs of it.  `EnvRel` adds the two facts a push needs to carry the
+lookups across (`IFEnvOK.pushStored`): no table without its structure, on both
+sides.  `InstRel` is what an install function concludes, `IndOut` what the
+route concludes. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — **an
+index answers for an environment**, at a store: the lookups agree
+(`IFEnvOKS`), the index has no table without its structure (`TblGate`), and
+neither has the environment (`TablesStored`). -/
+structure EnvRel (env : Env) (fe : IFEnv) (st : EStore) : Prop where
+  ienv : IFEnvOKS env fe st
+  gate : TblGate fe
+  stored : TablesStored env
+
+/-- con-leche: none — `EnvRel` survives the arena's growth. -/
+theorem EnvRel.mono {env : Env} {fe : IFEnv} {st st' : EStore}
+    (h : EnvRel env fe st) (hx : Ext st st') : EnvRel env fe st' :=
+  ⟨h.ienv.mono hx, h.gate, h.stored⟩
+
+/-- con-leche: none — the relation at a checking state. -/
+theorem EnvRel.ofCheck {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK false env fe s) (hg : TblGate fe) (henv : EnvWF env) :
+    EnvRel env fe s.store :=
+  ⟨h.ienv.toS, hg, TablesStored.of_envWF henv⟩
+
+/-- con-leche: none — the lookups at a state whose store is the relation's. -/
+theorem EnvRel.ifenv {env : Env} {fe : IFEnv} {s : AState}
+    (h : EnvRel env fe s.store) : IFEnvOK env fe s :=
+  h.ienv s rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:189-197 FEnv.push — **a pushed
+constant**: the lookups by `IFEnvOK.pushStored`, the gates by their push
+lemmas. -/
+theorem EnvRel.push {env : Env} {fe : IFEnv} {st : EStore} {ci : IConstantInfo}
+    {c : ConstantInfo} (h : EnvRel env fe st) (hwf : StoreWF st)
+    (hci : Frontend.denoteCI st ci = some c) :
+    EnvRel ⟨c :: env.consts, env.tables⟩ (fe.push ci) st where
+  ienv := fun s hs => (h.ienv s hs).pushStored ⟨hs ▸ hwf⟩ h.gate h.stored (hs ▸ hci)
+  gate := h.gate.push ci
+  stored := h.stored.cons
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**an INSTALL function's answer relation**: the new index is still its list's
-index, it only pushed, its visibility bound only rose, and it denotes an
-environment con-leche's own install produces.
+**an INSTALL function's answer relation**: the new index answers for an
+environment con-leche's own install produces (`P` names that install).
 
-Every install twin of this tier (the formers' and constructors' pushes,
-`checkStructProjTable`, the recursor stage, the route) answers an `IFEnv`,
-and this is the one relation all of them use; `IndOut` below is `InstRel` plus what the STATE did, and
-`Bridge/Inductives/Decl.lean` assembles the two. -/
-structure InstRel (fe : IFEnv) (P : Env → Prop) (st : EStore) (fe' : IFEnv) :
-    Prop where
-  coh : IFEnvCoh fe'
-  pushed : Pushed fe fe'
-  visible : fe.visibleBelow ≤ fe'.visibleBelow
-  denote : ∃ env', denoteFEnv st fe' = some env' ∧ P env'
-  /-- **the projection tables this install left behind are well shaped** —
-  the section above says why the clause is relative and why it lives here
-  rather than at the one install that can discharge it. -/
-  proj : ProjOut fe fe'
-
-/-- con-leche: none — `InstRel` composes along a chain of installs: the
-environment relations chain by `Pushed.trans`, the projection obligation by
-`ProjOut.trans`, and the pure side's runs are chained by the caller (each
-install's `P` names its own con-leche function). -/
-theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
-    {st₁ st₂ : EStore} (h₁ : InstRel fe₀ P₁ st₁ fe₁)
-    (h₂ : InstRel fe₁ P₂ st₂ fe₂) : InstRel fe₀ P₂ st₂ fe₂ where
-  coh := h₂.coh
-  pushed := h₁.pushed.trans h₂.pushed
-  visible := Nat.le_trans h₁.visible h₂.visible
-  denote := h₂.denote
-  proj := h₁.proj.trans h₂.proj
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **a table push's
-denotation, inverted**: the pushed table denotes, and the new environment is
-the old one with it consed onto the tables. -/
-theorem denoteFEnv_pushTable_inv {st : EStore} {fe : IFEnv} {env env' : Env}
-    {t : IProjTable} (h : denoteFEnv st fe = some env)
-    (h' : denoteFEnv st (fe.pushTable t) = some env') :
-    ∃ pt, Frontend.denoteProjTable st t = some pt ∧
-      env' = ⟨env.consts, pt :: env.tables⟩ := by
-  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
-  obtain ⟨hcs', hts'⟩ := denoteIEnv_some.mp h'
-  simp only [IFEnv.pushTable, Frontend.denoteProjTableList] at hcs' hts'
-  cases hp : Frontend.denoteProjTable st t with
-  | none => rw [hp] at hts'; simp at hts'
-  | some pt =>
-    rw [hp, hts] at hts'
-    rw [hcs] at hcs'
-    simp only [Option.some.injEq] at hcs' hts'
-    refine ⟨pt, rfl, ?_⟩
-    cases env'
-    simp only at hcs' hts'
-    rw [← hcs', ← hts']
+Every install twin of this tier (the formers' and constructors' pushes, the
+recursor stage's pushes) answers an `IFEnv`, and this is the one relation all
+of them use. -/
+structure InstRel (P : Env → Prop) (st : EStore) (fe' : IFEnv) : Prop where
+  denote : ∃ env', EnvRel env' fe' st ∧ P env'
 
 /-- con-leche: none — `InstRel` survives the arena's growth. -/
-theorem InstRel.ext {fe fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
-    (h : InstRel fe P st fe') (hx : Ext st st') : InstRel fe P st' fe' := by
+theorem InstRel.ext {fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
+    (h : InstRel P st fe') (hx : Ext st st') : InstRel P st' fe' := by
   obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨h.coh, h.pushed, h.visible, ⟨e, denoteFEnv_mono hx he, hp⟩, h.proj⟩
+  exact ⟨⟨e, he.mono hx, hp⟩⟩
 
 /-- con-leche: none — an `InstRel` whose pure-side claim is implied by
 another's. -/
-theorem InstRel.imp {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
-    (h : InstRel fe P st fe') (hPQ : ∀ e, P e → Q e) : InstRel fe Q st fe' := by
+theorem InstRel.imp {fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
+    (h : InstRel P st fe') (hPQ : ∀ e, P e → Q e) : InstRel Q st fe' := by
   obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e hp⟩, h.proj⟩
+  exact ⟨⟨e, he, hPQ e hp⟩⟩
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**what an inductive install route leaves behind**.  Seven clauses, and the
-correspondence with `DeclOut` is one-for-one except that the `run` clause is
-abstracted: `Bridge/Inductives/Decl.lean` instantiates it at
-`ConLeche.checkDecl … (.indDecl b nP)` and the two route theorems at their own
-con-leche function.
-
-**`visible` is here and not in `DeclOut`**, because `IndSpec`
-(`Bridge/Checker/Hyp.lean`) asks for it: `Arena/Checker.lean`'s promotion
-counter is read off `visibleBelow`, so the step needs to know the route only
-moved it up. -/
-structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop where
+**what the inductive route leaves behind**: `IndSpec.run`'s conclusion, the
+state's frame and the pure side's run (`run`, instantiated by
+`Bridge/Inductives/Decl.lean` at `ConLeche.checkDecl … (.indDecl b nP)`).
+Nothing about the route's environment: the job's index is dropped with its
+scratch tier. -/
+structure IndOut (s s' : AState) (run : Prop) : Prop where
   state : StateOK s'
   ext : Ext s.store s'.store
   pins : s'.pins = s.pins
-  coh : IFEnvCoh fe'
-  pushed : Pushed fe fe'
-  visible : fe.visibleBelow ≤ fe'.visibleBelow
-  denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
-  /-- **the eighth clause**: the arm's own `ProjOut`.
-  `Bridge/Checker/Hyp.lean`'s `IndSpec` and `Bridge/Checker/Decl.lean`'s
-  `DeclOut` carry both its halves (`TPushed` and the table shapes), which
-  `indSpec_of_bridge` projects out. -/
-  proj : ProjOut fe fe'
-  /-- **the ninth clause**: the environment the new index denotes is
-  well formed.  The fold boundary after each declaration needs `EnvWF` at the
-  pushed index; `DeclOut` carries the same clause.  Stated for every denotation
-  — `denoteFEnv` is a function, so this is the `denote` clause's witness. -/
-  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
+  run : run
 
 /-! ## The recognisers' readers
 

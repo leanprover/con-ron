@@ -716,7 +716,7 @@ theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
       (ConLeche.storedRecCompare (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
-  obtain ⟨hcv, -, hmI, -, hrules⟩ := dRec_inv hrc
+  obtain ⟨hcv, -, hmI, -, hrules, -⟩ := dRec_inv hrc
   obtain ⟨hcvG, hM, hrh⟩ := RC.dRecOut_inv hg
   simp only [Arena.storedRecCompare] at hrun
   simp only [ConLeche.storedRecCompare]
@@ -754,7 +754,7 @@ theorem storedRecCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv :
       (ConLeche.storedRecCheck (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
-  obtain ⟨hcv, hrP, hmI, -, hrules⟩ := dRec_inv hrc
+  obtain ⟨hcv, hrP, hmI, -, hrules, -⟩ := dRec_inv hrc
   obtain ⟨hcvG, hM, hrh⟩ := RC.dRecOut_inv hg
   obtain ⟨-, -, -, -, -, hcs, -⟩ := dMajor_inv hM
   simp only [Arena.storedRecCheck] at hrun
@@ -853,7 +853,7 @@ theorem storedOut_denote {st : EStore} :
     | cons g gs =>
       obtain ⟨rcP, rcsP, rfl, hrc, hrcs⟩ := mapM_option_cons_inv hr
       obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv ho
-      obtain ⟨hcv, -, -, -, hrules⟩ := dRec_inv hrc
+      obtain ⟨hcv, -, -, -, hrules, -⟩ := dRec_inv hrc
       obtain ⟨hcvG, hM, -⟩ := RC.dRecOut_inv hg
       obtain ⟨hnm, hlps, -⟩ := Core.denoteCV_inv hcvG
       have ih' := ih rcsP gs gsP hrcs hgs
