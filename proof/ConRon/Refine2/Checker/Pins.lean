@@ -51,7 +51,7 @@ import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
-import ConRon.Refine2.Core.Induction
+import ConRon.Refine2.Core.Arms.Delta
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -129,11 +129,6 @@ theorem push_nidx_val {out w : alloc.vec.Vec arena.handle.NIdx} {n : arena.handl
   obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [dupId_nidx _ _ hn1] at h
   exact ConRon.Refine.vec_push_val h
-
--- T143-STUB: `Core/Arms/Delta.lean`'s, here until the core lane's STAGE1 restores that import.
-theorem core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
-  rw [arena.core.CORE_WALK_FUEL, Arena.coreWalkFuel]
-  rfl
 
 /-! ## The table's own two writers and its four readers -/
 
