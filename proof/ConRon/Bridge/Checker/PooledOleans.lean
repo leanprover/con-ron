@@ -144,4 +144,75 @@ theorem buildIndex_congr {dsF dsP : List Declaration}
       rw [this]
       exact ih b _ hrest
 
+/-! ## An `--olean` job, read off -/
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — **an accepted `--olean` job**
+is either a record's plain job, at a record that is not a theorem with a reference, or the
+reference read into the job's scratch tier and the theorem checked with the value in place. -/
+theorem oleanJob_ok {fs : ConRon.Arena.Frontend.Olean.OleanFs}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : List System.FilePath}
+    {values : Array ConRon.Arena.Frontend.Olean.ModRef} {pins : List INatOpPinSet}
+    {I : IStreamIndex} {ds : Array IDeclaration} {c c' : ValueCache} {t : Nat}
+    {s s' : AState} (ht : t < ds.size)
+    (h : oleanJob fs pk sp values .verified pins I ds c t s = .ok ((c', .ok ()), s')) :
+    (c' = c ∧ recordJob .verified pins I t ds[t] s = .ok ((), s') ∧
+      ∀ cv v, ds[t] = .thmDecl cv v →
+        (if v.tag == ETag.bvar then s.store.viewBVar v else none) = none) ∨
+    ∃ cv v code e s₁, ds[t] = .thmDecl cv v ∧
+      (if v.tag == ETag.bvar then s.store.viewBVar v else none) = some code ∧
+      (do enterScratch; readValue fs pk sp values c code) s = .ok ((c', .ok e), s₁) ∧
+      (do recordCheck .verified pins I t (.thmDecl cv e); dropScratch) s₁ = .ok ((), s') := by
+  have plain : (match runJob .verified pins I ds t s with
+        | .ok (r, s'') => (.ok (c, r, s'') :
+            Except Arena.CheckError (ValueCache × Except (Arena.CheckError × Nat) Unit × AState))
+        | .error e => .error e) = .ok (c', .ok (), s') →
+      c' = c ∧ recordJob .verified pins I t ds[t] s = .ok ((), s') := by
+    intro hp
+    unfold runJob at hp
+    rw [Array.getElem?_eq_getElem ht] at hp
+    simp only at hp
+    split at hp
+    · rename_i hj
+      cases hp
+      split at hj
+      · rename_i u s₀ hr
+        cases hj; exact ⟨rfl, hr⟩
+      · cases hj
+    · cases hp
+  unfold oleanJob at h
+  rw [Array.getElem?_eq_getElem ht] at h
+  simp only at h
+  split at h
+  · rename_i cv v hd
+    split at h
+    · rename_i code hcode
+      split at h
+      · rename_i c₁ e s₁ hread
+        split at h
+        · rename_i s₂ hcheck
+          cases h
+          exact Or.inr ⟨cv, v, code, e, s₁, Option.some.inj hd, hcode, hread, hcheck⟩
+        · cases h
+      · cases h
+      · cases h
+    · rename_i hnone
+      left
+      split at h
+      · rename_i c₀ r s₀ hx
+        cases h
+        obtain ⟨rfl, hj⟩ := plain hx
+        refine ⟨rfl, hj, fun cv' v' hd' => ?_⟩
+        rw [hd'] at hd
+        cases hd
+        exact hnone
+      · cases h
+  · rename_i hnot
+    left
+    split at h
+    · rename_i c₀ r s₀ hx
+      cases h
+      obtain ⟨rfl, hj⟩ := plain hx
+      exact ⟨rfl, hj, fun cv v hd => absurd (congrArg some hd) (hnot cv v)⟩
+    · cases h
+
 end ConRon.Bridge
