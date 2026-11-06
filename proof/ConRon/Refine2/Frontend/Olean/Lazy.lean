@@ -62,7 +62,43 @@ def OutRel (o : alloc.vec.Vec Std.U64) (t : Array UInt64) : Prop := o.val.map ab
 def OutsRel (o : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (t : Array (Array UInt64)) : Prop :=
   List.Forall₂ OutRel o.val t.toList
 
+/-! ## The kinds' codes -/
+
+/-- `kind_code` is `kindCode`. -/
+theorem kind_code_eq {k : Std.U8} {c : Std.U64} (h : kind_code k = ok c) :
+    c.val = ConLeche.Frontend.Olean.kindCode (absByte k) := by
+  rw [kind_code] at h
+  rw [ConLeche.Frontend.Olean.kindCode]
+  simp only [← absByte_k_name, ← absByte_k_level, ← absByte_k_levels]
+  by_cases h1 : k = frontend.olean.fast.K_NAME
+  · rw [if_pos h1] at h; rw [if_pos (kind_test.mp h1)]; cases Result.ok_injective h; rfl
+  · rw [if_neg h1] at h; rw [if_neg (fun he => h1 (kind_test.mpr he))]
+    by_cases h2 : k = frontend.olean.fast.K_LEVEL
+    · rw [if_pos h2] at h; rw [if_pos (kind_test.mp h2)]; cases Result.ok_injective h; rfl
+    · rw [if_neg h2] at h; rw [if_neg (fun he => h2 (kind_test.mpr he))]
+      by_cases h3 : k = frontend.olean.fast.K_LEVELS
+      · rw [if_pos h3] at h; rw [if_pos (kind_test.mp h3)]; cases Result.ok_injective h; rfl
+      · rw [if_neg h3] at h; rw [if_neg (fun he => h3 (kind_test.mpr he))]
+        cases Result.ok_injective h; rfl
+
 /-! ## The roots of a load -/
+
+/-- A `flatMap` against a `filterMap` over related lists. -/
+theorem forall₂_flatMap_filterMap {α β γ : Type} {R : α → β → Prop}
+    {g : α → List γ} {g' : β → Option γ} (hg : ∀ a b, R a b → g a = (g' b).toList) :
+    ∀ {l : List α} {l' : List β}, List.Forall₂ R l l' → l.flatMap g = l'.filterMap g'
+  | _, _, .nil => rfl
+  | _, _, .cons hab h => by
+    rw [List.flatMap_cons, hg _ _ hab, forall₂_flatMap_filterMap hg h, List.filterMap_cons]
+    cases g' _ <;> rfl
+
+/-- A `flatMap` over related lists, each part related. -/
+theorem forall₂_flatMap_map {α β γ δ : Type} {R : α → β → Prop} {A : γ → δ}
+    {g : α → List γ} {g' : β → List δ} (hg : ∀ a b, R a b → (g a).map A = g' b) :
+    ∀ {l : List α} {l' : List β}, List.Forall₂ R l l' → (l.flatMap g).map A = l'.flatMap g'
+  | _, _, .nil => rfl
+  | _, _, .cons hab h => by
+    simp only [List.flatMap_cons, List.map_append, hg _ _ hab, forall₂_flatMap_map hg h]
 
 /-- **`load_roots` is `loadRoots`**: the imports' names and every constant's names, and every
 constant's expressions. -/
@@ -72,7 +108,64 @@ theorem load_roots_val {sk : frontend.olean.spec.ModSkel} {sk' : ConLeche.Fronte
     (hv : List.Forall₂ EV v.val skels) {nb ea}
     (h : load_roots sk v = ok (nb, ea)) :
     nb.val.map absWord = (loadRoots sk' skels).1 ∧ ea.val.map absWord = (loadRoots sk' skels).2 := by
-  sorry -- T143-STUB
+  rw [load_roots] at h
+  peel h as names, hnames
+  have e0 := append_loop0 (src := sk.imports.val) (Ab := fun s : alloc.vec.Vec Std.U64 => s.val)
+    (f := fun x => [x.module]) (loop := load_roots_loop0 sk) (fun s j o h => by
+      rw [load_roots_loop0] at h
+      by_cases hj : j < alloc.vec.Vec.len sk.imports
+      · right
+        rw [ite_eq_left hj] at h
+        peel h as x, hx
+        peel h as s2, hs2
+        peel h as j1, hj1
+        exact ⟨x, s2, j1, ConRon.Refine.ExprOps.vec_index_getElem? hx, ConRon.Refine.vec_push_val hs2,
+          ConRon.Refine.HashMap.uscalar_add_eq hj1, h⟩
+      · left
+        rw [ite_eq_right hj] at h
+        exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩) hnames
+  have hnew : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
+  have hstep : ∀ (Ab : (alloc.vec.Vec Std.U64 × alloc.vec.Vec Std.U64) → List Std.U64)
+      (fn : frontend.olean.spec.CEntryF Std.U64 Std.U64 → List Std.U64),
+      (∀ {c n e n1 e1}, frontend.olean.fast.c_entry_names c n = ok n1 →
+        frontend.olean.fast.c_entry_exprs c e = ok e1 → Ab (n1, e1) = Ab (n, e) ++ fn c) →
+      ∀ s i o, load_roots_loop1 v s.1 s.2 i = ok o → (v.val.length ≤ i.val ∧ o = s) ∨
+        ∃ x s1 i1, v.val[i.val]? = some x ∧ Ab s1 = Ab s ++ fn x ∧ i1.val = i.val + 1 ∧
+          load_roots_loop1 v s1.1 s1.2 i1 = ok o := by
+    intro Ab fn hf s i o h
+    rw [load_roots_loop1] at h
+    by_cases hi : i < alloc.vec.Vec.len v
+    · right
+      rw [ite_eq_left hi] at h
+      peel h as c, hc
+      peel h as n1, hn1
+      peel h as e1, he1
+      peel h as i1, hi1
+      exact ⟨c, (n1, e1), i1, ConRon.Refine.ExprOps.vec_index_getElem? hc, hf hn1 he1,
+        ConRon.Refine.HashMap.uscalar_add_eq hi1, h⟩
+    · left
+      rw [ite_eq_right hi] at h
+      exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩
+  have en := append_loop0 (src := v.val)
+    (Ab := fun s : alloc.vec.Vec Std.U64 × alloc.vec.Vec Std.U64 => s.1.val) (f := namesL)
+    (loop := fun s i => load_roots_loop1 v s.1 s.2 i) (s := (names, alloc.vec.Vec.new Std.U64))
+    (hstep _ _ (fun h1 _ => c_entry_names_val h1)) h
+  have ee := append_loop0 (src := v.val)
+    (Ab := fun s : alloc.vec.Vec Std.U64 × alloc.vec.Vec Std.U64 => s.2.val) (f := exprsL)
+    (loop := fun s i => load_roots_loop1 v s.1 s.2 i) (s := (names, alloc.vec.Vec.new Std.U64))
+    (hstep _ _ (fun _ h2 => c_entry_exprs_val h2)) h
+  simp only at en ee
+  rw [hnew, List.nil_append] at e0
+  rw [hnew, List.nil_append] at ee
+  refine ⟨?_, ?_⟩
+  · rw [en, e0, List.map_append, forall₂_flatMap_map (fun _ _ h => namesL_abs h) hv]
+    simp only [loadRoots, ← hsk.imports]
+    congr 1
+    induction sk.imports.val with
+    | nil => rfl
+    | cons x t ih => simp [absImportF, ih]
+  · rw [ee, forall₂_flatMap_map (fun _ _ h => exprsL_abs h) hv]
+    rfl
 
 /-- **`uses_of` is `usesOf`**, from fresh stamps: every constant's output. -/
 theorem uses_of_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
@@ -96,7 +189,38 @@ theorem load_at_loop_val {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64
     {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels)
     {o} (h : load_at_loop v (alloc.vec.Vec.new Std.U64) 0#usize = ok o) :
     o.val.map absWord = skels.flatMap lazyRoots := by
-  sorry -- T143-STUB
+  have hnew : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
+  have e := append_loop0 (src := v.val) (Ab := fun s : alloc.vec.Vec Std.U64 => s.val)
+    (f := fun c => match c.kind with
+      | .Thm _ _ => [c.ty]
+      | _ => exprsL c)
+    (loop := load_at_loop v) (fun s k o h => by
+      rw [load_at_loop] at h
+      by_cases hk : k < alloc.vec.Vec.len v
+      · right
+        rw [ite_eq_left hk] at h
+        peel h as c, hc
+        peel h as s1, hs1
+        peel h as k1, hk1
+        refine ⟨c, s1, k1, ConRon.Refine.ExprOps.vec_index_getElem? hc, ?_,
+          ConRon.Refine.HashMap.uscalar_add_eq hk1, h⟩
+        rw [lazy_roots] at hs1
+        cases hck : c.kind <;> rw [hck] at hs1 <;> simp only at hs1 ⊢ <;>
+          first | exact c_entry_exprs_val hs1 | exact ConRon.Refine.vec_push_val hs1
+      · left
+        rw [ite_eq_right hk] at h
+        exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩) h
+  rw [e, hnew, List.nil_append]
+  refine forall₂_flatMap_map (fun c c' hab => ?_) hv
+  have hx := exprsL_abs hab
+  obtain ⟨-, -, hty, hk⟩ := hab
+  rw [lazyRoots]
+  obtain ⟨n, lp, ty, k⟩ := c
+  obtain ⟨n', lp', ty', k'⟩ := c'
+  cases k <;> cases k' <;> try exact hk.elim
+  all_goals first
+    | (simp only at hty ⊢; simp [hty])
+    | exact hx
 
 /-- **`load_imports`' accept is `loadImports`' `true`.** -/
 theorem load_imports_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
@@ -124,7 +248,58 @@ theorem value_roots_val {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
     {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels)
     {o} (h : value_roots r v = ok o) : o.val.map (·.val) = valueRoots (absRegion bs r) skels := by
-  sorry -- T143-STUB
+  rw [value_roots] at h
+  have hnew : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
+  have e := append_loop0 (src := v.val) (Ab := fun s : alloc.vec.Vec Std.U64 => s.val.map (·.val))
+    (f := fun c => match c.kind with
+      | .Thm w _ => ((absRegion bs r).loc (absWord w)).toList.map (· + 3)
+      | _ => [])
+    (loop := fun out i => value_roots_from r v i out) (fun s i o h => by
+      rw [value_roots_from] at h
+      by_cases hi : i ≥ alloc.vec.Vec.len v
+      · left
+        rw [ite_eq_left hi] at h
+        exact ⟨by scalar_tac, (Result.ok_injective h).symm⟩
+      · right
+        rw [ite_eq_right hi] at h
+        peel h as c, hc
+        peel h as g, hg
+        peel h as out1, hout1
+        peel h as i2, hi2
+        refine ⟨c, out1, i2, ConRon.Refine.ExprOps.vec_index_getElem? hc, ?_,
+          ConRon.Refine.HashMap.uscalar_add_eq hi2, h⟩
+        cases hck : c.kind with
+        | Thm w all =>
+          rw [hck] at hg
+          have el := region_loc_eq bs hg
+          simp only
+          rw [← el]
+          cases g with
+          | none => cases Result.ok_injective hout1; simp
+          | some g1 =>
+            simp only at hout1
+            peel hout1 as k3, hk3
+            peel hout1 as g3, hg3
+            have ek := kind_code_eq hk3
+            rw [absByte_k_expr] at ek
+            have eg := ConRon.Refine.HashMap.uscalar_add_eq hg3
+            rw [ConRon.Refine.vec_push_val hout1]
+            simp [eg, ek, ConLeche.Frontend.Olean.kindCode, ConLeche.Frontend.Olean.kExpr,
+              ConLeche.Frontend.Olean.kName, ConLeche.Frontend.Olean.kLevel, ConLeche.Frontend.Olean.kLevels]
+        | _ => rw [hck] at hg; cases Result.ok_injective hg; cases Result.ok_injective hout1; simp)
+    (s := alloc.vec.Vec.new Std.U64) h
+  rw [e, hnew, List.map_nil, List.nil_append, valueRoots]
+  refine forall₂_flatMap_filterMap (fun c c' hab => ?_) hv
+  obtain ⟨-, -, -, hk⟩ := hab
+  obtain ⟨n, lp, ty, k⟩ := c
+  obtain ⟨n', lp', ty', k'⟩ := c'
+  cases k <;> cases k' <;> try exact hk.elim
+  case Thm.thm w all w' all' =>
+    obtain ⟨hw, -⟩ := hk
+    simp only
+    rw [← hw]
+    cases (absRegion bs r).loc (absWord w) <;> rfl
+  all_goals rfl
 
 /-- **`frontier_walk` is `frontierWalk`**, from the value roots on the stack. -/
 theorem frontier_walk_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
