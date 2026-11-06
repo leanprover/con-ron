@@ -27,7 +27,7 @@ namespace ConRon.Refine2.Frontend.Olean
 
 open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (loadAt loadView loadRoots valueRoots lazyEntries loadImports
-  usesOf frontierWalk frontierOf importsPre)
+  usesOf usesGo usesRoots frontierWalk frontierOf importsPre)
 open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel moduleSkel refBase)
 
 /-! ## The judgement of an accepted read -/
@@ -166,6 +166,496 @@ theorem load_roots_val {sk : frontend.olean.spec.ModSkel} {sk' : ConLeche.Fronte
     | cons x t ih => simp [absImportF, ih]
   · rw [ee, forall₂_flatMap_map (fun _ _ h => exprsL_abs h) hv]
     rfl
+
+/-! ## What each constant mentions: the walk -/
+
+theorem stamps_len {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts) :
+    stamps.val.length = ts.size := by
+  have := congrArg List.length hs
+  simpa using this
+
+theorem stamps_get {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts)
+    {k : Nat} (hk : k < stamps.val.length) : ts[k]! = (stamps.val[k]'hk).val := by
+  have hk' : k < ts.size := by rw [← stamps_len hs]; exact hk
+  rw [getElem!_pos ts k hk']
+  have e : ts[k]? = (stamps.val.map (·.val))[k]? := by rw [← Array.getElem?_toList, ← hs]
+  rw [Array.getElem?_eq_getElem hk', List.getElem?_map, List.getElem?_eq_getElem hk] at e
+  exact Option.some.inj e
+
+/-- `stamp_at` is `stamps[s]!`. -/
+theorem stamp_at_eq {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts)
+    {s i : Std.U64} (h : stamp_at stamps s = ok i) : i.val = ts[s.val]! := by
+  rw [stamp_at] at h
+  simp only [lift, bind_ok] at h
+  have hl := stamps_len hs
+  by_cases hlt : s.val < stamps.val.length
+  · have hc : s < UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len stamps) := by
+      show s.val < (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len stamps)).val
+      rw [cast_u64_usize, vec_len_val]; exact hlt
+    rw [ite_eq_left hc] at h
+    obtain ⟨hl2, rfl⟩ := vec_index_eq h
+    have e : (UScalar.cast UScalarTy.Usize s).val = s.val :=
+      ConRon.Refine.ExprOps.u64_cast_usize_val (by scalar_tac)
+    rw [stamps_get hs hlt]
+    simp only [e]
+  · have hc : ¬ s < UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len stamps) := by
+      show ¬ s.val < (UScalar.cast UScalarTy.U64 (alloc.vec.Vec.len stamps)).val
+      rw [cast_u64_usize, vec_len_val]; exact hlt
+    rw [ite_eq_right hc] at h
+    cases Result.ok_injective h
+    rw [getElem!_neg ts s.val (by omega)]
+    rfl
+
+/-- The stamp's write is `set!`. -/
+theorem stamps_set_rel {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts)
+    {s stamp : Std.U64} {i2 : Std.U64} (hi2 : i2.val = stamps.val.length) {stamps1}
+    (h : (if s < i2 then do
+        let (_, back) ← alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) stamps
+          (UScalar.cast UScalarTy.Usize s)
+        ok (back stamp)
+      else ok stamps) = ok stamps1) :
+    StampsRel stamps1 (ts.set! s.val stamp.val) := by
+  have hl := stamps_len hs
+  rw [Array.set!_eq_setIfInBounds]
+  show stamps1.val.map (·.val) = (ts.setIfInBounds s.val stamp.val).toList
+  rw [Array.toList_setIfInBounds, ← hs]
+  by_cases hlt : s < i2
+  · rw [ite_eq_left hlt] at h
+    peel h as p, hp
+    obtain ⟨y, back⟩ := p
+    obtain ⟨hl2, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hp
+    have h' : ok (stamps.set (UScalar.cast UScalarTy.Usize s) stamp) = ok stamps1 := h
+    cases Result.ok_injective h'
+    have e : (UScalar.cast UScalarTy.Usize s).val = s.val :=
+      ConRon.Refine.ExprOps.u64_cast_usize_val (by scalar_tac)
+    simp only [alloc.vec.Vec.set, e]
+    have e0 : ∀ (l : List Std.U64) (hl), (alloc.vec.Vec.from l hl).val = l := fun l hl => Slice.from_val _ _
+    rw [e0, List.map_set]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : stamps.val.length ≤ s.val := by
+      have : ¬ s.val < i2.val := hlt
+      omega
+    rw [List.set_eq_of_length_le (by simpa using this)]
+
+/-- `t.val ≠ K.val` from `t.val ≠ k`, `K` the literal `k#u64`. -/
+local macro "rfl_or_exact" : tactic => `(tactic| first | (show _ ≠ (_ : Nat); assumption) | omega)
+
+theorem u64_val_0 : (0#u64 : Std.U64).val = 0 := rfl
+theorem u64_val_1 : (1#u64 : Std.U64).val = 1 := rfl
+theorem u64_val_2 : (2#u64 : Std.U64).val = 2 := rfl
+theorem u64_val_3 : (3#u64 : Std.U64).val = 3 := rfl
+
+/-- The dispatch's answer, by components. -/
+theorem triple_ok {α β γ : Type} {a a' : α} {b b' : β} {c c' : γ}
+    (h : (ok (a, b, c) : Result (α × β × γ)) = ok (a', b', c')) : a = a' ∧ b = b' ∧ c = c' := by
+  cases Result.ok_injective h
+  exact ⟨rfl, rfl, rfl⟩
+
+/-- A pushed kid against the twin's: both `none`, or both a stack. -/
+def KidRel (q : Option Std.Usize × alloc.vec.Vec Std.U64) (o : Option (List Nat)) : Prop :=
+  (q.1 = none ∧ o = none) ∨ ∃ sp l, q.1 = some sp ∧ o = some l ∧ StackRel (·.val) q.2 sp l
+
+/-- `push_kid` is `pushKid`. -/
+theorem push_kid_rel {bs : Slice Std.U8} {r : frontend.olean.region.Region} {g i : Std.U64}
+    {stack : alloc.vec.Vec Std.U64} {sp : Option Std.Usize} {o : Option (List Nat)}
+    (hin : KidRel (sp, stack) o) {q} (h : push_kid bs r g i stack sp = ok q) :
+    KidRel q (ConRon.Arena.Frontend.Olean.pushKid (absRegion bs r) g.val i.val o) := by
+  rw [frontend.olean.lazy.push_kid.eq_def] at h
+  rcases hin with ⟨h1, rfl⟩ | ⟨sp1, l, h1, rfl, hs⟩
+  · simp only at h1
+    subst h1
+    cases Result.ok_injective h
+    exact Or.inl ⟨rfl, rfl⟩
+  · simp only at h1
+    subst h1
+    simp only at h
+    peel h as v, hv
+    peel h as oc, hoc
+    have ev := region_fld_eq bs (r := r) hv
+    have eo := region_down_eq bs hoc
+    simp only [ConRon.Arena.Frontend.Olean.pushKid]
+    rw [← ev, ← eo]
+    cases oc with
+    | none =>
+      cases Result.ok_injective h
+      exact Or.inl ⟨rfl, rfl⟩
+    | some c =>
+      obtain ⟨⟨i2, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      rw [push_at] at hp
+      peel hp as st2, hst2
+      peel hp as i3, hi3
+      cases Result.ok_injective hp
+      exact Or.inr ⟨_, _, rfl, rfl, hs.push hst2 hi3⟩
+
+/-- **`uses_go`'s loop is `usesGo`**, fuel for fuel, where the Rust's walk finishes. -/
+theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {stamp : Std.U64} :
+    ∀ (n : Nat) (fuel : Std.U64) (stamps : alloc.vec.Vec Std.U64) (ts : Array Nat)
+      (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (l : List Nat) (out : alloc.vec.Vec Std.U64)
+      (out' : Array UInt64) {stamps' stack' out''}, fuel.val = n → StampsRel stamps ts →
+      StackRel (·.val) stack sp l → OutRel out out' →
+      frontend.olean.lazy.uses_go_loop bs r stamps stamp stack out sp fuel = ok (true, stamps', stack', out'') →
+      ∃ ts' o', usesGo (absRegion bs r) ts stamp.val out' n l = some (ts', o') ∧
+        StampsRel stamps' ts' ∧ OutRel out'' o' := by
+  intro n
+  induction n with
+  | zero =>
+    intro fuel stamps ts stack sp l out out' stamps' stack' out'' hf hs hst ho h
+    rw [frontend.olean.lazy.uses_go_loop] at h
+    by_cases hp : sp > 0#usize
+    · rw [ite_eq_left hp] at h
+      have hz : fuel = 0#u64 := UScalar.eq_of_val_eq (by rw [hf]; rfl)
+      rw [ite_eq_left hz] at h
+      cases (Prod.mk.inj (Result.ok_injective h)).1
+    · rw [ite_eq_right hp] at h
+      obtain ⟨-, h2⟩ := Prod.mk.inj (Result.ok_injective h)
+      obtain ⟨rfl, h3⟩ := Prod.mk.inj h2
+      obtain ⟨-, rfl⟩ := Prod.mk.inj h3
+      rw [hst.nil_of_zero hp]
+      exact ⟨ts, out', by rw [usesGo], hs, ho⟩
+  | succ n ih =>
+    intro fuel stamps ts stack sp l out out' stamps' stack' out'' hf hs hst ho h
+    rw [frontend.olean.lazy.uses_go_loop] at h
+    by_cases hp : sp > 0#usize
+    · rw [ite_eq_left hp] at h
+      have hz : ¬ fuel = 0#u64 := fun he => by rw [he] at hf; simp at hf
+      rw [ite_eq_right hz] at h
+      peel h as fuel1, hfuel1
+      have ef := fuel_pred hfuel1
+      peel h as sp1, hsp1
+      obtain ⟨hi, l', rfl, hs1⟩ := hst.pop hp hsp1
+      peel h as g, hg
+      obtain ⟨_hlt, rfl⟩ := vec_index_eq hg
+      peel h as s, hs'
+      have es : s.val = stack.val[sp1.val].val / 8 := by
+        rw [ConRon.Refine.HashMap.uscalar_div_eq hs']; rfl
+      peel h as i, hi'
+      have ei := stamp_at_eq hs hi'
+      have hf1 : fuel1.val = n := by rw [ef, hf]; rfl
+      rw [usesGo]
+      simp only
+      rw [← es, ← ei]
+      by_cases hne : (i != stamp) = true
+      · rw [ite_eq_left hne] at h
+        have hne' : ¬ (i.val == stamp.val) = true := by
+          intro he; simp only [bne_iff_ne, ne_eq] at hne
+          exact hne (UScalar.eq_of_val_eq (by simpa using he))
+        rw [ite_eq_right hne']
+        simp only [lift, bind_ok] at h
+        obtain ⟨stamps1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hS1 := stamps_set_rel hs (by rw [cast_u64_usize, vec_len_val]) hst1
+        peel h as b, hb
+        have eb := region_fits_eq bs hb
+        cases b with
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte] at h
+          cases (Prod.mk.inj (Result.ok_injective h)).1
+        | true =>
+          simp only [↓reduceIte] at h
+          rw [← eb]
+          simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          peel h as t, ht
+          peel h as nn, hn
+          have et := region_tag_eq bs (r := r) ht
+          have en := region_nobjs_eq bs (r := r) hn
+          rw [← et, ← en]
+          obtain ⟨⟨stack1, out1, next⟩, hD, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases next with
+          | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+          | some s2 =>
+          have fin : ∀ L O, StackRel (·.val) stack1 s2 L → OutRel out1 O →
+              ∃ ts' o', usesGo (absRegion bs r) (ts.set! s.val stamp.val) stamp.val O n L = some (ts', o') ∧
+                StampsRel stamps' ts' ∧ OutRel out'' o' :=
+            fun L O hL hO => ih fuel1 stamps1 _ stack1 s2 L out1 O hf1 hS1 hL hO h
+          have hK0 : KidRel (some sp1, stack) (some l') := Or.inr ⟨sp1, l', rfl, rfl, hs1⟩
+          have tne : ∀ {K : Std.U64}, t.val ≠ K.val → t ≠ K := fun hk he => hk (by rw [he])
+          have nne : ∀ {K : Std.U64}, nn.val ≠ K.val → nn ≠ K := fun hk he => hk (by rw [he])
+          have none_out : ∀ {st : alloc.vec.Vec Std.U64} {o : alloc.vec.Vec Std.U64},
+              (ok (st, o, none) : Result _) = ok (stack1, out1, some s2) → False := fun hD => by
+            cases (triple_ok hD).2.2
+          -- one kid onto the stack, then the walk on
+          have kid1 : ∀ {i : Std.U64} {st2 : alloc.vec.Vec Std.U64},
+              push_kid bs r stack.val[sp1.val] i stack (some sp1) = ok (some s2, st2) → st2 = stack1 →
+              ∃ L, ConRon.Arena.Frontend.Olean.pushKid (absRegion bs r) stack.val[sp1.val].val i.val (some l') = some L ∧
+                StackRel (·.val) stack1 s2 L := by
+            intro i st2 hk e
+            subst e
+            rcases push_kid_rel hK0 hk with ⟨h1, -⟩ | ⟨sp, L, hsp, hL, hSt⟩
+            · cases h1
+            · cases hsp
+              exact ⟨L, hL, hSt⟩
+          rcases (by omega : t.val = 0 ∨ t.val = 3 ∨ t.val = 4 ∨ t.val = 5 ∨ t.val = 6 ∨ t.val = 7 ∨
+              t.val = 8 ∨ t.val = 9 ∨ t.val = 10 ∨ t.val = 11 ∨
+              (t.val ≠ 0 ∧ t.val ≠ 3 ∧ t.val ≠ 4 ∧ t.val ≠ 5 ∧ t.val ≠ 6 ∧ t.val ≠ 7 ∧ t.val ≠ 8 ∧
+                t.val ≠ 9 ∧ t.val ≠ 10 ∧ t.val ≠ 11)) with
+            ht0 | ht0 | ht0 | ht0 | ht0 | ht0 | ht0 | ht0 | ht0 | ht0 | hother
+          -- `0, 1` and `3, 1`: nothing below
+          · rw [ht0]
+            obtain rfl : t = 0#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 1
+            · rw [hn]
+              obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              exact fin l' out' hs1 ho
+            · exfalso
+              have hn' := nne (K := 1#u64) (by rw [u64_val_1]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          · rw [ht0]
+            obtain rfl : t = 3#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 1
+            · rw [hn]
+              obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              exact fin l' out' hs1 ho
+            · exfalso
+              have hn' := nne (K := 1#u64) (by rw [u64_val_1]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `4, 2`: the constant's name
+          · rw [ht0]
+            obtain rfl : t = 4#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 2
+            · rw [hn]
+              obtain rfl : nn = 2#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              peel hD as i3, hi3
+              peel hD as out2, hout2
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              refine fin l' _ hs1 ?_
+              show List.map absWord _ = _
+              rw [ConRon.Refine.vec_push_val hout2, List.map_append, ho, List.map_cons, List.map_nil,
+                region_fld_eq bs hi3, u64_val_0, Array.toList_push]
+            · exfalso
+              have hn' := nne (K := 2#u64) (by rw [u64_val_2]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `5, 2`: two kids
+          · rw [ht0]
+            obtain rfl : t = 5#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 2
+            · rw [hn]
+              obtain rfl : nn = 2#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              have K1 := push_kid_rel hK0 hk1
+              have K2 := push_kid_rel K1 hk2
+              rw [u64_val_1, u64_val_0] at K2
+              rcases K2 with ⟨h1, -⟩ | ⟨sp, L, hsp, hL, hSt⟩
+              · cases h1
+              · cases hsp
+                rw [hL]
+                exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 2#u64) (by rw [u64_val_2]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `6, 3` and `7, 3`: two kids
+          · rw [ht0]
+            obtain rfl : t = 6#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 3
+            · rw [hn]
+              obtain rfl : nn = 3#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              have K1 := push_kid_rel hK0 hk1
+              have K2 := push_kid_rel K1 hk2
+              rw [u64_val_2, u64_val_1] at K2
+              rcases K2 with ⟨h1, -⟩ | ⟨sp, L, hsp, hL, hSt⟩
+              · cases h1
+              · cases hsp
+                rw [hL]
+                exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 3#u64) (by rw [u64_val_3]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          · rw [ht0]
+            obtain rfl : t = 7#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 3
+            · rw [hn]
+              obtain rfl : nn = 3#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              have K1 := push_kid_rel hK0 hk1
+              have K2 := push_kid_rel K1 hk2
+              rw [u64_val_2, u64_val_1] at K2
+              rcases K2 with ⟨h1, -⟩ | ⟨sp, L, hsp, hL, hSt⟩
+              · cases h1
+              · cases hsp
+                rw [hL]
+                exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 3#u64) (by rw [u64_val_3]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `8, 4`: three kids
+          · rw [ht0]
+            obtain rfl : t = 8#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 4
+            · rw [hn]
+              obtain rfl : nn = 4#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨b1, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx, st4⟩, hk3, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              have K1 := push_kid_rel hK0 hk1
+              have K2 := push_kid_rel K1 hk2
+              have K3 := push_kid_rel K2 hk3
+              rw [u64_val_3, u64_val_2, u64_val_1] at K3
+              rcases K3 with ⟨h1, -⟩ | ⟨sp, L, hsp, hL, hSt⟩
+              · cases h1
+              · cases hsp
+                rw [hL]
+                exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 4#u64) (by rfl_or_exact)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `9, 1`: a literal
+          · rw [ht0]
+            obtain rfl : t = 9#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 1
+            · rw [hn]
+              obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              peel hD as i3, hi3
+              peel hD as oc, hoc
+              obtain ⟨⟨v1, o1⟩, hm, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              have ef : (absRegion bs r).fld stack.val[sp1.val].val 0 = absWord i3 := by
+                rw [region_fld_eq bs hi3, u64_val_0]
+              rw [ef, ← region_down_eq bs hoc]
+              cases oc with
+              | none =>
+                cases Result.ok_injective hm
+                cases hc
+              | some c =>
+                simp only [locOf, Option.map_some]
+                peel hm as b1, hb1
+                have e1 := region_is_ctor_eq bs hb1
+                rw [u64_val_0, u64_val_1] at e1
+                rw [← e1]
+                cases b1 with
+                | true =>
+                  simp only [↓reduceIte] at hm ⊢
+                  peel hm as out2, hout2
+                  cases Result.ok_injective hm
+                  cases hc
+                  refine fin l' _ hs1 ?_
+                  show List.map absWord _ = _
+                  rw [ConRon.Refine.vec_push_val hout2, List.map_append, ho]
+                  simp only [List.map_cons, List.map_nil, Array.toList_push]
+                  unfold frontend.olean.lazy.USES_NAT; rfl
+                | false =>
+                  simp only [Bool.false_eq_true, ↓reduceIte] at hm ⊢
+                  peel hm as b2, hb2
+                  have e2 := region_is_ctor_eq bs hb2
+                  rw [u64_val_1] at e2
+                  rw [← e2]
+                  cases b2 with
+                  | true =>
+                    simp only [↓reduceIte] at hm ⊢
+                    peel hm as out2, hout2
+                    cases Result.ok_injective hm
+                    cases hc
+                    refine fin l' _ hs1 ?_
+                    show List.map absWord _ = _
+                    rw [ConRon.Refine.vec_push_val hout2, List.map_append, ho]
+                    simp only [List.map_cons, List.map_nil, Array.toList_push]
+                    unfold frontend.olean.lazy.USES_STR; rfl
+                  | false =>
+                    simp only [Bool.false_eq_true, ↓reduceIte] at hm
+                    cases Result.ok_injective hm
+                    cases hc
+            · exfalso
+              have hn' := nne (K := 1#u64) (by rw [u64_val_1]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `10, 2`: one kid
+          · rw [ht0]
+            obtain rfl : t = 10#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 2
+            · rw [hn]
+              obtain rfl : nn = 2#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨st2, nx⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx', st2'⟩, hk1', he⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk1
+              cases Result.ok_injective he
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              obtain ⟨L, hL, hSt⟩ := kid1 hk1' rfl
+              rw [u64_val_1] at hL
+              rw [hL]
+              exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 2#u64) (by rw [u64_val_2]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- `11, 3`: one kid
+          · rw [ht0]
+            obtain rfl : t = 11#u64 := UScalar.eq_of_val_eq (ht0.trans rfl)
+            by_cases hn : nn.val = 3
+            · rw [hn]
+              obtain rfl : nn = 3#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
+              simp (config := {decide := true}) only [↓reduceIte] at hD
+              obtain ⟨⟨st2, nx⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨nx', st2'⟩, hk1', he⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk1
+              cases Result.ok_injective he
+              obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
+              cases hc
+              obtain ⟨L, hL, hSt⟩ := kid1 hk1' rfl
+              rw [u64_val_2] at hL
+              rw [hL]
+              exact fin L out' hSt ho
+            · exfalso
+              have hn' := nne (K := 3#u64) (by rw [u64_val_3]; exact hn)
+              simp (config := {decide := true}) only [↓reduceIte, hn', bind_ok] at hD
+              exact none_out hD
+          -- no expression object
+          · exfalso
+            obtain ⟨n0, n3, n4, n5, n6, n7, n8, n9, n10, n11⟩ := hother
+            have t0 := tne (K := 0#u64) (by rw [u64_val_0]; exact n0)
+            have t3 := tne (K := 3#u64) (by rw [u64_val_3]; exact n3)
+            have t4 := tne (K := 4#u64) (by rfl_or_exact)
+            have t5 := tne (K := 5#u64) (by rfl_or_exact)
+            have t6 := tne (K := 6#u64) (by rfl_or_exact)
+            have t7 := tne (K := 7#u64) (by rfl_or_exact)
+            have t8 := tne (K := 8#u64) (by rfl_or_exact)
+            have t9 := tne (K := 9#u64) (by rfl_or_exact)
+            have t10 := tne (K := 10#u64) (by rfl_or_exact)
+            have t11 := tne (K := 11#u64) (by rfl_or_exact)
+            simp only [↓reduceIte, t0, t3, t4, t5, t6, t7, t8, t9, t10, t11, bind_ok] at hD
+            exact none_out hD
+      · simp only [Bool.not_eq_true, bne_eq_false_iff_eq] at hne
+        subst hne
+        rw [ite_eq_right (by simp)] at h
+        rw [ite_eq_left (by simp)]
+        exact ih fuel1 stamps ts stack sp1 l' out out' hf1 hs hs1 ho h
+    · rw [ite_eq_right hp] at h
+      obtain ⟨-, h2⟩ := Prod.mk.inj (Result.ok_injective h)
+      obtain ⟨rfl, h3⟩ := Prod.mk.inj h2
+      obtain ⟨-, rfl⟩ := Prod.mk.inj h3
+      rw [hst.nil_of_zero hp]
+      exact ⟨ts, out', by rw [usesGo], hs, ho⟩
 
 /-- **`uses_of` is `usesOf`**, from fresh stamps: every constant's output. -/
 theorem uses_of_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
