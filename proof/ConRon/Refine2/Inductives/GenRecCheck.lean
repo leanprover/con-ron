@@ -239,7 +239,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf) :
     ∀ (j : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc tele leaf
+        (arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc tele leaf
           fvs i es j) lst
         (classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs) (absU i)
@@ -249,7 +249,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     (fun l => classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p)
       (absEIdxL former_tys) (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs)
       (absU i) l)
-    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc
+    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc
       tele leaf fvs i es j) ?_ ?_ j st lst hrel hinv
   · intro st lst j hn hrel hinv
     rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
@@ -336,7 +336,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -345,7 +345,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.U64 => i.val) ks.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -374,7 +374,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     LS pers (fun _ _ => True)
-      (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es 0#u64
+      (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es 0#u64
         ks) lst
       (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) 0
@@ -396,7 +396,7 @@ attribute [local lockstep high] rc_ctors_dup_spec
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (c_a : arena.env.IConstantVal × Std.U64) :
     LS pers (fun a b => b = absClassCtor a)
-      (arena.inductives.gen_rec.class_ctor_of pers st mode vis rf p former_tys rd ms c c_a) lst
+      (arena.inductives.gen_rec.class_ctor_of pers st mode rf p former_tys rd ms c c_a) lst
       (classCtorOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absIConstantVal c_a.1, absU c_a.2)) := by
   rw [arena.inductives.gen_rec.class_ctor_of, classCtorOf]
@@ -427,7 +427,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i)) := by
@@ -435,7 +435,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i))) ?_ ?_ i
@@ -464,7 +464,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LS pers (fun a b => b = absClassCtorL a)
-      (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs 0#usize
+      (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs 0#usize
         (alloc.vec.Vec.new _)) lst
       (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsL cs)) := by
@@ -485,7 +485,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
     ∀ (c : Std.Usize) (out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor)) := by
@@ -493,7 +493,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun c out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor))) ?_ ?_ c
@@ -521,7 +521,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absClassCtorLL a)
-      (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms 0#usize
+      (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) 0 (ms.val.map absTargetMajor)) := by
@@ -599,14 +599,14 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i
   · intro i out hn st lst hrel hinv
@@ -633,7 +633,7 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absTargetMajorL a)
-      (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms 0#usize
+      (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (tbl.val.map absNestCtorNf) (ms.val.map absTargetMajor)) := by
