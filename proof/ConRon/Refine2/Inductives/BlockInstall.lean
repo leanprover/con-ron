@@ -74,12 +74,143 @@ attribute [local lockstep_simp] Lockstep.core_walk_fuel_val absMemberShape_cvT
 
 /-! ## The capability record: `block_caps_at` (pure) -/
 
-/-- `block_caps_at` ⊑ `blockCapsAt` — the capability record of member `mi`. -/
+theorem ctor_name_list_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.block_install.ctor_name_list cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ ((cs.val.drop i.val).map fun p => absNIdx p.1.name) := by
+  have key := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (arena.inductives.block_install.ctor_name_list cs) ?_ ?_
+  · intro i out o h
+    simpa [absNIdxL] using key i out o h
+  · intro i out o hn h
+    rw [arena.inductives.block_install.ctor_name_list.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.block_install.ctor_name_list.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+/-- `ctor_name_list` from `0` is `blockCapsAt`'s `cs.map (·.1.name)`. -/
+@[lockstep] theorem ctor_name_list_twin0 (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.block_install.ctor_name_list cs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absCtorsL cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor_name_list_abs _ _ o h]
+  simp [absNIdxL, absCtorsL, absIConstantVal]
+
+theorem bi_vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) (k : Nat)
+    (hi : i.val = k) (hk : k < v.val.length) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[k] := by
+  subst hi
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+  simp [List.getElem?_eq_getElem hk]
+
+/-- `block_caps_at` ⊑ `blockCapsAt` — the capability record of member `mi`.
+The Rust tests `mi < len && ctors.len() == 1` where the twin matches
+`members[mi]?` and `[c]`: the Rust's tests are decided first. -/
 @[lockstep] theorem block_caps_at_twin (p : arena.inductives.block_shape.BlockShape) (mi : Std.U64)
     (is_rec : Bool) :
     LSP (arena.inductives.block_install.block_caps_at p mi is_rec)
       (fun o => TwinEq (blockCapsAt (absBlockShape p) (absU mi) is_rec) (absIIndCaps o)) := by
-  sorry -- T143-STUB
+  intro o h
+  rw [arena.inductives.block_install.block_caps_at] at h
+  obtain ⟨names, hnames, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hn := shape_member_names_twin p names hnames
+  simp only [TwinEq] at hn
+  rw [TwinEq, blockCapsAt]
+  simp only [lift, bind_ok] at h
+  by_cases hm : mi.val < p.members.val.length
+  · have hget : (absBlockShape p).members[absU mi]? =
+        some (absMemberShape p.members.val[mi.val]) := by
+      show (p.members.val.map absMemberShape)[mi.val]? = _
+      rw [List.getElem?_map, List.getElem?_eq_getElem hm]; rfl
+    rw [hget]
+    dsimp only
+    have hI : (UScalar.cast .Usize mi : Std.Usize).val = mi.val := by
+      rcases lift_cast_usize_of_u64 mi _ rfl with h | h
+      · exact h
+      · exfalso; have := p.members.property; scalar_tac
+    have h1 : mi < UScalar.cast .U64 (alloc.vec.Vec.len p.members) := by
+      have := lift_cast_u64_of_usize (alloc.vec.Vec.len p.members) _ rfl
+      simp only [alloc.vec.Vec.len] at this
+      scalar_tac
+    have hidx := bi_vec_index_eq p.members (UScalar.cast .Usize mi) mi.val hI hm
+    simp only [ite_eq_left h1, hidx, bind_ok] at h
+    generalize p.members.val[mi.val] = m at h ⊢
+    rcases hc : m.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
+    · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
+        intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+      simp only [ite_eq_right hlen] at h
+      obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      cases Result.ok_injective hq
+      simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word, bind_ok] at h
+      cases Result.ok_injective h
+      have hv' := ctor_name_list_twin0 _ v hv
+      simp only [TwinEq, absCtorsL, hc, List.map_nil] at hv'
+      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact hn | exact hv'
+    · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
+        have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+        scalar_tac
+      have hidx0 : alloc.vec.Vec.index
+          (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+          m.ctors 0#usize = ok (cv, nf) := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [hc]
+      simp only [hlen, ↓reduceIte, hidx0, bind_ok,
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2] at h
+      obtain ⟨eta, heta, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ul, hul, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ctors, hctors, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_nil,
+        absMemberShape_nIdx, absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
+        IIndCaps.mk.injEq]
+      simp only [pn_u64_bne_zero] at heta hul
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+        first
+        | trivial
+        | rfl
+        | exact hn
+        | (split_ifs at heta <;> simp_all [absU]; done)
+        | (split_ifs at hul <;> simp_all [absU] <;> (split_ifs at * <;> simp_all); done)
+    · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
+        intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+      simp only [ite_eq_right hlen] at h
+      obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      cases Result.ok_injective hq
+      simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word, bind_ok] at h
+      cases Result.ok_injective h
+      have hv' := ctor_name_list_twin0 _ v hv
+      simp only [TwinEq, absCtorsL, hc] at hv'
+      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact hn | exact hv'
+  · have hget : (absBlockShape p).members[absU mi]? = none := by
+      show (p.members.val.map absMemberShape)[mi.val]? = _
+      rw [List.getElem?_eq_none (by simp; omega)]
+    rw [hget]
+    dsimp only
+    have h1 : ¬ mi < UScalar.cast .U64 (alloc.vec.Vec.len p.members) := by
+      have := lift_cast_u64_of_usize (alloc.vec.Vec.len p.members) _ rfl
+      simp only [alloc.vec.Vec.len] at this
+      scalar_tac
+    simp only [ite_eq_right h1, bind_ok, arena.env.i_ind_caps_default, arena.handle.NIdx.of_word]
+      at h
+    cases Result.ok_injective h
+    simp only [absIIndCaps, hn]
+    rfl
 
 /-! ## Official's `is_rec`: `pi_doms_mention_any`, `ctors_mention_any`,
 `members_mention_any`, `block_raw_rec` -/
@@ -189,7 +320,14 @@ declared. -/
     LSR pers (fun a b => b = a)
       (arena.inductives.block_install.block_is_rec pers st p) st lst
       (blockIsRec (absBlockShape p)) := by
-  sorry -- T143-STUB
+  intro o h
+  rw [arena.inductives.block_install.block_is_rec] at h
+  obtain ⟨names, hnames, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hn := shape_member_names_twin p names hnames
+  simp only [TwinEq] at hn
+  have key := members_mention_any_ls hrel hinv names p.members 0#usize o h
+  rw [blockIsRec, hn]
+  simpa [absMemberShapeLFrom, absBlockShape] using key
 
 /-! ## Stage 1: the formers -/
 
@@ -207,6 +345,35 @@ def absTeleL (v : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
     List (IConstantVal × LIdx) :=
   v.val.map fun p => (absIConstantVal p.1, absLIdx p.2)
 
+theorem check_block_teles_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf lf} {n_p : Std.U64}
+      {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)},
+      ms.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI pers rf lf →
+      LS pers (fun a b => b = absTeleL a)
+        (arena.inductives.block_install.check_block_teles pers st mode rf n_p ms i out) lst
+        (do
+          let r ← checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p)
+            (absMemberShapeLFrom ms i)
+          pure (absTeleL out ++ r)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_block_teles, ite_eq_left (by scalar_tac),
+      absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega), checkBlockTeles]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_block_teles, ite_eq_right (by scalar_tac),
+      absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega), checkBlockTeles]
+    lockstep
+    rename_i o1 ho1
+    have ha : a.val = i.val + 1 := by scalar_tac
+    refine LS.tail (ih (i := a) (out := o1) (by omega) hrel hinv hfe) ?_ (fun _ _ h => h)
+    simp only [absMemberShapeLFrom, ha, absTeleL, ho1, List.map_append, List.map_cons,
+      List.map_nil, List.append_assoc, List.cons_append, List.nil_append]
+
 /-- `check_block_teles` ⊑ `checkBlockTeles` from the cursor on, behind the
 accumulator. -/
 @[lockstep] theorem check_block_teles_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -219,8 +386,8 @@ accumulator. -/
       (do
         let r ← checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p)
           (absMemberShapeLFrom ms i)
-        pure (absTeleL out ++ r)) := by
-  sorry -- T143-STUB
+        pure (absTeleL out ++ r)) :=
+  check_block_teles_aux _ rfl hrel hinv hfe
 
 theorem bi_u64_sub_one (x : Std.U64) : LSP (x - 1#u64) (fun z => z.val = x.val - 1) := by
   intro z h
@@ -287,7 +454,28 @@ cursor on. -/
     (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) :
     LSP (arena.inductives.block_install.member_declared ms 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq ((ms.val.map absMemberShape).map (·.declared)) (absICVL o)) := by
-  sorry -- T143-STUB
+  intro o h
+  have key := vec_cursor_copy ms absIConstantVal (fun m => absIConstantVal m.declared)
+    (fun i out => arena.inductives.block_install.member_declared ms i out) ?_ ?_ 0#usize _ o h
+  · rw [TwinEq, absICVL, key]
+    simp [alloc.vec.Vec.new, absMemberShape]
+  · intro i out o hn h
+    rw [arena.inductives.block_install.member_declared.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.block_install.member_declared.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine ⟨i2, iv, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv]
 
 /-- `cons_block_inds` ⊑ `consBlockInds` from the cursor on: the formers pushed
 in block order, each with its capability record.  Pure on both sides. -/
