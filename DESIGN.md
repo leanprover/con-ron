@@ -71609,6 +71609,8 @@ denotation of `r'.decls`; `readOleans_thm`'s argument gives the `thmDecl` in `ds
 counterpart: as for the stream, the premises state what the driver runs.  The `h3` store is `st2.store`,
 since the reader takes the store alone, `AState` unchanged around it.
 
-The gate left for the landing: `scripts/dead-census-gate.sh` has `ConRon.Arena.OleanCompareExe` as
-an executable root, so that the reader's twin is reachable; it was not run here, and neither was a
-`lake build` of `ConRonRefine2`/`ConRonBridge` against the grown `Funs.lean`.
+**The rest of the chain, against the grown `Funs.lean`.**  `lake build` (every default target, the
+capstone included) and `lake build ConRon.Bridge ConRon.Refine2`: green, no proof touched.
+`scripts/dead-census-gate.sh`, with `ConRon.Arena.OleanCompareExe` as a new executable root so that the
+twin reader is reachable: OK.  `con-ron-lean` on diff-e2e: 640/640, command-line gate 10/10, display gate
+6/9, the three #139 recorded.  `scripts/gates.sh` as a whole was not run.
