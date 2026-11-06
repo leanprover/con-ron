@@ -257,7 +257,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   if (← reservedBasisNames).contains cv.name then
     fail (.invalid "reserved basis name")
   if (← natOpName cv.name) && !allowOp then
-    fail (.invalid s!"a certified Nat operation's name, not a definition: {← readNameM cv.name}")
+    fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
   unless ← litShapeOk (.axiomInfo cv) do
     fail (.notImplemented "a declaration at a literal's name with another shape")
   unless nameNodup cv.levelParams do

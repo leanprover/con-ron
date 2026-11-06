@@ -51,7 +51,7 @@ public import ConLeche.Verify.Cached.BlockRunC
 /- `simp only` unfolds the toolchain's monadic list functions (`List.filterM`,
 `List.findM?`, …), whose bodies `Init.Data.List.Control` does not expose. -/
 import all Init.Data.List.Control
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
 import ConLeche.Verify.Inductives.RecCheckScope

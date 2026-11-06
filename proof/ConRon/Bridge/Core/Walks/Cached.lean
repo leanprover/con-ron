@@ -473,9 +473,8 @@ it also says that both handles denote.
 The verdict is an equation, not "∀ b, r = some b → …": the walk's `none` is
 `isEquiv`'s own `none` and nothing else — `lvlEq?` returns the memo row or
 `Level.isEquiv lu lv` itself — and a caller that must decide a GUARD off the
-verdict needs the negative half: `IProjEntry.fireOk` fires the projection
-rule when the structure sort is NOT provably zero, so a one-directional spec
-would leave the `none` case unrelatable (`Bridge/Inductives/SumParts.lean`
+verdict needs the negative half, so a one-directional spec would leave the
+`none` case unrelatable (`Bridge/Inductives/SumParts.lean`
 reads `lvlEq?_spec` at both signs). -/
 theorem lvlEq?_specA (s₀ : AState) (u v : LIdx) (hok : CheckOK eager env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlEq? u v

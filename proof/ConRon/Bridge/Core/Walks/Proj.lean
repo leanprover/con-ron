@@ -2,18 +2,17 @@
 # `ConRon.Bridge.Core.Walks.Proj` — the projection table
 
 The projection table's walks: the indexed lookup at
-`Bridge/Rel.lean`'s `denoteProjEntry`, the tower-fire guard, the `.proj`
-node's type and the projection certificates.  Without `denoteProjEntry` an
-`IProjEntry` (`Arena/Env.lean:150`, ten fields, four of them handles) has no
-denotation, and `IProjEntry.typeAt`, `projCert`, `IProjEntry.fireOk` and the
-`.proj` arms of `whnfCoreBody` and `inferBody` could not be stated.
+`Bridge/Rel.lean`'s `denoteProjEntry`, the `.proj` node's type and the
+projection certificates.  Without `denoteProjEntry` an `IProjEntry` has no
+denotation, and `IProjEntry.typeAt`, `projCert` and the `.proj` arms of
+`whnfCoreBody` and `inferBody` could not be stated.  The projection guard
+`inferBody` runs at use is `Walks/ProjGuard.lean`'s.
 
 ## The statements
 
 | theorem | what it is |
 |---|---|
 | `findProjAt`, `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` |
-| `IProjEntry.fireOk_spec` | the tower-fire guard |
 | `IProjEntry.typeAt_spec` | the `.proj` node's type |
 | `iotaCerts_spec` | the batched spine certificate |
 | `projCert_spec`, `projCertAt_spec` | the structural projection's certificate |
@@ -40,13 +39,11 @@ owned by the Inductives tier).
 
 ## 2. The `readNamesM` frame
 
-`IProjEntry.fireOk` reads a level-parameter list back, and its caller must
-rebuild `CacheOK` afterwards, so it needs the call's frame.
-`readNamesM_frame` states that frame as `ReadbackFrame` together with the
-list's denotation, about `readNamesM` itself, proved with
-`vcgen [-readNamesM_spec, …]`; `IProjEntry.fireOk_spec` erases the
-registered spec the same way and passes the frame instead (`vcgen` erases a
-registered spec per call).
+A walk that reads a level-parameter list back must rebuild `CacheOK`
+afterwards, so it needs the call's frame.  `readNamesM_frame` states that
+frame as `ReadbackFrame` together with the list's denotation, about
+`readNamesM` itself, proved with `vcgen [-readNamesM_spec, …]` (`vcgen` erases
+a registered spec per call).
 -/
 module
 
