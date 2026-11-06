@@ -8,16 +8,19 @@ tier.  `pooled_fold_oleans`: every such job passing is an accept of con-leche's 
 FILLED stream `dsF`, the records with every reference replaced by the value the job reads.
 
 The index is built from the records with their references (`IndexDenotes … (buildIndex dsP)`);
-what a record installs does not read a theorem's value (upstream's `declConstants_fillDecl`), so
-that index is the filled stream's (`buildIndex_congr`).  A job is `Pooled.lean`'s step with the
-value read in between (`ValueSpec`, the reader's walk); every other record's job is `recordJob`.
+what a record installs does not read a theorem's value, so that index is the filled stream's
+(upstream's `buildIndex_fill`).  A reference's job is `Pooled.lean`'s step with the value read in
+between (`readValue_run`, the reader's walk) and the record checked with it (`oleanJob_spec`);
+every other record's job is `recordJob` (`job_spec`).
 -/
 module
 
 public import ConRon.Bridge.Checker.Pooled
 public import ConRon.Arena.OleanJobs
 public import ConRon.Bridge.Frontend.Olean.Value
+public import ConLeche.Verify.Cached.Fill
 import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Specs
 
 public section
 
@@ -112,38 +115,6 @@ theorem valueOf_eq {sp : ConLeche.Frontend.Olean.SearchPath} {F : FS} {valuesP :
   rw [dite_eq_left hex]
   exact ConLeche.Frontend.Olean.ValueAt.unique (Classical.choose_spec hex) h
 
-/-! ## The index does not read a value -/
-
-/-- con-leche: ConLeche/Verify/Cached/Fill.lean:27 declConstants_fillDecl — **two streams whose
-records install the same have the same index**. -/
-theorem buildIndex_congr {dsF dsP : List Declaration}
-    (h : dsF.map (fun d => (ConLeche.declConstants d, ConLeche.declTables d)) =
-      dsP.map (fun d => (ConLeche.declConstants d, ConLeche.declTables d))) :
-    ConLeche.Cached.buildIndex dsF.toArray = ConLeche.Cached.buildIndex dsP.toArray := by
-  simp only [ConLeche.Cached.buildIndex, List.foldl_toArray']
-  suffices ∀ (a b : List Declaration) (J : ConLeche.Cached.StreamIndex),
-      a.map (fun d => (ConLeche.declConstants d, ConLeche.declTables d)) =
-        b.map (fun d => (ConLeche.declConstants d, ConLeche.declTables d)) →
-      a.foldl ConLeche.Cached.StreamIndex.add J = b.foldl ConLeche.Cached.StreamIndex.add J from
-    this dsF dsP {} h
-  intro a
-  induction a with
-  | nil => intro b J h; cases b with
-    | nil => rfl
-    | cons _ _ => simp at h
-  | cons x a ih =>
-    intro b J h
-    cases b with
-    | nil => simp at h
-    | cons y b =>
-      simp only [List.map_cons, List.cons.injEq, Prod.mk.injEq] at h
-      obtain ⟨⟨hc, ht⟩, hrest⟩ := h
-      simp only [List.foldl_cons]
-      have : J.add x = J.add y := by
-        simp only [ConLeche.Cached.StreamIndex.add, hc, ht]
-      rw [this]
-      exact ih b _ hrest
-
 /-! ## An `--olean` job, read off -/
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — **an accepted `--olean` job**
@@ -214,5 +185,216 @@ theorem oleanJob_ok {fs : ConRon.Arena.Frontend.Olean.OleanFs}
       obtain ⟨rfl, hj⟩ := plain hx
       exact ⟨rfl, hj, fun cv v hd => absurd (congrArg some hd) (hnot cv v)⟩
     · cases h
+
+/-! ## The `--olean` jobs, as `Pooled.lean`'s step -/
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — the `--olean` step: job `k`
+from a worker's state and cache, accepted. -/
+@[expose] def OleanRun (fs : ConRon.Arena.Frontend.Olean.OleanFs)
+    (pk : ConRon.Arena.Frontend.Olean.OleanPins) (sp : List System.FilePath)
+    (values : Array ConRon.Arena.Frontend.Olean.ModRef) (pins : List INatOpPinSet)
+    (I : IStreamIndex) (ds : Array IDeclaration) (k : Nat) (w w' : AState × ValueCache) : Prop :=
+  ∃ _ : k < ds.size, oleanJob fs pk sp values .verified pins I ds w.2 k w.1 = .ok ((w'.2, .ok ()), w'.1)
+
+/-- con-leche: ConLeche/Verify/Cached/Fill.lean:21 fillDecl — the filled stream: every
+reference replaced by the snapshot's value there. -/
+noncomputable def fillStream (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS)
+    (valuesP : Array ConLeche.Frontend.Olean.ModRef) (dsP : List Declaration) : List Declaration :=
+  dsP.map (ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)))
+
+theorem fillRef_of_not_bvar {val : Nat → Expr} {x : Expr} (h : ∀ n, x ≠ .bvar n) :
+    fillRef val x = x := by
+  cases x <;> simp_all [fillRef]
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — **an `--olean` job's accept
+is the fold's step at the filled record**. -/
+theorem oleanJob_spec (V : Type w) [ConLeche.SetTheory V]
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {values : Array ConRon.Arena.Frontend.Olean.ModRef}
+    {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+    {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₀ s₁ : AState}
+    (hrec : RecordSpec pins pinsP) (hpp : PersPinSets pins)
+    (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁) (hpins : PinsDenote s₁.store pins pinsP)
+    (hpd : ∀ x ∈ ds.toList, PersDecl x)
+    (hden : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
+      Frontend.denoteDecl s₁.store ds[i] = some dsP[i])
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
+    (hpI : PersIFBase I.base)
+    (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s₁.store)
+    (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) :
+    JobSpecAt (fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)
+      (OleanRun (Frontend.Olean.modelFs F) pk sp values pins I ds) pinsP
+      (fillStream sp F valuesP dsP) := by
+  intro k w w' hkF hw hP hnd hrun
+  obtain ⟨hk, hjob⟩ := hrun
+  obtain ⟨hkP, hdk⟩ := hden k hk
+  have hI' : IndexDenotes s₁.store I
+      (ConLeche.Cached.buildIndex (fillStream sp F valuesP dsP).toArray) := by
+    simp only [fillStream, ← List.map_toArray, ConLeche.Cached.buildIndex_fill]; exact hI
+  have hFk : (fillStream sp F valuesP dsP)[k]'hkF =
+      ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)) (dsP[k]'hkP) := by
+    simp [fillStream]
+  rcases oleanJob_ok hk hjob with ⟨hc, hj, hnot⟩ | ⟨cv, v, code, e, sr, hd, hcode, hread, hcheck⟩
+  · -- the plain job: the record is its own fill
+    have hfill : ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)) (dsP[k]'hkP) =
+        dsP[k]'hkP := by
+      generalize dsP[k]'hkP = d at hdk ⊢
+      cases hdk' : ds[k] with
+      | thmDecl cv v =>
+        have hnone := hnot cv v hdk'
+        rw [hdk'] at hdk
+        simp only [Frontend.denoteDecl] at hdk
+        split at hdk
+        · rename_i cv' x hcv hx
+          cases hdk
+          have hpk : PersDecl (IDeclaration.thmDecl cv v) := by
+            have := hpd _ (Array.getElem_mem_toList hk); rw [hdk'] at this; exact this
+          have hxw : denoteE w.1.store v = some x := denoteE_pext hw.1.pext hpk.2 hx
+          have hnb : ∀ n, x ≠ .bvar n := fun n hxn =>
+            by rw [(refTest_iff hw.1.state.wf hxw n).mpr hxn] at hnone; cases hnone
+          simp only [ConLeche.Cached.fillDecl, fillRef_of_not_bvar hnb]
+        · cases hdk
+      | _ =>
+        rw [hdk'] at hdk
+        simp only [Frontend.denoteDecl] at hdk
+        first
+        | (obtain ⟨_, -, hh⟩ := Option.map_eq_some_iff.mp hdk; rw [← hh]; rfl)
+        | (split at hdk
+           · cases hdk; rfl
+           · cases hdk)
+    obtain ⟨hw', env', Fu, hFu⟩ :=
+      job_spec V hrec hpp hpinsOK hpersPins hpins hpd hI' hpI hw.1 hk hkF
+        (by rw [hFk, hfill]; exact hdk) hP hnd hj
+    exact ⟨⟨hw', hc ▸ hw.2⟩, env', Fu, hFu⟩
+  · -- the reference read in the job
+    have hpk : PersDecl (IDeclaration.thmDecl cv v) := by
+      have := hpd _ (Array.getElem_mem_toList hk); rw [hd] at this; exact this
+    rw [hd] at hdk
+    obtain ⟨cv', x, hcv, hx, hdP⟩ : ∃ cv' x, Frontend.denoteCV s₁.store cv = some cv' ∧
+        denoteE s₁.store v = some x ∧ dsP[k]'hkP = .thmDecl cv' x := by
+      simp only [Frontend.denoteDecl] at hdk
+      cases h1 : Frontend.denoteCV s₁.store cv <;> cases h2 : denoteE s₁.store v <;>
+        rw [h1, h2] at hdk <;> simp only [reduceCtorEq, Option.some.injEq] at hdk
+      exact ⟨_, _, rfl, rfl, hdk.symm⟩
+    have hxb : x = .bvar code :=
+      (refTest_iff hw.1.state.wf (denoteE_pext hw.1.pext hpk.2 hx) code).mp hcode
+    -- the scratch tier opened, the value read into it
+    simp only [Bind.bind, StateT.bind, Except.bind] at hread hcheck
+    have henter : enterScratch w.1 =
+        .ok ((), AState.mk w.1.store.enableScratch Memos.empty w.1.caches w.1.pins) := rfl
+    generalize hsj : AState.mk w.1.store.enableScratch Memos.empty w.1.caches w.1.pins = sj
+      at henter
+    rw [henter] at hread
+    simp only at hread
+    have hxj : PExt s₁.store sj.store := by
+      rw [← hsj]; exact hw.1.pext.trans (PExt.enterScratch hw.1.state.wf)
+    have hstj : StateOK sj := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.1.state.wf⟩
+    have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.1.pins
+    have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.1.caches
+    have hx₀j := hx₀.trans hxj
+    obtain ⟨hps, hc', x', hx', hva⟩ := Frontend.Olean.readValue_run hstj
+      (hnu₀.pmono hwf₀ hoff₀ hx₀j) (hv₀.pmono hwf₀ hoff₀ hx₀j) hw.2 hread
+    have hdF : (fillStream sp F valuesP dsP)[k]'hkF = .thmDecl cv' x' := by
+      rw [hFk, hdP, hxb]
+      simp only [ConLeche.Cached.fillDecl, fillRef, valueOf_eq hva]
+    -- the record checked with the value in place
+    have hxr : PExt s₁.store sr.store := hxj.trans (PExt.of_ext hps.ext)
+    have hok := view_foldOK V hpinsOK hpersPins hI' hpI hkF hP hnd hps.ok hxr
+      ((CacheOK.of_empty hcj).monoF hps.ext hps.cframe) (hps.pins.trans hpj)
+    have hpinsr := PinsDenote.pmono hxr pins pinsP hpp hpins
+    have hdr : Frontend.denoteDecl sr.store (.thmDecl cv e) = some (.thmDecl cv' x') := by
+      simp only [Frontend.denoteDecl, denoteCV_pext hxr hpk.1 hcv, hx']
+    cases hrc : recordCheck .verified pins I k (.thmDecl cv e) sr with
+    | error err => rw [hrc] at hcheck; exact nomatch hcheck
+    | ok r =>
+      obtain ⟨u, s'⟩ := r
+      rw [hrc] at hcheck
+      simp only at hcheck
+      have hdrop : dropScratch s' =
+          .ok ((), AState.mk s'.store.dropScratch s'.memos Caches.empty s'.pins) := rfl
+      rw [hdrop] at hcheck
+      simp only [Except.ok.injEq, Prod.mk.injEq] at hcheck
+      obtain ⟨-, hw'⟩ := hcheck
+      obtain ⟨hst', hx'', hp', env', Fu, hFu⟩ := hrec hok hpinsr hdr (by cases u; exact hrc)
+      rw [← hdF] at hFu
+      refine ⟨⟨?_, hc'⟩, env', Fu, hFu⟩
+      rw [← hw']
+      exact { state := ⟨EStore.dropScratch_wf hst'.wf⟩
+              pext := (hxr.trans (PExt.of_ext hx'')).trans (PExt.dropScratch hst'.wf)
+              caches := rfl
+              pins := (hp'.trans hps.pins).trans hpj }
+
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — a worker's accepted list on
+an `--olean` run is a chain of `--olean` jobs. -/
+theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : List System.FilePath}
+    {values : Array ConRon.Arena.Frontend.Olean.ModRef} {pins : List INatOpPinSet}
+    {I : IStreamIndex} {ds : Array IDeclaration} :
+    ∀ (l : List Nat) (c : ValueCache) (w w'' : AState),
+      checkOleanJobList fs pk sp values .verified pins I ds l c w = .ok (.ok (), w'') →
+      JobChain (OleanRun fs pk sp values pins I ds) (w, c) l := by
+  intro l
+  induction l with
+  | nil => intro c w _ _; exact .nil _
+  | cons t rest ih =>
+    intro c w w'' hl
+    simp only [checkOleanJobList] at hl
+    cases hj : oleanJob fs pk sp values .verified pins I ds c t w with
+    | error e => rw [hj] at hl; exact nomatch hl
+    | ok r =>
+      obtain ⟨⟨c', res⟩, w₁⟩ := r
+      rw [hj] at hl
+      cases res with
+      | error e => simp at hl
+      | ok u =>
+        simp only at hl
+        have ht : t < ds.size := by
+          unfold oleanJob at hj
+          cases hdt : ds[t]? with
+          | none => simp [hdt, runJob] at hj
+          | some _ => exact (Array.getElem?_eq_some_iff.mp hdt).1
+        exact .cons (w' := (w₁, c')) ⟨ht, by cases u; exact hj⟩ (ih c' w₁ w'' hl)
+
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **the pool of an
+`--olean` run**: every `--olean` job passing is an accept of con-leche's fold at the FILLED
+stream, from an index that denotes con-leche's index of the records as read. -/
+theorem pooled_fold_oleans (V : Type w) [ConLeche.SetTheory V]
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {values : Array ConRon.Arena.Frontend.Olean.ModRef}
+    {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+    {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₀ s₁ : AState}
+    (hrec : RecordSpec pins pinsP) (hpush : KernelPushes pinsP) (hpp : PersPinSets pins)
+    (hst : StateOK s₁) (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
+    (hpins : PinsDenote s₁.store pins pinsP)
+    (hpd : ∀ x ∈ ds.toList, PersDecl x) (hlen : dsP.length = ds.size)
+    (hden : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
+      Frontend.denoteDecl s₁.store ds[i] = some dsP[i])
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
+    (hpI : PersIFBase I.base)
+    (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s₁.store)
+    (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) (parts : List (List Nat))
+    (hcov : ∀ t < ds.size, ∃ w ∈ parts, t ∈ w)
+    (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
+    (hacc : ∀ w ∈ parts, ∃ s'', checkOleanJobList (Frontend.Olean.modelFs F) pk sp values
+      .verified pins I ds w {} s₁.worker = .ok (.ok (), s'')) :
+    ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
+      (fillStream sp F valuesP dsP) =
+        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+  have hlenF : (fillStream sp F valuesP dsP).length = ds.size := by simp [fillStream, hlen]
+  refine pooled_fold
+    (Inv := fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)
+    (Run := OleanRun (Frontend.Olean.modelFs F) pk sp values pins I ds)
+    (oleanJob_spec V hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hwf₀ hoff₀ hx₀ hv₀ hnu₀)
+    ?_ hpush parts (fun t ht => hcov t (by omega)) hinc (fun w hw => ?_)
+  · intro t w w' hr
+    obtain ⟨hk, -⟩ := hr
+    omega
+  · obtain ⟨s'', h⟩ := hacc w hw
+    exact ⟨(s₁.worker, {}), ⟨WorkerOK.start hst, Frontend.Olean.CacheOK.empty sp F valuesP⟩,
+      checkOleanJobList_chain w {} _ _ h⟩
 
 end ConRon.Bridge
