@@ -20,7 +20,8 @@ twin's store.  The relation's post-state is `withStore st s'`: the reader does n
 touch the rest of `AState`.
 -/
 import ConRon.Refine2.Frontend.Olean.Region
-import ConRon.Refine2.Frontend.Top
+import ConRon.Refine2.Frontend.Types
+import ConRon.Refine2.Frontend.Scan.WF
 import ConRon.Arena.Frontend.Olean.Records
 
 open Aeneas Aeneas.Std Result

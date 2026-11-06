@@ -655,7 +655,7 @@ structure LiftSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c cc
     ⦃fun r s' => StateOK s' ∧ LiftMemoA amount s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         LiftAt amount cc s₁.store c s'.store r; ⊤⦄
 
@@ -697,7 +697,7 @@ theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ liftLooseBVarsFast fuel amount c e
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.liftC = ∅ ∧ s'.memos.inst1LC = s₀.memos.inst1LC ∧
         LiftAt amount c s₀.store e s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
@@ -729,7 +729,7 @@ structure Inst1LSpec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1LAt ve dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
@@ -775,7 +775,7 @@ theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiate1LiftFast fuel e v d
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [instantiate1LiftFast, (instantiate1LiftGo_spec v ve fuel).run] <;> finish
@@ -787,7 +787,7 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1LiftFast fuel e v d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
       s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.inst1LC = ∅ ∧
       Inst1LAt ve d s₀.store e s'.store r :=
@@ -806,7 +806,7 @@ theorem instPisAtLift_specA (fuel : Nat) :
       (denoteE s₀.store c).isSome = true →
       ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
       ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-          s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+          s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           RelEO (Expr.instPisAtLift xs) s₀.store c s'.store r; ⊤⦄ := by
   intro args
   induction args with
@@ -839,14 +839,14 @@ theorem instPisAtLift_spec (fuel : Nat) :
       (denoteE s₀.store c).isSome = true →
       ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
       ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-          s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+          s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           ∀ xs, Frontend.denoteEList s₀.store args = some xs →
             RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r; ⊤⦄ := by
   intro args s₀ c hok hargs hden
   obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp hargs
   refine ⟨Triple.entails_wp_of_post (instPisAtLift_specA fuel args xs s₀ c hok hxs hden) ?_⟩
-  rintro r s' ⟨h1, h2, h3, h4, h5⟩
-  refine ⟨h1, h2, h3, h4, fun xs' hxs' => ?_⟩
+  rintro r s' ⟨h1, h2, h0, h3, h4, h5⟩
+  refine ⟨h1, h2, h0, h3, h4, fun xs' hxs' => ?_⟩
   rw [hxs] at hxs'
   obtain rfl := Option.some.inj hxs'
   exact h5

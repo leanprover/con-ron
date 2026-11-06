@@ -54,4 +54,8 @@ structure FsRel {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
   fileSize : ∀ {p q}, PathRel p q → ∀ s, inst.file_size fsv p = ok (.Ok s) →
     fs.fileSize q = .ok s.val
 
+/-- The search path of the command line, as the twin's. -/
+def absSearchPath (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : List System.FilePath :=
+  dirs.val.map fun d => ⟨ConRon.Refine.absString d⟩
+
 end ConRon.Refine2.Frontend.Olean

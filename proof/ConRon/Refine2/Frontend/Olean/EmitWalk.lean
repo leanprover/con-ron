@@ -179,7 +179,7 @@ theorem push_visits_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : S
 
 /-- **Visits of what one constant mentions.** -/
 theorem push_uses_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : WorkStackRel stack sp l) {c : frontend.olean.closure.CEntry}
+    {l : List Work} (hs : WorkStackRel stack sp l) {c : frontend.olean.lazy.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {o}
     (h : push_uses stack sp c = ok o) :
     WorkStackRel o.2 o.1 (c'.uses.toList.map Work.visit ++ l) := by
@@ -292,10 +292,10 @@ theorem mark_all_rel {st : frontend.olean.emit.Emit} {lst : Emit} (hs : EmitRel 
 /-! ## `skipped` -/
 
 /-- **`c_entry_skipped` is `CEntry.skipped`.** -/
-theorem c_entry_skipped_eq {c : frontend.olean.closure.CEntry} {c' : Arena.Frontend.Olean.CEntry}
-    (hc : CEntryRel c c') {b : Bool} (h : frontend.olean.closure.c_entry_skipped c = ok b) :
+theorem c_entry_skipped_eq {c : frontend.olean.lazy.CEntry} {c' : Arena.Frontend.Olean.CEntry}
+    (hc : CEntryRel c c') {b : Bool} (h : frontend.olean.lazy.c_entry_skipped c = ok b) :
     b = c'.skipped := by
-  rw [frontend.olean.closure.c_entry_skipped, frontend.olean.reads.c_kind_skipped.eq_def] at h
+  rw [frontend.olean.lazy.c_entry_skipped, frontend.olean.reads.c_kind_skipped.eq_def] at h
   have hk := hc.1.kind
   rw [Arena.Frontend.Olean.CEntry.skipped]
   generalize c.c.kind = k at h hk
@@ -389,7 +389,7 @@ theorem emitLoop_succ (pk : Arena.Frontend.Olean.OleanPins) (mg : Arena.Frontend
 
 /-- `visit_step` at a constant that has a record of its own. -/
 theorem visit_one {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
-    (hs : WorkStackRel stack sp l) {n : arena.handle.NIdx} {c : frontend.olean.closure.CEntry}
+    (hs : WorkStackRel stack sp l) {n : arena.handle.NIdx} {c : frontend.olean.lazy.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {lst1 : Emit}
     {st1 : frontend.olean.emit.Emit} (b1 : EmitRel st1 lst1) {o}
     (h : (do
@@ -413,7 +413,7 @@ theorem visit_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg') {rec_map rm} (hr : RecMapRel rec_map rm)
     {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
     (hs : WorkStackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
-    {n : arena.handle.NIdx} {c : frontend.olean.closure.CEntry} {c' : Arena.Frontend.Olean.CEntry}
+    {n : arena.handle.NIdx} {c : frontend.olean.lazy.CEntry} {c' : Arena.Frontend.Olean.CEntry}
     (hc : CEntryRel c c') (hg : mg'.get (absNIdx n) = some c') {o}
     (h : visit_step pk mg rec_map stack sp st n c = ok o) :
     WorkStackRel o.2.1 o.1 (visitK (absPins pk) mg' rm (absNIdx n) c'.c.kind l (lst.mark (absNIdx n))).1 ∧

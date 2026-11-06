@@ -49,7 +49,7 @@ import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.SumInstall
-import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.Positivity
 import ConLeche.Verify.Inductives.RecCheckScope
 public import ConLeche.Verify.Cached.TargetRecC

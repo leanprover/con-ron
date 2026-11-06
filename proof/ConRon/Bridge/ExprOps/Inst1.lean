@@ -13,7 +13,7 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) : Pr
     denoteE s₁.store v = some ve → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄
 ```
 
@@ -188,7 +188,7 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     denoteE s₁.store v = some ve → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `bvar`
@@ -202,7 +202,7 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     (htg : (c.tag == ETag.bvar) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmBVar v c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   -- the three branches are `Expr.instantiate1`'s own three
@@ -219,7 +219,7 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.app) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmApp v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   sym only [bridge_grind, denoteEView, opt2, Expr.instantiate1] =>
@@ -235,7 +235,7 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : ETag.isBind c.tag = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmBind v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   -- `lam` or `forallE`: the one case split, on `ETag.isBind`'s disjunction
@@ -252,7 +252,7 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.letE) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmLet v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   sym only [bridge_grind, denoteEView, opt3, Expr.instantiate1] =>
@@ -268,7 +268,7 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.proj) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmProj v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
   sym only [bridge_grind, denoteEView, opt2, Expr.instantiate1] =>
@@ -316,6 +316,33 @@ theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat
         Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [instantiate1Fast, (instantiate1Go_spec v ve fuel).run] <;> finish
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast —
+`instantiate1Fast_spec` with the scratch flag framed: a caller on the driver's
+state (the scratch tier closed) keeps it closed. -/
+theorem instantiate1Fast_specS (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat)
+    (ve : Expr) (hok : StateOK s₀) (hv : denoteE s₀.store v = some ve)
+    (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => s = s₀⦄ instantiate1Fast fuel e v d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
+        s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [instantiate1Fast, (instantiate1Go_spec v ve fuel).run] <;> finish
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast —
+`instantiate1Fast_specS` as a run. -/
+theorem instantiate1Fast_runS {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
+    {d : Nat} {ve : Expr} (hok : StateOK s₀)
+    (hv : denoteE s₀.store v = some ve)
+    (hden : (denoteE s₀.store e).isSome = true)
+    (hrun : (instantiate1Fast fuel e v d).run s₀ = Except.ok (r, s')) :
+    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+      s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+      Inst1At ve d s₀.store e s'.store r :=
+  AM.of_run (P := fun s => s = s₀) rfl hrun
+    (instantiate1Fast_specS fuel s₀ e v d ve hok hv hden)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN, which is the form the tier above consumes. -/

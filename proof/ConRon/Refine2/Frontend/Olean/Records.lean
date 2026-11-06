@@ -262,7 +262,7 @@ theorem emit_merged_pr {pk : frontend.olean.spec.OleanPins} {pers : arena.store.
 merge, the check, the walk and the records. -/
 theorem read_tail_rel {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {rst : arena.monad.AState} {lst : AState} (hrel : AStateRel₀ pers rst lst)
-    (hinv : AStateInv pers rst) {ls : alloc.vec.Vec frontend.olean.closure.Loaded}
+    (hinv : AStateInv pers rst) {ls : alloc.vec.Vec frontend.olean.lazy.Loaded}
     {ls' : Array Arena.Frontend.Olean.Loaded} (hls : List.Forall₂ LoadedRel ls.val ls'.toList)
     {c : Option (alloc.vec.Vec arena.handle.NIdx)} {c' : Option (Array NIdx)}
     (hc : Option.Rel RootsRel c c') {o ar'}

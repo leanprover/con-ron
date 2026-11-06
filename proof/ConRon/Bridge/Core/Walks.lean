@@ -38,7 +38,7 @@
   `Verify/PairM.lean`'s projections and `Verify/Mono.lean`'s `pureFns_mono`.
 * `Walks/Proj.lean` — **the projection table**, on `Bridge/Rel.lean`'s
   `denoteProjEntry`: `findTable?_at`, `findProjAt`, `IFEnv.findProj?_spec`,
-  `IProjEntry.fireOk_spec`, `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`,
+  `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`,
   `projCert_spec` and `projCertAt_spec`.
 * `Walks/Nat.lean` — **the literal acceleration**: `reduceNat_spec` and the
   six state-only walks under it.
@@ -48,7 +48,15 @@
   shape, the binder readers of con-leche task #342 (`binderDom`, `lamProj?`,
   `unwrapIdDefs`, `peelPisW`, `substPWAt`), then `propIrrel_spec`.
 * `Walks/StrLit.lean` — **the `String`-literal guard**:
-  `strLitSupported_spec` and its seven stored-shape tests.
+  `strLitStored_spec`, `strLitSupported_spec` and its seven stored-shape
+  tests.
+* `Walks/Former.lean` — **the walk to a family's sort, at use** (con-leche
+  task #480): `formerSortLoop_spec`, `formerNeverZeroAt_spec`,
+  `iotaCase3At_spec`, `projGuardSort_spec`, over the knot's `whnf`.
+* `Walks/Telescope.lean` — the telescope opener and `structUsedLater` in run
+  form, the readers under the projection guard.
+* `Walks/ProjGuard.lean` — **the projection guard, at use**:
+  `projGuardRows_run`, `checkGuardRows_run`, `checkProjGuard_spec`.
 * `Walks/StrCtor.lean` — **a string literal's constructor form**:
   `strLitToConstructor_spec` over the `strLitConsSpine` recursion, and
   `strLitToConstructor_WScoped`.
@@ -77,7 +85,7 @@ entry gives.  The library globs `ConRon.Bridge.+`; this file is the index.
 `IProjEntry`, beside the other ten transports, with its `Ext` transport,
 its field inversion and the exactness lemma `denoteProjTable_entry` (*taking
 the per-field view commutes with the denotation*); without it
-`IProjEntry.typeAt`, `projCert` and `IProjEntry.fireOk` could not be stated.
+`IProjEntry.typeAt` and `projCert` could not be stated.
 
 Its one caveat: the exactness lemma holds **in range**, because both `entry`
 functions read their two indexed columns with a DEFAULT and the two defaults

@@ -216,8 +216,7 @@ namespace ConRon.Bridge
 -- the install half of the front door, and the pinned-constant install
 #print axioms installHeader_pure
 #print axioms installHeader_bridge
-#print axioms installValueGuards_pure
-#print axioms installValueGuards_bridge
+#print axioms valueGuards_bridge
 
 -- the readback facts `Base.lean` reads
 #print axioms beq_handle_iff
@@ -226,7 +225,14 @@ namespace ConRon.Bridge
 #print axioms denoteCV_inv
 #print axioms denoteCIList_get
 #print axioms denoteEList_cons
+#print axioms natOpName_run
+#print axioms natIndOk_optRun
+#print axioms natZeroOk_optRun
+#print axioms natSuccOk_optRun
+#print axioms litShapeOk_run
 #print axioms checkConstantVal_pure
+#print axioms checkConstantVal_bridge
+#print axioms checkConstantVal_bridge_of_fold
 #print axioms checkConstantVal_mono
 
 -- one fuel per arm
@@ -300,7 +306,7 @@ namespace ConRon.Bridge
 #print axioms StepOK.push
 
 -- `ConstWF` at an install: the type half (a hypothesis, read off the front
--- door's own pure run), the value half (con-leche's `installValueGuards_inv`),
+-- door's own pure run), the value half (`valueGuards_bridge`),
 -- and the three introductions
 #print axioms CVTypeWF.cons
 #print axioms checkConstantVal_typeWF
@@ -309,43 +315,87 @@ namespace ConRon.Bridge
 #print axioms constWF_axiomInfo
 
 -- the three value checks
+#print axioms checkDefnVal_pure
+#print axioms checkThmVal_pure
+#print axioms checkOpaqueVal_pure
 #print axioms checkDefnVal_bridge
 #print axioms checkThmVal_bridge
 #print axioms checkOpaqueVal_bridge
+
+-- the gates' push-and-pop
+#print axioms IFEnv.sameView_popTemp
+#print axioms checkStructuralNatPinAtFe2_bridge
+#print axioms checkStructuralNatPin_bridge
 
 -- the check half of the install/check seam, on the same machinery
 #print axioms checkValueGroup_bridge
 
 -- `Bridge/Checker/Basis.lean`, behind the frontend's scratch-agnostic
--- intern family: the two interned blocks, the two recognisers and the block
--- install.
+-- intern family: the interned blocks, the name test, the renaming, the
+-- block's and the quotient record's comparison with the pin, and the checks.
 
 -- `Arena/Intern.lean`'s fresh-memo wrappers
 #print axioms internCI_fresh
 #print axioms internCV_fresh
 
--- the pinned blocks, interned
+-- the pinned blocks, interned, and the name test
 #print axioms BasisKind.decls_run
-#print axioms BasisKind.declsA_run
-
--- the two recognisers and the block install
 #print axioms denoteCIList_names
-#print axioms basisPinHitGo_run
-#print axioms basisPinHit_run
+#print axioms basisNameHitGo_run
+#print axioms basisNameHit_run
+
+-- injectivity: a handle equality is a value equality
+#print axioms ConstantVal.beqP_eq
+#print axioms ConstantInfo.beqP_eq
+#print axioms denoteCV_inj
+#print axioms denoteCaps_inj
+#print axioms denoteRule_inj
+#print axioms denoteRules_inj
+#print axioms denoteCI_inj
+
+-- the renaming
+#print axioms readNamesM_run
+#print axioms readLevelM_run
+#print axioms instLPFast_run
+#print axioms paramLevels_run
+#print axioms substLevelsAt_run
+#print axioms IConstantVal.atLps_run
+#print axioms IRecRuleFire.atLps_run
+#print axioms rulesAtLps_run
+#print axioms IConstantInfo.atLps_run
+
+-- the comparison with the pin
+#print axioms pinAgrees_eq
+#print axioms pinCopyOk_run
+#print axioms pinLinkOk_run
+#print axioms constNamed_rel
+#print axioms rulesLinkOk_run
+#print axioms blockLinkOkAt_run
+#print axioms blockLinksOk_run
+#print axioms pinCopiesOk_run
+#print axioms pinListOk_run
+
+-- what a pinned block and a quotient record store, and the checks
+#print axioms BasisKind.atBlock_run
+#print axioms quotPin_run
+#print axioms quotAt_run
 #print axioms quotPinHit_run
+#print axioms quotPredsOk_run
 #print axioms installBasisDecls_bridge
-#print axioms checkBasisDecl_bridge
+#print axioms checkBasisBlock_bridge
+#print axioms checkQuotRecord_bridge
+#print axioms checkDecl_bridge_quot
 
 -- the pin checks, the reduce-pin gate and the install/check seam's pieces
 #print axioms matchesPin_run
-#print axioms denoteCV_inj
-#print axioms denoteCI_inj_ind
 #print axioms IFEnvOK.find_beq_ind
+#print axioms eqStored_run
 #print axioms reduceElemOk_run
 #print axioms reduceStoredOk_run
 #print axioms stdAxiomOk_run
 #print axioms trustCompilerOk_run
 #print axioms ofReduceAxOk_run
+#print axioms andPinOk_run
 #print axioms natLitSupported_run
 #print axioms natOpDepsStored_run
 #print axioms natOpGuard_run
@@ -354,6 +404,7 @@ namespace ConRon.Bridge
 #print axioms reduceDeclPin_run
 #print axioms reduceCertVar_run
 #print axioms reducePinGuard_run
+#print axioms checkReducePinPre_bridge
 #print axioms checkReducePin_bridge
 #print axioms reservedBasisNames_sstep
 #print axioms natOpEquations_run
@@ -411,6 +462,7 @@ hypotheses of the statement. -/
 #print axioms Arena.installStep_split
 -- `checkDivModPin_bridge` and its loop
 #print axioms checkDivModPinLoop_bridge
+#print axioms checkDivModPinAtFe2_bridge
 #print axioms checkDivModPin_bridge
 
 -- `DeclOut`'s two clauses (each prints the three standard axioms)

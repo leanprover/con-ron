@@ -182,8 +182,8 @@ memo layer of Theorem 1's Core tier, at the three standard axioms. -/
 #print axioms infer_const
 #print axioms infer_natLit
 #print axioms infer_strLit
-#print axioms infer_proj_nonprop
-#print axioms infer_proj_prop
+#print axioms infer_proj
+#print axioms checkProjGuard_spec
 
 #print axioms infer_letE
 #print axioms inferIO_lam

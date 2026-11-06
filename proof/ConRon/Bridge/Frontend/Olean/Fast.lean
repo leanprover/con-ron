@@ -310,7 +310,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
               memo (memo.setExpr p) (fun memo => pure (some memo)))) s1 = .ok (some memo', s') := by
     rcases slotStep_run hrun with ⟨hb1, hk⟩ | ⟨hb1, v, s1, hn, hk⟩
     · exact ⟨memo, s, ParseStep.refl hctx.ok, hp0.notMarked hb1, hs, hk⟩
-    · obtain ⟨hst, x, hx, hd⟩ := nameNode_run hctx.ok hctx.off hctx.nulls
+    · obtain ⟨hst, x, hx, hd⟩ := nameNode_run hctx.ok hctx.nulls
         (hb.subRel hc hpn hk1 hb1) hn
       obtain ⟨hP, hS⟩ := (hp0.ext hst.ext).setName hs hpn (x := x)
         (by rw [nameAt]; exact hx) hd
@@ -326,7 +326,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
               memo (memo.setExpr p) (fun memo => pure (some memo))) s2 = .ok (some memo', s') := by
     rcases slotStep_run hrun1 with ⟨hb1, hk⟩ | ⟨hb1, v, s2, hn, hk⟩
     · exact ⟨memo1, s1, ParseStep.refl hctx1.ok, hP1.notMarked hb1, hS1, hk⟩
-    · obtain ⟨hst, x, hx, hd⟩ := levelNode_run hctx1.ok hctx1.off hctx1.nulls
+    · obtain ⟨hst, x, hx, hd⟩ := levelNode_run hctx1.ok hctx1.nulls
         (hP1.1.subRel hc hpn hk2 hb1) hn
       obtain ⟨hP, hS⟩ := (hP1.ext hst.ext).setLevel hS1 hpn (x := x)
         (by rw [levelAt]; exact hx) hd
@@ -340,7 +340,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
               memo3 (memo3.setExpr p) (fun memo => pure (some memo)) s3 = .ok (some memo', s') := by
     rcases slotStep_run hrun2 with ⟨hb1, hk⟩ | ⟨hb1, v, s3, hn, hk⟩
     · exact ⟨memo2, s2, ParseStep.refl hctx2.ok, hP2.notMarked hb1, hS2, hk⟩
-    · obtain ⟨hst, x, hx, hd⟩ := levelsNode_run hctx2.ok hctx2.off hctx2.nulls
+    · obtain ⟨hst, x, hx, hd⟩ := levelsNode_run hctx2.ok hctx2.nulls
         (hP2.1.subRel hc hpn hk4 hb1) hn
       obtain ⟨hP, hS⟩ := (hP2.ext hst.ext).setLevels hS2 hpn (x := x)
         (by rw [levelsAt]; exact hx) hd
@@ -359,7 +359,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
     · obtain ⟨hv, hs'⟩ := AM.pure_ok hk
       cases hv
       subst hs'
-      obtain ⟨hst, x, hx, hd⟩ := exprNode_run hctx3.ok hctx3.off hctx3.nulls
+      obtain ⟨hst, x, hx, hd⟩ := exprNode_run hctx3.ok hctx3.nulls
         (hP3.1.subRel hc hpn hk3 hb1) hn
       obtain ⟨hP, hS⟩ := (hP3.ext hst.ext).setExpr hS3 hpn (x := x)
         (by rw [exprAt]; exact hx) hd
