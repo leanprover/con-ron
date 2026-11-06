@@ -259,7 +259,7 @@ theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
 
 attribute [lockstep_inline] arena.core.infer_sort arena.core.infer_fvar arena.core.infer_const
   arena.core.infer_lit_nat arena.core.infer_lit_str arena.core.infer_proj
-  arena.core.infer_proj_at arena.core.infer_proj_prop arena.core.infer_proj_miss
+  arena.core.infer_proj_at arena.core.infer_proj_miss
   arena.core.infer_let
 
 attribute [local lockstep_simp] inferProj Option.isSome_map core.option.Option.is_some
@@ -277,6 +277,32 @@ macro "lockstep_ei" : tactic =>
           simp only [core.option.Option.is_some] at *
           rw [‹absAErrKind _ = _›]
           congr 2 <;> scalar_tac))))
+
+/-- `check_proj_guard` ⊑ `checkProjGuard`: the official `infer_proj` restriction at
+this use, from the stored structure and constructor types. -/
+@[lockstep] theorem check_proj_guard_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe entry us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.check_proj_guard pers st mode eager lane fu fe entry us) lst
+      (checkProjGuard (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
+        (absIProjEntry entry) (absLsIdx us)) := by
+  sorry -- T143-STUB
+
+/-- `check_proj_guard_ls` in an io body: the guard reads the knot's `inferIO` and
+`whnf` slots only, which `laneKnotAt` leaves as they are. -/
+@[lockstep] theorem check_proj_guard_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane io fu fe lfe entry us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.check_proj_guard pers st mode eager lane fu fe entry us) lst
+      (checkProjGuard (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe
+        (absIProjEntry entry) (absLsIdx us)) := by
+  sorry -- T143-STUB
 
 set_option maxHeartbeats 4000000 in
 /-- **`BodyRel.infer`**, in lockstep. -/
