@@ -59,8 +59,7 @@ set_option autoImplicit false
 /-! ## One fuel per arm
 
 Each of the six is con-leche's own `*_datF` read through `FueledM`'s
-monotonicity, exactly as `Bridge/Checker/Mono.lean`'s `checkDecl_mono` is: an
-arm composes two or three of these and needs them all at one fuel. -/
+monotonicity: an arm composes two or three of these and needs them all at one fuel. -/
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:857 checkDefnVal_datF. -/
 theorem checkDefnVal_mono {μ : CheckMode} {env env' : Env} {c : ConstantVal}

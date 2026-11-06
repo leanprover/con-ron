@@ -53,27 +53,6 @@ theorem beq_of_denoteLList {st : EStore} (hwf : StoreWF st) {as bs : List LIdx}
   · rintro rfl
     exact denoteLList_inj hrk.lsWF as bs xs ha hb
 
-/-- con-leche: none — the rules' right-hand sides denote. -/
-theorem denoteRules_rhss {st : EStore} :
-    ∀ (rs : List IRecRule) (rsP : List RecRule),
-      Frontend.denoteRules st rs = some rsP →
-      Frontend.denoteEList st (rs.map (·.rhs)) = some (rsP.map (·.rhs)) := by
-  intro rs
-  induction rs with
-  | nil => intro rsP h; simp only [Frontend.denoteRules, Option.some.injEq] at h; subst h; rfl
-  | cons r rs ih =>
-    intro rsP h
-    simp only [Frontend.denoteRules] at h
-    cases h1 : Frontend.denoteRule st r with
-    | none => rw [h1] at h; simp at h
-    | some x =>
-      cases h2 : Frontend.denoteRules st rs with
-      | none => rw [h1, h2] at h; simp at h
-      | some xs =>
-        rw [h1, h2] at h
-        obtain rfl := (Option.some.inj h).symm
-        simp only [List.map_cons, Frontend.denoteEList, denoteRule_rhs h1, ih xs h2]
-
 /-- con-leche: none — `denoteRules` at a cons, inverted. -/
 theorem denoteRules_cons_inv {st : EStore} {r : IRecRule} {rs : List IRecRule}
     {ys : List RecRule} (h : Frontend.denoteRules st (r :: rs) = some ys) :

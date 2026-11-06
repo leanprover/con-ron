@@ -65,9 +65,6 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 port's `intern_lam` / `intern_forall_e`), and at every other view
 `internNodeE`; their runs are read off once, here. -/
 
-private theorem failRun {α : Type} (e : Arena.CheckError) (s : AState) :
-    (fail e : AM α) s = .error e := rfl
-
 /-- con-leche: none — `internNodeE` (the eight non-binder
 arms of `internE`) either answers a cons hit and moves nothing, or ends at
 `EStore.intern`. -/
@@ -93,7 +90,8 @@ theorem internNodeE_ok {v : ENodeView} {s : AState} {r : EIdx} {s' : AState}
       exact Or.inr ⟨rfl, rfl, rfl⟩
     · simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        ite_eq_right hc, failRun] at h
+        ite_eq_right hc, fail, throwThe, MonadExceptOf.throw, Function.comp,
+        StateT.lift] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — **`internE` at a `lam` view is

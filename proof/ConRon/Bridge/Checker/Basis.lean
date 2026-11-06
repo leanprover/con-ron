@@ -231,21 +231,6 @@ theorem ConstantVal.beqP_eq (a b : ConstantVal) : a.beqP b = (a == b) := by
       obtain rfl := eq_of_beq h'
       simp [ConstantVal.beqP] at h
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:290-294 listBeqBy — at an `f` that is
-equality, it is equality. -/
-theorem listBeqBy_eq {α : Type} [BEq α] [LawfulBEq α] {f : α → α → Bool}
-    (hf : ∀ a b, f a b = (a == b)) :
-    ∀ l l' : List α, ConLeche.listBeqBy f l l' = (l == l') := by
-  intro l
-  induction l with
-  | nil => intro l'; cases l' <;> rfl
-  | cons a as ih =>
-    intro l'
-    cases l' with
-    | nil => rfl
-    | cons b bs =>
-      simp only [ConLeche.listBeqBy, hf, ih, List.cons_beq_cons]
-
 /-- con-leche: ConLeche/Kernel/Canon.lean:338-347 ConstantInfo.beqP — it is
 equality. -/
 theorem ConstantInfo.beqP_eq (a b : ConstantInfo) : a.beqP b = (a == b) := by
@@ -1883,7 +1868,6 @@ theorem RunsB.matchRec4 {x : Option IConstantInfo} {y : Option ConstantInfo}
       rename_i mI rP k rs
       rcases mI with _ | _ | _ | _ | _ | mI <;> rcases rP with _ | _ | _ | _ | _ | rP <;>
         first | exact RunsB.ret hok | exact hK _ _ hv
-
 
 /-- A stored constant compared against a freshly interned `ConstantVal` pin,
 then continued. -/

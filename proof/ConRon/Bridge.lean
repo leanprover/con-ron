@@ -57,11 +57,8 @@ depth-invariance theorems (`Verify/Deep.lean:3066-3120`) and its six
 well-scopedness preservations, the batched clauses of DESIGN §8.6's items
 9/11/12 are identified against the chain by con-leche's own lemmas
 (`Verify/BetaSpine.lean`, `Verify/BinderLoop.lean`, `Verify/InstList.lean`),
-and the Checker tier takes three declarations in three files —
-`Verify/BridgeDecl.lean`'s `checkDecl_datF` (`Bridge/Checker/Mono.lean`),
-`Verify/EnvBound.lean`'s `mkFEnv_find?_visibleBelow`
-(`Bridge/Checker/Split.lean`) and `Verify/EnvWF.lean`'s `EnvWF`
-(`Bridge/Checker/Inv.lean`).  **`Model/Fold.lean`'s `checkDeclsPure_sound_of`**
+and the Checker tier takes `Verify/BridgeDecl.lean`'s `*_datF` (`Bridge/Checker/DeclVal.lean`)
+and `Verify/EnvWF.lean`'s `EnvWF` (`Bridge/Checker/Inv.lean`).  **`Model/Fold.lean`'s `checkDeclsPure_sound_of`**
 comes in with `Bridge/Frontend/Capstone.lean`'s `ConLeche.MainTheorem` import
 and is applied in `ConRon/Capstone.lean`.  Those modules are built in the
 con-leche package, so the cost is loading `olean`s, not elaborating.

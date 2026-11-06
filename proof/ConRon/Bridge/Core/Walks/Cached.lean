@@ -884,9 +884,6 @@ standard axioms and no `sorryAx`.  The three come in through `Std.HashMap`,
 
 section Census
 
-#print axioms ReadbackFrame.refl
-#print axioms ReadbackFrame.trans
-#print axioms ReadbackFrame.ext
 #print axioms CacheOK.ofReadbackFrame
 #print axioms CheckOK.ofReadbackFrame
 #print axioms ReadbackFrame.ofReadL

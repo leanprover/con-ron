@@ -98,7 +98,6 @@ term: the environment's answer IS the stored record's denotation, present. -/
 grind_pattern [bridge_grind] optCI_find => OptCI s.store (fe.find? n) (env.find? nm),
   CheckOK eager env fe s
 
-
 /-- con-leche: ConLeche/Kernel/Env.lean:502-504 ConstantInfo.toConstantVal —
 **Theorem 1 for `toConstantVal`**, at the two fields the shape guards read
 (the level parameters and the type), keyed by the stored constant's
@@ -977,27 +976,6 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm⟩
 /-! ## 6. `strLitSupported` and `strLitStored` -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported —
-**THEOREM 1 for `strLitSupported`**: the `Nat` literal guard, then the seven
-string-support declarations at exactly the expected types. -/
-theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.strLitSupported fe
-    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env; ⊤⦄ := by
-  sym only [bridge_grind, ConLeche.strLitSupported] =>
-    vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
-      ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
-      ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
-      ConRon.Arena.pinCharOfNat, natLitSupported_spec (eager := eager) (env := env) (fe := fe),
-      stringTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.stringName),
-      stringOfListTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.stringOfListName),
-      listTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.listName),
-      listNilTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.listNilName),
-      listConsTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.listConsName),
-      charTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.charName),
-      charOfNatTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := env.find? ConLeche.charOfNatName),
-      pinAt_specE] <;> finish
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:366-371 strLitStored
 con-leche: ConLeche/Kernel/FEnv.lean:196-201 strLitStoredF —
 **THEOREM 1 for `strLitStored`**: `natLitStored`, then the seven
@@ -1024,7 +1002,6 @@ section Census
 #print axioms listConsTyOk_spec
 #print axioms charOfNatTyOk_spec
 #print axioms stringOfListTyOk_spec
-#print axioms strLitSupported_spec
 #print axioms strLitStored_spec
 
 end Census

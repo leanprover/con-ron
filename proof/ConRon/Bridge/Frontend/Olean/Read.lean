@@ -34,13 +34,6 @@ expressions read back. -/
 @[expose] def denoteEntry (st : EStore) (c : CEntryF NIdx EIdx) : Option (CEntryF ConLeche.Name Expr) :=
   c.mapM (denoteN st.ns) (denoteE st)
 
-/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:437-440 ModDecoded — a module read back. -/
-@[expose] def denoteMod (st : EStore) (d : ConRon.Arena.Frontend.Olean.ModDecoded) :
-    Option ConLeche.Frontend.Olean.ModDecoded := do
-  let imports ← d.imports.toList.mapM (denoteImport st)
-  let constants ← d.constants.toList.mapM (denoteEntry st)
-  pure ⟨d.isModule, imports.toArray, constants.toArray⟩
-
 /-! ## Options: one list, one constant -/
 
 /-- A `mapM` in `Option` related to another through a denotation. -/
@@ -224,17 +217,6 @@ theorem denoteImport_ext {st st' : EStore} (hx : Ext st st') {i : ImportF NIdx} 
   simp only [denoteN_ext hy hx]
   simpa [hy] using h
 
-/-- A module read back in a larger store. -/
-theorem denoteMod_ext {st st' : EStore} (hx : Ext st st')
-    {d : ConRon.Arena.Frontend.Olean.ModDecoded} {z : ConLeche.Frontend.Olean.ModDecoded}
-    (h : denoteMod st d = some z) : denoteMod st' d = some z := by
-  unfold denoteMod at h ⊢
-  obtain ⟨is, h1, h⟩ := bind_some_left h
-  obtain ⟨cs, h2, h⟩ := bind_some_left h
-  simp only [list_mono (fun _ _ hy => denoteImport_ext hx hy) _ h1,
-    list_mono (fun _ _ hy => denoteEntry_ext hx hy) _ h2]
-  exact h
-
 /-! ## Runs that return their state -/
 
 /-- con-leche: none — an `OptionT AM` action that leaves the state alone and answers `o`. -/
@@ -259,11 +241,6 @@ theorem PR.mapM {α β : Type} {f : α → OptionT AM β} {g : α → Option β}
   | x :: l => by
     simp only [List.mapM_cons]
     exact (h x).bind fun a => (PR.mapM h l).bind fun b => PR.pure _
-
-/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:407-409 ImportF.mapM -/
-theorem PR.importMap {N N' : Type} {f : N → OptionT AM N'} {g : N → Option N'}
-    (h : ∀ a, PR (f a) (g a)) (i : ImportF N) : PR (i.mapM f) (i.mapM g) :=
-  (h i.module).bind fun _ => PR.pure _
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:275-296 CKindF.mapM -/
 theorem PR.kindMap {N E N' E' : Type} {fn : N → OptionT AM N'} {fe : E → OptionT AM E'}
@@ -291,58 +268,5 @@ theorem PR.entryMap {N E N' E' : Type} {fn : N → OptionT AM N'} {fe : E → Op
     (PR.kindMap hn he c.kind).bind fun _ => PR.pure _
 
 /-! ## A module off the memo -/
-
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:311-316 ModSkel.read — the twin's read off a
-memo, as a function. -/
-@[expose] def readOf (nm : UInt64 → Option NIdx) (ex : UInt64 → Option EIdx) (sk : ModSkel)
-    (cs : List (CEntryF UInt64 UInt64)) : Option ConRon.Arena.Frontend.Olean.ModDecoded := do
-  let imports ← sk.imports.mapM (ImportF.mapM nm)
-  let constants ← cs.mapM (CEntryF.mapM nm ex)
-  pure ⟨sk.isModule, imports.toArray, constants.toArray⟩
-
-theorem modSkelRead_pr {rd : PtrRead} {nm : UInt64 → Option NIdx} {ex : UInt64 → Option EIdx}
-    (hn : ∀ v, rd.rdName v = pure (nm v)) (he : ∀ v, rd.rdExpr v = pure (ex v)) (sk : ModSkel)
-    (cs : List (CEntryF UInt64 UInt64)) :
-    PR (ConRon.Arena.Frontend.Olean.ModSkel.read rd sk cs) (readOf nm ex sk cs) := by
-  have h1 : ∀ v, PR (OptionT.mk (rd.rdName v)) (nm v) := fun v s => by
-    show rd.rdName v s = _
-    rw [hn]; rfl
-  have h2 : ∀ v, PR (OptionT.mk (rd.rdExpr v)) (ex v) := fun v s => by
-    show rd.rdExpr v s = _
-    rw [he]; rfl
-  exact (PR.mapM (PR.importMap h1) sk.imports).bind fun _ =>
-    (PR.mapM (fun c s => PR.entryMap h1 h2 c s) cs).bind fun _ => PR.pure _
-
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Equiv.lean:299 ModSkel.read_some — **the read off
-a memo that answers the roots is the specification's**. -/
-theorem readOf_spec {st : EStore} {r : Region} {nm : UInt64 → Option NIdx} {ex : UInt64 → Option EIdx}
-    {sk : ModSkel} {cs : List (CEntryF UInt64 UInt64)}
-    {d : ConRon.Arena.Frontend.Olean.ModDecoded} (hr : readOf nm ex sk cs = some d)
-    (hi : ∀ i ∈ sk.imports, ∀ y, nm i.module = some y →
-      ∃ z, nameP r i.module = some z ∧ denoteN st.ns y = some z)
-    (hn : ∀ c ∈ cs, ∀ v ∈ c.names, ∀ y, nm v = some y →
-      ∃ z, nameP r v = some z ∧ denoteN st.ns y = some z)
-    (he : ∀ c ∈ cs, ∀ v ∈ c.exprs, ∀ y, ex v = some y →
-      ∃ z, exprP r v = some z ∧ denoteE st y = some z) :
-    ∃ z, sk.read (nameP r) (exprP r) cs = some z ∧ denoteMod st d = some z := by
-  unfold readOf at hr
-  obtain ⟨is, h1, hr⟩ := bind_some_left hr
-  obtain ⟨es, h2, hr⟩ := bind_some_left hr
-  simp only [pure, Option.some.injEq] at hr
-  subst hr
-  obtain ⟨zis, a1, b1⟩ := list_sim (g := ImportF.mapM (nameP r)) (d := denoteImport st) _ h1
-    (fun i hm y hy => by
-      obtain ⟨w, hw, hy⟩ := bind_some_left hy
-      simp only [pure, Option.some.injEq] at hy
-      subst hy
-      obtain ⟨z, a, b⟩ := hi i hm _ hw
-      exact ⟨{ i with module := z }, by simp only [ImportF.mapM, a]; rfl,
-        by simp only [denoteImport, ImportF.mapM, b]; rfl⟩)
-  obtain ⟨zes, a2, b2⟩ := list_sim (g := CEntryF.mapM (nameP r) (exprP r)) (d := denoteEntry st) _ h2
-    (fun c hm y hy => entry_sim (fnC := nameP r) (feC := exprP r) (dn := denoteN st.ns)
-      (de := denoteE st) c hy (hn c hm) (he c hm))
-  refine ⟨⟨sk.isModule, zis.toArray, zes.toArray⟩, ?_, ?_⟩
-  · simp only [ConLeche.Frontend.Olean.ModSkel.read, a1, a2]; rfl
-  · simp only [denoteMod, b1, b2]; rfl
 
 end ConRon.Bridge.Frontend.Olean

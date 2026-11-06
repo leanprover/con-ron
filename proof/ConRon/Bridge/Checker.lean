@@ -26,8 +26,7 @@ In dependency order:
 * `Bridge/Checker/Pooled.lean`, `PooledOleans.lean` — every job passing is con-leche's fold
   accepting, the stream's records and an `--olean` run's;
 * `Bridge/Checker/Pool.lean` — **`Arena.pooledAccepts_bridge`**, the theorem the capstone uses;
-* `Bridge/Checker/Mono.lean` — one fuel for a fold; `Bridge/Checker/Axioms.lean` — the trust
-  census.
+* `Bridge/Checker/Axioms.lean` — the trust census.
 -/
 module
 
@@ -37,7 +36,6 @@ public import ConRon.Bridge.Checker.NatOpNames
 public import ConRon.Bridge.Checker.Hyp
 public import ConRon.Bridge.Checker.Decl
 public import ConRon.Bridge.Checker.Arms
-public import ConRon.Bridge.Checker.Mono
 public import ConRon.Bridge.Checker.Fold
 public import ConRon.Bridge.Checker.Base
 public import ConRon.Bridge.Checker.Canon

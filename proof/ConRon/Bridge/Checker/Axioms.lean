@@ -33,7 +33,6 @@ public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.Arms
 import ConRon.Bridge.Stages
-import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Specs
@@ -47,15 +46,11 @@ namespace ConRon.Bridge
 /-! ## Group 1 — closed -/
 
 -- the persistent extension and the bracket
-#print axioms PExt.refl
 #print axioms PExt.trans
 #print axioms PExt.of_ext
 #print axioms PExt.dropScratch
 
 -- the promotion memo and the frame
-#print axioms Pushed.refl
-#print axioms Pushed.trans
-#print axioms Pushed.push
 
 -- the declaration layer across a drop
 #print axioms denoteN_pext
@@ -63,9 +58,7 @@ namespace ConRon.Bridge
 #print axioms denoteLs_pext
 #print axioms denoteE_pext
 #print axioms denoteNList_pext
-#print axioms denoteLList_pext
 #print axioms denoteEList_pext
-#print axioms denoteEArray_pext
 #print axioms denoteCV_pext
 #print axioms denoteFire_pext
 #print axioms denoteRule_pext
@@ -74,7 +67,6 @@ namespace ConRon.Bridge
 #print axioms denoteProjTable_pext
 #print axioms denoteCI_pext
 #print axioms denoteCIList_pext
-#print axioms denoteFEnv_pext
 #print axioms denoteDecl_pext
 #print axioms denoteDecls_pext
 
@@ -90,14 +82,10 @@ namespace ConRon.Bridge
 
 -- **one fuel for the whole fold** — con-leche's `FueledM` monotonicity,
 -- reached through `checkDecl_datF`
-#print axioms checkDecl_mono
 
 -- the `AM` do-block, and the bracket's three equations
 #print axioms AM.bind_apply
 #print axioms AM.bind_ok
-#print axioms flushCaches_run
-#print axioms enterScratch_run
-#print axioms dropScratch_run
 
 /-! ### The bracket, the `AM` reading layer, the index and the pin tables -/
 
@@ -123,14 +111,10 @@ namespace ConRon.Bridge
 
 -- the two `IFEnv.push` lemmas, and what a push denotes
 #print axioms IFEnvCoh.push
-#print axioms denoteFEnv_push
 
 -- the index spec across a drop, which takes `IFEnvOK_of_denote` off the
 -- critical path
-#print axioms PersIFEnv.find
-#print axioms IFEnvOK.pmono
 #print axioms denoteCIList_mono
-#print axioms denoteFEnv_mono
 
 -- `StepOK`: the invariant at an index a step has just
 -- extended, and the three ways it moves.  `FoldOK` is `StepOK` plus the two
@@ -196,7 +180,6 @@ namespace ConRon.Bridge
 
 -- the two memoised DAG walks of the front door
 #print axioms readNames_run
-#print axioms readLevel_run
 #print axioms readLevels_run
 #print axioms LPDMemoOK.empty
 #print axioms LPDMemoOK.insert
@@ -255,7 +238,6 @@ namespace ConRon.Bridge
 -- the index IS the list: con-leche's `mkFEnv_find?` at the arena's hash map
 
 -- the bounded view, and `Env.prefixTo`: con-leche's `idxBelow_eq`
-#print axioms denoteCIList_mem
 #print axioms denoteCIList_length
 
 -- the canonical-form comparison
@@ -273,7 +255,6 @@ namespace ConRon.Bridge
 
 -- the `IFEnv.push` family: the index, and the whole step invariant
 #print axioms IFEnvOK.push
-#print axioms IFEnvOK.pushTable
 #print axioms IFEnvOK.congr_lookup
 #print axioms IFEnvOK.findTable_isSome
 #print axioms IFEnvOK.pushStored

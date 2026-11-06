@@ -88,8 +88,6 @@ per-readback constructor keyed by the cache record as in
 table's optional entry as a denotation (`denoteProjEntryO`, `denoteEO`'s
 shape). -/
 
-grind_pattern [bridge_grind] ReadbackFrame.refl => ReadbackFrame s s
-grind_pattern [bridge_grind] ReadbackFrame.trans => ReadbackFrame s₀ s₁, ReadbackFrame s₁ s₂
 grind_pattern [bridge_grind] ReadbackFrame.ofReadN =>
   ({ s0.caches with readNC := s1.caches.readNC } : Caches)
 attribute [bridge_grind →] ReadbackFrame.store ReadbackFrame.pins
@@ -175,24 +173,6 @@ theorem IFEnv.findProj?_spec {s : AState} (T : NIdx) (i : Nat)
     exact (Option.some.inj h6).symm
 
 /-! ## 4. The readback frame of a name list -/
-
-/-- con-leche: none — **the frame of a `readNamesM` call**, as
-`ReadbackFrame` with the list's denotation.  One list induction over
-`readNameM_spec`, whose own frame conjunct `Bridge/Specs.lean` has; the
-registered `readNamesM_spec` is erased for the two calls (`vcgen [-…]`, see
-the module note §2). -/
-theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
-    (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.readNamesM hs
-    ⦃fun xs s' => ReadbackFrame s₀ s' ∧
-        Frontend.denoteNList s₀.store.ns hs = some xs; ⊤⦄ := by
-  induction hs generalizing s₀ with
-  | nil =>
-    sym only [bridge_grind, Frontend.denoteNList] =>
-      vcgen [-readNamesM_spec, ConRon.Arena.readNamesM] <;> finish
-  | cons a as ih =>
-    sym only [bridge_grind, Frontend.denoteNList] =>
-      vcgen [-readNamesM_spec, ConRon.Arena.readNamesM, readNameM_spec, ih] <;> finish
 
 /-! ## 5. The two that stand on `ExprOps` -/
 
@@ -741,7 +721,6 @@ section Census
 #print axioms findProjAt
 #print axioms IFEnv.findProj?_spec
 #print axioms instantiateListFast_specC
-#print axioms readNamesM_frame
 #print axioms IProjEntry.typeAt_spec
 #print axioms iotaCertsFullAux_go
 #print axioms iotaCertsFull_spec

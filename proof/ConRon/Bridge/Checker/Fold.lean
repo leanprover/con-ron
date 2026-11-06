@@ -36,22 +36,6 @@ Three `rfl` equations; the bind's inversion (`AM.bind_ok`) lives in
 and sits below this module.  After them no proof in this module mentions
 `StateT`. -/
 
-/-- con-leche: none — `flushCaches` as an equation. -/
-theorem flushCaches_run (s : AState) :
-    flushCaches s = .ok ((), { s with caches := Caches.empty }) := rfl
-
-/-- con-leche: none — `enterScratch` as an equation. -/
-theorem enterScratch_run (s : AState) :
-    enterScratch s = .ok ((),
-      { store := s.store.enableScratch, memos := Memos.empty,
-        caches := s.caches, pins := s.pins }) := rfl
-
-/-- con-leche: none — `dropScratch` as an equation. -/
-theorem dropScratch_run (s : AState) :
-    dropScratch s = .ok ((),
-      { store := s.store.dropScratch, memos := s.memos,
-        caches := Caches.empty, pins := s.pins }) := rfl
-
 /-! ## THE PER-DECLARATION BRIDGE -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:43-185 checkDecl

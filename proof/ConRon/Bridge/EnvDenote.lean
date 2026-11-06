@@ -48,51 +48,11 @@ theorem denoteEArray_map (st : EStore) (hs : Array EIdx) :
 
 /-- con-leche: none — the readback, as a combinator of its fields'
 readbacks. -/
-theorem denoteCV_opt (st : EStore) (cv : IConstantVal) :
-    Frontend.denoteCV st cv = opt3 (fun n l t => (⟨n, l, t⟩ : ConstantVal))
-      (denoteN st.ns cv.name) (Frontend.denoteNList st.ns cv.levelParams)
-      (denoteE st cv.type) := by
-  simp only [Frontend.denoteCV, opt3]
-  cases denoteN st.ns cv.name <;> cases Frontend.denoteNList st.ns cv.levelParams <;>
-    cases denoteE st cv.type <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
 theorem denoteFire_nested_opt (st : EStore) (lvls : List LIdx) (pins : List EIdx) :
     Frontend.denoteFire st (.nested lvls pins) =
       opt2 RecRuleFire.nested (denoteLList st.ls lvls) (Frontend.denoteEList st pins) := by
   simp only [Frontend.denoteFire, opt2]
   cases denoteLList st.ls lvls <;> cases Frontend.denoteEList st pins <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteRule_opt (st : EStore) (rl : IRecRule) :
-    Frontend.denoteRule st rl = opt3
-      (fun c f r => (⟨c, rl.nfields, f, r⟩ : RecRule))
-      (denoteN st.ns rl.ctor) (Frontend.denoteFire st rl.fire) (denoteE st rl.rhs) := by
-  simp only [Frontend.denoteRule, opt3]
-  cases denoteN st.ns rl.ctor <;> cases Frontend.denoteFire st rl.fire <;>
-    cases denoteE st rl.rhs <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteRules_cons_opt (st : EStore) (r : IRecRule) (rs : List IRecRule) :
-    Frontend.denoteRules st (r :: rs) =
-      opt2 List.cons (Frontend.denoteRule st r) (Frontend.denoteRules st rs) := by
-  simp only [Frontend.denoteRules, opt2]
-  cases Frontend.denoteRule st r <;> cases Frontend.denoteRules st rs <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteCaps_opt (st : EStore) (c : IIndCaps) :
-    Frontend.denoteCaps st c = opt3
-      (fun ct all ctors => (⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
-          all, c.nparams, c.nIdx, ctors⟩ : IndCaps))
-      (denoteN st.ns c.etaCtor) (Frontend.denoteNList st.ns c.all)
-      (Frontend.denoteNList st.ns c.ctors) := by
-  simp only [Frontend.denoteCaps, opt3]
-  cases denoteN st.ns c.etaCtor <;> cases Frontend.denoteNList st.ns c.all <;>
-    cases Frontend.denoteNList st.ns c.ctors <;> rfl
 
 /-- con-leche: none — the readback, as a combinator of its fields'
 readbacks. -/
@@ -105,40 +65,6 @@ theorem denoteProjTable_opt (st : EStore) (t : IProjTable) :
   simp only [Frontend.denoteProjTable, opt2, opt3]
   cases denoteN st.ns t.structName <;> cases Frontend.denoteNList st.ns t.levelParams <;>
     cases denoteN st.ns t.ctor <;> cases Frontend.denoteEArray st t.bodies <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteCI_defn_opt (st : EStore) (v : IConstantVal) (e : EIdx) (h : ReducibilityHint) :
-    Frontend.denoteCI st (.defnInfo v e h) =
-      opt2 (fun cv x => ConstantInfo.defnInfo cv x h) (Frontend.denoteCV st v) (denoteE st e) := by
-  simp only [Frontend.denoteCI, opt2]
-  cases Frontend.denoteCV st v <;> cases denoteE st e <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteCI_ind_opt (st : EStore) (v : IConstantVal) (c : IIndCaps) :
-    Frontend.denoteCI st (.indInfo v c) =
-      opt2 ConstantInfo.indInfo (Frontend.denoteCV st v) (Frontend.denoteCaps st c) := by
-  simp only [Frontend.denoteCI, opt2]
-  cases Frontend.denoteCV st v <;> cases Frontend.denoteCaps st c <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteCI_rec_opt (st : EStore) (v : IConstantVal) (mI rP : Nat) (k : Bool)
-    (rs : List IRecRule) :
-    Frontend.denoteCI st (.recInfo v mI rP k rs) =
-      opt2 (fun cv rules => ConstantInfo.recInfo cv mI rP k rules) (Frontend.denoteCV st v)
-        (Frontend.denoteRules st rs) := by
-  simp only [Frontend.denoteCI, opt2]
-  cases Frontend.denoteCV st v <;> cases Frontend.denoteRules st rs <;> rfl
-
-/-- con-leche: none — the readback, as a combinator of its fields'
-readbacks. -/
-theorem denoteCIList_cons_opt (st : EStore) (c : IConstantInfo) (cs : List IConstantInfo) :
-    Frontend.denoteCIList st (c :: cs) =
-      opt2 List.cons (Frontend.denoteCI st c) (Frontend.denoteCIList st cs) := by
-  simp only [Frontend.denoteCIList, opt2]
-  cases Frontend.denoteCI st c <;> cases Frontend.denoteCIList st cs <;> rfl
 
 /-- con-leche: none — the readback, as a combinator of its fields'
 readbacks. -/
@@ -171,58 +97,7 @@ theorem denoteCIList_mono {st st' : EStore} (hx : Ext st st') :
         rw [denoteCI_ext ha hx, ih as has]
         exact hxs
 
-/-- con-leche: none — the denotation of a list of
-projection tables survives an append. -/
-theorem denoteProjTableList_mono {st st' : EStore} (hx : Ext st st') :
-    ∀ (ts : List IProjTable) (xs : List ProjTable),
-      Frontend.denoteProjTableList st ts = some xs →
-        Frontend.denoteProjTableList st' ts = some xs := by
-  intro ts
-  induction ts with
-  | nil => intro _ h; exact h
-  | cons t ts ih =>
-    intro xs hxs
-    simp only [Frontend.denoteProjTableList] at hxs ⊢
-    cases ha : Frontend.denoteProjTable st t with
-    | none => rw [ha] at hxs; simp at hxs
-    | some a =>
-      cases has : Frontend.denoteProjTableList st ts with
-      | none => rw [ha, has] at hxs; simp at hxs
-      | some as =>
-        rw [ha, has] at hxs
-        rw [denoteProjTable_ext ha hx, ih as has]
-        exact hxs
-
 /-! ## The own layer's denotation -/
-
-/-- con-leche: none — the denotation of an environment
-INDEX: its constant list and its table list, read back.  §8.2's `denoteEnv`. -/
-@[expose] def denoteIEnv (st : EStore) (e : IEnv) : Option Env :=
-  match Frontend.denoteCIList st e.consts, Frontend.denoteProjTableList st e.tables with
-  | some cs, some ts => some ⟨cs, ts⟩
-  | _, _ => none
-
-/-- con-leche: none — `denoteIEnv` read off: both lists
-denote. -/
-theorem denoteIEnv_some {st : EStore} {e : IEnv} {env : Env} :
-    denoteIEnv st e = some env ↔
-      Frontend.denoteCIList st e.consts = some env.consts ∧
-        Frontend.denoteProjTableList st e.tables = some env.tables := by
-  unfold denoteIEnv
-  constructor
-  · intro h
-    split at h
-    · rename_i cs ts hcs hts
-      cases h; exact ⟨hcs, hts⟩
-    · cases h
-  · rintro ⟨h1, h2⟩
-    rw [h1, h2]
-
-/-- con-leche: none — the denotation of the indexed
-environment's OWN layer is the denotation of its list (the own index is a cache
-of the list, DESIGN §8.3 lesson 13).  The frozen layer below it has no list; what
-it answers is stated by lookups (`IFEnvOK`), never as an `Env`. -/
-@[expose] def denoteFEnv (st : EStore) (fe : IFEnv) : Option Env := denoteIEnv st fe.env
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:92-94 mkFEnv — **the own index is its
 list's index**, con-leche's `fe' = mkFEnv fe'.env` for the layer above the frozen
@@ -242,11 +117,6 @@ half of `IFEnvCoh`. -/
 theorem IFEnvCoh.tbls {fe : IFEnv} (h : IFEnvCoh fe) (n : NIdx) :
     fe.tbls[n]? = (mkIFEnvTblsGo fe.env.tables)[n]? := h.2 n
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:92-94 mkFEnv — an index built by
-`mkIFEnv` is coherent. -/
-theorem IFEnvCoh.mk (e : IEnv) : IFEnvCoh (mkIFEnv e) :=
-  ⟨fun _ => rfl, fun _ => rfl⟩
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:130-134 FEnv.push — **`IFEnv.push`
 preserves the coherence clause**: `mkIFEnvGo` inserts from the back, so the
 cons-extended list's index is the old one with the new constant inserted. -/
@@ -254,76 +124,6 @@ theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
   refine ⟨fun n => ?_, fun n => h.tbls n⟩
   simp only [IFEnv.push, mkIFEnvGo, Std.HashMap.getElem?_insert, h.idx n]
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:136-141 FEnv.pushTable — **`IFEnv.pushTable`
-preserves the coherence clause**. -/
-theorem IFEnvCoh.pushTable {fe : IFEnv} (h : IFEnvCoh fe) (t : IProjTable) :
-    IFEnvCoh (fe.pushTable t) := by
-  refine ⟨fun n => h.idx n, fun n => ?_⟩
-  simp only [IFEnv.pushTable, mkIFEnvTblsGo, Std.HashMap.getElem?_insert, h.tbls n]
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
-to the denotation**: one more constant at the front, which is exactly what
-con-leche's `⟨ci :: env.consts, env.tables⟩` writes. -/
-theorem denoteFEnv_push {st : EStore} {fe : IFEnv} {env : Env}
-    {ci : IConstantInfo} {c : ConstantInfo} (h : denoteFEnv st fe = some env)
-    (hci : Frontend.denoteCI st ci = some c) :
-    denoteFEnv st (fe.push ci) = some ⟨c :: env.consts, env.tables⟩ := by
-  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
-  refine denoteIEnv_some.mpr ⟨?_, hts⟩
-  simp only [IFEnv.push, Frontend.denoteCIList, hci, hcs]
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **what a table
-install does to the denotation**: one more table at the front, which is exactly
-what con-leche's `⟨env.consts, t :: env.tables⟩` writes. -/
-theorem denoteFEnv_pushTable {st : EStore} {fe : IFEnv} {env : Env}
-    {t : IProjTable} {pt : ProjTable} (h : denoteFEnv st fe = some env)
-    (ht : Frontend.denoteProjTable st t = some pt) :
-    denoteFEnv st (fe.pushTable t) = some ⟨env.consts, pt :: env.tables⟩ := by
-  obtain ⟨hcs, hts⟩ := denoteIEnv_some.mp h
-  refine denoteIEnv_some.mpr ⟨hcs, ?_⟩
-  simp only [IFEnv.pushTable, Frontend.denoteProjTableList, ht, hts]
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the step only
-PUSHED**: everything the fold's step did to the environment was `IFEnv.push`,
-so the old list is a suffix of the new one. -/
-@[expose] def Pushed (fe0 fe : IFEnv) : Prop :=
-  ∃ new, fe.env.consts = new ++ fe0.env.consts
-
-theorem Pushed.refl (fe : IFEnv) : Pushed fe fe := ⟨[], rfl⟩
-
-theorem Pushed.trans {a b c : IFEnv} (h₁ : Pushed a b) (h₂ : Pushed b c) :
-    Pushed a c := by
-  obtain ⟨n₁, e₁⟩ := h₁
-  obtain ⟨n₂, e₂⟩ := h₂
-  exact ⟨n₂ ++ n₁, by rw [e₂, e₁, List.append_assoc]⟩
-
-theorem Pushed.push (fe : IFEnv) (ci : IConstantInfo) : Pushed fe (fe.push ci) :=
-  ⟨[ci], rfl⟩
-
-/-- con-leche: none — a table install pushes no constant. -/
-theorem Pushed.pushTable (fe : IFEnv) (t : IProjTable) : Pushed fe (fe.pushTable t) :=
-  ⟨[], rfl⟩
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:199-205 pushTable — **the step only
-pushed TABLES onto the table list**: the table half of `Pushed`. -/
-@[expose] def TPushed (fe0 fe : IFEnv) : Prop :=
-  ∃ new, fe.env.tables = new ++ fe0.env.tables
-
-theorem TPushed.refl (fe : IFEnv) : TPushed fe fe := ⟨[], rfl⟩
-
-theorem TPushed.trans {a b c : IFEnv} (h₁ : TPushed a b) (h₂ : TPushed b c) :
-    TPushed a c := by
-  obtain ⟨n₁, e₁⟩ := h₁
-  obtain ⟨n₂, e₂⟩ := h₂
-  exact ⟨n₂ ++ n₁, by rw [e₂, e₁, List.append_assoc]⟩
-
-/-- con-leche: none — a constant push installs no table. -/
-theorem TPushed.push (fe : IFEnv) (ci : IConstantInfo) : TPushed fe (fe.push ci) :=
-  ⟨[], rfl⟩
-
-theorem TPushed.pushTable (fe : IFEnv) (t : IProjTable) : TPushed fe (fe.pushTable t) :=
-  ⟨[t], rfl⟩
 
 /-- con-leche: none — a persistent constant's name is persistent. -/
 theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
@@ -381,16 +181,6 @@ theorem PExt.denoteEList {a b : EStore} (hx : PExt a b) : ∀ (es : List EIdx), 
 
 /-- con-leche: none — a persistent record denotes in the far end of
 a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteCV {a b : EStore} (hx : PExt a b) {cv : IConstantVal} (hp : PersCV cv)
-    (x : ConstantVal) (h : Frontend.denoteCV a cv = some x) :
-    Frontend.denoteCV b cv = some x := by
-  rw [denoteCV_opt, opt3_eq_some_iff] at h ⊢
-  obtain ⟨p, q, r, h1, h2, h3, rfl⟩ := h
-  exact ⟨p, q, r, hx.lss.ls.ns _ p hp.name h1, hx.denoteNList _ hp.levelParams q h2,
-    hx.expr _ r hp.type h3, rfl⟩
-
-/-- con-leche: none — a persistent record denotes in the far end of
-a `PExt` what it denotes in the near one. -/
 theorem PExt.denoteFire {a b : EStore} (hx : PExt a b) {f : IRecRuleFire} (hp : PersFire f)
     (x : RecRuleFire) (h : Frontend.denoteFire a f = some x) :
     Frontend.denoteFire b f = some x := by
@@ -407,86 +197,6 @@ theorem PExt.denoteFire {a b : EStore} (hx : PExt a b) {f : IRecRuleFire} (hp : 
 
 /-- con-leche: none — a persistent record denotes in the far end of
 a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteRule {a b : EStore} (hx : PExt a b) {rl : IRecRule} (hp : PersRule rl)
-    (x : RecRule) (h : Frontend.denoteRule a rl = some x) :
-    Frontend.denoteRule b rl = some x := by
-  rw [denoteRule_opt, opt3_eq_some_iff] at h ⊢
-  obtain ⟨p, q, r, h1, h2, h3, rfl⟩ := h
-  exact ⟨p, q, r, hx.lss.ls.ns _ p hp.ctor h1, hx.denoteFire hp.fire q h2,
-    hx.expr _ r hp.rhs h3, rfl⟩
-
-/-- con-leche: none — a persistent record denotes in the far end of
-a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteRules {a b : EStore} (hx : PExt a b) : ∀ (rs : List IRecRule), PersRules rs →
-    ∀ xs, Frontend.denoteRules a rs = some xs → Frontend.denoteRules b rs = some xs := by
-  intro rs
-  induction rs with
-  | nil => intro _ _ h; exact h
-  | cons n ns ih =>
-    intro hp xs h
-    rw [denoteRules_cons_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteRule (hp n (by simp)) p h1,
-      ih (fun c hc => hp c (by simp [hc])) q h2, rfl⟩
-
-/-- con-leche: none — a persistent record denotes in the far end of
-a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteCaps {a b : EStore} (hx : PExt a b) {c : IIndCaps} (hp : PersCaps c)
-    (x : IndCaps) (h : Frontend.denoteCaps a c = some x) :
-    Frontend.denoteCaps b c = some x := by
-  rw [denoteCaps_opt, opt3_eq_some_iff] at h ⊢
-  obtain ⟨p, q, r, h1, h2, h3, rfl⟩ := h
-  exact ⟨p, q, r, hx.lss.ls.ns _ p hp.etaCtor h1, hx.denoteNList _ hp.all q h2,
-    hx.denoteNList _ hp.ctors r h3, rfl⟩
-
-/-- con-leche: none — a persistent record denotes in the far end of
-a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteCI {a b : EStore} (hx : PExt a b) {ci : IConstantInfo} (hp : PersCI ci)
-    (x : ConstantInfo) (h : Frontend.denoteCI a ci = some x) :
-    Frontend.denoteCI b ci = some x := by
-  cases ci with
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨p, h1, rfl⟩ := h
-    exact ⟨p, hx.denoteCV hp p h1, rfl⟩
-  | thmInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨p, h1, rfl⟩ := h
-    exact ⟨p, hx.denoteCV hp p h1, rfl⟩
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨p, h1, rfl⟩ := h
-    exact ⟨p, hx.denoteCV hp p h1, rfl⟩
-  | defnInfo v e hint =>
-    rw [denoteCI_defn_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteCV hp.1 p h1, hx.expr _ q hp.2 h2, rfl⟩
-  | indInfo v c =>
-    rw [denoteCI_ind_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteCV hp.1 p h1, hx.denoteCaps hp.2 q h2, rfl⟩
-  | recInfo v mI rP k rs =>
-    rw [denoteCI_rec_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteCV hp.1 p h1, hx.denoteRules _ hp.2 q h2, rfl⟩
-
-/-- con-leche: none — a persistent block denotes in the far end of
-a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteCIList {a b : EStore} (hx : PExt a b) : ∀ (cs : List IConstantInfo),
-    PersCIList cs → ∀ xs, Frontend.denoteCIList a cs = some xs →
-      Frontend.denoteCIList b cs = some xs := by
-  intro cs
-  induction cs with
-  | nil => intro _ _ h; exact h
-  | cons n ns ih =>
-    intro hp xs h
-    rw [denoteCIList_cons_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteCI (hp n (by simp)) p h1,
-      ih (fun c hc => hp c (by simp [hc])) q h2, rfl⟩
-
-/-- con-leche: none — a persistent record denotes in the far end of
-a `PExt` what it denotes in the near one. -/
 theorem PExt.denoteProjTable {a b : EStore} (hx : PExt a b) {t : IProjTable}
     (hp : PersProjTable t) (x : ProjTable) (h : Frontend.denoteProjTable a t = some x) :
     Frontend.denoteProjTable b t = some x := by
@@ -499,20 +209,5 @@ theorem PExt.denoteProjTable {a b : EStore} (hx : PExt a b) {t : IProjTable}
   rw [denoteEArray_map, Option.map_eq_some_iff] at h2 ⊢
   obtain ⟨l, hl, rfl⟩ := h2
   exact ⟨l, hx.denoteEList _ hp.bodies l hl, rfl⟩
-
-/-- con-leche: none — a persistent table list denotes in the far
-end of a `PExt` what it denotes in the near one. -/
-theorem PExt.denoteProjTableList {a b : EStore} (hx : PExt a b) : ∀ (ts : List IProjTable),
-    (∀ t ∈ ts, PersProjTable t) → ∀ xs, Frontend.denoteProjTableList a ts = some xs →
-      Frontend.denoteProjTableList b ts = some xs := by
-  intro ts
-  induction ts with
-  | nil => intro _ _ h; exact h
-  | cons n ns ih =>
-    intro hp xs h
-    rw [denoteProjTableList_cons_opt, opt2_eq_some_iff] at h ⊢
-    obtain ⟨p, q, h1, h2, rfl⟩ := h
-    exact ⟨p, q, hx.denoteProjTable (hp n (by simp)) p h1,
-      ih (fun c hc => hp c (by simp [hc])) q h2, rfl⟩
 
 end ConRon.Bridge

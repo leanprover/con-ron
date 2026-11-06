@@ -188,12 +188,6 @@ structure PExt (st st' : EStore) : Prop where
   expr : ∀ i e, i.isPersistent = true → denoteE st i = some e →
     denoteE st' i = some e
 
-theorem PNExt.refl (st : NStore) : PNExt st st := fun _ _ _ h => h
-theorem PLExt.refl (st : LStore) : PLExt st st := ⟨PNExt.refl _, fun _ _ _ h => h⟩
-theorem PLsExt.refl (st : LsStore) : PLsExt st st :=
-  ⟨PLExt.refl _, fun _ _ _ h => h⟩
-theorem PExt.refl (st : EStore) : PExt st st := ⟨PLsExt.refl _, fun _ _ _ h => h⟩
-
 theorem PNExt.trans {a b c : NStore} (h₁ : PNExt a b) (h₂ : PNExt b c) :
     PNExt a c := fun i n hp h => h₂ i n hp (h₁ i n hp h)
 
@@ -461,9 +455,6 @@ structure PersProjTable (t : IProjTable) : Prop where
 /-- con-leche: none — every member of a block is persistent. -/
 @[expose] def PersCIList (cs : List IConstantInfo) : Prop := ∀ c ∈ cs, PersCI c
 
-/-- con-leche: none — every constant of the environment is persistent. -/
-@[expose] def PersIEnv (e : IEnv) : Prop := PersCIList e.consts
-
 /-- con-leche: none — **the frozen layer is persistent**: the rows of both its
 maps.  The driver builds the stream's index with no scratch tier open
 (`Arena/StreamIndex.lean`), so every handle in it is persistent, and every job
@@ -471,41 +462,6 @@ reads it across its own scratch tier and the drop that ends it. -/
 structure PersIFBase (b : IFBase) : Prop where
   idx : ∀ n p, b.idx[n]? = some p → PersN n ∧ PersCI p.2
   tbls : ∀ n p, b.tbls[n]? = some p → PersN n ∧ PersProjTable p.2
-
-/-- con-leche: none — **the environment index is persistent**: its lists, the
-rows of both its own maps, and its frozen layer. -/
-structure PersIFEnv (fe : IFEnv) : Prop where
-  env : PersIEnv fe.env
-  idx : ∀ n ci, fe.idx[n]? = some ci → PersN n ∧ PersCI ci
-  tables : ∀ t ∈ fe.env.tables, PersProjTable t
-  tbls : ∀ n t, fe.tbls[n]? = some t → PersN n ∧ PersProjTable t
-  base : PersIFBase fe.base
-
-/-- con-leche: none — a frozen layer's visible constant is persistent. -/
-theorem PersIFBase.find {b : IFBase} (hp : PersIFBase b) {n : NIdx}
-    {ci : IConstantInfo} (hf : b.find? n = some ci) : PersN n ∧ PersCI ci := by
-  unfold IFBase.find? at hf
-  cases hidx : b.idx[n]? with
-  | none => rw [hidx] at hf; cases hf
-  | some p =>
-    rw [hidx] at hf
-    obtain ⟨c, cj⟩ := p
-    simp only at hf
-    split at hf
-    · cases hf; exact hp.idx n _ hidx
-    · cases hf
-
-/-- con-leche: none — arena infrastructure; **what a lookup in a persistent
-index answers is persistent**: `IFEnv.find?` reads the own index, then the
-frozen layer, and nothing else. -/
-theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
-    {ci : IConstantInfo} (hf : fe.find? n = some ci) : PersN n ∧ PersCI ci := by
-  simp only [IFEnv.find?, IFEnv.lookup] at hf
-  split at hf
-  · exact hp.base.find hf
-  · cases hidx : fe.idx[n]? with
-    | none => rw [hidx] at hf; exact hp.base.find hf
-    | some cj => rw [hidx] at hf; cases hf; exact hp.idx n _ hidx
 
 /-- con-leche: none — arena infrastructure; a gated table hit is a raw one. -/
 theorem IFEnv.rawTable?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
@@ -523,27 +479,6 @@ theorem IFEnv.find?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}
   split at h
   · assumption
   · cases h
-
-/-- con-leche: none — arena infrastructure; **what a table lookup in a
-persistent index answers is persistent**: `IFEnv.rawTable?` reads the table map,
-then the frozen layer's, and nothing else. -/
-theorem PersIFEnv.rawTable {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
-    {t : IProjTable} (hf : fe.rawTable? n = some t) : PersN n ∧ PersProjTable t := by
-  unfold IFEnv.rawTable? at hf
-  cases ht : fe.tbls[n]? with
-  | some t' => rw [ht] at hf; cases hf; exact hp.tbls n _ ht
-  | none =>
-    rw [ht] at hf
-    unfold IFBase.findTable? at hf
-    cases hb : fe.base.tbls[n]? with
-    | none => rw [hb] at hf; cases hf
-    | some p =>
-      rw [hb] at hf
-      obtain ⟨r, t'⟩ := p
-      simp only at hf
-      split at hf
-      · cases hf; exact hp.base.tbls n _ hb
-      · cases hf
 
 /-- con-leche: none — a declaration record is persistent (the parse builds
 them in the persistent tier, so this is the frontend tier's postcondition). -/

@@ -285,12 +285,6 @@ its files on the snapshot.  Upstream's `ValueAt` reads `valuesP`. -/
         FrontGoodAt st f md.frontier)
     values.toList valuesP.toList
 
-theorem ValuesRel.ext {sp : SearchPath} {F : FS} {st st' : EStore}
-    {values : Array ConRon.Arena.Frontend.Olean.ModRef}
-    {valuesP : Array ConLeche.Frontend.Olean.ModRef} (h : ValuesRel sp F st values valuesP)
-    (hx : Ext st st') : ValuesRel sp F st' values valuesP :=
-  ListRel.mono' (fun _ _ ⟨a, f, b, c⟩ => ⟨denoteN_ext a hx, f, b, c.ext hx⟩) h
-
 theorem valuesRel_of_loads {sp : SearchPath} {F : FS} {st : EStore} :
     ∀ {ls : List ConRon.Arena.Frontend.Olean.Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded},
       ListRel (LoadedRel st) ls lsC → ListRel (ModFront sp F st) ls lsC →

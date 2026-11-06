@@ -83,8 +83,6 @@ theorem instantiate1Fast_specR (s₀ : AState) (b w : EIdx) (hok : CheckOK eager
   rw [hB, hW]
   exact instantiate1Fast_ok_spec s₀ b w B W hok hB hW
 
-
-
 /-- con-leche: ConLeche/Kernel/Core.lean:462-473 formerSortLoop — **the walk's
 answer at a subject**: the level handle denotes what the pure walk answers at
 some fuel. -/
@@ -149,18 +147,6 @@ theorem fsl_pi {F d n : Nat} {x w : Expr} {st : EStore} {r : Option LIdx}
 grind_pattern [bridge_grind] fsl_pi =>
   SortLoop eager env d (n + 1) x st r, ConLeche.whnf .verified eager env F d x,
   SortLoop eager env (d + 1) n ((exprBody w).instantiate1 (.fvar d (exprBinderType w))) st r
-
-/-- con-leche: none — `SortLoop` survives a store extension. -/
-theorem SortLoop.ext {d n : Nat} {x : Expr} {st st' : EStore} {r : Option LIdx}
-    (h : SortLoop eager env d n x st r) (hx : Ext st st') : SortLoop eager env d n x st' r := by
-  obtain ⟨v, hv, F, hF⟩ := h
-  refine ⟨v, ?_, F, hF⟩
-  cases r with
-  | none => exact hv
-  | some j =>
-    simp only [denoteLO, Option.map_eq_some_iff] at hv ⊢
-    obtain ⟨l, hl, rfl⟩ := hv
-    exact ⟨l, denoteL_ext hl hx, rfl⟩
 
 /-- con-leche: ConLeche/Verify/Shift.lean:220 WScoped.instantiate1 — a `∀`'s
 body, opened at the next free variable, is scoped one deeper. -/

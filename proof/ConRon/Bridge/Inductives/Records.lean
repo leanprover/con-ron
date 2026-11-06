@@ -235,17 +235,6 @@ theorem mapM_option_congr {α β : Type} {f g : α → Option β} (h : ∀ x, f 
     (xs : List α) : xs.mapM f = xs.mapM g := by
   rw [show f = g from funext h]
 
-/-- con-leche: none — a member of a denoting list has a denoted partner. -/
-theorem mapM_option_mem {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ x ∈ xs, ∃ y ∈ ys, f x = some y
-  | [], _, _, _, hx => nomatch hx
-  | a :: as, _, h, x, hx => by
-    obtain ⟨b, bs, rfl, hb, hbs⟩ := mapM_option_cons_inv h
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact ⟨b, List.mem_cons_self, hb⟩
-    · obtain ⟨y, hy, hfy⟩ := mapM_option_mem hbs x hx
-      exact ⟨y, List.mem_cons_of_mem _ hy, hfy⟩
-
 /-- con-leche: none — `Option`'s `mapM` at the empty list, inverted. -/
 theorem mapM_option_nil_inv {α β : Type} {f : α → Option β} {ys : List β}
     (h : ([] : List α).mapM f = some ys) : ys = [] := by
@@ -262,8 +251,6 @@ theorem DExt.list {α β : Type} {d : EStore → α → Option β} (h : DExt d) 
 
 theorem dExt_denoteE : DExt denoteE := fun hx _ _ h => denote_ext h hx
 theorem dExt_denoteCV : DExt Frontend.denoteCV := fun hx _ _ h => denoteCV_ext h hx
-theorem dExt_denoteEList : DExt Frontend.denoteEList :=
-  fun hx xs ys h => denoteEList_ext hx xs ys h
 /-- con-leche: none — the do-notation form every record denotation below is
 written in: two transported pieces give a transported pair. -/
 theorem option_bind_ext {α β : Type} {o o' : Option α} {f : α → Option β} {y : β}

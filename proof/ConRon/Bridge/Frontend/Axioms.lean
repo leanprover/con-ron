@@ -123,7 +123,6 @@ closed scratch tier and the three untouched state fields — and
 /-! ## General readback helpers -/
 
 #print axioms viewN_run
-#print axioms readLevel_run
 #print axioms view_run
 #print axioms nsWF_of_StateOK
 #print axioms denoteN_str_inv
@@ -198,8 +197,6 @@ the `induct`/`T.rec` comparisons. -/
 #print axioms except_bind_ex
 #print axioms ListRel.refl_eq
 #print axioms readName_bind
-#print axioms ListRel.singleton_right
-#print axioms ListRel.singleton_left
 #print axioms forIn_sim
 #print axioms mapM_sim
 #print axioms storeFuel_run

@@ -785,19 +785,6 @@ theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche
     (blockCtors_denote hp2)) hR]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-**The recogniser, at the stream index's frame**: two-sided, the state
-invariant, an append and untouched pins.  `isProp` is `lvlEq?`'s cached
-verdict, so the hypothesis is `CheckOK` at some environment and index (only its
-cache, pin and state clauses are read). -/
-theorem blockShape?_install {env : Env} {fe : IFEnv} {nP : Nat}
-    {block : List IConstantInfo} {b : List ConstantInfo} {s s' : AState}
-    {r : Option Arena.BlockShape} (hc : CheckOK false env fe s)
-    (hb : Frontend.denoteCIList s.store block = some b)
-    (hrun : Arena.blockShape? nP block s = .ok (r, s')) :
-    PStep s s' ∧ ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b) s'.store r :=
-  blockShape?_run nP block b s s' r hc hb hrun
-
 /-! ## The recogniser keeps the scratch flag
 
 `blockShape?` reads the store, interns names and levels (which live beside the
@@ -815,9 +802,6 @@ theorem XFree.pure {α : Type} (a : α) : XFree (Pure.pure a : AM α) := by
 
 theorem XFree.fail {α : Type} (e : Arena.CheckError) : XFree (Arena.fail e : AM α) := by
   intro s s' r h; exact absurd h (fun h => AM.fail_ok h)
-
-theorem XFree.failDanglingE {α : Type} : XFree (Arena.failDanglingE : AM α) := by
-  intro s s' r h; exact absurd h (fun h => failDanglingE_ok h)
 
 theorem XFree.bind {α β : Type} {x : AM α} {f : α → AM β} (hx : XFree x)
     (hf : ∀ a, XFree (f a)) : XFree (x >>= f) := by
@@ -850,8 +834,6 @@ theorem XFree.viewBind (h : EIdx) : XFree (Arena.viewBind h) := by
   unfold Arena.viewBind; xfree_auto
 theorem XFree.viewConst (h : EIdx) : XFree (Arena.viewConst h) := by
   unfold Arena.viewConst; xfree_auto
-theorem XFree.viewLs (h : LsIdx) : XFree (Arena.viewLs h) := by
-  unfold Arena.viewLs; xfree_auto
 theorem XFree.zeroLevel : XFree Arena.zeroLevel := by
   unfold Arena.zeroLevel Arena.pinZeroLevel; xfree_auto
 theorem XFree.reservedBasisNames : XFree Arena.reservedBasisNames := by

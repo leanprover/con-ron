@@ -86,24 +86,6 @@ theorem dCvL_inv {st : EStore} {x : IConstantVal × LIdx} {y : ConstantVal × Le
   obtain rfl := (Option.some.inj h).symm
   exact ⟨rfl, rfl⟩
 
-/-- con-leche: none — a list of level-handle lists survives an append. -/
-theorem denoteLLists_ext {st st' : EStore} (hx : Ext st st') :
-    ∀ (xs : List (List LIdx)) (ys : List (List Level)),
-      denoteLLists st xs = some ys → denoteLLists st' xs = some ys
-  | [], ys, h => h
-  | x :: xs, ys, h => by
-    simp only [denoteLLists] at h ⊢
-    cases hx1 : denoteLList st.ls x with
-    | none => rw [hx1] at h; simp at h
-    | some y =>
-    cases hxs : denoteLLists st xs with
-    | none => rw [hx1, hxs] at h; simp at h
-    | some ys' =>
-    rw [hx1, hxs] at h
-    have e1 : denoteLList st'.ls x = some y := denoteLList_ext hx.lss.ls _ _ hx1
-    rw [e1, denoteLLists_ext hx xs ys' hxs]
-    exact h
-
 /-- con-leche: none — a store-preserving read is a `CoreStep`
 (`Bridge/Checker/DivMod.lean`'s `CoreStep.of_store`, which this tier cannot
 import). -/
@@ -112,41 +94,6 @@ theorem coreStep_of_store {env : Env} {fe : IFEnv} {s s' : AState}
     (h3 : s'.pins = s.pins) : CoreStep env fe s s' :=
   ⟨hck.mono ⟨by rw [h1]; exact hck.state.wf⟩ (by rw [h1]; exact Ext.refl _) h2 h3,
     by rw [h1]; exact Ext.refl _, h3⟩
-
-/-- con-leche: none — the positivity outputs' two projections, denoted. -/
-theorem dOuts_proj {st : EStore} :
-    ∀ (os : List (List Arena.NestFieldKind × EIdx)) (osP : List (List ConLeche.NestFieldKind × Expr)),
-      os.mapM (dOut st) = some osP →
-      (os.map (·.1)).map (·.map kindOf) = osP.map (·.1) ∧
-        Frontend.denoteEList st (os.map (·.2)) = some (osP.map (·.2))
-  | [], osP, h => by
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-    subst h; exact ⟨rfl, rfl⟩
-  | o :: os, osP, h => by
-    obtain ⟨y, ys, rfl, hy, hys⟩ := mapM_option_cons_inv h
-    simp only [dOut, Option.map_eq_some_iff] at hy
-    obtain ⟨e, he, rfl⟩ := hy
-    obtain ⟨h1, h2⟩ := dOuts_proj os ys hys
-    refine ⟨by simp only [List.map_cons] at h1 ⊢; rw [h1], ?_⟩
-    simp only [List.map_cons, Frontend.denoteEList, he, h2]
-
-theorem dOutss_proj {st : EStore} :
-    ∀ (oss : List (List (List Arena.NestFieldKind × EIdx)))
-      (ossP : List (List (List ConLeche.NestFieldKind × Expr))),
-      dOutss st oss = some ossP →
-      (oss.map (·.map (·.1))).map (·.map (·.map kindOf)) = ossP.map (·.map (·.1)) ∧
-        (oss.map (·.map (·.2))).mapM (Frontend.denoteEList st) = some (ossP.map (·.map (·.2)))
-  | [], ossP, h => by
-    simp only [dOutss, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-    subst h; exact ⟨rfl, rfl⟩
-  | os :: oss, ossP, h => by
-    simp only [dOutss] at h
-    obtain ⟨y, ys, rfl, hy, hys⟩ := mapM_option_cons_inv h
-    obtain ⟨h1, h2⟩ := dOuts_proj os y hy
-    obtain ⟨h3, h4⟩ := dOutss_proj oss ys hys
-    refine ⟨by simp only [List.map_cons] at h1 h3 ⊢; rw [h1, h3], ?_⟩
-    simp only [List.map_cons]
-    exact mapM_option_cons h2 h4
 
 end BI
 

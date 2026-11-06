@@ -243,18 +243,6 @@ theorem dPass_mk {st : EStore} {env₁ : Env} {q : Arena.BlockPass}
       tbl.toArray⟩ := by
   simp only [dPass, h1, h2, h3, h4, h5, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
 
-/-- con-leche: none — `dPass` survives the arena's growth. -/
-theorem dPass_ext {env₁ : Env} : DExt (fun st q => dPass st env₁ q) := by
-  intro st st' hx q qP h
-  obtain ⟨he, h1, hk, h2, h3, h4, h5⟩ := dPass_inv h
-  obtain ⟨e, p, k, pa, rd, cl, tb⟩ := qP
-  simp only at he hk h1 h2 h3 h4 h5
-  subst he hk
-  have := dPass_mk (env₁ := e) (dShape_ext hx _ _ h1) (denoteEList_ext hx _ _ h2)
-    (dClassRead_ext hx _ _ h3) (dMajor_ext.list hx _ _ h4) (dCtorNf_ext.list hx _ _ h5)
-  show dPass st' e q = _
-  rw [this]
-
 /-! ## The projection tables -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-101 checkBlockTables

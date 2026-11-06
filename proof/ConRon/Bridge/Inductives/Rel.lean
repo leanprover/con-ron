@@ -269,35 +269,6 @@ theorem fvarTypeD_run {s₀ s' : AState} {h r : EIdx} {hP : Expr}
     (ExprOps.fvarTypeD_spec s₀ h hok (by rw [hd]; rfl))
   exact ⟨h1, h2 hP hd⟩
 
-/-- con-leche: none — **the level list reads at an INDEX**, with the fallback
-carried through: `structProjGuards`' `sorts.getD j z` against con-leche's
-`sorts.getD j .zero`. -/
-theorem denoteLList_getD {st : LStore} : ∀ {us : List LIdx} {xs : List Level},
-    denoteLList st us = some xs → ∀ {z : LIdx} {zP : Level},
-      denoteL st z = some zP → ∀ (j : Nat),
-        denoteL st (us.getD j z) = some (xs.getD j zP) := by
-  intro us
-  induction us with
-  | nil =>
-    intro xs h z zP hz j
-    simp only [denoteLList] at h
-    obtain rfl := Option.some.inj h
-    simpa using hz
-  | cons u us ih =>
-    intro xs h z zP hz j
-    simp only [denoteLList, opt2] at h
-    cases hu : denoteL st u with
-    | none => rw [hu] at h; simp at h
-    | some y =>
-      cases hus : denoteLList st us with
-      | none => rw [hu, hus] at h; simp at h
-      | some ys =>
-        rw [hu, hus] at h
-        obtain rfl := Option.some.inj h
-        cases j with
-        | zero => simpa using hu
-        | succ j => simpa using ih hus hz j
-
 /-- con-leche: none — **`internLsNode`, as a run**: a universe-argument list
 node, which is what `paramLevels` answers. -/
 theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
@@ -496,19 +467,6 @@ of them use. -/
 structure InstRel (P : Env → Prop) (st : EStore) (fe' : IFEnv) : Prop where
   denote : ∃ env', EnvRel env' fe' st ∧ P env'
 
-/-- con-leche: none — `InstRel` survives the arena's growth. -/
-theorem InstRel.ext {fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
-    (h : InstRel P st fe') (hx : Ext st st') : InstRel P st' fe' := by
-  obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨⟨e, he.mono hx, hp⟩⟩
-
-/-- con-leche: none — an `InstRel` whose pure-side claim is implied by
-another's. -/
-theorem InstRel.imp {fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
-    (h : InstRel P st fe') (hPQ : ∀ e, P e → Q e) : InstRel Q st fe' := by
-  obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨⟨e, he, hPQ e hp⟩⟩
-
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what the inductive route leaves behind**: `IndSpec.run`'s conclusion, the
 state's frame and the pure side's run (`run`, instantiated by
@@ -553,23 +511,6 @@ theorem stripLams_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
     (ExprOps.stripLams_spec k s₀ c hok (by rw [hd]; rfl))
   exact ⟨h1, h2 cP hd⟩
 
-/-- con-leche: none — a rule's right-hand side denotes. -/
-theorem denoteRule_rhs {st : EStore} {rl : IRecRule} {x : RecRule}
-    (h : Frontend.denoteRule st rl = some x) : denoteE st rl.rhs = some x.rhs := by
-  simp only [Frontend.denoteRule] at h
-  cases hc : denoteN st.ns rl.ctor with
-  | none => rw [hc] at h; simp at h
-  | some c =>
-    cases hf : Frontend.denoteFire st rl.fire with
-    | none => rw [hc, hf] at h; simp at h
-    | some f =>
-      cases he : denoteE st rl.rhs with
-      | none => rw [hc, hf, he] at h; simp at h
-      | some e =>
-        rw [hc, hf, he] at h
-        obtain rfl := Option.some.inj h
-        rfl
-
 /-- con-leche: none — **`lvlEq?` at the pure frame**: it moves only the two
 caches `CacheFrame` names (`Core.lvlEq?_frame`). -/
 theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
@@ -597,13 +538,6 @@ theorem readLevelM_denote_L {s₀ s s' : AState} {h : LIdx} {u : Level}
     (q : PStep s₀ s) (hrun : readLevelM h s = .ok (u, s')) :
     denoteL s.store.ls h = some u :=
   (Core.readLevelM_denote (q.cframe.readL hrl) hrun).1
-
-/-- con-leche: none — the same from the core grade's `CheckOK`. -/
-theorem readLevelM_denote_core {env : Env} {fe : IFEnv}
-    {s₀ s s' : AState} {h : LIdx} {u : Level} (hc : CheckOK false env fe s₀)
-    (q : PStep s₀ s) (hrun : readLevelM h s = .ok (u, s')) :
-    denoteL s.store.ls h = some u :=
-  readLevelM_denote_L hc.caches.readL q hrun
 
 /-! ## `List.mapM` at the pure frame
 

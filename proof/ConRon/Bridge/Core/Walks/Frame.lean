@@ -68,27 +68,6 @@ structure ReadbackFrame (s₀ s' : AState) : Prop where
   readLs : ReadLsCacheOK s₀.caches.readLsC s₀.store →
     ReadLsCacheOK s'.caches.readLsC s'.store
 
-/-- con-leche: none — the identity frame. -/
-theorem ReadbackFrame.refl (s : AState) : ReadbackFrame s s :=
-  ⟨rfl, rfl, rfl, rfl, id, id, id⟩
-
-/-- con-leche: none — frames compose, which is what lets a walk that reads
-several handles back pay the obligation once. -/
-theorem ReadbackFrame.trans {s₀ s₁ s₂ : AState} (h : ReadbackFrame s₀ s₁)
-    (h' : ReadbackFrame s₁ s₂) : ReadbackFrame s₀ s₂ where
-  store := h'.store.trans h.store
-  memos := h'.memos.trans h.memos
-  pins := h'.pins.trans h.pins
-  caches := by rw [h'.caches, h.caches]
-  readL := fun x => h'.readL (h.readL x)
-  readN := fun x => h'.readN (h.readN x)
-  readLs := fun x => h'.readLs (h.readLs x)
-
-/-- con-leche: none — a frame is in particular an arena extension, which is
-what a caller stating `Ext` in its own postcondition needs. -/
-theorem ReadbackFrame.ext {s₀ s' : AState} (h : ReadbackFrame s₀ s') :
-    Ext s₀.store s'.store := by rw [h.store]; exact Ext.refl _
-
 /-! ## 2. `CacheOK` and `CheckOK` across a frame -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC (the

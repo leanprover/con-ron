@@ -51,14 +51,6 @@ theorem openers_typeD_WScoped {n off : Nat} {e : ConLeche.Expr} {fvs : List ConL
 
 /-! ## The former's telescope -/
 
-/-- con-leche: none — a handle denoting a sort carries the sort tag (the
-tag-first test's `else` side cannot be a sort). -/
-private theorem sortTag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {u : Level}
-    (hd : denoteE st h = some (.sort u)) : h.tag = ETag.sort := by
-  obtain ⟨v, _, ht, hv⟩ := denote_view_tag hwf hd
-  rw [ht]
-  cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff] <;> rfl
-
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:33-38 checkSumTele
 The type former's stage: `n` Π binders ending in a sort, the former as it is
 (`reduceMember` has put it at its telescope).  Pure on both sides: the twin
@@ -96,31 +88,6 @@ theorem checkSumTele_spec (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : Constan
     exact absurd z1 (fun h => AM.fail_ok h)
 
 /-! ## The fields' universe bound -/
-
-/-- con-leche: none — a level-handle list denotes across an append. -/
-theorem denoteLList_append {st : LStore} :
-    ∀ {a : List LIdx} {as : List Level} {b : List LIdx} {bs : List Level},
-      denoteLList st a = some as → denoteLList st b = some bs →
-      denoteLList st (a ++ b) = some (as ++ bs) := by
-  intro a
-  induction a with
-  | nil =>
-    intro as b bs ha hb
-    simp only [denoteLList, Option.some.injEq] at ha
-    subst ha; simpa using hb
-  | cons x xs ih =>
-    intro as b bs ha hb
-    simp only [denoteLList] at ha
-    cases hx : denoteL st x with
-    | none => rw [hx] at ha; simp [opt2] at ha
-    | some y =>
-      cases hxs : denoteLList st xs with
-      | none => rw [hx, hxs] at ha; simp [opt2] at ha
-      | some ys =>
-        rw [hx, hxs] at ha
-        simp only [opt2, Option.some.injEq] at ha
-        subst ha
-        simp only [List.cons_append, denoteLList, hx, ih hxs hb, opt2]
 
 /-- con-leche: none — **an expression-handle list's `contains` is the
 denotation's**, at both signs: `beq_of_denoteE` at every element (the store is

@@ -523,54 +523,6 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
   | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
-for `natIndOk`**, at the index's lookup of a denoted name. -/
-theorem natIndOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk (fe.find? n)
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk (env.find? nm); ⊤⦄ := by
-  have hrel := optCI_find hok hn
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne] <;> finish
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
-for `natZeroOk`**, at the index's lookup of a denoted name. -/
-theorem natZeroOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (fe.find? n)
-    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk (env.find? nm); ⊤⦄ := by
-  have hrel := optCI_find hok hn
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat,
-      constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
-for `natSuccOk`**, at the index's lookup of a denoted name. -/
-theorem natSuccOk_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (fe.find? n)
-    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk (env.find? nm); ⊤⦄ := by
-  have hrel := optCI_find hok hn
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat,
-      constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName), pinAt_specE] <;> finish
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
-**THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
-theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitSupported fe
-    ⦃fun b s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env; ⊤⦄ := by
-  sym only [bridge_grind, ConLeche.natLitSupported] =>
-    vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
-      ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc,
-      natIndOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName),
-      natZeroOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natZeroName),
-      natSuccOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natSuccName),
-      pinAt_specE] <;> finish
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:195-198 natLitStored
 con-leche: ConLeche/Kernel/FEnv.lean:192-194 natLitStoredF —
 **THEOREM 1 for `natLitStored`**: the three names present, read through the
@@ -1148,10 +1100,6 @@ section Census
 #print axioms natOpWfNames_spec
 #print axioms natOpResult_spec
 #print axioms constE_spec
-#print axioms natIndOk_spec
-#print axioms natZeroOk_spec
-#print axioms natSuccOk_spec
-#print axioms natLitSupported_spec
 #print axioms natLitStored_spec
 #print axioms natOpResult_wscoped
 #print axioms reduceNat_spec

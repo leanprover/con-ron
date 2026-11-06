@@ -530,47 +530,6 @@ answers the ORIGINAL handle, and what its caller must then show is that the
 original handle denotes the rebuilt view — which is `denoteE_view_eq` plus this.
 -/
 
-/-- con-leche: none — a node view's denotation survives an arena extension.
-One `cases` over the ten constructors, each arm a transport of group 2. -/
-theorem denoteEView_ext {st st' : EStore} {w : ENodeView} {e : Expr}
-    (hd : denoteEView st w = some e) (hx : Ext st st') :
-    denoteEView st' w = some e := by
-  cases w with
-  | bvar _ => exact hd
-  | lit _ => exact hd
-  | fvar k ty =>
-    simp only [denoteEView, Option.map_eq_some_iff] at hd ⊢
-    obtain ⟨t, ht, rfl⟩ := hd
-    exact ⟨t, denote_ext ht hx, rfl⟩
-  | sort u =>
-    simp only [denoteEView, Option.map_eq_some_iff] at hd ⊢
-    obtain ⟨l, hl, rfl⟩ := hd
-    exact ⟨l, denoteL_ext hl hx, rfl⟩
-  | const n us =>
-    simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨nm, ls, hn, hl, rfl⟩ := hd
-    exact ⟨nm, ls, denoteN_ext hn hx, denoteLs_ext hl hx, rfl⟩
-  | app f a =>
-    simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
-    exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
-  | lam ty b =>
-    simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
-    exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
-  | forallE ty b =>
-    simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
-    exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
-  | letE ty v b =>
-    simp only [denoteEView, opt3_eq_some_iff] at hd ⊢
-    obtain ⟨x, y, z, hxx, hyy, hzz, rfl⟩ := hd
-    exact ⟨x, y, z, denote_ext hxx hx, denote_ext hyy hx, denote_ext hzz hx, rfl⟩
-  | proj n i sub =>
-    simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
-    exact ⟨x, y, denoteN_ext hxx hx, denote_ext hyy hx, rfl⟩
-
 /-! ## 4c. The declaration layer's denotation transports
 
 `Arena/Frontend/Readback.lean` denotes the declaration layer
@@ -893,29 +852,6 @@ theorem denoteEList_getD {st : EStore} :
         | succ k =>
           simp only [List.getD_cons_succ]
           exact denoteEList_getD has (by simpa using hi)
-
-/-- con-leche: none — the same at a level-handle list, with con-leche's own
-`.zero` default (`ProjTable.entry`) against the arena's `default`. -/
-theorem denoteLList_getD {st : LStore} :
-    ∀ {hs : List LIdx} {us : List Level},
-      denoteLList st hs = some us → ∀ {i : Nat}, i < hs.length →
-      denoteL st (hs.getD i default) = some (us.getD i .zero)
-  | [], _, _, _, hi => by simp at hi
-  | a :: as, us, h, i, hi => by
-    simp only [denoteLList] at h
-    cases ha : denoteL st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : denoteLList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        obtain rfl := Option.some.inj h
-        cases i with
-        | zero => simpa using ha
-        | succ k =>
-          simp only [List.getD_cons_succ]
-          exact denoteLList_getD has (by simpa using hi)
 
 /-- con-leche: ConLeche/Kernel/Env.lean:454-458 ProjTable.entry — **the
 EXACTNESS lemma of the projection table**: taking the per-field view commutes

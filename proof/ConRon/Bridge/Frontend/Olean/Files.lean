@@ -404,43 +404,4 @@ theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OL
             cases h
             exact (ModelIO.bind_ok _ _ _ _).2 ⟨.ok pv, readPart_sim h4, rfl⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:238-246 readView -/
-theorem readView_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
-    {mn : ConLeche.Name} {level : OLeanLevel} {d : ConRon.Arena.Frontend.Olean.ModDecoded}
-    {s s' : AState} (hm : denoteN s.store.ns m = some mn) (hctx : Ctx pk s)
-    (h : Arena.Frontend.Olean.readView (modelFs F) pk sp m level s = .ok (d, s')) :
-    ParseStep s s' ∧ ∃ z, (ConLeche.Frontend.Olean.readView sp mn level : ModelIO _) F (.ok (.ok z)) ∧
-      denoteMod s'.store d = some z := by
-  unfold Arena.Frontend.Olean.readView at h
-  obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨hs1, hd1⟩ := readName_run h1
-  subst hs1
-  have hmn : mn' = mn := Option.some.inj (hd1.symm.trans hm)
-  subst hmn
-  obtain ⟨f, s₂, h3, h4⟩ := AM.bind_ok h2
-  cases hrf : Arena.Frontend.Olean.readFiles (modelFs F) sp mn' level with
-  | error e =>
-    simp only [hrf, Arena.Frontend.Olean.liftE] at h3
-    cases h3
-  | ok f' =>
-    simp only [hrf, Arena.Frontend.Olean.liftE] at h3
-    obtain ⟨hv, hs⟩ := AM.pure_ok h3
-    cases hv
-    subst hs
-    obtain ⟨o, s₃, h5, h6⟩ := AM.bind_ok h4
-    cases o with
-    | none =>
-      obtain ⟨e, s₄, h7, h8⟩ := AM.bind_ok h6
-      cases h8
-    | some d' =>
-      obtain ⟨hv, hs⟩ := AM.pure_ok h6
-      cases hv
-      subst hs
-      obtain ⟨hst, z, hz, hd⟩ := parseView_run hctx h5
-      refine ⟨hst, z, ?_, hd⟩
-      simp only [ConLeche.Frontend.Olean.readView, ModelIO.bind_ok]
-      refine ⟨.ok f, readFiles_sim hrf, ?_⟩
-      simp only [ConLeche.Frontend.Olean.parseView_eq_spec, hz]
-      rfl
-
 end ConRon.Bridge.Frontend.Olean

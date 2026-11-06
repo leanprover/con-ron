@@ -810,7 +810,6 @@ theorem pushDecl_run {s s' : AState} {sd sd' : StateD}
   · exact hp.decls x h
   · subst h; exact hpd
 
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:347 parseRuleD — one recursor
 rule.
 
@@ -928,12 +927,6 @@ theorem readName_bind {α : Type} {h : NIdx} {f : ConLeche.Name → AM α} {s : 
   obtain ⟨rfl, -⟩ := readName_run h1
   exact ⟨x, h2⟩
 
-/-- con-leche: none — a list related to a singleton is a singleton. -/
-theorem ListRel.singleton_right {α β : Type} {P : α → β → Prop} {xs : List α} {y : β}
-    (h : ListRel P xs [y]) : ∃ x, xs = [x] ∧ P x y := by
-  cases h with
-  | cons hxy hr => cases hr; exact ⟨_, rfl, hxy⟩
-
 /-- con-leche: none — `except_bind_of` with the answer left existential, the
 shape a loop step's obligation has. -/
 theorem except_bind_ex {ε α β : Type} {m : Except ε α} {k : α → Except ε β}
@@ -942,12 +935,6 @@ theorem except_bind_ex {ε α β : Type} {m : Except ε α} {k : α → Except �
     P ∧ ∃ v, (m >>= k) = .ok v ∧ T v := by
   obtain ⟨a, rfl, hq⟩ := hm
   exact hk a hq
-
-/-- con-leche: none — a list related to by a singleton is a singleton. -/
-theorem ListRel.singleton_left {α β : Type} {P : α → β → Prop} {x : α} {ys : List β}
-    (h : ListRel P [x] ys) : ∃ y, ys = [y] ∧ P x y := by
-  cases h with
-  | cons hxy hr => cases hr; exact ⟨_, rfl, hxy⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the two
 answers agree: a verdict against a verdict of the same KIND (`VerdictRel`, the
@@ -1053,7 +1040,6 @@ theorem mapM_sim {α β γ : Type} {P : β → γ → Prop}
     simp only [List.mapM_cons, hc, hcs]
     rfl
 
-
 /-- con-leche: none — `storeFuel` reads the store and moves nothing. -/
 theorem storeFuel_run {s s' : AState} {n : Nat} (hrun : storeFuel s = .ok (n, s')) :
     s' = s := by
@@ -1067,13 +1053,6 @@ triple. -/
 theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}
     (hrun : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (viewN_spec s h)
-
-/-- con-leche: none — `readLevel` in run form: the readback IS `denoteL`
-(DESIGN §8.3 lesson 4). -/
-theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
-    (hrun : readLevel h s = .ok (u, s')) :
-    s' = s ∧ denoteL s.store.ls h = some u :=
-  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
 
 /-- con-leche: none — the name-side counterpart of `Bridge/Rel.lean`'s
 denote-inversion layer, at the one constructor `validateIndD_run'` reads: a
@@ -1269,7 +1248,6 @@ theorem ctorIx_fold_rel {st : NStore} (hw : NStoreWF st) :
         intro hc; subst hc; exact hxh (denoteN_inj hw hxy hn)
       rw [ite_eq_right (by simpa using hxh), ite_eq_right (by simpa using hyn)]
       exact hm h n hn
-
 
 set_option hygiene false in
 /-- con-leche: none — `validateIndD`'s constructor-loop step after the
@@ -1692,7 +1670,6 @@ member lists (`types`, `ctors`, `recs`) are each a `mapM` over `parseCVD_run`
 (recursors additionally over `parseRules_run`), nothing moves the store, and
 the whole block denotes con-leche's by `denoteCIList_of_listRel`. -/
 
-
 /-- con-leche: none — `ListRel` through `++`. -/
 theorem ListRel.append {α β : Type} {P : α → β → Prop} :
     ∀ {xs : List α} {ys : List β} {xs' : List α} {ys' : List β},
@@ -1888,7 +1865,6 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
   rw [indBlockOfF]
   simp only [hcltys, hclcts, hclrcs]
   rfl
-
 
 /-! ## The line -/
 

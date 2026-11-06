@@ -162,21 +162,6 @@ theorem CoreStep.congr_find {env : Env} {fe fe' : IFEnv}
     CoreStep env fe' s s' :=
   ⟨h.ok.congr_find hf ht hb, h.ext, h.pins⟩
 
-/-- con-leche: none — **a name the environment lacks, the index lacks**:
-`IFEnvOK.hit`'s contrapositive at a handle that denotes it. -/
-theorem IFEnvOK.find?_none {env : Env} {fe : IFEnv} {s : AState}
-    (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
-    (hd : denoteN s.store.ns n = some nm) (he : env.find? nm = none) :
-    fe.find? n = none := by
-  cases hf : fe.find? n with
-  | none => rfl
-  | some ci =>
-    obtain ⟨nm', c, hd', -, he'⟩ := h.hit n ci hf
-    rw [hd] at hd'
-    obtain rfl := Option.some.inj hd'
-    rw [he] at he'
-    exact absurd he' (by simp)
-
 /-! ## The seventh entry point -/
 
 /-- con-leche: none — the LEVEL-valued answer relation, for `ensureSort`.

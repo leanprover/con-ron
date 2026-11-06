@@ -123,7 +123,6 @@ directions. -/
   | _, none => x = none
   | st, some a => ∃ b, x = some b ∧ R b st a
 
-
 /-! ## The answer relations
 
 Ten shapes, one per result type the tier's ~110 twins answer with.  Each is an
@@ -143,9 +142,6 @@ abbrev REL (vs : List Expr) : EStore → List EIdx → Prop :=
 /-- an ARRAY of expression handles denotes a given `Array Expr`. -/
 abbrev REA (vs : Array Expr) : EStore → Array EIdx → Prop :=
   fun st r => Frontend.denoteEArray st r = some vs
-/-- a LIST of level handles denotes a given `List Level`. -/
-abbrev RLL (us : List Level) : EStore → List LIdx → Prop :=
-  fun st r => denoteLList st.ls r = some us
 /-- a representation-free answer (`Bool`, `Nat`, `List Nat`, `Unit`, …): NO
 target store, task #97-P3-0 §5's finding 1. -/
 abbrev RV {α : Type} (x : α) : EStore → α → Prop := fun _ r => r = x
@@ -193,15 +189,6 @@ theorem denoteCtors_ext {st st' : EStore} (hx : Ext st st') :
         rw [denoteCV_ext hc hx, ih ys has]
         exact h
 
-/-- con-leche: none — a list of level LISTS denotes: the fields' sorts, one
-list per constructor (`checkSumCtors`' second answer). -/
-@[expose] def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
-  | [] => some []
-  | l :: ls =>
-    match denoteLList st.ls l, denoteLLists st ls with
-    | some x, some xs => some (x :: xs)
-    | _, _ => none
-
 /-- con-leche: none — a three-tuple constructor list's denotation keeps its
 length. -/
 theorem denoteCtors3_length {st : EStore} :
@@ -224,25 +211,6 @@ theorem denoteCtors3_length {st : EStore} :
         rw [hcv, has] at h
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
-
-/-- con-leche: none — a denoting rule's CONSTRUCTOR handle denotes the pure
-rule's constructor name, and its field count travels verbatim. -/
-theorem denoteRule_ctor {st : EStore} {rl : IRecRule} {x : RecRule}
-    (h : Frontend.denoteRule st rl = some x) :
-    denoteN st.ns rl.ctor = some x.ctor ∧ rl.nfields = x.nfields := by
-  simp only [Frontend.denoteRule] at h
-  cases hc : denoteN st.ns rl.ctor with
-  | none => rw [hc] at h; simp at h
-  | some c =>
-    cases hf : Frontend.denoteFire st rl.fire with
-    | none => rw [hc, hf] at h; simp at h
-    | some f =>
-      cases he : denoteE st rl.rhs with
-      | none => rw [hc, hf, he] at h; simp at h
-      | some e =>
-        rw [hc, hf, he] at h
-        obtain rfl := Option.some.inj h
-        exact ⟨rfl, rfl⟩
 
 /-- con-leche: none — `denoteCI` preserves the constant's KIND at the
 inductive tag too, for the recogniser's `| _ => false` arm (see
@@ -457,27 +425,6 @@ theorem internParamL_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
   show Option.map Level.param (denoteN s'.store.ls.ns n) = some (Level.param nm)
   rw [hx]
   rfl
-
-/-- con-leche: none — `internLNode` at a `.max`: `structProjGuards`' fold
-step, and the one level node of this tier with two children. -/
-theorem internMaxL_run {s s' : AState} {a b : LIdx} {aP bP : Level} {h : LIdx}
-    (hok : StateOK s) (ha : denoteL s.store.ls a = some aP)
-    (hb : denoteL s.store.ls b = some bP)
-    (hrun : internLNode (.max a b) s = .ok (h, s')) :
-    PStep s s' ∧ denoteL s'.store.ls h = some (.max aP bP) := by
-  obtain ⟨hstep, hd⟩ :=
-    internLNode_run hok
-      ⟨by intro c hc
-          simp only [LNodeView.lchildren, List.mem_cons] at hc
-          rcases hc with rfl | rfl | hc
-          · exact lview_isSome_of_denote ha
-          · exact lview_isSome_of_denote hb
-          · exact absurd hc (by simp),
-       by simp [LNodeView.nchildren]⟩ hrun
-  refine ⟨hstep, ?_⟩
-  rw [hd]
-  simp only [denoteLView, denoteL_ext ha hstep.ext, denoteL_ext hb hstep.ext,
-    opt2]
 
 /-- con-leche: none — and so a NAME-handle-list comparison is a structural
 one, at both signs. -/
