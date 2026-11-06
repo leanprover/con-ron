@@ -366,7 +366,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
       rw [List.drop_eq_getElem_cons hb]
       obtain ⟨j, hj⟩ : ∃ j, n.val = j + 1 := ⟨n.val - 1, by omega⟩
       rw [hj, List.take_succ_cons, List.append_assoc]
-      simp only [u64_one_val] at hn1v
+      rw [show (1#u64 : Std.U64).val = 1 from rfl] at hn1v
       rw [show n1.val = j by omega]
       rfl
 

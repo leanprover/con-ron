@@ -459,7 +459,6 @@ theorem LSP.tail {α : Type} {m : Result α} {P Q : α → Prop}
 
 /-! ## Pure Rust-only specs of the machine words -/
 
-@[lockstep_simp] theorem u64_one_val : (1#u64 : Std.U64).val = 1 := rfl
 @[lockstep_simp] theorem usize_one_val : (1#usize : Std.Usize).val = 1 := rfl
 @[lockstep_simp] theorem u64_zero_val : (0#u64 : Std.U64).val = 0 := rfl
 
