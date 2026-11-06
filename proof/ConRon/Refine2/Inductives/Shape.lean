@@ -40,15 +40,6 @@ def absNatL (v : alloc.vec.Vec Std.U64) : List Nat := v.val.map absU
 def absNatLFrom (v : alloc.vec.Vec Std.U64) (i : Std.Usize) : List Nat :=
   (v.val.drop i.val).map absU
 
-/-- A `Vec<bool>` as the twin's `List Bool` — `structUsedLaterList`'s
-answers. -/
-def absBoolL (v : alloc.vec.Vec Bool) : List Bool := v.val
-
-/-- A `Vec<Vec<LIdx>>` as the twin's `List (List LIdx)` — the fields' sorts,
-one list per constructor. -/
-def absLIdxLL (v : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)) :
-    List (List LIdx) := v.val.map absLIdxL
-
 /-! ## The constructor spines -/
 
 /-- `Vec<(IConstantVal, u64)>` as the twin's `List (IConstantVal × Nat)` — the
@@ -181,13 +172,6 @@ macro_rules
         | rfl
         | (refine am_bind_congr _ ?_; intro __x)
         | split)
-
-/-! ## The state-free cursor recursion, and the `arena::env` copies
-
-`cursor_induction`, `vec_cursor_copy` and the record copies' identity lemmas
-(`i_constant_val_dup_abs` … `i_rec_rules_dup_abs`) moved down to
-`Refine2/Dup.lean` (task #97-P5-Front round 2), so the frontend tier can cite
-them. -/
 
 /-! ### The boolean scans, once
 
@@ -452,14 +436,7 @@ statement is `SimRel₀` at the relation below — the answer bit equal and the 
 memos related — which is `ExprOps/Read.lean`'s `WOut`/`LOut` without the
 `Ext`/`StoreWF` those carried. -/
 
-/-- The `(handle, depth)`-keyed memo walk's answer relation.  `@[lockstep_rel]`,
-so the zip splits a related answer (`splitRels`) where a walk's continuation
-matches on it. -/
-@[lockstep_rel] def WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
-    (v : Bool × Std.HashMap (EIdx × Nat) Bool) : Prop :=
-  r.1 = v.1 ∧ ExprOps.WMemoRel r.2 v.2
-
-attribute [simp] absNatL absNatLFrom absBoolL absLIdxLL absBinderL absBinderLFrom
+attribute [simp] absNatL absNatLFrom absBinderL absBinderLFrom
   absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom absRecsL absRecsLFrom
 
 /-! ## The tier's side-goal extension

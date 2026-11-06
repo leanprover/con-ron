@@ -61,19 +61,6 @@ theorem names_copy_val {xs v : alloc.vec.Vec name.Name}
   have hv := append_from_val xs xs.length 0#usize _ v (by scalar_tac) h
   simpa [alloc.vec.Vec.new] using hv
 
-/-! ## Injectivity -/
-
-theorem names_map_inj : ∀ {l m : List name.Name}, (∀ n ∈ l, NameWF n) →
-    (∀ n ∈ m, NameWF n) → l.map absName = m.map absName → l = m
-  | [], [], _, _, _ => rfl
-  | [], _ :: _, _, _, h => by simp at h
-  | _ :: _, [], _, _, h => by simp at h
-  | x :: l, y :: m, hl, hm, h => by
-    simp only [List.map_cons, List.cons.injEq] at h
-    rw [Name.absName_injective (hl x (by simp)) (hm y (by simp)) h.1,
-      names_map_inj (l := l) (m := m) (fun n hn => hl n (by simp [hn]))
-        (fun n hn => hm n (by simp [hn])) h.2]
-
 /-! ## The constructors and readers -/
 
 theorem never_wf {pw} (h : prop_when.never = ok pw) : PropWhenWF pw := by

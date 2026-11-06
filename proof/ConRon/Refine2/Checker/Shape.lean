@@ -149,13 +149,6 @@ def SimRel₀ {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTi
     (x : AM β) : Prop :=
   AOutRel₀ R pers o.1 o.2 (x.run lst)
 
-theorem AOutRel₀.ok {α β : Type} {R : α → β → Prop} {r : α} {v : β}
-    {pers : arena.store.PersTier} {lst' : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (hx : x = .ok (v, lst')) (hr : R r v) (hrel : AStateRel₀ pers st' lst')
-    (hinv : AStateInv pers st') : AOutRel₀ R pers (.Ok r) st' x :=
-  ⟨v, lst', hx, hr, hrel, hinv⟩
-
 /-! ## `SimRE` — a reader that can FAIL
 
 `Refine2/Shape.lean`'s `SimR` is `Result`-valued but never `Err`, which is
@@ -215,7 +208,6 @@ def absEIdxLFrom (v : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) : List EI
   (v.val.drop i.val).map absEIdx
 def absLIdxLFrom (v : alloc.vec.Vec arena.handle.LIdx) (i : Std.Usize) : List LIdx :=
   (v.val.drop i.val).map absLIdx
-
 def absIRecRuleL (v : alloc.vec.Vec arena.env.IRecRule) : List IRecRule :=
   v.val.map absIRecRule
 def absIRecRuleLFrom (v : alloc.vec.Vec arena.env.IRecRule) (i : Std.Usize) :
@@ -228,9 +220,6 @@ def absICILFrom (v : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) :
 
 def absIDeclL (v : alloc.vec.Vec arena.env.IDeclaration) : List IDeclaration :=
   v.val.map absIDeclaration
-def absIDeclLFrom (v : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) :
-    List IDeclaration := (v.val.drop i.val).map absIDeclaration
-
 /-- `Vec<(Vec<EIdx>, EIdx)>` as the twin's `List (List EIdx × EIdx)` —
 `divModCertStmts`' open characterization statements: per certificate, the list
 of hypothesis types and the characteristic equation. -/
@@ -261,11 +250,9 @@ def absBasisKindLFrom (v : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize) :
     List ConLeche.BasisKind := (v.val.drop i.val).map ConRon.Refine.absBasisKind
 
 attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFrom
-  absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom absStmts
+  absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absStmts
   absStmtsFrom absEqPairs absEqPairsFrom absLevelLFrom absNameLFrom absBasisKindLFrom
-
 /-! ## The environment layer's own invariant
-
 `Refine2/AbsState.lean`'s relations read a Rust map through `HashMap2.toFun`,
 which specifies a well-formed table and says nothing about a malformed one;
 every other `RelOn` of this tower is paired with an `Inv` in `AStateInv`, and
@@ -309,25 +296,6 @@ theorem IFEnvRelI.rel {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf :
 
 theorem IFEnvRelI.inv {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
     (h : IFEnvRelI pers rf lf) : IFEnvInv rf := h.2
-
-/-- `layer00` is an empty layer, well formed. -/
-theorem layer00_inv : IFEnvInv layer00 := by
-  have hn := ConRon.Refine.HashMap2.new_refines
-    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
-    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.idx) rfl
-  have ht := ConRon.Refine.HashMap2.new_refines
-    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
-    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.tbls) rfl
-  refine ⟨hn.1, fun n p hp => ?_, ht.1, fun n s hs => ?_⟩
-  · rw [hn.2.2 n] at hp; cases hp
-  · rw [ht.2.2 n] at hs; cases hs
-
-/-- An empty layer's own rows are none. -/
-theorem layer00_toFun (n : arena.handle.NIdx) :
-    ConRon.Refine.HashMap2.toFun layer00.idx n = none :=
-  (ConRon.Refine.HashMap2.new_refines
-    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
-    (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.idx) rfl).2.2 n
 
 /-! ## `arena::env::ifenv_push` — the one environment write every install route
 folds over (task #97-P5-Checker round 3)
@@ -616,7 +584,6 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
     TypePinsWF p.gcd_type_pins ∧ TypePinsWF p.land_type_pins ∧
     TypePinsWF p.lor_type_pins ∧ TypePinsWF p.xor_type_pins ∧
     TypePinsWF p.shift_left_type_pins ∧ TypePinsWF p.shift_right_type_pins
-
 attribute [simp] absTypePinsI absINatOpPinSet absINatOpPinSetL
   absINatOpPinSetLFrom
 

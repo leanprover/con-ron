@@ -270,61 +270,11 @@ theorem mod_files_view_region_eq {f : frontend.olean.view.ModFiles} {f' : ModFil
     Array (ConLeche.Frontend.Olean.ImportF NIdx) :=
   (v.val.map (absImportF absNIdx)).toArray
 
-theorem dec_imports {d d'} (hd : ModDecodedRel d d') : d'.imports = absImports d.imports := by
-  rw [absImports, hd.imports]
-
 /-- `imports_pre` of a module's exported file is `importsPre`. -/
 theorem imports_pre_ok {pk pers f f'} (hf : ModFilesRel f f') (st lst) :
     RS pers (EqA absImports) st lst
       (frontend.olean.header.imports_pre pk pers st.store (alloc.vec.Vec.deref f.exported.bytes))
       (importsPre (absPins pk) (absBytes (alloc.vec.Vec.deref f.exported.bytes))) :=
   imports_pre_refines (by rw [deref_val]; exact hf.fitsE.size)
-
-/-- **`check_imports_pre` is `checkImportsPre`.** -/
-theorem check_imports_pre_refines {pk pers st lst f f' d d'}
-    (hf : ModFilesRel f f') (hd : ModDecodedRel d d') :
-    RS pers ModDecodedRel st lst (check_imports_pre pk pers st.store f d) (checkImportsPre (absPins pk) f' d') := by
-  rw [check_imports_pre, checkImportsPre, hf.exported]
-  refine RS.of_eq (RS.bind (g := fun pre => if pre == d'.imports then pure (some d') else pure none)
-    (imports_pre_ok hf st lst) (fun e s1 => by cases e <;> rfl) fun a b s1 lst1 hab => ?_) ?_
-  · cases hab
-    refine RS.pure_step fun c hc => ?_
-    rw [dec_imports hd, ← imports_beq_eq hc]
-    cases c with
-    | true =>
-      rw [ite_eq_left rfl]
-      exact RS.some hd
-    | false =>
-      rw [ite_eq_right (by simp)]
-      exact RS.none
-  · congr 1
-    funext o
-    cases o <;> rfl
-
-/-- **`parse_view` is `parseView`.** -/
-theorem parse_view_refines {pk pers st lst f f' level}
-    (hf : ModFilesRel f f') :
-    RS pers ModDecodedRel st lst (parse_view pk pers st.store f level) (parseView (absPins pk) f' (absLevel level)) := by
-  rw [parse_view, parseView]
-  refine RS.pure_step fun o ho => ?_
-  have hV := mod_files_view_region_eq hf ho
-  cases o with
-  | none =>
-    rw [show f'.viewRegion (absLevel level) = none from hV]
-    exact RS.none
-  | some p =>
-    obtain ⟨vb, a⟩ := p
-    dsimp only
-    refine RS.pure_step fun bs hb => RS.pure_step fun r hr => ?_
-    obtain ⟨e, hfit⟩ := hV bs r hb hr
-    rw [e]
-    dsimp only
-    refine RS.of_eq (RS.bind (g := fun d => checkImportsPre (absPins pk) f' d) (parse_at_refines hfit) ?_ ?_) ?_
-    · intros; rfl
-    · intro _ _ _ _ hab
-      exact check_imports_pre_refines hf hab
-    · congr 1
-      funext o
-      cases o <;> rfl
 
 end ConRon.Refine2.Frontend.Olean

@@ -103,50 +103,6 @@ theorem RS.pure_step {α β γ : Type} {pers : arena.store.PersTier} {R : α →
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact h a h1 hrel hinv o s' h2
 
-/-- **The bind of two reads**: the first's `Ok` feeds the second, its failures are the
-answer, and the twin's `match ← x with | none => pure none | some b => g b`. -/
-theorem RS.bind {α₁ β₁ α β : Type} {pers : arena.store.PersTier} {R₁ : α₁ → β₁ → Prop}
-    {R : α → β → Prop} {st : arena.monad.AState} {lst : AState}
-    {f : Result (core.result.Result α₁ frontend.olean.spec.RdErr × arena.store.EStore)}
-    {k : core.result.Result α₁ frontend.olean.spec.RdErr × arena.store.EStore →
-      Result (core.result.Result α frontend.olean.spec.RdErr × arena.store.EStore)}
-    {x : AM (Option β₁)} {g : β₁ → AM (Option β)}
-    (hf : RS pers R₁ st lst f x)
-    (he : ∀ e s1, k (.Err e, s1) = ok (.Err e, s1))
-    (hk : ∀ a b s1 lst1, R₁ a b → RS pers R (withStore st s1) lst1 (k (.Ok a, s1)) (g b)) :
-    RS pers R st lst (Std.bind f k)
-      (do match ← x with
-          | Option.none => pure Option.none
-          | Option.some b => g b) := by
-  intro hrel hinv o s' hm
-  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  have h1 := hf hrel hinv r s1 hf1
-  cases r with
-  | Ok a =>
-    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := h1
-    rw [am_bind_ok hx]
-    exact hk a b s1 lst1 hR hrel1 hinv1 o s' hk1
-  | Err e =>
-    rw [he e s1] at hk1
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hk1)
-    cases e with
-    | Bad =>
-      obtain ⟨lst1, hx, hrel1, hinv1⟩ := h1
-      rw [am_bind_ok hx]
-      exact ⟨lst1, rfl, hrel1, hinv1⟩
-    | Err e =>
-      intro k' hk'
-      obtain ⟨le, hle, hkk⟩ := h1 k' hk'
-      refine ⟨le, ?_, hkk⟩
-      rw [StateT.run_bind, hle]; rfl
-
-/-- The tail of a read: the twin's run moved along an equation. -/
-theorem RS.of_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {st : arena.monad.AState} {lst : AState}
-    {m : Result (core.result.Result α frontend.olean.spec.RdErr × arena.store.EStore)}
-    {x y : AM (Option β)} (h : RS pers R st lst m x) (hxy : y = x) : RS pers R st lst m y := by
-  rw [hxy]; exact h
-
 /-- A weaker answer relation. -/
 theorem RS.mono {α β : Type} {pers : arena.store.PersTier} {R R' : α → β → Prop}
     {st : arena.monad.AState} {lst : AState}

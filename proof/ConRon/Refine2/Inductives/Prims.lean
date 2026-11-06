@@ -98,13 +98,6 @@ end IndPrims
 
 namespace IndModeledPrims
 
-/-- `decide (x = 0)` at a `u64` is the twin's `(x : Nat) == 0`. -/
-theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := by
-  by_cases h : x = 0#u64
-  · subst h; rfl
-  · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
-    simp [h, this]
-
 end IndModeledPrims
 
 open Lockstep in
@@ -127,24 +120,6 @@ counter `absU`, the same terms. -/
 namespace IndCore
 
 open Lockstep
-
-@[lockstep] theorem ind_open_pis_at_fvars_ls {pers st lst}
-    {n : Std.U64} {h : arena.handle.EIdx} {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-      (arena.core.open_pis_at_fvars pers st n h i) lst
-      (openPisAtFvars (absU n) (absEIdx h) (absU i)) :=
-  LS.tail (open_pis_at_fvars_ls hrel hinv n h i) rfl
-    (fun _ _ hr => by simpa [absEIdxList, absEIdxL] using hr)
-
-@[lockstep] theorem ind_open_pis_at_fvars_f_ls {pers st lst}
-    {n : Std.U64} {e : arena.handle.EIdx} {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
-      (arena.core.open_pis_at_fvars_f pers st n e i) lst
-      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) :=
-  LS.tail (open_pis_at_fvars_f_ls hrel hinv n e i) rfl
-    (fun _ _ hr => by simpa [absEIdxList, absEIdxL] using hr)
 
 /-- `former_def_headed` ⊑ `formerDefHeaded`: a former whose type does not show its
 telescope. -/

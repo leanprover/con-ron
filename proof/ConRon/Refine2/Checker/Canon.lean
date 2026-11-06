@@ -80,12 +80,6 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-! ## The pure comparisons
-
-Ten of them, and every one is the twin's derived `DecidableEq` at the
-abstraction.  The five `*_vec_beq` are cursor recursions over two `Vec`s and
-are stated at the two lists from the cursor on. -/
-
 /-! ### The three handle-vector comparisons, and the one induction they share
 
 `eidx_vec_beq` / `lidx_vec_beq` / `nidx_vec_beq` are the same function at
@@ -319,7 +313,6 @@ theorem eidx_vec_beq_refines {a b : alloc.vec.Vec arena.handle.EIdx}
     (hrun : arena.canon.eidx_vec_beq a b i = ok o) :
     o = decide (absEIdxLFrom a i = absEIdxLFrom b i) :=
   eidx_vec_beq_aux _ rfl hrun
-
 /-- `lidx_vec_beq` at the cursor. -/
 theorem lidx_vec_beq_refines {a b : alloc.vec.Vec arena.handle.LIdx}
     {i : Std.Usize} {o : Bool}
@@ -401,11 +394,6 @@ private theorem beq_chain {b1 : Bool} {P Q : Prop} [Decidable P] [Decidable Q]
     rw [← Result.ok_injective hrun]
     have hP : ¬ P := of_decide_eq_false h1.symm
     simp [hP]
-
-/-- The chain's last link: a `Decidable` test returned as it is. -/
-private theorem beq_last {P : Prop} [Decidable P] {o : Bool}
-    (h : (ok (decide P) : Result Bool) = ok o) : o = decide P :=
-  (Result.ok_injective h).symm
 
 /-- The same link where the Rust's test is a decidable PROPOSITION rather than
 a `Bool` — a scalar or flag field compared directly — and the twin's conjunct
@@ -1196,18 +1184,6 @@ open Lockstep in
   rw [arena.canon.i_constant_val_canon_eq, IConstantVal.canonEq]
   simp only [absIConstantVal, ← core_walk_fuel_abs]
   lockstep
-
-/-- `i_constant_val_canon_eq` ⊑ `IConstantVal.canonEq`.  The numbered
-level-parameter lists are equal exactly when they are equally long, which is
-why the length test stands in for comparing them — and why ONE `canonNames`
-serves both sides. -/
-theorem i_constant_val_canon_eq_refines {pers st lst}
-    {cv cv2 : arena.env.IConstantVal} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.i_constant_val_canon_eq pers st cv cv2 = ok o) :
-    Sim₀ id pers lst o
-      ((absIConstantVal cv).canonEq (absIConstantVal cv2)) :=
-  Lockstep.LS.toSim₀ (i_constant_val_canon_eq_lsc hrel hinv) hrun
 
 open Lockstep in
 @[local lockstep] private theorem canon_eq_cv_and_rules_lsc {pers st lst}

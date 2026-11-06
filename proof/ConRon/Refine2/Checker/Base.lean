@@ -441,21 +441,6 @@ theorem constsResolve_succ (fe : IFEnv) (fuel : Nat) (h : EIdx) :
 
 namespace Lockstep
 
-/-- `arena::core::stored` is an index probe: the twin's `find?` test. -/
-@[lockstep] theorem stored_spec {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (n : arena.handle.NIdx) (hctx : CoreCtx pers rf lf) :
-    LSP (arena.core.stored pers rf n)
-      (fun b => TwinEq ((lf.find? (absNIdx n)).isSome) b) := by
-  intro b h
-  rw [arena.core.stored] at h
-  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hf := ifenv_find_abs hctx ho
-  show (lf.find? (absNIdx n)).isSome = b
-  rw [← hf]
-  cases o with
-  | none => simp only [Result.ok.injEq] at h; subst h; rfl
-  | some _ => simp only [Result.ok.injEq] at h; subst h; rfl
-
 @[lockstep] theorem nat_trio_stored_ls {pers st lst} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers rf lf) :
@@ -918,13 +903,6 @@ namespace Lockstep
     LSP (arena.env.ifenv_push rf ci)
       (fun r => IFEnvRelI pers r (lf.push (absIConstantInfo ci))) :=
   fun _ h => ifenv_push_refines hfe.rel hfe.inv h
-
-/-- `ifenv_push_table`: a table pushed onto the layer. -/
-@[lockstep] theorem ifenv_push_table_spec {pers : arena.store.PersTier} {rf lf}
-    (hfe : IFEnvRelI pers rf lf) (t : arena.env.IProjTable) :
-    LSP (arena.env.ifenv_push_table rf t)
-      (fun r => IFEnvRelI pers r (lf.pushTable (absIProjTable t))) :=
-  fun _ h => ifenv_push_table_refines hfe.rel hfe.inv h
 
 attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
 
@@ -1438,12 +1416,6 @@ Each is its `_refines` lemma (or a Rust-only value step) in the judgement the
 which is what a fold step has in hand. -/
 
 namespace Lockstep
-
-@[lockstep] theorem reduce_op_names_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxL a) (arena.trust_axioms.reduce_op_names st) lst
-      reduceOpNames :=
-  LS.ofSim₀ fun _ h => reduce_op_names_refines hrel hinv h
 
 @[lockstep] theorem flush_caches_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :

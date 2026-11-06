@@ -41,86 +41,6 @@ local macro "vwf_triv" : tactic => `(tactic| (
       simp only [Option.some.injEq] at h'
       subst h'; trivial))
 
-theorem etables_get_wf {rt} (hinv : ETablesInv rt)
-    {i : arena.handle.EIdx} {o : Option arena.store.ENodeView}
-    (h : arena.store.ETables.get rt i = ok o) : ∀ v, o = some v → ENodeViewWF v := by
-  intro v hv
-  subst hv
-  rw [arena.store.ETables.get] at h
-  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  split at h
-  · vwf_triv
-  split at h
-  · vwf_triv
-  split at h
-  · vwf_triv
-  split at h
-  · vwf_triv
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    split at h
-    · vwf_triv
-    · simp at h
-  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  split at h
-  · simp at h
-  split at h
-  · vwf_triv
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hnwf := tbl_node_wf hinv.lits hp
-    cases p with
-    | none => simp at h
-    | some r =>
-      try dsimp only at h
-      obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have h' := Result.ok_injective h
-      simp only [Option.some.injEq] at h'
-      subst h'
-      show ConRon.Refine.LiteralWF l
-      rw [ConRon.Refine.Expr.literal_dup_eq hl]
-      exact hnwf r rfl
-  split at h
-  · vwf_triv
-  · simp at h
-
-/-- **The Rust store's view is well formed** — `StoreInv`'s `nodesP` at the
-table whose records carry a value (`lits`; `bms` went with the binder datum at
-task #119). -/
-theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs)
-    {i : arena.handle.EIdx} {o : Option arena.store.ENodeView}
-    (h : arena.store.EStore.view rs pers i = ok o) :
-    ∀ v, o = some v → ENodeViewWF v := by
-  rw [arena.store.EStore.view] at h
-  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  split at h
-  · obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases q with
-    | none => rw [← Result.ok_injective h]; intro v hv; simp at hv
-    | some tr =>
-      obtain ⟨ty, body⟩ := tr
-      simp only at h
-      obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      rw [← Result.ok_injective h]
-      intro v hv; simp only [Option.some.injEq] at hv; subst hv
-      rw [arena.store.e_bind_view] at hev
-      split at hev
-      · cases Result.ok_injective hev; trivial
-      · cases Result.ok_injective hev; trivial
-  · obtain ⟨b1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    split at h
-    · rw [arena.store.EStore.pers_get] at h
-      have hp := hinv.perst
-      rw [rPersE] at hp
-      split at h <;> rename_i hs
-      · rw [ite_eq_left hs] at hp; exact etables_get_wf hp h
-      · rw [ite_eq_right hs] at hp; exact etables_get_wf hp h
-    · split at h
-      · exact etables_get_wf hinv.scrt h
-      · rw [← Result.ok_injective h]; intro v hv; simp at hv
-
 /-! ## The port's cursor recursion, as a twin helper
 
 Every `_from` / `_go` cursor of these two tiers is the same Rust shape: at the
@@ -170,23 +90,6 @@ theorem vecFrom_cons {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : 
     (v.val.drop i.val).map f = f v.val[i.val] :: (v.val.drop (i.val + 1)).map f := by
   rw [List.drop_eq_getElem_cons hi]; rfl
 
-/-- A `usize` cast up to `u64` is exact (the platform word is at most 64
-bits). -/
-theorem usize_cast_u64_val (i : Std.Usize) : (UScalar.cast .U64 i).val = i.val := by
-  apply UScalar.cast_val_mod_pow_of_inBounds_eq
-  have h3 : Std.Usize.max < 2 ^ UScalarTy.Usize.numBits := by
-    rw [Std.Usize.max_def, Std.Usize.numBits_def]
-    have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
-    omega
-  have h4 : 2 ^ UScalarTy.Usize.numBits ≤ 2 ^ UScalarTy.U64.numBits := by
-    apply Nat.pow_le_pow_right (by decide)
-    rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
-    cases System.Platform.numBits_eq with
-    | inl h => rw [h]; decide
-    | inr h => rw [h]
-  have := i.hBounds
-  scalar_tac
-
 namespace Lockstep
 
 /-! ## Conversions -/
@@ -205,38 +108,6 @@ theorem LSR.ofAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
     obtain ⟨lst', hx, h1, h2⟩ := this
     exact ⟨A a, lst', hx, rfl, h1, h2⟩
 
-/-- A reader's `LSR`, its relation strengthened by a fact about the Rust
-answer alone. -/
-theorem LSR.withWF {α β : Type} {R : α → β → Prop} {P : α → Prop}
-    {pers : arena.store.PersTier}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : LSR pers R m st lst x) (hP : ∀ a, m = ok (.Ok a) → P a) :
-    LSR pers (fun a b => R a b ∧ P a) m st lst x := by
-  intro o hm
-  have := h o hm
-  cases o with
-  | Err e => exact this
-  | Ok a =>
-    obtain ⟨b, lst', hx, hR, h1, h2⟩ := this
-    exact ⟨b, lst', hx, ⟨hR, hP a hm⟩, h1, h2⟩
-
-/-- A reader's `LSR`, its relation weakened. -/
-theorem LSR.mono {α β : Type} {R R' : α → β → Prop}
-    {pers : arena.store.PersTier}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : LSR pers R m st lst x) (hR : ∀ a b, R a b → R' a b) :
-    LSR pers R' m st lst x := by
-  intro o hm
-  have := h o hm
-  cases o with
-  | Err e => exact this
-  | Ok a =>
-    obtain ⟨b, lst', hx, hr, h1, h2⟩ := this
-    exact ⟨b, lst', hx, hR a b hr, h1, h2⟩
-
-
 /-! ## The level and level-list views -/
 
 @[lockstep] theorem view_l_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -251,46 +122,7 @@ theorem LSR.mono {α β : Type} {R R' : α → β → Prop}
       st lst (Arena.viewLs (absLsIdx h)) :=
   LSR.ofAOut₀ fun _ hr => view_ls_run₀ hrel hinv hr
 
-/-- `view` with the Rust view's key predicate.  Filed AFTER `view_ls`, so a
-proof that needs the predicate takes this one as a local hypothesis (local
-candidates are tried first). -/
-theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absENodeView a ∧ ENodeViewWF a) (arena.monad.view pers st h)
-      st lst (Arena.view (absEIdx h)) := by
-  refine LSR.mono (LSR.withWF (view_ls hrel hinv h) ?_) (fun _ _ h => ⟨h.1.2, h.2⟩)
-  intro a ha
-  rw [arena.monad.view] at ha
-  obtain ⟨q, hq, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-  have hwf := estore_view_wf hinv.store hq
-  cases q with
-  | none =>
-    obtain ⟨_, -, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-    obtain ⟨_, -, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-    cases fail_run ha
-  | some w =>
-    cases Result.ok_injective ha
-    exact hwf _ rfl
-
 attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNIdxL absEIdxL
-
-/-! ## Tier bits and `dup2` at the small handle kinds -/
-
-@[lockstep] theorem eidx_is_persistent_spec (h : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.is_persistent h) (fun b => (absEIdx h).isPersistent = b) :=
-  fun _ hb => eidx_is_persistent_abs hb
-
-@[lockstep] theorem nidx_is_persistent_spec (h : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.is_persistent h) (fun b => (absNIdx h).isPersistent = b) :=
-  fun _ hb => nidx_is_persistent_abs hb
-
-@[lockstep] theorem lidx_is_persistent_spec (h : arena.handle.LIdx) :
-    LSP (arena.handle.LIdx.is_persistent h) (fun b => (absLIdx h).isPersistent = b) :=
-  fun _ hb => lidx_is_persistent_abs hb
-
-@[lockstep] theorem lsidx_is_persistent_spec (h : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.is_persistent h) (fun b => (absLsIdx h).isPersistent = b) :=
-  fun _ hb => lsidx_is_persistent_abs hb
 
 /-! ## Rust-only copies of the value types the records carry -/
 

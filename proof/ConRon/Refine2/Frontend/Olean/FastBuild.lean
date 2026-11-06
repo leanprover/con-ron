@@ -562,28 +562,6 @@ theorem build_pass_loop_ts {pk bs r pers} {m : alloc.vec.Vec Std.U8} {n : Std.U6
 
 /-! ## Both passes -/
 
-/-- `RS` from `TS`: the memo is the answer. -/
-theorem RS.of_TS {δ τ : Type} {Rel : δ → τ → Prop} {pers st lst} {f} {x : AM (Option τ)}
-    (h : TS Rel pers st lst f x) :
-    RS pers Rel st lst
-      (do
-        let (r1, ar1, st1) ← f
-        match r1 with
-        | .Ok _ => ok (.Ok st1, ar1)
-        | .Err e => ok (.Err e, ar1)) x := by
-  intro hrel hinv o s' hm
-  obtain ⟨⟨r1, ar1, d1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  have hF := h hrel hinv r1 ar1 d1 h1
-  cases r1 with
-  | Ok u =>
-    cases Result.ok_injective h2
-    exact hF
-  | Err e =>
-    cases Result.ok_injective h2
-    cases e with
-    | Bad => exact hF
-    | Err e => exact hF
-
 theorem usize_max_ge : 4294967295 ≤ Std.Usize.max := by scalar_tac
 
 /-- What `run_marked` hands back against `runMarked`'s: the memo's size, the marks
@@ -686,33 +664,5 @@ theorem run_marked_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec St
           (p := 0#u64) (Nat.le_refl _) hf
         exact RS.of_TS_marked hnm (by rw [build_pass]; exact hb)
 
-
-/-- **`run_passes` is `runPasses`.** -/
-theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec Std.U64}
-    (hr : RegionFits bs r) :
-    RS pers DSRel st lst (run_passes pk pers st.store bs r names exprs)
-      (runPasses (absPins pk) (absRegion bs r) (names.val.map absWord) (exprs.val.map absWord)) := by
-  rw [run_passes]
-  simp only [runPasses]
-  intro hrel hinv o s' hm
-  obtain ⟨⟨r1, ar1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  have hF := run_marked_refines (pk := pk) (names := names) (exprs := exprs) hr hrel hinv r1 ar1 h1
-  cases r1 with
-  | Ok q =>
-    obtain ⟨n, m, d⟩ := q
-    cases Result.ok_injective h2
-    obtain ⟨⟨n', m', t⟩, lst', hx, ⟨-, -, -, hR⟩, hrel', hinv'⟩ := hF
-    exact ⟨t, lst', by rw [am_bind_ok hx]; rfl, hR, hrel', hinv'⟩
-  | Err e =>
-    cases Result.ok_injective h2
-    cases e with
-    | Bad =>
-      obtain ⟨lst', hx, hrel', hinv'⟩ := hF
-      exact ⟨lst', by rw [am_bind_ok hx]; rfl, hrel', hinv'⟩
-    | Err e =>
-      intro k' hk'
-      obtain ⟨le, hle, hkk⟩ := hF k' hk'
-      refine ⟨le, ?_, hkk⟩
-      rw [StateT.run_bind, hle]; rfl
 
 end ConRon.Refine2.Frontend.Olean

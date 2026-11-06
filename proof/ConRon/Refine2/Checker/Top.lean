@@ -46,11 +46,6 @@ open ConRon.Arena
 
 namespace Lockstep
 
-@[lockstep] theorem top_i_constant_info_dup_spec (c : arena.env.IConstantInfo) :
-    LSP (arena.env.i_constant_info_dup c)
-      (fun o => absIConstantInfo o = absIConstantInfo c) :=
-  fun _ h => i_constant_info_dup_abs h
-
 end Lockstep
 
 /-! ## The pinned `And` (con-leche's ANDPIN, task #106) -/
@@ -314,9 +309,6 @@ open Lockstep in
       (checkAxiomDeclStdSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_std_refines hrel hinv hfe.rel hfe.inv h
-
-@[lockstep_simp] theorem absICIL_length (v : alloc.vec.Vec arena.env.IConstantInfo) :
-    (absICIL v).length = v.val.length := by simp [absICIL]
 
 /-- **`check_quot_record` ⊑ `checkQuotRecord`**: a quotient record compared with its
 slot's pin, the slots it needs stored, and installed at its own names. -/
@@ -783,21 +775,6 @@ theorem check_decl_refines {pers st lst} {rf lf}
   | QuotDecl k cv =>
     rw [absIDeclaration, checkDecl_quotDecl]
     exact check_quot_record_refines hrel hinv hfe hfinv hrun
-
-open Lockstep in
-@[lockstep] theorem check_decl_ls {pers st lst}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {d : arena.env.IDeclaration}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (IFEnvRelI pers)
-      (arena.check_decl.check_decl pers st mode pins rf d) lst
-      (checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
-        (absIDeclaration d)) :=
-  LS.ofSimRel₀ fun _ h => check_decl_refines hrel hinv hfe.rel hfe.inv h
 
 /-! ## The error tag and the startup walk -/
 

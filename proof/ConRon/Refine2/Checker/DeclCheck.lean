@@ -774,18 +774,6 @@ theorem check_reduce_pin_pre_refines {pers st lst} {rf lf}
   try unfold checkReducePinPreSpec
   lockstep
 
-open Lockstep in
-@[lockstep] theorem check_reduce_pin_pre_ls {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
-    {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.decl_check.check_reduce_pin_pre pers st mode rf c value) lst
-      (checkReducePinPreSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value)) :=
-  LS.ofSim₀ fun _ h => check_reduce_pin_pre_refines hrel hinv hfe.rel hfe.inv h
-
 /-- **The outcome of a pinned gate**, which hands its environment back beside its
 answer (`(r, st, fe)`: the Rust's `&mut IFEnv`, popped): an `Ok` is the twin's
 `.ok` with the environments related, an `Err` the twin's failure. -/
@@ -878,21 +866,6 @@ theorem check_defn_val_refines {pers st lst} {rf lf}
   try unfold checkDefnVal
   lockstep
 
-open Lockstep in
-@[lockstep] theorem check_defn_val_ls {pers st lst}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {hint : kernel.env.ReducibilityHint}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun a b => b = absIConstantInfo a)
-      (arena.decl_check.check_defn_val pers st mode rf cv value hint) lst
-      (checkDefnVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
-        (absEIdx value) (ConRon.Refine.absHint hint)) :=
-  LS.ofSim₀ fun _ h => check_defn_val_refines hrel hinv hfe.rel hfe.inv h
-
 /-- `check_thm_val_witness` — `checkThmVal`'s tail past the proposition test. -/
 theorem check_thm_val_witness_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
@@ -973,21 +946,6 @@ theorem check_opaque_val_refines {pers st lst} {rf lf}
   rw [arena.decl_check.check_opaque_val]
   try unfold checkOpaqueVal
   lockstep
-
-open Lockstep in
-@[lockstep] theorem check_opaque_val_ls {pers st lst}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun a b => b = absIConstantInfo a)
-      (arena.decl_check.check_opaque_val pers st mode rf cv value) lst
-      (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
-        (absEIdx value)) :=
-  LS.ofSim₀ fun _ h => check_opaque_val_refines hrel hinv hfe.rel hfe.inv h
 
 /-! ### The record a value check returns is at the declared name
 
@@ -3162,24 +3120,6 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {rf lf}
         (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
   exact Lockstep.LS.toSim₀
     (check_div_mod_pin_loop_aux _ variants i ltried rfl hrel hinv ⟨hfe, hfinv⟩) hrun
-
-open Lockstep in
-/-- The loop, for any twin message list `ltried` (the twin's decline text,
-which Theorem 2 does not compare, DESIGN §3.1): the tactic fixes `ltried`
-from the goal's twin (`[]` at `checkDivModPin`'s entry). -/
-@[lockstep] theorem check_div_mod_pin_loop_ls {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
-    {value2 : arena.handle.EIdx}
-    {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
-    {ltried : List String}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.decl_check.check_div_mod_pin_loop pers st mode rf c value2
-        variants i) lst
-      (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) :=
-  LS.ofSim₀ fun _ h => check_div_mod_pin_loop_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `bool_ctor_typed` — is this `Bool` constructor stored at the pinned type? -/
 theorem bool_ctor_typed_refines {pers st lst} {rf2 lf2}

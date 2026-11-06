@@ -74,11 +74,6 @@ theorem code_points_val {codes : Slice Std.U32} {v : alloc.vec.Vec Std.U32}
   simpa [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using
     code_points_from_val codes codes.length 0#usize _ v (by scalar_tac) h
 
-/-! ## The check mode
-
-`ConLeche.CheckMode`'s six accessors are constant functions of the
-constructor, so each refinement is one `simp` per mode. -/
-
 /-! ## The `Vec` copies
 
 `exprs_copy` is the port's stand-in for Lean's value semantics on a `List`
@@ -141,13 +136,6 @@ theorem exprs_copy_wf {es v : alloc.vec.Vec expr.Expr} (hes : ExprsWF es)
 A `*_dup` is the identity in the model, the strongest statement it can have;
 the `abs` reading follows by `congrArg`. -/
 
-/-- `ConLeche/Kernel/Env.lean:318-322` -- `env::reducibility_hint_dup` is the
-identity. -/
-theorem reducibility_hint_dup_refines {h1 h2 : env.ReducibilityHint}
-    (h : env.reducibility_hint_dup h1 = ok h2) : h2 = h1 := by
-  cases h1 <;> simp only [env.reducibility_hint_dup, Result.ok.injEq] at h <;>
-    exact h.symm
-
 /-- `ConLeche/Kernel/Env.lean:191-232` -- `env::ind_caps_default` builds the
 cited structure's field defaults. -/
 theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
@@ -179,21 +167,6 @@ theorem u64_cast_usize_val {x : Std.U64} (h : x.val ≤ Std.Usize.max) :
   apply UScalar.cast_val_mod_pow_of_inBounds_eq
   scalar_tac
 
-/-! ## The presented declarations -/
-
-/-! ## The declared-parameter-count check
-
-`pi_sort_tele_len` is the one *real* induction of this file.  Aeneas's
-`partial_fixpoint` definitions come with `fixpoint_induct` (which wants an
-admissible motive) but no `partial_correctness` form over `Result`, so the
-recursion is carried by the argument: `eq_def`, and the induction principle of
-the `ExprWF` derivation (task #5's shape; DESIGN.md task #99-PFIX).  The ten kinds' inversion lemmas are
-`ConRon/Refine/Expr.lean`'s `bvar_inv`, `forall_e_inv`, … -/
-
-/-! ## The environment -/
-
-/-! ## The block's recursor suffix, decided on the tags -/
-
 /-! ## `abs` is injective on the well-formed records
 
 What the `*_beq` family's exactness rests on (DESIGN.md §3.5): the records
@@ -204,14 +177,6 @@ under the matching `*WF`, and the machine words are equal as soon as their
 
 /-- A `u64` is determined by its value. -/
 theorem u64_val_inj {a b : Std.U64} (h : a.val = b.val) : a = b := by scalar_tac
-
-/-! ## Two list equalities the `*_beq` family needs
-
-`prop_when::names_beq` and `expr::exprs_beq` are the `List Name` and
-`List Expr` equalities of the derived instances; neither had a top-level
-refinement lemma yet (`Refine/PropWhen.lean` proves the loop,
-`Refine/Expr.lean` proves `levels_beq`).  They belong in those files and are
-here only so that task #46 does not edit them. -/
 
 /-! ## The derived structural equalities
 
@@ -233,16 +198,5 @@ theorem reducibility_hint_beq_refines {a b : env.ReducibilityHint} {c : Bool}
     simp_all only [absHint, reduceCtorEq, decide_false, decide_true,
       Result.ok.injEq, ConLeche.ReducibilityHint.regular.injEq]
   exact Expr.u64_eq_test h
-
-/-! ## `ConstantInfo`'s name, and the lookup -/
-
-/-! ## The projection lookup -/
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate)
-
-Nothing but Lean's own three axioms: no `sorry`, nothing from the `Arc`/`P`
-models, and — in particular — nothing reaches
-`ConRon.Generated.kernel.pins_text.PINS_TEXT`, whose string constant carries a
-`native_decide` axiom (task #43). -/
 
 end ConRon.Refine.Env

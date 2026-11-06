@@ -195,11 +195,6 @@ handle lists. -/
   rw [e, e]
   cases h' : decide (a.val.map absNIdx = b.val.map absNIdx) <;> simp_all
 
-open Lockstep in
-@[lockstep] theorem quot_kind_slot_spec (k : kernel.env.QuotKind) :
-    LSP (kernel.env.quot_kind_slot k) (fun i => i.val = (ConRon.Refine.absQuotKind k).slot) :=
-  fun _ h => ConRon.Refine.BasisRaw.quot_kind_slot_refines h
-
 /-- `propext_name` ⊑ `propextName`, off the pin table. -/
 theorem propext_name_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

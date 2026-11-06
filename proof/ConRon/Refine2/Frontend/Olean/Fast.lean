@@ -852,13 +852,4 @@ theorem zeros_eq {n : Std.Usize} {m : alloc.vec.Vec Std.U8} (h : frontend.olean.
   rw [zeros_data, hv, List.map_replicate]
   rfl
 
-/-! ## A module's value -/
-
-/-- **`spec::ModDecoded` against the twin's.** -/
-structure ModDecodedRel (d : frontend.olean.spec.ModDecoded)
-    (d' : ConRon.Arena.Frontend.Olean.ModDecoded) : Prop where
-  isModule : d.is_module = d'.isModule
-  imports : d.imports.val.map (absImportF absNIdx) = d'.imports.toList
-  constants : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) d.constants.val d'.constants.toList
-
 end ConRon.Refine2.Frontend.Olean

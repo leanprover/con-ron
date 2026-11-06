@@ -30,8 +30,6 @@ namespace ConRon.Refine.Level
 
 /-! ## `absLevel` is injective on well-formed input -/
 
-theorem level_zero_inv' {u} (h : level.zero = ok u) : ∃ hh, u = level.Level.mk (level.LevelNode.mk hh .Zero) := ⟨_, level_zero_inv h⟩
-
 theorem absLevel_injective {a b : level.Level} (ha : LevelWF a) (hb : LevelWF b) :
     absLevel a = absLevel b → a = b := by
   induction ha generalizing b with
@@ -1360,14 +1358,6 @@ theorem is_equiv_refines' {l r : level.Level} (hl : LevelWF l) (hr : LevelWF r) 
     rw [ite_eq_left (by simpa using eb)]
     simp only [ite_true] at h
     simpa using h
-
-/-! ## `levelsHaveParam` (task #20)
-
-Left unproved at tasks #5 and #17 because nothing then consumed it;
-`kernel::expr`'s `mk_const` does -- the `.const` node's level-param bit *is*
-`levelsHaveParam us` (`Expr.lean:369`, `hasLP_const`).  The shape is task #5's
-index-loop one: the conclusion is stated on `List.drop i`, so that `i = 0`
-collapses to the whole list. -/
 
 /-! ## The task-#5 statements, under the `ConRon/Refine/README.md` names
 

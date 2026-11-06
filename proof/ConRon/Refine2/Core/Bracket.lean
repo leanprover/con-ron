@@ -70,66 +70,6 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun sl_v)
 
-/-! ## The declaration boundary
-
-`dropScratch` is a fixpoint of the store: the flag is off AND the scratch
-tier is literally empty.  Stated as the fixpoint rather than as four flag
-equations because that is the form every proof below wants — one `rw` turns
-a `dropScratch` fact into a fact about the store itself — and because it is
-exactly what the previous bracket left behind. -/
-
-
-
-
-
-/-! ### It is what `StoreWF` plus a closed flag says
-
-`Arena/WF.lean`'s `NWFAt.scrOff` / `LWFAt.scrOff` / `LsWFAt.scrOff` /
-`EWFAt.scrOff` are *"the flag off means the tier is empty"* and the `sync`
-fields carry the flag down through the four stores, so the boundary does not
-have to be assumed separately from the twin store's well-formedness: it is
-`StoreWF` and one flag. -/
-
-
-
-
-
-
-/-! ### The flag, and what denotes at a boundary
-
-At a boundary the scratch tier answers `none` at every handle, so only a
-PERSISTENT handle denotes.  That is the half of the bracket `Ext` that
-`dropScratch` needs and the reason the side condition is about the store the
-bracket is ENTERED at. -/
-
-
-
-
-
-
-/-! ## The bracket opened: `enterScratch` at a boundary
-
-`Arena/WFProofs.lean`'s `denote…_enableScratch_eq` family says the two ends
-of the bracket read back IDENTICALLY — the observation task #97-P3-Checker
-paid for in `Bridge/Promote/Pers.lean` and the one that makes this side free.
-At a boundary `st.dropScratch` is `st`, so opening the tier changes no
-denotation at all and `Ext` is an equality rather than an implication. -/
-
-
-
-
-
-/-! ## The bracket closed: `dropScratch` after a body
-
-This is the half that is NOT free, and the hypothesis is `StoreWF b` — the
-TWIN store's well-formedness at the inner end of the bracket, which is
-Theorem 1's invariant and which Theorem 2's `AStateRel`/`AStateInv` do not
-carry.  It cannot be dropped: without the tier discipline a persistent node
-may name a scratch child, and then it denotes before the drop and not after.
-DESIGN §… task #97-P5-Bracket §1 is the finding. -/
-
-
-
 /-! ## The tier reset, once
 
 `arena::store::Tbl::reset` is `rows := Vec::new()` and `cons := reset_map`, so
@@ -273,7 +213,6 @@ theorem etables_reset {rt rt' : arena.store.ETables}
     tbl_reset_inv hinv.projs.inv e9]
 
 
-
 /-! ## The two store states (task #98-FREEZE)
 
 A Rust store is OWNED (scratch off, read through the empty stand-in tier,
@@ -293,10 +232,6 @@ def layer00 : arena.env.IFEnv :=
     tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
               slots := alloc.vec.Vec.new _ },
     base_below := 0#u64, base_below_rec := 0#u64 }
-
-theorem ifenv_layer00 : arena.env.ifenv_layer 0#u64 0#u64 = ok layer00 := by
-  simp only [arena.env.ifenv_layer, arena.env.i_env_empty, ron.hashmap2.HashMap2.new, bind_ok]
-  rfl
 
 /-- `stream_index_empty()`: the empty stream index, the environment of every tier
 that holds no frozen index. -/

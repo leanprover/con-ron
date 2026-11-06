@@ -170,21 +170,6 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (alloc.vec.Vec.new kernel.name.Name) (by scalar_tac)
     (by intro n hn; exact absurd hn (by simp [alloc.vec.Vec.new])) hrun
 
-/-- The memoised level readback; the tree it answers is well formed. -/
-@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
-    LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
-      (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
-  intro o st' hrun
-  have H := read_level_m_run₀ hrel hinv hrun
-  have W := read_level_m_wf hinv hrun
-  show LOut _ _ (o, st').1 (o, st').2 _
-  cases o with
-  | Err e => exact H
-  | Ok a =>
-    obtain ⟨lst', hx, h1, h2⟩ := H
-    exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
-
 @[lockstep] theorem read_levels_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
     LS pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
@@ -240,30 +225,6 @@ a pure projection on both sides. -/
       (fun cv => TwinEq (absIConstantInfo ci).toConstantVal (absIConstantVal cv)) :=
   fun _ h => (i_constant_info_to_constant_val_abs h).symm
 
-/-! ## Levels (the propositional-structure check of the `.proj` clause) -/
-
-@[lockstep] theorem level_zero_ls :
-    LSP kernel.level.zero (fun u => ConRon.Refine.LevelWF u ∧
-      ConRon.Refine.absLevel u = ConLeche.Level.zero) :=
-  fun _ h => ⟨ConRon.Refine.Level.zero_wf h, ConRon.Refine.Level.zero_refines h⟩
-
-@[lockstep] theorem level_subst_ls {ks : alloc.vec.Vec kernel.name.Name}
-    {vs : alloc.vec.Vec kernel.level.Level} {u : kernel.level.Level}
-    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
-    (hu : ConRon.Refine.LevelWF u) :
-    LSP (kernel.level.subst ks vs u) (fun u' => ConRon.Refine.LevelWF u' ∧
-      ConRon.Refine.absLevel u' = ConLeche.Level.subst (ConRon.Refine.absNames ks)
-        (ConRon.Refine.absLevels vs) (ConRon.Refine.absLevel u)) := by
-  intro u' h
-  have := ConRon.Refine.Level.subst_refines hu hks hvs h
-  exact ⟨this.2, this.1⟩
-
-@[lockstep] theorem level_is_equiv_ls {l r : kernel.level.Level}
-    (hl : ConRon.Refine.LevelWF l) (hr : ConRon.Refine.LevelWF r) :
-    LSP (kernel.level.is_equiv l r) (fun o =>
-      ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) (ConRon.Refine.absLevel r) = o) :=
-  fun _ h => ConRon.Refine.Level.is_equiv_refines hl hr h
-
 /-! ## Handles and scalars -/
 
 @[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
@@ -297,17 +258,6 @@ attribute [local lockstep_simp] List.length_map ExprOps.absEIdxList
 
 -- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
 attribute [local lockstep_simp] absIConstantVal
-
-@[local lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
-    ((o == some true) = true) = (o = some true) := by
-  cases o with
-  | none => simp
-  | some b => cases b <;> simp
-@[local lockstep_simp] theorem opt_beq_some_false (o : Option Bool) :
-    ((o == some true) = false) = ¬ (o = some true) := by
-  cases o with
-  | none => simp
-  | some b => cases b <;> simp
 
 attribute [local lockstep_simp] Option.some.injEq reduceCtorEq
 
@@ -371,7 +321,6 @@ macro "lockstep_e" : tactic =>
       | ls_state_bind
       | (apply LS.err; exact errSim_fail (by assumption))
       | (apply LS.err; exact errSim_throw (by assumption))))
-
 end ConRon.Refine2.Lockstep.PE
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
@@ -386,6 +335,6 @@ attribute [scoped lockstep_simp] absLamStk_size absPiStk_size vec_len_abs
   absConstT peel_fuel_abs laneKnotAt_whnf
   ensureSort_laneKnotAt bne_eq_not_beq' Bool.not_eq_true' decide_eq_false_iff_not not_not
   u32_beq_decide ExprOps.absPwOpt List.length_map
-  ExprOps.absEIdxList opt_beq_some_true opt_beq_some_false Option.some.injEq reduceCtorEq
+  ExprOps.absEIdxList Option.some.injEq reduceCtorEq
   nat_beq_false danglingLsOr_none danglingLsOr_some viewLs_length_bind
 end ConRon.Refine2.Lockstep.PE.CoreLSReg
