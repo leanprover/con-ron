@@ -737,6 +737,61 @@ theorem parse_all_views_refines {pk pers st lst f f'}
       funext o
       cases o <;> rfl
 
+/-! ## The reads of a view -/
+
+/-- The walk of `read_name_positions`, `read_entry`, `read_stmts`: the view, then the read
+`hk` of its bytes and region. -/
+macro "view_read " hf:term ", " hk:term : tactic =>
+  `(tactic| (
+    refine RS.pure_step fun o ho => ?_
+    have hV := mod_files_view_region_eq $hf ho
+    cases o with
+    | none =>
+      rw [show _ = none from hV]
+      exact RS.none
+    | some p =>
+      obtain ⟨vb, a⟩ := p
+      dsimp only
+      refine RS.pure_step fun bs hb => RS.pure_step fun r hr => ?_
+      obtain ⟨e, hfit⟩ := hV bs r hb hr
+      rw [e]
+      exact $hk hfit))
+
+/-- **`read_name_positions` is `readNamePositions`.** -/
+theorem read_name_positions_refines {R : frontend.olean.reads.NamePositions → Arena.Frontend.Olean.NamePositions → Prop}
+    {pk pers st lst f f' level}
+    (hK : ∀ {bs r a st lst}, RegionFits bs r → RS pers R st lst
+      (frontend.olean.reads.name_positions_at pk pers st.store bs r a)
+      (Arena.Frontend.Olean.namePositionsAt (absPins pk) (absRegion bs r) (absWord a)))
+    (hf : ModFilesRel f f') :
+    RS pers R st lst (frontend.olean.view.read_name_positions pk pers st.store f level)
+      (Arena.Frontend.Olean.readNamePositions (absPins pk) f' (absLevel level)) := by
+  rw [frontend.olean.view.read_name_positions, Arena.Frontend.Olean.readNamePositions]
+  view_read hf, hK
+
+/-- **`read_entry` is `readEntry`.** -/
+theorem read_entry_refines {pk pers st lst f f' level} {c : Std.U64}
+    (hK : ∀ {bs r st lst}, RegionFits bs r → RS pers ERel st lst
+      (frontend.olean.reads.entry_at pk pers st.store bs r c)
+      (Arena.Frontend.Olean.entryAt (absPins pk) (absRegion bs r) c.val))
+    (hf : ModFilesRel f f') :
+    RS pers ERel st lst (frontend.olean.view.read_entry pk pers st.store f level c)
+      (Arena.Frontend.Olean.readEntry (absPins pk) f' (absLevel level) c.val) := by
+  rw [frontend.olean.view.read_entry, Arena.Frontend.Olean.readEntry]
+  view_read hf, hK
+
+/-- **`read_stmts` is `readStmts`.** -/
+theorem read_stmts_refines {pk pers st lst f f' level} {cs : alloc.vec.Vec Std.U64}
+    (hK : ∀ {bs r st lst}, RegionFits bs r → RS pers (fun v l => v.val.map absStmt = l) st lst
+      (frontend.olean.reads.stmts_at pk pers st.store bs r cs)
+      (Arena.Frontend.Olean.stmtsAt (absPins pk) (absRegion bs r) (cs.val.map (·.val))))
+    (hf : ModFilesRel f f') :
+    RS pers (fun v l => v.val.map absStmt = l) st lst
+      (frontend.olean.view.read_stmts pk pers st.store f level cs)
+      (Arena.Frontend.Olean.readStmts (absPins pk) f' (absLevel level) (cs.val.map (·.val))) := by
+  rw [frontend.olean.view.read_stmts, Arena.Frontend.Olean.readStmts]
+  view_read hf, hK
+
 /-! ## `view_error` -/
 
 /-- A message path of `view_error`: pure steps, ending in an `.internal`. -/
