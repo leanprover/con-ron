@@ -7,12 +7,14 @@
 `read_oleans` past the closure's load, on one snapshot of the store.
 -/
 import ConRon.Refine2.Frontend.Olean.EmitBlocks
+import ConRon.Refine2.Frontend.Olean.Contract
+import ConRon.Refine2.Frontend.Top
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open frontend.olean.merge (merge_all)
 open frontend.olean.records (table_of decls_go decls_go_loop decls_of first_absent first_absent_loop
-  root_constants emit_merged)
+  root_constants mod_refs mod_refs_loop)
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
@@ -220,108 +222,152 @@ theorem root_constants_pr {pers : arena.store.PersTier} {ar : arena.store.EStore
       refine PR.pure_step fun v hv => ?_
       exact PR.pure (by rw [RootsRel, nidx_vec_dup_val hv]; exact ha)
 
-/-! ## The tail of the read -/
+/-! ## The modules' references -/
 
-/-- **`emit_merged`**: the check, the roots, the walk. -/
-theorem emit_merged_pr {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {ar : arena.store.EStore} {mg : frontend.olean.merge.Merged} {mg' : Merged}
-    (hm : MergedRel mg mg') {c : Option (alloc.vec.Vec arena.handle.NIdx)} {c' : Option (Array NIdx)}
-    (hc : Option.Rel RootsRel c c') :
-    PR EmitRel (emit_merged pk pers ar mg c)
-      (do
-        blocksOk (absPins pk) mg'
-        let cs ← rootConstants mg' c'
-        emitAll (absPins pk) mg' cs) := by
-  intro o h s
-  rw [emit_merged] at h
-  peel h as r, hr
-  have h1 := blocks_ok_pr hm (pk := pk) (pers := pers) (ar := ar) r hr s
-  cases r with
-  | Err e =>
+/-- `table_empty` is upstream's empty table. -/
+theorem table_empty_rel {T α : Type} {A : T → α} {t}
+    (h : frontend.olean.sparse.table_empty T = ok t) : TableRel A t {} := by
+  rw [frontend.olean.sparse.table_empty] at h
+  cases Result.ok_injective h
+  exact ⟨by simp [show (alloc.vec.Vec.new Std.U64).val = [] from Slice.from_val _ _],
+    by simp [show (alloc.vec.Vec.new T).val = [] from Slice.from_val _ _]⟩
+
+/-- `frontier_empty` is the twin's empty frontier. -/
+theorem frontier_empty_rel {b} (h : frontend.olean.sparse.frontier_empty = ok b) : FrontierRel b {} := by
+  rw [frontend.olean.sparse.frontier_empty] at h
+  peel h as t, ht
+  peel h as t1, ht1
+  peel h as t2, ht2
+  peel h as t3, ht3
+  cases Result.ok_injective h
+  exact ⟨table_empty_rel ht, table_empty_rel ht1, table_empty_rel ht2, table_empty_rel ht3⟩
+
+/-- A module with its frontier moved out, as the twin's `modRefs` leaves it. -/
+@[reducible] def clearFr (l : Arena.Frontend.Olean.Loaded) : Arena.Frontend.Olean.Loaded :=
+  { l with frontier := {} }
+
+/-- A module's reference, as the twin's `modRefs` takes it. -/
+@[reducible] def refOf (l : Arena.Frontend.Olean.Loaded) : Arena.Frontend.Olean.ModRef :=
+  ⟨l.name, l.frontier⟩
+
+/-- Related lists, read pointwise. -/
+theorem forall₂_of_getElem? {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (hlen : l.length = l'.length)
+    (h : ∀ j (h2 : j < l'.length), ∃ x, l[j]? = some x ∧ R x l'[j]) : List.Forall₂ R l l' := by
+  refine List.forall₂_iff_get.mpr ⟨hlen, fun j h1 h2 => ?_⟩
+  obtain ⟨x, hx, hR⟩ := h j h2
+  simp only [List.get_eq_getElem]
+  rw [List.getElem?_eq_getElem h1] at hx
+  cases Option.some.inj hx
+  exact hR
+
+/-- `mod_refs`' loop: the modules before `i` with their frontiers moved out into `out`. -/
+theorem mod_refs_loop_rel (ls' : List Arena.Frontend.Olean.Loaded) :
+    ∀ (k : Nat) (v : alloc.vec.Vec frontend.olean.lazy.Loaded)
+      (out : alloc.vec.Vec frontend.olean.records.ModRef) (i : Std.Usize) {o},
+      v.val.length - i.val = k → i.val ≤ v.val.length → v.val.length = ls'.length →
+      out.val.length = i.val →
+      (∀ j (h2 : j < ls'.length),
+        ∃ x, v.val[j]? = some x ∧ LoadedRel x (if j < i.val then clearFr ls'[j] else ls'[j])) →
+      (∀ j (h2 : j < ls'.length), j < i.val → ∃ x, out.val[j]? = some x ∧ ModRefRel x (refOf ls'[j])) →
+      mod_refs_loop v out i = ok o →
+      List.Forall₂ LoadedRel o.1.val (ls'.map clearFr) ∧
+        List.Forall₂ ModRefRel o.2.val (ls'.map refOf) := by
+  intro k
+  induction k with
+  | zero =>
+    intro v out i o hk hle hlen hol hv hout h
+    rw [mod_refs_loop, ite_eq_right (by scalar_tac)] at h
+    have hl : ls'.length = i.val := by omega
     cases Result.ok_injective h
-    show AErrSim e _
-    rw [StateT.run_bind]
-    exact AErrSim.bind h1 _
-  | Ok u =>
-    obtain ⟨b, hb, -⟩ := h1
-    rw [am_bind_ok hb]
-    peel h as r1, hr1
-    have h2 := root_constants_pr hm hc (pers := pers) (ar := ar) r1 hr1 s
-    cases r1 with
-    | Err e =>
-      cases Result.ok_injective h
-      show AErrSim e _
-      rw [StateT.run_bind]
-      exact AErrSim.bind h2 _
-    | Ok cs =>
-      obtain ⟨cs', hcs, hR⟩ := h2
-      rw [am_bind_ok hcs]
-      exact emit_all_rel hm hR o h s
+    refine ⟨forall₂_of_getElem? (by simp [hlen]) fun j h2 => ?_,
+      forall₂_of_getElem? (by simp; omega) fun j h2 => ?_⟩
+    · simp only [List.length_map] at h2
+      obtain ⟨x, hx, hR⟩ := hv j h2
+      rw [ite_eq_left (by omega)] at hR
+      exact ⟨x, hx, by simpa using hR⟩
+    · simp only [List.length_map] at h2
+      obtain ⟨x, hx, hR⟩ := hout j h2 (by omega)
+      exact ⟨x, hx, by simpa using hR⟩
+  | succ k ih =>
+    intro v out i o hk hle hlen hol hv hout h
+    rw [mod_refs_loop, ite_eq_left (by scalar_tac)] at h
+    have hlt : i.val < v.val.length := by omega
+    peel h as q, hq
+    obtain ⟨l, back⟩ := q
+    have : Inhabited frontend.olean.lazy.Loaded := ⟨l⟩
+    obtain ⟨-, hl, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq
+    peel h as f, hf
+    simp only [core.mem.replace] at h
+    peel h as l1, hl1
+    obtain ⟨hidx1, rfl⟩ := vec_index_eq hl1
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    peel h as out1, hout1
+    peel h as i2, hi2
+    have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+    have hli : LoadedRel l ls'[i.val] := by
+      obtain ⟨x, hx, hR⟩ := hv i.val (by omega)
+      rw [ite_eq_right (Nat.lt_irrefl _)] at hR
+      rw [List.getElem?_eq_getElem hlt] at hx
+      cases Option.some.inj hx
+      rw [hl, getElem!_pos v.val i.val hlt]
+      exact hR
+    have hset : (alloc.vec.Vec.set v i { l with frontier := f }).val
+        = v.val.set i.val { l with frontier := f } := by simp [alloc.vec.Vec.set]
+    have hfr := frontier_empty_rel hf
+    have hout1v := ConRon.Refine.vec_push_val hout1
+    refine ih _ out1 i2 (by rw [hset, List.length_set]; omega) (by rw [hset, List.length_set]; omega)
+      (by rw [hset, List.length_set]; exact hlen) (by rw [hout1v]; simp [hol, hi2v])
+      (fun j h2 => ?_) (fun j h2 hj2 => ?_) h
+    · rw [hset]
+      by_cases hj : j = i.val
+      · subst hj
+        rw [List.getElem?_set_self hlt, ite_eq_left (by omega)]
+        exact ⟨_, rfl, ⟨hli.name, hli.constants, hfr⟩⟩
+      · rw [List.getElem?_set_ne (Ne.symm hj)]
+        obtain ⟨x, hx, hR⟩ := hv j h2
+        refine ⟨x, hx, ?_⟩
+        by_cases hji : j < i.val
+        · rw [ite_eq_left hji] at hR
+          rw [ite_eq_left (by omega)]
+          exact hR
+        · rw [ite_eq_right hji] at hR
+          rw [ite_eq_right (by omega)]
+          exact hR
+    · rw [hout1v]
+      by_cases hj : j < i.val
+      · obtain ⟨x, hx, hR⟩ := hout j h2 hj
+        refine ⟨x, ?_, hR⟩
+        rw [List.getElem?_append_left (by omega)]
+        exact hx
+      · have hj' : j = i.val := by omega
+        subst hj'
+        rw [List.getElem?_append_right (by omega)]
+        simp only [hol, Nat.sub_self, List.getElem?_cons_zero]
+        exact ⟨_, rfl, ⟨by simp [alloc.vec.Vec.set]; exact hli.name, hli.frontier⟩⟩
 
-/-- **Everything of `read_oleans` past the closure's load**, on one snapshot of the store: the
-merge, the check, the walk and the records. -/
-theorem read_tail_rel {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {rst : arena.monad.AState} {lst : AState} (hrel : AStateRel₀ pers rst lst)
-    (hinv : AStateInv pers rst) {ls : alloc.vec.Vec frontend.olean.lazy.Loaded}
-    {ls' : Array Arena.Frontend.Olean.Loaded} (hls : List.Forall₂ LoadedRel ls.val ls'.toList)
-    {c : Option (alloc.vec.Vec arena.handle.NIdx)} {c' : Option (Array NIdx)}
-    (hc : Option.Rel RootsRel c c') {o ar'}
-    (h : (do
-      let r2 ← merge_all pk pers rst.store ls
-      match r2 with
-      | core.result.Result.Ok m =>
-        let r3 ← emit_merged pk pers rst.store m c
-        match r3 with
-        | core.result.Result.Ok em =>
-          let r4 ← decls_of pers rst.store em
-          ok (r4, rst.store)
-        | core.result.Result.Err e => ok (core.result.Result.Err (e, 0#u64), rst.store)
-      | core.result.Result.Err e => ok (core.result.Result.Err (e, 0#u64), rst.store)) = ok (o, ar')) :
-    ar' = rst.store ∧ SimStreamRel ParseResultDRel pers lst (o, rst)
-      (do
-        let mg ← mergeAll (absPins pk) ls'
-        blocksOk (absPins pk) mg
-        let cs ← rootConstants mg c'
-        declsOf (← emitAll (absPins pk) mg cs)) := by
-  peel h as r2, hr2
-  have h1 := merge_all_rel (st := rst) (lst := lst) pk hls hrel hinv r2 hr2
-  cases r2 with
-  | Err e =>
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
-    refine ⟨rfl, ?_⟩
-    show StreamErrSim _ _
-    rw [StateT.run_bind]
-    exact StreamErrSim.of_throw h1
-  | Ok m =>
-    obtain ⟨mg', lst1, hx, hm, hrel1, hinv1⟩ := h1
-    peel h as r3, hr3
-    have h2 := emit_merged_pr hm hc (pk := pk) (pers := pers) (ar := rst.store) r3 hr3 lst1
-    have e : (do
-          blocksOk (absPins pk) mg'
-          let cs ← rootConstants mg' c'
-          declsOf (← emitAll (absPins pk) mg' cs)) =
-        (do
-          blocksOk (absPins pk) mg'
-          let cs ← rootConstants mg' c'
-          emitAll (absPins pk) mg' cs) >>= declsOf := by
-      simp only [bind_assoc]
-    unfold SimStreamRel
-    rw [am_bind_ok hx]
-    dsimp only
-    rw [e]
-    cases r3 with
-    | Err e =>
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
-      refine ⟨rfl, ?_⟩
-      show StreamErrSim _ _
-      rw [StateT.run_bind]
-      exact StreamErrSim.of_throw h2
-    | Ok em =>
-      obtain ⟨lem, hl, he⟩ := h2
-      peel h as r4, hr4
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
-      refine ⟨rfl, ?_⟩
-      rw [am_bind_ok hl]
-      exact decls_of_rel hrel1 hinv1 he hr4
+/-- **`mod_refs` is `modRefs`**: the frontiers moved out of the merge into the references. -/
+theorem mod_refs_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
+    (hm : MergedRel mg mg') {o} (h : mod_refs mg = ok o) :
+    List.Forall₂ ModRefRel o.1.val (Arena.Frontend.Olean.modRefs mg').2.toList ∧
+      MergedRel o.2 (Arena.Frontend.Olean.modRefs mg').1 := by
+  rw [mod_refs] at h
+  peel h as q, hq
+  obtain ⟨v, out1⟩ := q
+  cases Result.ok_injective h
+  have hlen := hm.ls.length_eq
+  have hnew : (alloc.vec.Vec.with_capacity frontend.olean.records.ModRef (alloc.vec.Vec.len mg.ls)).val
+      = [] := by simp [alloc.vec.Vec.with_capacity, show (alloc.vec.Vec.new frontend.olean.records.ModRef).val = []
+        from Slice.from_val _ _]
+  obtain ⟨h1, h2⟩ := mod_refs_loop_rel mg'.ls.toList _ mg.ls _ 0#usize rfl (by simp) hlen
+    (by rw [hnew]; rfl)
+    (fun j h2 => by
+      rw [ite_eq_right (by simp)]
+      have hj : j < mg.ls.val.length := by omega
+      exact ⟨_, List.getElem?_eq_getElem hj, (List.forall₂_iff_get.mp hm.ls).2 j hj h2⟩)
+    (fun j _ hj => by simp at hj) hq
+  refine ⟨by simpa [Arena.Frontend.Olean.modRefs] using h2, ⟨?_, hm.map, hm.inv, hm.order⟩⟩
+  simpa [Arena.Frontend.Olean.modRefs] using h1
 
 end ConRon.Refine2.Frontend.Olean
