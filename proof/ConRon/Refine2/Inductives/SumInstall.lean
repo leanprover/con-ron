@@ -44,6 +44,7 @@ reader (`LSR`). -/
     LSR pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a)
       (arena.inductives.sum_install.check_sum_tele pers st n cv_ta0) st lst
       (checkSumTele (absU n) (absIConstantVal cv_ta0)) := by
+  apply LSR.of_LS
   rw [arena.inductives.sum_install.check_sum_tele, checkSumTele]
   lockstep
 
@@ -473,8 +474,8 @@ and well-formed environment after the folds. -/
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.check_sum_ctor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms check_sum_ctor_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.check_sum_ctor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms check_sum_ctor_ls
 
 /-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_sum_ctors_refines
