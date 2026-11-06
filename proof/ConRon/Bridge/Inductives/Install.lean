@@ -466,4 +466,223 @@ theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockS
       exact absurd (tag_forallE_of_denote hok.wf hb) (by simpa using htg)
     · rfl
 
+/-- con-leche: ConLeche/Kernel/Install.lean:58-59 blockRecs (the rules' `map`) —
+every rule at the recursor's firing mode. -/
+theorem rulesFire_denote {st : EStore} {f : IRecRuleFire} {fP : RecRuleFire}
+    (hf : Frontend.denoteFire st f = some fP) :
+    ∀ (rs : List IRecRule) (rsP : List RecRule), Frontend.denoteRules st rs = some rsP →
+      Frontend.denoteRules st (rs.map ({ · with fire := f }))
+        = some (rsP.map ({ · with fire := fP }))
+  | [], rsP, h => by
+    simp only [Frontend.denoteRules, Option.some.injEq] at h
+    subst h; rfl
+  | r :: rs, rsP, h => by
+    simp only [Frontend.denoteRules] at h
+    split at h
+    · rename_i x xs hx hxs
+      obtain rfl := (Option.some.inj h).symm
+      simp only [Frontend.denoteRule] at hx
+      split at hx
+      · rename_i c f' rhs hc hf' hr
+        obtain rfl := (Option.some.inj hx).symm
+        simp only [List.map_cons, Frontend.denoteRules, Frontend.denoteRule, hc, hf, hr,
+          rulesFire_denote hf rs xs hxs]
+      · exact nomatch hx
+    · exact nomatch h
+
+/-- con-leche: ConLeche/Kernel/Install.lean:56-61 blockRecs
+**The recursors**, in block order, each record with its rules' firing mode. -/
+theorem blockRecs_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
+    ∀ (rs : List Arena.RecShape) (rsP : List ConLeche.RecShape) {s s' : AState}
+      {L : List IConstantInfo}, StateOK s → PinsOK s → dShape s.store p = some pP →
+      rs.mapM (dRec s.store) = some rsP → Arena.blockRecs p rs s = .ok (L, s') →
+      PStep s s' ∧ Frontend.denoteCIList s'.store L = some (ConLeche.blockRecs pP rsP)
+  | [], rsP, s, s', L, hok, _, _, hrs, hrun => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
+    subst hrs
+    simp only [Arena.blockRecs] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | rc :: rs, rsP, s, s', L, hok, hpins, hp, hrs, hrun => by
+    obtain ⟨rcP, rsP', rfl, hrc, hrs'⟩ := mapM_option_cons_inv hrs
+    simp only [Arena.blockRecs] at hrun
+    obtain ⟨f, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨p1, hf⟩ := recFire_run hok hpins hp hrc k1
+    obtain ⟨L', s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hL'⟩ := blockRecs_run rs rsP' p1.ok (hpins.mono p1.ext p1.pins)
+      (dShape_ext p1.ext _ _ hp) (dRec_ext.list p1.ext _ _ hrs') k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p1.trans p2, ?_⟩
+    obtain ⟨hcv, hrP, hmI, -, hrules, hk⟩ := dRec_inv hrc
+    have x := p1.ext.trans p2.ext
+    simp only [ConLeche.blockRecs, Frontend.denoteCIList, Frontend.denoteCI,
+      denoteCV_ext hcv x, rulesFire_denote (denoteFire_ext hf p2.ext) _ _
+        (denoteRules_ext x _ _ hrules), hL', hrP, hmI, hk]
+
+/-! ## The projection tables -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:105-108 MemberShape.structCtor?
+A denoted member's structure constructor is the twin's, both ways. -/
+theorem structCtor?_denote {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
+    (hm : dMember st m = some mP) :
+    ROp (fun cP st c => dCtor st c = some cP) mP.structCtor? st m.structCtor? := by
+  obtain ⟨-, hnI, hcs, -⟩ := dMember_inv hm
+  simp only [Arena.MemberShape.structCtor?, ConLeche.MemberShape.structCtor?, hnI]
+  cases hc : m.ctors with
+  | nil =>
+    rw [hc] at hcs
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+    rw [← hcs]; rfl
+  | cons c rest =>
+    rw [hc] at hcs
+    obtain ⟨cP, restP, hcsP, hcP, hrestP⟩ := mapM_option_cons_inv hcs
+    rw [hcsP]
+    cases rest with
+    | cons c' rest' =>
+      obtain ⟨cP', restP', rfl, -, -⟩ := mapM_option_cons_inv hrestP
+      rfl
+    | nil =>
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
+      subst hrestP
+      dsimp only
+      by_cases h0 : (mP.nIdx == 0) = true
+      · simp only [h0, ite_true]; exact ⟨cP, rfl, hcP⟩
+      · simp only [h0, Bool.false_eq_true, ite_false]; rfl
+
+/-- con-leche: ConLeche/Kernel/Install.lean:63-73 blockTables
+**The projection tables**, in block order: one per structure-like member whose
+constructor reads as one, each well shaped (one body per field). -/
+theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
+    ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape) {s s' : AState}
+      {Q : List IProjTable}, StateOK s → dShape s.store p = some pP →
+      ms.mapM (dMember s.store) = some msP → Arena.blockTables p ms s = .ok (Q, s') →
+      PStep s s' ∧ Frontend.denoteProjTableList s'.store Q = some (ConLeche.blockTables pP msP) ∧
+        ∀ t ∈ Q, IProjTableOK t
+  | [], msP, s, s', Q, hok, _, hms, hrun => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
+    subst hms
+    simp only [Arena.blockTables] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl, fun _ h => nomatch h⟩
+  | m :: ms, msP, s, s', Q, hok, hp, hms, hrun => by
+    obtain ⟨mP, msP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
+    have hsc := structCtor?_denote hm
+    obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hp
+    have hdecl := (dMember_inv hm).2.2.2
+    simp only [Arena.blockTables] at hrun
+    simp only [ConLeche.blockTables]
+    cases hc : m.structCtor? with
+    | none =>
+      rw [hc] at hrun hsc
+      simp only [ROp] at hsc
+      rw [hsc]
+      exact blockTables_run ms msP' hok hp hms' hrun
+    | some c =>
+      rw [hc] at hrun hsc
+      obtain ⟨cP, hcP, hdc⟩ := hsc
+      rw [hcP]
+      simp only [dCtor, Option.map_eq_some_iff] at hdc
+      obtain ⟨cv, hcv, rfl⟩ := hdc
+      dsimp only at hrun ⊢
+      obtain ⟨o, s₁, k1, z1⟩ := AM.bind_ok hrun
+      obtain ⟨p1, ho⟩ := structProjBodies_spec m.declared.name mP.declared.name p.nP c.2
+        c.1.type cv.type s s₁ o hok ⟨denoteCV_name hdecl, denoteCV_type hcv⟩ k1
+      rw [hnP] at ho
+      cases o with
+      | none =>
+        simp only [ROp] at ho
+        rw [ho]
+        exact (fun ⟨a, b, c⟩ => ⟨p1.trans a, b, c⟩)
+          (blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
+            (dMember_ext.list p1.ext _ _ hms') z1)
+      | some bodies =>
+        obtain ⟨bodiesP, hbP, hbodies⟩ := ho
+        rw [hbP]
+        obtain ⟨Q', s₂, k2, z2⟩ := AM.bind_ok z1
+        obtain ⟨p2, hQ', hok'⟩ := blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
+          (dMember_ext.list p1.ext _ _ hms') k2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+        refine ⟨p1.trans p2, ?_, ?_⟩
+        · have x := p1.ext.trans p2.ext
+          have hb2 : Frontend.denoteEArray s'.store bodies = some bodiesP :=
+            denoteEArray_ext hbodies p2.ext
+          simp only [Frontend.denoteProjTableList, Frontend.denoteProjTable,
+            denoteN_ext (denoteCV_name hdecl) x, denoteNListE_ext x _ _ (BlockShape.lps_spec hp),
+            denoteN_ext (denoteCV_name hcv) x, hb2, hQ', hnP]
+        · intro t ht
+          rcases List.mem_cons.1 ht with rfl | ht
+          · refine ⟨?_⟩
+            have hsz := (ConLeche.structProjBodies_spec hbP).1
+            have hl : Frontend.denoteEList s₁.store bodies.toList = some bodiesP.toList := by
+              have h' : Frontend.denoteEArray s₁.store bodies = some bodiesP := hbodies
+              simp only [Frontend.denoteEArray] at h'
+              split at h'
+              · rename_i xs hxs
+                obtain rfl := (Option.some.inj h').symm
+                simpa using hxs
+              · exact nomatch h'
+            have := ExprOps.denoteEList_length _ _ hl
+            simp only [Array.length_toList] at this
+            show bodies.size = c.2
+            omega
+          · exact hok' t ht
+
+/-! ## The block's constants -/
+
+/-- con-leche: none — a constant list's denotation splits over an append. -/
+theorem denoteCIList_append {st : EStore} :
+    ∀ {a : List IConstantInfo} {as : List ConstantInfo} {b : List IConstantInfo}
+      {bs : List ConstantInfo},
+      Frontend.denoteCIList st a = some as → Frontend.denoteCIList st b = some bs →
+      Frontend.denoteCIList st (a ++ b) = some (as ++ bs)
+  | [], as, b, bs, ha, hb => by
+    simp only [Frontend.denoteCIList, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | x :: xs, as, b, bs, ha, hb => by
+    simp only [Frontend.denoteCIList] at ha
+    split at ha
+    · rename_i y ys hy hys
+      obtain rfl := (Option.some.inj ha).symm
+      simp only [List.cons_append, Frontend.denoteCIList, hy, denoteCIList_append hys hb]
+    · exact nomatch ha
+
+/-- con-leche: ConLeche/Kernel/Install.lean:75-78 blockConstants
+**The block's constants**, in push order: the formers at official's `is_rec`
+(`blockIsRec`), the constructors, the recursors.  The frame is the deliverable
+the stream's index reads: the state invariant, an append and untouched pins
+(`PStep`). -/
+theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {L : List IConstantInfo} (hok : StateOK s) (hpins : PinsOK s)
+    (hp : dShape s.store p = some pP) (hrun : Arena.blockConstants p s = .ok (L, s')) :
+    PStep s s' ∧ Frontend.denoteCIList s'.store L = some (ConLeche.blockConstants pP) := by
+  simp only [Arena.blockConstants] at hrun
+  obtain ⟨isRec, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨p1, hr⟩ := blockIsRec_spec p pP s s₁ isRec hok hp k1
+  simp only [RV] at hr
+  subst hr
+  obtain ⟨R, s₂, k2, z2⟩ := AM.bind_ok z1
+  have hp1 := dShape_ext p1.ext _ _ hp
+  obtain ⟨-, hrs, -, -, -, -, -⟩ := dShape_inv hp1
+  obtain ⟨p2, hR⟩ := blockRecs_run p.recs pP.recs p1.ok (hpins.mono p1.ext p1.pins) hp1 hrs k2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+  refine ⟨p1.trans p2, ?_⟩
+  have hp2 := dShape_ext p2.ext _ _ hp1
+  have hanon := (hpins.mono (p1.trans p2).ext (p1.trans p2).pins).anon
+  rw [denoteCIList_append (denoteCIList_append (blockFormers_denote hanon hp2 _)
+    (blockCtors_denote hp2)) hR]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
+**The recogniser, at the stream index's frame**: two-sided, the state
+invariant, an append and untouched pins.  `isProp` is `lvlEq?`'s cached
+verdict, so the hypothesis is `CheckOK` at some environment and index (only its
+cache, pin and state clauses are read). -/
+theorem blockShape?_install {env : Env} {fe : IFEnv} {nP : Nat}
+    {block : List IConstantInfo} {b : List ConstantInfo} {s s' : AState}
+    {r : Option Arena.BlockShape} (hc : CheckOK false env fe s)
+    (hb : Frontend.denoteCIList s.store block = some b)
+    (hrun : Arena.blockShape? nP block s = .ok (r, s')) :
+    PStep s s' ∧ ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b) s'.store r :=
+  blockShape?_run nP block b s s' r hc hb hrun
+
 end ConRon.Bridge.Inductives
