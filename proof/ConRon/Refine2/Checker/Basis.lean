@@ -324,6 +324,103 @@ parameters against the pin's at the recursor's names, on read-back levels. -/
         (List.map (ConLeche.Level.param ∘ ConRon.Refine.absName) rT.val)
         (ConLeche.Level.param (ConRon.Refine.absName p))) cpT.val) <;> simp_all [Function.comp_def]
 
+open Lockstep in
+private theorem rules_link_ok_aux {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    {r rp : alloc.vec.Vec arena.handle.NIdx} {rules : alloc.vec.Vec arena.env.IRecRule}
+    (k : Nat) :
+    ∀ {pers st lst} (i : Std.Usize), rules.val.length - i.val = k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = id a)
+        (arena.basis.rules_link_ok pers st block pins r rp rules i) lst
+        (rulesLinkOk (absICIL block) (absICIL pins) (r.val.map absNIdx) (rp.val.map absNIdx)
+          ((rules.val.drop i.val).map absIRecRule)) := by
+  induction k with
+  | zero =>
+    intro pers st lst i hk hrel hinv
+    rw [arena.basis.rules_link_ok.eq_def]; simp only []
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rules by scalar_tac),
+      List.drop_eq_nil_of_le (by omega)]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst i hk hrel hinv
+    have hlt : i.val < rules.val.length := by omega
+    rw [arena.basis.rules_link_ok.eq_def]; simp only []
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rules by scalar_tac),
+      List.drop_eq_getElem_cons hlt]
+    obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec rules i hlt)
+    subst hyv
+    rw [alloc.vec.Vec.index_slice_index, hy, bind_ok]
+    simp only [List.map_cons, rulesLinkOk]
+    have hc : (absIRecRule rules.val[i.val]).ctor = absNIdx rules.val[i.val].ctor := rfl
+    rw [hc]
+    refine LS.bind_eq fun o ho => ?_
+    have hco := const_named_refines _ 0#usize o (le_refl _) ho
+    simp only [absICILFrom, show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hco
+    refine LS.bind_eq fun lps hlps => ?_
+    cases o with
+    | none =>
+      simp only [Result.ok.injEq] at hlps
+      subst hlps
+      rw [show constNamed? (absICIL block) (absNIdx rules.val[i.val].ctor) = none from hco.symm]
+      exact LS.pure rfl hrel hinv
+    | some cc =>
+      simp only [] at hlps
+      obtain ⟨o1, ho1, hlps⟩ := ConRon.Refine.bind_eq_ok_iff.mp hlps
+      have hco1 := const_named_refines _ 0#usize o1 (le_refl _) ho1
+      simp only [absICILFrom, show (0#usize : Std.Usize).val = 0 from rfl,
+        List.drop_zero] at hco1
+      rw [show constNamed? (absICIL block) (absNIdx rules.val[i.val].ctor)
+        = some (absIConstantInfo cc) from hco.symm]
+      cases o1 with
+      | none =>
+        simp only [Result.ok.injEq] at hlps
+        subst hlps
+        rw [show constNamed? (absICIL pins) (absNIdx rules.val[i.val].ctor) = none from hco1.symm]
+        exact LS.pure rfl hrel hinv
+      | some ccp =>
+        simp only [] at hlps
+        obtain ⟨iv, hiv, hlps⟩ := ConRon.Refine.bind_eq_ok_iff.mp hlps
+        obtain ⟨iv1, hiv1, hlps⟩ := ConRon.Refine.bind_eq_ok_iff.mp hlps
+        simp only [Result.ok.injEq] at hlps
+        subst hlps
+        rw [show constNamed? (absICIL pins) (absNIdx rules.val[i.val].ctor)
+          = some (absIConstantInfo ccp) from hco1.symm]
+        have e1 : (absIConstantInfo cc).toConstantVal.levelParams = iv.level_params.val.map absNIdx := by
+          rw [← i_constant_info_to_constant_val_abs hiv]; rfl
+        have e2 : (absIConstantInfo ccp).toConstantVal.levelParams = iv1.level_params.val.map absNIdx := by
+          rw [← i_constant_info_to_constant_val_abs hiv1]; rfl
+        simp only [e1, e2]
+        refine LS.bind (pin_link_ok_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+        intro a b st1 lst1 hab hrel1 hinv1
+        cases a with
+        | false =>
+          simp only [id] at hab; subst hab
+          exact LS.pure rfl hrel1 hinv1
+        | true =>
+          simp only [id] at hab; subst hab
+          simp only [ite_true]
+          refine LS.bind_eq fun i2 hi2 => ?_
+          have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+          have h := ih i2 (by omega) hrel1 hinv1
+          rw [hi2v] at h
+          exact h
+
+open Lockstep in
+/-- `rules_link_ok` ⊑ `rulesLinkOk` from its entry: each of the pin's rules'
+constructors, found in both lists, linked as the pin links it. -/
+@[lockstep] theorem rules_link_ok_ls {pers st lst}
+    {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    {r rp : alloc.vec.Vec arena.handle.NIdx} {rules : alloc.vec.Vec arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.basis.rules_link_ok pers st block pins r rp rules 0#usize) lst
+      (rulesLinkOk (absICIL block) (absICIL pins) (r.val.map absNIdx) (rp.val.map absNIdx)
+        (rules.val.map absIRecRule)) := by
+  have h := rules_link_ok_aux (block := block) (pins := pins) (r := r) (rp := rp)
+    (rules := rules) _ 0#usize rfl
+    hrel hinv
+  simpa using h
+
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
