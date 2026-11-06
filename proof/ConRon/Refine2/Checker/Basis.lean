@@ -546,6 +546,60 @@ names those of the block's first member. -/
   rw [hfv] at h
   exact h
 
+/-! ## Recognising a pinned block by its members' names -/
+
+open Lockstep in
+theorem basis_name_hit_go_aux (k : Nat) :
+    ∀ {pers st lst} (block : alloc.vec.Vec arena.env.IConstantInfo)
+      (ks : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize),
+      ks.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (Option.map ConRon.Refine.absBasisKind) a)
+        (arena.basis.basis_name_hit_go pers st block ks i) lst
+        (basisNameHitGo (absICIL block) (absBasisKindLFrom ks i)) := by
+  induction k with
+  | zero =>
+    intro pers st lst block ks i hn hrel hinv
+    have hl := alloc.vec.Vec.len_val ks
+    have : absBasisKindLFrom ks i = [] := by
+      simp only [absBasisKindLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    rw [arena.basis.basis_name_hit_go, this, basisNameHitGo, ite_eq_left (by scalar_tac)]
+    exact LS.pure rfl hrel hinv
+  | succ m ih =>
+    intro pers st lst block ks i hn hrel hinv
+    have hl := alloc.vec.Vec.len_val ks
+    have hi : i.val < ks.val.length := by omega
+    have hcons : absBasisKindLFrom ks i = ConRon.Refine.absBasisKind ks.val[i.val] ::
+        (ks.val.drop (i.val + 1)).map ConRon.Refine.absBasisKind := by
+      simp only [absBasisKindLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+    rw [arena.basis.basis_name_hit_go, hcons, basisNameHitGo, ite_eq_right (by scalar_tac)]
+    simp only [absBasisKindLFrom] at ih
+    lockstep
+
+/-- `basis_name_hit` ⊑ `basisNameHit` — the four pinned inductive blocks, in
+con-leche's order; `.quotK` is deliberately not among them. -/
+theorem basis_name_hit_refines {pers st lst} {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.basis.basis_name_hit pers st block = ok o) :
+    Sim₀ (Option.map ConRon.Refine.absBasisKind) pers lst o
+      (basisNameHit (absICIL block)) := by
+  rw [arena.basis.basis_name_hit] at hrun
+  obtain ⟨ks, hks, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hk := ConRon.Refine.BasisRaw.block_pin_kinds_refines hks
+  have h := Lockstep.LS.toSim₀ (basis_name_hit_go_aux _ block ks 0#usize rfl hrel hinv) hrun
+  have e : absBasisKindLFrom ks 0#usize =
+      [ConLeche.BasisKind.eqK, .natK, .emptyK, .falseK] := by
+    simp only [absBasisKindLFrom]; rw [← hk]; rfl
+  rw [e] at h
+  exact h
+
+open Lockstep in
+@[lockstep] theorem basis_name_hit_ls {pers st lst}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map ConRon.Refine.absBasisKind) a)
+      (arena.basis.basis_name_hit pers st block) lst (basisNameHit (absICIL block)) :=
+  LS.ofSim₀ fun _ h => basis_name_hit_refines hrel hinv h
+
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
