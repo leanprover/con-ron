@@ -3,7 +3,7 @@
 
 `Bridge/Checker/Hyp.lean`'s `checkIndRoute` (the `.indDecl` arm of
 `Arena/CheckDecl.lean` past the pin recogniser) against con-leche's `.indDecl`
-arm of `ConLeche/Kernel/CheckDecl.lean:180-200`, and the theorem
+arm of `ConLeche/Kernel/CheckDecl.lean:158-185`, and the theorem
 `Bridge/Checker/Hyp.lean` names as `IndSpec`.
 
 ## The dispatch, clause for clause
@@ -14,20 +14,21 @@ the uniform install at a recognised block, the decline at any other.  So the
 arm is three sub-statements composed —
 
     indParamsOk_spec      (below)
-    blockParts?_spec      (Bridge/Inductives/BlockParts.lean)
+    blockShape?_spec      (Bridge/Inductives/BlockShape.lean)
     checkBlock_bridge     (Bridge/Inductives/BlockTail.lean)
     checkShapeless_ne_ok  (Bridge/Checker/Hyp.lean)
 
 — and `checkDecl_ind_route` below is the pure side's own step lemma.
 
 **Why the recogniser's statement is two-sided.**  `ROp` makes
-`blockParts?_spec` say `none ↔ none`.  Without that the twin could decline
+`blockShape?_spec` say `none ↔ none`.  Without that the twin could decline
 where con-leche installs (or the reverse) and Theorem 1 would be a statement
 about a different program.
 
 `IndOut` (`Bridge/Inductives/Rel.lean`) is `IndSpec.run`'s conclusion
 clause for clause, so
-`indSpec_of_bridge` is a record projection of `checkIndRoute_bridge`.
+`indSpec_of_bridge` is a record projection of `checkIndRoute_bridge`, at the
+Core tier's discharged hypothesis (`CoreSpec.of_core`).
 -/
 module
 
@@ -35,6 +36,7 @@ import ConRon.Bridge.Inductives.BlockTail
 import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.EnvDenote
+import ConLeche.Verify.Inductives.BlockShapeInv
 
 public section
 
@@ -185,45 +187,45 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
 
 /-! ## The pure side's step lemma -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:180-200 checkDecl (the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:158-185 checkDecl (the
 `.indDecl` arm) — at a block the basis recogniser refused and whose declared
 parameter count checks out, `checkDecl` IS the recogniser's dispatch.  Stated
 at `fueledOpsM .verified`, where the tier's answers live (`FOk`). -/
 theorem checkDecl_ind_route {μ : CheckMode} {pins : List NatOpPinSet} {env : Env}
     {b : List ConstantInfo} {nP : Nat}
-    (hpin : ConLeche.basisPinHit b = none)
+    (hpin : ConLeche.basisNameHit b = none)
     (hparams : ConLeche.indParamsOk nP b = true) :
     ConLeche.checkDecl μ (fueledOpsM μ) pins env (.indDecl b nP)
-      = (match ConLeche.blockParts? nP b with
+      = (match ConLeche.blockShape? nP b with
          | some p => ConLeche.checkBlock (fueledOpsM μ) env b p
          | none => ConLeche.checkShapeless (fueledOpsM μ) env b) := by
   simp only [ConLeche.checkDecl, hpin, hparams, ite_true]
   rfl
 
-
 /-! ## The route -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:180-200 checkDecl (the
-`.indDecl` arm past `basisPinHit`) — **THEOREM 1 AT THE INDUCTIVE ROUTE**: an
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:158-185 checkDecl (the
+`.indDecl` arm past `basisNameHit`) — **THEOREM 1 AT THE INDUCTIVE ROUTE**: an
 accepting run of `Bridge/Checker/Hyp.lean`'s `checkIndRoute` at a block the
-basis recogniser refused refines con-leche's `.indDecl` arm at some fuel, with
-the install's nine clauses.
+basis recogniser refused refines con-leche's `.indDecl` arm at some fuel.
 
 Three sub-statements composed, as the arm composes them: the declared
-parameter count (`indParamsOk_spec`), the recogniser (`blockParts?_spec`,
+parameter count (`indParamsOk_spec`), the recogniser (`blockShape?_spec`,
 two-sided: `none ↔ none`, so the twin declines exactly where con-leche does),
-then the uniform route (`checkBlock_bridge`) or the decline
-(`checkShapeless_ne_ok`); `checkDecl_ind_route` is the pure side's step. -/
+then the uniform route (`checkBlock_bridge`, its members at their declared
+formers by `blockShape?_declared`) or the decline (`checkShapeless_ne_ok`);
+`checkDecl_ind_route` is the pure side's step. -/
 theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
     {s s' : AState} {block : List IConstantInfo} {b : List ConstantInfo}
     {nP : Nat} {pinsP : List NatOpPinSet}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s)
     (hb : Frontend.denoteCIList s.store block = some b)
-    (hpin : ConLeche.basisPinHit b = none)
+    (hpin : ConLeche.basisNameHit b = none)
     (hrun : checkIndRoute fe block nP s = .ok (fe', s')) :
-    IndOut fe fe' s s' (fun env' => ∃ F,
-      ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP) = .ok env') := by
+    IndOut s s' (∃ env' F,
+      ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
+        = .ok env') := by
   simp only [checkIndRoute] at hrun
   -- the parameter-count gate
   obtain ⟨okb, s₁, h1, h2⟩ := AM.bind_ok hrun
@@ -236,43 +238,37 @@ theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
   simp only [Bool.not_true, Bool.false_eq_true, ite_false] at h2
   -- the recogniser
   obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
-  have hck₁ : CheckOK false env fe s₁ := (hstep1.toCore hok.check).ok
+  have c1 := hstep1.toCore hok.check
   have hb₁ : Frontend.denoteCIList s₁.store block = some b :=
     denoteCIList_mono hstep1.ext _ _ hb
-  obtain ⟨hstep2, hr2⟩ := blockParts?_spec fe nP block b s₁ s₂ o hck₁ hb₁ h3
-  have hext12 : Ext s.store s₂.store := hstep1.ext.trans hstep2.ext
-  have hpins12 : s₂.pins = s.pins := by rw [hstep2.pins, hstep1.pins]
+  obtain ⟨c2, hr2⟩ := blockShape?_spec fe nP block b s₁ s₂ o c1.ok hb₁ h3
+  have hext12 : Ext s.store s₂.store := hstep1.ext.trans c2.ext
+  have hpins12 : s₂.pins = s.pins := by rw [c2.pins, hstep1.pins]
   cases o with
   | none => exact absurd h4 checkShapeless_ne_ok
   | some p =>
   simp only [ROp] at hr2
   obtain ⟨q, hq, hrel⟩ := hr2
-  have out := checkBlock_bridge hk hstep2.ok hok.envWF hok.coh
-    (denoteFEnv_mono hext12 hok.denote) (denoteCIList_mono hstep2.ext _ _ hb₁) hrel h4
-  obtain ⟨env', hden, hF⟩ := out.denote
+  have out := checkBlock_bridge hk c2.ok hok.envWF
+    (EnvRel.ofCheck hok.check hok.gate hok.envWF |>.mono hext12)
+    (denoteCIList_mono c2.ext _ _ hb₁) hrel (ConLeche.blockShape?_declared hq) h4
+  obtain ⟨env', hF⟩ := out.run
   exact
     { state := out.state
       ext := hext12.trans out.ext
       pins := by rw [out.pins, hpins12]
-      coh := out.coh
-      pushed := out.pushed
-      visible := out.visible
-      denote := ⟨env', hden, FOk.checkDecl (pins := pinsP) (by
-        rw [checkDecl_ind_route hpin hparams, hq]; exact hF)⟩
-      proj := out.proj
-      envWF := out.envWF }
+      run := ⟨env', FOk.checkDecl (pins := pinsP) (by
+        rw [checkDecl_ind_route hpin hparams, hq]; exact hF)⟩ }
 
 /-! ## `IndSpec` -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:167-200 checkDecl (the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:158-185 checkDecl (the
 `.indDecl` arm) — **`Bridge/Checker/Hyp.lean`'s `IndSpec`, discharged**: a
 record projection of `checkIndRoute_bridge` (`IndOut`'s clauses are
-`IndSpec.run`'s, `ProjOut`'s two halves its `TPushed` and table clauses). -/
-theorem indSpec_of_bridge (hk : CoreSpec Arena.checkFuel) : IndSpec := by
+`IndSpec.run`'s), the Core tier's hypothesis supplied by `CoreSpec.of_core`. -/
+theorem indSpec_of_bridge : IndSpec := by
   refine ⟨fun {env fe fe' s s' block b nP pinsP} hok hb hpin hrun => ?_⟩
-  have out := checkIndRoute_bridge (pinsP := pinsP) hk hok hb hpin hrun
-  obtain ⟨env', hden, F, hrunP⟩ := out.denote
-  exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.proj.1, out.visible, env',
-    F, hden, hrunP, out.envWF env' hden, out.proj.2⟩
+  have out := checkIndRoute_bridge (pinsP := pinsP) CoreSpec.of_core hok hb hpin hrun
+  exact ⟨out.state, out.ext, out.pins, out.run⟩
 
 end ConRon.Bridge.Inductives

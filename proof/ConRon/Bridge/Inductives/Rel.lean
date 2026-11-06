@@ -523,7 +523,7 @@ structure IndOut (s s' : AState) (run : Prop) : Prop where
 
 /-! ## The recognisers' readers
 
-The recogniser (`blockParts?`, `blockShape?`) and the generated recursors read
+The recogniser (`blockShape?`) and the generated recursors read
 the reserved-name list, peel a rule's right-hand side with `stripLams`, and
 ask `lvlEq?` for `isProp`.  The run forms below put each of those at THIS
 tier's frame. -/
