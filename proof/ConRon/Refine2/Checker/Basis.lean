@@ -600,6 +600,67 @@ open Lockstep in
       (arena.basis.basis_name_hit pers st block) lst (basisNameHit (absICIL block)) :=
   LS.ofSim₀ fun _ h => basis_name_hit_refines hrel hinv h
 
+/-! ## The pinned quotient package, slot by slot -/
+
+open Lockstep in
+/-- `quot_pin` ⊑ `quotPin`: the pinned quotient package's constant at the slot;
+past the block, the default constant (`i_constant_info_dummy`, the twin's
+`default`), which no slot reaches. -/
+@[lockstep] theorem quot_pin_ls {pers st lst} {k : kernel.env.QuotKind}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.quot_pin pers st k) lst
+      (quotPin (ConRon.Refine.absQuotKind k)) := by
+  rw [arena.basis.quot_pin]
+  unfold quotPin
+  refine LS.bind (basis_kind_decls_ls (k := .QuotK) hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro blk b st1 lst1 hb hrel1 hinv1
+  subst hb
+  refine LS.bind_eq fun slot hslot => ?_
+  have hsv := ConRon.Refine.BasisRaw.quot_kind_slot_refines hslot
+  refine LS.bind_eq fun i1 hi1 => ?_
+  have hi1v : i1.val = blk.val.length := by
+    simp only [lift, Result.ok.injEq] at hi1
+    subst hi1
+    rw [usize_cast_u64_val']
+    simp [alloc.vec.Vec.len]
+  by_cases hge : slot ≥ i1
+  · rw [ite_eq_left hge]
+    refine LS.bind_eq fun d hd => ?_
+    have hn : (absICIL blk).length ≤ (ConRon.Refine.absQuotKind k).slot := by
+      simp only [absICIL, List.length_map]; scalar_tac
+    rw [List.getD_eq_default _ _ hn]
+    simp only [arena.env.i_constant_info_dummy, arena.handle.NIdx.of_word,
+      arena.handle.EIdx.of_word, bind_ok, Result.ok.injEq] at hd
+    subst hd
+    exact LS.pure rfl hrel1 hinv1
+  · rw [ite_eq_right hge]
+    have hlt : slot.val < blk.val.length := by scalar_tac
+    refine LS.bind_eq fun i2 hi2 => ?_
+    have hi2v : i2.val = slot.val := by
+      have hfit : slot.val ≤ Std.Usize.max := by have := blk.slice.property; scalar_tac
+      rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hfit]
+      exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective hi2).symm
+    obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists
+      (alloc.vec.Vec.index_usize_spec blk i2 (by rw [hi2v]; exact hlt))
+    subst hxv
+    rw [alloc.vec.Vec.index_slice_index, hx, bind_ok]
+    refine LS.bind_eq fun c hc => ?_
+    have hca := i_constant_info_dup_abs hc
+    refine LS.pure ?_ hrel1 hinv1
+    rw [hca]
+    simp only [absICIL]
+    rw [List.getD_eq_getElem _ _ (by simp only [List.length_map]; omega)]
+    simp [hi2v, hsv]
+
+open Lockstep in
+/-- `quot_at` ⊑ `quotAt`: the slot's pin at the names the record declares. -/
+@[lockstep] theorem quot_at_ls {pers st lst} {k : kernel.env.QuotKind}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.quot_at pers st k cv) lst
+      (quotAt (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  sorry -- T143-STUB: needs constant_info_at_lps_ls (param_levels, Inductives/StructParts)
+
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
