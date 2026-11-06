@@ -93,113 +93,6 @@ theorem structPsAt_unfold (o nP : Nat) :
     | succ n ih => intro k; simp only [structPsAt.go, structPsAtGoSpec, ih]
   simp only [structPsAt, hgo]
 
-/-! ## The memoised walk's arm dispatch
-
-(`mentionsConst`'s walk is proved in `Refine2/Checker/Leaves.lean`, which needs
-no transcription.) -/
-
-/-- `hasLooseBVarBGo`'s arm dispatch below the cutoff and the probe
-(`Arena/Inductives/StructParts.lean:346-392`).  `has_loose_bvar_b_node` is the
-Rust split; this is what it computes. -/
-def hasLooseBVarBNodeSpec (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel : Nat) :
-    ENodeView → AM (Bool × Std.HashMap (EIdx × Nat) Bool)
-  | .app f a => do
-    match ← hasLooseBVarBGo memo i fuel f with
-    | (true, memo) => pure (true, memo)
-    | (false, memo) => hasLooseBVarBGo memo i fuel a
-  | .lam ty b => do
-    match ← hasLooseBVarBGo memo i fuel ty with
-    | (true, memo) => pure (true, memo)
-    | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-  | .forallE ty b => do
-    match ← hasLooseBVarBGo memo i fuel ty with
-    | (true, memo) => pure (true, memo)
-    | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-  | .letE t v b => do
-    match ← hasLooseBVarBGo memo i fuel t with
-    | (true, memo) => pure (true, memo)
-    | (false, memo) => do
-      match ← hasLooseBVarBGo memo i fuel v with
-      | (true, memo) => pure (true, memo)
-      | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-  | .proj _ _ sub => hasLooseBVarBGo memo i fuel sub
-  | _ => pure (false, memo)
-
-/-- The owed equation: `hasLooseBVarBGo` at `fuel + 1` IS the derived-word
-cutoff, the five leaf arms, the probe, `hasLooseBVarBNodeSpec` at the view and
-the insert. -/
-theorem hasLooseBVarBGo_unfold (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel : Nat)
-    (h : EIdx) :
-    hasLooseBVarBGo memo i (fuel + 1) h = (do
-      if (← bvarB fuel h) ≤ i then pure (false, memo) else
-      match ← view h with
-      | .bvar j => pure (i == j, memo)
-      | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure (false, memo)
-      | v =>
-        match memo[(h, i)]? with
-        | some r => pure (r, memo)
-        | none => do
-          let r ← hasLooseBVarBNodeSpec memo i fuel v
-          pure (hasLooseBVarBIns h i r)) := by
-  rw [hasLooseBVarBGo]
-  refine am_bind_congr _ ?_
-  intro bb
-  split
-  · rfl
-  refine am_bind_congr _ ?_
-  intro v
-  cases v <;> twin_reduce [hasLooseBVarBNodeSpec] <;>
-    (first
-      | rfl
-      | (cases hm : memo[(h, i)]? with
-         | some r => rfl
-         | none => pair_peel))
-
-/-! ## `structProjGuards`' two inner `let rec`s -/
-
-/-- `structProjGuards`' `col` (`Arena/Inductives/StructParts.lean:426-451`):
-field `i`'s guard, joined from the sorts of the earlier fields a later field
-uses. -/
-def structProjGuardsColSpec (used : List Bool) (sorts : List LIdx) (z : LIdx) :
-    Nat → Nat → LIdx → AM LIdx
-  | _, 0, acc => pure acc
-  | j, k + 1, acc => do
-    if used.getD j false then do
-      let m ← internLNode (.max acc (sorts.getD j z))
-      structProjGuardsColSpec used sorts z (j + 1) k m
-    else structProjGuardsColSpec used sorts z (j + 1) k acc
-
-/-- `structProjGuards`' `row`: one guard per field. -/
-def structProjGuardsRowSpec (used : List Bool) (sorts : List LIdx) (z : LIdx) :
-    Nat → Nat → AM (List LIdx)
-  | _, 0 => pure []
-  | i, k + 1 => do
-    let g ← structProjGuardsColSpec used sorts z 0 i (sorts.getD i z)
-    let rest ← structProjGuardsRowSpec used sorts z (i + 1) k
-    pure (g :: rest)
-
-/-- The owed equation: `structProjGuards` IS `zeroLevel`, the shared-memo
-`structUsedLaterList`, and `row` from field `0`. -/
-theorem structProjGuards_unfold (cty : EIdx) (nP nF : Nat) (sorts : List LIdx) :
-    structProjGuards cty nP nF sorts = (do
-      let z ← zeroLevel
-      let used ← structUsedLaterList cty nP ∅ nF 0
-      structProjGuardsRowSpec used sorts z 0 nF) := by
-  have hcol : ∀ (used : List Bool) (z : LIdx) j k acc,
-      structProjGuards.col sorts z used j k acc
-        = structProjGuardsColSpec used sorts z j k acc := by
-    intro used z j k
-    induction k generalizing j with
-    | zero => intro acc; rfl
-    | succ k ih => intro acc; simp only [structProjGuards.col, structProjGuardsColSpec, ih]
-  have hrow : ∀ (used : List Bool) (z : LIdx) i k,
-      structProjGuards.row sorts z used i k = structProjGuardsRowSpec used sorts z i k := by
-    intro used z i k
-    induction k generalizing i with
-    | zero => rfl
-    | succ k ih => simp only [structProjGuards.row, structProjGuardsRowSpec, hcol, ih]
-  simp only [structProjGuards, hrow]
-
 /-! # `arena::inductives::struct_install` -/
 
 /-- `checkStructProjTable`'s `scopedOk` `let`, from the cursor on: the bodies'
@@ -217,28 +110,24 @@ def projBodiesScopedSpec (fe : IFEnv) (lps : List NIdx) (nP : Nat) :
     if !w1 && w2 && w3 && w4 then projBodiesScopedSpec fe lps nP bs else pure false
 
 /-- `checkStructProjTable`'s tail: the structure must be stored and its table
-not yet taken, and then the table is pushed. -/
-def checkStructProjTablePushSpec (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (resSort : LIdx) (guards : List LIdx) (bodies : Array EIdx)
-    (fe : IFEnv) : AM IFEnv := do
+not yet taken. -/
+def checkStructProjTableTailSpec (T : NIdx) (fe : IFEnv) : AM Unit := do
   unless (fe.find? T).isSome do
     fail (.internal "direct structure: projection table before its structure")
   unless (fe.findTable? T).isNone do
     fail (.invalid "projection table taken")
-  pure (fe.pushTable ⟨T, lps, nP, C, nF, resSort, bodies, guards⟩)
 
 /-- The owed equation: `checkStructProjTable` IS the bodies, their scoping and
-`checkStructProjTablePushSpec`. -/
-theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (resSort : LIdx) (guards : List LIdx) (cvCa : IConstantVal)
-    (fe : IFEnv) :
-    checkStructProjTable T C lps nP nF resSort guards cvCa fe = (do
+`checkStructProjTableTailSpec`. -/
+theorem checkStructProjTable_unfold (T : NIdx) (lps : List NIdx) (nP nF : Nat)
+    (cvCa : IConstantVal) (fe : IFEnv) :
+    checkStructProjTable T lps nP nF cvCa fe = (do
       let bodies ← unwrapOr (← structProjBodies T nP nF cvCa.type)
         (.internal "direct structure: projection bodies")
       let scopedOk ← projBodiesScopedSpec fe lps nP bodies.toList
       unless bodies.size = nF ∧ scopedOk do
         fail (.internal "direct structure: projection body scoping")
-      checkStructProjTablePushSpec T C lps nP nF resSort guards bodies fe) := by
+      checkStructProjTableTailSpec T fe) := by
   have hall := list_allM_counted (fun b => do
       let w1 ← hasFvarFast coreWalkFuel b
       let w2 ← allLevelParamsDefined lps b
@@ -247,7 +136,7 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       pure (!w1 && w2 && w3 && w4))
     (projBodiesScopedSpec fe lps nP) rfl
     (by intro a l; twin_reduce [projBodiesScopedSpec])
-  twin_reduce [checkStructProjTable, hall, checkStructProjTablePushSpec]
+  twin_reduce [checkStructProjTable, hall, checkStructProjTableTailSpec]
 
 /-! # `arena::inductives::sum_install`
 
@@ -256,41 +145,6 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
 `check_sum_ctor_frames`, `check_sum_ctor_resid`, `check_sum_ctor_sorts`, which
 the twin's own comments name.  `fieldDomsResolve` / `idxArgsResolve` are twin
 `def`s and need no transcription. -/
-
-/-- `whnfTelescope` at `0` binders.  **Lean cannot generate the twin's
-equation lemmas** (`whnfTelescope.eq_def` fails: "no progress at goal" on the
-`match (← view e'), n` whose catch-all arms split on the counter), so `rw
-[whnfTelescope]` is unavailable; these two equations are the definition read
-off the structural recursion by `delta`, one per counter shape, each with the
-Rust's own arm order (the view first, the counter second). -/
-theorem whnfTelescope_zero (mode : ConLeche.CheckMode) (fe : IFEnv) (i : Nat) (e : EIdx) :
-    whnfTelescope mode fe i 0 e = (do
-      let e' ← whnf mode fe checkFuel i e
-      match ← view e' with
-      | .sort s => pure ([], s)
-      | _ => fail (.invalid "direct sum: type former does not reduce to a sort")) := by
-  delta whnfTelescope
-  dsimp only [Nat.brecOn.go, whnfTelescope._f]
-  refine congrArg (bind (whnf mode fe checkFuel i e)) (funext fun e' => ?_)
-  refine congrArg (bind (view e')) (funext fun v => ?_)
-  cases v <;> rfl
-
-/-- `whnfTelescope` at `n + 1` binders (see `whnfTelescope_zero`). -/
-theorem whnfTelescope_succ (mode : ConLeche.CheckMode) (fe : IFEnv) (i n : Nat) (e : EIdx) :
-    whnfTelescope mode fe i (n + 1) e = (do
-      let e' ← whnf mode fe checkFuel i e
-      match ← view e' with
-      | .forallE dom body => do
-        let fv ← internE (.fvar i dom)
-        let b ← instantiate1Fast coreWalkFuel body fv 0
-        let (bs, s) ← whnfTelescope mode fe (i + 1) n b
-        pure (dom :: bs, s)
-      | _ => fail (.invalid "direct sum: type former does not reduce to a telescope")) := by
-  delta whnfTelescope
-  dsimp only [Nat.brecOn.go, whnfTelescope._f]
-  refine congrArg (bind (whnf mode fe checkFuel i e)) (funext fun e' => ?_)
-  refine congrArg (bind (view e')) (funext fun v => ?_)
-  cases v <;> rfl
 
 /-- `checkStructFieldSortsI`'s per-field universe bound: official's `leq`
 against the family's sort at a non-propositional family, and the large
@@ -312,29 +166,27 @@ def fieldSortBoundSpec (isProp large : Bool) (s u : LIdx) (fv : EIdx)
 /-- `checkSumCtor`'s tail (the Rust's `check_sum_ctor_sorts`): the two
 resolutions and the fields' sorts. -/
 def checkSumCtorSortsSpec (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (nP : Nat)
-    (resSort : LIdx) (isProp large : Bool) (nF : Nat) (cvCa : IConstantVal)
-    (xFvs idxArgs : List EIdx) : AM (IConstantVal × List LIdx) := do
+    (resSort : LIdx) (isProp large : Bool) (nF : Nat)
+    (xFvs idxArgs : List EIdx) : AM Unit := do
   unless ← fieldDomsResolve fe₀ xFvs do
     fail (.notImplemented "direct sum: field domain after the block")
   unless ← idxArgsResolve fe₀ idxArgs do
     fail (.invalid "direct sum: index expression mentions the block")
-  let sorts ← checkStructFieldSortsI mode fe isProp large resSort nP xFvs idxArgs nF
-  pure (cvCa, sorts)
+  checkStructFieldSortsI mode fe isProp large resSort nP xFvs idxArgs nF
 
 /-- `checkSumCtor`'s residual stage (the Rust's `check_sum_ctor_resid`): the
 opened residual is the family at the opened parameter variables followed by the
 index expressions. -/
 def checkSumCtorResidSpec (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
-    (nF : Nat) (cvCa : IConstantVal) (pFvs xFvs : List EIdx) (xrest : EIdx) :
-    AM (IConstantVal × List LIdx) := do
+    (nF : Nat) (pFvs xFvs : List EIdx) (xrest : EIdx) : AM Unit := do
   let us ← paramLevels lps
   let hd ← internE (.const T us)
   let xfn ← getAppFn coreWalkFuel xrest
   let xargs ← getAppArgs coreWalkFuel xrest
   unless xfn == hd && xargs.take nP == pFvs && xargs.length == nP + nIdx do
     fail (.notImplemented "direct sum: opened constructor residual")
-  checkSumCtorSortsSpec mode fe₀ fe nP resSort isProp large nF cvCa xFvs
+  checkSumCtorSortsSpec mode fe₀ fe nP resSort isProp large nF xFvs
     (xargs.drop nP)
 
 /-- `checkSumCtor`'s frame stage (the Rust's `check_sum_ctor_frames`): the
@@ -342,7 +194,7 @@ parameter pins against the type former's opened telescope, and the field
 telescope opened. -/
 def checkSumCtorFramesSpec (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
-    (nF : Nat) (cvTa cvCa : IConstantVal) : AM (IConstantVal × List LIdx) := do
+    (nF : Nat) (cvTa cvCa : IConstantVal) : AM Unit := do
   let cq ← unwrapOr (← openPisAtFvarsF nP cvCa.type 0)
     (.notImplemented "direct sum: constructor telescope")
   let tq ← unwrapOr (← openPisAtFvarsF nP cvTa.type 0)
@@ -351,7 +203,7 @@ def checkSumCtorFramesSpec (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : N
   checkStructDomsAt mode fe 0 cq.1 tdoms nP
   let xq ← unwrapOr (← openPisAtFvarsF nF cq.2 nP)
     (.notImplemented "direct sum: constructor field telescope")
-  checkSumCtorResidSpec mode fe₀ fe T lps nP nIdx resSort isProp large nF cvCa
+  checkSumCtorResidSpec mode fe₀ fe T lps nP nIdx resSort isProp large nF
     cq.1 xq.1 xq.2
 
 /-- The owed equation: `checkSumCtor` IS the constant check, the syntactic
@@ -360,14 +212,13 @@ theorem checkSumCtor_unfold (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : 
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
     (cvC : IConstantVal) (nF : Nat) (cvTa : IConstantVal) :
     checkSumCtor mode fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa = (do
-      checkConstantVal mode fe cvC
-      let cvCa := cvC
-      let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvCa.type)
+      checkConstantVal mode fe cvC false
+      let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvC.type)
         (.notImplemented "direct sum: constructor telescope")
       unless ← structCtorResidOk T lps nP nF nIdx cbody do
         fail (.invalid "direct sum: invalid constructor return type")
       checkSumCtorFramesSpec mode fe₀ fe T lps nP nIdx resSort isProp large nF
-        cvTa cvCa) := by
+        cvTa cvC) := by
   twin_reduce [checkSumCtor, checkSumCtorFramesSpec, checkSumCtorResidSpec,
     checkSumCtorSortsSpec]
 
@@ -375,9 +226,6 @@ theorem checkSumCtor_unfold (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : 
 
 /-- info: 'ConRon.Refine2.paramLevels_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms paramLevels_unfold
-
-/-- info: 'ConRon.Refine2.hasLooseBVarBGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms hasLooseBVarBGo_unfold
 
 /-- info: 'ConRon.Refine2.checkSumCtor_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkSumCtor_unfold

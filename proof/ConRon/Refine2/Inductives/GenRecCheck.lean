@@ -232,14 +232,14 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
 /-- `class_nodes_agree` ⊑ `classNodesAgree`, the entries from the cursor on. -/
 @[lockstep] theorem class_nodes_agree_ls {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (mc : arena.inductives.rec_check.TargetMajor)
     (tele : alloc.vec.Vec arena.handle.EIdx)
     (leaf : arena.handle.EIdx) (fvs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf) :
     ∀ (j : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc tele leaf
+        (arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc tele leaf
           fvs i es j) lst
         (classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs) (absU i)
@@ -249,7 +249,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     (fun l => classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p)
       (absEIdxL former_tys) (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs)
       (absU i) l)
-    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc
+    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc
       tele leaf fvs i es j) ?_ ?_ j st lst hrel hinv
   · intro st lst j hn hrel hinv
     rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
@@ -262,7 +262,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     all_goals simp [TwinEq, absEIdxL, alloc.vec.Vec.new] at hP
 
 set_option maxHeartbeats 1000000 in
-theorem class_fields_of_acc {pers st} (p : arena.inductives.block_parts.BlockShape)
+theorem class_fields_of_acc {pers st} (p : arena.inductives.block_shape.BlockShape)
     (ihs : alloc.vec.Vec (Std.U64 × Std.U64)) (fs : alloc.vec.Vec arena.handle.EIdx) :
     ∀ (i : Std.U64) (out : alloc.vec.Vec arena.inductives.gen_rec.ClassField) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -296,7 +296,7 @@ theorem class_fields_of_acc {pers st} (p : arena.inductives.block_parts.BlockSha
 
 /-- `class_fields_of` from field `0` into `Vec::new()` ⊑ `classFieldsOf … 0`. -/
 @[lockstep] theorem class_fields_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
     (ihs : alloc.vec.Vec (Std.U64 × Std.U64)) (fs : alloc.vec.Vec arena.handle.EIdx) :
     LSR pers (fun a b => b = a.val.map absClassField)
       (arena.inductives.gen_rec.class_fields_of pers st p ihs 0#u64 fs (alloc.vec.Vec.new _)) st lst
@@ -329,14 +329,14 @@ theorem gr_kind_read_in {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec
 
 theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -345,7 +345,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.U64 => i.val) ks.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -368,13 +368,13 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
 @[lockstep] theorem class_fields_agree_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     LS pers (fun _ _ => True)
-      (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es 0#u64
+      (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es 0#u64
         ks) lst
       (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) 0
@@ -391,12 +391,12 @@ attribute [local lockstep high] rc_ctors_dup_spec
 @[lockstep] theorem class_ctor_of_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (c_a : arena.env.IConstantVal × Std.U64) :
     LS pers (fun a b => b = absClassCtor a)
-      (arena.inductives.gen_rec.class_ctor_of pers st mode vis rf p former_tys rd ms c c_a) lst
+      (arena.inductives.gen_rec.class_ctor_of pers st mode rf p former_tys rd ms c c_a) lst
       (classCtorOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absIConstantVal c_a.1, absU c_a.2)) := by
   rw [arena.inductives.gen_rec.class_ctor_of, classCtorOf]
@@ -420,14 +420,14 @@ def absClassCtorL (v : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) : List 
 
 theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i)) := by
@@ -435,7 +435,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i))) ?_ ?_ i
@@ -459,12 +459,12 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
 @[lockstep] theorem class_ctors_of_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LS pers (fun a b => b = absClassCtorL a)
-      (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs 0#usize
+      (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs 0#usize
         (alloc.vec.Vec.new _)) lst
       (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsL cs)) := by
@@ -479,13 +479,13 @@ def absClassCtorLL (v : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.Cl
 
 theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (c : Std.Usize) (out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor)) := by
@@ -493,7 +493,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun c out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor))) ?_ ?_ c
@@ -517,11 +517,11 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
 @[lockstep] theorem classes_ctors_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absClassCtorLL a)
-      (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms 0#usize
+      (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) 0 (ms.val.map absTargetMajor)) := by
@@ -538,9 +538,9 @@ def absTargetMajorL (v : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     List TargetMajor :=
   v.val.map absTargetMajor
 
-theorem class_majors_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
-    (p : arena.inductives.block_parts.BlockShape)
+theorem class_majors_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape)
     (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
     (pfvs : alloc.vec.Vec arena.handle.EIdx)
     (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
@@ -574,10 +574,10 @@ theorem class_majors_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
     refine ls_tail_cons h1 ?_
     simp [absTargetMajorL, hout1]
 
-@[lockstep] theorem class_majors_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_majors_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
-    (p : arena.inductives.block_parts.BlockShape)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape)
     (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
     (pfvs : alloc.vec.Vec arena.handle.EIdx)
     (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
@@ -593,20 +593,20 @@ theorem class_majors_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
 
 theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i
   · intro i out hn st lst hrel hinv
@@ -629,11 +629,11 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
 @[lockstep] theorem classes_nfs_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absTargetMajorL a)
-      (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms 0#usize
+      (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (tbl.val.map absNestCtorNf) (ms.val.map absTargetMajor)) := by
@@ -643,8 +643,8 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 /-- `class_former_ty` ⊑ `classFormerTy`. -/
-@[lockstep] theorem class_former_ty_ls {E₀ : IEnv} {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
+@[lockstep] theorem class_former_ty_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (cv_tas : alloc.vec.Vec arena.env.IConstantVal) (m : arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absEIdx a)
       (arena.inductives.gen_rec.class_former_ty pers st rf cv_tas m) lst
@@ -666,7 +666,7 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     have := cv_tas.property
     scalar_tac
 
-theorem class_former_tys_acc {E₀ : IEnv} {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+theorem class_former_tys_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
@@ -692,8 +692,8 @@ theorem class_former_tys_acc {E₀ : IEnv} {pers} {rf : arena.env.IFEnv} {lf : I
     simp only [List.mapM.loop]
     lockstep
 
-@[lockstep] theorem class_former_tys_ls {E₀ : IEnv} {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
+@[lockstep] theorem class_former_tys_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absEIdxL a)
@@ -894,10 +894,10 @@ attribute [local lockstep_simp] absClassCtorL_fun
 
 /-- `check_block_classes` ⊑ `checkBlockClasses` — the export the block tail
 reads. -/
-@[lockstep] theorem check_block_classes_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem check_block_classes_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (params : alloc.vec.Vec arena.handle.EIdx)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape) (params : alloc.vec.Vec arena.handle.EIdx)
     (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
     LS pers (fun a b => b = (absClassRead a.1, absTargetMajorL a.2))
       (arena.inductives.gen_rec.check_block_classes pers st mode rf p params ctors_as) lst
@@ -908,8 +908,8 @@ reads. -/
 
 /-! ## The rules: `domains_resolve`, `class_rule_check` (`_tail` inline), `class_rule_ok` -/
 
-theorem domains_resolve_aux {E₀ : IEnv} {pers} {vis_t : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+theorem domains_resolve_aux {pers} {vis_t : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (rbs : alloc.vec.Vec arena.handle.EIdx) (m : Nat) :
     ∀ (i : Std.Usize) st lst, rbs.val.length - i.val = m →
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -938,8 +938,8 @@ theorem domains_resolve_aux {E₀ : IEnv} {pers} {vis_t : Std.U64}
 
 /-- `domains_resolve` ⊑ the rule's `rbs.allM (constsResolveFFast (feR.restrictTo visT) ·)`,
 from the cursor on. -/
-@[lockstep] theorem domains_resolve_ls {E₀ : IEnv} {pers} {vis_t : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+@[lockstep] theorem domains_resolve_ls {pers} {vis_t : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (rbs : alloc.vec.Vec arena.handle.EIdx) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
@@ -951,9 +951,9 @@ from the cursor on. -/
 attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_check_tail
 
 /-- `class_rule_check` (with `class_rule_check_tail` inline) ⊑ `classRuleCheck`. -/
-@[lockstep] theorem class_rule_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rule_check_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf) (hvr : absU vis_r = lf.visibleBelow)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (hvr : absU vis_r = lf.visibleBelow)
     (cv_r : arena.env.IConstantVal) (n : Std.U64) (gen : arena.handle.EIdx) :
     LS pers (fun a b => b = a)
       (arena.inductives.gen_rec.class_rule_check pers st mode vis_t vis_r rf cv_r n gen) lst
@@ -963,9 +963,9 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_check_tail
   lockstep
 
 /-- `class_rule_ok` ⊑ `classRuleOk`: the check, then the generated rule. -/
-@[lockstep] theorem class_rule_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rule_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf) (hvr : absU vis_r = lf.visibleBelow)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (hvr : absU vis_r = lf.visibleBelow)
     (cv_r : arena.env.IConstantVal) (n : Std.U64) (gen : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a)
       (arena.inductives.gen_rec.class_rule_ok pers st mode vis_t vis_r rf cv_r n gen) lst
@@ -979,9 +979,9 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_check_tail
 attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
 
 /-- `class_const_ok` (with `class_const_ok_type` inline) ⊑ `classConstOk`. -/
-@[lockstep] theorem class_const_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_const_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf) (cv : arena.env.IConstantVal) :
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (cv : arena.env.IConstantVal) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
       (arena.inductives.gen_rec.class_const_ok pers st mode rf cv) lst
       (classConstOk (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
@@ -989,22 +989,22 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
   rw [arena.inductives.gen_rec.class_const_ok, classConstOk]
   lockstep
 
-theorem gr_absRecShape_tgt (r : arena.inductives.block_parts.RecShape) :
+theorem gr_absRecShape_tgt (r : arena.inductives.block_shape.RecShape) :
     (absRecShape r).tgt = absU r.tgt := rfl
-theorem gr_absRecShape_rP (r : arena.inductives.block_parts.RecShape) :
+theorem gr_absRecShape_rP (r : arena.inductives.block_shape.RecShape) :
     (absRecShape r).rP = absU r.r_p := rfl
-theorem gr_absRecShape_mI (r : arena.inductives.block_parts.RecShape) :
+theorem gr_absRecShape_mI (r : arena.inductives.block_shape.RecShape) :
     (absRecShape r).mI = absU r.m_i := rfl
-theorem gr_absRecShape_cvR (r : arena.inductives.block_parts.RecShape) :
+theorem gr_absRecShape_cvR (r : arena.inductives.block_shape.RecShape) :
     (absRecShape r).cvR = absIConstantVal r.cv_r := rfl
 
 attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecShape_mI
   gr_absRecShape_cvR
 
 /-- `class_rec_ty_check` ⊑ `classRecTyCheck`. -/
-@[lockstep] theorem class_rec_ty_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rec_ty_check_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf) (cv_ri cv_g : arena.env.IConstantVal) :
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (cv_ri cv_g : arena.env.IConstantVal) :
     LS pers (fun a b => b = a)
       (arena.inductives.gen_rec.class_rec_ty_check pers st mode rf cv_ri cv_g) lst
       (classRecTyCheck (ConRon.Refine.absMode mode) lf (absIConstantVal cv_ri)
@@ -1014,9 +1014,9 @@ attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecSh
   lockstep
 
 /-- `class_rec_ty_ok` ⊑ `classRecTyOk`. -/
-@[lockstep] theorem class_rec_ty_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rec_ty_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf) (g : arena.inductives.gen_rec.ClassGen) (k : Std.U64) (rc : arena.inductives.block_parts.RecShape)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (g : arena.inductives.gen_rec.ClassGen) (k : Std.U64) (rc : arena.inductives.block_shape.RecShape)
     (cv_ri : arena.env.IConstantVal) (c : Std.U64) :
     LS pers (fun a b => b = absIConstantVal a)
       (arena.inductives.gen_rec.class_rec_ty_ok pers st mode rf g k rc cv_ri c) lst
@@ -1031,10 +1031,10 @@ def absICVList (v : alloc.vec.Vec arena.env.IConstantVal) : List IConstantVal :=
 
 attribute [local lockstep_simp] absICVList
 
-theorem class_rec_tys_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+theorem class_rec_tys_ok_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (g : arena.inductives.gen_rec.ClassGen) (k : Std.U64)
-    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
     (cvs : alloc.vec.Vec arena.env.IConstantVal) (cs : alloc.vec.Vec Std.U64) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantVal) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -1083,11 +1083,11 @@ theorem class_rec_tys_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
       simp only [classRecTysOk]
       lockstep
 
-@[lockstep] theorem class_rec_tys_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rec_tys_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (g : arena.inductives.gen_rec.ClassGen) (k : Std.U64)
-    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
     (cvs : alloc.vec.Vec arena.env.IConstantVal) (cs : alloc.vec.Vec Std.U64) :
     LS pers (fun a b => b = absICVList a)
       (arena.inductives.gen_rec.class_rec_tys_ok pers st mode rf g k rcs cvs cs 0#usize
@@ -1101,9 +1101,9 @@ theorem class_rec_tys_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
 
 /-! ## `class_stream_recs`, `class_seeds` -/
 
-theorem class_stream_recs_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
-    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+theorem class_stream_recs_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantVal) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absICVList a = absICVList out ++ b)
@@ -1134,10 +1134,10 @@ theorem class_stream_recs_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
     refine ls_tail_cons h1 ?_
     simp [absICVList, hout1, hx]
 
-@[lockstep] theorem class_stream_recs_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_stream_recs_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
-    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape) :
     LS pers (fun a b => b = absICVList a)
       (arena.inductives.gen_rec.class_stream_recs pers st mode rf rcs 0#usize (alloc.vec.Vec.new _))
       lst (classStreamRecs (ConRon.Refine.absMode mode) lf (rcs.val.map absRecShape)) := by
@@ -1201,8 +1201,8 @@ theorem class_seeds_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
 
 /-! ## `class_rules_ok`, `class_recs_rules_ok` -/
 
-theorem class_rules_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+theorem class_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
+    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (cv_r : arena.env.IConstantVal) (c : Std.U64)
@@ -1241,9 +1241,9 @@ theorem class_rules_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
     refine ls_tail_cons h1 ?_
     simp [absEIdxL, hout1]
 
-@[lockstep] theorem class_rules_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_rules_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (cv_r : arena.env.IConstantVal) (c : Std.U64)
@@ -1267,8 +1267,8 @@ def absRuleOutL (v : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.r
     alloc.vec.Vec arena.handle.EIdx)) : List (IConstantVal × TargetMajor × List EIdx) :=
   v.val.map absRuleOut
 
-theorem class_recs_rules_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+theorem class_recs_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
+    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal) :
     ∀ (i : Std.Usize) out st lst, AStateRel₀ pers st lst → AStateInv pers st →
@@ -1320,9 +1320,9 @@ theorem class_recs_rules_ok_acc {E₀ : IEnv} {pers} {mode : kernel.env.CheckMod
       simp only [classRecsRulesOk]
       exact LS.pure (by simp) hrel hinv
 
-@[lockstep] theorem class_recs_rules_ok_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem class_recs_rules_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal) :
     LS pers (fun a b => b = absRuleOutL a)
@@ -1407,8 +1407,8 @@ theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     · simp [hk]
 
 /-- **The relation survives answering-alike indexes on both sides.** -/
-theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {E₀ : IEnv} {rf rf' : arena.env.IFEnv} {lf lf' : IFEnv} (h : IFEnvRelI pers E₀ rf lf)
-    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI pers E₀ rf' lf' := by
+theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv} {lf lf' : IFEnv} (h : IFEnvRelI pers rf lf)
+    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI pers rf' lf' := by
   obtain ⟨⟨henv, hidx, hvb, hwf, hkeys, htbls, htk, hbase⟩, ⟨-, hbound, hrange, htinv, htrange⟩⟩ := h
   obtain ⟨hc, ht, hv, hT, hTb, hB⟩ := hr
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hbase⟩, hi, ?_, ?_, ?_, ?_⟩
@@ -1608,15 +1608,15 @@ theorem gr_pop_step {rf rf1 rfK : arena.env.IFEnv} {ci : arena.env.IConstantInfo
   rw [gr_usize_ext (show j'.val = i1.val by simp at hi1v; omega)]
   exact hp2
 
-theorem gr_fe_r_push_aux {pers : arena.store.PersTier} {E₀ : IEnv} (p : arena.inductives.block_parts.BlockShape)
+theorem gr_fe_r_push_aux {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64) :
     ∀ (q : Nat) (m : Std.Usize) (rf : arena.env.IFEnv) (lf : IFEnv)
       (prevs : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64)))
       (prevsL : List (NIdx × Option (Nat × IConstantInfo))) rfK prevsK,
       min cv_gs.val.length rec_cls.val.length - m.val = q →
-      IFEnvRelI pers E₀ rf lf →
+      IFEnvRelI pers rf lf →
       arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls m rf prevs = ok (rfK, prevsK) →
-      IFEnvRelI pers E₀ rfK (classFeR.go (absBlockShape p) m.val
+      IFEnvRelI pers rfK (classFeR.go (absBlockShape p) m.val
           (((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val) lf prevsL).1 ∧
       (∃ Q, prevsK.val = prevs.val ++ Q ∧ Q.length = q) ∧
       (∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
@@ -1713,17 +1713,17 @@ theorem gr_fe_r_push_aux {pers : arena.store.PersTier} {E₀ : IEnv} (p : arena.
 /-- **The rule-less recursors pushed, and popped again**: the pushed index is
 the twin's `classFeR`, and whatever the pops return is related to the twin's
 `foldr popTemp` (any `f` that is the twin's pop lambda). -/
-theorem class_fe_r_push_spec {pers : arena.store.PersTier} {E₀ : IEnv} (p : arena.inductives.block_parts.BlockShape)
+theorem class_fe_r_push_spec {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (f : NIdx × Option (Nat × IConstantInfo) → IFEnv → IFEnv)
     (hf : ∀ x acc, f x acc = acc.popTemp x.1 x.2) :
     LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
-      (fun r => IFEnvRelI pers E₀ r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+      (fun r => IFEnvRelI pers r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
           (rec_cls.val.map absU) lf).1 ∧
         ∀ (j : Std.Usize) out, j.val = r.2.val.length →
           arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
-          IFEnvRelI pers E₀ out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+          IFEnvRelI pers out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
             (rec_cls.val.map absU) lf).2.foldr f
             (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
               (rec_cls.val.map absU) lf).1)) := by
@@ -1754,15 +1754,15 @@ theorem class_fe_r_push_spec {pers : arena.store.PersTier} {E₀ : IEnv} (p : ar
 def grPop (x : NIdx × Option (Nat × IConstantInfo)) (acc : IFEnv) : IFEnv :=
   acc.popTemp x.1 x.2
 
-theorem class_fe_r_push_ls {pers : arena.store.PersTier} {E₀ : IEnv} (p : arena.inductives.block_parts.BlockShape)
+theorem class_fe_r_push_ls {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers E₀ rf lf) :
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
     LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
-      (fun r => IFEnvRelI pers E₀ r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+      (fun r => IFEnvRelI pers r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
           (rec_cls.val.map absU) lf).1 ∧
         ∀ (j : Std.Usize) out, j.val = r.2.val.length →
           arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
-          IFEnvRelI pers E₀ out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+          IFEnvRelI pers out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
             (rec_cls.val.map absU) lf).2.foldr grPop
             (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
               (rec_cls.val.map absU) lf).1)) :=
@@ -1775,17 +1775,17 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.gen_rec_classes
 set_option maxHeartbeats 4000000 in
 /-- `gen_rec_check` ⊑ `genRecCheck` — the export the block tail reads: the
 index handed back related to the twin's popped one, the rules alike. -/
-@[lockstep] theorem gen_rec_check_ls {E₀ : IEnv} {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem gen_rec_check_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers E₀ rf lf)
-    (p : arena.inductives.block_parts.BlockShape) (nested_bit : Bool)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape) (nested_bit : Bool)
     (params : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
     (block : alloc.vec.Vec arena.env.IConstantInfo) :
-    LS pers (fun a b => IFEnvRelI pers E₀ a.1 b.1 ∧ b.2 = absRuleOutL a.2)
+    LS pers (fun a b => IFEnvRelI pers a.1 b.1 ∧ b.2 = absRuleOutL a.2)
       (arena.inductives.gen_rec.gen_rec_check pers st mode rf p nested_bit params tbl rd ms
         cv_tas block) lst
       (genRecCheck (ConRon.Refine.absMode mode) lf (absBlockShape p) nested_bit (absEIdxL params)

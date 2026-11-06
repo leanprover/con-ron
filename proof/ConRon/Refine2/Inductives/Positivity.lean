@@ -667,6 +667,14 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
     (arena.inductives.positivity.u64_vec_dup xs)
     (fun i out => by rw [arena.inductives.positivity.u64_vec_dup.eq_def]; simp only [bind_ok])
 
+@[lockstep] theorem const_vals_dup_spec (xs : alloc.vec.Vec arena.env.IConstantVal) :
+    LSP (arena.inductives.positivity.const_vals_dup xs 0#usize
+        (alloc.vec.Vec.new arena.env.IConstantVal))
+      (fun o => o = xs) :=
+  copy_loop_id arena.env.i_constant_val_dup (fun _ _ h => Lockstep.PC2.i_constant_val_dup_id h) xs
+    (arena.inductives.positivity.const_vals_dup xs)
+    (fun i out => by rw [arena.inductives.positivity.const_vals_dup.eq_def])
+
 @[lockstep] theorem nest_ctx_dup_spec (c : arena.inductives.positivity.NestCtx) :
     LSP (arena.inductives.positivity.nest_ctx_dup c) (fun o => o = c) := by
   intro o h
@@ -676,11 +684,12 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
   obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v3, hv3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v4, hv4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨li, hli, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
   rw [alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1),
     u64_vec_dup_spec _ _ hv2, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv3), dupId_lidx _ _ hl,
-    dupId_lsidx _ _ hli]
+    const_vals_dup_spec _ _ hv4, dupId_lsidx _ _ hli]
 
 @[lockstep] theorem nest_state_empty_spec :
     LSP arena.inductives.positivity.nest_state_empty
@@ -767,17 +776,31 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
 
 theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usize) :
     LSP (arena.inductives.positivity.root_hole ctx j)
-      (fun o => ∃ n, ctx.names.val[j.val]? = some n ∧
-        o = { key := { cname := n, lvls := ctx.lvls, ds := ctx.params }, base := ctx.n_p }) := by
+      (fun o => ∃ n k, ctx.names.val[j.val]? = some n ∧
+        (ctx.n_idxs.val.map absU).getD j.val 0 = absU k ∧
+        o = { key := { cname := n, lvls := ctx.lvls, ds := ctx.params }, base := ctx.n_p,
+              n_idx := k }) := by
   intro o h
   rw [arena.inductives.positivity.root_hole] at h
+  obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  refine ⟨n, vec_index_some hn, ?_⟩
-  rw [dupId_nidx _ _ hn1, dupId_lsidx _ _ hl, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+  refine ⟨n, k, vec_index_some hn, ?_, ?_⟩
+  · split at hk
+    · rename_i hlt
+      have hx := vec_index_some hk
+      have hlt' : j.val < ctx.n_idxs.val.length := by
+        simp only [alloc.vec.Vec.len] at hlt; scalar_tac
+      simp [List.getD_eq_getElem?_getD, List.getElem?_map, hx]
+    · rename_i hge
+      cases Result.ok_injective hk
+      have hge' : ctx.n_idxs.val.length ≤ j.val := by
+        simp only [alloc.vec.Vec.len] at hge; scalar_tac
+      simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by simpa using hge'), absU]
+  · rw [dupId_nidx _ _ hn1, dupId_lsidx _ _ hl, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
 
 @[lockstep] theorem nest_hole_at_twin (ctx : arena.inductives.positivity.NestCtx)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (i : Std.U64) :
@@ -802,12 +825,13 @@ theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usiz
       obtain ⟨nh, hnh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
       rcases lift_cast_usize_of_u64 _ j2 hj2 with hj2' | hj2'
-      · obtain ⟨n, hn, rfl⟩ := root_hole_spec ctx j2 nh hnh
+      · obtain ⟨n, k, hn, hk, rfl⟩ := root_hole_spec ctx j2 nh hnh
         rw [List.getElem?_append_left (by simp [absNIdxL, absU]; scalar_tac)]
-        simp only [List.getElem?_map, absNIdxL]
+        simp only [List.getElem?_mapIdx, absNIdxL]
         have : absU i - absU ctx.n_p = j2.val := by simp [absU] at hj' ⊢; omega
-        rw [this, hn]
-        rfl
+        rw [this, List.getElem?_map, hn]
+        simp only [Option.map_some, absNestHole, absNestKey, absNestCtx, Option.some.injEq]
+        rw [← hk]
       · exfalso; scalar_tac
     · rename_i hge
       obtain ⟨j3, hj3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -816,7 +840,7 @@ theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usiz
       have hl' := lift_cast_u64_of_usize _ l hl
       simp only [alloc.vec.Vec.len] at hl'
       rw [List.getElem?_append_right (by simp [absNIdxL, absU]; scalar_tac)]
-      simp only [List.length_map, absNIdxL, List.getElem?_map]
+      simp only [List.length_map, List.length_mapIdx, absNIdxL, List.getElem?_map]
       have : absU i - absU ctx.n_p - ctx.names.val.length = j3.val := by
         simp only [absU]; scalar_tac
       rw [this]
@@ -1688,47 +1712,89 @@ theorem group_keys_abs (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handl
   rw [TwinEq, group_keys_abs us ds grp _ _ o h]
   simp [absGrpL, absNestKey, Function.comp_def]
 
-theorem frame_stack_abs (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
-    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) (hi : Std.U64)
-    (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.positivity.NestHole),
-      arena.inductives.positivity.frame_stack prog us ds hi grp i out = ok o →
-      o.val = out.val ++ (grp.val.drop i.val).map
-        (fun p => ({ key := { cname := p.1, lvls := us, ds := ds }, base := hi } :
-          arena.inductives.positivity.NestHole)) := by
-  refine vec_map_loop grp _ (arena.inductives.positivity.frame_stack prog us ds hi grp) ?_ ?_
-  · intro i out o hn h
-    rw [arena.inductives.positivity.frame_stack.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len grp by scalar_tac), Result.ok.injEq] at h
-    exact h.symm
-  · intro i x out o hx h
-    rw [arena.inductives.positivity.frame_stack.eq_def, ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len grp by
-      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [dupId_nidx _ _ hn1, dupId_lsidx _ _ hl1, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
-      at hout1
-    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+/-- `nestFrame`'s frame holes (`grp.mapM fun (c, ty) => …`), as the counted
+recursion the Rust's `frame_stack` cursor walks: each group-mate's hole at the
+key `(us, ds)`, its base `hi` and its index count read off its type. -/
+def frameStackSpec (us : LsIdx) (ds : List EIdx) (hi : Nat) :
+    List (NIdx × EIdx) → AM (List NestHole)
+  | [] => pure []
+  | (c, ty) :: rest => do
+    let (bs, _) ← piBinders coreWalkFuel ty
+    let fr ← frameStackSpec us ds hi rest
+    pure ({ key := ⟨c, us, ds⟩, base := hi, nIdx := bs.length } :: fr)
 
-@[lockstep] theorem frame_stack_twin (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
-    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) (hi : Std.U64)
-    (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx))
+/-- The library `mapM` IS `frameStackSpec`. -/
+theorem frameStackSpec_eq (us : LsIdx) (ds : List EIdx) (hi : Nat) :
+    ∀ grp : List (NIdx × EIdx),
+      grp.mapM (fun x => do
+          let d ← piBinders coreWalkFuel x.2
+          pure ({ key := { cname := x.1, lvls := us, ds := ds }, base := hi, nIdx := d.1.length } :
+            NestHole))
+        = frameStackSpec us ds hi grp := by
+  intro grp
+  induction grp with
+  | nil => rfl
+  | cons p rest ih =>
+    obtain ⟨c, ty⟩ := p
+    rw [List.mapM_cons, frameStackSpec, ← ih]
+    simp only [bind_assoc, pure_bind]
+
+/-- `LS` through a twin `map` of the answer. -/
+theorem ls_map_twin {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α → β → Prop}
+    {R : α → γ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {f : β → γ}
+    (h : LS pers R₁ m lst x) (hR : ∀ a b, R₁ a b → R a (f b)) :
+    LS pers R m lst (do let b ← x; pure (f b)) := by
+  intro o st' hm
+  have h1 := h o st' hm
+  cases o with
+  | Err e =>
+    show AErrSim e ((x >>= fun b => pure (f b)).run lst)
+    exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR1, h2, h3⟩ := h1
+    exact ⟨f b, lst', by rw [run_bind_ok hx]; rfl, hR _ _ hR1, h2, h3⟩
+
+theorem frame_stack_aux {pers st} (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (hi : Std.U64) (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.positivity.NestHole) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun o b => o.val.map absNestHole = out.val.map absNestHole ++ b)
+        (arena.inductives.positivity.frame_stack pers st us ds hi grp i out) st lst
+        (frameStackSpec (absLsIdx us) (absEIdxL ds) (absU hi)
+          ((grp.val.drop i.val).map fun p => (absNIdx p.1, absEIdx p.2))) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) grp.val.length
+    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun o b => o.val.map absNestHole = out.val.map absNestHole ++ b)
+        (arena.inductives.positivity.frame_stack pers st us ds hi grp i out) st lst
+        (frameStackSpec (absLsIdx us) (absEIdxL ds) (absU hi)
+          ((grp.val.drop i.val).map fun p => (absNIdx p.1, absEIdx p.2)))) ?_ ?_
+  · intro i out hn lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, frameStackSpec]
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.frame_stack.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len grp by scalar_tac)]
+    simp only [bind_ok]
+    exact LS.pure (show out.val.map absNestHole = out.val.map absNestHole ++ [] by simp) hrel hinv
+  · intro i out hi' ih lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi', List.map_cons, frameStackSpec]
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.frame_stack.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len grp by scalar_tac)]
+    lockstep
+    all_goals sorry -- T143-STUB
+
+/-- `frame_stack` ⊑ `nestFrame`'s frame holes, onto the accumulator. -/
+@[lockstep] theorem frame_stack_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (hi : Std.U64) (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx))
     (out : alloc.vec.Vec arena.inductives.positivity.NestHole) :
-    LSP (arena.inductives.positivity.frame_stack prog us ds hi grp 0#usize out)
-      (fun o => TwinEq (out.val.map absNestHole ++
-          (absGrpL grp).map (fun p =>
-            ({ key := ⟨p.1, absLsIdx us, absEIdxL ds⟩, base := absU hi } : NestHole)))
-        (o.val.map absNestHole)) := by
-  intro o h
-  rw [TwinEq, frame_stack_abs prog us ds hi grp _ _ o h]
-  simp [absGrpL, absNestHole, absNestKey, Function.comp_def]
+    LSR pers (fun o b => o.val.map absNestHole = out.val.map absNestHole ++ b)
+      (arena.inductives.positivity.frame_stack pers st us ds hi grp 0#usize out) st lst
+      (frameStackSpec (absLsIdx us) (absEIdxL ds) (absU hi) (absGrpL grp)) := by
+  have h := frame_stack_aux (pers := pers) us ds hi grp 0#usize out lst hrel hinv
+  simpa [absGrpL] using h
 
 theorem ctor_pairs_append_abs (ys : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     ∀ (i : Std.Usize) (xs o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),

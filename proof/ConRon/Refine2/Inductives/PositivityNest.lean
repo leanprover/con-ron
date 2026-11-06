@@ -70,9 +70,9 @@ attribute [lockstep_inline] arena.inductives.positivity.ind_caps_ctors
 /-- `nest_ctor_entry_of` ⊑ `nestContainer`'s `filterMapM` lambda. -/
 @[lockstep] theorem nest_ctor_entry_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers rf lf) (c n : arena.handle.NIdx) :
+    (hfe : IFEnvRelI pers rf lf) (c n : arena.handle.NIdx) :
     LSR pers (fun a b => b = a.map fun p => (absIConstantVal p.1, absU p.2.1, absU p.2.2))
-      (arena.inductives.positivity.nest_ctor_entry_of pers st vis rf c n) st lst
+      (arena.inductives.positivity.nest_ctor_entry_of pers st rf c n) st lst
       (match lf.find? (absNIdx n) with
        | some ci => nestCtorEntry (absNIdx c) ci
        | none => pure none) := by
@@ -101,12 +101,12 @@ abbrev nestCtorEntryOf (lf : IFEnv) (C n : NIdx) : AM (Option (IConstantVal × N
 /-- `nest_container_ctors` ⊑ `filterMapM` of the lookup from the cursor on,
 behind the accumulator. -/
 @[lockstep] theorem nest_container_ctors_ls {pers st} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx)
+    {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (c : arena.handle.NIdx)
     (ns : alloc.vec.Vec arena.handle.NIdx) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = absCtors3L a)
-        (arena.inductives.positivity.nest_container_ctors pers st vis rf c ns i out) st lst
+        (arena.inductives.positivity.nest_container_ctors pers st rf c ns i out) st lst
         (do
           let r ← (absNIdxLFrom ns i).filterMapM (nestCtorEntryOf lf (absNIdx c))
           pure (absCtors3L out ++ r)) := by
@@ -115,7 +115,7 @@ behind the accumulator. -/
     (fun i (_ : Unit) => ∀ (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = absCtors3L a)
-        (arena.inductives.positivity.nest_container_ctors pers st vis rf c ns i out) st lst
+        (arena.inductives.positivity.nest_container_ctors pers st rf c ns i out) st lst
         (do
           let r ← (absNIdxLFrom ns i).filterMapM (nestCtorEntryOf lf (absNIdx c))
           pure (absCtors3L out ++ r))) ?_ ?_ i ()
@@ -131,7 +131,7 @@ behind the accumulator. -/
         ∀ (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) lst,
         AStateRel₀ pers st lst → AStateInv pers st →
         LSR pers (fun a b => b = absCtors3L a)
-          (arena.inductives.positivity.nest_container_ctors pers st vis rf c ns j out) st lst
+          (arena.inductives.positivity.nest_container_ctors pers st rf c ns j out) st lst
           (do
             let r ← (absNIdxLFrom ns j).filterMapM (nestCtorEntryOf lf (absNIdx c))
             pure (absCtors3L out ++ r)) :=
@@ -145,13 +145,13 @@ behind the accumulator. -/
 
 @[lockstep] theorem nest_container_ctors_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx)
+    {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (c : arena.handle.NIdx)
     (ns : alloc.vec.Vec arena.handle.NIdx) :
     LSR pers (fun a b => b = absCtors3L a)
-      (arena.inductives.positivity.nest_container_ctors pers st vis rf c ns 0#usize
+      (arena.inductives.positivity.nest_container_ctors pers st rf c ns 0#usize
         (alloc.vec.Vec.new _)) st lst
       ((absNIdxL ns).filterMapM (nestCtorEntryOf lf (absNIdx c))) := by
-  have h := nest_container_ctors_ls hctx c ns 0#usize (alloc.vec.Vec.new _) lst hrel hinv
+  have h := nest_container_ctors_ls hfe c ns 0#usize (alloc.vec.Vec.new _) lst hrel hinv
   have e : (do
       let r ← (absNIdxLFrom ns 0#usize).filterMapM (nestCtorEntryOf lf (absNIdx c))
       pure (absCtors3L (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64 × Std.U64)) ++ r)
@@ -162,44 +162,41 @@ behind the accumulator. -/
 /-- `nest_container` ⊑ `nestContainer` (Rust `vis, fe, c`; twin `fe C`). -/
 @[lockstep] theorem nest_container_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx pers rf lf) (c : arena.handle.NIdx) :
+    {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (c : arena.handle.NIdx) :
     LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
-      (arena.inductives.positivity.nest_container pers st vis rf c) st lst
+      (arena.inductives.positivity.nest_container pers st rf c) st lst
       (nestContainer lf (absNIdx c)) := by
   apply LSR.of_LS
   rw [arena.inductives.positivity.nest_container, nestContainer]
   lockstep
-  rename_i a _ _ _ hc
-  have h0 : absCtors3L a = [] := by
-    have : a.val.length = 0 := by scalar_tac
-    simp [absCtors3L, List.eq_nil_of_length_eq_zero this]
-  rw [h0]
-  lockstep
-  rename_i cs hlt hd tl hdisc
-  have hh : hd = (absIConstantVal cs.val[0].1, absU cs.val[0].2.1, absU cs.val[0].2.2) := by
-    have e : cs.val = cs.val[0] :: cs.val.drop 1 := by
-      rw [← List.drop_eq_getElem_cons (by simpa using hlt)]; rfl
-    rw [absCtors3L, e, List.map_cons, List.cons.injEq] at hdisc
-    exact hdisc.1.symm
-  subst hh
-  apply LS.pure _ (by assumption) (by assumption)
-  rfl
+  case h =>
+    rename_i a hc
+    have h0 : absCtors3L a = [] := by
+      have : a.val.length = 0 := by scalar_tac
+      simp [absCtors3L, List.eq_nil_of_length_eq_zero this]
+    rw [h0]
+    exact LS.pure (by simp [absCtorsL, alloc.vec.Vec.new, absIIndCaps]) ‹_› ‹_›
+  case h.cons =>
+    rename_i cs w hd tl hdisc
+    have hh : hd = (absIConstantVal cs.val[0].1, absU cs.val[0].2.1, absU cs.val[0].2.2) := by
+      have e : cs.val = cs.val[0] :: cs.val.drop 1 := by
+        rw [← List.drop_eq_getElem_cons (by simpa using w)]; rfl
+      rw [absCtors3L, e, List.map_cons, List.cons.injEq] at hdisc
+      exact hdisc.1.symm
+    subst hh
+    exact LS.pure rfl ‹_› ‹_›
 
 /-! ## Environment lookups: the frame's readers -/
 
--- `ind_cv_of` is the twin's `match fe.find? C with | some (.indInfo cv _) => …`:
--- an inline fragment of `nestInstType`, `nestArity` and `nestHoles`.
-attribute [lockstep_inline] arena.inductives.positivity.ind_cv_of
-
 /-- `nest_block_of` ⊑ `nestBlockOf` (Rust `ctx, fe, c`; twin `fe C`). -/
 @[lockstep] theorem nest_block_of_twin {pers : arena.store.PersTier} (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (c : arena.handle.NIdx) :
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (c : arena.handle.NIdx) :
     LSP (arena.inductives.positivity.nest_block_of pers ctx rf c)
       (fun o => TwinEq (nestBlockOf lf (absNIdx c)) (absNIdxL o)) := by
   intro o h
   rw [arena.inductives.positivity.nest_block_of] at h
   obtain ⟨oo, hoo, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hf := ifenv_find_abs hctx hoo
+  have hf := ifenv_find_abs hfe.coreCtx hoo
   rw [TwinEq, nestBlockOf, ← hf]
   rcases oo with _ | ci
   · cases Result.ok_injective h; rfl
@@ -209,32 +206,21 @@ attribute [lockstep_inline] arena.inductives.positivity.ind_cv_of
 
 /-- `nest_frame_mates` ⊑ `nestFrameMates` (Rust `ctx, fe, c`; twin `fe C`). -/
 @[lockstep] theorem nest_frame_mates_twin {pers : arena.store.PersTier} (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (c : arena.handle.NIdx) :
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (c : arena.handle.NIdx) :
     LSP (arena.inductives.positivity.nest_frame_mates pers ctx rf c)
       (fun o => TwinEq (nestFrameMates lf (absNIdx c)) (absNIdxL o)) := by
   intro o h
   rw [arena.inductives.positivity.nest_frame_mates] at h
   obtain ⟨all, hall, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h1 := nest_block_of_twin ctx hctx c all hall
+  have h1 := nest_block_of_twin ctx hfe c all hall
   have h2 := frame_mates_from_twin all c o h
   simp only [TwinEq] at h1 h2 ⊢
   rw [nestFrameMates, h1, h2]
 
-/-- `nest_arity` ⊑ `nestArity` (Rust `ctx, fe, c`; twin `fe C`). -/
-@[lockstep] theorem nest_arity_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (c : arena.handle.NIdx) :
-    LSR pers (fun a b => b = absU a)
-      (arena.inductives.positivity.nest_arity pers st ctx rf c) st lst
-      (nestArity lf (absNIdx c)) := by
-  apply LSR.of_LS
-  rw [arena.inductives.positivity.nest_arity, nestArity]
-  lockstep
-
 /-- `nest_group_ctors` ⊑ `nestGroupCtors` from the cursor on (Rust `fe, ctx,
 n_pc, cs, i, out`; twin `fe nPc cs out`). -/
 @[lockstep] theorem nest_group_ctors_ls {pers st} (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (n_pc : Std.U64)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (n_pc : Std.U64)
     (cs : alloc.vec.Vec arena.handle.NIdx) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -269,6 +255,87 @@ n_pc, cs, i, out`; twin `fe nPc cs out`). -/
       List.drop_eq_getElem_cons hlt, List.map_cons, nestGroupCtors]
     lockstep
 
+/-! ## A family's telescope: `whnf_telescope`, `reduced_former`, `family_telescope`,
+`check_spine_at`, `family_key_check` -/
+
+theorem whnf_telescope_aux (m : Nat) :
+    ∀ {pers st lst} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
+      {e : arena.handle.EIdx} {out : alloc.vec.Vec arena.handle.EIdx},
+      n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI pers rf lf →
+      LS pers (fun r b => b = (absEIdxL r.1, absLIdx r.2))
+        (arena.inductives.positivity.whnf_telescope pers st mode rf i n e out) lst
+        (whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n) (absEIdx e)
+          (absEIdxL out)) := by
+  induction m with
+  | zero =>
+    intro pers st lst rf lf mode i n e out hn hrel hinv hfe
+    rw [arena.inductives.positivity.whnf_telescope, whnfTelescope]
+    simp only [show absU n = 0 from hn]
+    lockstep
+  | succ m ih =>
+    intro pers st lst rf lf mode i n e out hn hrel hinv hfe
+    rw [arena.inductives.positivity.whnf_telescope, whnfTelescope]
+    simp only [show absU n = m + 1 from hn]
+    lockstep
+
+/-- `whnf_telescope` ⊑ `whnfTelescope` — official's telescope loop, the binders
+accumulated on the way in. -/
+@[lockstep] theorem whnf_telescope_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+    {i n : Std.U64} {e : arena.handle.EIdx} {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun r b => b = (absEIdxL r.1, absLIdx r.2))
+      (arena.inductives.positivity.whnf_telescope pers st mode rf i n e out) lst
+      (whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n) (absEIdx e)
+        (absEIdxL out)) :=
+  whnf_telescope_aux _ rfl hrel hinv hfe
+
+/-- `reduced_former` ⊑ `reducedFormer`: a former at its reduced telescope,
+closed. -/
+@[lockstep] theorem reduced_former_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal} {n : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.inductives.positivity.reduced_former pers st mode rf cv n) lst
+      (reducedFormer (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)) := by
+  rw [arena.inductives.positivity.reduced_former, reducedFormer]
+  lockstep
+
+/-- `family_telescope` ⊑ `familyTelescope`: a stored family's former at its
+telescope. -/
+@[lockstep] theorem family_telescope_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal} {caps : arena.env.IIndCaps}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.positivity.family_telescope pers st mode rf cv caps) lst
+      (familyTelescope (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absIIndCaps caps)) := by
+  rw [arena.inductives.positivity.family_telescope, familyTelescope]
+  lockstep
+
+/-- `check_spine_at` ⊑ `checkSpineAt` from the cursor on: each argument against
+its binder's domain, the domains instantiated along the spine. -/
+@[lockstep] theorem check_spine_at_ls {pers} {rf lf} {mode : kernel.env.CheckMode}
+    {d : Std.U64} {as_ : alloc.vec.Vec arena.handle.EIdx} (hfe : IFEnvRelI pers rf lf) :
+    ∀ (i : Std.Usize) (t : arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.positivity.check_spine_at pers st mode rf d t as_ i) lst
+        (checkSpineAt (ConRon.Refine.absMode mode) lf (absU d) (absEIdx t)
+          (absEIdxLFrom as_ i)) := by
+  intro i t st lst hrel hinv
+  sorry -- T143-STUB
+
+/-- `family_key_check` ⊑ `familyKeyCheck`: a family at a key, typed. -/
+@[lockstep] theorem family_key_check_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+    {d : Std.U64} {c : arena.handle.NIdx} {us : arena.handle.LsIdx}
+    {ds : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.positivity.family_key_check pers st mode rf d c us ds) lst
+      (familyKeyCheck (ConRon.Refine.absMode mode) lf (absU d) (absNIdx c) (absLsIdx us)
+        (absEIdxL ds)) := by
+  rw [arena.inductives.positivity.family_key_check, familyKeyCheck]
+  lockstep
+
 /-! ## The container's former: `nest_inst_type` -/
 
 -- `nest_inst_type_at` / `nest_inst_type_sort` are the tail of `nestInstType`
@@ -291,31 +358,33 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
 
 /-- `nest_inst_type` ⊑ `nestInstType`. -/
 @[lockstep] theorem nest_inst_type_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (hi : Std.U64)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode)
+    (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (hi : Std.U64)
     (key : arena.inductives.positivity.NestKey) :
     LS pers (fun a b => b = (absU a.1, absEIdx a.2))
-      (arena.inductives.positivity.nest_inst_type pers st rf ctx hi key) lst
-      (nestInstType lf (absNestCtx ctx) (absU hi) (absNestKey key)) := by
+      (arena.inductives.positivity.nest_inst_type pers st mode rf ctx hi key) lst
+      (nestInstType (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU hi) (absNestKey key)) := by
   rw [arena.inductives.positivity.nest_inst_type, nestInstType]
   lockstep
 
 /-- `nest_grow_group` ⊑ `nestGrowGroup` from the cursor on. -/
-@[lockstep] theorem nest_grow_group_ls {pers} (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) (hi : Std.U64)
+@[lockstep] theorem nest_grow_group_ls {pers} (mode : kernel.env.CheckMode)
+    (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (hi : Std.U64)
     (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
     (cs : alloc.vec.Vec arena.handle.NIdx) :
     ∀ (i : Std.Usize) st lst (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)),
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absGrpL a)
-        (arena.inductives.positivity.nest_grow_group pers st rf ctx hi us ds cs i grp) lst
-        (nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
+        (arena.inductives.positivity.nest_grow_group pers st mode rf ctx hi us ds cs i grp) lst
+        (nestGrowGroup (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
           (absNIdxLFrom cs i) (absGrpL grp)) := by
   intro i st lst grp hrel hinv
   refine ls_cursor_acc cs absNIdx
     (fun (w : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) l =>
-      nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds) l (absGrpL w))
-    (fun st k w => arena.inductives.positivity.nest_grow_group pers st rf ctx hi us ds cs k w)
+      nestGrowGroup (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds) l (absGrpL w))
+    (fun st k w => arena.inductives.positivity.nest_grow_group pers st mode rf ctx hi us ds cs k w)
     ?_ ?_ i st lst grp hrel hinv
   · intro st lst k w hn hrel hinv
     rw [arena.inductives.positivity.nest_grow_group.eq_def,
@@ -325,8 +394,8 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
     have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)),
         j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
         LS pers (fun a b => b = absGrpL a)
-          (arena.inductives.positivity.nest_grow_group pers st' rf ctx hi us ds cs j w') lst'
-          (nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
+          (arena.inductives.positivity.nest_grow_group pers st' mode rf ctx hi us ds cs j w') lst'
+          (nestGrowGroup (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
             (absNIdxLFrom cs j) (absGrpL w')) := ih
     clear ih
     rw [arena.inductives.positivity.nest_grow_group.eq_def,
@@ -342,20 +411,19 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
 /-! ## The member holes: `nest_holes` -/
 
 /-- `nest_holes` ⊑ `nestHoles.go` from the member cursor on. -/
-theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) :
+theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx) :
     ∀ (mm : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a.map absEIdxL)
-        (arena.inductives.positivity.nest_holes pers st rf ctx mm out) lst
-        (nestHoles.go lf (absNestCtx ctx) mm.val (absNIdxLFrom ctx.names mm) (absEIdxL out)) := by
+        (arena.inductives.positivity.nest_holes pers st ctx mm out) lst
+        (nestHoles.go (absNestCtx ctx) mm.val (absNIdxLFrom ctx.names mm) (absEIdxL out)) := by
   intro mm
   refine cursor_induction (fun i : Std.Usize => i.val) ctx.names.val.length
     (fun i (_ : Unit) => ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a.map absEIdxL)
-        (arena.inductives.positivity.nest_holes pers st rf ctx i out) lst
-        (nestHoles.go lf (absNestCtx ctx) i.val (absNIdxLFrom ctx.names i) (absEIdxL out)))
+        (arena.inductives.positivity.nest_holes pers st ctx i out) lst
+        (nestHoles.go (absNestCtx ctx) i.val (absNIdxLFrom ctx.names i) (absEIdxL out)))
     ?_ ?_ mm ()
   · intro i _ hn st lst out hrel hinv
     rw [arena.inductives.positivity.nest_holes.eq_def,
@@ -366,24 +434,28 @@ theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
     have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
         AStateRel₀ pers st lst → AStateInv pers st →
         LS pers (fun a b => b = a.map absEIdxL)
-          (arena.inductives.positivity.nest_holes pers st rf ctx j out) lst
-          (nestHoles.go lf (absNestCtx ctx) j.val (absNIdxLFrom ctx.names j) (absEIdxL out)) :=
+          (arena.inductives.positivity.nest_holes pers st ctx j out) lst
+          (nestHoles.go (absNestCtx ctx) j.val (absNIdxLFrom ctx.names j) (absEIdxL out)) :=
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.positivity.nest_holes.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, nestHoles.go]
-    unfold arena.inductives.positivity.ind_cv_of
-    lockstep
+    rw [show (absNestCtx ctx).formers = ctx.formers.val.map absIConstantVal from rfl,
+      List.getElem?_map]
+    by_cases hc : i.val < ctx.formers.val.length
+    · rw [List.getElem?_eq_getElem hc, Option.map_some]
+      lockstep
+    · rw [List.getElem?_eq_none (by omega), Option.map_none]
+      lockstep
 
 /-- `nest_holes` from member `0` and an empty accumulator IS `nestHoles`. -/
 @[lockstep] theorem nest_holes_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers ctx.vis rf lf) :
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx) :
     LS pers (fun a b => b = a.map absEIdxL)
-      (arena.inductives.positivity.nest_holes pers st rf ctx 0#usize (alloc.vec.Vec.new _)) lst
-      (nestHoles lf (absNestCtx ctx)) := by
-  have h := nest_holes_acc ctx hctx 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
+      (arena.inductives.positivity.nest_holes pers st ctx 0#usize (alloc.vec.Vec.new _)) lst
+      (nestHoles (absNestCtx ctx)) := by
+  have h := nest_holes_acc ctx 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
   rwa [absNIdxLFrom_zero, show absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) = [] from rfl,
     show (0#usize : Std.Usize).val = 0 from rfl] at h
 
@@ -527,7 +599,7 @@ flag and fuel whose fields' walks are related: `hW` is `nest_fields` at the
 fuel the constructor's fields are walked at (`fuel` itself in a container
 frame; any fuel at the root). -/
 theorem nest_ctors_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv} {lf : IFEnv}
-    {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     (root : Bool) (fuel : Std.U64)
     (hW : ∀ (fuel_c : Std.U64), (root = true ∨ fuel_c = fuel) →
       ∀ (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
@@ -618,7 +690,7 @@ theorem nest_ctors_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
 /-- A container frame's constructors (`root = false`, from `0`, no outputs
 yet) at a fuel whose `nest_pos` is related. -/
 theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (hi : Std.U64)
     (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
@@ -632,7 +704,7 @@ theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env
       (nestCtors (ConRon.Refine.absMode mode) lf (absNestCtx ctx) false (absU fuel)
         (prog.val.map absNestHole) (absU hi) (absLsIdx us) (absEIdxL ds) (absNIdxL names)
         (absEIdxL holes) (absCtorsL cs) (absNestState ns) []) := by
-  have h := nest_ctors_of (mode := mode) hctx false fuel ?_ prog hi us ds names holes cs 0#usize ns
+  have h := nest_ctors_of (mode := mode) (ctx := ctx) hfe false fuel ?_ prog hi us ds names holes cs 0#usize ns
     (alloc.vec.Vec.new _) st lst hrel hinv
   · rwa [absCtorsLFrom_zero] at h
   · rintro fuel_c (h | rfl)
@@ -644,11 +716,11 @@ theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env
 -- A container frame's fragments (the instantiation typed; the stack, the
 -- group's constructors and the walk).
 attribute [lockstep_inline] arena.inductives.positivity.nest_frame_at
-  arena.inductives.positivity.nest_frame_walk
+  arena.inductives.positivity.nest_frame_walk arena.inductives.positivity.nest_frame_walk_at
 
 /-- `nest_frame` ⊑ `nestFrame` at a fuel whose `nest_pos` is related. -/
 theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (hi : Std.U64)
     (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) (n_pc : Std.U64)
@@ -661,8 +733,9 @@ theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
       (nestFrame (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
         (prog.val.map absNestHole) (absU hi) (absLsIdx us) (absEIdxL ds) (absU n_pc)
         (absGrpL grp) (absNestState ns)) := by
-  have hC := nest_ctors_frame_of hctx hP
+  have hC := nest_ctors_frame_of (ctx := ctx) hfe hP
   rw [arena.inductives.positivity.nest_frame, nestFrame.eq_def]
+  simp only [frameStackSpec_eq]
   lockstep
   · -- the empty group: the twin's `match grp` at `[]`
     split
@@ -685,10 +758,9 @@ theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
         exact heq.1.1.symm
       subst hc
       lockstep
-      rename_i gl hgl
       have e : absU a = absU hi + (absGrpL grp).length := by
         simp only [absU, absGrpL, List.length_map]; scalar_tac
-      rw [← e]
+      rw [← e, ← hR]
       lockstep
 
 /-- `nest_keys_dup` behind a non-empty accumulator: the accumulator, then the
@@ -742,7 +814,7 @@ abbrev RCont : arena.inductives.positivity.NestFieldKind × arena.inductives.pos
 
 /-- `nest_cont_new` ⊑ `nestContNew` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
@@ -754,7 +826,7 @@ theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
       (nestContNew (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
         (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL ds) (absU n_pc)
         (absEIdx cty) (absNestState ns)) := by
-  have hF := nest_frame_of hctx hP
+  have hF := nest_frame_of (ctx := ctx) hfe hP
   rw [arena.inductives.positivity.nest_cont_new, nestContNew.eq_def]
   lockstep
   -- the frame, walked with the group in progress: the Rust's `{ ns with active }`
@@ -809,7 +881,7 @@ attribute [local lockstep high] nest_keys_contain_active_twin nest_keys_contain_
 
 /-- `nest_cont_key` ⊑ `nestContKey` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
@@ -821,7 +893,7 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
       (nestContKey (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
         (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL ds) (absU n_pc)
         (absEIdx cty) (absNestState ns)) := by
-  have hN := nest_cont_new_of hctx hP
+  have hN := nest_cont_new_of (ctx := ctx) hfe hP
   rw [arena.inductives.positivity.nest_cont_key, nestContKey.eq_def]
   lockstep
 
@@ -835,7 +907,7 @@ attribute [lockstep_inline] arena.inductives.positivity.nest_cont_params
 
 /-- `nest_cont` ⊑ `nestCont` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf)
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf)
     {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (args : alloc.vec.Vec arena.handle.EIdx)
@@ -846,7 +918,7 @@ theorem nest_cont_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
       (nestCont (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
         (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL args)
         (absNestState ns)) := by
-  have hK := nest_cont_key_of hctx hP
+  have hK := nest_cont_key_of (ctx := ctx) hfe hP
   rw [arena.inductives.positivity.nest_cont, nestCont.eq_def]
   lockstep
 
@@ -858,7 +930,7 @@ attribute [lockstep_inline] arena.inductives.positivity.nest_pos_at
 set_option maxHeartbeats 2000000 in
 /-- **The induction**: `nest_pos` ⊑ `nestPos` at every fuel. -/
 theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
-    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx pers ctx.vis rf lf) :
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hfe : IFEnvRelI pers rf lf) :
     ∀ F, NestPosRel pers mode rf lf ctx F := by
   intro F
   induction F with
@@ -886,20 +958,24 @@ theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
             (absNestState ns)) := by
       intro fuel prog kb n us args ns st lst hrel hinv hf
       subst hf
-      exact nest_cont_of hctx ih prog kb n us args ns st lst hrel hinv
+      exact nest_cont_of hfe ih prog kb n us args ns st lst hrel hinv
     clear ih
     intro fuel prog dep kb e ns st lst hf hrel hinv
     rw [arena.inductives.positivity.nest_pos, ite_eq_right (by scalar_tac), nestPos]
     lockstep
     all_goals
-      apply LS.pure _ (by assumption) (by assumption)
-      show _ = _
-      simp only [absNestFieldKind, Prod.mk.injEq, and_true]
-      split_ifs <;> (try simp only [beq_iff_eq] at *) <;>
-        first
-        | (exfalso; scalar_tac)
-        | (simp only [NestFieldKind.recursive.injEq, NestFieldKind.reflexive.injEq, absU];
-           scalar_tac)
+      first
+      | (rw [if_neg (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+         lockstep)
+      | (rw [if_pos (by simp only [absNestHole, absU, List.length_map, beq_iff_eq] at *; scalar_tac)]
+         apply LS.pure _ (by assumption) (by assumption)
+         show _ = _
+         simp only [absNestFieldKind, Prod.mk.injEq, and_true]
+         split_ifs <;> (try simp only [beq_iff_eq] at *) <;>
+           first
+           | (exfalso; scalar_tac)
+           | (simp only [NestFieldKind.recursive.injEq, NestFieldKind.reflexive.injEq, absU];
+              scalar_tac))
 
 /-! ## The block's `@[lockstep]` companions -/
 
@@ -908,7 +984,7 @@ frame's (`root`) and a container frame's alike. -/
 @[lockstep] theorem nest_ctors_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (mode : kernel.env.CheckMode)
     (ctx : arena.inductives.positivity.NestCtx) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers ctx.vis rf lf) (root : Bool) (fuel : Std.U64)
+    (hfe : IFEnvRelI pers rf lf) (root : Bool) (fuel : Std.U64)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (hi : Std.U64)
     (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
     (names : alloc.vec.Vec arena.handle.NIdx) (holes : alloc.vec.Vec arena.handle.EIdx)
@@ -922,9 +998,9 @@ frame's (`root`) and a container frame's alike. -/
       (nestCtors (ConRon.Refine.absMode mode) lf (absNestCtx ctx) root (absU fuel)
         (prog.val.map absNestHole) (absU hi) (absLsIdx us) (absEIdxL ds) (absNIdxL names)
         (absEIdxL holes) (absCtorsLFrom cs i) (absNestState ns) (outs.val.map absCtorOut)) :=
-  nest_ctors_of hctx root fuel
+  nest_ctors_of hfe root fuel
     (fun fuel_c _ prog base n_f cur ns st lst hrel hinv =>
-      nest_fields_of (nest_pos_all hctx _) _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl
+      nest_fields_of (nest_pos_all hfe _) _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl
         hrel hinv)
     prog hi us ds names holes cs i ns outs st lst hrel hinv
 
@@ -932,7 +1008,7 @@ frame's (`root`) and a container frame's alike. -/
 @[lockstep] theorem nest_cont_key_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (mode : kernel.env.CheckMode)
     (ctx : arena.inductives.positivity.NestCtx) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers ctx.vis rf lf) (fuel : Std.U64)
+    (hfe : IFEnvRelI pers rf lf) (fuel : Std.U64)
     (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
     (n_pc : Std.U64) (cty : arena.handle.EIdx) (ns : arena.inductives.positivity.NestState) :
@@ -942,7 +1018,7 @@ frame's (`root`) and a container frame's alike. -/
       (nestContKey (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
         (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL ds) (absU n_pc)
         (absEIdx cty) (absNestState ns)) :=
-  nest_cont_key_of hctx (nest_pos_all hctx _) prog kb n us ds n_pc cty ns st lst hrel hinv
+  nest_cont_key_of hfe (nest_pos_all hfe _) prog kb n us ds n_pc cty ns st lst hrel hinv
 
 /-! ## The root frame: `nest_root` -/
 
@@ -956,7 +1032,7 @@ def absCtorOutsL (v : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
 constructors at the root key, each at its own input-derived fuel. -/
 @[lockstep] theorem nest_root_ls {pers} (mode : kernel.env.CheckMode)
     (ctx : arena.inductives.positivity.NestCtx) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers ctx.vis rf lf) (holes : alloc.vec.Vec arena.handle.EIdx)
+    (hfe : IFEnvRelI pers rf lf) (holes : alloc.vec.Vec arena.handle.EIdx)
     (ctorss : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
     ∀ (i : Std.Usize) (ns : arena.inductives.positivity.NestState)
       (outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
@@ -1016,7 +1092,7 @@ def absSeedsLFrom (v : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std
 container instance met at the empty frame stack, at its parameters' fuel. -/
 @[lockstep] theorem nest_seeds_ls {pers} (mode : kernel.env.CheckMode)
     (ctx : arena.inductives.positivity.NestCtx) {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hctx : CoreCtx pers ctx.vis rf lf)
+    (hfe : IFEnvRelI pers rf lf)
     (seeds : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64)) :
     ∀ (i : Std.Usize) (ns : arena.inductives.positivity.NestState) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -1057,16 +1133,16 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms nest_container_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms nest_container_ls
 
-/-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms nest_inst_type_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms nest_inst_type_ls
 
-/-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms nest_ctors_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms nest_ctors_ls
 
-/-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms nest_holes_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms nest_holes_ls
 
 end ConRon.Refine2
