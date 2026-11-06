@@ -71948,7 +71948,18 @@ reads the name with `readName` as the Rust's `read_name` (failure path only).  N
 core: `read_name_ls` in `Tactic/Prims.lean`; `Lockstep.lean`'s tier-walk note (doc only; `LST`/`packT`
 stay as an unused extension point).
 
-**Status.**  STATUS-PLACEHOLDER
+**Status.**  `lake build ConRonRefine2` green at bump-701d72ae 1502b8b7, no sorry and no warning from
+`Refine/**`, `Refine2/**`; `pool_accepts_refines` and `olean_pool_accepts_refines` print the three
+standard axioms; Theorem 1's capstone builds on them.  `diff-olean.sh --lean` 116/122, `diff-e2e.sh
+--timeout=60 --bin=con-ron-lean` 682/682 (display 6/9, command line 10/10) on that tree.  Refine and
+Refine2 from `ce200a4a`: +13 239 / −18 847 over 106 files; new modules `Checker/{StreamIndex,
+IndexBuild,Install,Basis,OleanPool}`, `Core/LS/ProjGuard`, `Frontend/Olean/{Lazy,ReadValue,Sparse}`;
+deleted `Refine/{BasisTables,BasisPins}`, `Checker/EnvExt`, `Core/Frame`, `Inductives/StoredInstall`,
+`Promote/Promote` (and the renames BlockParts → BlockShape, StoredRecs → StreamRecs).  One statement
+the lockstep corrected: `check_block_tail_stream_ls`'s twin now runs `checkBlockTables` before it
+returns, as the Rust does there.  Two deliberate near-duplicates: GenRecCheck keeps its own
+`ifenv_push_temp`/`pop_temp` specs, since it pops layers that only answer like the pushed one and needs
+the index map's invariant, which `Checker/Base`'s pair does not give.
 
 #### Theorem 1
 
