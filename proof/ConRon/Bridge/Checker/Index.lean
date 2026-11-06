@@ -179,23 +179,28 @@ theorem MapRel2.mono {V W : Type} {st st' : EStore} {R : V → W → Prop} {R' :
 
 /-! ## What a record installs, as this module takes it -/
 
+/-- con-leche: none — **the driver's state before the check phase**: the core tier's invariant at
+the empty environment, which is what the records' walks run from (their readback caches sound,
+the pins in place). -/
+abbrev DriverOK (s : AState) : Prop := CheckOK false Env.empty (mkIFEnv IEnv.empty) s
+
 /-- con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants — **the twin's `declConstants`
 denotes con-leche's**, on a state with no scratch tier open: the store invariant, an append, the
 pins, the tier still closed, and the constants persistent. -/
 @[expose] def ConstsSpec : Prop :=
   ∀ {s s' : AState} {pd : IDeclaration} {d : Declaration} {L : List IConstantInfo},
-    StateOK s → s.store.scratchOn = false → PersDecl pd →
+    DriverOK s → s.store.scratchOn = false → PersDecl pd →
     Frontend.denoteDecl s.store pd = some d → declConstants pd s = .ok (L, s') →
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
+    DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
       Frontend.denoteCIList s'.store L = some (ConLeche.declConstants d) ∧ PersCIList L
 
 /-- con-leche: ConLeche/Kernel/Install.lean:100-109 declTables — **the twin's `declTables`
 denotes con-leche's**, each table persistent and well shaped. -/
 @[expose] def TablesSpec : Prop :=
   ∀ {s s' : AState} {pd : IDeclaration} {d : Declaration} {Q : List IProjTable},
-    StateOK s → s.store.scratchOn = false → PersDecl pd →
+    DriverOK s → s.store.scratchOn = false → PersDecl pd →
     Frontend.denoteDecl s.store pd = some d → declTables pd s = .ok (Q, s') →
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
+    DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
       Frontend.denoteProjTableList s'.store Q = some (ConLeche.declTables d) ∧
       ∀ t ∈ Q, PersProjTable t ∧ IProjTableOK t
 
@@ -242,10 +247,10 @@ theorem IndexRel.mono {st st' : EStore} {I : IStreamIndex} {J : ConLeche.Cached.
 index, on both sides**. -/
 theorem add_run (hcs : ConstsSpec) (hts : TablesSpec) {s s' : AState} {I I' : IStreamIndex}
     {J : ConLeche.Cached.StreamIndex} {pd : IDeclaration} {d : Declaration}
-    (hst : StateOK s) (hoff : s.store.scratchOn = false) (hp : PersDecl pd)
+    (hst : DriverOK s) (hoff : s.store.scratchOn = false) (hp : PersDecl pd)
     (hd : Frontend.denoteDecl s.store pd = some d) (hI : IndexRel s.store I J)
     (h : I.add pd s = .ok (I', s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
+    DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
       IndexRel s'.store I' (J.add d) := by
   simp only [IStreamIndex.add, Bind.bind, StateT.bind, Except.bind] at h
   cases h1 : declConstants pd s with
@@ -265,11 +270,11 @@ theorem add_run (hcs : ConstsSpec) (hts : TablesSpec) {s s' : AState} {I I' : IS
       simp only [pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       have hI₁ := hI.mono hx₁
-      obtain ⟨hidx, hnext, hpidx⟩ := insertConsts_rel hst₁.wf L _ I.base.idx J.base.idx I.next hL
+      obtain ⟨hidx, hnext, hpidx⟩ := insertConsts_rel hst₁.state.wf L _ I.base.idx J.base.idx I.next hL
         hpL hI₁.idx hI₁.persIdx
       have hI₂ := hI₁.mono hx₂
       have hidx₂ := hidx.mono hx₂ fun _ _ h' => denoteCI_ext h' hx₂
-      obtain ⟨htbl, hptbl⟩ := insertTables_rel hst₂.wf I.firsts.size Q _ I.base.tbls J.base.tbls
+      obtain ⟨htbl, hptbl⟩ := insertTables_rel hst₂.state.wf I.firsts.size Q _ I.base.tbls J.base.tbls
         hQ hpQ hI₂.tbls hI₂.persTbls
       refine ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hoff₂, ?_⟩
       have hsz : I.firsts.size = J.firsts.size := by rw [hI.firsts]
@@ -286,10 +291,10 @@ another, on both sides. -/
 theorem buildIndexGo_run (hcs : ConstsSpec) (hts : TablesSpec) :
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (I : IStreamIndex)
       (J : ConLeche.Cached.StreamIndex) (k : Nat) {s s' : AState} {I' : IStreamIndex},
-      StateOK s → s.store.scratchOn = false → (∀ x ∈ ds, PersDecl x) →
+      DriverOK s → s.store.scratchOn = false → (∀ x ∈ ds, PersDecl x) →
       denoteDecls s.store ds = some dsP → IndexRel s.store I J →
       buildIndexGo I k ds s = .ok (.ok I', s') →
-      StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
+      DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
         IndexRel s'.store I' (dsP.foldl ConLeche.Cached.StreamIndex.add J)
   | [], dsP, I, J, k, s, s', I', hst, hoff, _, hden, hI, h => by
     simp only [denoteDecls, Option.some.injEq] at hden
@@ -325,10 +330,10 @@ records denotes con-leche's index of the denoted records**, on a state with no s
 and every handle in it is persistent. -/
 theorem buildIndex_run (hcs : ConstsSpec) (hts : TablesSpec) {ds : Array IDeclaration}
     {dsP : List Declaration} {s s' : AState} {I : IStreamIndex}
-    (hst : StateOK s) (hoff : s.store.scratchOn = false) (hp : ∀ x ∈ ds.toList, PersDecl x)
+    (hst : DriverOK s) (hoff : s.store.scratchOn = false) (hp : ∀ x ∈ ds.toList, PersDecl x)
     (hden : denoteDecls s.store ds.toList = some dsP)
     (h : buildIndex ds s = .ok (.ok I, s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
+    DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
       IndexDenotes s'.store I (ConLeche.Cached.buildIndex dsP.toArray) ∧ PersIFBase I.base := by
   have h0 : IndexRel s.store {} {} :=
     { firsts := rfl, next := rfl

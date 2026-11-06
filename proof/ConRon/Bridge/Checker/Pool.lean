@@ -107,7 +107,7 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {s s' : AState} {I : IStreamIndex}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
-    (hst : StateOK s) (hoff : s.store.scratchOn = false) (hpinsOK : PinsOK s)
+    (hst : DriverOK s) (hoff : s.store.scratchOn = false)
     (hpersPins : PersPins s) (hpp : PersPinSets pins) (hpins : PinsDenote s.store pins pinsP)
     (hpd : ∀ x ∈ ds.toList, PersDecl x) (hden : denoteDecls s.store ds.toList = some dsP)
     (hrun : Arena.PooledAccepts .verified pins ds s I s') :
@@ -121,8 +121,8 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
       Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
     obtain ⟨hi', h⟩ := hget i (by simpa using hi)
     exact ⟨hi', denoteDecl_ext hx (by simpa using h)⟩
-  exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'
-    (hpinsOK.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
+  exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
+    (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI parts hcov hinc hacc
 
 end ConRon.Bridge
