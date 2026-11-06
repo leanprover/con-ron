@@ -989,6 +989,105 @@ open Lockstep in
         (absEIdx value)) :=
   LS.ofSim₀ fun _ h => check_opaque_val_refines hrel hinv hfe.rel hfe.inv h
 
+/-! ### The record a value check returns is at the declared name
+
+The pinned gates push the record and pop at the declared name, which must be the
+record's own (`ifenv_pop_temp_refines`); a Rust-side fact, read off the last
+step of each check. -/
+
+/-- The tail every value check ends in: the type comparison, then the record. -/
+private theorem value_tail_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {mk : arena.env.IConstantVal → arena.env.IConstantInfo}
+    {M : Array Std.U32 n} {ci st'}
+    (hmk : ∀ iv, (absIConstantInfo (mk iv)).name = absNIdx iv.name)
+    (h : (do
+      let (r1, st2) ← arena.core.infer_type_core pers st mode rf arena.core.CHECK_FUEL 0#u64 value
+      match r1 with
+      | core.result.Result.Ok vtype =>
+        let (r2, st3) ← arena.core.is_def_eq_core pers st2 mode rf arena.core.CHECK_FUEL 0#u64
+          vtype cv.ty
+        match r2 with
+        | core.result.Result.Ok ok1 =>
+          if ok1 then
+            let iv ← arena.env.i_constant_val_dup cv
+            ok (core.result.Result.Ok (mk iv), st3)
+          else
+            let s ← lift (Array.to_slice M)
+            let v ← kernel.core_types.code_points s
+            let r3 ← arena.monad.fail arena.env.IConstantInfo (kernel.core_types.CheckError.Invalid v)
+            ok (r3, st3)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st2)) = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok vt =>
+    obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r2 with
+    | Err e => exact absurd (Result.ok_injective h) (by simp)
+    | Ok b =>
+      cases b with
+      | false =>
+        try simp only [Bool.false_eq_true, ↓reduceIte] at h
+        obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain rfl := fail_run hr3
+        exact absurd (Result.ok_injective h) (by simp)
+      | true =>
+        try simp only [↓reduceIte] at h
+        obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        rw [hmk]
+        exact congrArg IConstantVal.name (i_constant_val_dup_abs hiv)
+
+/-- `check_opaque_val`'s record is at the declared name. -/
+theorem check_opaque_val_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {ci st'}
+    (h : arena.decl_check.check_opaque_val pers st mode rf cv value = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  rw [arena.decl_check.check_opaque_val] at h
+  obtain ⟨⟨r, s⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok u =>
+  exact value_tail_name (mk := arena.env.IConstantInfo.AxiomInfo) (fun _ => rfl) h
+
+/-- `check_defn_val`'s record is at the declared name. -/
+theorem check_defn_val_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {hint : kernel.env.ReducibilityHint} {ci st'}
+    (h : arena.decl_check.check_defn_val pers st mode rf cv value hint = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  rw [arena.decl_check.check_defn_val] at h
+  obtain ⟨⟨r, s⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok u =>
+  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok vt =>
+    obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r2 with
+    | Err e => exact absurd (Result.ok_injective h) (by simp)
+    | Ok b =>
+      cases b with
+      | false =>
+        try simp only [Bool.false_eq_true, ↓reduceIte] at h
+        obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain rfl := fail_run hr3
+        exact absurd (Result.ok_injective h) (by simp)
+      | true =>
+        try simp only [↓reduceIte] at h
+        obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨rh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        exact congrArg IConstantVal.name (i_constant_val_dup_abs hiv)
+
 /-! ## The `Nat`-operation pin certification -/
 
 section NatReaders
