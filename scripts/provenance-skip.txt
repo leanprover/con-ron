@@ -324,30 +324,28 @@ ConLeche/Cached/CoreC.lean knotZeroI The cached knot's split at the flag (task #
 ConLeche/Cached/CoreC.lean knotLevelI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.
 ConLeche/Cached/CoreC.lean knotPlainI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.
 ConLeche/Cached/CoreC.lean knotEagerI The cached knot's split at the flag (task #452): Lean compiler engineering, one recursive knot with the flag as a parameter made every closure of a level capture it. The Rust's knot is plain functions and the twin ties `coreKnot` once; there are no closures to spare.
-ConLeche/Frontend/CheckerIO.lean CheckerIO Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean ModelIO Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean FS Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean FS.file Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean ModelIO.answer Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/CheckerIO.lean foldReads Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean foldWindows Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean WinBuf Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean mapExcept Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean lastNewlineBelow Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/CheckerIO.lean readRangeOf Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean parShare Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean parMapIO Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/ReadRange.lean * Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/Olean/Closure.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Emit.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Fast.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Files.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Header.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Merge.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Module.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Reads.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Records.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Region.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Sparse.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/Spec.lean * deferred to its own task (ported after this sync)
-ConLeche/Frontend/Olean/View.lean * deferred to its own task (ported after this sync)
+
+# ---------------------------------------------------------------------------
+# The `.olean` reader (task #142): what does not execute
+# ---------------------------------------------------------------------------
+
+ConLeche/Frontend/Olean/Emit.lean Emit.unvisited The walk's termination measure, proof apparatus: the port walks with fuel (`olean/emit.rs`).
+ConLeche/Frontend/Olean/Spec.lean levelAt `noncomputable` specification, exponential in the sharing: not executable, so not ported; Theorem 1 cites it.
+ConLeche/Frontend/Olean/Spec.lean levelsAt `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/Spec.lean exprAt `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/Spec.lean exprP `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/Spec.lean constSpec `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/Spec.lean decodeAt `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/Spec.lean stmtP `noncomputable` specification, as `levelAt`.
+ConLeche/Frontend/Olean/View.lean decodeModuleSpec `noncomputable` specification, THE definition of a valid view: not executable, so not ported; Theorem 1 cites it.

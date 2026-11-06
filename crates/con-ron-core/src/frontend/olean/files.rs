@@ -592,6 +592,7 @@ pub fn located_at(mt: &Vec<u32>, pre: Vec<u32>, h0: &Hit) -> Result<Located, Che
     }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:24-26 SearchPath
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
 /// **Find a module, strictly.**
 pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Located, CheckError> {

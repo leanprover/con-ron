@@ -92,6 +92,7 @@ pub fn emit_cv(st: &mut Emit, c: &CEntry) -> CVRec {
     CVRec { name: n, level_params: lps, ty: t }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Emit.lean:52-54 Emit.push
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:72-84 Emit.one
 /// **One constant's record.**
 pub fn emit_one(st: &mut Emit, c: &CEntry) {

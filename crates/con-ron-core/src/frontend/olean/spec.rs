@@ -648,6 +648,7 @@ pub enum CKindF<N, E> {
     Recur(Vec<N>, u64, u64, u64, u64, Vec<(N, u64, E)>, bool, bool),
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Spec.lean:271-272 CKind
 /// con-leche: ConLeche/Frontend/Olean/Spec.lean:262-266 CEntryF
 /// One stored constant, generic in what stands for a name and an expression.
 pub struct CEntryF<N, E> {

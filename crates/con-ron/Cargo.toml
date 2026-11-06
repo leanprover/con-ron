@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "con-ron"
 path = "src/bin/con-ron.rs"
 
+[[bin]]
+name = "olean-compare"
+path = "src/bin/olean-compare.rs"
+
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }
 # `con-ron-dump` is linked for the `con-ron-pins/2` reader of `--pins`

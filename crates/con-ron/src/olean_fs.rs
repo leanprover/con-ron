@@ -18,7 +18,7 @@ use con_ron_core::kernel::name::Name;
 
 use crate::render;
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:356-366 instCheckerIOIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:355-366 instCheckerIOIO
 /// **The binary's instance**: the runtime's calls.
 pub struct StdFs;
 
@@ -32,14 +32,14 @@ fn io_msg(p: &str, e: std::io::Error) -> Vec<u32> {
     render::cps(&format!("{}: {}", render::display_path(p), e))
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:356-366 instCheckerIOIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:355-366 instCheckerIOIO
 impl OleanFs for StdFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:120-150 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:116-150 CheckerIO
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         Ok(std::path::Path::new(&path_of(p)).exists())
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:120-150 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:116-150 CheckerIO
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>> {
         let s = path_of(p);
         match std::fs::canonicalize(&s) {
@@ -48,13 +48,13 @@ impl OleanFs for StdFs {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:120-150 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:116-150 CheckerIO
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
         let s = path_of(p);
         std::fs::read(&s).map_err(|e| io_msg(&s, e))
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:300-306 readRangeOf
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:295-306 readRangeOf
     /// A positional read: the bytes from `off` up to `off + len` or the end of the
     /// file.  The path must name a regular file.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
@@ -84,7 +84,7 @@ impl OleanFs for StdFs {
         Ok(buf)
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:356-366 instCheckerIOIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:355-366 instCheckerIOIO
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
         let s = path_of(p);
         let md = std::fs::metadata(&s).map_err(|e| io_msg(&s, e))?;
@@ -96,7 +96,7 @@ impl OleanFs for StdFs {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:58-61 Input
+/// con-leche: ConLeche/Driver/CheckMain.lean:54-61 Input
 /// What `--olean` asked for, the names parsed: a usage error is reported before
 /// anything is read.
 pub struct OleanRequest {
@@ -105,10 +105,10 @@ pub struct OleanRequest {
     pub constants: Vec<Name>,
 }
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:64-66 Input.label
-/// con-leche: ConLeche/Driver/Cli.lean:446-504 runArgs
+/// con-leche: ConLeche/Driver/CheckMain.lean:63-66 Input.label
+/// con-leche: ConLeche/Driver/Cli.lean:424-504 runArgs
 impl OleanRequest {
-    /// con-leche: ConLeche/Driver/Cli.lean:446-504 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:424-504 runArgs
     /// The names of the command line, or the usage error.
     pub fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
         let mut roots: Vec<Name> = Vec::new();
@@ -132,7 +132,7 @@ impl OleanRequest {
         })
     }
 
-    /// con-leche: ConLeche/Driver/CheckMain.lean:64-66 Input.label
+    /// con-leche: ConLeche/Driver/CheckMain.lean:63-66 Input.label
     /// The input's name in a diagnostic.
     pub fn label(&self, _pers: &PersTier, _st: &AState) -> String {
         let shown: Vec<String> = self.roots.iter().map(|n| render::name_str(n)).collect();
@@ -157,7 +157,7 @@ impl OleanRequest {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckMain.lean:89-94 readInputG
+/// con-leche: ConLeche/Driver/CheckMain.lean:86-94 readInputG
 /// The input's declaration records, by the `.olean` reader.
 pub fn read_request(pers: &PersTier, st: &mut AState, req: &OleanRequest) -> Result<ParseResultD, (CheckError, u64)> {
     let (roots, cs) = match req.intern(pers, st) {

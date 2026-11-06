@@ -1,6 +1,7 @@
 module
 
 public import ConRon.Arena.Frontend.Prelude
+public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Arena.Checker
 public import ConLeche.Kernel.NatOpPins
 
@@ -301,6 +302,72 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:356-366 instCheckerIOIO
+The binary's file operations, as the pure functions the reader takes: `IO` run where
+it is asked, outside every theorem (`Frontend/Olean/Files.lean`'s note). -/
+unsafe def stdFsImpl : Frontend.Olean.OleanFs where
+  pathExists p := unsafeBaseIO do
+    match ← (p.pathExists : IO Bool).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+  realPath p := unsafeBaseIO do
+    match ← (IO.FS.realPath p : IO _).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+  readBinFile p := unsafeBaseIO do
+    match ← (IO.FS.readBinFile p : IO _).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+  readRange p off len := unsafeBaseIO do
+    match ← (CheckerIO.readRange p off len : IO ByteArray).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+  fileSize p := unsafeBaseIO do
+    match ← (CheckerIO.fileSize p : IO Nat).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:356-366 instCheckerIOIO
+The binary's file operations, opaque to the logic. -/
+@[implemented_by stdFsImpl]
+opaque stdFs : Frontend.Olean.OleanFs
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:89-94 readInputG
+**The seam on the `.olean` path**: the head of the pipeline, the reader in place of
+the chunks' fold, the tail.  The roots and constants are interned first. -/
+def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
+    (mode : CheckMode) (pins : List NatOpPinSet) : AM (Except CheckError Nat) := do
+  match ← runPipelineHead with
+  | .error (e, n) => pure (.error (Frontend.atLine e n))
+  | .ok (pre, _) =>
+    let rs ← roots.mapM internName
+    let cs ← match constants with
+      | none => pure none
+      | some cs => pure (some (← cs.mapM internName))
+    match ← Frontend.Olean.readOleans stdFs sp rs cs with
+    | .error (e, n) => pure (.error (Frontend.atLine e n))
+    | .ok r => runPipelineTail mode pins pre r
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
+The driver on the `.olean` path. -/
+def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
+    (mode : CheckMode) (pins : List NatOpPinSet) : IO UInt8 := do
+  let t0 ← IO.monoMsNow
+  let modeTag : String := match mode with
+    | .verified => "--verified"
+    | .trusted => "--trusted"
+  let verdict : Except CheckError Nat := match (oleanPipeline sp roots constants mode pins).run (AState.init EStore.empty) with
+    | .error e => .error e
+    | .ok (r, _) => r
+  match verdict with
+  | .ok records =>
+    IO.println s!"con-ron-lean: accepted {records} declarations ({modeTag})"
+    return 0
+  | .error e =>
+    let now ← IO.monoMsNow
+    IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
+    return e.exitCode
+
 /-- con-leche: ConLeche/Driver/Cli.lean:97-293 usage
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
@@ -309,6 +376,8 @@ so that a script written against one reads against the other. -/
 def usage : String := String.intercalate "\n" [
   "usage: con-ron-lean [--verified|--trusted] [--jobs=<n>] [--no-pins]",
   "                    [--progress[=<stride>]] [--] FILE.ndjson",
+  "       con-ron-lean [flags] --olean --search-path=DIR[:DIR...]",
+  "                    [--constant=NAME]... [--] MODULE...",
   "       con-ron-lean --help",
   "",
   "  (B), the Lean arena checker of con-ron's DESIGN.md section 8: con-leche's",
@@ -338,6 +407,13 @@ def usage : String := String.intercalate "\n" [
   "  --                every argument after it is a file, whatever it is called;",
   "                    FILE.ndjson is a regular file, read forward (a FIFO or a",
   "                    directory is exit 3)",
+  "  --olean           read the input from .olean files instead of a lean4export",
+  "                    stream: the arguments are root modules, checked with every",
+  "                    constant of their import closure, read at the private level",
+  "                    (con-leche's, and the Rust binary's).",
+  "  --constant=NAME   with --olean: check only this constant and what it mentions.",
+  "  --search-path=DIR[:DIR...]",
+  "                    the directories holding .olean trees, as LEAN_PATH lists them.",
   "  --help            print this text on STDOUT and exit 0, in any argument",
   "                    position before any --; no input is read.",
   "",
@@ -367,6 +443,12 @@ structure Args where
   progress : Nat := 0
   jobs : Option Nat := none
   noPins : Bool := false
+  /-- `--olean`: the positional arguments are root module names. -/
+  olean : Bool := false
+  /-- `--search-path=DIR:DIR…`: where `--olean` looks for the files. -/
+  searchPath : List System.FilePath := []
+  /-- `--constant=NAME`: with `--olean`, the constants to start from. -/
+  constants : Array String := #[]
   files : Array String := #[]
   bad : Option String := none
 
@@ -381,6 +463,7 @@ def parseArgs : List String → Args → Args
   | "--trusted" :: rest, a => parseArgs rest { a with mode := .trusted }
   | "--progress" :: rest, a => parseArgs rest { a with progress := 1 }
   | "--no-pins" :: rest, a => parseArgs rest { a with noPins := true }
+  | "--olean" :: rest, a => parseArgs rest { a with olean := true }
   | s :: rest, a =>
     if s.startsWith "--progress=" then
       match progressStride (s.drop "--progress=".length).toString with
@@ -393,6 +476,11 @@ def parseArgs : List String → Args → Args
     else if s == "--jobs" then
       { a with bad := some "--jobs takes a worker count: --jobs=<n>; omit the \
           flag for one worker per hardware thread" }
+    else if s.startsWith "--constant=" then
+      parseArgs rest { a with constants := a.constants.push (s.drop "--constant=".length).toString }
+    else if s.startsWith "--search-path=" then
+      parseArgs rest { a with searchPath := a.searchPath ++
+        (((s.drop "--search-path=".length).toString.splitOn ":").filter (· != "")).map System.FilePath.mk }
     else if s.startsWith "-" then
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
@@ -467,9 +555,31 @@ def main (args : List String) : IO UInt8 := do
     IO.eprintln s!"con-ron-lean: {msg}"
     IO.eprintln usage
     return 3
+  let pins := if a.noPins then [] else ConLeche.natOpPinSets
+  if a.olean then
+    if a.files.isEmpty || a.searchPath.isEmpty then
+      IO.eprintln "con-ron-lean: --olean takes one or more module names and a \
+        --search-path=DIR[:DIR…]"
+      IO.eprintln usage
+      return 3
+    if let some m := a.files.find? (fun f => (Frontend.Olean.parseModName f).isNone) then
+      IO.eprintln s!"con-ron-lean: not a module name: {Display.str m}"
+      IO.eprintln usage
+      return 3
+    if let some c := a.constants.find? (fun c => (Frontend.Olean.parseConstName c).isNone) then
+      IO.eprintln s!"con-ron-lean: not a constant's name: {Display.str c}"
+      IO.eprintln usage
+      return 3
+    let cs := if a.constants.isEmpty then none
+      else some (a.constants.filterMap Frontend.Olean.parseConstName)
+    return ← checkMainOlean a.searchPath (a.files.filterMap Frontend.Olean.parseModName) cs a.mode pins
+  if !a.searchPath.isEmpty || !a.constants.isEmpty then
+    IO.eprintln "con-ron-lean: --search-path and --constant take --olean"
+    IO.eprintln usage
+    return 3
   match a.files.toList with
   | [file] =>
-    checkMain file a.mode (if a.noPins then [] else ConLeche.natOpPinSets) a.progress
+    checkMain file a.mode pins a.progress
   | _ =>
     IO.eprintln usage
     return 3

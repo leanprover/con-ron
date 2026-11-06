@@ -122,6 +122,12 @@ root = "ConRon.Dump.Pins"
 name = "con-ron-lean"
 root = "ConRon.Arena.Exe"
 
+# A home's read over the twin (task #142): what `scripts/diff-olean.sh --lean` passes
+# as `tests/olean.sh`'s `CMP`.  Not a default target, like `con-ron-lean`.
+[[lean_exe]]
+name = "con-ron-lean-olean-compare"
+root = "ConRon.Arena.OleanCompare"
+
 # The `ExprOps` micro-benchmark (DESIGN.md §8.6 P2b, task #97b).  The
 # performance phase comes before the proofs, so the memo and cutoff choices of
 # `ConRon/Arena/ExprOps.lean` have to be measurable from the day they are

@@ -103,19 +103,19 @@ impl Sub for DS {
         Some(NIdx::of_word(self.names[(c / 8) as usize]))
     }
 
-    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:622 DS.levelV
+    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:122 DS.levelV
     #[inline(always)]
     fn sub_level(&self, c: u64) -> Option<LIdx> {
         Some(LIdx::of_word(self.levels[(c / 8) as usize]))
     }
 
-    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:624 DS.levelsV
+    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:124 DS.levelsV
     #[inline(always)]
     fn sub_levels(&self, c: u64) -> Option<LsIdx> {
         Some(LsIdx::of_word(self.lists[(c / 8) as usize]))
     }
 
-    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:623 DS.exprV
+    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:123 DS.exprV
     #[inline(always)]
     fn sub_expr(&self, c: u64) -> Option<EIdx> {
         Some(EIdx::of_word(self.exprs[(c / 8) as usize]))
@@ -305,6 +305,7 @@ pub fn mark_pass(bs: &[u8], r: &Region, m: &mut Vec<u8>, p: u64) {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:219-220 buildName
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:104-106 DS.setName
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:232-241 buildKind
 /// Slot `p`'s value as a name, if it is marked so.
 pub fn build_kind_name(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, m: &Vec<u8>, st: &mut DS, p: u64) -> Result<(), RdErr> {
@@ -322,6 +323,7 @@ pub fn build_kind_name(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:222-223 buildLevel
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:108-110 DS.setLevel
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:232-241 buildKind
 /// Slot `p`'s value as a level, if it is marked so.
 pub fn build_kind_level(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, m: &Vec<u8>, st: &mut DS, p: u64) -> Result<(), RdErr> {
@@ -339,6 +341,7 @@ pub fn build_kind_level(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:225-226 buildLevels
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:116-118 DS.setLevels
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:232-241 buildKind
 /// Slot `p`'s value as a list of levels, if it is marked so.
 pub fn build_kind_levels(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, m: &Vec<u8>, st: &mut DS, p: u64) -> Result<(), RdErr> {
@@ -356,6 +359,7 @@ pub fn build_kind_levels(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:228-230 buildExpr
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:112-114 DS.setExpr
 /// con-leche: ConLeche/Frontend/Olean/Fast.lean:232-241 buildKind
 /// Slot `p`'s value as an expression, if it is marked so.
 pub fn build_kind_expr(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, m: &Vec<u8>, st: &mut DS, p: u64) -> Result<(), RdErr> {

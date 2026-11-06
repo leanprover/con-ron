@@ -51,6 +51,7 @@ pub fn decls_go(pers: &PersTier, ar: &EStore, st: &mut StateD, out: &Vec<DeclRec
     Ok(())
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:38-39 Emit.lv
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:57-61 declsOf
 /// **The `Declaration` records**, through the stream reader's builder.  A record's
 /// verdict is the stream path's, at the record's position.
