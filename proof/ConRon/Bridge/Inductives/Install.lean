@@ -25,6 +25,7 @@ import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Subst
 public import ConRon.Bridge.Inductives.Rel
 /- `simp only` unfolds the toolchain's monadic list functions (`List.anyM`),
@@ -204,6 +205,106 @@ theorem anyM_dpstep {α β : Type} (d : EStore → α → Option β) (hd : DExt 
         ⟨hQ p1.ext hq, hd.list p1.ext _ _ hys'⟩ h2
       exact ⟨p1.trans p2, by simp only [RV] at h3 ⊢; simp [hg, h3]⟩
 
+/-- con-leche: none — a run that leaves the state as it found it. -/
+@[expose] def SFree {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (r : α), c s = .ok (r, s') → s' = s
+
+theorem SFree.pure {α : Type} (a : α) : SFree (Pure.pure a : AM α) := by
+  intro s s' r h; exact (AM.pure_ok h).2
+
+theorem SFree.fail {α : Type} (e : Arena.CheckError) : SFree (Arena.fail e : AM α) := by
+  intro s s' r h; exact absurd h (fun h => AM.fail_ok h)
+
+theorem SFree.bind {α β : Type} {x : AM α} {f : α → AM β} (hx : SFree x)
+    (hf : ∀ a, SFree (f a)) : SFree (x >>= f) := by
+  intro s s' r h
+  obtain ⟨a, s₁, h1, h2⟩ := AM.bind_ok h
+  rw [hf a _ _ _ h2, hx _ _ _ h1]
+
+theorem SFree.view (h : EIdx) : SFree (Arena.view h) := by
+  intro s s' r hr; exact (view_run hr).1
+
+/-- con-leche: none — `mentionsAnyGo` reads the store and nothing else: its
+memo is an argument. -/
+theorem mentionsAnyGo_sfree (names : List NIdx) : ∀ (fuel : Nat)
+    (memo : Std.HashMap EIdx Bool) (h : EIdx), SFree (Arena.mentionsAnyGo names memo fuel h) := by
+  intro fuel
+  induction fuel with
+  | zero => intro memo h; rw [Arena.mentionsAnyGo]; exact SFree.fail _
+  | succ fuel ih =>
+    intro memo h
+    rw [Arena.mentionsAnyGo]
+    refine SFree.bind (SFree.view h) (fun v => ?_)
+    repeat (first
+      | exact SFree.pure _
+      | exact ih _ _
+      | (refine SFree.bind (ih _ _) (fun _ => ?_))
+      | (refine SFree.bind ?_ (fun _ => ?_))
+      | split)
+
+theorem mentionsAnyGo_state (names : List NIdx) (fuel : Nat)
+    (memo : Std.HashMap EIdx Bool) (h : EIdx) {s s' : AState}
+    {r : Bool × Std.HashMap EIdx Bool}
+    (hrun : Arena.mentionsAnyGo names memo fuel h s = .ok (r, s')) : s' = s :=
+  mentionsAnyGo_sfree names fuel memo h s s' r hrun
+
+/-- con-leche: none — `piDomsMentionAny` reads the store and nothing else. -/
+theorem piDomsMentionAny_state (names : List NIdx) : ∀ (fuel : Nat) (e : EIdx)
+    {s s' : AState} {r : Bool}, Arena.piDomsMentionAny names fuel e s = .ok (r, s') → s' = s := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro e s s' r hrun
+    simp only [Arena.piDomsMentionAny] at hrun
+    exact absurd hrun (fun h => AM.fail_ok h)
+  | succ n ih =>
+    intro e s s' r hrun
+    simp only [Arena.piDomsMentionAny] at hrun
+    by_cases htg : (e.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
+      obtain ⟨rfl, -⟩ := viewBind_run h1
+      cases o with
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
+      | some q =>
+        obtain ⟨d, b⟩ := q
+        dsimp only at h2
+        obtain ⟨c, s₂, h3, h4⟩ := AM.bind_ok h2
+        simp only [Arena.mentionsAnyConst] at h3
+        obtain ⟨q, s₃, h5, h6⟩ := AM.bind_ok h3
+        obtain rfl := mentionsAnyGo_state names _ _ _ h5
+        obtain ⟨-, rfl⟩ := AM.pure_ok h6
+        cases c with
+        | true => simp only [↓reduceIte] at h4; obtain ⟨rfl, rfl⟩ := AM.pure_ok h4; rfl
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte] at h4
+          exact ih b h4
+    · rw [ite_eq_right htg] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      rfl
+
+/-- con-leche: none — `List.anyM` of a state-free test is state-free. -/
+theorem anyM_state {α : Type} {f : α → AM Bool}
+    (hf : ∀ a {s s' : AState} {b : Bool}, f a s = .ok (b, s') → s' = s) :
+    ∀ (xs : List α) {s s' : AState} {b : Bool}, xs.anyM f s = .ok (b, s') → s' = s
+  | [], s, s', b, h => by
+    simp only [List.anyM] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h; rfl
+  | x :: xs, s, s', b, h => by
+    simp only [List.anyM] at h
+    obtain ⟨c, s₁, h1, h2⟩ := AM.bind_ok h
+    obtain rfl := hf x h1
+    cases c with
+    | true => obtain ⟨rfl, rfl⟩ := AM.pure_ok h2; rfl
+    | false => exact anyM_state hf xs h2
+
+/-- con-leche: none — official's `is_rec` reads the store and nothing else. -/
+theorem blockIsRec_state {p : Arena.BlockShape} {s s' : AState} {b : Bool}
+    (h : Arena.blockIsRec p s = .ok (b, s')) : s' = s := by
+  simp only [Arena.blockIsRec] at h
+  exact anyM_state (fun m _ _ _ hm =>
+    anyM_state (fun c _ _ _ hc => piDomsMentionAny_state _ _ _ hc) _ hm) _ h
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:90-102 blockIsRec
 **Official's `is_rec`**, exactly: some member occurs in some binder domain
 of the syntactic telescope of some declared constructor type. -/
@@ -322,39 +423,42 @@ sort interned, one `instantiate1` per variable. -/
 theorem exprDropVars_run : ∀ (n : Nat) {s s' : AState} {e r : EIdx} {eP : Expr},
     StateOK s → PinsOK s → denoteE s.store e = some eP →
     Arena.exprDropVars n e s = .ok (r, s') →
-    PStep s s' ∧ denoteE s'.store r = some (ConLeche.Expr.dropVars n eP)
+    PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+      denoteE s'.store r = some (ConLeche.Expr.dropVars n eP)
   | 0, s, s', e, r, eP, hok, _, he, hrun => by
     simp only [Arena.exprDropVars] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, he⟩
+    exact ⟨PStep.refl hok, rfl, he⟩
   | n + 1, s, s', e, r, eP, hok, hpins, he, hrun => by
     simp only [Arena.exprDropVars] at hrun
     obtain ⟨z, s₁, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
     obtain ⟨s0, s₂, k2, z2⟩ := AM.bind_ok z1
+    have e2 := internE_scr hok (viewOK_sort (lview_isSome_of_denote hz)) k2
     obtain ⟨p2, hs0⟩ := internSortE_run hok hz k2
     obtain ⟨e', s₃, k3, z3⟩ := AM.bind_ok z2
     have he2 := denote_ext he p2.ext
-    obtain ⟨q1, q2, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run p2.ok hs0
+    obtain ⟨q1, q2, e3, q4, q5, q7⟩ := ExprOps.instantiate1Fast_runS p2.ok hs0
       (by rw [he2]; rfl) k3
     have p3 : PStep s₂ s₃ := PStep.of_caches q1 q2 q4 q5
     have he3 : denoteE s₃.store e' = some (eP.instantiate1 (.sort .zero) 0) := q7 _ he2
     have p23 := p2.trans p3
-    obtain ⟨p4, hr⟩ := exprDropVars_run n p23.ok (hpins.mono p23.ext p23.pins) he3 z3
-    exact ⟨p23.trans p4, by simpa [ConLeche.Expr.dropVars] using hr⟩
+    obtain ⟨p4, e4, hr⟩ := exprDropVars_run n p23.ok (hpins.mono p23.ext p23.pins) he3 z3
+    exact ⟨p23.trans p4, by rw [e4, e3, e2], by simpa [ConLeche.Expr.dropVars] using hr⟩
 
 /-- con-leche: ConLeche/Kernel/Install.lean:51 recFire (the parameters'
 `map`) — `exprDropVars` over a list. -/
 theorem dropVarsList_run (n : Nat) : ∀ (as : List EIdx) (asP : List Expr) {s s' : AState}
     {rs : List EIdx}, StateOK s → PinsOK s → Frontend.denoteEList s.store as = some asP →
     as.mapM (Arena.exprDropVars n) s = .ok (rs, s') →
-    PStep s s' ∧ Frontend.denoteEList s'.store rs = some (asP.map (ConLeche.Expr.dropVars n))
+    PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+      Frontend.denoteEList s'.store rs = some (asP.map (ConLeche.Expr.dropVars n))
   | [], asP, s, s', rs, hok, _, ha, hrun => by
     simp only [Frontend.denoteEList, Option.some.injEq] at ha
     subst ha
     simp only [List.mapM_nil] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
+    exact ⟨PStep.refl hok, rfl, rfl⟩
   | a :: as, asP, s, s', rs, hok, hpins, ha, hrun => by
     simp only [Frontend.denoteEList] at ha
     cases h1 : denoteE s.store a with
@@ -367,12 +471,12 @@ theorem dropVarsList_run (n : Nat) : ∀ (as : List EIdx) (asP : List Expr) {s s
     obtain rfl := (Option.some.inj ha).symm
     simp only [List.mapM_cons] at hrun
     obtain ⟨b, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hb⟩ := exprDropVars_run n hok hpins h1 k1
+    obtain ⟨p1, e1, hb⟩ := exprDropVars_run n hok hpins h1 k1
     obtain ⟨bs, s₂, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hbs⟩ := dropVarsList_run n as xs p1.ok (hpins.mono p1.ext p1.pins)
+    obtain ⟨p2, e2, hbs⟩ := dropVarsList_run n as xs p1.ok (hpins.mono p1.ext p1.pins)
       (denoteEList_ext p1.ext _ _ h2) k2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p1.trans p2, ?_⟩
+    refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
     simp only [List.map_cons, Frontend.denoteEList, denote_ext hb p2.ext, hbs]
 
 /-- con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
@@ -383,14 +487,15 @@ theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockS
     {rc : Arena.RecShape} {rcP : ConLeche.RecShape} {f : IRecRuleFire}
     (hok : StateOK s) (hpins : PinsOK s) (hp : dShape s.store p = some pP)
     (hrc : dRec s.store rc = some rcP) (hrun : Arena.recFire p rc s = .ok (f, s')) :
-    PStep s s' ∧ Frontend.denoteFire s'.store f = some (ConLeche.recFire pP rcP) := by
+    PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+      Frontend.denoteFire s'.store f = some (ConLeche.recFire pP rcP) := by
   have hk := BlockShape.k_spec hp
   obtain ⟨hcv, hrP, hmI, htgt, -, -⟩ := dRec_inv hrc
   unfold Arena.recFire at hrun
   by_cases ht : rc.tgt < p.k
   · rw [ite_eq_left ht] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    refine ⟨PStep.refl hok, ?_⟩
+    refine ⟨PStep.refl hok, rfl, ?_⟩
     simp only [ConLeche.recFire, show rcP.tgt < pP.k by rw [← htgt, ← hk]; exact ht, ite_true,
       Frontend.denoteFire]
   have ht' : ¬ rcP.tgt < pP.k := by rw [← htgt, ← hk]; exact ht
@@ -401,7 +506,7 @@ theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockS
   cases o with
   | none =>
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    refine ⟨PStep.refl hok, ?_⟩
+    refine ⟨PStep.refl hok, rfl, ?_⟩
     simp only [ConLeche.recFire, ht', ite_false, stripPis_none hbp, Frontend.denoteFire]
   | some q =>
   obtain ⟨bs, b⟩ := q
@@ -440,16 +545,16 @@ theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockS
       have hlen : args.length = domP.getAppArgs.length :=
         (ExprOps.denoteEList_length _ _ hargs).symm
       obtain ⟨ps, s₇, k7, z7⟩ := AM.bind_ok z6
-      obtain ⟨p7, hps⟩ := dropVarsList_run (rc.mI - rc.rP) _ _ hok hpins
+      obtain ⟨p7, e7, hps⟩ := dropVarsList_run (rc.mI - rc.rP) _ _ hok hpins
         (denoteEList_take hargs (args.length - (rc.mI - rc.rP))) k7
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z7
-      refine ⟨p7, ?_⟩
+      refine ⟨p7, e7, ?_⟩
       have hls' : denoteLList s'.store.ls lvls = some ls := denoteLList_ext p7.ext.lss.ls _ _ hls
       simp only [ConLeche.recFire, ht', ite_false, hsp, hgf, Frontend.denoteFire,
         hls', hps, hlen, hmI, hrP]
     · rw [ite_eq_right htc] at z3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      refine ⟨PStep.refl hok, ?_⟩
+      refine ⟨PStep.refl hok, rfl, ?_⟩
       have hnc : ∀ a b, domP.getAppFn ≠ .const a b := by
         intro a b h
         rw [h] at hhd
@@ -458,7 +563,7 @@ theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockS
       simp only [ConLeche.recFire, ht', ite_false, hsp, Frontend.denoteFire]
   · rw [ite_eq_right htg] at z1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    refine ⟨PStep.refl hok, ?_⟩
+    refine ⟨PStep.refl hok, rfl, ?_⟩
     simp only [ConLeche.recFire, ht', ite_false, hsp, Frontend.denoteFire]
     split
     · rename_i h
@@ -496,23 +601,24 @@ theorem blockRecs_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
     ∀ (rs : List Arena.RecShape) (rsP : List ConLeche.RecShape) {s s' : AState}
       {L : List IConstantInfo}, StateOK s → PinsOK s → dShape s.store p = some pP →
       rs.mapM (dRec s.store) = some rsP → Arena.blockRecs p rs s = .ok (L, s') →
-      PStep s s' ∧ Frontend.denoteCIList s'.store L = some (ConLeche.blockRecs pP rsP)
+      PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+        Frontend.denoteCIList s'.store L = some (ConLeche.blockRecs pP rsP)
   | [], rsP, s, s', L, hok, _, _, hrs, hrun => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
     subst hrs
     simp only [Arena.blockRecs] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
+    exact ⟨PStep.refl hok, rfl, rfl⟩
   | rc :: rs, rsP, s, s', L, hok, hpins, hp, hrs, hrun => by
     obtain ⟨rcP, rsP', rfl, hrc, hrs'⟩ := mapM_option_cons_inv hrs
     simp only [Arena.blockRecs] at hrun
     obtain ⟨f, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hf⟩ := recFire_run hok hpins hp hrc k1
+    obtain ⟨p1, e1, hf⟩ := recFire_run hok hpins hp hrc k1
     obtain ⟨L', s₂, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hL'⟩ := blockRecs_run rs rsP' p1.ok (hpins.mono p1.ext p1.pins)
+    obtain ⟨p2, e2, hL'⟩ := blockRecs_run rs rsP' p1.ok (hpins.mono p1.ext p1.pins)
       (dShape_ext p1.ext _ _ hp) (dRec_ext.list p1.ext _ _ hrs') k2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p1.trans p2, ?_⟩
+    refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
     obtain ⟨hcv, hrP, hmI, -, hrules, hk⟩ := dRec_inv hrc
     have x := p1.ext.trans p2.ext
     simp only [ConLeche.blockRecs, Frontend.denoteCIList, Frontend.denoteCI,
@@ -556,14 +662,15 @@ theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
     ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape) {s s' : AState}
       {Q : List IProjTable}, StateOK s → dShape s.store p = some pP →
       ms.mapM (dMember s.store) = some msP → Arena.blockTables p ms s = .ok (Q, s') →
-      PStep s s' ∧ Frontend.denoteProjTableList s'.store Q = some (ConLeche.blockTables pP msP) ∧
+      PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+        Frontend.denoteProjTableList s'.store Q = some (ConLeche.blockTables pP msP) ∧
         ∀ t ∈ Q, IProjTableOK t
   | [], msP, s, s', Q, hok, _, hms, hrun => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
     subst hms
     simp only [Arena.blockTables] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl, fun _ h => nomatch h⟩
+    exact ⟨PStep.refl hok, rfl, rfl, fun _ h => nomatch h⟩
   | m :: ms, msP, s, s', Q, hok, hp, hms, hrun => by
     obtain ⟨mP, msP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
     have hsc := structCtor?_denote hm
@@ -585,6 +692,7 @@ theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       obtain ⟨cv, hcv, rfl⟩ := hdc
       dsimp only at hrun ⊢
       obtain ⟨o, s₁, k1, z1⟩ := AM.bind_ok hrun
+      have e1 := structProjBodies_scr hok (denoteCV_name hdecl) (denoteCV_type hcv) k1
       obtain ⟨p1, ho⟩ := structProjBodies_spec m.declared.name mP.declared.name p.nP c.2
         c.1.type cv.type s s₁ o hok ⟨denoteCV_name hdecl, denoteCV_type hcv⟩ k1
       rw [hnP] at ho
@@ -592,17 +700,17 @@ theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       | none =>
         simp only [ROp] at ho
         rw [ho]
-        exact (fun ⟨a, b, c⟩ => ⟨p1.trans a, b, c⟩)
+        exact (fun ⟨a, e, b, c⟩ => ⟨p1.trans a, by rw [e, e1], b, c⟩)
           (blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
             (dMember_ext.list p1.ext _ _ hms') z1)
       | some bodies =>
         obtain ⟨bodiesP, hbP, hbodies⟩ := ho
         rw [hbP]
         obtain ⟨Q', s₂, k2, z2⟩ := AM.bind_ok z1
-        obtain ⟨p2, hQ', hok'⟩ := blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
+        obtain ⟨p2, e2, hQ', hok'⟩ := blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
           (dMember_ext.list p1.ext _ _ hms') k2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-        refine ⟨p1.trans p2, ?_, ?_⟩
+        refine ⟨p1.trans p2, by rw [e2, e1], ?_, ?_⟩
         · have x := p1.ext.trans p2.ext
           have hb2 : Frontend.denoteEArray s'.store bodies = some bodiesP :=
             denoteEArray_ext hbodies p2.ext
@@ -654,18 +762,20 @@ the stream's index reads: the state invariant, an append and untouched pins
 theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     {L : List IConstantInfo} (hok : StateOK s) (hpins : PinsOK s)
     (hp : dShape s.store p = some pP) (hrun : Arena.blockConstants p s = .ok (L, s')) :
-    PStep s s' ∧ Frontend.denoteCIList s'.store L = some (ConLeche.blockConstants pP) := by
+    PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
+      Frontend.denoteCIList s'.store L = some (ConLeche.blockConstants pP) := by
   simp only [Arena.blockConstants] at hrun
   obtain ⟨isRec, s₁, k1, z1⟩ := AM.bind_ok hrun
+  have e1 := blockIsRec_state k1
   obtain ⟨p1, hr⟩ := blockIsRec_spec p pP s s₁ isRec hok hp k1
   simp only [RV] at hr
   subst hr
   obtain ⟨R, s₂, k2, z2⟩ := AM.bind_ok z1
   have hp1 := dShape_ext p1.ext _ _ hp
   obtain ⟨-, hrs, -, -, -, -, -⟩ := dShape_inv hp1
-  obtain ⟨p2, hR⟩ := blockRecs_run p.recs pP.recs p1.ok (hpins.mono p1.ext p1.pins) hp1 hrs k2
+  obtain ⟨p2, e2, hR⟩ := blockRecs_run p.recs pP.recs p1.ok (hpins.mono p1.ext p1.pins) hp1 hrs k2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-  refine ⟨p1.trans p2, ?_⟩
+  refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
   have hp2 := dShape_ext p2.ext _ _ hp1
   have hanon := (hpins.mono (p1.trans p2).ext (p1.trans p2).pins).anon
   rw [denoteCIList_append (denoteCIList_append (blockFormers_denote hanon hp2 _)
