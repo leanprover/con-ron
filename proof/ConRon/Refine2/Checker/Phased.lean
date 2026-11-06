@@ -25,6 +25,7 @@ The one hypothesis beyond the relation is `hpers : pers.frozen = false`, the dri
 reader (the capstone reads it off `PersTier::empty`).
 -/
 import ConRon.Refine2.Checker.Jobs
+import ConRon.Refine2.Checker.IndexBuild
 import ConRon.Refine2.Checker.Init
 import ConRon.Arena.Pooled
 
