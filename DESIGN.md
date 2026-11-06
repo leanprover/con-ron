@@ -71722,7 +71722,8 @@ install phase: parse, then check), #481 (a theorem's value stays in the `.olean`
 #484 (`--progress[=N|P%|Ss]` and the `read:` lines), and the short `--help`.  Maintainer: "the install
 phase essentially vanishes, so we have code to remove"; standing rule, "we don't want to diverge from
 con-leche without a very good reason", data-type and signature changes mirrored as upstream has them.
-This was the Rust and twin lane; Theorem 1, Theorem 2 and the capstone are the lanes that follow.
+The Rust and the twin landed first; Theorem 2, Theorem 1 and the capstone followed at the same pin
+(their sections below), and a last cleanup made the unused-declaration census clean (**Cleanup**).
 
 **What was ported.**  Every one of the 962 markers the classifier left (395 changed + 173 deleted
 Rust core, 53 + 15 unverified Rust, 180 + 89 twin, 13 moved by name) is reconciled; none is left, and
@@ -71805,9 +71806,9 @@ flushed (`leave_record`); the twin's `recordJob` is `enterScratch` … `dropScra
   recursors", equivalent to upstream's `feT` because a generated name is never already in `fe`.
 * The certified-operation-name reject carries the name, as upstream's message does (upstream's olean
   gate greps for it); the port's other messages keep dropping names.
-* The twin's `--olean` pipeline reads every theorem's value up front (`readOleansFull`, upstream's own
-  eager read); the binary reads each in its job.  The twin imports upstream's byte-level walks
-  (`usesGo`, `frontierWalk`) where the Rust ports them with fuel.
+* The twin's `--olean` pipeline reads each theorem's value in its job, as the binary does
+  (`Arena/OleanJobs.lean`, Theorem 2 below); upstream's eager `readOleansFull` has no twin.  The
+  byte-level walks `usesGo` and `frontierWalk` take fuel, Rust and twin, where upstream's are `partial`.
 * The heartbeat's ` busy=…, oldest …` suffix and the `stats:` lines stay unported, as before; the parse
   line keeps the store's node counts.
 
@@ -71841,22 +71842,22 @@ the load kept, where master decoded everything once (upstream measured +5.7 % fo
 for.  Wall times (one run each, the machine shared, indicative only): `--olean` 101 s → 75 s, `.ndjson`
 393 s → 430 s.
 
-**For the theorem lanes.**  The capstone's pipeline after `h5` is now: the index
+**The pipeline the theorems state.**  The capstone's pipeline after `h5` is: the index
 (`stream_index::build_index pers st5 stream_index_empty() ds 0 = ok ix`), the boundary
 (`checker::freeze_tier st.store ix`), and the pool (`ParallelAll ds.len (worker_state pins)
 (fun w k => checker::run_job tier w mode pins ds k)`), then `thaw_tier`.  This replaces `h6`
 (`install_fold_hooked`), `hord` (`job_order`) and `hlayer` (`check_layer`); `h7` keeps `freeze_tier`
 with the index as its second argument, `h8` keeps `ParallelAll` over `run_job`'s new signature.  A
 worker's jobs: `parallel_all` claims one index at a time off one monotone counter, so each worker's
-claims are increasing (the pool's test asserts it); the stated contract (`ParallelAll`) still promises
-only coverage, and would have to be strengthened if Theorem 1's induction wants the order.  No restore:
+claims are increasing (the pool's test asserts it); the stated contract (`ParallelAll`) promises it
+(`List.Pairwise (· < ·)`), since Theorem 1's induction needs the order.  No restore:
 each job starts from the worker's state with the scratch tier emptied and fresh memos, caches flushed by
 the previous job's close.  The twin's statement shapes: `Arena/Checker.lean`'s `checkStream`
 (`buildIndex`, then `checkJobList` over `List.range ds.size` from `s₁.worker`), `runJob mode pins I ds t`,
 `Arena/Pooled.lean`'s `PooledAccepts` (index built, job lists covering the positions, each accepted from
 the worker), and `CheckDecl.lean`'s spec fold `checkDeclsPure`, whose step is now upstream's `declStep`
-(the `And` pin, fresh memos, `checkDecl` with the scratch tier off, no promotion).  The helpers' lists of
-deleted, new and changed twin signatures are in this task's report; the notable ones: `checkConstantVal
+(the `And` pin, fresh memos, `checkDecl` with the scratch tier off, no promotion).  The notable changed
+twin signatures: `checkConstantVal
 … (allowOp)`, `blockCapsAt` pure, `checkBlock` over `BlockShape` ending in `pushDelta`, `majorToCtor`/
 `prepareMajor` take `isK`, the value checks return the record unpushed, `checkDivModPin`/`checkReducePin`
 take `ci` and return the environment, `prepareD`/the hoist take `used`, `readOleans` returns `OleanRead`.
@@ -71957,10 +71958,7 @@ deleted `Refine/{BasisTables,BasisPins}`, `Checker/EnvExt`, `Core/Frame`, `Induc
 `Promote/Promote` (and the renames BlockParts → BlockShape, StoredRecs → StreamRecs).  One statement
 the lockstep corrected: `check_block_tail_stream_ls`'s twin now runs `checkBlockTables` before it
 returns, as the Rust does there.  **The census cut** (399a5f20, 31b61055): what no headline reaches goes, −1 906 lines over 37 files.
-Six `rfl` lemmas the census calls dead stay, since `simp only`/`lockstep_simp` sets use them invisibly
-(`Lockstep.u64_one_val`, `absMemberShape_ctors`, BlockTail's three `bt_absMemberShape_*`, RecCheck's
-two `rc_absCtorsLL_*`); they are the only `Refine`/`Refine2` names `dead-census.py --check` still lists,
-not allow-listed.  One deliberate near-duplicate: GenRecCheck keeps its own
+The `rfl` lemmas the census cannot see in `simp only`/`lockstep_simp` sets went in the cleanup below.  One deliberate near-duplicate: GenRecCheck keeps its own
 `ifenv_push_temp`/`pop_temp` specs, since it pops layers that only answer like the pushed one and needs
 the index map's invariant, which `Checker/Base`'s pair does not give.
 
@@ -72018,3 +72016,21 @@ census lines of what went.
 * The Inductives lane (part 2): the twin's rule-domain test agrees with upstream's only because
   `targetRecPins` keeps the ten literal-guard names off pushed recursors (`DomPass`); dropping that pin
   would make the twin accept string literals upstream rejects.
+
+#### Cleanup
+
+**`con-ron-gen-tables` goes.**  It generated `kernel/basis_tables.rs` from `BasisKind.declsA`, which
+went with upstream's BasisA/BasisGen; `proof/ConRon/Gen/{Emit,Main}.lean`, its `[[lean_exe]]` entry,
+and its place among the census, gate and shake roots are deleted.  The module-level citation rule of
+task #22 (§3.7) is unchanged; its examples are now `kernel/pins_text.rs` and `frontend/prelude_text.rs`.
+
+**The census is clean.**  `scripts/dead-census-gate.sh` listed 46 owners after the theorem lanes: the
+promote window's store invariant and its lemmas (`StoreWF'`, the four `*ViewPers`, `wf_push_pers'`, the
+`StoreWF'`/`EWFAt'` projections, `derived_congr`, `NExt.of_view_mono`, the `EStore` scratch enable/drop
+specs and view lemmas), the twin's eager `--olean` read (`fillRecord`, `fillRecords`, `readOleansFull`),
+`IEnv.find?` and `strLitSupported`; all deleted.  The seven `rfl` lemmas only `simp`/`lockstep_simp` sets
+used are the definition unfolded in place, not allow-list lines: `absMemberShape` in BlockInstall's
+`simp only` calls and in `reduce_member_ls`'s opening `rw` (which also frees `absMemberShape_nIdx`, whose
+allow-list line goes), the two `rc_absCtorsLL_*` needed by nothing, and `Lockstep.u64_one_val` (shared
+core, its own commit) as the `rfl` fact at its one named use.  `dead-census.py --check` OK;
+`twin-lines.py check`, `provenance.py check` green, `coverage` unchanged (Rust 931/1012, arena 765/1011).

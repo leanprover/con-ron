@@ -50,14 +50,14 @@ caching (§4, §5).  con-leche walks
 expression trees; con-ron stores every expression once, in per-constructor
 arrays, and refers to it by a 32-bit handle.
 
-Before the file's own declarations, every run installs a small built-in
+Before the file's own declarations, every run checks a small built-in
 prelude: the basis blocks con-leche pins (`Eq`, `Nat`, `Empty`, `False`,
 `Quot`) and the toolchain's `Bool` and `And`.  The prelude text is
 con-leche's own, embedded at build time
 ([`prelude_text.rs`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron-core/src/frontend/prelude_text.rs)).
 
 Every inductive block, mutual and nested ones included, goes through one
-verified installer, con-leche's *uniform route*: a positivity check that
+verified check, con-leche's *uniform route*: a positivity check that
 looks through containers at their concrete instances, and recursors that are
 generated in official's shape and compared with the stream's by definitional
 equality (§6.3).
@@ -374,7 +374,7 @@ treats equal handles as equal terms and unequal name handles as unequal
 names.  If two handles could denote the same term, the checker could take a
 branch con-leche would not.  The twin proves the denotation injective on a
 well-formed store
-([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1126-L1127)).
+([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1125-L1126)).
 
 Levels and names are interned the same way, but level *algorithms*
 (`simplify`, `leq`, `isEquiv`) run on ordinary `Level` trees read back from
@@ -385,11 +385,11 @@ the store, with the readback cached (§5).  Name equality is handle equality.
 The arena has two **tiers**, each with its own arrays and cons tables:
 
 * the **persistent tier** holds the parsed file, the prelude, the pins, and
-  every term the installed environment keeps;
+  every term the environment keeps;
 * the **scratch tier** holds what one declaration's check computes and then
   forgets.
 
-The parse, the pin walk and the stream's index (§6.4) write the persistent tier
+The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
@@ -478,8 +478,8 @@ These are con-leche's memo tables:
   plain ones.
 
 **When they are emptied.**  The per-declaration caches are flushed whole
-whenever a bracket closes (§4.3), and again at the start of each install
-step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
+whenever a bracket closes (§4.3), which ends every job, as con-leche's
+`flushC` flushes its own.  A cache entry can name a scratch handle,
 so it must go with the tier.  The memos are cleared when a bracket opens and
 at every walk's entry.  No table evicts entries and none has a size cap,
 as in con-leche: a table grows for the length of its declaration and goes
@@ -561,7 +561,7 @@ lean4export's order, through the stream parser's own record builder, so that
 everything after the parse is the stream path's.  The read is sequential: the store
 has one writer, and con-leche's parallel load is not ported.
 
-### 6.3 The fold: install, then check
+### 6.3 The index, then the jobs
 
 There is no install phase.  After the parse, the stream's **index** is built
 once, from the records alone
@@ -647,7 +647,7 @@ raises the same kind at the same point.  There is one exception: a numeral
 in the export too large for the Rust scanner's `u64` (`IndexOverflow`, a
 `Native`), because the twin runs con-leche's own scanner, which reads a `Nat`;
 the frontend's error relation names that error value explicitly
-([`ScanOverflowErr`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L392-L394)).
+([`ScanOverflowErr`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L387-L389)).
 The twin's `native`, like a decline, claims nothing about con-leche.  The
 driver reports `Native` as a decline, exit 2
 ([`exit_code`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L154-L163)).
@@ -720,7 +720,7 @@ Two definitions connect it to con-leche:
 proves that every twin function computes, on denotations, what the
 corresponding con-leche function computes.  The per-declaration statement
 is
-[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L65-L72),
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L49-L56),
 and
 [`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Pool.lean#L96-L116)
 lifts it to the check phase the driver runs: the index built from the records
@@ -827,12 +827,12 @@ The form depends on the shape of the Rust function:
 | [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L170-L174) | reads the state, may fail |
 | `LSV`, `LSW` | reads and cannot fail; writes and cannot fail |
 | `LSP` | a Rust-only step with no twin counterpart (a copy, a `u64` decrement) |
-| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L634-L646) | a memoised walk that returns its memo beside the result |
+| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L633-L645) | a memoised walk that returns its memo beside the result |
 
 `LS.toSim₀` converts back to the statement form.
 
 **The `lockstep` tactic**
-([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2872-L2873))
+([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2661-L2662))
 steps the two programs together, one bind at a time.  At each Rust bind it
 looks up a lemma for the callee, applies it, and continues with the related
 results as hypotheses.  It splits a Rust `if` or `match`, and uses the facts
@@ -843,7 +843,7 @@ instead of closing the goal with `sorry`.  When it stops, the goal sits at the
 first bind where the two programs differ, or where a lemma is missing.
 
 **The lemma discipline.**  A lemma is found by its Rust callee: tagging it
-[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L87-L95)
+[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L86-L94)
 files it under the head constant of the Rust computation in its conclusion,
 which must be one of the judgements above.  A local hypothesis in the same
 form, such as an induction hypothesis, is found the same way, and is tried
