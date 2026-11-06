@@ -27,7 +27,7 @@ namespace ConRon.Refine2.Frontend.Olean
 
 open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (loadAt loadView loadRoots valueRoots lazyEntries loadImports
-  usesOf frontierWalk frontierOf)
+  usesOf frontierWalk frontierOf importsPre)
 open ConLeche.Frontend.Olean (usesNames lazyRoots maxLoc closureFuel moduleSkel)
 
 /-! ## The judgement of an accepted read -/
@@ -320,6 +320,98 @@ theorem load_at_loop_val {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64
     | (simp only at hty ⊢; simp [hty])
     | exact hx
 
+/-- The memo's `PtrRead` maps an import as the twin's pure `nameOf`, the state untouched. -/
+theorem import_mapM_ds {pk : ConRon.Arena.Frontend.Olean.OleanPins} {R : ConLeche.Frontend.Olean.Region}
+    {t : TDS} (x : ConLeche.Frontend.Olean.ImportF UInt64) (lst : AState) :
+    StateT.run (ConLeche.Frontend.Olean.ImportF.mapM (m := OptionT AM)
+      (fun v => OptionT.mk ((ConRon.Arena.Frontend.Olean.DS.read pk R t).rdName v)) x) lst =
+      .ok (x.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf pk R t), lst) := by
+  simp only [ConLeche.Frontend.Olean.ImportF.mapM, ConRon.Arena.Frontend.Olean.DS.read]
+  cases ConRon.Arena.Frontend.Olean.DS.nameOf pk R t x.module <;> rfl
+
+/-- `loadImports`' maps over the skeleton's imports. -/
+theorem mapM_imports_map {pk : ConRon.Arena.Frontend.Olean.OleanPins} {R : ConLeche.Frontend.Olean.Region}
+    {t : TDS} (l : List (frontend.olean.spec.ImportF Std.U64)) :
+    (l.map (absImportF absWord)).mapM (fun i => i.mapM (ConRon.Arena.Frontend.Olean.DS.nameOf pk R t)) =
+      l.mapM (fun i => (absImportF absWord i).mapM (ConRon.Arena.Frontend.Olean.DS.nameOf pk R t)) := by
+  induction l with
+  | nil => rfl
+  | cons x t ih => simp only [List.map_cons, List.mapM_cons, ih]
+
+/-- **`load_imports`' loop**: from import `i` on, each mapped by the memo, then the file's
+imports against them. -/
+theorem load_imports_loop_ok {pk pers st} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t)
+    {v : alloc.vec.Vec (frontend.olean.spec.ImportF Std.U64)}
+    {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles} (hf : ModFilesRel f f') :
+    ∀ (k : Nat) (i : Std.Usize) (ar : arena.store.EStore)
+      (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) (lst : AState) {s'},
+      v.val.length - i.val = k →
+      AStateRel₀ pers (withStore st ar) lst → AStateInv pers (withStore st ar) →
+      load_imports_loop pk pers ar bs r d v f imports i = ok (.Ok (), s') →
+      ∃ rest pre lst', (v.val.drop i.val).mapM (fun i => (absImportF absWord i).mapM
+          (ConRon.Arena.Frontend.Olean.DS.nameOf (absPins pk) (absRegion bs r) t)) = some rest ∧
+        (importsPre (absPins pk) f'.exported.bytes).run lst = .ok (some pre, lst') ∧
+        (pre == (imports.val.map (absImportF absNIdx) ++ rest).toArray) = true ∧
+        AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') := by
+  intro k
+  induction k with
+  | zero =>
+    intro i ar imports lst s' hk hrel hinv h
+    rw [load_imports_loop] at h
+    have hi : ¬ i < alloc.vec.Vec.len v := by
+      have : ¬ i.val < v.val.length := by omega
+      exact this
+    rw [ite_eq_right hi] at h
+    obtain ⟨⟨r1, ar1⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | Ok pre =>
+      peel h as b, hb
+      have eb := imports_beq_eq hb
+      cases b with
+      | false => cases (Prod.mk.inj (Result.ok_injective h)).1
+      | true =>
+        simp only [ite_true] at h
+        obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+        obtain ⟨pre', lst', hx, hpre, hrel1, hinv1⟩ :=
+          (imports_pre_ok (pk := pk) (pers := pers) hf (withStore st ar) lst).ar hrel hinv _ _ hq
+        refine ⟨[], pre', lst', by rw [List.drop_of_length_le (by omega)]; rfl, ?_, ?_, hrel1, hinv1⟩
+        · rw [hf.exported]; exact hx
+        · simp only [EqA] at hpre
+          subst hpre
+          rw [List.append_nil]
+          exact eb.symm
+  | succ k ih =>
+    intro i ar imports lst s' hk hrel hinv h
+    rw [load_imports_loop] at h
+    have hlt : i.val < v.val.length := by omega
+    have hi : i < alloc.vec.Vec.len v := hlt
+    rw [ite_eq_left hi] at h
+    peel h as x, hx
+    obtain ⟨_hl, rfl⟩ := vec_index_eq hx
+    obtain ⟨⟨r1, ar1⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | Ok y =>
+      peel h as imports1, himp
+      peel h as i2, hi2
+      obtain ⟨b, lst1, hx1, hb, hrel1, hinv1⟩ :=
+        (import_map_refines (ds_ptr_rel (pk := pk) (pers := pers) hr hd) (withStore st ar) lst).ar
+          hrel hinv _ _ hq
+      rw [import_mapM_ds] at hx1
+      obtain ⟨hm, rfl⟩ := Prod.mk.inj (Except.ok.inj hx1)
+      have ei := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      obtain ⟨rest, pre, lst', hrest, hpre, hbeq, hrel2, hinv2⟩ :=
+        ih i2 ar1 imports1 _ (by rw [ei]; simp; omega) hrel1 hinv1 h
+      refine ⟨absImportF absNIdx y :: rest, pre, lst', ?_, hpre, ?_, hrel2, hinv2⟩
+      · rw [List.drop_eq_getElem_cons hlt, List.mapM_cons, hm, ← hb]
+        have e2 : i2.val = i.val + 1 := by rw [ei]; rfl
+        rw [← e2, hrest]
+        rfl
+      · rw [ConRon.Refine.vec_push_val himp] at hbeq
+        simpa using hbeq
+
 /-- **`load_imports`' accept is `loadImports`' `true`.** -/
 theorem load_imports_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t)
@@ -327,8 +419,25 @@ theorem load_imports_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean
     {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles} (hf : ModFilesRel f f') :
     AR pers (fun (_ : Unit) (b : Unit) => b = ()) st lst (load_imports pk pers st.store bs r d sk f)
       (do if ← loadImports (absPins pk) (absRegion bs r) t sk' f' then pure (some ()) else pure none) := by
-  sorry -- T143-STUB
-
+  intro hrel hinv a s' h
+  rw [load_imports] at h
+  have hnew : (alloc.vec.Vec.with_capacity (frontend.olean.spec.ImportF arena.handle.NIdx)
+      (alloc.vec.Vec.len sk.imports)).val = [] := rfl
+  obtain ⟨rest, pre, lst', hrest, hpre, hbeq, hrel1, hinv1⟩ :=
+    load_imports_loop_ok hr hd hf _ 0#usize st.store _ lst rfl hrel hinv h
+  rw [hnew, List.map_nil, List.nil_append] at hbeq
+  refine ⟨(), lst', ?_, rfl, hrel1, hinv1⟩
+  rw [loadImports, ← hsk.imports, mapM_imports_map]
+  rw [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hrest
+  rw [hrest]
+  dsimp only
+  have hin : StateT.run ((do
+      let o ← importsPre (absPins pk) f'.exported.bytes
+      match o with
+      | some pre => pure (pre == rest.toArray)
+      | none => pure false) : AM Bool) lst = Except.ok (true, lst') := by
+    rw [am_bind_ok hpre, ← hbeq]; rfl
+  exact (am_bind_ok (g := fun b => if b = true then pure (some ()) else pure none) hin).trans rfl
 /-- **`lazy_entries`' accept is `lazyEntries`'**: each constant read, a theorem's value its
 reference, with what it mentions. -/
 theorem lazy_entries_ok {pk pers st lst} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
