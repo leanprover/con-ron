@@ -15,6 +15,8 @@ the store through `param_levels`, `inst_lp_fast`, `subst_levels_at` and
 -/
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Core.LS.Leaves
+import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Inductives.StructParts
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -699,5 +701,421 @@ the slot. -/
   rw [arena.basis.quot_preds_ok]
   unfold quotPredsOk
   cases k <;> simp only [ConRon.Refine.absQuotKind] <;> lockstep
+
+/-! ## The renaming walks -/
+
+open Lockstep in
+/-- `constant_val_at_lps` ⊑ `IConstantVal.atLps`: the type with the old names
+replaced positionally, the new names stored. -/
+@[lockstep] theorem constant_val_at_lps_ls {pers st lst} {cv : arena.env.IConstantVal}
+    {ps : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantVal a) (arena.basis.constant_val_at_lps pers st cv ps) lst
+      ((absIConstantVal cv).atLps (ps.val.map absNIdx)) := by
+  rw [arena.basis.constant_val_at_lps]
+  unfold IConstantVal.atLps
+  refine LS.bind (param_levels_ls (lps := ps) hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro us b st1 lst1 hb hrel1 hinv1
+  subst hb
+  refine LS.bind (inst_lp_fast_ls hrel1 hinv1 _ _ _ _)
+    (by simp only [core_walk_fuel_abs, absIConstantVal]) (fun _ _ => errArm_ok) ?_
+  intro ty b2 st2 lst2 hb2 hrel2 hinv2
+  subst hb2
+  refine LS.bind_eq fun n hn => ?_
+  refine LS.bind_eq fun v hv => ?_
+  refine LS.pure ?_ hrel2 hinv2
+  simp [absIConstantVal, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+
+open Lockstep in
+private theorem rules_at_lps_aux {lpsH : alloc.vec.Vec arena.handle.NIdx} {us : arena.handle.LsIdx}
+    {lpsT : alloc.vec.Vec kernel.name.Name} {usT : alloc.vec.Vec kernel.level.Level}
+    {rules : alloc.vec.Vec arena.env.IRecRule}
+    (hks : ConRon.Refine.NamesWF lpsT) (hvs : ConRon.Refine.LevelsWF usT) (k : Nat) :
+    ∀ {pers st lst} (i : Std.Usize) (out : alloc.vec.Vec arena.env.IRecRule),
+      rules.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.val.map absIRecRule)
+        (arena.basis.rules_at_lps pers st lpsH us lpsT usT rules i out) lst
+        (do
+          let rest ← rulesAtLps (lpsH.val.map absNIdx) (absLsIdx us)
+            (ConRon.Refine.absNames lpsT) (ConRon.Refine.absLevels usT)
+            ((rules.val.drop i.val).map absIRecRule)
+          pure (out.val.map absIRecRule ++ rest)) := by
+  induction k with
+  | zero =>
+    intro pers st lst i out hk hrel hinv
+    rw [arena.basis.rules_at_lps.eq_def]; simp only []
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rules by scalar_tac),
+      List.drop_eq_nil_of_le (by omega)]
+    simp only [List.map_nil, rulesAtLps, pure_bind, List.append_nil]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst i out hk hrel hinv
+    have hlt : i.val < rules.val.length := by omega
+    rw [arena.basis.rules_at_lps.eq_def]; simp only []
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rules by scalar_tac),
+      List.drop_eq_getElem_cons hlt]
+    obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec rules i hlt)
+    subst hyv
+    rw [alloc.vec.Vec.index_slice_index, hy, bind_ok]
+    simp only [List.map_cons, rulesAtLps, bind_assoc]
+    refine LS.bind (inst_lp_fast_ls hrel hinv _ _ _ _)
+      (by simp only [core_walk_fuel_abs, absIRecRule]) (fun _ _ => errArm_ok) ?_
+    intro rhs b st1 lst1 hb hrel1 hinv1
+    subst hb
+    refine LS.bind (rec_rule_fire_at_lps_ls hrel1 hinv1 hks hvs) (by simp only [absIRecRule])
+      (fun _ _ => errArm_ok) ?_
+    intro fire b2 st2 lst2 hb2 hrel2 hinv2
+    subst hb2
+    refine LS.bind_eq fun n hn => ?_
+    refine LS.bind_eq fun out1 hout1 => ?_
+    refine LS.bind_eq fun i2 hi2 => ?_
+    have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+    have h := ih i2 out1 (by omega) hrel2 hinv2
+    rw [hi2v, ConRon.Refine.vec_push_val hout1] at h
+    refine LS.tail h ?_ (fun _ _ h => h)
+    simp only [List.map_append, List.map_cons, List.map_nil, pure_bind,
+      List.append_assoc, List.singleton_append, absIRecRule, dupId_nidx _ _ hn]
+
+open Lockstep in
+@[lockstep] theorem rules_at_lps_ls {pers st lst} {lpsH : alloc.vec.Vec arena.handle.NIdx}
+    {us : arena.handle.LsIdx} {lpsT : alloc.vec.Vec kernel.name.Name}
+    {usT : alloc.vec.Vec kernel.level.Level} {rules : alloc.vec.Vec arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hks : ConRon.Refine.NamesWF lpsT) (hvs : ConRon.Refine.LevelsWF usT) :
+    LS pers (fun a b => b = a.val.map absIRecRule)
+      (arena.basis.rules_at_lps pers st lpsH us lpsT usT rules 0#usize (alloc.vec.Vec.new _)) lst
+      (rulesAtLps (lpsH.val.map absNIdx) (absLsIdx us) (ConRon.Refine.absNames lpsT)
+        (ConRon.Refine.absLevels usT) (rules.val.map absIRecRule)) := by
+  have h := rules_at_lps_aux (lpsH := lpsH) (us := us) (rules := rules) hks hvs _ 0#usize
+    (alloc.vec.Vec.new _) rfl hrel hinv
+  refine LS.tail h ?_ (fun _ _ h => h)
+  simp [alloc.vec.Vec.new]
+
+open Lockstep in
+/-- `constant_info_at_lps_rec` ⊑ `IConstantInfo.atLps`'s `.recInfo` arm. -/
+theorem constant_info_at_lps_rec_ls {pers st lst} {cv : arena.env.IConstantVal}
+    {mI rP : Std.U64} {isK : Bool} {rules : alloc.vec.Vec arena.env.IRecRule}
+    {ps : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a)
+      (arena.basis.constant_info_at_lps_rec pers st cv mI rP isK rules ps) lst
+      ((absIConstantInfo (.RecInfo cv mI rP isK rules)).atLps (ps.val.map absNIdx)) := by
+  rw [arena.basis.constant_info_at_lps_rec]
+  simp only [absIConstantInfo, IConstantInfo.atLps]
+  refine LS.bind (constant_val_at_lps_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro cv2 b st1 lst1 hb hrel1 hinv1
+  subst hb
+  refine LS.bind (param_levels_ls (lps := ps) hrel1 hinv1) rfl (fun _ _ => errArm_ok) ?_
+  intro us b2 st2 lst2 hb2 hrel2 hinv2
+  subst hb2
+  refine LS.bind (read_names_m_ls hrel2 hinv2 cv.level_params) (by simp [absIConstantVal])
+    (fun _ _ => errArm_ok) ?_
+  intro lpsT b3 st3 lst3 ⟨w3, hb3⟩ hrel3 hinv3
+  subst hb3
+  refine LS.bind (read_names_m_ls hrel3 hinv3 ps) rfl (fun _ _ => errArm_ok) ?_
+  intro psT b4 st4 lst4 ⟨w4, hb4⟩ hrel4 hinv4
+  subst hb4
+  refine LS.bind_eq fun usT husT => ?_
+  obtain ⟨ausT, wusT⟩ := param_level_values_entry w4 husT
+  have e : (ConRon.Refine.absNames psT).map ConLeche.Level.param = ConRon.Refine.absLevels usT := by
+    rw [ConRon.Refine.absLevels, ausT]
+  rw [e]
+  refine LS.bind (rules_at_lps_ls hrel4 hinv4 w3 wusT) (by simp [absIConstantVal])
+    (fun _ _ => errArm_ok) ?_
+  intro rules2 b5 st5 lst5 hb5 hrel5 hinv5
+  subst hb5
+  exact LS.pure rfl hrel5 hinv5
+
+open Lockstep in
+/-- `constant_info_at_lps` ⊑ `IConstantInfo.atLps`: a stored constant at other
+level-parameter names. -/
+@[lockstep] theorem constant_info_at_lps_ls {pers st lst} {ci : arena.env.IConstantInfo}
+    {ps : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.constant_info_at_lps pers st ci ps)
+      lst ((absIConstantInfo ci).atLps (ps.val.map absNIdx)) := by
+  cases ci with
+  | RecInfo cv mI rP isK rules =>
+    rw [arena.basis.constant_info_at_lps]
+    exact constant_info_at_lps_rec_ls hrel hinv
+  | _ =>
+    rw [arena.basis.constant_info_at_lps]
+    simp only [absIConstantInfo, IConstantInfo.atLps]
+    lockstep
+
+/-! ## A block's comparison with its pin -/
+
+open Lockstep in
+/-- `pin_copy_ok` ⊑ `pinCopyOk`: distinct names, as many as the pin's, and the
+record agrees with the pin at its own names. -/
+@[lockstep] theorem pin_copy_ok_ls {pers st lst} {ci pin : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.pin_copy_ok pers st ci pin) lst
+      (pinCopyOk (absIConstantInfo ci) (absIConstantInfo pin)) := by
+  rw [arena.basis.pin_copy_ok]
+  unfold pinCopyOk
+  refine LS.bind_eq fun iv hiv => ?_
+  have hps : (absIConstantInfo ci).toConstantVal.levelParams = iv.level_params.val.map absNIdx := by
+    rw [← i_constant_info_to_constant_val_abs hiv]; rfl
+  simp only [hps]
+  refine LS.bind_eq fun b hb => ?_
+  have hbv : nameNodup (iv.level_params.val.map absNIdx) = b := name_nodup_spec _ b hb
+  cases b with
+  | false =>
+    rw [ite_eq_right (by simp), ite_eq_right (by simp [hbv])]
+    exact LS.pure rfl hrel hinv
+  | true =>
+    rw [ite_eq_left rfl]
+    refine LS.bind_eq fun iv1 hiv1 => ?_
+    have hps1 : (absIConstantInfo pin).toConstantVal.levelParams =
+        iv1.level_params.val.map absNIdx := by
+      rw [← i_constant_info_to_constant_val_abs hiv1]; rfl
+    by_cases hl : alloc.vec.Vec.len iv.level_params = alloc.vec.Vec.len iv1.level_params
+    · rw [ite_eq_left hl]
+      have hl' : iv.level_params.val.length = iv1.level_params.val.length := by
+        have := congrArg Std.UScalar.val hl; simpa [alloc.vec.Vec.len] using this
+      rw [ite_eq_left (by simp [hbv, hps1, hl'])]
+      refine LS.bind (constant_info_at_lps_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+      intro pin2 b2 st1 lst1 hb2 hrel1 hinv1
+      subst hb2
+      refine LS.bind_eq fun b3 hb3 => ?_
+      exact LS.pure (pin_agrees_refines hb3).symm hrel1 hinv1
+    · rw [ite_eq_right hl]
+      have hl' : ¬ iv.level_params.val.length = iv1.level_params.val.length := by
+        intro h; exact hl (Std.UScalar.eq_of_val_eq (by simpa [alloc.vec.Vec.len] using h))
+      rw [ite_eq_right (by simp [hbv, hps1, hl'])]
+      exact LS.pure rfl hrel hinv
+
+open Lockstep in
+private theorem pin_copies_ok_aux {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    (k : Nat) :
+    ∀ {pers st lst} (i : Std.Usize), block.val.length - i.val ≤ k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = id a) (arena.basis.pin_copies_ok pers st block pins i) lst
+        (pinCopiesOk (absICILFrom block i) (absICILFrom pins i)) := by
+  induction k with
+  | zero =>
+    intro pers st lst i hk hrel hinv
+    have hb : block.val.length ≤ i.val := by omega
+    rw [arena.basis.pin_copies_ok.eq_def]; simp only []
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+    by_cases hp : pins.val.length ≤ i.val
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+      simp only [absICILFrom, List.drop_eq_nil_of_le hb, List.drop_eq_nil_of_le hp,
+        List.map_nil, pinCopiesOk]
+      exact LS.pure rfl hrel hinv
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac),
+        ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+      simp only [absICILFrom, List.drop_eq_nil_of_le hb,
+        List.drop_eq_getElem_cons (Nat.lt_of_not_le hp), List.map_nil, List.map_cons,
+        pinCopiesOk]
+      exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst i hk hrel hinv
+    rw [arena.basis.pin_copies_ok.eq_def]; simp only []
+    by_cases hb : block.val.length ≤ i.val
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+      by_cases hp : pins.val.length ≤ i.val
+      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+        simp only [absICILFrom, List.drop_eq_nil_of_le hb, List.drop_eq_nil_of_le hp,
+          List.map_nil, pinCopiesOk]
+        exact LS.pure rfl hrel hinv
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac),
+          ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+        simp only [absICILFrom, List.drop_eq_nil_of_le hb,
+          List.drop_eq_getElem_cons (Nat.lt_of_not_le hp), List.map_nil, List.map_cons,
+          pinCopiesOk]
+        exact LS.pure rfl hrel hinv
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac),
+        ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)]
+      have hlb : i.val < block.val.length := Nat.lt_of_not_le hb
+      by_cases hp : pins.val.length ≤ i.val
+      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+        simp only [absICILFrom, List.drop_eq_nil_of_le hp, List.drop_eq_getElem_cons hlb,
+          List.map_nil, List.map_cons, pinCopiesOk]
+        exact LS.pure rfl hrel hinv
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+        have hlp : i.val < pins.val.length := Nat.lt_of_not_le hp
+        obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlb)
+        obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlp)
+        subst hxv hyv
+        rw [alloc.vec.Vec.index_slice_index, hx, bind_ok, alloc.vec.Vec.index_slice_index, hy,
+          bind_ok]
+        simp only [absICILFrom, List.drop_eq_getElem_cons hlb, List.drop_eq_getElem_cons hlp,
+          List.map_cons, pinCopiesOk]
+        refine LS.bind (pin_copy_ok_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+        intro a b st1 lst1 hab hrel1 hinv1
+        cases a with
+        | false =>
+          simp only [id] at hab; subst hab
+          exact LS.pure rfl hrel1 hinv1
+        | true =>
+          simp only [id] at hab; subst hab
+          simp only [ite_true]
+          refine LS.bind_eq fun i2 hi2 => ?_
+          have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+          have h := ih i2 (by omega) hrel1 hinv1
+          simp only [absICILFrom, hi2v] at h
+          exact h
+
+open Lockstep in
+/-- `pin_list_ok` ⊑ `pinListOk`: the copies, then the links. -/
+@[lockstep] theorem pin_list_ok_ls {pers st lst}
+    {block pins : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.pin_list_ok pers st block pins) lst
+      (pinListOk (absICIL block) (absICIL pins)) := by
+  rw [arena.basis.pin_list_ok]
+  unfold pinListOk
+  have h := pin_copies_ok_aux (block := block) (pins := pins) _ 0#usize (le_refl _) hrel hinv
+  simp only [absICILFrom, show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
+  refine LS.bind h rfl (fun _ _ => errArm_ok) ?_
+  intro a b st1 lst1 hab hrel1 hinv1
+  cases a with
+  | false =>
+    simp only [id] at hab; subst hab
+    exact LS.pure rfl hrel1 hinv1
+  | true =>
+    simp only [id] at hab; subst hab
+    simp only [ite_true]
+    exact block_links_ok_ls hrel1 hinv1
+
+/-! ## What a pinned block's check installs -/
+
+open Lockstep in
+private theorem basis_kind_at_block_go_aux {pins block : alloc.vec.Vec arena.env.IConstantInfo}
+    (k : Nat) :
+    ∀ {pers st lst} (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo),
+      pins.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absICIL a)
+        (arena.basis.basis_kind_at_block_go pers st pins block i out) lst
+        (do
+          let rest ← atBlockGo (absICILFrom pins i) (absICILFrom block i)
+          pure (absICIL out ++ rest)) := by
+  induction k with
+  | zero =>
+    intro pers st lst i out hk hrel hinv
+    have hp : pins.val.length ≤ i.val := by omega
+    rw [arena.basis.basis_kind_at_block_go.eq_def]; simp only []
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+    simp only [absICILFrom, List.drop_eq_nil_of_le hp, List.map_nil, atBlockGo, pure_bind,
+      List.append_nil]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst i out hk hrel hinv
+    rw [arena.basis.basis_kind_at_block_go.eq_def]; simp only []
+    by_cases hp : pins.val.length ≤ i.val
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+      simp only [absICILFrom, List.drop_eq_nil_of_le hp, List.map_nil, atBlockGo, pure_bind,
+        List.append_nil]
+      exact LS.pure rfl hrel hinv
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac)]
+      have hlp : i.val < pins.val.length := Nat.lt_of_not_le hp
+      by_cases hb : block.val.length ≤ i.val
+      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
+        simp only [absICILFrom, List.drop_eq_nil_of_le hb, List.drop_eq_getElem_cons hlp,
+          List.map_nil, List.map_cons, atBlockGo, pure_bind, List.append_nil]
+        exact LS.pure rfl hrel hinv
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)]
+        have hlb : i.val < block.val.length := Nat.lt_of_not_le hb
+        obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlb)
+        subst hxv
+        rw [alloc.vec.Vec.index_slice_index, hx, bind_ok]
+        refine LS.bind_eq fun iv hiv => ?_
+        have eiv := i_constant_info_to_constant_val_abs hiv
+        obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlp)
+        subst hyv
+        rw [alloc.vec.Vec.index_slice_index, hy, bind_ok]
+        simp only [absICILFrom, List.drop_eq_getElem_cons hlb, List.drop_eq_getElem_cons hlp,
+          List.map_cons, atBlockGo, bind_assoc]
+        rw [← eiv]
+        refine LS.bind (constant_info_at_lps_ls hrel hinv) (by simp [absIConstantVal])
+          (fun _ _ => errArm_ok) ?_
+        intro c b st1 lst1 hb' hrel1 hinv1
+        subst hb'
+        refine LS.bind_eq fun out1 hout1 => ?_
+        refine LS.bind_eq fun i3 hi3 => ?_
+        have hi3v : i3.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
+        have h := ih i3 out1 (by omega) hrel1 hinv1
+        simp only [absICILFrom, hi3v, absICIL, ConRon.Refine.vec_push_val hout1] at h
+        refine LS.tail h ?_ (fun _ _ h => h)
+        simp [absICIL, List.append_assoc]
+
+open Lockstep in
+/-- `basis_kind_at_block` ⊑ `BasisKind.atBlock`: each pin at the names its
+record declares. -/
+@[lockstep] theorem basis_kind_at_block_ls {pers st lst} {kind : kernel.env.BasisKind}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absICIL a) (arena.basis.basis_kind_at_block pers st kind block) lst
+      (ConRon.Arena.BasisKind.atBlock (ConRon.Refine.absBasisKind kind) (absICIL block)) := by
+  rw [arena.basis.basis_kind_at_block]
+  unfold BasisKind.atBlock
+  refine LS.bind (basis_kind_decls_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro pins b st1 lst1 hb hrel1 hinv1
+  subst hb
+  have h := basis_kind_at_block_go_aux (pins := pins) (block := block) _ 0#usize
+    (alloc.vec.Vec.new _) rfl hrel1 hinv1
+  refine LS.tail h ?_ (fun _ _ h => h)
+  simp [absICILFrom, absICIL, alloc.vec.Vec.new]
+
+open Lockstep in
+/-- `quot_pin_hit` ⊑ `quotPinHit`: the record is the slot's pin up to its
+level-parameter names, distinct and as many as the pin's. -/
+@[lockstep] theorem quot_pin_hit_ls {pers st lst} {k : kernel.env.QuotKind}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.quot_pin_hit pers st k cv) lst
+      (quotPinHit (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_pin_hit]
+  unfold quotPinHit
+  refine LS.bind (quot_pin_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro pin b st1 lst1 hb hrel1 hinv1
+  subst hb
+  refine LS.bind_eq fun pcv hpcv => ?_
+  have epcv := i_constant_info_to_constant_val_abs hpcv
+  rw [← epcv]
+  refine LS.bind_eq fun b hb => ?_
+  have hbv : nameNodup (cv.level_params.val.map absNIdx) = b := name_nodup_spec _ b hb
+  have hcv : (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
+  have hpc : (absIConstantVal pcv).levelParams = pcv.level_params.val.map absNIdx := rfl
+  simp only [hcv, hpc]
+  cases b with
+  | false =>
+    rw [ite_eq_right (by simp), ite_eq_right (by simp [hbv])]
+    exact LS.pure rfl hrel1 hinv1
+  | true =>
+    rw [ite_eq_left rfl]
+    by_cases hl : alloc.vec.Vec.len cv.level_params = alloc.vec.Vec.len pcv.level_params
+    · rw [ite_eq_left hl]
+      have hl' : cv.level_params.val.length = pcv.level_params.val.length := by
+        have := congrArg Std.UScalar.val hl; simpa [alloc.vec.Vec.len] using this
+      rw [ite_eq_left (by simp [hbv, hl'])]
+      refine LS.bind (constant_val_at_lps_ls hrel1 hinv1) rfl (fun _ _ => errArm_ok) ?_
+      intro pcv2 b2 st2 lst2 hb2 hrel2 hinv2
+      subst hb2
+      refine LS.bind_eq fun b3 hb3 => ?_
+      refine LS.pure ?_ hrel2 hinv2
+      rw [i_constant_val_beq_refines hb3]
+      simp [beq_eq_decide]
+    · rw [ite_eq_right hl]
+      have hl' : ¬ cv.level_params.val.length = pcv.level_params.val.length := by
+        intro h; exact hl (Std.UScalar.eq_of_val_eq (by simpa [alloc.vec.Vec.len] using h))
+      rw [ite_eq_right (by simp [hbv, hl'])]
+      exact LS.pure rfl hrel1 hinv1
+
+open Lockstep in
+/-- `quot_at` ⊑ `quotAt`: the slot's pin at the names the record declares. -/
+@[lockstep] theorem quot_at_ls {pers st lst} {k : kernel.env.QuotKind}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.quot_at pers st k cv) lst
+      (quotAt (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_at]
+  unfold quotAt
+  refine LS.bind (quot_pin_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro pin b st1 lst1 hb hrel1 hinv1
+  subst hb
+  exact constant_info_at_lps_ls hrel1 hinv1
 
 end ConRon.Refine2
