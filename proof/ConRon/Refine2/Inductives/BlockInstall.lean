@@ -389,6 +389,19 @@ accumulator. -/
         pure (absTeleL out ++ r)) :=
   check_block_teles_aux _ rfl hrel hinv hfe
 
+/-- `check_block_teles` from an empty accumulator IS `checkBlockTeles` from
+the cursor on (the install calls it at `1`, the twin on `rest`). -/
+@[lockstep] theorem check_block_teles_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers rf lf) (n_p : Std.U64)
+    (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) (i : Std.Usize) :
+    LS pers (fun a b => b = absTeleL a)
+      (arena.inductives.block_install.check_block_teles pers st mode rf n_p ms i
+        (alloc.vec.Vec.new _)) lst
+      (checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p) (absMemberShapeLFrom ms i)) := by
+  have h := check_block_teles_ls hrel hinv mode hfe n_p ms i (alloc.vec.Vec.new _)
+  simpa [absTeleL, alloc.vec.Vec.new] using h
+
 theorem bi_u64_sub_one (x : Std.U64) : LSP (x - 1#u64) (fun z => z.val = x.val - 1) := by
   intro z h
   exact (ConRon.Refine.Nat.usub_val h).2
@@ -485,7 +498,52 @@ in block order, each with its capability record.  Pure on both sides. -/
     LSP (arena.inductives.block_install.cons_block_inds p1 is_rec cvs i rf)
       (fun o => IFEnvRelI pers o
         (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cvs i) i.val lf)) := by
-  sorry -- T143-STUB
+  intro o h
+  refine cursor_induction (fun i : Std.Usize => i.val) cvs.val.length
+    (fun i (_ : Unit) => ∀ (rf : arena.env.IFEnv) (lf : IFEnv) o, IFEnvRelI pers rf lf →
+      arena.inductives.block_install.cons_block_inds p1 is_rec cvs i rf = ok o →
+      IFEnvRelI pers o (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cvs i) i.val lf))
+    ?_ ?_ i () rf lf o hfe h
+  · intro i _ hn rf lf o hfe h
+    rw [arena.inductives.block_install.cons_block_inds.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [absICVLFrom, List.drop_eq_nil_of_le hn, List.map_nil, consBlockInds]
+    exact hfe
+  · intro i _ hlt ih rf lf o hfe h
+    rw [arena.inductives.block_install.cons_block_inds.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cvs by scalar_tac)] at h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨caps, hcaps, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨fe2, hfe2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v : i2.val = i.val := by
+      simp only [lift, Result.ok.injEq] at hi2; subst hi2
+      exact ConRon.Refine.ExprOps.usize_cast_u64_val i
+    have hcapsv := block_caps_at_twin p1 i2 is_rec caps hcaps
+    simp only [TwinEq] at hcapsv
+    have hivx : iv = cvs.val[i.val] := by
+      have h1 := vec_index_some hiv
+      rw [List.getElem?_eq_getElem hlt] at h1
+      exact (Option.some_inj.mp h1).symm
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1, hivx] at hfe2
+    have hfe2' := ifenv_push_refines hfe.rel hfe.inv hfe2
+    have hj : i3.val = i.val + 1 := absSz_add_one hi3
+    have := ih i3 () hj fe2 _ o hfe2' h
+    rw [absICVLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, consBlockInds]
+    rw [hj] at this
+    simpa [absICVLFrom, absIConstantInfo, ← hcapsv, absU, hi2v, hj] using this
+
+/-- `cons_block_inds` from member `0` (the install's call). -/
+@[lockstep] theorem cons_block_inds_ls0 {pers} (p1 : arena.inductives.block_shape.BlockShape)
+    (is_rec : Bool) (cvs : alloc.vec.Vec arena.env.IConstantVal)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
+    LSP (arena.inductives.block_install.cons_block_inds p1 is_rec cvs 0#usize rf)
+      (fun o => IFEnvRelI pers o (consBlockInds (absBlockShape p1) is_rec (absICVL cvs) 0 lf)) := by
+  intro o h
+  simpa [absICVLFrom, absICVL] using cons_block_inds_ls p1 is_rec cvs 0#usize hfe o h
 
 /-- `check_block_inds` ⊑ `checkBlockInds` — stage 1. -/
 @[lockstep] theorem check_block_inds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -494,7 +552,27 @@ in block order, each with its capability record.  Pure on both sides. -/
     LS pers (fun a b => IFEnvRelI pers a.1 b.1 ∧ b.2 = absBlockShape a.2)
       (arena.inductives.block_install.check_block_inds pers st mode rf p is_rec) lst
       (checkBlockInds (ConRon.Refine.absMode mode) lf (absBlockShape p) is_rec) := by
-  sorry -- T143-STUB
+  rw [arena.inductives.block_install.check_block_inds, checkBlockInds, absBlockShape_members]
+  rcases hms : p.members.val with _ | ⟨m0, rest⟩
+  · have h0 : alloc.vec.Vec.len p.members = 0#usize := by
+      have : (alloc.vec.Vec.len p.members).val = 0 := by simp [alloc.vec.Vec.len, hms]
+      scalar_tac
+    simp only [h0, ↓reduceIte, List.map_nil]
+    lockstep
+  · have h0 : ¬ alloc.vec.Vec.len p.members = 0#usize := by
+      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hms] at this
+    have hidx := bi_vec_index_eq p.members 0#usize 0 rfl (by simp [hms])
+    simp only [hms, List.getElem_cons_zero] at hidx
+    -- the Rust's cursor `1` is the twin's `rest` (the side tier reads this)
+    have hrest : absMemberShapeLFrom p.members 1#usize = rest.map absMemberShape := by
+      simp [absMemberShapeLFrom, hms]
+    simp only [h0, ↓reduceIte, hidx, bind_ok, List.map_cons]
+    lockstep
+    refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
+    have hd := ‹TwinEq (List.map (fun x : MemberShape => x.declared) _) (absICVL _)›
+    simp only [TwinEq, hms, List.map_cons] at hd
+    rw [hd]
+    simpa [absICVLFrom, absICVL] using hP
 
 /-! ## Stage 1b: the constructors, and the positivity check -/
 
