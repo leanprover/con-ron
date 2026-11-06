@@ -6,8 +6,8 @@ The twin of `olean/records.rs`.  Upstream's `declOfF em.nm em.lv em.ex r` is
 emitter's: the stream parser's own record builder, over tables of handles.
 
 A theorem's record holds a reference to its value (`valueRef`), which its check reads
-(`readValue`, upstream task #481); `readOleansFull` reads them all, for the eager
-pipeline and the comparison tool.
+(`readValue`, upstream task #481; the check phase is `Arena/OleanJobs.lean`);
+`readOleansFull` reads them all, for the comparison tool.
 -/
 module
 
@@ -158,12 +158,12 @@ reference. -/
 def fillRecord (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (values : Array ModRef)
     (c : ValueCache) : IDeclaration → AM (ValueCache × Except CheckError IDeclaration)
   | .thmDecl cv v => do
-    match ← view v with
-    | .bvar code =>
+    match ← viewBVar v with
+    | some code =>
       match ← readValue fs pk sp values c code with
       | (c, .ok e) => pure (c, .ok (.thmDecl cv e))
       | (c, .error e) => pure (c, .error e)
-    | _ => pure (c, .ok (.thmDecl cv v))
+    | none => pure (c, .ok (.thmDecl cv v))
   | d => pure (c, .ok d)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:173-180 fillRecords
@@ -177,8 +177,8 @@ def fillRecords (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (val
     | (c, .ok d) => fillRecords fs pk sp values c ds (acc.push d)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:182-192 readOleansFull
-**The records with every theorem's value read**, for the tools that compare them and
-for the twin's eager pipeline: the checker itself reads a value in its check. -/
+**The records with every theorem's value read**, for the tools that compare them:
+the checker itself reads a value in its check (`Arena/OleanJobs.lean`). -/
 def readOleansFull (fs : OleanFs) (sp : List System.FilePath) (roots : Array NIdx)
     (constants : Option (Array NIdx)) : AM (Except (CheckError × Nat) (Array IDeclaration)) := do
   match ← readOleans fs sp roots constants with

@@ -2,7 +2,7 @@ module
 
 public import ConRon.Arena.Frontend.Prelude
 public import ConRon.Arena.Frontend.Olean.Records
-public import ConRon.Arena.Checker
+public import ConRon.Arena.OleanJobs
 public import ConLeche.Kernel.NatOpPins
 public import ConLeche.Frontend.Pace
 
@@ -344,13 +344,13 @@ opaque stdFs : Frontend.Olean.OleanFs
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
 **The seam on the `.olean` path**: the head of the pipeline, the reader in place of
-the chunks' fold, the tail.  The roots and constants are interned first.
-Deviation: the twin reads every theorem's value up front (`readOleansFull`,
-upstream's own eager read), where the binary reads each in its job
-(`driver::olean_job`, con-leche's `oleanJobRun`); upstream's `buildIndex_fill`
-says the index is the same at any values.  Nor does the twin print the read's
-`read:` lines: its reader is pure, and the file seam's two note fields are no-ops
-here (a `Unit`-valued call a pure reader discards is erased by the compiler). -/
+the chunks' fold, then the tail as the binary runs it on this path: the preparation
+with what a record mentions read off the load (`OleanRead.usedOf`), the pins, and the
+check phase whose theorem jobs read their values (`checkOleans`, the binary's
+`driver::olean_job`).  The roots and constants are interned first.  Deviation: the
+twin does not print the read's `read:` lines: its reader is pure, and the file
+seam's two note fields are no-ops here (a `Unit`-valued call a pure reader discards
+is erased by the compiler). -/
 def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
     (mode : CheckMode) (pins : List NatOpPinSet) : AM (Except CheckError Nat) := do
   match ← runPipelineHead with
@@ -360,9 +360,15 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
     let cs ← match constants with
       | none => pure none
       | some cs => pure (some (← cs.mapM internName))
-    match ← Frontend.Olean.readOleansFull stdFs sp rs cs with
+    match ← Frontend.Olean.readOleans stdFs sp rs cs with
     | .error (e, n) => pure (.error (Frontend.atLine e n))
-    | .ok ds => runPipelineTail mode pins pre ⟨ds⟩
+    | .ok rd =>
+      let records := rd.decls.size
+      let ds := (← Frontend.prepareD pre rd.decls rd.usedOf).decls
+      let ipins ← internAllPins pins
+      match ← checkOleans stdFs rd.pins sp rd.values mode ipins ds with
+      | .error (e, n) => pure (.error (atDecl e n))
+      | .ok _ => pure (.ok records)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
 The driver on the `.olean` path. -/
