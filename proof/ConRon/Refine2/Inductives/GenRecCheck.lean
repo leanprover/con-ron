@@ -1740,33 +1740,6 @@ theorem class_fe_r_push_ls {pers : arena.store.PersTier} (p : arena.inductives.b
               (rec_cls.val.map absU) lf).1)) :=
   class_fe_r_push_spec p cv_gs rec_cls hfe grPop (fun _ _ => rfl)
 
-/-- `shape_formers` ⊑ `BlockShape.formers`: the members' type formers. -/
-@[lockstep] theorem shape_formers_twin (p : arena.inductives.block_shape.BlockShape) :
-    LSP (arena.inductives.block_shape.shape_formers p.members 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq (absBlockShape p).formers (o.val.map absIConstantVal)) := by
-  intro o h
-  have key := vec_cursor_copy p.members absIConstantVal (fun m => absIConstantVal m.cv_t)
-    (fun i out => arena.inductives.block_shape.shape_formers p.members i out) ?_ ?_ 0#usize _ o h
-  · rw [TwinEq, key]
-    simp [alloc.vec.Vec.new, BlockShape.formers, absBlockShape, absMemberShape]
-  · intro i out o hn h
-    rw [arena.inductives.block_shape.shape_formers.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len p.members by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    rw [arena.inductives.block_shape.shape_formers.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len p.members by
-        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    refine ⟨i2, iv, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
-    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv]
-
 /-- `const_val_names` ⊑ the twin's `cvGs.map (·.name)`: the pushed recursors' names. -/
 @[lockstep] theorem const_val_names_twin (cvs : alloc.vec.Vec arena.env.IConstantVal) :
     LSP (arena.inductives.gen_rec.const_val_names cvs 0#usize (alloc.vec.Vec.new _))

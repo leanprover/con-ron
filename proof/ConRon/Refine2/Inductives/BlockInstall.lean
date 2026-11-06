@@ -583,7 +583,8 @@ in block order, each with its capability record.  Pure on both sides. -/
     LS pers (fun a b => b = absNestCtx a)
       (arena.inductives.block_install.shape_nest_ctx pers st p fvs_p) lst
       ((absBlockShape p).nestCtx (absEIdxL fvs_p)) := by
-  sorry -- T143-STUB
+  rw [arena.inductives.block_install.shape_nest_ctx, BlockShape.nestCtx]
+  lockstep
 
 /-- `check_block_ctors` ⊑ `checkBlockCtors` from the member cursor on. -/
 @[lockstep] theorem check_block_ctors_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -594,7 +595,29 @@ in block order, each with its capability record.  Pure on both sides. -/
       (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p i) lst
       (checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
         (absMemberShapeLFrom p.members i)) := by
-  sorry -- T143-STUB
+  refine cursor_induction (fun i : Std.Usize => i.val) p.members.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p i) lst
+        (checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
+          (absMemberShapeLFrom p.members i))) ?_ ?_ i () st lst hrel hinv
+  · intro i _ hn st lst hrel hinv
+    rw [arena.inductives.block_install.check_block_ctors, ite_eq_left (by scalar_tac),
+      absMemberShapeLFrom, List.drop_eq_nil_of_le hn, List.map_nil, checkBlockCtors]
+    lockstep
+  · intro i _ hlt ih st lst hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst, AStateRel₀ pers st lst →
+        AStateInv pers st → LS pers (fun _ _ => True)
+          (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p j) lst
+          (checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
+            (absMemberShapeLFrom p.members j)) := fun j hj => ih j () hj
+    clear ih
+    rw [arena.inductives.block_install.check_block_ctors, ite_eq_right (by scalar_tac),
+      absMemberShapeLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, checkBlockCtors]
+    lockstep
+    have ha : a.val = i.val + 1 := by scalar_tac
+    exact LS.tail (ih' a ha _ _ ‹_› ‹_›) (by simp only [absMemberShapeLFrom, ha])
+      (fun _ _ h => h)
 
 attribute [local lockstep_inline] arena.checker_base.unwrap_or
 
@@ -735,7 +758,29 @@ def absOutsL (v : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
       (arena.inductives.block_install.check_block_idx_sorts pers st mode rf p i) lst
       (checkBlockIdxSorts (ConRon.Refine.absMode mode) lf (absBlockShape p)
         (absMemberShapeLFrom p.members i)) := by
-  sorry -- T143-STUB
+  refine cursor_induction (fun i : Std.Usize => i.val) p.members.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.block_install.check_block_idx_sorts pers st mode rf p i) lst
+        (checkBlockIdxSorts (ConRon.Refine.absMode mode) lf (absBlockShape p)
+          (absMemberShapeLFrom p.members i))) ?_ ?_ i () st lst hrel hinv
+  · intro i _ hn st lst hrel hinv
+    rw [arena.inductives.block_install.check_block_idx_sorts, ite_eq_left (by scalar_tac),
+      absMemberShapeLFrom, List.drop_eq_nil_of_le hn, List.map_nil, checkBlockIdxSorts]
+    lockstep
+  · intro i _ hlt ih st lst hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst, AStateRel₀ pers st lst →
+        AStateInv pers st → LS pers (fun _ _ => True)
+          (arena.inductives.block_install.check_block_idx_sorts pers st mode rf p j) lst
+          (checkBlockIdxSorts (ConRon.Refine.absMode mode) lf (absBlockShape p)
+            (absMemberShapeLFrom p.members j)) := fun j hj => ih j () hj
+    clear ih
+    rw [arena.inductives.block_install.check_block_idx_sorts, ite_eq_right (by scalar_tac),
+      absMemberShapeLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, checkBlockIdxSorts]
+    lockstep
+    have ha : a.val = i.val + 1 := by scalar_tac
+    exact LS.tail (ih' a ha _ _ ‹_› ‹_›) (by simp only [absMemberShapeLFrom, ha])
+      (fun _ _ h => h)
 
 theorem cons_block_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
     {ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
