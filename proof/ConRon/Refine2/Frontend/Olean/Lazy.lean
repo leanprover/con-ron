@@ -399,13 +399,323 @@ theorem value_roots_val {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     cases (absRegion bs r).loc (absWord w) <;> rfl
   all_goals rfl
 
+/-! ## The frontier walk -/
+
+/-- `kind_of_code` is `kindOfCode`. -/
+theorem kind_of_code_eq {c : Std.U64} {k : Std.U8} (h : kind_of_code c = ok k) :
+    absByte k = ConLeche.Frontend.Olean.kindOfCode c.val := by
+  rw [kind_of_code] at h
+  rw [ConLeche.Frontend.Olean.kindOfCode]
+  by_cases h0 : c = 0#u64
+  · rw [ite_eq_left h0] at h; cases Result.ok_injective h
+    rw [ite_eq_left (by rw [h0]; rfl)]; exact absByte_k_name
+  · rw [ite_eq_right h0] at h
+    have h0' : c.val ≠ 0 := fun he => h0 (UScalar.eq_of_val_eq (by rw [he]; rfl))
+    rw [ite_eq_right h0']
+    by_cases h1 : c = 1#u64
+    · rw [ite_eq_left h1] at h; cases Result.ok_injective h
+      rw [ite_eq_left (by rw [h1]; rfl)]; exact absByte_k_level
+    · rw [ite_eq_right h1] at h
+      have h1' : c.val ≠ 1 := fun he => h1 (UScalar.eq_of_val_eq (by rw [he]; rfl))
+      rw [ite_eq_right h1']
+      by_cases h2 : c = 2#u64
+      · rw [ite_eq_left h2] at h; cases Result.ok_injective h
+        rw [ite_eq_left (by rw [h2]; rfl)]; exact absByte_k_levels
+      · rw [ite_eq_right h2] at h
+        have h2' : c.val ≠ 2 := fun he => h2 (UScalar.eq_of_val_eq (by rw [he]; rfl))
+        rw [ite_eq_right h2']
+        cases Result.ok_injective h; exact absByte_k_expr
+
+/-- The twin's push of one kid onto the frontier walk's stack. -/
+def kidPush (R : ConLeche.Frontend.Olean.Region) (g : Nat) (st : List Nat) (f : Nat × UInt8 × Bool) :
+    List Nat :=
+  if f.2.2 && R.fld g f.1 == 1 then st
+  else match R.down g (R.fld g f.1) with
+    | some c => (c + ConLeche.Frontend.Olean.kindCode f.2.1) :: st
+    | none => st
+
+/-- Entries of a walk's stack lie inside the bytes. -/
+def InBytes (bs : Slice Std.U8) (l : List Nat) : Prop := ∀ x ∈ l, x ≤ bs.val.length
+
+/-- One kid onto the stack. -/
+theorem kid_push_rel {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {g : Std.U64} {stack : alloc.vec.Vec Std.U64} {sp : Std.Usize} {l : List Nat}
+    (hs : StackRel (·.val) stack sp l) (hb : InBytes bs l) {v : Std.U64} {k : Std.U8}
+    {o : Option Std.U64} (ho : frontend.olean.region.region_down r g v = ok o) {q}
+    (h : (match o with
+      | none => ok (stack, sp)
+      | some c => do
+        let i3 ← kind_code k
+        let i4 ← c + i3
+        let (sp2, stack2) ← push_at stack sp i4
+        ok (stack2, sp2)) = ok q) :
+    StackRel (·.val) q.1 q.2 (match (absRegion bs r).down g.val (absWord v) with
+      | some c => (c + ConLeche.Frontend.Olean.kindCode (absByte k)) :: l
+      | none => l) ∧
+    InBytes bs (match (absRegion bs r).down g.val (absWord v) with
+      | some c => (c + ConLeche.Frontend.Olean.kindCode (absByte k)) :: l
+      | none => l) := by
+  have e := region_down_eq bs ho
+  cases o with
+  | none =>
+    rw [← e]; cases Result.ok_injective h; exact ⟨hs, hb⟩
+  | some c =>
+    rw [← e]
+    simp only at h
+    have hc := region_down_fits hr ho
+    peel h as i3, hi3
+    peel h as i4, hi4
+    obtain ⟨⟨sp2, st2⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have e3 := kind_code_eq hi3
+    have e4 := ConRon.Refine.HashMap.uscalar_add_eq hi4
+    have hk3 : ConLeche.Frontend.Olean.kindCode (absByte k) ≤ 3 := by
+      unfold ConLeche.Frontend.Olean.kindCode; split <;> try split <;> try split
+      all_goals omega
+    rw [push_at] at hp
+    peel hp as st1, hst1
+    peel hp as i1, hi1
+    cases Result.ok_injective hp
+    have hS := hs.push hst1 hi1
+    simp only [Option.map_some]
+    rw [e4, e3] at hS
+    refine ⟨hS, ?_⟩
+    intro x hx
+    rcases List.mem_cons.mp hx with rfl | hx
+    · omega
+    · exact hb x hx
+
+/-- **The kids' loop of `frontier_walk`** pushes the twin's `kidPush` fold. -/
+theorem frontier_kids_loop {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {g : Std.U64} {fs : alloc.vec.Vec (Std.U64 × Std.U8 × Bool)} :
+    ∀ (n : Nat) (j : Std.Usize) (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (l : List Nat) {q},
+      fs.val.length - j.val = n → StackRel (·.val) stack sp l → InBytes bs l →
+      frontier_walk_loop0_loop0 bs r stack sp g fs j = ok q →
+      StackRel (·.val) q.1 q.2 (((fs.val.drop j.val).map absKid).foldl (kidPush (absRegion bs r) g.val) l) ∧
+      InBytes bs (((fs.val.drop j.val).map absKid).foldl (kidPush (absRegion bs r) g.val) l) := by
+  intro n
+  induction n with
+  | zero =>
+    intro j stack sp l q hn hs hb h
+    rw [frontier_walk_loop0_loop0] at h
+    have hj : ¬ j < alloc.vec.Vec.len fs := by
+      have : ¬ j.val < fs.val.length := by omega
+      exact this
+    rw [ite_eq_right hj] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (by omega)]
+    exact ⟨hs, hb⟩
+  | succ n ih =>
+    intro j stack sp l q hn hs hb h
+    rw [frontier_walk_loop0_loop0] at h
+    have hlt : j.val < fs.val.length := by omega
+    have hj : j < alloc.vec.Vec.len fs := hlt
+    rw [ite_eq_left hj] at h
+    obtain ⟨⟨i1, i2, b⟩, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx' := ConRon.Refine.ExprOps.vec_index_getElem? hx
+    have hx'' : fs.val[j.val]'hlt = (i1, i2, b) := by
+      rw [List.getElem?_eq_getElem hlt] at hx'; exact Option.some.inj hx'
+    have hdrop : fs.val.drop j.val = fs.val[j.val]'hlt :: fs.val.drop (j.val + 1) :=
+      List.drop_eq_getElem_cons hlt
+    rw [hdrop, hx'', List.map_cons, List.foldl_cons]
+    peel h as v, hv
+    have ev := region_fld_eq bs (r := r) hv
+    have step : ∀ {q1 : alloc.vec.Vec Std.U64 × Std.Usize} (l1 : List Nat), StackRel (·.val) q1.1 q1.2 l1 →
+        InBytes bs l1 → kidPush (absRegion bs r) g.val l (absKid (i1, i2, b)) = l1 →
+        (do let j1 ← j + 1#usize
+            frontier_walk_loop0_loop0 bs r q1.1 q1.2 g fs j1) = ok q →
+        StackRel (·.val) q.1 q.2 (((fs.val.drop (j.val + 1)).map absKid).foldl
+          (kidPush (absRegion bs r) g.val) (kidPush (absRegion bs r) g.val l (absKid (i1, i2, b)))) ∧
+        InBytes bs (((fs.val.drop (j.val + 1)).map absKid).foldl
+          (kidPush (absRegion bs r) g.val) (kidPush (absRegion bs r) g.val l (absKid (i1, i2, b)))) := by
+      intro q1 l1 hs1 hb1 he h1
+      peel h1 as j1, hj1
+      have ej := ConRon.Refine.HashMap.uscalar_add_eq hj1
+      rw [he, show j.val + 1 = j1.val by rw [ej]; rfl]
+      exact ih j1 q1.1 q1.2 l1 (by rw [ej]; simp; omega) hs1 hb1 h1
+    have hpush : ∀ {o : Option Std.U64} {q1 : alloc.vec.Vec Std.U64 × Std.Usize},
+        frontend.olean.region.region_down r g v = ok o →
+        (match o with
+          | none => ok (stack, sp)
+          | some c => do
+            let i3 ← kind_code i2
+            let i4 ← c + i3
+            let (sp2, stack2) ← push_at stack sp i4
+            ok (stack2, sp2)) = ok q1 → ¬ (b && (absRegion bs r).fld g.val i1.val == 1) = true →
+        StackRel (·.val) q1.1 q1.2 (kidPush (absRegion bs r) g.val l (absKid (i1, i2, b))) ∧
+        InBytes bs (kidPush (absRegion bs r) g.val l (absKid (i1, i2, b))) := by
+      intro o q1 ho h1 hnb
+      have := kid_push_rel hr hs hb ho h1
+      simp only [kidPush, absKid]
+      rw [ite_eq_right hnb, ← ev]
+      exact this
+    cases b with
+    | true =>
+      simp only [ite_true] at h
+      by_cases h1 : v = 1#u64
+      · rw [ite_eq_left h1] at h
+        refine step (q1 := (stack, sp)) l hs hb ?_ h
+        simp only [kidPush, absKid, ← ev, h1]
+        rfl
+      · rw [ite_eq_right h1] at h
+        peel h as o, ho
+        obtain ⟨q1, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hne : ¬ (true && (absRegion bs r).fld g.val i1.val == 1) = true := by
+          rw [← ev]; simp only [Bool.true_and, beq_iff_eq]
+          intro he; exact h1 (absWord_inj (by rw [he]; rfl))
+        obtain ⟨a1, a2⟩ := hpush ho hq1 hne
+        exact step _ a1 a2 rfl h
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte] at h
+      peel h as o, ho
+      obtain ⟨q1, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨a1, a2⟩ := hpush ho hq1 (by simp)
+      exact step _ a1 a2 rfl h
+
+/-- **`frontier_walk`'s loop is `frontierWalk`**, fuel for fuel. -/
+theorem frontier_walk_loop_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {env : alloc.vec.Vec Std.U8} :
+    ∀ (n : Nat) (fuel : Std.U64) (seen fr : alloc.vec.Vec Std.U8) (stack : alloc.vec.Vec Std.U64)
+      (sp : Std.Usize) (l : List Nat) {o}, fuel.val = n → StackRel (·.val) stack sp l → InBytes bs l →
+      frontier_walk_loop0 bs r env seen fr stack sp fuel = ok o →
+      absM o.2.1 = frontierWalk (absRegion bs r) (absM env) (absM seen) (absM fr) n l := by
+  have hL := bytes_le_max bs
+  intro n
+  induction n with
+  | zero =>
+    intro fuel seen fr stack sp l o hf hs hb h
+    rw [frontier_walk_loop0] at h
+    by_cases hp : sp > 0#usize
+    · rw [ite_eq_left hp] at h
+      have hz : ¬ fuel > 0#u64 := by
+        have : ¬ (0#u64 : Std.U64).val < fuel.val := by rw [hf]; decide
+        exact this
+      rw [ite_eq_right hz] at h
+      cases Result.ok_injective h
+      obtain ⟨y, l', rfl⟩ := hs.exists_cons hp
+      rw [frontierWalk]
+    · rw [ite_eq_right hp] at h
+      cases Result.ok_injective h
+      rw [hs.nil_of_zero hp, frontierWalk]
+  | succ n ih =>
+    intro fuel seen fr stack sp l o hf hs hb h
+    rw [frontier_walk_loop0] at h
+    by_cases hp : sp > 0#usize
+    · rw [ite_eq_left hp] at h
+      have hz : fuel > 0#u64 := by
+        have : (0#u64 : Std.U64).val < fuel.val := by rw [hf]; show 0 < n + 1; omega
+        exact this
+      rw [ite_eq_left hz] at h
+      peel h as fuel1, hfuel1
+      have ef := fuel_pred hfuel1
+      peel h as sp1, hsp1
+      obtain ⟨hi, l', rfl, hs1⟩ := hs.pop hp hsp1
+      peel h as e, he
+      obtain ⟨_hlt, rfl⟩ := vec_index_eq he
+      peel h as i, hi'
+      peel h as g, hg
+      peel h as i1, hi1
+      peel h as k, hk
+      peel h as s, hs'
+      have eg : g.val = stack.val[sp1.val].val / 8 * 8 := by
+        rw [ConRon.Refine.HashMap.uscalar_mul_eq hg, ConRon.Refine.HashMap.uscalar_div_eq hi']; rfl
+      have es : s.val = stack.val[sp1.val].val / 8 * 8 / 8 := by
+        rw [ConRon.Refine.HashMap.uscalar_div_eq hs', eg]; rfl
+      have ek : absByte k = ConLeche.Frontend.Olean.kindOfCode (stack.val[sp1.val].val % 8) := by
+        rw [kind_of_code_eq hk, ConRon.Refine.HashMap2.uscalar_rem_eq hi1]; rfl
+      have hb0 : stack.val[sp1.val].val ≤ bs.val.length := hb _ (List.mem_cons_self ..)
+      have hb1 : InBytes bs l' := fun x hx => hb x (List.mem_cons_of_mem _ hx)
+      have hsm : s.val ≤ Std.Usize.max := by omega
+      rw [frontierWalk]
+      simp only
+      rw [← es, ← ek, ← eg]
+      peel h as bm, hbm
+      have ebm := marked_eq hbm
+      by_cases hm : bm = true
+      · rw [ite_eq_left hm] at h
+        rw [← ebm, ite_eq_left hm]
+        peel h as fr1, hfr1
+        rw [← mark_eq hsm hfr1]
+        exact ih fuel1 seen fr1 stack sp1 l' (by rw [ef, hf]; rfl) hs1 hb1 h
+      · rw [ite_eq_right hm] at h
+        rw [← ebm, ite_eq_right hm]
+        peel h as bs1, hbs1
+        have ebs1 := marked_eq hbs1
+        by_cases hm1 : bs1 = true
+        · rw [ite_eq_left hm1] at h
+          rw [← ebs1, ite_eq_left hm1]
+          exact ih fuel1 seen fr stack sp1 l' (by rw [ef, hf]; rfl) hs1 hb1 h
+        · rw [ite_eq_right hm1] at h
+          rw [← ebs1, ite_eq_right hm1]
+          peel h as seen1, hseen1
+          rw [← mark_eq hsm hseen1]
+          peel h as i2, hi2
+          peel h as i3, hi3
+          peel h as ot, hot
+          have kt := kid_table_ks ot hot
+          rw [← region_tag_eq bs hi2, ← region_nobjs_eq bs hi3, ← kt]
+          cases ot with
+          | none => exact ih fuel1 seen1 fr stack sp1 l' (by rw [ef, hf]; rfl) hs1 hb1 h
+          | some fs =>
+            obtain ⟨⟨st2, sp2⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨hS, hB⟩ := frontier_kids_loop hr _ 0#usize stack sp1 l' rfl hs1 hb1 hq
+            simp only [Option.map_some]
+            exact ih fuel1 seen1 fr st2 sp2 (((fs.val).map absKid).foldl (kidPush (absRegion bs r) g.val) l')
+              (by rw [ef, hf]; rfl) hS hB h
+    · rw [ite_eq_right hp] at h
+      cases Result.ok_injective h
+      rw [hs.nil_of_zero hp, frontierWalk]
+
+/-- A location of the twin's region lies inside the bytes. -/
+theorem abs_loc_fits {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {a : UInt64} {g : Nat} (h : (absRegion bs r).loc a = some g) : g + 8 ≤ bs.val.length := by
+  simp only [ConLeche.Frontend.Olean.Region.loc] at h
+  split at h
+  · cases h
+  · split at h
+    · cases h
+    · rename_i hg
+      rw [← Option.some.inj h]
+      have hne : (absRegion bs r).locGo a (absRegion bs r).segs.size ≠ 0 := by simpa using hg
+      rcases locGo_fits hr a (absRegion bs r).segs.size with h0 | h1
+      · exact absurd h0 hne
+      · exact h1
+
+/-- The value roots lie inside the bytes. -/
+theorem value_roots_fits {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+    {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} {x : Nat}
+    (hx : x ∈ valueRoots (absRegion bs r) skels) : x ≤ bs.val.length := by
+  simp only [valueRoots, List.mem_filterMap] at hx
+  obtain ⟨c, -, hc⟩ := hx
+  split at hc
+  · rename_i v _ _
+    cases hl : (absRegion bs r).loc v with
+    | none => rw [hl] at hc; cases hc
+    | some g =>
+      rw [hl] at hc
+      cases Option.some.inj hc
+      have := abs_loc_fits hr hl
+      have h3 : ConLeche.Frontend.Olean.kindCode ConLeche.Frontend.Olean.kExpr = 3 := by decide
+      simp only [h3]
+      omega
+  · cases hc
+
 /-- **`frontier_walk` is `frontierWalk`**, from the value roots on the stack. -/
 theorem frontier_walk_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
     {env seen fr : alloc.vec.Vec Std.U8} {values : alloc.vec.Vec Std.U64}
+    (hv : ∀ x ∈ values.val, x.val ≤ bs.val.length)
     {o} (h : frontier_walk bs r env seen fr values (alloc.vec.Vec.len values) = ok o) :
     absM o.2.1 = frontierWalk (absRegion bs r) (absM env) (absM seen) (absM fr) closureFuel
       (values.val.map (·.val)).reverse := by
-  sorry -- T143-STUB
+  rw [frontier_walk] at h
+  peel h as fuel, hfuel
+  have hs : StackRel (·.val) values (alloc.vec.Vec.len values) (values.val.map (·.val)).reverse :=
+    ⟨by simp, by simp⟩
+  refine frontier_walk_loop_eq hr _ fuel seen fr values _ _ (closure_fuel_val hfuel) hs ?_ h
+  intro x hx
+  simp only [List.mem_reverse, List.mem_map] at hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  exact hv y hy
 
 /-- `table_add` is upstream's `Table.add`. -/
 theorem table_add_rel {T α : Type} {A : T → α} {tb : frontend.olean.sparse.Table T}
@@ -669,7 +979,8 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
   peel h as i6, hi6
   peel h as fr, hfr
   obtain ⟨⟨seen1, fr1, st1⟩, hq6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have efw := frontier_walk_eq hfit hq6
+  have efw := frontier_walk_eq hfit (fun x hx => value_roots_fits hfit
+    (evals ▸ List.mem_map_of_mem (f := fun y : Std.U64 => y.val) hx)) hq6
   peel h as b0, hb0
   peel h as frontier, hfront
   have efo := frontier_of_rel hd hnmb hb0 hfront
