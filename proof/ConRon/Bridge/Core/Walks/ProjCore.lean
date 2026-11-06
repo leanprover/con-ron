@@ -17,7 +17,7 @@ walk theorem both callers apply.
 
 The walk's callees: `projLitToCtor_spec`, `projAnsAt`,
 `getAppFn_spec`, the head's `view`, `getAppArgs_spec`, `viewLsLen`,
-`IProjEntry.fireOk_specA`, `internE (.bvar 0)`, `projCertAt_specA`.
+`internE (.bvar 0)`, `projCertAt_specA`.
 -/
 module
 
