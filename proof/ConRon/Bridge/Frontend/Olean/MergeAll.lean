@@ -516,7 +516,7 @@ theorem foldlM_take_succ {α β ε : Type} (f : β → α → Except ε β) (l :
 merged, on the same arms.** -/
 theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : NullsRel s.store pk)
     {ls : Array Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded}
-    (hrel : ListRel (fun y c => denoteLoaded s.store y = some c) ls.toList lsC)
+    (hrel : ListRel (LoadedRel s.store) ls.toList lsC)
     {mg : Merged} {s' : AState} (h : mergeAll pk ls s = .ok (mg, s')) :
     s' = s ∧ ∃ mgC, ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC ∧
       MergedRel s.store mg mgC := by
@@ -540,17 +540,13 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
       have hml : m < ls.toList.length := by simpa using hm.2.1
       obtain ⟨hmC, hdl⟩ := listRel_get hrel hml
       simp only [Array.getElem_toList] at hdl
-      unfold denoteLoaded at hdl
-      obtain ⟨nn, -, hdl⟩ := bind_some_left hdl
-      obtain ⟨cs, hcs, hdl⟩ := bind_some_left hdl
-      simp only [pure, Option.some.injEq] at hdl
-      have hcsR := listRel_of_mapM hcs
+      have hcsR := listRel_of_mapM hdl.constants
       dsimp only at hrun
       obtain ⟨c, t₁, hin, hrest⟩ := AM.bind_ok hrun
       simp only [pure_bind] at hrest
       obtain ⟨hv, hs⟩ := AM.pure_ok hrest
       have hJ := forIn'_range_inv (I := fun i (b : Merged) u => s = u ∧ b.ls = ls ∧ ∃ mgD,
-          (cs.take i).foldlM ConLeche.Frontend.Olean.mergeEntry mgC = .ok mgD ∧
+          (lsC[m].constants.toList.take i).foldlM ConLeche.Frontend.Olean.mergeEntry mgC = .ok mgD ∧
             MergedRel s.store b mgD)
         (fun i hi b u r u' hJ hrun2 => by
           obtain ⟨hu, hbl', mgD, hf, hrd⟩ := hJ
@@ -574,13 +570,14 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
         (b₀ := b) (s₀ := s) ⟨rfl, hbl, mgC, rfl, hrelB⟩ hin
       obtain ⟨hu, hcl, mgD, hf, hrd⟩ := hJ
       refine ⟨c, hv, hu.trans hs.symm, hcl, mgD, ?_, hrd⟩
-      have hlen : cs.length = ls[m].constants.size := by
+      have hlen : lsC[m].constants.toList.length = ls[m].constants.size := by
         have := hcsR.length_eq
         simpa using this.symm
       rw [← hlen, List.take_length] at hf
       rw [foldlM_take_succ _ _ _ hmC, hfold]
       show stepC mgC lsC[m] = _
-      simp only [stepC, ← hdl, List.foldlM_toArray]
+      simp only [stepC]
+      rw [← Array.foldlM_toList]
       exact hf)
     (b₀ := { ls := ls }) (s₀ := s) ⟨rfl, rfl, {}, rfl, hinit⟩ hloop
   obtain ⟨hs, hbl, mgC, hf, hrd⟩ := hI
