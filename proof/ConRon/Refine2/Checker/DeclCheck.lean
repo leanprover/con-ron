@@ -812,7 +812,49 @@ theorem check_reduce_pin_refines {pers st lst} {rf lf}
     SimEnv pers lst o
       (checkReducePin (ConRon.Refine.absMode mode) lf (absIConstantInfo ci) (absNIdx c)
         (absEIdx value)) := by
-  sorry -- T143-STUB
+  rw [arena.decl_check.check_reduce_pin] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdup := i_constant_info_dup_abs hii
+  obtain ⟨⟨prev, fe1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hfe1 := (ifenv_push_temp_refines hfeI h1).1
+  rw [hdup] at hfe1
+  obtain ⟨⟨stored, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := reduce_stored_ok_refines hrel hinv hfe1.rel hfe1.inv h2
+  obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2
+  simp only [SimEnv, checkReducePin]
+  cases stored with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok b =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS.apply
+    rw [Lockstep.run_bind_ok hx1]
+    cases b with
+    | false =>
+      simp only [id, Bool.false_eq_true, ↓reduceIte] at hrun ⊢
+      obtain ⟨s1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r0, hr0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := fail_run hr0
+      obtain rfl := (Result.ok_injective hrun).symm
+      exact AErrSim.notImplemented rfl
+    | true =>
+      simp only [id, ↓reduceIte] at hrun ⊢
+      obtain ⟨⟨r, st2⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := (Result.ok_injective hrun).symm
+      have hP := check_reduce_pin_pre_refines hrel1 hinv1 hfe2.rel hfe2.inv h4
+      rw [← checkReducePinPre_unfold] at hP
+      cases r with
+      | Err e =>
+        show AErrSim e _
+        rw [StateT.run_bind]; exact AErrSim.bind hP _
+      | Ok u =>
+        obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hP.apply
+        exact ⟨_, lst2, by rw [StateT.run_bind, hx2]; rfl, hfe2, hrel2, hinv2⟩
 
 /-! ## The three value kinds
 
@@ -3134,7 +3176,10 @@ theorem check_div_mod_pin_at_fe2_refines {pers st lst} {rf2 lf2}
     (hfe : IFEnvRel pers rf2 lf2) (hfinv : IFEnvInv rf2)
     (hrun : arena.decl_check.check_div_mod_pin_at_fe2 pers st rf2 c = ok o) :
     Sim₀ absEIdx pers lst o (checkDivModPinAtFe2 lf2 (absNIdx c)) := by
-  sorry -- T143-STUB
+  have hfeI : IFEnvRelI pers rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.check_div_mod_pin_at_fe2, checkDivModPinAtFe2_split]
+  lockstep
 
 /-- **`check_div_mod_pin` ⊑ `checkDivModPin`**: the reads at the environment with
 the definition pushed, then the variant loop at the environment without it.
@@ -3150,7 +3195,40 @@ theorem check_div_mod_pin_refines {pers st lst} {rf lf}
     SimEnv pers lst o
       (checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIConstantInfo ci) (absNIdx c)) := by
-  sorry -- T143-STUB
+  rw [arena.decl_check.check_div_mod_pin] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdup := i_constant_info_dup_abs hii
+  obtain ⟨⟨prev, fe1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hfe1 := (ifenv_push_temp_refines hfeI h1).1
+  rw [hdup] at hfe1
+  obtain ⟨⟨at2, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := check_div_mod_pin_at_fe2_refines hrel hinv hfe1.rel hfe1.inv h2
+  obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2
+  simp only [SimEnv, checkDivModPin]
+  cases at2 with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok value2 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS.apply
+    rw [Lockstep.run_bind_ok hx1]
+    obtain ⟨⟨r, st2⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    have hP := check_div_mod_pin_loop_refines (ltried := []) hrel1 hinv1 hfe2.rel hfe2.inv h4
+    have hz : absINatOpPinSetLFrom pins 0#usize = absINatOpPinSetL pins := by
+      simp [absINatOpPinSetLFrom, absINatOpPinSetL]
+    rw [hz] at hP
+    cases r with
+    | Err e =>
+      show AErrSim e _
+      rw [StateT.run_bind]; exact AErrSim.bind hP _
+    | Ok u =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hP.apply
+      exact ⟨_, lst2, by rw [StateT.run_bind, hx2]; rfl, hfe2, hrel2, hinv2⟩
 
 /-! ## The basis installs -/
 

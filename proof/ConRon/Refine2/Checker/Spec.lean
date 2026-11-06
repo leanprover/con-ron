@@ -409,6 +409,12 @@ def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   else fail (.notImplemented
     "unsupported compiler-trust opaque declaration")
 
+/-- `checkReducePinPre` is its three transcriptions. -/
+theorem checkReducePinPre_unfold (mode : CheckMode) (fe : IFEnv) (c : NIdx) (value : EIdx) :
+    checkReducePinPre mode fe c value = checkReducePinPreSpec mode fe c value := by
+  twin_reduce [checkReducePinPre, checkReducePinPreSpec, checkReducePinValueSpec,
+    checkReduceIdentitySpec]
+
 /-! ### The three value kinds' tails -/
 
 /-- `checkThmVal`'s tail past the is-a-proposition test. -/
@@ -757,6 +763,23 @@ def defnValueOf (fe : IFEnv) (c : NIdx) : Option EIdx :=
   match fe.find? c with
   | some (.defnInfo _ v _) => some v
   | _ => none
+
+/-- `checkDivModPinAtFe2` at the stored value as the Rust reads it (`defn_value`). -/
+theorem checkDivModPinAtFe2_split (fe2 : IFEnv) (c : NIdx) :
+    checkDivModPinAtFe2 fe2 c = (do
+      if ← divModEnvGuard fe2 c then
+        match defnValueOf fe2 c with
+        | some v => pure v
+        | none => fail (.internal "Nat.div/mod operation not stored")
+      else fail (.notImplemented "unsupported Nat.div/mod environment")) := by
+  unfold checkDivModPinAtFe2 defnValueOf
+  refine ConRon.Refine2.am_bind_congr _ fun g => ?_
+  cases g
+  · rfl
+  · simp only [ite_true]
+    rcases fe2.find? c with _ | ci
+    · rfl
+    · cases ci <;> rfl
 
 theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
