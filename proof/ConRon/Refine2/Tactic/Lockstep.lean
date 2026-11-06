@@ -825,16 +825,14 @@ theorem LS.tailRM {α β M : Type} {pers : arena.store.PersTier} {R₁ R : α ×
 
 /-! ## A walk whose state is the persistent TIER (task #98-FREEZE)
 
-Promotion runs inside a declaration bracket, where the store is frozen: it
-reads the frozen state `st` and writes the persistent tier through `&mut
-PersTier`, so its Rust shape is `(Result α, PersTier)` with `st` a plain
-argument.  That is `LS`'s shape once the tier is read back as a STATE: `G t`
-(for promotion, `Refine2/Promote/Prims.lean`'s `glue t st` — the frozen
-state with the tier put back as its own tables).  `packT G` does that, and
-moves the tier into the ANSWER too, beside the Rust result — `packRM`'s shape
-with the state a function of the tier — so that an answer relation can carry
-a fact about the tier a callee handed back (promotion's: it is still the
-frozen tier).  `LST` is `LS` of the packed walk.  `packTMove` pushes `packT`
+A walk that reads a frozen state `st` and writes the persistent tier through
+`&mut PersTier` has the Rust shape `(Result α, PersTier)` with `st` a plain
+argument.  That is `LS`'s shape once the tier is read back as a STATE, `G t`.
+`packT G` does that, and moves the tier into the ANSWER too, beside the Rust
+result — `packRM`'s shape with the state a function of the tier — so that an
+answer relation can carry a fact about the tier a callee handed back.  (No
+walk of the current crate has this shape: its one user, promotion, went with
+task #143; the judgement stays as an extension point.)  `LST` is `LS` of the packed walk.  `packTMove` pushes `packT`
 through the Rust program as `packMove` pushes `packRM`; `LS.bindT` steps a
 tier walk as a callee and `LS.tailT` in tail position. -/
 
