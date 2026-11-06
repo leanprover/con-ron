@@ -476,6 +476,10 @@ theorem constsGo_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hp : PinsR
         · simp only [c2, ↓reduceIte] at h
           exact hnil ho h
         · simp only [c2, Bool.false_eq_true, ↓reduceIte] at h
+          by_cases c3 : ETag.proj < e.tag
+          · simp only [c3, ↓reduceIte] at h
+            exact hnil ho h
+          simp only [c3, ↓reduceIte] at h
           obtain ⟨v, s₁, h1, h2⟩ := AM.bind_ok h
           obtain ⟨hs1, hv⟩ := view_run h1
           rw [hs1] at h2
