@@ -492,4 +492,240 @@ theorem sm_build_ts {pk bs r pers st lst} {k : Std.U8} {g : Std.U64} {d t} (hr :
         build_arm (expr_node_refines (pk := pk) (g := g) hr hs),
           ⟨hd.names, hd.levels, hd.lists, hd.exprs.insert hq⟩
 
+/-! ## The recursion -/
+
+theorem TS.none {δ τ : Type} {Rel : δ → τ → Prop} {pers st lst} {d : δ} :
+    TS Rel pers st lst (ok (.Err .Bad, st.store, d)) (pure Option.none) := by
+  intro hrel hinv o s' d' hm
+  cases Result.ok_injective hm
+  exact ⟨lst, rfl, hrel, hinv⟩
+
+set_option hygiene false in
+/-- The arm of a followed field of `kids_go`.  A script: the Rust's `match`es are its own
+matchers.  It reads `IH`, `hd`, `next`, and the region's names. -/
+macro "kid_tail" : tactic =>
+  `(tactic| (
+    refine TS.pure_step fun o ho => ?_
+    have hloc := region_down_eq bs ho
+    cases o with
+    | none =>
+      have hn : (absRegion bs r).down g.val (absWord v) = Option.none := hloc.symm
+      refine TS.of_eq TS.none ?_
+      split
+      · rename_i heq
+        rw [hn] at heq
+        cases heq
+      · rfl
+    | some c =>
+      have hn : (absRegion bs r).down g.val (absWord v) = Option.some c.val := hloc.symm
+      have hlt1 : c.val < g.val := ConLeche.Frontend.Olean.Region.down_lt hn
+      refine TS.of_eq (TS.bind (IH c.val (by omega) (k := kk) (g := c) (st := st) (lst := lst) rfl hd)
+        (g := fun t1 => kidsGo (absPins pk) (absRegion bs r) g.val ((fs.val.drop (i.val + 1)).map absKid) t1)
+        fun s1 d1 t1 lst1 h1 => ?_) ?_
+      rotate_left
+      · split
+        · rename_i heq
+          rw [hn] at heq
+          cases Option.some.inj heq
+          refine congrArg (_ >>= ·) (funext fun w => ?_)
+          cases w <;> rfl
+        · rename_i heq
+          rw [hn] at heq
+          cases heq
+      · refine TS.pure_step fun i4 hi4 => ?_
+        exact next hi4 h1))
+
+/-- **`s_go` is `sGo`**, by strong induction on the location. -/
+theorem s_go_ts {pk bs r pers} (hr : RegionFits bs r) :
+    ∀ (G : Nat) {k : Std.U8} {g : Std.U64} {d t st lst}, g.val = G → SMRel d t →
+      TS SMRel pers st lst (s_go pk pers st.store bs r k g d)
+        (sGo (absPins pk) (absRegion bs r) (absByte k) g.val t) := by
+  intro G
+  induction G using Nat.strongRecOn with
+  | ind G IH =>
+    intro k g d t st lst hG hd
+    have kids : ∀ (f : Nat) {fs : alloc.vec.Vec (Std.U64 × Std.U8 × Bool)} {i : Std.Usize} {d t st lst},
+        fs.val.length - i.val ≤ f → SMRel d t →
+        TS SMRel pers st lst (kids_go pk pers st.store bs r g fs i d)
+          (kidsGo (absPins pk) (absRegion bs r) g.val ((fs.val.drop i.val).map absKid) t) := by
+      intro f
+      induction f with
+      | zero =>
+        intro fs i d t st lst hk hd
+        rw [kids_go, ite_eq_left (by scalar_tac), List.drop_eq_nil_of_le (by omega), List.map_nil, kidsGo]
+        exact TS.leaf hd
+      | succ f ih =>
+        intro fs i d t st lst hk hd
+        rw [kids_go]
+        by_cases hi : i >= alloc.vec.Vec.len fs
+        · rw [ite_eq_left hi, List.drop_eq_nil_of_le (by scalar_tac), List.map_nil, kidsGo]
+          exact TS.leaf hd
+        · rw [ite_eq_right hi]
+          have hlt : i.val < fs.val.length := by scalar_tac
+          refine TS.pure_step fun q hq => ?_
+          obtain ⟨a, kk, bb⟩ := q
+          obtain ⟨_, he⟩ := List.getElem?_eq_some_iff.mp (ConRon.Refine.ExprOps.vec_index_getElem? hq)
+          rw [List.drop_eq_getElem_cons hlt, he, List.map_cons]
+          show TS _ _ _ _ _ (kidsGo _ _ _ ((a.val, absByte kk, bb) :: _) t)
+          rw [kidsGo]
+          refine TS.pure_step fun v hv => ?_
+          rw [← region_fld_eq bs hv]
+          have next : ∀ {i4 s1 d1 t1 lst1}, i + 1#usize = ok i4 → SMRel d1 t1 →
+              TS SMRel pers (withStore st s1) lst1 (kids_go pk pers s1 bs r g fs i4 d1)
+                (kidsGo (absPins pk) (absRegion bs r) g.val ((fs.val.drop (i.val + 1)).map absKid) t1) := by
+            intro i4 s1 d1 t1 lst1 hi4 h1
+            have hiv : i4.val = i.val + 1 := uscalar_add_eq hi4
+            rw [← hiv]
+            exact ih (st := withStore st s1) (by omega) h1
+          cases bb with
+          | false =>
+            simp only [↓reduceIte, Bool.false_and, Bool.false_eq_true]
+            kid_tail
+          | true =>
+            simp only [↓reduceIte, Bool.true_and]
+            by_cases hv1 : v = 1#u64
+            · rw [ite_eq_left hv1, ite_eq_left (word_eq_one.mpr hv1)]
+              refine TS.pure_step fun i4 hi4 => ?_
+              exact next (s1 := st.store) hi4 hd
+            · rw [ite_eq_right hv1, ite_eq_right (fun he => hv1 (word_eq_one.mp he))]
+              kid_tail
+    rw [s_go, sGo]
+    refine TS.pure_step fun b hb => ?_
+    rw [← sm_has_eq hd hb]
+    cases b with
+    | true => exact TS.leaf hd
+    | false =>
+      simp only [↓reduceIte, Bool.false_eq_true]
+      refine TS.pure_step fun b1 hb1 => ?_
+      rw [← region_fits_eq bs hb1]
+      cases b1 with
+      | false => exact TS.none
+      | true =>
+        simp only [↓reduceIte]
+        refine TS.pure_step fun i hi => TS.pure_step fun i1 hi1 => TS.pure_step fun o1 ho1 => ?_
+        rw [← region_tag_eq bs hi, ← region_nobjs_eq bs hi1, ← kid_table_ks o1 ho1]
+        cases o1 with
+        | none => exact TS.none
+        | some fs =>
+          have k0 := kids _ (fs := fs) (i := 0#usize) (st := st) (lst := lst) (Nat.le_refl _) hd
+          rw [show (0#usize : Std.Usize).val = 0 by decide, List.drop_zero] at k0
+          dsimp only [Option.map_some]
+          refine TS.of_eq (TS.bind k0
+            (g := fun t1 => ConRon.Arena.Frontend.Olean.SM.build (absPins pk) (absRegion bs r) (absByte k) g.val t1)
+            fun s1 d1 t1 lst1 h1 => sm_build_ts hr h1) ?_
+          refine congrArg (_ >>= ·) (funext fun w => ?_)
+          cases w <;> rfl
+
+/-- **`sparse_name_p` is `sparseNameP`.** -/
+theorem sparse_name_p_refines {pk bs r pers st lst} {v : Std.U64} (hr : RegionFits bs r) :
+    RS pers (EqA absNIdx) st lst (sparse_name_p pk pers st.store bs r v)
+      (sparseNameP (absPins pk) (absRegion bs r) (absWord v)) := by
+  rw [sparse_name_p, sparseNameP]
+  by_cases hv : v = 1#u64
+  · rw [ite_eq_left hv, ite_eq_left (word_eq_one.mpr hv)]
+    refine RS.pure_step fun n hn => ?_
+    rw [nidx_dup2_ok hn]
+    exact RS.some rfl
+  · rw [ite_eq_right hv, ite_eq_right (fun he => hv (word_eq_one.mp he))]
+    refine RS.pure_step fun o ho => ?_
+    rw [← region_loc_eq bs ho]
+    cases o with
+    | none => exact RS.none
+    | some c =>
+      dsimp only [locOf, Option.map_some]
+      refine RS.pure_step fun d0 hd0 => ?_
+      rw [← absByte_k_name]
+      intro hrel hinv o s' hm
+      obtain ⟨⟨r1, ar1, d1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+      have hF := s_go_ts (pk := pk) (pers := pers) hr c.val (k := K_NAME) (g := c) (st := st) (lst := lst)
+        rfl (sm_empty_rel hd0) hrel hinv r1 ar1 d1 h1
+      cases r1 with
+      | Ok u =>
+        obtain ⟨t1, lst1, hx, hR, h3, h4⟩ := hF
+        rw [am_bind_ok hx]
+        peel h2 as o1, ho1
+        have e := (sm_subrel hR).nm c o1 ho1
+        have e' : t1.names[c.val]? = o1.map absNIdx := e.symm
+        dsimp only
+        rw [e']
+        cases o1 with
+        | none =>
+          cases Result.ok_injective h2
+          exact ⟨lst1, rfl, h3, h4⟩
+        | some h =>
+          cases Result.ok_injective h2
+          exact ⟨_, lst1, rfl, rfl, h3, h4⟩
+      | Err e =>
+        cases Result.ok_injective h2
+        cases e with
+        | Bad =>
+          obtain ⟨lst1, hx, h3, h4⟩ := hF
+          rw [am_bind_ok hx]
+          exact ⟨lst1, rfl, h3, h4⟩
+        | Err e =>
+          show AErrSim e _
+          rw [StateT.run_bind]
+          exact AErrSim.bind hF _
+
+/-- **`sparse_expr_p` is `sparseExprP`.** -/
+theorem sparse_expr_p_refines {pk bs r pers st lst} {v : Std.U64} (hr : RegionFits bs r) :
+    RS pers (EqA absEIdx) st lst (sparse_expr_p pk pers st.store bs r v)
+      (sparseExprP (absPins pk) (absRegion bs r) (absWord v)) := by
+  rw [sparse_expr_p, sparseExprP]
+  refine RS.pure_step fun o ho => ?_
+  rw [← region_loc_eq bs ho]
+  cases o with
+  | none => exact RS.none
+  | some c =>
+    dsimp only [locOf, Option.map_some]
+    refine RS.pure_step fun d0 hd0 => ?_
+    rw [← absByte_k_expr]
+    intro hrel hinv o s' hm
+    obtain ⟨⟨r1, ar1, d1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    have hF := s_go_ts (pk := pk) (pers := pers) hr c.val (k := K_EXPR) (g := c) (st := st) (lst := lst)
+      rfl (sm_empty_rel hd0) hrel hinv r1 ar1 d1 h1
+    cases r1 with
+    | Ok u =>
+      obtain ⟨t1, lst1, hx, hR, h3, h4⟩ := hF
+      rw [am_bind_ok hx]
+      peel h2 as o1, ho1
+      have e := (sm_subrel hR).ex c o1 ho1
+      have e' : t1.exprs[c.val]? = o1.map absEIdx := e.symm
+      dsimp only
+      rw [e']
+      cases o1 with
+      | none =>
+        cases Result.ok_injective h2
+        exact ⟨lst1, rfl, h3, h4⟩
+      | some h =>
+        cases Result.ok_injective h2
+        exact ⟨_, lst1, rfl, rfl, h3, h4⟩
+    | Err e =>
+      cases Result.ok_injective h2
+      cases e with
+      | Bad =>
+        obtain ⟨lst1, hx, h3, h4⟩ := hF
+        rw [am_bind_ok hx]
+        exact ⟨lst1, rfl, h3, h4⟩
+      | Err e =>
+        show AErrSim e _
+        rw [StateT.run_bind]
+        exact AErrSim.bind hF _
+
+/-- **`SparseRead` is the twin's two reads.** -/
+theorem sparse_read_rel {pk bs r pers} (hr : RegionFits bs r) :
+    PtrRel frontend.olean.sparse.SparseRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead ()
+      ⟨sparseNameP (absPins pk) (absRegion bs r), sparseExprP (absPins pk) (absRegion bs r)⟩
+      pk bs r pers where
+  nm _ _ _ := sparse_name_p_refines hr
+  ex _ _ _ := sparse_expr_p_refines hr
+
+/-- **`sparse_entry` is `sparseEntry`.** -/
+theorem sparse_entry_refines {pk bs r pers st lst} {c : frontend.olean.spec.CEntryF Std.U64 Std.U64}
+    {c' : CEntryF UInt64 UInt64} (hr : RegionFits bs r) (hc : EntryRel absWord absWord ValRel c c') :
+    RS pers (EntryRel absNIdx absEIdx ValRel) st lst (sparse_entry pk pers st.store bs r c)
+      (sparseEntry (absPins pk) (absRegion bs r) c') := by
+  rw [sparse_entry, sparseEntry]
+  exact c_entry_map_refines (sparse_read_rel hr) hc st lst
+
 end ConRon.Refine2.Frontend.Olean
