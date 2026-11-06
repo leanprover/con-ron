@@ -33,8 +33,10 @@ steps, one knot induction**:
   the `defeq` body's cheap tests (`Walks/Guards.lean`), **the fuel merge**
   (`Walks/Mono.lean` — one `…_mono` and one `…Fueled_mono` per knot-calling
   walk of con-leche's `Kernel/Core.lean`), **the projection table**
-  (`Walks/Proj.lean` — `findProjAt`, `IFEnv.findProj?_spec` and
-  `IProjEntry.fireOk_spec` on `Bridge/Rel.lean`'s `denoteProjEntry`) and the
+  (`Walks/Proj.lean` — `findProjAt` and `IFEnv.findProj?_spec` on
+  `Bridge/Rel.lean`'s `denoteProjEntry`), **the walks to a family's sort and
+  the projection guard at use** (`Walks/Former.lean`, `Walks/ProjGuard.lean`)
+  and the
   sixteen statements (`Walks/Owed.lean`).
 
 **This module imports none of them** — the same rule

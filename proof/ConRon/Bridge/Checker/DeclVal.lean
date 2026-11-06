@@ -8,52 +8,36 @@ module is its bridge tier.  Four groups, and they are exactly the four things
 `checkConstantVal`:
 
 1. **the three value checks** — `checkDefnVal`, `checkThmVal`,
-   `checkOpaqueVal`.  Each is `installValueGuards` plus one inference and one
-   conversion, and each ends in an `IFEnv.push`, so each concludes `Pushed`
-   and `Bridge/Checker/Inv.lean`'s **`StepOK env' fe' s'`** for the extended
-   environment — the index answers, the environment is well formed, the index
-   is its list's index, and it denotes.  Their state frame is `CoreStep` and
-   not `StateOK`: each CALLS the core, so the caches
-   move, and what survives is the invariant at the environment the core ran at
-   — which is the pre-insertion one, exactly as `checkConstantVal_bridge`
-   concludes.  `StepOK` is what the two pin gates below read `fe2` for;
-2. **the structural-`Nat` gate** — `natOpGuard` / `natOpStoredOkAll` /
-   `certifyNatEqs`, run in the PRE-insertion environment with the operation's
-   self-references replaced by its stored value;
+   `checkOpaqueVal`.  Each is `valueGuards` plus one inference and one
+   conversion, and each returns the record UNPUSHED; con-leche's returns the
+   pushed environment, so each bridge concludes con-leche's run at
+   `⟨rec :: env.consts, env.tables⟩`, the record's denotation, and the two
+   facts the arm's `StepOK.push` takes (`ConstWF`, `litShapeOk`).  Their
+   state frame is `CoreStep`: each CALLS the core at `fe`;
+2. **the structural-`Nat` gate** — `checkStructuralNatPin`: `natOpGuard` /
+   `natOpStoredOkAll` and the stored value at `fe.push ci`, then
+   `certifyNatEqs` at `fe` with the operation's self-references replaced by
+   its stored value;
 3. **the `Nat.div`/`Nat.mod` variant gate** — `checkDivModPin`
    (`Bridge/Checker/DivMod.lean`), a loop of boolean decisions over the pin
    variants;
 4. **the compiler-trust gate** — `checkReducePin`.
 
-**Why the pin gates are not `Bridge/Checker/Arms.lean`'s business.**  Each of
-them runs AFTER the value check has already extended the environment, at the
-extended index `fe2` and the pre-insertion one `fe` at once — con-leche's
-`checkDivModPin ops pins env env2 c` and `checkReducePin ops env env2 c value`
-take both for the same reason.  So each needs two invariants at once, which is
-a shape nothing else in the tier has, and stating them here keeps the arms
-uniform.
+**The gates' two environments.**  Each gate reads the environment WITH the
+declaration (`fe.push ci`, con-leche's `env2`) and runs its core calls
+WITHOUT it: the twin pushes, reads, and pops (`IFEnv.popTemp`), so the index
+it returns answers every `find?` as `fe` does (`IFEnv.find?_popTemp`).  What
+a gate reads at the pushed index is lookups only, so the clause it needs there
+is `StepOK env2 (fe.push ci) s` — the arm builds it with `StepOK.push` from
+what the value check hands back.
 
-**What the second one is.**  Not `FoldOK env2 fe2 s`: `FoldOK` carries
-`PersIFEnv fe2`, which is **false** — `fe2` is the environment the value check
-has just extended INSIDE the per-declaration bracket, so the constant it holds
-carries a freshly interned, hence scratch, type (the same reason `IndSpec`
-omits it).  What the gates actually read `fe2` for is `reduceStoredOk fe2 c` /
-`divModEnvGuard fe2 c`, two index lookups and no core call, so the clause they
-need is **`StepOK env2 fe2 s`** — `Bridge/Checker/Inv.lean`'s name for exactly
-that, and what the three value checks above hand back.
-
-**Both gates only ever DECLINE or pass.**  Neither installs anything: their
-result is `Unit` on both sides, and the environment the arm returns is the one
-the value check produced.  That is why their bridge theorems have no
-environment clause at all — they are the cheapest statements of the tier and
-the most expensive proofs, because the certificates they check are pinned
-terms the core must run on.
+**The gates only ever DECLINE or pass.**  Their result on con-leche's side is
+`Unit`, and the environment the arm returns is the value check's.
 -/
 module
 
 public import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Core.Walks.Cached
-import ConLeche.Verify.CheckerSplit
 import ConLeche.Verify.Extend.Inversions
 import ConLeche.Verify.BridgeDecl
 import ConRon.Bridge.Checker.Canon
@@ -63,7 +47,6 @@ public import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Specs
-public import ConLeche.Kernel.CheckerSplit
 
 public section
 
@@ -135,39 +118,28 @@ theorem checkReducePin_mono {μ : CheckMode} {env env2 : Env}
 
 /-! ## The value's guards
 
-`installValueGuards_pure` and `installValueGuards_bridge` are what the three
-value checks below BEGIN with (`Arena.installValueGuards`), and what
-`Split.lean` reads for `checkValueGroup_bridge` and `installStep_bridge`.
-There is no annotation: the half is four guards,
-pure on con-leche's side and four memoised walks on the twin's. -/
+`valueGuards_bridge` is what the three value checks below BEGIN with
+(`Arena.valueGuards`): four guards, four memoised walks on the twin's side and
+four plain guards on con-leche's. -/
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:85-94 installValueGuards —
-the PURE half: four guards accepted means con-leche's guards accept. -/
-theorem installValueGuards_pure {env : Env} {c : ConstantVal} {x : Expr}
-    (h5 : x.looseBVarsBounded 0 = true)
-    (h6 : x.hasFvar = false)
-    (h8 : x.allLevelParamsDefined c.levelParams = true)
-    (h9 : x.constsResolve env = true) :
-    ConLeche.installValueGuards (m := CheckM) env c x = .ok () := by
-  simp only [ConLeche.installValueGuards, h5, h6, h8, h9,
-    Bool.false_eq_true, ite_false, ite_true, bind, Except.bind, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:85-94 installValueGuards — the
-value's guards: `looseBVarsBoundedFast` and `hasFvarFast`
-(`Bridge/ExprOps/Walks.lean`), `allLevelParamsDefined_run` and
-`constsResolveFFast_run`.  No core call, so the frame is the core frame with
-no core step in it. -/
-theorem installValueGuards_bridge {env : Env} {fe : IFEnv}
+/-- con-leche: ConLeche/Kernel/Checker.lean:34-41 checkDefnVal
+con-leche: ConLeche/Kernel/Checker.lean:66-73 checkThmVal
+con-leche: ConLeche/Kernel/Checker.lean:84-91 checkOpaqueVal
+The value's four guards the three value checks spell alike:
+`looseBVarsBoundedFast` and `hasFvarFast` (`Bridge/ExprOps/Walks.lean`),
+`allLevelParamsDefined_run` and `constsResolveFFast_run`, each exact.  No core
+call, so the frame is the core frame with no core step in it. -/
+theorem valueGuards_bridge {env : Env} {fe : IFEnv}
     {cv : IConstantVal} {c : ConstantVal} {value : EIdx} {x : Expr}
     {s s' : AState} (hck : CheckOK false env fe s)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
-    (hrun : installValueGuards fe cv value s = .ok ((), s')) :
-    CoreStep env fe s s' ∧
-      ConLeche.installValueGuards (m := CheckM) env c x = .ok () := by
+    (hrun : valueGuards fe cv value s = .ok ((), s')) :
+    CoreStep env fe s s' ∧ x.looseBVarsBounded 0 = true ∧ x.hasFvar = false ∧
+      x.allLevelParamsDefined c.levelParams = true ∧ x.constsResolve env = true := by
   obtain ⟨hnm, hlps, -⟩ := denoteCV_inv hcv
   have hck0 : CheckOK false env fe s := hck
-  simp only [Arena.installValueGuards] at hrun
+  simp only [Arena.valueGuards] at hrun
   -- 1. the loose-bound-variable guard
   obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok hrun
   obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s)
@@ -232,7 +204,7 @@ theorem installValueGuards_bridge {env : Env} {fe : IFEnv}
   have hext : Ext s.store s'.store := by
     rw [h9st, h8st, h6st, h5st]; exact Ext.refl _
   have hpins : s'.pins = s.pins := by rw [h9p, h8p, h6p, h5p]
-  exact ⟨⟨hck9, hext, hpins⟩, installValueGuards_pure hlbbP hfvP hlpdP hcrP⟩
+  exact ⟨⟨hck9, hext, hpins⟩, hlbbP, hfvP, hlpdP, hcrP⟩
 
 /-! ## `ConstWF`, and what the guards already establish
 
@@ -253,32 +225,31 @@ one lemma shared by all three arms (`Bridge/Checker/Inv.lean`'s
   checks run at an ALREADY CHECKED header — so they are a *hypothesis*,
   `CVTypeWF`, discharged at every call site by `checkConstantVal_typeWF` from
   the front door's own pure run;
-* **the four VALUE clauses**, which `installValueGuards` checks directly —
-  con-leche's own `installValueGuards_inv`.
+* **the four VALUE clauses**, which `valueGuards` checks directly
+  (`valueGuards_bridge`).
+
+`EnvWF.cons` also asks `litShapeOk` of the record, which reads only the name,
+level parameters and type off the reserved names: upstream's `LitShapeAt`,
+which the front door establishes (`checkConstantVal_litShapeAt`) and
+`CVTypeWF` carries as its fifth clause.
 
 `.thmInfo` and `.axiomInfo` need only the type half: `ConstWF` gives a
 theorem's stored value no clause at all (it is opaque to reduction and stored
 by its statement) and an `axiomInfo` has no value.  So the SAME hypothesis
-serves all three, and only the `defn` arm spends the value half.
-
-**What con-leche could carry instead** (for the pin's next bump).  Two of the
-three pieces exist upstream but are `private`:
-`Verify/Cached/BridgeCS4.lean`'s `cvA_type_facts'` is `checkConstantVal_typeWF`
-letter for letter, and `constWF_intro'` beside it is the introduction the
-three `constWF_*` below re-spell.  Making those two public — or, better,
-putting `checkDefnVal_envWF` / `checkThmVal_envWF` / `checkOpaqueVal_envWF`
-into `Verify/CheckerSplit.lean` beside `checkDefnVal_of_facts` — would retire
-this whole section. -/
+serves all three, and only the `defn` arm spends the value half. -/
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — **the four clauses
-`ConstWF` asks of a constant's TYPE**, named so that the three value checks
-can take one hypothesis instead of four.  `ConstWF env (.axiomInfo cv)` is
-this and nothing else; the other constructors add their own clauses on top. -/
+`ConstWF` asks of a constant's TYPE**, and the literal shape `EnvWF.cons` asks
+of the record (`LitShapeAt`, ConLeche/Verify/EnvWF.lean:196), named so that the
+three value checks can take one hypothesis instead of five.
+`ConstWF env (.axiomInfo cv)` is the first four and nothing else; the other
+constructors add their own clauses on top. -/
 structure CVTypeWF (env : Env) (cv : ConstantVal) : Prop where
   fvar : cv.type.hasFvar = false
   lvls : cv.type.allLevelParamsDefined cv.levelParams = true
   res : cv.type.constsResolve env = true
   bnd : cv.type.looseBVarsBounded 0 = true
+  shape : LitShapeAt cv
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:304 Expr.constsResolve_mono — the
 only clause that mentions the environment is monotone under a cons. -/
@@ -288,18 +259,20 @@ theorem CVTypeWF.cons {env : Env} {cv : ConstantVal} {c : ConstantInfo}
   lvls := h.lvls
   res := ConLeche.Expr.constsResolve_mono h.res
   bnd := h.bnd
+  shape := h.shape
 
-/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:131 cvA_type_facts'
-(private there) — **the four type clauses of a CHECKED constant**, off
-con-leche's own `checkConstantVal_inv`: all four are guards on the type as
-stored. -/
+/-- con-leche: ConLeche/Verify/Extend/Inversions.lean:40 checkConstantVal_inv
+con-leche: ConLeche/Verify/Extend/Inversions.lean:122 checkConstantVal_litShapeAt
+**The type clauses of a CHECKED constant**, off con-leche's own inversions:
+four guards on the type as stored, and the literal shape. -/
 theorem checkConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
-    {cv : ConstantVal}
-    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv = .ok ()) :
+    {cv : ConstantVal} {a : Bool}
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv a = .ok ()) :
     CVTypeWF env cv := by
   obtain ⟨-, -, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
     ConLeche.checkConstantVal_inv h
-  exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt }
+  exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt,
+          shape := ConLeche.checkConstantVal_litShapeAt h }
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `defnInfo`
 introduction: the type clauses, the value clauses, and the vacuous ones. -/
@@ -314,8 +287,7 @@ theorem constWF_defnInfo {env : Env} {cv : ConstantVal} {v : Expr}
    fun _ _ _ heq => by
      obtain ⟨rfl, rfl, rfl⟩ := ConLeche.ConstantInfo.defnInfo.inj heq
      exact ⟨g1, g2, g3, g4⟩,
-   fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
+   fun _ _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `thmInfo`
 introduction.  **A stored theorem carries no value** (con-leche task #329
@@ -324,8 +296,7 @@ theorem constWF_thmInfo {env : Env} {cv : ConstantVal}
     (ht : CVTypeWF env cv) : ConLeche.ConstWF env (.thmInfo cv) :=
   ⟨ht.fvar, ht.lvls, ht.res, ht.bnd,
    fun _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
+   fun _ _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `axiomInfo`
 introduction, which an `opaque` install is stored as: no value at all. -/
@@ -333,46 +304,91 @@ theorem constWF_axiomInfo {env : Env} {cv : ConstantVal}
     (ht : CVTypeWF env cv) : ConLeche.ConstWF env (.axiomInfo cv) :=
   ⟨ht.fvar, ht.lvls, ht.res, ht.bnd,
    fun _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
-   fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
+   fun _ _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
-/-! ## The three value checks -/
+/-! ## The three value checks
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:32-50 checkDefnVal — a
-definition's value against its checked constant, returning the pushed index.
+Each returns the record unpushed; con-leche's pushes it.  The pure side of an
+accepted check is one `simp` over its guards and its two core verdicts. -/
 
-The proof: `installValueGuards_bridge`, one `KnotSpec.infer`, one
-`KnotSpec.defeq`, then `StepOK.push`.
+/-- con-leche: ConLeche/Kernel/Checker.lean:33-46 checkDefnVal — the pure side
+of an accepted check, at ONE fuel. -/
+theorem checkDefnVal_pure {μ : CheckMode} {F : Nat} {env : Env} {c : ConstantVal}
+    {x vt : Expr} {hint : ReducibilityHint}
+    (gb : x.looseBVarsBounded 0 = true) (gf : x.hasFvar = false)
+    (gl : x.allLevelParamsDefined c.levelParams = true)
+    (gr : x.constsResolve env = true)
+    (hI : ConLeche.inferTypeCore μ false env F 0 x = .ok vt)
+    (hD : ConLeche.isDefEqCore μ false env F 0 vt c.type = .ok true) :
+    ConLeche.checkDefnVal (ConLeche.fueledOps μ F) env c x hint
+      = .ok ⟨.defnInfo c x hint :: env.consts, env.tables⟩ := by
+  simp only [ConLeche.checkDefnVal, ConLeche.fueledOps, gb, gf, gl, gr, hI, hD,
+    Bool.false_eq_true, ite_false, ite_true, bind, Except.bind, pure, Except.pure]
 
-**Why `htw : CVTypeWF env c`.**  `StepOK` carries
-`EnvWF ⟨.defnInfo c y hint :: env.consts, env.tables⟩`, hence
-`ConstWF … (.defnInfo c y hint)`, hence the four clauses about `c.type` — and
-`checkDefnVal` never looks at the type: the value checks run at an ALREADY
-CHECKED header, whose guards are `checkConstantVal`'s.  Nothing else in the
-hypotheses delivers them (`FoldOK` speaks about `env`, and the statement does
-not say `c` is a constant OF `env`).  It is free at the one call site —
-`Bridge/Checker/Arms.lean`'s `defn` arm has `checkConstantVal_bridge`'s own
-pure run, and `checkConstantVal_typeWF` reads it off. -/
+/-- con-leche: ConLeche/Kernel/Checker.lean:58-78 checkThmVal — the pure side
+of an accepted check, at ONE fuel. -/
+theorem checkThmVal_pure {μ : CheckMode} {F : Nat} {env : Env} {c : ConstantVal}
+    {x sty vt : Expr} {u : Level}
+    (hs : ConLeche.inferTypeCore μ false env F 0 c.type = .ok sty)
+    (hu : ConLeche.ensureSortCore μ false env F 0 sty = .ok u)
+    (he : ConLeche.Level.isEquiv u .zero = some true)
+    (gb : x.looseBVarsBounded 0 = true) (gf : x.hasFvar = false)
+    (gl : x.allLevelParamsDefined c.levelParams = true)
+    (gr : x.constsResolve env = true)
+    (hI : ConLeche.inferTypeCore μ false env F 0 x = .ok vt)
+    (hD : ConLeche.isDefEqCore μ false env F 0 vt c.type = .ok true) :
+    ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x
+      = .ok ⟨.thmInfo c :: env.consts, env.tables⟩ := by
+  simp only [ConLeche.checkThmVal, ConLeche.fueledOps, hs, hu, he, ConLeche.liftFueled,
+    gb, gf, gl, gr, hI, hD, Bool.false_eq_true, ite_false, ite_true, bind, Except.bind,
+    pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:89-102 checkOpaqueVal — the pure
+side of an accepted check, at ONE fuel. -/
+theorem checkOpaqueVal_pure {μ : CheckMode} {F : Nat} {env : Env} {c : ConstantVal}
+    {x vt : Expr}
+    (gb : x.looseBVarsBounded 0 = true) (gf : x.hasFvar = false)
+    (gl : x.allLevelParamsDefined c.levelParams = true)
+    (gr : x.constsResolve env = true)
+    (hI : ConLeche.inferTypeCore μ false env F 0 x = .ok vt)
+    (hD : ConLeche.isDefEqCore μ false env F 0 vt c.type = .ok true) :
+    ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x
+      = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
+  simp only [ConLeche.checkOpaqueVal, ConLeche.fueledOps, gb, gf, gl, gr, hI, hD,
+    Bool.false_eq_true, ite_false, ite_true, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:33-46 checkDefnVal — a
+definition's value against its checked constant, returning the record
+unpushed where con-leche returns it pushed.
+
+The proof: `valueGuards_bridge`, one `KnotSpec.infer`, one `KnotSpec.defeq`.
+The conclusion carries what the arm's `StepOK.push` takes: the record's
+denotation, its `ConstWF` (the type half from `htw`, the value half from the
+guards) and its literal shape (`htw.shape`).
+
+**Why `htw : CVTypeWF env c`.**  `checkDefnVal` never looks at the type: the
+value checks run at an ALREADY CHECKED header, whose guards are
+`checkConstantVal`'s, and `checkConstantVal_typeWF` reads them off the front
+door's pure run at the call site. -/
 theorem checkDefnVal_bridge {env : Env}
-    {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
-    {x : Expr} {hint : ReducibilityHint} {s s' : AState}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
+    {x : Expr} {hint : ReducibilityHint} {ci : IConstantInfo} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkDefnVal .verified fe cv value hint s = .ok (fe', s')) :
-    CoreStep env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
-      ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkDefnVal (ConLeche.fueledOps .verified F) env c x hint = .ok env' := by
+    (hrun : checkDefnVal .verified fe cv value hint s = .ok (ci, s')) :
+    CoreStep env fe s s' ∧ ci = .defnInfo cv value hint ∧
+      Frontend.denoteCI s'.store ci = some (.defnInfo c x hint) ∧
+      ConstWF ⟨.defnInfo c x hint :: env.consts, env.tables⟩ (.defnInfo c x hint) ∧
+      ConLeche.litShapeOk (.defnInfo c x hint) = true ∧
+      ∃ F, ConLeche.checkDefnVal (ConLeche.fueledOps .verified F) env c x hint
+        = .ok ⟨.defnInfo c x hint :: env.consts, env.tables⟩ := by
   have hknot := hk.knot env fe hok.envWF
-  have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkDefnVal] at hrun
   -- 1. the value's guards
   obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hstep1, hIV⟩ := installValueGuards_bridge hok.check hcv hv g1
-  obtain ⟨gb, gf, gl, gr⟩ := ConLeche.installValueGuards_inv hIV
+  obtain ⟨hstep1, gb, gf, gl, gr⟩ := valueGuards_bridge hok.check hcv hv g1
   have hwsy : ConLeche.Expr.WScoped 0 x :=
     ConLeche.Expr.WScoped.of_not_hasFvar gf
   have hy1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
@@ -404,52 +420,43 @@ theorem checkDefnVal_bridge {env : Env}
   have hext : Ext s.store s'.store := hstep1.ext.trans (hx2.trans hx3)
   have hcv3 : Frontend.denoteCV s'.store cv = some c := denoteCV_ext hcv2 hx3
   have hy3 : denoteE s'.store value = some x := denote_ext (denote_ext hy1 hx2) hx3
-  have hci3 : Frontend.denoteCI s'.store (.defnInfo cv value hint)
-      = some (.defnInfo c x hint) := by
-    simp only [Frontend.denoteCI, hcv3, hy3]
-  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _, rfl,
-    ⟨.defnInfo c x hint :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
-  · exact (hok.toStepOK.mono hext).push hck3.state hci3
-      (constWF_defnInfo htw.cons gf gl
-        (ConLeche.Expr.constsResolve_mono gr) gb)
-  · exact ConLeche.checkDefnVal_of_facts gb gf gl gr
+  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, rfl, ?_,
+    constWF_defnInfo htw.cons gf gl (ConLeche.Expr.constsResolve_mono gr) gb,
+    htw.shape _ rfl, max F2 F3, ?_⟩
+  · simp only [Frontend.denoteCI, hcv3, hy3]
+  · exact checkDefnVal_pure gb gf gl gr
       (ConLeche.inferTypeCore_mono (by omega) hF2)
       (ConLeche.isDefEqCore_mono (by omega) hF3)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:52-82 checkThmVal — **a theorem is
+/-- con-leche: ConLeche/Kernel/Checker.lean:58-78 checkThmVal — **a theorem is
 stored by its statement**: the value is a witness, guarded, checked and
 discarded.
 
-The proof is the widest of the three, because
-the is-a-proposition test is three steps the other two do not have —
-`EnsureSortSpec`, the pinned `zeroLevel` (`pinZeroLevel_spec`) and
-`lvlEq?_spec`, whose verdict IS `Level.isEquiv` at the two handles'
-denotations, read at BOTH signs (the `none` case is `liftFueled`'s failure and
-cannot occur on a successful run).  It takes the same `htw` as the other two —
-and here it is spent twice, once for `WScoped 0 c.type` at the FIRST
-inference (which the other two do not make) and once at the conversion.
-
-**No value is stored** (con-leche task #329 THMVAL): `constWF_thmInfo` is the
-type half alone and the value never reaches the environment — exactly
-con-leche's own reading. -/
+The proof is the widest of the three, because the is-a-proposition test is
+three steps the other two do not have — `EnsureSortSpec`, the pinned
+`zeroLevel` (`pinZeroLevel_spec`) and `lvlEq?_spec`, whose verdict IS
+`Level.isEquiv` at the two handles' denotations (the `none` case is
+`liftFueled`'s failure and cannot occur on a successful run).  `htw` is spent
+twice, once for `WScoped 0 c.type` at the FIRST inference and once at the
+conversion.  No value is stored: `constWF_thmInfo` is the type half alone. -/
 theorem checkThmVal_bridge {env : Env}
-    {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
-    {x : Expr} {s s' : AState}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
+    {x : Expr} {ci : IConstantInfo} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkThmVal .verified fe cv value s = .ok (fe', s')) :
-    CoreStep env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
-      ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkThmVal (ConLeche.fueledOps .verified F) env c x = .ok env' := by
+    (hrun : checkThmVal .verified fe cv value s = .ok (ci, s')) :
+    CoreStep env fe s s' ∧ ci = .thmInfo cv ∧
+      Frontend.denoteCI s'.store ci = some (.thmInfo c) ∧
+      ConstWF ⟨.thmInfo c :: env.consts, env.tables⟩ (.thmInfo c) ∧
+      ConLeche.litShapeOk (.thmInfo c) = true ∧
+      ∃ F, ConLeche.checkThmVal (ConLeche.fueledOps .verified F) env c x
+        = .ok ⟨.thmInfo c :: env.consts, env.tables⟩ := by
   have hknot := hk.knot env fe hok.envWF
   have hsortS := hk.sort env fe hok.envWF
   have hwsty : ConLeche.Expr.WScoped 0 c.type :=
     ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar
-  have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   obtain ⟨-, -, hty0⟩ := denoteCV_inv hcv
   simp only [Arena.checkThmVal, Arena.zeroLevel] at hrun
   -- 1. the type's own inference
@@ -495,14 +502,13 @@ theorem checkThmVal_bridge {env : Env}
   replace rf := AM.pure_bind_ok rf
   have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
     rw [← hod, hprop]
-  -- 6. the install half
+  -- 6. the value's guards
   have hext4 : Ext s.store s5.store := by rw [hstd]; exact hxa.trans hxb
   have hpin4 : s5.pins = s.pins := by rw [hpd, hpb, hpa]
   have hv4 : denoteE s5.store value = some x := denote_ext hv hext4
   have hcv4 : Frontend.denoteCV s5.store cv = some c := denoteCV_ext hcv hext4
   obtain ⟨u6, s6, gf, rg⟩ := AM.bind_ok rf
-  obtain ⟨hstep6, hIV⟩ := installValueGuards_bridge hckd hcv4 hv4 gf
-  obtain ⟨gbv, gfv, glv, grv⟩ := ConLeche.installValueGuards_inv hIV
+  obtain ⟨hstep6, gbv, gfv, glv, grv⟩ := valueGuards_bridge hckd hcv4 hv4 gf
   have hwsy : ConLeche.Expr.WScoped 0 x :=
     ConLeche.Expr.WScoped.of_not_hasFvar gfv
   have hy6 : denoteE s6.store value = some x := denote_ext hv4 hstep6.ext
@@ -533,50 +539,41 @@ theorem checkThmVal_bridge {env : Env}
   have hext : Ext s.store s'.store :=
     hext4.trans (hstep6.ext.trans (hx7.trans hx8))
   have hcv8 : Frontend.denoteCV s'.store cv = some c := denoteCV_ext hcv7 hx8
-  have hci8 : Frontend.denoteCI s'.store (.thmInfo cv)
-      = some (.thmInfo c) := by
-    simp only [Frontend.denoteCI, hcv8, Option.map_some]
-  refine ⟨⟨hck8, hext, by rw [hp8, hp7, hstep6.pins, hpin4]⟩,
-    Pushed.push fe _, rfl, ⟨.thmInfo c :: env.consts, env.tables⟩,
-    max (max Fa Fb) (max F2 F3), ?_, ?_⟩
-  · exact (hok.toStepOK.mono hext).push hck8.state
-      hci8
-      (constWF_thmInfo htw.cons)
-  · exact ConLeche.checkThmVal_of_facts
+  refine ⟨⟨hck8, hext, by rw [hp8, hp7, hstep6.pins, hpin4]⟩, rfl, ?_,
+    constWF_thmInfo htw.cons, htw.shape _ rfl, max (max Fa Fb) (max F2 F3), ?_⟩
+  · simp only [Frontend.denoteCI, hcv8, Option.map_some]
+  · exact checkThmVal_pure
       (ConLeche.inferTypeCore_mono (by omega) hFa)
       (ConLeche.ensureSortCore_mono (by omega) hFb)
       heqv gbv gfv glv grv
       (ConLeche.inferTypeCore_mono (by omega) hF2)
       (ConLeche.isDefEqCore_mono (by omega) hF3)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:84-107 checkOpaqueVal — the
-theorem check without the is-a-proposition requirement; the result is stored
-as an `axiomInfo`.
+/-- con-leche: ConLeche/Kernel/Checker.lean:89-102 checkOpaqueVal — the
+theorem check without the is-a-proposition requirement; the record is an
+`axiomInfo`.
 
 The proof is `checkDefnVal_bridge`'s, word for word, with `.axiomInfo` in place
 of `.defnInfo` — and the `ConstWF` introduction is the cheaper one, because an
-`axiomInfo` has no value clause at all (the checked value is a realizability
-witness, consumed by the model extension and then discarded).  It takes the
-same `htw`. -/
+`axiomInfo` has no value clause at all. -/
 theorem checkOpaqueVal_bridge {env : Env}
-    {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
-    {x : Expr} {s s' : AState}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
+    {x : Expr} {ci : IConstantInfo} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (htw : CVTypeWF env c)
     (hv : denoteE s.store value = some x)
-    (hrun : checkOpaqueVal .verified fe cv value s = .ok (fe', s')) :
-    CoreStep env fe s s' ∧ Pushed fe fe' ∧ fe'.env.tables = fe.env.tables ∧
-      ∃ env' F, StepOK env' fe' s' ∧
-        ConLeche.checkOpaqueVal (ConLeche.fueledOps .verified F) env c x = .ok env' := by
+    (hrun : checkOpaqueVal .verified fe cv value s = .ok (ci, s')) :
+    CoreStep env fe s s' ∧ ci = .axiomInfo cv ∧
+      Frontend.denoteCI s'.store ci = some (.axiomInfo c) ∧
+      ConstWF ⟨.axiomInfo c :: env.consts, env.tables⟩ (.axiomInfo c) ∧
+      ConLeche.litShapeOk (.axiomInfo c) = true ∧
+      ∃ F, ConLeche.checkOpaqueVal (ConLeche.fueledOps .verified F) env c x
+        = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
   have hknot := hk.knot env fe hok.envWF
-  have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkOpaqueVal] at hrun
   obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hstep1, hIV⟩ := installValueGuards_bridge hok.check hcv hv g1
-  obtain ⟨gb, gf, gl, gr⟩ := ConLeche.installValueGuards_inv hIV
+  obtain ⟨hstep1, gb, gf, gl, gr⟩ := valueGuards_bridge hok.check hcv hv g1
   have hwsy : ConLeche.Expr.WScoped 0 x :=
     ConLeche.Expr.WScoped.of_not_hasFvar gf
   have hy1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
@@ -604,16 +601,33 @@ theorem checkOpaqueVal_bridge {env : Env}
   subst hb
   have hext : Ext s.store s'.store := hstep1.ext.trans (hx2.trans hx3)
   have hcv3 : Frontend.denoteCV s'.store cv = some c := denoteCV_ext hcv2 hx3
-  have hci3 : Frontend.denoteCI s'.store (.axiomInfo cv)
-      = some (.axiomInfo c) := by
-    simp only [Frontend.denoteCI, hcv3, Option.map_some]
-  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, Pushed.push fe _, rfl,
-    ⟨.axiomInfo c :: env.consts, env.tables⟩, max F2 F3, ?_, ?_⟩
-  · exact (hok.toStepOK.mono hext).push hck3.state hci3
-      (constWF_axiomInfo htw.cons)
-  · exact ConLeche.checkOpaqueVal_of_facts gb gf gl gr
+  refine ⟨⟨hck3, hext, by rw [hp3, hp2, hstep1.pins]⟩, rfl, ?_,
+    constWF_axiomInfo htw.cons, htw.shape _ rfl, max F2 F3, ?_⟩
+  · simp only [Frontend.denoteCI, hcv3, Option.map_some]
+  · exact checkOpaqueVal_pure gb gf gl gr
       (ConLeche.inferTypeCore_mono (by omega) hF2)
       (ConLeche.isDefEqCore_mono (by omega) hF3)
+
+/-! ## The gates' popped index -/
+
+/-- con-leche: none — **an index answering as `fe`**: the same lookups, the same
+table map and base, the same own list.  What a gate's push-and-pop
+(`IFEnv.popTemp`) hands back; every invariant of the tier reads an index only
+through these. -/
+structure IFEnv.SameView (fe' fe : IFEnv) : Prop where
+  find : ∀ n, fe'.find? n = fe.find? n
+  tbls : fe'.tbls = fe.tbls
+  base : fe'.base = fe.base
+  env : fe'.env = fe.env
+
+/-- con-leche: none — a push popped is `fe`'s view (`IFEnv.find?_popTemp`, and
+the other three by the definitions). -/
+theorem IFEnv.sameView_popTemp (fe : IFEnv) (ci : IConstantInfo) :
+    IFEnv.SameView ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe where
+  find := IFEnv.find?_popTemp fe ci
+  tbls := rfl
+  base := rfl
+  env := rfl
 
 /-! ## The structural-`Nat` gate
 
@@ -653,7 +667,7 @@ theorem EqPairsDenote.mono {st st' : EStore} (hx : Ext st st') :
       obtain ⟨h1, h2, h3⟩ := h
       exact ⟨denote_ext h1 hx, denote_ext h2 hx, ih h3⟩
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the cons
+/-- con-leche: ConLeche/Kernel/Checker.lean:103-111 certifyNatEqs — the cons
 step, on the pure side: an accepted head and an accepted tail are an accepted
 list, at ONE fuel. -/
 theorem certifyNatEqs_cons_pure {μ : CheckMode} {env : Env} {F : Nat}
@@ -1564,7 +1578,7 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
       exact ⟨denote_ext (denote_ext ha hs2.ext) hs3.ext, denote_ext hb hs3.ext, hrest⟩
 
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:103-111 certifyNatEqs — the
 recurrence equations, certified by definitional equality in the pre-insertion
 environment.
 
@@ -1672,7 +1686,7 @@ theorem natOpEquations_wscoped (nm : ConLeche.Name) :
     | simp [Expr.WScoped]
     | exact absurd hq (by simp)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
+/-- con-leche: ConLeche/Kernel/Checker.lean:103-111 certifyNatEqs — the
 substituted recurrence equations are well scoped at the depth the certifier
 runs them at (`isDefEq … 2`: the equations' variables are `fvar 0` and
 `fvar 1`).  A pure fact about con-leche's own pinned construction, which
@@ -1696,6 +1710,119 @@ theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
   obtain ⟨eq, heq, rfl⟩ := hq
   obtain ⟨h1, h2⟩ := natOpEquations_wscoped nm eq heq
   exact ⟨substConst0_wscoped hv2 _ h1, substConst0_wscoped hv2 _ h2⟩
+
+/-! ## The structural-`Nat` gate, assembled -/
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:57-72 checkDecl — the reads of
+the `.defnDecl` arm's structural-`Nat` gate at `env2`, the environment WITH the
+definition (`Arena.checkStructuralNatPinAtFe2`): the guard, the dependency
+list, their storage, then the stored value.  No core call. -/
+theorem checkStructuralNatPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
+    {nm : ConLeche.Name} {v : EIdx} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hok2 : StepOK env2 fe2 s)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hrun : checkStructuralNatPinAtFe2 fe2 cn s = .ok (v, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
+      (ConLeche.natOpGuard env2 nm &&
+        (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true ∧
+      ∃ cv' v' hint', env2.find? nm = some (.defnInfo cv' v' hint') ∧
+        denoteE s'.store v = some v' := by
+  simp only [Arena.checkStructuralNatPinAtFe2] at hrun
+  obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok hrun
+  obtain ⟨hst4, hx4, hc4, hp4, he4⟩ := natOpGuard_run hst hp hok2.ienv hn g4
+  have hp4' : PinsOK s4 := hp.mono hx4 hp4
+  have hn4 : denoteN s4.store.ns cn = some nm := denoteN_ext hn hx4
+  obtain ⟨deps, s5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨hst5, hx5, hc5, hp5, hdeps⟩ := natOpDeps_run hst4 hp4' hn4 g5
+  have hp5' : PinsOK s5 := hp4'.mono hx5 hp5
+  have hn5 : denoteN s5.store.ns cn = some nm := denoteN_ext hn4 hx5
+  obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
+    natOpStoredOkAll_run hst5 hp5' ((hok2.mono (hx4.trans hx5)).ienv) hdeps g6
+  have hn6 : denoteN s6.store.ns cn = some nm := denoteN_ext hn5 hx6
+  have hie6 : StepOK env2 fe2 s6 := hok2.mono ((hx4.trans hx5).trans hx6)
+  obtain ⟨hy6, r7⟩ := AM.dunless_ok AM.Never.fail_any r6
+  replace r7 := AM.pure_bind_ok r7
+  have hgP : (ConLeche.natOpGuard env2 nm &&
+      (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true := by
+    rw [← he4, ← he6]; exact hy6
+  cases hfind : fe2.find? cn with
+  | none => rw [hfind] at r7; exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+  | some ci =>
+    rw [hfind] at r7
+    match ci, hfind with
+    | .defnInfo cv' jv hint', hfind =>
+      obtain ⟨nm', c', hnm', hci', hfindP⟩ := hie6.ienv.hit cn _ hfind
+      obtain rfl : nm' = nm := by rw [hn6] at hnm'; exact (Option.some.inj hnm').symm
+      simp only [Frontend.denoteCI] at hci'
+      cases hcv' : Frontend.denoteCV s6.store cv' with
+      | none => rw [hcv'] at hci'; simp at hci'
+      | some cvP =>
+        cases hjv : denoteE s6.store jv with
+        | none => rw [hcv', hjv] at hci'; simp at hci'
+        | some vP =>
+          rw [hcv', hjv] at hci'
+          simp only [Option.some.injEq] at hci'
+          subst hci'
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok r7
+          exact ⟨hst6, (hx4.trans hx5).trans hx6, by rw [hc6, hc5, hc4],
+            by rw [hp6, hp5, hp4], hgP, cvP, vP, hint', hfindP, hjv⟩
+    | .axiomInfo _, hfind
+    | .thmInfo _, hfind
+    | .indInfo _ _, hfind
+    | .ctorInfo _ _ _, hfind
+    | .recInfo _ _ _ _ _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:57-72 checkDecl — **the
+structural-`Nat` gate** (`Arena.checkStructuralNatPin`): the reads at
+`fe.push ci` (con-leche's `env2`), then `certifyNatEqs` at the popped index,
+which answers as `fe`, over the equations with the operation's
+self-references replaced by its stored value.
+
+The conclusion is the three premises of con-leche's taken branch: the guard,
+the stored definition, the certification. -/
+theorem checkStructuralNatPin_bridge {env env2 : Env} {fe fe' : IFEnv}
+    {ci : IConstantInfo} {cn : NIdx} {nm : ConLeche.Name} {s s' : AState}
+    (hk : CoreSpec Arena.checkFuel) (hck : CheckOK false env fe s) (henv : EnvWF env)
+    (hok2 : StepOK env2 (fe.push ci) s) (hcn : ci.name = cn)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hrun : checkStructuralNatPin .verified fe ci cn s = .ok (fe', s')) :
+    CoreStep env fe s s' ∧ IFEnv.SameView fe' fe ∧
+      (ConLeche.natOpGuard env2 nm &&
+        (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true ∧
+      ∃ cv' v' hint' F, env2.find? nm = some (.defnInfo cv' v' hint') ∧
+        ConLeche.certifyNatEqs (ConLeche.fueledOps .verified F) env
+          ((ConLeche.natOpEquations 0 nm).map fun eq =>
+            (Expr.substConst0 nm v' eq.1, Expr.substConst0 nm v' eq.2)) = .ok true := by
+  subst hcn
+  have hsv := IFEnv.sameView_popTemp fe ci
+  simp only [Arena.checkStructuralNatPin] at hrun
+  obtain ⟨v, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨hst1, hx1, hc1, hp1, hgP, cv', v', hint', hfindP, hv1⟩ :=
+    checkStructuralNatPinAtFe2_bridge hck.state hck.pins hok2 hn g1
+  have hck1 : CheckOK false env fe s1 := hck.mono hst1 hx1 hc1 hp1
+  have hn1 : denoteN s1.store.ns ci.name = some nm := denoteN_ext hn hx1
+  obtain ⟨eqs, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨hst2, hx2, hc2, hp2, hdeq⟩ :=
+    natOpEquations_run hst1 hck1.pins hn1 g2
+  have hck2 : CheckOK false env fe s2 := hck1.mono hst2 hx2 hc2 hp2
+  obtain ⟨ps, s3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨hst3, hx3, hc3, hp3, hdps⟩ :=
+    substConst0Pairs_run hst2 hck2.pins (denoteN_ext hn1 hx2)
+      (denote_ext hv1 hx2) hdeq g3
+  have hck3 : CheckOK false env fe s3 := hck2.mono hst3 hx3 hc3 hp3
+  obtain ⟨okb, s4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨hstepC, hcertOf⟩ :=
+    certifyNatEqs_bridge hk (hck3.congr_find hsv.find hsv.tbls hsv.base) henv
+      hdps (natOpEqs_wscoped hok2.envWF hfindP) g4
+  replace hstepC := hstepC.congr_find (fun n => (hsv.find n).symm) hsv.tbls.symm
+    hsv.base.symm
+  obtain ⟨hy4, r5⟩ := AM.dunless_ok AM.Never.fail_any r4
+  replace r5 := AM.pure_bind_ok r5
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r5
+  obtain ⟨FC, hcert⟩ := hcertOf hy4
+  exact ⟨⟨hstepC.ok, ((hx1.trans hx2).trans hx3).trans hstepC.ext,
+    by rw [hstepC.pins, hp3, hp2, hp1]⟩, hsv, hgP, cv', v', hint', FC, hfindP, hcert⟩
 
 /-! ## The compiler-trust gate's pieces -/
 
@@ -1849,20 +1976,21 @@ theorem reducePinGuard_run {env : Env} {fe : IFEnv}
   simp only [ConLeche.reducePinGuard, Bool.and_assoc]
   exact pinGuardWalk_run hck1 hs1.ext hs1.pins hpd r1
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:407-425 checkReducePin — the pure
+/-- con-leche: ConLeche/Kernel/Checker.lean:445-461 checkReducePin — the pure
 side of an accepted gate, at ONE fuel. -/
 theorem checkReducePin_pure {μ : CheckMode} {env env2 : Env} {F : Nat}
     {nm : ConLeche.Name} {x : Expr}
-    (h1 : (ConLeche.reduceStoredOk env2 nm && ConLeche.reduceElemOk env nm) = true)
+    (h0 : ConLeche.reduceStoredOk env2 nm = true)
+    (h1 : ConLeche.reduceElemOk env nm = true)
     (h2 : ConLeche.reducePinGuard env nm = true)
     (h5 : ConLeche.isDefEqCore μ false env F 0 x (ConLeche.reduceDeclPin nm) = .ok true)
     (h6 : ConLeche.isDefEqCore μ false env F 1 (.app x (ConLeche.reduceCertVar nm))
       (ConLeche.reduceCertVar nm) = .ok true) :
     ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x = .ok () := by
-  simp only [ConLeche.checkReducePin, ConLeche.fueledOps, h1, h2, h5, h6,
-    ite_true, bind, Except.bind, pure, Except.pure]
+  simp only [ConLeche.checkReducePin, ConLeche.fueledOps, h0, h1, h2, h5, h6,
+    Bool.and_self, ite_true, bind, Except.bind, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:93-110 checkOpaqueVal — an
+/-- con-leche: ConLeche/Kernel/Checker.lean:89-102 checkOpaqueVal — an
 accepted opaque's raw value has no free variable (the second guard). -/
 theorem checkOpaqueVal_noFvar {μ : CheckMode} {env env' : Env} {F : Nat}
     {c : ConstantVal} {x : Expr}
@@ -1876,50 +2004,41 @@ theorem checkOpaqueVal_noFvar {μ : CheckMode} {env env' : Env} {F : Nat}
     cases hl : x.looseBVarsBounded 0 <;>
       simp [hl, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at h
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:407-425 checkReducePin — the
-`Lean.reduceNat` / `Lean.reduceBool` install gate: the stored value must be
-definitionally equal to the build-time pin.
+/-- con-leche: ConLeche/Kernel/Checker.lean:445-461 checkReducePin — the body at
+`fe`, the environment without the opaque (`Arena.checkReducePinPre`): the
+element guard, the pin's own guards, the definitional comparison of the
+witness against the pin, and the identity certificate.
 
-Proved: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
-`IFEnvOK`, then `KnotSpec.defeq` at the pinned term. -/
-theorem checkReducePin_bridge {env env2 : Env}
-    {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
+Proved: `reduceElemOk` / `reducePinGuard` through `IFEnvOK`, then
+`KnotSpec.defeq` twice. -/
+theorem checkReducePinPre_bridge {env : Env}
+    {fe : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
     {x : Expr} {s s' : AState} (hk : CoreSpec Arena.checkFuel) (hck : CheckOK false env fe s)
     (henv : EnvWF env)
-    (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store value = some x) (hws : Expr.WScoped 0 x)
-    (hrun : checkReducePin .verified fe fe2 cn value s = .ok ((), s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps .verified F) env env2 nm x
-        = .ok () := by
+    (hrun : checkReducePinPre .verified fe cn value s = .ok ((), s')) :
+    CoreStep env fe s s' ∧ ConLeche.reduceElemOk env nm = true ∧
+      ConLeche.reducePinGuard env nm = true ∧ ∃ F,
+        ConLeche.isDefEqCore .verified false env F 0 x (ConLeche.reduceDeclPin nm) = .ok true ∧
+        ConLeche.isDefEqCore .verified false env F 1 (.app x (ConLeche.reduceCertVar nm))
+          (ConLeche.reduceCertVar nm) = .ok true := by
   have hknot := hk.knot env fe henv
-  simp only [Arena.checkReducePin] at hrun
-  obtain ⟨b1, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, rfl⟩ := reduceStoredOk_run hck.state hck.pins hok2.ienv hn _ _ g1
-  rcases AM.ite_ok r1 with ⟨hc0, r1'⟩ | ⟨-, r1'⟩
-  rotate_left
-  · exact absurd r1' (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1'
-  obtain ⟨hs2, rfl⟩ := reduceElemOk_run hs1.ok (hck.pins.mono hs1.ext hs1.pins)
-    (hck.ienv.mono hs1.ext) (denoteN_ext hn hs1.ext) _ _ g2
-  have hs12 := hs1.trans hs2
+  simp only [Arena.checkReducePinPre] at hrun
+  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok hrun
+  obtain ⟨hs2, rfl⟩ := reduceElemOk_run hck.state hck.pins hck.ienv hn _ _ g2
   have hck2 : CheckOK false env fe s2 :=
-    hck.mono hs12.ok hs12.ext hs12.caches hs12.pins
-  rcases AM.ite_ok r2 with ⟨hc1', r3⟩ | ⟨-, r3⟩
+    hck.mono hs2.ok hs2.ext hs2.caches hs2.pins
+  rcases AM.ite_ok r2 with ⟨hc1, r3⟩ | ⟨-, r3⟩
   rotate_left
   · exact absurd r3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-  have hc1 : (ConLeche.reduceStoredOk env2 nm && ConLeche.reduceElemOk env nm)
-      = true := by
-    rw [Bool.and_eq_true]
-    exact ⟨hc0, hc1'⟩
   obtain ⟨b3, s3, g3, r4⟩ := AM.bind_ok r3
   obtain ⟨hck3, hx3, hp3, rfl⟩ :=
-    reducePinGuard_run hck2 (denoteN_ext hn hs12.ext) g3
+    reducePinGuard_run hck2 (denoteN_ext hn hs2.ext) g3
   rcases AM.ite_ok r4 with ⟨hc2, r5⟩ | ⟨-, r5⟩
   rotate_left
   · exact absurd r5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-  have hx03 : Ext s.store s3.store := hs12.ext.trans hx3
+  have hx03 : Ext s.store s3.store := hs2.ext.trans hx3
   -- the pin, interned again (no annotation)
   have hx3v : denoteE s3.store value = some x := denote_ext hv hx03
   obtain ⟨p, s5, g5, r7⟩ := AM.bind_ok r5
@@ -1979,13 +2098,46 @@ theorem checkReducePin_bridge {env env2 : Env}
   have hc10' : ok2 = true := hc10
   subst hc10'
   obtain ⟨-, rfl⟩ := AM.pure_ok r14
-  refine ⟨hck10.state,
+  refine ⟨⟨hck10,
     ((hx03.trans hx37).trans (hs8.ext.trans hs9.ext)).trans hx10,
-    by rw [hp10, hs9.pins, hs8.pins, hp7, hs5.pins, hp3, hs12.pins],
-    max F7 F10, ?_⟩
-  have l7 : F7 ≤ max F7 F10 := by omega
-  have l10 : F10 ≤ max F7 F10 := by omega
-  exact checkReducePin_pure hc1 hc2 (ConLeche.isDefEqCore_mono l7 hF7)
-    (ConLeche.isDefEqCore_mono l10 hF10)
+    by rw [hp10, hs9.pins, hs8.pins, hp7, hs5.pins, hp3, hs2.pins]⟩,
+    hc1, hc2, max F7 F10, ConLeche.isDefEqCore_mono (by omega) hF7,
+    ConLeche.isDefEqCore_mono (by omega) hF10⟩
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:445-461 checkReducePin — **the
+`Lean.reduceNat` / `Lean.reduceBool` gate**: the stored constant carries the
+pinned type (read at `fe.push ci`, con-leche's `env2`), then
+`checkReducePinPre_bridge` at the popped index, which answers as `fe`.
+
+The returned index is `fe`'s view (`IFEnv.SameView`), and the core ran at
+`fe`'s invariant. -/
+theorem checkReducePin_bridge {env env2 : Env}
+    {fe fe' : IFEnv} {ci : IConstantInfo} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
+    {x : Expr} {s s' : AState} (hk : CoreSpec Arena.checkFuel) (hck : CheckOK false env fe s)
+    (henv : EnvWF env)
+    (hok2 : StepOK env2 (fe.push ci) s) (hcn : ci.name = cn)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hv : denoteE s.store value = some x) (hws : Expr.WScoped 0 x)
+    (hrun : checkReducePin .verified fe ci cn value s = .ok (fe', s')) :
+    CoreStep env fe s s' ∧ IFEnv.SameView fe' fe ∧
+      ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps .verified F) env env2 nm x
+        = .ok () := by
+  subst hcn
+  have hsv := IFEnv.sameView_popTemp fe ci
+  simp only [Arena.checkReducePin] at hrun
+  obtain ⟨b1, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, rfl⟩ := reduceStoredOk_run hck.state hck.pins hok2.ienv hn _ _ g1
+  rcases AM.ite_ok r1 with ⟨hc0, r1'⟩ | ⟨-, r1'⟩
+  rotate_left
+  · exact absurd r1' (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+  have hck1 : CheckOK false env fe s1 := hck.mono hs1.ok hs1.ext hs1.caches hs1.pins
+  obtain ⟨u, s2, g2, r2⟩ := AM.bind_ok r1'
+  obtain ⟨hstep2, he, hg, F, h5, h6⟩ :=
+    checkReducePinPre_bridge hk (hck1.congr_find hsv.find hsv.tbls hsv.base) henv
+      (denoteN_ext hn hs1.ext) (denote_ext hv hs1.ext) hws g2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+  have hstep2' := hstep2.congr_find (fun n => (hsv.find n).symm) hsv.tbls.symm hsv.base.symm
+  exact ⟨⟨hstep2'.ok, hs1.ext.trans hstep2'.ext, by rw [hstep2'.pins, hs1.pins]⟩, hsv,
+    F, checkReducePin_pure hc0 he hg h5 h6⟩
 
 end ConRon.Bridge
