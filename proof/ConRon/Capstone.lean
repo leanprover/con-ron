@@ -12,6 +12,8 @@ import ConRon.Bridge.Inductives.Decl
 import ConLeche.MainTheorem
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Frontend.Prepare
+import ConRon.Bridge.Frontend.Olean.Records
+import ConRon.Refine2.Frontend.Olean.Contract
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -326,6 +328,154 @@ theorem stages_storeWF
     ⟨hfold.check, hfold.persPins⟩ hpd hden hA'
   exact hR.bdy.check.state.wf
 
+/-! ### The `.olean` path: the same stages, the parse replaced by the reader -/
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run — **the frame up to the
+fold**, whatever the parse was: `stages_frame`, its parse a premise. -/
+theorem stages_frame_of {pins : List NatOpPinSet}
+    {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD} {dsR : Array Declaration}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hstep2 : ParseStep sB sC) (hpersR : PersParseResult r)
+    (hdenR : denoteDeclArray sC.store r.decls = some dsR)
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
+    (hE : internAllPins pins sD = .ok (ipins, sE)) :
+    sE.store.scratchOn = false ∧
+      FoldOK Env.empty (mkIFEnv IEnv.empty) sE ∧
+      PinsDenote sE.store ipins pins ∧ PersPinSets ipins ∧
+      (∀ x ∈ ds.toList, PersDecl x) ∧
+      ∃ preC : ConLeche.Frontend.PreludeIx, denoteDecls sE.store ds.toList
+        = some (ConLeche.Frontend.preparePrelude preC dsR).toList := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
+  obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
+    internReservedPins_run hok0 hoff0 hA
+  obtain ⟨hstep1, hpersPre, preC, hrelPre⟩ :=
+    builtinPreludeE_run hokA hoffA hpinsA hB
+  obtain ⟨hstep3, hpersDs, hclPrep⟩ :=
+    preparePrelude_run (preC := preC) hstep2.ok
+      (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
+      hdenR hpersR hD
+  have hoff3 : sD.store.scratchOn = false := by
+    rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoffA
+  obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, hoffP, hcachesP, -⟩ :=
+    internAllPins_run hstep3.ok
+      (hpinsA.mono ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
+        (by rw [hstep3.pins, hstep2.pins, hstep1.pins]))
+      (hppA.mono (by rw [hstep3.pins, hstep2.pins, hstep1.pins])) hoff3 hE
+  refine ⟨hoffP, FoldOK_of_start hokP hpinsP hppP
+      (((CacheOK.of_empty (s := sA) (by rw [hcachesA]; exact hc0)).monoF
+            ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
+            ((hstep1.cframe.trans hstep2.cframe).trans hstep3.cframe)).mono
+        hxP hcachesP),
+    hipins, hpps, fun x hx => hpersDs x (by simpa using hx), preC,
+    denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)⟩
+
+/-- con-leche: none — the driver's names interned: the handles denote them. -/
+theorem internNames_run {s : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false) :
+    ∀ (names : List ConLeche.Name) {hs : List NIdx} {s' : AState},
+      names.mapM ConRon.Arena.internName s = .ok (hs, s') →
+      ParseStep s s' ∧ ConRon.Bridge.Frontend.ListRel (ConRon.Bridge.Frontend.Olean.NR s'.store) hs names
+  | [], hs, s', h => by
+    simp only [List.mapM_nil] at h
+    obtain ⟨hv, hsx⟩ := AM.pure_ok h
+    cases hv
+    subst hsx
+    exact ⟨ParseStep.refl hok, .nil⟩
+  | n :: ns, hs, s', h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨x, s₁, h1, h⟩ := AM.bind_ok h
+    obtain ⟨hst1, hd⟩ := internName_sstep hok h1
+    have hst1' := (hst1.toIStep hoff).toParse hoff
+    obtain ⟨xs, s₂, h2, h⟩ := AM.bind_ok h
+    obtain ⟨hv, hsx⟩ := AM.pure_ok h
+    cases hv
+    subst hsx
+    obtain ⟨hst2, hr⟩ := internNames_run hst1'.ok (by rw [hst1'.scratch]; exact hoff) ns h2
+    exact ⟨hst1'.trans hst2, .cons (denoteN_ext hd hst2.ext) hr⟩
+
+/-- con-leche: ConLeche/MainTheorem.lean:163 main_oleans_no_False — **a pooled accept of a closure
+that holds a `False` theorem is impossible, at (B)**: the twin's read on the snapshot,
+`readOleans_run`, puts the theorem in the stream; `stages_frame_of` carries it to the fold;
+the fold's accept is con-leche's, which refutes it. -/
+theorem stagesO_no_False (V : Type w) [ConLeche.SetTheory V]
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    {F : ConLeche.FS} {sp : ConLeche.Frontend.Olean.SearchPath} {names : List ConLeche.Name}
+    {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+    {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name Expr} {v : Expr} {all : List ConLeche.Name}
+    (hcl : ConLeche.Frontend.Olean.InClosure sp F names.toArray m)
+    (hv : ConLeche.Frontend.Olean.ViewOf sp F m d) (hmem : c ∈ d.constants)
+    (hkind : c.kind = .thm v all) (hty : c.type = .const ConLeche.falseName [])
+    {pins : List NatOpPinSet} {roots : List NIdx}
+    {sA sB sB' sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hR : names.mapM ConRon.Arena.internName sB = .ok (roots, sB'))
+    (hC : ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F) sp
+      roots.toArray none sB' = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
+    (hE : internAllPins pins sD = .ok (ipins, sE))
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
+    False := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  obtain ⟨hokA, -, hpinsA, -, hoffA, -, -⟩ := internReservedPins_run hok0 hoff0 hA
+  obtain ⟨hstep1, -, -, -⟩ := builtinPreludeE_run hokA hoffA hpinsA hB
+  have hoffB : sB.store.scratchOn = false := by rw [hstep1.scratch]; exact hoffA
+  obtain ⟨hstR, hnr⟩ := internNames_run hstep1.ok hoffB names hR
+  obtain ⟨hstC, hpersR, dsR, hdenR, hthm⟩ := ConRon.Bridge.Frontend.Olean.readOleans_run
+    (roots := roots.toArray) (rootsC := names.toArray) hstR.ok (by rw [hstR.scratch]; exact hoffB)
+    (hpinsA.mono (hstep1.trans hstR).ext (hstep1.trans hstR).pins) (by simpa using hnr) hC
+  obtain ⟨-, hfold, hipins, hpps, hpd, preC, hden⟩ :=
+    stages_frame_of (pins := pins) hA hB (hstR.trans hstC) hpersR hdenR hD hE
+  obtain ⟨env', F', -, hpure⟩ :=
+    Arena.pooledAccepts_bridge hk hind hpps hfold hipins hpd hden hF
+  obtain ⟨v', hd⟩ := hthm hcl hv hmem hkind
+  have hm' := ConLeche.Frontend.mem_preparePrelude (pre := preC) hd
+  exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V (by simpa using hm') hty hpure
+
+/-- con-leche: ConLeche/Model/Fold.lean:254 checkDeclsPure_sound_of — **the model at (B), on the
+`.olean` path**. -/
+theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
+    (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
+    {F : ConLeche.FS} {sp : ConLeche.Frontend.Olean.SearchPath} {names : List ConLeche.Name}
+    {pins : List NatOpPinSet} {roots : List NIdx}
+    {sA sB sB' sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hR : names.mapM ConRon.Arena.internName sB = .ok (roots, sB'))
+    (hC : ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F) sp
+      roots.toArray none sB' = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
+    (hE : internAllPins pins sD = .ok (ipins, sE))
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
+    StoreWF sF.store ∧ ∃ env', denoteFEnv sF.store fe' = some env' ∧
+      Nonempty (ConLeche.Model.EnvModelM V env') := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  obtain ⟨hokA, -, hpinsA, -, hoffA, -, -⟩ := internReservedPins_run hok0 hoff0 hA
+  obtain ⟨hstep1, -, -, -⟩ := builtinPreludeE_run hokA hoffA hpinsA hB
+  have hoffB : sB.store.scratchOn = false := by rw [hstep1.scratch]; exact hoffA
+  obtain ⟨hstR, hnr⟩ := internNames_run hstep1.ok hoffB names hR
+  obtain ⟨hstC, hpersR, dsR, hdenR, -⟩ := ConRon.Bridge.Frontend.Olean.readOleans_run
+    (roots := roots.toArray) (rootsC := names.toArray) hstR.ok (by rw [hstR.scratch]; exact hoffB)
+    (hpinsA.mono (hstep1.trans hstR).ext (hstep1.trans hstR).pins) (by simpa using hnr) hC
+  obtain ⟨-, hfold, hipins, hpps, hpd, preC, hden⟩ :=
+    stages_frame_of (pins := pins) hA hB (hstR.trans hstC) hpersR hdenR hD hE
+  obtain ⟨env', F', hdenF, hpure⟩ :=
+    Arena.pooledAccepts_bridge hk hind hpps hfold hipins hpd hden hF
+  refine ⟨?_, env', hdenF, ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) hpure⟩
+  obtain ⟨n, pend, D, -, hA', -⟩ := hF
+  obtain ⟨hR', -, -⟩ := installFold_frame ds.toList _ _ _ sE sF
+    ⟨hfold.check, hfold.persPins⟩ hpd hden hA'
+  exact hR'.bdy.check.state.wf
+
 end Twin
 
 /-! ## 2. The Rust side: the six stages, walked into the twin by Theorem 2 -/
@@ -408,6 +558,176 @@ theorem rust_stages
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
 end Rust
+
+/-! ## The `.olean` path at the Rust
+
+The driver's calls on `--olean` are `rust_stages`'s, the stream's two replaced: the roots' names
+interned one by one (`bin/con-ron.rs`, `olean_fs::read_request`), and `records::read_oleans` over
+the store, at the instance `olean_fs::StdFs`. -/
+
+section RustOleans
+
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
+
+/-- **The instance answers as one snapshot `F`**, at the paths the reader asks (`PathRel`): the file
+seam's premise, as `ReadsAs` is the stream's.  A failure answers only where the snapshot has no such
+file; which message it gives is the instance's. -/
+structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv : Fs)
+    (F : ConLeche.FS) : Prop where
+  path_exists : ∀ {p q}, PathRel p q → ∀ o, inst.path_exists fsv p = ok o →
+    o = .Ok (F.real q).isSome
+  real_path : ∀ {p q}, PathRel p q → ∀ o, inst.real_path fsv p = ok o →
+    match o with
+    | .Ok r => F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
+    | .Err _ => F.real q = none
+  read_bin_file : ∀ {p q}, PathRel p q → ∀ o, inst.read_bin_file fsv p = ok o →
+    match o with
+    | .Ok b => F.file q = some (absBytes (alloc.vec.Vec.deref b))
+    | .Err _ => F.file q = none
+  read_range : ∀ {p q}, PathRel p q → ∀ off len o, inst.read_range fsv p off len = ok o →
+    match o with
+    | .Ok b => ∃ whole, F.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
+        whole.extract off.val (min (off.val + len.val) whole.size)
+    | .Err _ => F.file q = none
+  file_size : ∀ {p q}, PathRel p q → ∀ o, inst.file_size fsv p = ok o →
+    match o with
+    | .Ok s => ∃ whole, F.file q = some whole ∧ s.val = whole.size
+    | .Err _ => F.file q = none
+
+/-- The instance of a snapshot answers as the snapshot's record. -/
+theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {F : ConLeche.FS} (h : SnapshotOf inst fsv F) :
+    FsRel inst fsv (ConRon.Bridge.Frontend.Olean.modelFs F) where
+  pathExists := fun hp o ho => by
+    rw [h.path_exists hp o ho]
+    rfl
+  realPath := fun {p q} hp o ho => by
+    have := h.real_path hp o ho
+    cases o with
+    | Ok r =>
+      simp only [ConRon.Bridge.Frontend.Olean.modelFs, this.1]
+      exact ⟨trivial, this.2⟩
+    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
+  readBinFile := fun {p q} hp o ho => by
+    have := h.read_bin_file hp o ho
+    cases o with
+    | Ok r => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]
+    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
+  readRange := fun {p q} hp off len o ho => by
+    have := h.read_range hp off len o ho
+    cases o with
+    | Ok r =>
+      obtain ⟨whole, h1, h2⟩ := this
+      simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
+    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
+  fileSize := fun {p q} hp o ho => by
+    have := h.file_size hp o ho
+    cases o with
+    | Ok r =>
+      obtain ⟨whole, h1, h2⟩ := this
+      simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
+    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
+
+/-- **The driver's loop over the roots** (`olean_fs::OleanRequest::intern`): each name interned, the
+next from the state the last left.  A name's strings are code points (`NameWF`); the command line's
+are, by `parse_mod_name`. -/
+def InternRoots (pers : arena.store.PersTier) :
+    arena.monad.AState → List kernel.name.Name → List arena.handle.NIdx → arena.monad.AState → Prop
+  | st, [], [], st' => st' = st
+  | st, n :: ns, h :: hs, st' => ConRon.Refine.NameWF n ∧
+      ∃ st₁, arena.monad.intern_name pers st n = ok (.Ok h, st₁) ∧ InternRoots pers st₁ ns hs st'
+  | _, _, _, _ => False
+
+theorem internRoots_refines {pers : arena.store.PersTier} :
+    ∀ (names : List kernel.name.Name) (roots : List arena.handle.NIdx)
+      {st st' : arena.monad.AState} {lst : ConRon.Arena.AState},
+      InternRoots pers st names roots st' → AStateRel₀ pers st lst → AStateInv pers st →
+      ∃ lst', (names.map ConRon.Refine.absName).mapM ConRon.Arena.internName lst
+          = .ok (roots.map absNIdx, lst') ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+  | [], [], st, st', lst, h, hrel, hinv => by
+    obtain rfl : st' = st := h
+    exact ⟨lst, rfl, hrel, hinv⟩
+  | [], _ :: _, _, _, _, h, _, _ => h.elim
+  | _ :: _, [], _, _, _, h, _, _ => h.elim
+  | n :: ns, x :: xs, st, st', lst, h, hrel, hinv => by
+    obtain ⟨hwf, st₁, h1, h2⟩ := h
+    obtain ⟨hS, -⟩ := intern_name_run'₀ n hwf hrel hinv h1
+    obtain ⟨lst₁, hl, hrel₁, hinv₁⟩ := hS.apply
+    obtain ⟨lst', hl', hrel', hinv'⟩ := internRoots_refines ns xs h2 hrel₁ hinv₁
+    refine ⟨lst', ?_, hrel', hinv'⟩
+    simp only [List.map_cons, List.mapM_cons]
+    have hl2 : ConRon.Arena.internName (ConRon.Refine.absName n) lst = .ok (absNIdx x, lst₁) := hl
+    simp only [Bind.bind, StateT.bind, hl2, Except.bind, hl']
+    rfl
+
+/-- **The Rust pipeline on `--olean`, walked into the twin**: `rust_stages`, the parse replaced by
+the interned roots and the reader, at the snapshot's record. -/
+theorem rust_stages_oleans (hT2 : ReadOleansRefines)
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+    {pers : arena.store.PersTier} {est : arena.store.EStore}
+    (hfz : pers.frozen = false) (hpe : PersEnvEmpty pers)
+    {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+    {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
+    {ds : alloc.vec.Vec arena.env.IDeclaration}
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {fe : arena.env.IFEnv}
+    (hest : arena.store.EStore.empty = ok est)
+    (hst0 : arena.monad.AState.init est = ok st0)
+    (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+    (h2 : frontend.prelude.builtin_prelude_e pers st1 = ok (.Ok pre, st2))
+    {names : List kernel.name.Name} {roots : alloc.vec.Vec arena.handle.NIdx}
+    {stR : arena.monad.AState} (hroots : InternRoots pers st2 names roots.val stR)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs} {F : ConLeche.FS}
+    (hsnap : SnapshotOf finst fsv F)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {store3 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv pers stR.store dirs roots none
+      = ok (.Ok r, store3))
+    (hst3 : st3 = { stR with store := store3 })
+    (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+    (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+    {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+    (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
+    ∃ (sA sB sB' sC sD sE sF : ConRon.Arena.AState)
+      (rv : ConRon.Arena.Frontend.ParseResultD) (lfe : ConRon.Arena.IFEnv),
+      ConRon.Arena.internReservedPins
+          (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) = .ok ((), sA) ∧
+      ConRon.Arena.Frontend.builtinPreludeE sA = .ok (.ok (absPreludeIx pre), sB) ∧
+      (names.map ConRon.Refine.absName).mapM ConRon.Arena.internName sB
+          = .ok (roots.val.map absNIdx, sB') ∧
+      ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F)
+          (absSearchPath dirs) (roots.val.map absNIdx).toArray none sB' = .ok (.ok rv, sC) ∧
+      ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
+          = .ok ((absIDeclL ds).toArray, sD) ∧
+      ConRon.Arena.internAllPins (ConRon.Refine.absPins pins) sD
+          = .ok (absINatOpPinSetL ipins, sE) ∧
+      ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
+          (absIDeclL ds).toArray sE lfe sF ∧
+      AStateRel₀ pers st6 sF ∧ IFEnvOwn fe lfe := by
+  subst hst3
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hfz hest hst0
+  obtain ⟨sA, hA, hrelA, hinvA⟩ :=
+    (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
+    builtin_prelude_e_refines scanSpec hrelA hinvA h2
+  subst hpreL
+  obtain ⟨sB', hR, hrelR, hinvR⟩ := internRoots_refines names roots.val hroots hrelB hinvB
+  obtain ⟨rv, sC, hC, hrv, hrelC, hinvC⟩ := hT2 (fsRel_of_snapshot hsnap) hrelR hinvR h3
+  obtain ⟨sD, hD, hrelD, hinvD⟩ :=
+    (prepare_prelude_refines hrelC hinvC h4).apply
+  have hdecls : rv.decls = absIDeclArr r.decls := hrv.decls
+  have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
+      = .ok ((absIDeclL ds).toArray, sD) := by
+    rw [hdecls]; exact hD
+  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
+    (intern_all_pins_refines hrelD hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
+    (pins := ipins) hrelE hinvE hfz hpe h6
+  exact ⟨sA, sB, sB', sC, sD, sE, sF, rv, lfe, hA, hB, hR, hC, hD', hE, hF, hrelF, hfe⟩
+
+end RustOleans
 
 /-! ## 3. The binary's start values, and what its environment denotes
 
@@ -598,7 +918,20 @@ census one axiom, `kernel.pins_text.PINS_TEXT._native.decide.ax_1` — the one
 Aeneas's `toStr` spends on that constant's DEFINITION (AENEAS_FINDINGS.md
 §3.8; `Refine2/Checker/PinsWF.lean`'s census), nothing this proof evaluates.
 `model_exists_embedded` / `no_False_declaration_embedded` are the headlines
-with `decode_embedded` itself in the premise, and carry that axiom. -/
+with `decode_embedded` itself in the premise, and carry that axiom.
+
+**`--olean`.**  `no_False_oleans_of` and `model_exists_oleans_of` take the same calls with the
+stream's two replaced, as `Input::Oleans` runs them (`olean_fs::read_request`):
+
+| premise | the binary's call |
+|---|---|
+| `hroots` | `olean_fs::OleanRequest::intern`: `monad::intern_name` on each root |
+| `hsnap`, `h3` | `records::read_oleans` at `olean_fs::StdFs`, whose answers are one snapshot's |
+
+`h4` starts from the state `hroots` left with the store `h3` left: the reader takes the store
+alone.  `hcl`, `hv`, `hmem`, `hk`, `hty` are upstream's, by the specification (`InClosure`, `ViewOf`:
+`decodeModuleSpec`).  `--constant` is outside them, as a run from `constants = none`.  `hT2` is
+Theorem 2 at the reader, `Refine2/Frontend/Olean/Contract.lean`'s `ReadOleansRefines`. -/
 
 section Headline
 
@@ -802,6 +1135,123 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
   no_False_declaration V hfalse h1 h2 hreads h3 h4 hdec h5 h6 hord h7 hlayer h8
 
+/-- con-leche: ConLeche/MainTheorem.lean:163 main_oleans_no_False — **A CLOSURE THAT HOLDS A THEOREM
+OF TYPE `False` IS REJECTED BY THE RUST CHECKER'S `--olean`**: on a snapshot `F` of the files (`hsnap`),
+where the private view of a module of the closure of the roots, by con-leche's specification
+(`InClosure`, `ViewOf`: nothing about the fast parser), holds a theorem of type `False`, the binary's
+calls cannot all succeed.  `hT2` is Theorem 2 at the reader, `Refine2/Frontend/Olean/Contract.lean`.
+
+Composition only: `rust_stages_oleans` (Theorem 2), `stagesO_no_False` (Theorem 1). -/
+theorem no_False_oleans_of (hT2 : ConRon.Refine2.Frontend.Olean.ReadOleansRefines)
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+    {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
+    {all : List ConLeche.Name}
+    {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    (hcl : ConLeche.Frontend.Olean.InClosure (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F
+      (names.map ConRon.Refine.absName).toArray m)
+    (hv : ConLeche.Frontend.Olean.ViewOf (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F m d)
+    (hmem : c ∈ d.constants) (hk : c.kind = .thm v all)
+    (hty : c.type = .const ConLeche.falseName [])
+    {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {roots : alloc.vec.Vec arena.handle.NIdx}
+    (hroots : InternRoots emptyTier st2 names roots.val stR)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {r : frontend.export_c.ParseResultD} {store3 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+      = ok (.Ok r, store3))
+    {prepared : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
+      = ok (.Ok prepared, st4))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+    {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+    {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {blocks : alloc.vec.Vec arena.checker.BlockCheck}
+    (h6 : (do
+        let t ← arena.checker.fold_start
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
+          prepared.decls 0#usize hook)
+      = ok (.Ok (n, fe, pend, blocks), st6))
+    {order : alloc.vec.Vec (Bool × Std.U64)}
+    (hord : arena.checker.job_order pend blocks = ok order)
+    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st6.store fe = ok (tier, frozen))
+    {layer : arena.env.IFEnv}
+    (hlayer : arena.checker.check_layer = ok layer)
+    (h8 : ParallelAll order.length (arena.checker.worker_state st6.pins)
+      (jobStep tier .Verified layer pend blocks order)) :
+    False := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge hkc
+  obtain ⟨sA, sB, sB', sC, sD, sE, sF, rv, lfe, hA, hB, hR, hC, hD, hE, hF, -, -⟩ :=
+    rust_stages_oleans hT2 hpins rfl (persEnvEmpty_of_eq rfl) hest hst0 h1 h2 hroots hsnap h3 rfl
+      (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 hord h7 hlayer h8)
+  exact stagesO_no_False V hkc hind (pins := ConRon.Refine.absPins pins) hcl hv hmem hk hty
+    hA hB hR hC hD hE hF
+
+/-- con-leche: ConLeche/MainTheorem.lean:96 model_exists — **every environment the Rust checker's
+`--olean` accepts has a model**, in every set theory, on a snapshot of the files.  `hT2` as in
+`no_False_oleans_of`. -/
+theorem model_exists_oleans_of (hT2 : ConRon.Refine2.Frontend.Olean.ReadOleansRefines)
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {roots : alloc.vec.Vec arena.handle.NIdx}
+    (hroots : InternRoots emptyTier st2 names roots.val stR)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {r : frontend.export_c.ParseResultD} {store3 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+      = ok (.Ok r, store3))
+    {prepared : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
+      = ok (.Ok prepared, st4))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+    {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+    {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {blocks : alloc.vec.Vec arena.checker.BlockCheck}
+    (h6 : (do
+        let t ← arena.checker.fold_start
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
+          prepared.decls 0#usize hook)
+      = ok (.Ok (n, fe, pend, blocks), st6))
+    {order : alloc.vec.Vec (Bool × Std.U64)}
+    (hord : arena.checker.job_order pend blocks = ok order)
+    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st6.store fe = ok (tier, frozen))
+    {layer : arena.env.IFEnv}
+    (hlayer : arena.checker.check_layer = ok layer)
+    (h8 : ParallelAll order.length (arena.checker.worker_state st6.pins)
+      (jobStep tier .Verified layer pend blocks order)) :
+    ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge hkc
+  obtain ⟨sA, sB, sB', sC, sD, sE, sF, rv, lfe, hA, hB, hR, hC, hD, hE, hF, hrelF, hfe⟩ :=
+    rust_stages_oleans hT2 hpins rfl (persEnvEmpty_of_eq rfl) hest hst0 h1 h2 hroots hsnap h3 rfl
+      (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 hord h7 hlayer h8)
+  obtain ⟨hwfF, env, hden, ⟨hmod⟩⟩ :=
+    stagesO_model V hkc hind (F := F) (pins := ConRon.Refine.absPins pins) hA hB hR hC hD hE hF
+  exact ⟨env, ⟨sF, lfe, hrelF.of₀ hwfF, hfe, hden⟩, ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
+
 end Headline
 
 /-! ## 5. The census
@@ -829,5 +1279,11 @@ environment, so this census does not list them. -/
  Quot.sound,
  kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
 #guard_msgs in #print axioms no_False_declaration_embedded
+
+/-- info: 'ConRon.Capstone.no_False_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_oleans_of
+
+/-- info: 'ConRon.Capstone.model_exists_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_exists_oleans_of
 
 end ConRon.Capstone

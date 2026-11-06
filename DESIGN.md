@@ -71552,6 +71552,58 @@ display gate 9/9, command-line gate 10/10.
 Peak RSS is 1.12x con-leche's, inside the 3x budget.  The store holds 108.1 M expression nodes at
 the parse's end, 108.2 M after the install.
 
+#### Theorem 1
+
+**`readOleans_run`** (`Bridge/Frontend/Olean/Records.lean`): on `modelFs F`, the record of a snapshot
+`F`, where the twin's whole read answers, the store only grew (`ParseStep`), the records are persistent
+and denote a stream `ds`, and for every `InClosure sp F rootsC m`, `ViewOf sp F m d`, `c ∈ d.constants`,
+`c.kind = .thm v all`, some `thmDecl ⟨c.name, c.levelParams, c.type⟩ v'` is in `ds`.  Run form, as the
+frontend tier's; nothing here is a vcgen goal, and no new `@[bridge_grind]` was wanted.
+
+| module | what it proves | of upstream, reused |
+|---|---|---|
+| `Nodes` | `nameNode`…`exprNode`, `nameAt`, `nameP`: the handle denotes the node's value, given the kids (`SubRel`) | `Kid` |
+| `Fast` | the upward sweep: every marked slot's handle denotes `nameAt`/`levelAt`/`levelsAt`/`exprAt` (`Built`) | `markPass_spec` at `A := False`, `Closed`, `marked_*`, `maxLoc_ge`, `loc_eq` |
+| `Read` | a skeleton read off the memo; `entry_sim`, the one lemma about `CEntryF.mapM` | `CEntryF.mapM_some`, `mapM_congr` |
+| `Parse` | `runPasses`, `constNamesOk`, `importsPre`, `parseMany`, `parseAt`, **`parseView_run`: `decodeModuleSpec f level = some z`** | `decodeAt_skels`, `decodeModuleSpec` |
+| `Files` | `modelFs`; `findModule`, `readPart`, `readImportsAt`, `readFiles`, `readView` as value outcomes at `ModelIO` | `foldChunks_det`, `extract_step`, `Part.ofBytes_checks`, `parseView_eq_spec` |
+| `Closure` | `closureGo`, step for step; `uses` denote; `loadClosure` | none needed but `listRel`s |
+| `Merge`, `MergeAll` | `isPropCheap`, `subsumes`, `mergeEntry`, **`mergeAll_run`: upstream's `mergeAll` on the denotations** | `CKindF.mapM_tag` |
+| `EmitRec`, `EmitWalk`, `EmitRun`, `Blocks` | the records, `recMapOf`, `emitLoop` against upstream's well-founded one, `blocksOk` | `CKindF.mapM_tag`; upstream's `emitLoop` equation |
+| `Records` | `declsOf` through `processLineCoreD_run`; `readOleans_run` | `mergeAll_ok`, `closureOrder_ok`, `InClosure.mem_order`, `readView_of_viewOf`, `readView_unique`, `declsOf_thm`, `contains_of_getElem` |
+
+**The memo is related to the specification, not to upstream's fast decoder.**  The invariant is
+upstream's `Built` over handles, so `parseView_eq_spec` is needed only to say that upstream's `readView` is
+at the same value.  No `RootsOK` either: a twin's pass that answers read every marked object, and
+`markPass_spec` at `A := False` gives `Closed` for free.
+
+**What it took beyond transport (one finding).**  `isPropBody`/`isPropHead` take fuel and spent fuel is an
+*answer*, not a `fail`.  So the twin's `subsumes` can say `false` where upstream's says `true`, at two axioms
+of one type, which would change the arm of `mergeEntry` if nothing else held.  It does not: `subsumes prev c`
+at those two asks the same `isPropCheap` on the same handle, says `false`, and the twin goes to its `fail`
+(`subsumes_run`'s third conjunct, `subsumes_ax_false`, `mergeEntry_run`).  So the statement is true with no
+premise on the fuel, in either the emission (`outOfFuel` fails) or the merge; no fuel premise appears.
+
+**Not covered**: the reads the accepting path does not take: `parseAllViews`, `checkViews`, `readAllViews`
+(so `parseAllViews_eq`), `namePositionsAt`, `entryAt`, `stmtsFast`, `sGo` (so `readEntry_of_view` and
+friends), which only the tools and `olean-compare` call.  `--constant` is outside the capstones,
+`readOleans` at `constants = none`, as upstream's `readOleans_thm` is.
+
+**The capstones**, `ConRon/Capstone.lean`.  At (B): `stagesO_no_False`, `stagesO_model`, on `stages_frame_of`
+(`stages_frame` with its parse a premise).  At the Rust: **`no_False_oleans_of`**, **`model_exists_oleans_of`**,
+`#print axioms` at the three standard ones, each taking `hT2 : ReadOleansRefines`,
+`Refine2/Frontend/Olean/Contract.lean`, the statement of Theorem 2 at the reader: **the only thing left**.  When
+`read_oleans_refines` proves it (or a premise is added there, with the capstone's premise beside it), the theorems
+without `_of` are one line each, and OVERVIEW's sentence on `--olean` changes then, not before.
+
+* `SnapshotOf finst fsv F` (in `Capstone.lean`): at T2's `PathRel p q`, each of the five answers is `F`'s at `q`;
+  an `Err` only where `F` has no such file.  `fsRel_of_snapshot` makes T2's `FsRel finst fsv (modelFs F)` of it.
+  The `Err` clause is there because `FsRel`'s has one; were `FsRel` about `Ok` answers alone, which an accept is
+  all that reads, a transient I/O error on a file `F` holds would no longer leave the premise false.
+* `InternRoots`: the driver's `OleanRequest::intern`, one `intern_name` per root, each `NameWF`.  The roots are
+  a list, so the closure is of `(names.map absName).toArray`; upstream's is the case of one.
+* T2's commit `336e049c` changed the twin's `constsGo` to test tags first; `constsGo_run` follows it.
+
 #### What the theorem lanes owe
 
 **Theorem 2**: `read_oleans` and everything under it is the twin's, with `OleanFs`'s instance and

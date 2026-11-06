@@ -23,7 +23,11 @@ The modules, in dependency order:
   the letter at the pure fold (a stream that declares a theorem of type
   `False` is never accepted), with `FoldOK_of_start` and the stream lemmas
   `ConRon/Capstone.lean`'s byte-level capstones are assembled from;
-* `Bridge/Frontend/Axioms.lean` — the trust census.
+* `Bridge/Frontend/Axioms.lean` — the trust census;
+* `Bridge/Frontend/Olean/*` — **the `.olean` reader**, on the record of one file system snapshot
+  (`modelFs`): `Nodes`, `Fast`, `Read`, `Parse` (a view is the specification's `decodeModuleSpec`),
+  `Files`, `Closure` (the reads, `closureOrder`), `Merge`, `MergeAll`, `EmitRec`, `EmitWalk`,
+  `EmitRun`, `Blocks`, `Records` (`readOleans_run`, the whole read).
 
 ## What this tier does NOT contain, and why
 
@@ -61,5 +65,6 @@ public import ConRon.Bridge.Frontend.Chunks
 public import ConRon.Bridge.Frontend.Prepare
 public import ConRon.Bridge.Frontend.Capstone
 public import ConRon.Bridge.Frontend.Axioms
+public import ConRon.Bridge.Frontend.Olean.Records
 
 public section

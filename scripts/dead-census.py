@@ -110,6 +110,8 @@ CAPSTONES = [
     "ConRon.Capstone.no_False_declaration",
     "ConRon.Capstone.model_exists_embedded",
     "ConRon.Capstone.no_False_declaration_embedded",
+    "ConRon.Capstone.no_False_oleans_of",
+    "ConRon.Capstone.model_exists_oleans_of",
 ]
 # executable roots: each declares `main`, so each is a pass of its own
 EXE_ROOTS = ["ConRon.Arena.Exe", "ConRon.Arena.OleanCompareExe", "ConRon.Arena.Bench", "ConRon.Gen.Main",
