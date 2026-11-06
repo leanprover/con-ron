@@ -27,13 +27,6 @@ open ConRon.Refine2.Lockstep (LSP)
 open ConRon.Refine2 (AErrKind absAErrKind)
 open Arena.Frontend.Olean (findModule readPart hdrShort readHdrBytes hdrChunkN)
 
-/-! ## The premise `View.lean`'s theorems take -/
-
-/-- `imports_pre` is `importsPre`, as `parse_view_refines` and `parse_all_views_refines` take it. -/
-def ImportsPreSpec (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier) : Prop :=
-  ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
-    (Arena.Frontend.Olean.importsPre (absPins pk) (absBytes s))
-
 /-- **`hdr_short` is `hdrShort`**, of fewer than `2 ^ 60` bytes. -/
 theorem hdr_short_eq {acc : alloc.vec.Vec Std.U8} {b : Bool} (hb : acc.val.length < 2 ^ 60)
     (h : hdr_short acc = ok b) : b = hdrShort (absBytes (alloc.vec.Vec.deref acc)) := by
@@ -572,7 +565,7 @@ end files
 /-- **`read_view`'s accept is the twin's `readView`.** -/
 theorem read_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-    {m : arena.handle.NIdx} {level} (hfs : FsRel inst fsv fs) (hI : ImportsPreSpec pk pers) :
+    {m : arena.handle.NIdx} {level} (hfs : FsRel inst fsv fs) :
     AS pers ModDecodedRel st lst (read_view inst fsv pk pers st.store sp m level)
       (Arena.Frontend.Olean.readView fs (absPins pk) (absSearchPath sp) (absNIdx m) (absLevel level)) := by
   intro hrel hinv a s' h
@@ -601,7 +594,7 @@ theorem read_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.sto
     | Ok d =>
       obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       cases h1
-      obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := parse_view_refines (st := st) (lst := lst) (level := level) hI hf hrel hinv _ _ hq
+      obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := parse_view_refines (st := st) (lst := lst) (level := level) hf hrel hinv _ _ hq
       refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
       show ((Arena.readName (absNIdx m)) >>= _).run lst = _
       rw [am_bind_ok (read_name_run hrel hn)]
@@ -610,16 +603,10 @@ theorem read_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.sto
       rw [am_bind_ok rfl, am_bind_ok hx]
       rfl
 
-/-- `entry_at` is `entryAt`: `Reads.lean`. -/
-def EntryAtSpec (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier) : Prop :=
-  ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
-    (Arena.Frontend.Olean.entryAt (absPins pk) (absRegion bs r) c.val)
-
 /-- **`read_all_views`' accept is the twin's `readAllViews`.** -/
 theorem read_all_views_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) (hI : ImportsPreSpec pk pers)
-    (hE : EntryAtSpec pk pers) :
+    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) :
     AS pers (fun a b => AllViewsRel a.1 b.1 ∧ ExpoRel a.2 b.2) st lst
       (read_all_views inst fsv pk pers st.store sp m)
       (Arena.Frontend.Olean.readAllViews fs (absPins pk) (absSearchPath sp) (absNIdx m)) := by
@@ -654,7 +641,7 @@ theorem read_all_views_refines {pk : frontend.olean.spec.OleanPins} {pers : aren
         obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
         cases h1
     | Ok v =>
-      obtain ⟨v', lst1, hx, hR, hrel1, hinv1⟩ := parse_all_views_refines (st := st) (lst := lst) hI hf hrel hinv _ _ hq
+      obtain ⟨v', lst1, hx, hR, hrel1, hinv1⟩ := parse_all_views_refines (st := st) (lst := lst) hf hrel hinv _ _ hq
       peel h as q2, hq2
       obtain ⟨r2, ar2⟩ := q2
       cases r2 with
@@ -665,7 +652,7 @@ theorem read_all_views_refines {pk : frontend.olean.spec.OleanPins} {pers : aren
         obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
         cases h1
         obtain ⟨ex', lst2, hc, hR2, hrel2, hinv2⟩ := check_views_refines (st := withStore st ar1) (lst := lst1)
-          (m' := absName n) hE hf hR hrel1 hinv1 _ _ hq2
+          (m' := absName n) hf hR hrel1 hinv1 _ _ hq2
         refine ⟨(v', ex'), lst2, ?_, ⟨hR, hR2⟩, hrel2, hinv2⟩
         show ((Arena.readName (absNIdx m)) >>= _).run lst = _
         rw [am_bind_ok (read_name_run hrel hn)]

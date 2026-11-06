@@ -27,6 +27,9 @@ open ConRon.Arena.Frontend.Olean (isPropBody isPropHead isPropDrop isPropCheap)
 
 /-! ## The relations -/
 
+/-- A recursor's rule, handles against the twin's. -/
+abbrev RuleR := RuleRel (N := arena.handle.NIdx) absNIdx (E := arena.handle.EIdx) absEIdx ValRel
+
 /-- **`closure::CEntry` against the twin's.** -/
 def CEntryRel (c : frontend.olean.closure.CEntry) (c' : Arena.Frontend.Olean.CEntry) : Prop :=
   EntryRel absNIdx absEIdx ValRel c.c c'.c ∧ c.uses.val.map absNIdx = c'.uses.toList

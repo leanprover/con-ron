@@ -13,7 +13,7 @@ import ConLeche.MainTheorem
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Frontend.Prepare
 import ConRon.Bridge.Frontend.Olean.Records
-import ConRon.Refine2.Frontend.Olean.Contract
+import ConRon.Refine2.Frontend.Olean.ReadOleans
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -570,63 +570,41 @@ section RustOleans
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 
 /-- **The instance answers as one snapshot `F`**, at the paths the reader asks (`PathRel`): the file
-seam's premise, as `ReadsAs` is the stream's.  A failure answers only where the snapshot has no such
-file; which message it gives is the instance's. -/
+seam's premise, as `ReadsAs` is the stream's.  Each answer the instance gives is `F`'s; a failing
+operation claims nothing, since it gives the reader no accept. -/
 structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv : Fs)
     (F : ConLeche.FS) : Prop where
-  path_exists : ∀ {p q}, PathRel p q → ∀ o, inst.path_exists fsv p = ok o →
-    o = .Ok (F.real q).isSome
-  real_path : ∀ {p q}, PathRel p q → ∀ o, inst.real_path fsv p = ok o →
-    match o with
-    | .Ok r => F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
-    | .Err _ => F.real q = none
-  read_bin_file : ∀ {p q}, PathRel p q → ∀ o, inst.read_bin_file fsv p = ok o →
-    match o with
-    | .Ok b => F.file q = some (absBytes (alloc.vec.Vec.deref b))
-    | .Err _ => F.file q = none
-  read_range : ∀ {p q}, PathRel p q → ∀ off len o, inst.read_range fsv p off len = ok o →
-    match o with
-    | .Ok b => ∃ whole, F.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
-        whole.extract off.val (min (off.val + len.val) whole.size)
-    | .Err _ => F.file q = none
-  file_size : ∀ {p q}, PathRel p q → ∀ o, inst.file_size fsv p = ok o →
-    match o with
-    | .Ok s => ∃ whole, F.file q = some whole ∧ s.val = whole.size
-    | .Err _ => F.file q = none
+  path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
+    b = (F.real q).isSome
+  real_path : ∀ {p q}, PathRel p q → ∀ r, inst.real_path fsv p = ok (.Ok r) →
+    F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
+  read_bin_file : ∀ {p q}, PathRel p q → ∀ b, inst.read_bin_file fsv p = ok (.Ok b) →
+    F.file q = some (absBytes (alloc.vec.Vec.deref b))
+  read_range : ∀ {p q}, PathRel p q → ∀ off len b, inst.read_range fsv p off len = ok (.Ok b) →
+    ∃ whole, F.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
+      whole.extract off.val (min (off.val + len.val) whole.size)
+  file_size : ∀ {p q}, PathRel p q → ∀ s, inst.file_size fsv p = ok (.Ok s) →
+    ∃ whole, F.file q = some whole ∧ s.val = whole.size
 
 /-- The instance of a snapshot answers as the snapshot's record. -/
 theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (h : SnapshotOf inst fsv F) :
     FsRel inst fsv (ConRon.Bridge.Frontend.Olean.modelFs F) where
-  pathExists := fun hp o ho => by
-    rw [h.path_exists hp o ho]
+  pathExists := fun hp b hb => by
+    rw [h.path_exists hp b hb]
     rfl
-  realPath := fun {p q} hp o ho => by
-    have := h.real_path hp o ho
-    cases o with
-    | Ok r =>
-      simp only [ConRon.Bridge.Frontend.Olean.modelFs, this.1]
-      exact ⟨trivial, this.2⟩
-    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
-  readBinFile := fun {p q} hp o ho => by
-    have := h.read_bin_file hp o ho
-    cases o with
-    | Ok r => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]
-    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
-  readRange := fun {p q} hp off len o ho => by
-    have := h.read_range hp off len o ho
-    cases o with
-    | Ok r =>
-      obtain ⟨whole, h1, h2⟩ := this
-      simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
-    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
-  fileSize := fun {p q} hp o ho => by
-    have := h.file_size hp o ho
-    cases o with
-    | Ok r =>
-      obtain ⟨whole, h1, h2⟩ := this
-      simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
-    | Err e => simp only [ConRon.Bridge.Frontend.Olean.modelFs, this]; exact ⟨_, rfl⟩
+  realPath := fun hp r hr => by
+    obtain ⟨h1, h2⟩ := h.real_path hp r hr
+    simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1]
+    exact ⟨trivial, h2⟩
+  readBinFile := fun hp b hb => by
+    simp only [ConRon.Bridge.Frontend.Olean.modelFs, h.read_bin_file hp b hb]
+  readRange := fun hp off len b hb => by
+    obtain ⟨whole, h1, h2⟩ := h.read_range hp off len b hb
+    simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
+  fileSize := fun hp s hs => by
+    obtain ⟨whole, h1, h2⟩ := h.file_size hp s hs
+    simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
 
 /-- **The driver's loop over the roots** (`olean_fs::OleanRequest::intern`): each name interned, the
 next from the state the last left.  A name's strings are code points (`NameWF`); the command line's
@@ -920,7 +898,7 @@ Aeneas's `toStr` spends on that constant's DEFINITION (AENEAS_FINDINGS.md
 `model_exists_embedded` / `no_False_declaration_embedded` are the headlines
 with `decode_embedded` itself in the premise, and carry that axiom.
 
-**`--olean`.**  `no_False_oleans_of` and `model_exists_oleans_of` take the same calls with the
+**`--olean`.**  `no_False_oleans` and `model_exists_oleans` take the same calls with the
 stream's two replaced, as `Input::Oleans` runs them (`olean_fs::read_request`):
 
 | premise | the binary's call |
@@ -930,8 +908,9 @@ stream's two replaced, as `Input::Oleans` runs them (`olean_fs::read_request`):
 
 `h4` starts from the state `hroots` left with the store `h3` left: the reader takes the store
 alone.  `hcl`, `hv`, `hmem`, `hk`, `hty` are upstream's, by the specification (`InClosure`, `ViewOf`:
-`decodeModuleSpec`).  `--constant` is outside them, as a run from `constants = none`.  `hT2` is
-Theorem 2 at the reader, `Refine2/Frontend/Olean/Contract.lean`'s `ReadOleansRefines`. -/
+`decodeModuleSpec`).  `--constant` is outside them, as a run from `constants = none`.  Each is its `_of` form, which
+takes Theorem 2 at the reader as `hT2 : ReadOleansRefines` (`Refine2/Frontend/Olean/Contract.lean`),
+at `read_oleans_refines`. -/
 
 section Headline
 
@@ -1252,6 +1231,106 @@ theorem model_exists_oleans_of (hT2 : ConRon.Refine2.Frontend.Olean.ReadOleansRe
     stagesO_model V hkc hind (F := F) (pins := ConRon.Refine.absPins pins) hA hB hR hC hD hE hF
   exact ⟨env, ⟨sF, lfe, hrelF.of₀ hwfF, hfe, hden⟩, ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
 
+/-- con-leche: ConLeche/MainTheorem.lean:163 main_oleans_no_False — **A CLOSURE THE RUST CHECKER'S
+`--olean` ACCEPTS HOLDS NO PROOF OF `False`**: if a module of the import closure of the roots, read by
+the specification (`InClosure`, `ViewOf`), holds a theorem whose type is `False`, the binary's calls
+cannot all succeed.  The files are a premise: `hsnap`, the instance answers as one snapshot `F`.
+
+Composition only: `no_False_oleans_of` at `read_oleans_refines` (Theorem 2 at the reader). -/
+theorem no_False_oleans
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+    {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
+    {all : List ConLeche.Name}
+    {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    (hcl : ConLeche.Frontend.Olean.InClosure (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F
+      (names.map ConRon.Refine.absName).toArray m)
+    (hv : ConLeche.Frontend.Olean.ViewOf (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F m d)
+    (hmem : c ∈ d.constants) (hk : c.kind = .thm v all)
+    (hty : c.type = .const ConLeche.falseName [])
+    {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {roots : alloc.vec.Vec arena.handle.NIdx}
+    (hroots : InternRoots emptyTier st2 names roots.val stR)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {r : frontend.export_c.ParseResultD} {store3 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+      = ok (.Ok r, store3))
+    {prepared : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
+      = ok (.Ok prepared, st4))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+    {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+    {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {blocks : alloc.vec.Vec arena.checker.BlockCheck}
+    (h6 : (do
+        let t ← arena.checker.fold_start
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
+          prepared.decls 0#usize hook)
+      = ok (.Ok (n, fe, pend, blocks), st6))
+    {order : alloc.vec.Vec (Bool × Std.U64)}
+    (hord : arena.checker.job_order pend blocks = ok order)
+    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st6.store fe = ok (tier, frozen))
+    {layer : arena.env.IFEnv}
+    (hlayer : arena.checker.check_layer = ok layer)
+    (h8 : ParallelAll order.length (arena.checker.worker_state st6.pins)
+      (jobStep tier .Verified layer pend blocks order)) :
+    False :=
+  no_False_oleans_of ConRon.Refine2.Frontend.Olean.read_oleans_refines V hcl hv hmem hk hty h1 h2 hroots
+    hsnap h3 h4 hpins h5 h6 hord h7 hlayer h8
+
+/-- con-leche: ConLeche/MainTheorem.lean:96 model_exists — **every environment the Rust checker's
+`--olean` accepts has a model**, in every set theory, on a snapshot of the files (`hsnap`).
+
+Composition only: `model_exists_oleans_of` at `read_oleans_refines` (Theorem 2 at the reader). -/
+theorem model_exists_oleans
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {roots : alloc.vec.Vec arena.handle.NIdx}
+    (hroots : InternRoots emptyTier st2 names roots.val stR)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {r : frontend.export_c.ParseResultD} {store3 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+      = ok (.Ok r, store3))
+    {prepared : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
+      = ok (.Ok prepared, st4))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+    {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+    {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {blocks : alloc.vec.Vec arena.checker.BlockCheck}
+    (h6 : (do
+        let t ← arena.checker.fold_start
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
+          prepared.decls 0#usize hook)
+      = ok (.Ok (n, fe, pend, blocks), st6))
+    {order : alloc.vec.Vec (Bool × Std.U64)}
+    (hord : arena.checker.job_order pend blocks = ok order)
+    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st6.store fe = ok (tier, frozen))
+    {layer : arena.env.IFEnv}
+    (hlayer : arena.checker.check_layer = ok layer)
+    (h8 : ParallelAll order.length (arena.checker.worker_state st6.pins)
+      (jobStep tier .Verified layer pend blocks order)) :
+    ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) :=
+  model_exists_oleans_of ConRon.Refine2.Frontend.Olean.read_oleans_refines V h1 h2 hroots hsnap h3 h4 hpins
+    h5 h6 hord h7 hlayer h8
+
 end Headline
 
 /-! ## 5. The census
@@ -1285,5 +1364,11 @@ environment, so this census does not list them. -/
 
 /-- info: 'ConRon.Capstone.model_exists_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans_of
+
+/-- info: 'ConRon.Capstone.no_False_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_oleans
+
+/-- info: 'ConRon.Capstone.model_exists_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_exists_oleans
 
 end ConRon.Capstone

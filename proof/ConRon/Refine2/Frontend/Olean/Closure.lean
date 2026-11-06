@@ -756,8 +756,6 @@ theorem consts_of_eq {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pe
 
 /-! ## A constant's dependencies -/
 
-abbrev RuleR := RuleRel (N := arena.handle.NIdx) absNIdx (E := arena.handle.EIdx) absEIdx ValRel
-
 theorem c_entry_deps_loop_eq (out : alloc.vec.Vec arena.handle.EIdx)
     (rules : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)) (i : Std.Usize)
     {L : List (NIdx × Nat × EIdx)} (hr : List.Forall₂ RuleR (rules.val.drop i.val) L) {o}

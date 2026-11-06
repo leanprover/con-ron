@@ -29,7 +29,7 @@ open ConRon.Refine.HashMap (uscalar_add_eq uscalar_div_eq)
 /-! ## `PS`: a read that takes no store -/
 
 /-- What a read that takes no store claims of a twin's run that leaves the state alone. -/
-def POut {α β : Type} (R : α → β → Prop) (lst : AState)
+def PSOut {α β : Type} (R : α → β → Prop) (lst : AState)
     (o : core.result.Result α frontend.olean.spec.RdErr)
     (y : Except Arena.CheckError (Option β × AState)) : Prop :=
   match o with
@@ -40,7 +40,7 @@ def POut {α β : Type} (R : α → β → Prop) (lst : AState)
 /-- **The judgement of a read that takes no store.** -/
 def PS {α β : Type} (R : α → β → Prop) (m : Result (core.result.Result α frontend.olean.spec.RdErr))
     (x : AM (Option β)) : Prop :=
-  ∀ o, m = ok o → ∀ lst, POut R lst o (x.run lst)
+  ∀ o, m = ok o → ∀ lst, PSOut R lst o (x.run lst)
 
 /-- A read that takes no store, then one that does. -/
 theorem RS.ps_bind {α β α' β' : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
@@ -73,12 +73,12 @@ theorem RS.ps_bind {α β α' β' : Type} {pers : arena.store.PersTier} {R : α 
       exact AErrSim.bind hP _
 
 /-- The answer of the rest of a list read, then this element in front of it. -/
-theorem POut.cons {α β : Type} {R : α → β → Prop} {lst : AState} {pre : List β} {b : β}
+theorem PSOut.cons {α β : Type} {R : α → β → Prop} {lst : AState} {pre : List β} {b : β}
     {o : core.result.Result (alloc.vec.Vec α) frontend.olean.spec.RdErr} {x : AM (Option (List β))}
     {g : Option (List β) → AM (Option (List β))}
-    (h : POut (fun v l => List.Forall₂ R v.val ((pre ++ [b]) ++ l)) lst o (x.run lst))
+    (h : PSOut (fun v l => List.Forall₂ R v.val ((pre ++ [b]) ++ l)) lst o (x.run lst))
     (h0 : g none = pure none) (hs : ∀ l, g (some l) = pure (some (b :: l))) :
-    POut (fun v l => List.Forall₂ R v.val (pre ++ l)) lst o ((x >>= g).run lst) := by
+    PSOut (fun v l => List.Forall₂ R v.val (pre ++ l)) lst o ((x >>= g).run lst) := by
   cases o with
   | Ok a =>
     obtain ⟨l, hx, hR⟩ := h
@@ -105,7 +105,7 @@ theorem consts_skel_loop_ps {bs : Slice Std.U8} {r : frontend.olean.region.Regio
     ∀ (k : Nat) {i : Std.Usize} {out} {pre : List (CEntryF UInt64 UInt64)} {o} (lst : AState),
       consts.val.length - i.val ≤ k → List.Forall₂ EV out.val pre →
       consts_skel_loop bs r consts out i = ok o →
-      POut (fun v l => List.Forall₂ EV v.val (pre ++ l)) lst o
+      PSOut (fun v l => List.Forall₂ EV v.val (pre ++ l)) lst o
         ((constsSkel (absRegion bs r) ((consts.val.drop i.val).map (·.val))).run lst) := by
   intro k
   induction k with
@@ -143,7 +143,7 @@ theorem consts_skel_loop_ps {bs : Slice Std.U8} {r : frontend.olean.region.Regio
         peel h as i3, hi3
         have hiv : i3.val = i.val + 1 := uscalar_add_eq hi3
         rw [← hiv]
-        exact POut.cons (ih (i := i3) lst (by omega) (pre := pre ++ [sk'])
+        exact PSOut.cons (ih (i := i3) lst (by omega) (pre := pre ++ [sk'])
           (by rw [ConRon.Refine.vec_push_val ho]; exact List.rel_append hpre (List.Forall₂.cons hEV List.Forall₂.nil)) h)
           rfl (fun _ => rfl)
       | Err e =>
@@ -182,7 +182,7 @@ theorem many_skels_loop_ps {bs : Slice Std.U8} {r : frontend.olean.region.Region
     ∀ (k : Nat) {i : Std.Usize} {sks skels} {pre : List (ModSkel × List (CEntryF UInt64 UInt64))} {o}
       (lst : AState), addrs.val.length - i.val ≤ k → MsRel (sks, skels) pre →
       many_skels_loop bs r addrs sks skels i = ok o →
-      POut (fun p l => MsRel p (pre ++ l)) lst o
+      PSOut (fun p l => MsRel p (pre ++ l)) lst o
         ((manySkels (absRegion bs r) ((addrs.val.drop i.val).map absWord)).run lst) := by
   intro k
   induction k with

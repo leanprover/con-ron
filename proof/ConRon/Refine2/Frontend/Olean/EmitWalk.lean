@@ -2,7 +2,7 @@
 # `ConRon.Refine2.Frontend.Olean.EmitWalk` — `olean/emit.rs`'s walk, against the twin's
 
 **Task #142, Theorem 2.**  The Rust's stack is a `Vec` and its top, the twin's a `List` with the
-head on top: `StackRel`.  One popped item is one `workStep` of the twin, and the walk an
+head on top: `WorkStackRel`.  One popped item is one `workStep` of the twin, and the walk an
 induction on the twin's fuel.  `PR` is the judgement of a Rust function that reads no state
 against a twin action that leaves the state alone.
 -/
@@ -34,7 +34,7 @@ def absWork : frontend.olean.emit.Work → Work
   | .Block t c r => .block (t.val.map absNIdx) (c.val.map absNIdx) (r.val.map absNIdx)
 
 /-- **The stack**: a `Vec` and its top, against a `List` with its head on top. -/
-def StackRel (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
+def WorkStackRel (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
     (l : List Work) : Prop :=
   sp.val ≤ stack.val.length ∧ (stack.val.take sp.val).reverse.map absWork = l
 
@@ -52,8 +52,8 @@ theorem work_vec_set_val (v : alloc.vec.Vec frontend.olean.emit.Work) (i : Std.U
 
 /-- **`work_push` is a cons.** -/
 theorem work_push_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {x : frontend.olean.emit.Work} {o}
-    (h : work_push stack sp x = ok o) : StackRel o.2 o.1 (absWork x :: l) := by
+    {l : List Work} (hs : WorkStackRel stack sp l) {x : frontend.olean.emit.Work} {o}
+    (h : work_push stack sp x = ok o) : WorkStackRel o.2 o.1 (absWork x :: l) := by
   rw [work_push] at h
   obtain ⟨hle, hl⟩ := hs
   peel h as stack1, h1
@@ -92,11 +92,11 @@ theorem usize_pred {i i1 : Std.Usize} (h : i - 1#usize = ok i1) : i1.val + 1 = i
 
 /-- A pop. -/
 theorem stack_pop {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp sp1 : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) (h1 : sp - 1#usize = ok sp1)
+    {l : List Work} (hs : WorkStackRel stack sp l) (h1 : sp - 1#usize = ok sp1)
     {w : frontend.olean.emit.Work} {back} (w2 : frontend.olean.emit.Work)
     (h : alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice frontend.olean.emit.Work)
       stack sp1 = ok (w, back)) :
-    ∃ rest, l = absWork w :: rest ∧ sp1.val + 1 = sp.val ∧ StackRel (back w2) sp1 rest := by
+    ∃ rest, l = absWork w :: rest ∧ sp1.val + 1 = sp.val ∧ WorkStackRel (back w2) sp1 rest := by
   let _ : Inhabited frontend.olean.emit.Work := ⟨.Quot (alloc.vec.Vec.new _)⟩
   obtain ⟨hlt, hw, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq h
   obtain ⟨hle, hl⟩ := hs
@@ -159,15 +159,15 @@ theorem foldr_cons_map {α β : Type} (g : α → β) (xs : List α) (l : List �
 
 /-- **Visits of some names, the first on top.** -/
 theorem push_visits_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {ns : alloc.vec.Vec arena.handle.NIdx} {o}
+    {l : List Work} (hs : WorkStackRel stack sp l) {ns : alloc.vec.Vec arena.handle.NIdx} {o}
     (h : push_visits stack sp ns = ok o) :
-    StackRel o.2 o.1 (Work.visits (ns.val.map absNIdx) ++ l) := by
+    WorkStackRel o.2 o.1 (Work.visits (ns.val.map absNIdx) ++ l) := by
   rw [push_visits] at h
   have := down_loop (L := fun s i => push_visits_loop s.2 ns s.1 i) ns (s := (sp, stack)) (y := l)
     (step := fun s x => do
       let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x
       work_push s.2 s.1 (.Visit n1))
-    (Rel := fun s l => StackRel s.2 s.1 l) (f := fun x y => .visit (absNIdx x) :: y)
+    (Rel := fun s l => WorkStackRel s.2 s.1 l) (f := fun x y => .visit (absNIdx x) :: y)
     (fun s i => by rw [push_visits_loop]; simp only [Std.bind_assoc]; rfl)
     (fun s y x s1 hs h1 => by
       peel h1 as n1, hn1
@@ -179,16 +179,16 @@ theorem push_visits_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : S
 
 /-- **Visits of what one constant mentions.** -/
 theorem push_uses_rel {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {c : frontend.olean.closure.CEntry}
+    {l : List Work} (hs : WorkStackRel stack sp l) {c : frontend.olean.closure.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {o}
     (h : push_uses stack sp c = ok o) :
-    StackRel o.2 o.1 (c'.uses.toList.map Work.visit ++ l) := by
+    WorkStackRel o.2 o.1 (c'.uses.toList.map Work.visit ++ l) := by
   rw [push_uses] at h
   have := down_loop (L := fun s i => push_uses_loop s.2 c.uses s.1 i) c.uses (s := (sp, stack)) (y := l)
     (step := fun s x => do
       let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x
       work_push s.2 s.1 (.Visit n1))
-    (Rel := fun s l => StackRel s.2 s.1 l) (f := fun x y => .visit (absNIdx x) :: y)
+    (Rel := fun s l => WorkStackRel s.2 s.1 l) (f := fun x y => .visit (absNIdx x) :: y)
     (fun s i => by rw [push_uses_loop]; simp only [Std.bind_assoc]; rfl)
     (fun s y x s1 hs h1 => by
       peel h1 as n1, hn1
@@ -210,9 +210,9 @@ theorem usesOf_append (mg' : Arena.Frontend.Olean.Merged) (a t : List NIdx) :
 
 theorem push_uses_named_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
     (hm : MergedRel mg mg') {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {n : arena.handle.NIdx} {o}
+    {l : List Work} (hs : WorkStackRel stack sp l) {n : arena.handle.NIdx} {o}
     (h : push_uses_named stack sp mg n = ok o) :
-    StackRel o.2 o.1 (Work.usesOf mg' [absNIdx n] ++ l) := by
+    WorkStackRel o.2 o.1 (Work.usesOf mg' [absNIdx n] ++ l) := by
   rw [push_uses_named] at h
   peel h as o1, h1
   have hr := mg_get_rel hm h1
@@ -230,13 +230,13 @@ theorem push_uses_named_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Fron
 
 theorem push_uses_of_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
     (hm : MergedRel mg mg') {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {ns : alloc.vec.Vec arena.handle.NIdx} {o}
+    {l : List Work} (hs : WorkStackRel stack sp l) {ns : alloc.vec.Vec arena.handle.NIdx} {o}
     (h : push_uses_of stack sp mg ns = ok o) :
-    StackRel o.2 o.1 (Work.usesOf mg' (ns.val.map absNIdx) ++ l) := by
+    WorkStackRel o.2 o.1 (Work.usesOf mg' (ns.val.map absNIdx) ++ l) := by
   rw [push_uses_of] at h
   have := down_loop (L := fun s i => push_uses_of_loop s.2 mg ns s.1 i) ns (s := (sp, stack)) (y := l)
     (step := fun s x => push_uses_named s.2 s.1 mg x)
-    (Rel := fun s l => StackRel s.2 s.1 l) (f := fun x y => Work.usesOf mg' [absNIdx x] ++ y)
+    (Rel := fun s l => WorkStackRel s.2 s.1 l) (f := fun x y => Work.usesOf mg' [absNIdx x] ++ y)
     (fun s i => by rw [push_uses_of_loop]; rfl)
     (fun s y x s1 hs h1 => push_uses_named_rel hm hs h1) hs h
   rw [show (alloc.vec.Vec.len ns).val = ns.val.length by simp [alloc.vec.Vec.len],
@@ -252,9 +252,9 @@ theorem push_uses_of_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Fronten
 
 theorem push_uses_block_rel {mg : frontend.olean.merge.Merged} {mg' : Arena.Frontend.Olean.Merged}
     (hm : MergedRel mg mg') {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize}
-    {l : List Work} (hs : StackRel stack sp l) {tys ctors recs : alloc.vec.Vec arena.handle.NIdx} {o}
+    {l : List Work} (hs : WorkStackRel stack sp l) {tys ctors recs : alloc.vec.Vec arena.handle.NIdx} {o}
     (h : push_uses_block stack sp mg tys ctors recs = ok o) :
-    StackRel o.2 o.1 (Work.usesOf mg' (tys.val.map absNIdx ++ ctors.val.map absNIdx ++ recs.val.map absNIdx) ++
+    WorkStackRel o.2 o.1 (Work.usesOf mg' (tys.val.map absNIdx ++ ctors.val.map absNIdx ++ recs.val.map absNIdx) ++
       Work.block (tys.val.map absNIdx) (ctors.val.map absNIdx) (recs.val.map absNIdx) :: l) := by
   rw [push_uses_block] at h
   peel h as t2, ht2
@@ -389,7 +389,7 @@ theorem emitLoop_succ (pk : Arena.Frontend.Olean.OleanPins) (mg : Arena.Frontend
 
 /-- `visit_step` at a constant that has a record of its own. -/
 theorem visit_one {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
-    (hs : StackRel stack sp l) {n : arena.handle.NIdx} {c : frontend.olean.closure.CEntry}
+    (hs : WorkStackRel stack sp l) {n : arena.handle.NIdx} {c : frontend.olean.closure.CEntry}
     {c' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel c c') {lst1 : Emit}
     {st1 : frontend.olean.emit.Emit} (b1 : EmitRel st1 lst1) {o}
     (h : (do
@@ -397,7 +397,7 @@ theorem visit_one {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usi
       let (s, stack1) ← work_push stack sp (.One n1)
       let (i, stack2) ← push_uses stack1 s c
       ok (i, stack2, st1)) = ok o) :
-    StackRel o.2.1 o.1 (c'.uses.toList.map Work.visit ++ Work.one (absNIdx n) :: l) ∧
+    WorkStackRel o.2.1 o.1 (c'.uses.toList.map Work.visit ++ Work.one (absNIdx n) :: l) ∧
       EmitRel o.2.2 lst1 := by
   peel h as n1, hn1
   rw [nidx_dup2_ok hn1] at h
@@ -412,11 +412,11 @@ theorem visit_one {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usi
 theorem visit_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean.merge.Merged}
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg') {rec_map rm} (hr : RecMapRel rec_map rm)
     {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
-    (hs : StackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
+    (hs : WorkStackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
     {n : arena.handle.NIdx} {c : frontend.olean.closure.CEntry} {c' : Arena.Frontend.Olean.CEntry}
     (hc : CEntryRel c c') (hg : mg'.get (absNIdx n) = some c') {o}
     (h : visit_step pk mg rec_map stack sp st n c = ok o) :
-    StackRel o.2.1 o.1 (visitK (absPins pk) mg' rm (absNIdx n) c'.c.kind l (lst.mark (absNIdx n))).1 ∧
+    WorkStackRel o.2.1 o.1 (visitK (absPins pk) mg' rm (absNIdx n) c'.c.kind l (lst.mark (absNIdx n))).1 ∧
       EmitRel o.2.2 (visitK (absPins pk) mg' rm (absNIdx n) c'.c.kind l (lst.mark (absNIdx n))).2 := by
   rw [visit_step] at h
   peel h as st1, h1
@@ -428,19 +428,19 @@ theorem visit_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean
   generalize c'.c.kind = k' at hk ⊢
   cases k <;> cases k' <;> try exact (hk : False).elim
   case Ax.ax u u' =>
-    show StackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
+    show WorkStackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
     rw [hu]
     exact visit_one hs hc b1 h
   case Defn.defn v hh s v' h' s' =>
-    show StackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
+    show WorkStackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
     rw [hu]
     exact visit_one hs hc b1 h
   case Thm.thm v a v' a' =>
-    show StackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
+    show WorkStackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
     rw [hu]
     exact visit_one hs hc b1 h
   case Opaq.opaq v u v' u' =>
-    show StackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
+    show WorkStackRel _ _ (Work.usesOf mg' [absNIdx n] ++ _) ∧ _
     rw [hu]
     exact visit_one hs hc b1 h
   case Quot.quot s s' =>
@@ -508,10 +508,10 @@ theorem visit_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean
 theorem visit_named_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean.merge.Merged}
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg') {rec_map rm} (hr : RecMapRel rec_map rm)
     {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
-    (hs : StackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
+    (hs : WorkStackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
     {n : arena.handle.NIdx} {o}
     (h : visit_named pk mg rec_map stack sp st n = ok o) :
-    StackRel o.2.1 o.1 (workStep (absPins pk) mg' rm (.visit (absNIdx n)) l lst).1 ∧
+    WorkStackRel o.2.1 o.1 (workStep (absPins pk) mg' rm (.visit (absNIdx n)) l lst).1 ∧
       EmitRel o.2.2 (workStep (absPins pk) mg' rm (.visit (absNIdx n)) l lst).2 := by
   rw [visit_named] at h
   peel h as b, hb
@@ -552,9 +552,9 @@ theorem visit_named_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olea
 theorem work_step_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean.merge.Merged}
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg') {rec_map rm} (hr : RecMapRel rec_map rm)
     {stack : alloc.vec.Vec frontend.olean.emit.Work} {sp : Std.Usize} {l : List Work}
-    (hs : StackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
+    (hs : WorkStackRel stack sp l) {st : frontend.olean.emit.Emit} {lst : Emit} (he : EmitRel st lst)
     {w : frontend.olean.emit.Work} {o} (h : work_step pk mg rec_map stack sp st w = ok o) :
-    StackRel o.2.1 o.1 (workStep (absPins pk) mg' rm (absWork w) l lst).1 ∧
+    WorkStackRel o.2.1 o.1 (workStep (absPins pk) mg' rm (absWork w) l lst).1 ∧
       EmitRel o.2.2 (workStep (absPins pk) mg' rm (absWork w) l lst).2 := by
   unfold work_step at h
   cases w with
@@ -604,12 +604,12 @@ theorem emit_loop_loop_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.o
     {mg' : Arena.Frontend.Olean.Merged} (hm : MergedRel mg mg') {rec_map rm} (hr : RecMapRel rec_map rm)
     (F : Nat) : ∀ (fuel : Std.U64) (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
       (l : List Work) (st : frontend.olean.emit.Emit) (lst : Emit) (r stack' st'),
-      fuel.val = F → StackRel stack sp l → EmitRel st lst →
+      fuel.val = F → WorkStackRel stack sp l → EmitRel st lst →
       emit_loop_loop pk mg rec_map stack st sp fuel = ok (r, stack', st') → ∀ s,
         POut (fun _ le => EmitRel st' le) s r ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
   have hstop : ∀ (F : Nat) (fuel : Std.U64) (stack : alloc.vec.Vec frontend.olean.emit.Work)
       (sp : Std.Usize) (l : List Work) (st : frontend.olean.emit.Emit) (lst : Emit) (r stack' st') s,
-      sp.val = 0 → StackRel stack sp l → EmitRel st lst →
+      sp.val = 0 → WorkStackRel stack sp l → EmitRel st lst →
       emit_loop_loop pk mg rec_map stack st sp fuel = ok (r, stack', st') →
       POut (fun _ le => EmitRel st' le) s r ((emitLoop (absPins pk) mg' rm F l lst).run s) := by
     intro F fuel stack sp l st lst r stack' st' s hsp hs he h
@@ -843,7 +843,7 @@ theorem emit_all_rel {pk : frontend.olean.spec.OleanPins} {mg : frontend.olean.m
   obtain ⟨r, stack2, st⟩ := p
   rw [emit_loop] at hp
   peel hp as fuel, hf
-  have hs0 : StackRel (alloc.vec.Vec.with_capacity frontend.olean.emit.Work (alloc.vec.Vec.len roots))
+  have hs0 : WorkStackRel (alloc.vec.Vec.with_capacity frontend.olean.emit.Work (alloc.vec.Vec.len roots))
       0#usize [] := ⟨by simp, rfl⟩
   have hs1 := push_visits_rel hs0 hq
   rw [hroots, List.append_nil] at hs1

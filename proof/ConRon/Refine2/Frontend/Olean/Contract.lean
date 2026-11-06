@@ -1,8 +1,9 @@
 /-
 # `ConRon.Refine2.Frontend.Olean.Contract` — what the capstone asks of Theorem 2 at the reader
 
-**Task #142.**  `ReadOleansRefines` is the statement `ConRon/Capstone.lean`'s `.olean` theorems
-take of the Rust reader until `read_oleans_refines` proves it: the Rust's accepting read is the
+**Task #142.**  `ReadOleansRefines` is the statement `ConRon/Capstone.lean`'s `_of` `.olean`
+theorems take of the Rust reader, and `ReadOleans.lean`'s `read_oleans_refines` proves: the
+Rust's accepting read is the
 twin's accepting read, on a record of the file system answering as the Rust's instance
 (`FsRel`), at the abstracted search path and roots, the result and the state related as
 `parse_chunks_refines` relates them.

@@ -421,9 +421,6 @@ theorem emit_ctor_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Ar
     rw [a1, ← a2]
     rfl
 
-/-- A recursor's rule. -/
-abbrev RuleR := RuleRel (N := arena.handle.NIdx) absNIdx (E := arena.handle.EIdx) absEIdx ValRel
-
 theorem emit_rule_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Array RuleRec}
     (hx : StAcc absRuleRec (st, acc) y) {r : arena.handle.NIdx × Std.U64 × arena.handle.EIdx}
     {r' : NIdx × Nat × EIdx} (hr : RuleR r r') {o}

@@ -67,7 +67,7 @@ theorem dup_walk0 {α : Type} {v : List α} {c : Std.Usize}
     {r : alloc.vec.Vec α} (h : L 0#usize (alloc.vec.Vec.with_capacity α c) = ok r) : r.val = v :=
   dup_walk hL _ 0#usize _ r (Nat.le_refl _) (by simp) h
 
-theorem not_lt_len {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+theorem len_le_of_not_lt {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
     (hc : ¬ i < alloc.vec.Vec.len v) : v.val.length ≤ i.val := by
   have : ¬ i.val < v.val.length := by simpa [UScalar.lt_equiv] using hc
   omega
@@ -89,7 +89,7 @@ theorem region_dup_eq {r r' : frontend.olean.region.Region} (h : region_dup r = 
       exact Or.inr ⟨x, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
         ConRon.Refine.vec_push_val ho1, add_one_usize hj, h⟩
     · rw [ite_eq_right hc] at h
-      exact Or.inl ⟨not_lt_len hc, (Result.ok_injective h).symm⟩
+      exact Or.inl ⟨len_le_of_not_lt hc, (Result.ok_injective h).symm⟩
   have e2 : segs = r.segs := vec_ext e
   rw [e2]
 
@@ -112,7 +112,7 @@ theorem rules_dup_eq {r r' : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × aren
     exact Or.inr ⟨_, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
       ConRon.Refine.vec_push_val ho1, add_one_usize hj, h⟩
   · rw [ite_eq_right hc] at h
-    exact Or.inl ⟨not_lt_len hc, (Result.ok_injective h).symm⟩
+    exact Or.inl ⟨len_le_of_not_lt hc, (Result.ok_injective h).symm⟩
 
 theorem nidx_vec_dup_eq {v v' : alloc.vec.Vec arena.handle.NIdx}
     (h : arena.env.nidx_vec_dup v = ok v') : v' = v :=
@@ -194,7 +194,7 @@ theorem mod_decoded_dup_eq {d d' : frontend.olean.spec.ModDecoded}
       exact Or.inr ⟨x, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
         ConRon.Refine.vec_push_val ho1, add_one_usize hj, h⟩
     · rw [ite_eq_right hc] at h
-      exact Or.inl ⟨not_lt_len hc, (Result.ok_injective h).symm⟩
+      exact Or.inl ⟨len_le_of_not_lt hc, (Result.ok_injective h).symm⟩
   have e2 : cs = d.constants := by
     refine vec_ext (dup_walk0 (L := fun i out => mod_decoded_dup_loop1 d.constants out i) ?_ hcs)
     intro i out o h
@@ -209,7 +209,7 @@ theorem mod_decoded_dup_eq {d d' : frontend.olean.spec.ModDecoded}
       exact Or.inr ⟨_, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
         ConRon.Refine.vec_push_val ho1, add_one_usize hj, h⟩
     · rw [ite_eq_right hc] at h
-      exact Or.inl ⟨not_lt_len hc, (Result.ok_injective h).symm⟩
+      exact Or.inl ⟨len_le_of_not_lt hc, (Result.ok_injective h).symm⟩
   rw [e1, e2]
 
 /-! ## `isModule` and the region of a view -/
