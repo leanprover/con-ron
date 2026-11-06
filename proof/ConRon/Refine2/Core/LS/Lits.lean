@@ -211,13 +211,6 @@ end
   rcases ci <;> rw [arena.core.nat_succ_ok.eq_def] <;>
     simp only [Option.map_some, absIConstantInfo, natSuccOk] <;> lockstep
 
-@[lockstep] theorem nat_lit_supported_ls {pers st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers st fe) lst
-      (natLitSupported lfe) := by
-  rw [arena.core.nat_lit_supported, natLitSupported]
-  lockstep
-
 /-- `arena::core::stored` is an index probe: the twin's `find?` test. -/
 @[lockstep] theorem stored_ls {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
     (n : arena.handle.NIdx) (hctx : CoreCtx pers rf lf) :

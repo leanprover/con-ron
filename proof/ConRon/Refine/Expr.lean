@@ -572,9 +572,6 @@ theorem proj_refines {s : name.Name} {i : Std.U64} {x e : expr.Expr}
     absExpr e = .proj (absName s) i.val (absExpr x) := by
   obtain ⟨d, rfl, -, -, -⟩ := proj_inv h; simp
 
-theorem mk_bvar_wf {i : Std.U64} {e : expr.Expr} (h : expr.mk_bvar i = ok e) :
-    ExprWF e := by rw [expr.mk_bvar] at h; exact ExprWF.bvar h
-
 /-! ## `dup`, `ptr_eq` and the copies -/
 
 /-- `expr::dup` is the identity in the model (`Arc::clone` is; DESIGN.md §3.2). -/
@@ -2437,7 +2434,6 @@ theorem ExprWF.let_e_kids {d ty v b} (h : ExprWF (.mk (.mk d (.LetE ty v b)))) :
 theorem ExprWF.lit_kids {d l} (h : ExprWF (.mk (.mk d (.Lit l)))) : LiteralWF l := ExprWF.kids h
 theorem ExprWF.proj_kids {d s i x} (h : ExprWF (.mk (.mk d (.Proj s i x)))) :
     NameWF s ∧ ExprWF x := ExprWF.kids h
-
 /-- The induction principle with the motive stated on the node. -/
 theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
     (bvar : ∀ d i (h : ExprWF (.mk (.mk d (.Bvar i)))), motive (.mk (.mk d (.Bvar i))) h)

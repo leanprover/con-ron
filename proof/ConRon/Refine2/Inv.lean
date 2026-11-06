@@ -461,46 +461,6 @@ structure StoreInv (pers : arena.store.PersTier) (rs : arena.store.EStore) :
   scrt : ETablesInv rs.scr
   frz : pers.frozen = true → rs.scratch_on = true
 
-/-! ### The relation and the invariant at another tier with the same tables
-
-A promotion grows ONE table of the tier (task #98-FREEZE); the stores that
-read the other three are related, and well formed, exactly as before. -/
-
-theorem NStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : NStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n) :
-    NStoreRel p' rs ls :=
-  ⟨by unfold rPersN; rw [hf, hn]; exact h.perst, h.scrt, h.scratchOn⟩
-
-theorem LStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : LStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) : LStoreRel p' rs ls :=
-  ⟨h.ns.tier_congr hf hn, by unfold rPersL; rw [hf, hl]; exact h.perst, h.scrt,
-    h.scratchOn⟩
-
-theorem LsStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : LsStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) (hls : p'.ls = p.ls) : LsStoreRel p' rs ls :=
-  ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
-    h.scratchOn⟩
-
-
-theorem NStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : NStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n) :
-    NStoreInv p' rs :=
-  ⟨by unfold rPersN; rw [hf, hn]; exact h.perst, h.scrt, by rw [hf]; exact h.frz⟩
-
-theorem LStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : LStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) : LStoreInv p' rs :=
-  ⟨h.ns.tier_congr hf hn, by unfold rPersL; rw [hf, hl]; exact h.perst, h.scrt,
-    by rw [hf]; exact h.frz⟩
-
-theorem LsStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : LsStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) (hls : p'.ls = p.ls) : LsStoreInv p' rs :=
-  ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
-    by rw [hf]; exact h.frz⟩
-
 set_option hygiene false in
 /-- **The `frz` field of a rebuilt store invariant** (task #98-FREEZE): a
 rebuilt store keeps the flags of the store it was rebuilt from (`hinv.frz` at

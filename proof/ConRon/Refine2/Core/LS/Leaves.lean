@@ -67,9 +67,7 @@ the tidy step leaves whole. -/
 macro "lockstep_a1" : tactic =>
   `(tactic| repeat' (first | lockstep_step | (casesm* _ ∧ _) | a1_twin_eqs))
 
-theorem some_beq_some_true (b : Bool) : (some b == some true) = b := by cases b <;> rfl
-
-attribute [local lockstep_simp] some_beq_some_true Bool.not_eq_true
+attribute [local lockstep_simp] Bool.not_eq_true
 
 /-! ## The pinned constants -/
 

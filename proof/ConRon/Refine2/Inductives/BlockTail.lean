@@ -247,17 +247,6 @@ table's checks at every structure-like member. -/
       List.drop_eq_getElem_cons hlt, List.map_cons, checkBlockTables]
     lockstep
 
-/-- `check_block_tables` from member `0` (the tail's call). -/
-@[lockstep] theorem check_block_tables_ls0 {pers st lst} {rf lf}
-    {p : arena.inductives.block_shape.BlockShape}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun _ _ => True)
-      (arena.inductives.block_tail.check_block_tables pers st p rf p.members 0#usize) lst
-      (checkBlockTables (absBlockShape p) lf (absBlockShape p).members) := by
-  have h := check_block_tables_ls (p := p) (ms := p.members) (i := 0#usize) hrel hinv hfe
-  simpa [absBlockShape] using h
-
 /-- `check_block_tail_stream` ⊑ the stream's records against the generated
 family: the K flags, the generated records pushed TEMPORARILY, the comparison,
 the pops.  Its answer is the twin's popped environment. -/

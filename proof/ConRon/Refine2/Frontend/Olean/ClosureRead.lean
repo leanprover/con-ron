@@ -221,11 +221,6 @@ theorem closure_order_refines {st : arena.monad.AState} {lst : AState}
 
 /-! ## The load -/
 
-theorem array_mapM_run {α β : Type} (f : α → AM β) (a : _root_.Array α) (lst : AState) :
-    (a.mapM f).run lst = ((a.toList.mapM f >>= fun ys => pure ys.toArray) : AM _).run lst := by
-  rw [Array.mapM_eq_mapM_toList]
-  rfl
-
 /-- **`load_module`'s accept is `loadModule`**: the module's files, then its lazy load. -/
 theorem load_module_ok {st : arena.monad.AState} {lst : AState} {total idx : Std.U64}
     {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs)

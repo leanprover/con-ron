@@ -560,49 +560,6 @@ theorem read_files_refines {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {level o
 
 end files
 
-/-! ## A view -/
-
-/-- **`read_view`'s accept is the twin's `readView`.** -/
-theorem read_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-    {m : arena.handle.NIdx} {level} (hfs : FsRel inst fsv fs) :
-    AS pers ModDecodedRel st lst (read_view inst fsv pk pers st.store sp m level)
-      (Arena.Frontend.Olean.readView fs (absPins pk) (absSearchPath sp) (absNIdx m) (absLevel level)) := by
-  intro hrel hinv a s' h
-  rw [read_view] at h
-  peel h as r, hr
-  cases r with
-  | Err e =>
-    obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-    cases h1
-  | Ok f =>
-    dsimp only at h
-    obtain ⟨n, hn⟩ := read_files_name hr
-    obtain ⟨f', e1, hf⟩ := read_files_refines hfs hn hr
-    peel h as q, hq
-    obtain ⟨r1, ar1⟩ := q
-    cases r1 with
-    | Err re =>
-      cases re with
-      | Bad =>
-        peel h as q2, -
-        obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-        cases h1
-      | Err e =>
-        obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
-        cases h1
-    | Ok d =>
-      obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
-      cases h1
-      obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := parse_view_refines (st := st) (lst := lst) (level := level) hf hrel hinv _ _ hq
-      refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
-      show ((Arena.readName (absNIdx m)) >>= _).run lst = _
-      rw [am_bind_ok (read_name_run hrel hn)]
-      simp only [e1, Arena.Frontend.Olean.liftE]
-      show ((pure f' : AM _) >>= _).run lst = _
-      rw [am_bind_ok rfl, am_bind_ok hx]
-      rfl
-
 end reads
 
 end ConRon.Refine2.Frontend.Olean

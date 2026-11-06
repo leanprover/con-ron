@@ -32,19 +32,6 @@ macro_rules
 -- A twin `if` whose test a `TwinEq` rewrote to a literal.
 attribute [lockstep_simp] ite_true ite_false
 
-/-! ## Two environment-record constants -/
-
-open Lockstep in
-/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`). -/
-@[lockstep] theorem i_ind_caps_default_twin :
-    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o)) := by
-  intro o h
-  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word, alloc.vec.Vec.new] at h
-  simp at h
-  subst h
-  simp [TwinEq, absIIndCaps]
-  rfl
-
 /-! ## The environment index's readers, as `TwinEq`s
 
 `ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same

@@ -340,12 +340,6 @@ as its fallback. -/
 def absRows (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) : Array (Nat × EIdx) :=
   (v.val.map fun q => (absU q.1, absEIdx q.2)).toArray
 
-theorem absRows_push {v v' : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
-    {q : Std.U64 × arena.handle.EIdx} (h : alloc.vec.Vec.push v q = ok v') :
-    absRows v' = (absRows v).push (absU q.1, absEIdx q.2) := by
-  simp [absRows, ConRon.Refine.vec_push_val h]
-
-attribute [local lockstep_simp] absRows_push
 
 theorem proj_guard_rows_at_aux (k : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -404,10 +398,6 @@ theorem proj_guard_rows_at_aux (k : Nat) :
         (absRows out)) :=
   proj_guard_rows_at_aux _ cty n_p idx fvs j out _ rfl rfl hrel hinv
 
-theorem absRows_new : absRows (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx)) = #[] := by
-  simp [absRows, alloc.vec.Vec.new]
-
-attribute [local lockstep_simp] absRows_new
 
 /-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
 may be a proposition must show. -/

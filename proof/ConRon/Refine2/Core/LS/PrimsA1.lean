@@ -1320,18 +1320,6 @@ theorem is_equiv_list_from_refines (ls rs : alloc.vec.Vec kernel.level.Level)
       (fun u => ConRon.Refine.LevelWF u ∧ TwinEq .zero (ConRon.Refine.absLevel u)) :=
   fun _ h => ⟨ConRon.Refine.Level.zero_wf' h, (ConRon.Refine.Level.zero_refines h).symm⟩
 
-@[lockstep] theorem level_subst_pw_ls (ks : alloc.vec.Vec kernel.name.Name)
-    (vs : alloc.vec.Vec kernel.level.Level) (pw : kernel.prop_when.PropWhen)
-    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
-    (hpw : ConRon.Refine.PropWhenWF pw) :
-    LSP (kernel.level.subst_pw ks vs pw)
-      (fun r => ConRon.Refine.PropWhenWF r ∧ TwinEq
-        (ConLeche.Level.substPW (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
-          (ConRon.Refine.absPropWhen pw)) (ConRon.Refine.absPropWhen r)) := by
-  intro r h
-  obtain ⟨h1, h2⟩ := ConRon.Refine.ExprOps.subst_pw_refines hks hvs hpw h
-  exact ⟨h2, h1.symm⟩
-
 @[lockstep] theorem prop_when_is_never_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.is_never pw)
       (fun b => b = ConLeche.PropWhen.isNever (ConRon.Refine.absPropWhen pw)) :=

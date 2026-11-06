@@ -266,17 +266,7 @@ end projs
 
 section rescue
 
-theorem u64_val_beq_two (x : Std.U64) : (x.val == 2) = decide (x = 2#u64) := by
-  by_cases h : x = 2#u64
-  · subst h; rfl
-  · have : x.val ≠ 2 := fun hc => h (UScalar.eq_of_val_eq (by rw [hc]; rfl))
-    simp [h, this]
-
-theorem u64_val_beq (x y : Std.U64) : (x.val == y.val) = decide (x = y) :=
-  (decide_u64_eq x y).symm
-
-attribute [local lockstep_simp] Option.map_none Option.map_some absIProjEntry u64_val_beq_two
-  u64_val_beq
+attribute [local lockstep_simp] Option.map_none Option.map_some absIProjEntry
 
 theorem and_rescue_slots_go_abs {pers : arena.store.PersTier} (n : Nat) :
     ∀ {fe : arena.env.IFEnv} {lfe : IFEnv}
