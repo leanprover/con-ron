@@ -844,19 +844,6 @@ theorem arr_get_map {α β : Type} {l : List α} {f : α → β} {a : Array β} 
     (i : Nat) : a[i]? = l[i]?.map f := by
   rw [← List.getElem?_map, h, Array.getElem?_toList]
 
-theorem f2_get {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
-    (h : List.Forall₂ R l l') {i : Nat} {x : α} (hi : l[i]? = some x) :
-    ∃ y, l'[i]? = some y ∧ R x y := by
-  induction h generalizing i with
-  | nil => simp at hi
-  | cons hab _ ih =>
-    cases i with
-    | zero =>
-      simp only [List.getElem?_cons_zero, Option.some.injEq] at hi
-      subst hi
-      exact ⟨_, rfl, hab⟩
-    | succ i => simpa using ih (by simpa using hi)
-
 /-- **`expo_step` is `expoStep`.** -/
 theorem expo_step_refines {pk bs r pers st lst} {c : Std.U64} {priv_idx priv_locs}
     {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
@@ -1224,8 +1211,6 @@ macro "ce_close " h:ident : tactic =>
   `(tactic| (obtain ⟨ce, e, hk⟩ := (show CeLeaf _ by ce_leaf) _ _ $h:ident
              subst e
              exact ConRon.Refine2.AErrSim.of_kind rfl hk rfl))
-
-theorem am_pure_bind {α β : Type} (a : α) (g : α → AM β) : (pure a >>= g) = g a := rfl
 
 /-- **`check_views_module` is the module-system arm of `checkViews`.** -/
 theorem check_views_module_refines {pk pers st lst} {m : arena.handle.NIdx} {f v s p} {m' : ConLeche.Name}

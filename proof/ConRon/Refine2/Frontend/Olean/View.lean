@@ -6,7 +6,7 @@ answer that its bytes and its region are upstream's, and that they fit, which th
 What `view.rs` copies, it copies: `region_dup`, `c_entry_dup`, `mod_decoded_dup` are the identity.
 -/
 import ConRon.Refine2.Frontend.Olean.ModFilesRel
-import ConRon.Refine2.Frontend.Olean.Skel
+import ConRon.Refine2.Frontend.Olean.SpecEntry
 import ConRon.Arena.Frontend.Olean.View
 
 open Aeneas Aeneas.Std Result
@@ -17,7 +17,7 @@ open frontend.olean.spec (module_skel)
 open frontend.olean.view (mod_files_is_module view_bytes view_region_of region_dup region_dup_loop
   view_server view_private mod_files_view_region rules_dup rules_dup_loop c_kind_dup c_entry_dup
   mod_decoded_dup mod_decoded_dup_loop0 mod_decoded_dup_loop1 loc_is_some loc_in_two all_views_at
-  mod_files_up_to)
+  mod_files_up_to check_imports_pre parse_view parse_all_views parse_all_views_module)
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
@@ -25,6 +25,9 @@ namespace ConRon.Refine2.Frontend.Olean
 
 open ConLeche.Frontend.Olean (ModFiles OLeanLevel)
 open ConLeche.Frontend.Olean.Region (ofParts single)
+open ConRon.Arena
+open ConRon.Arena.Frontend.Olean (checkImportsPre parseView parseAllViews parseAllViewsModule parseAt
+  parseMany importsPre)
 
 /-! ## The copies -/
 
@@ -444,5 +447,311 @@ theorem mod_files_up_to_eq {f f' level r} (hf : ModFilesRel f f') (h : mod_files
     exact ⟨hf.exported, hf.server, rfl, hf.fitsE, hf.fitsS, by simp⟩
   · cases Result.ok_injective h
     exact hf
+
+/-! ## `parse_view` -/
+
+/-- The imports of a header, as the twin's array. -/
+@[reducible] def absImports (v : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+    Array (ConLeche.Frontend.Olean.ImportF NIdx) :=
+  (v.val.map (absImportF absNIdx)).toArray
+
+theorem dec_imports {d d'} (hd : DecRel d d') : d'.imports = absImports d.imports := by
+  rw [absImports, hd.imports]
+
+theorem am_pure_bind {α β : Type} (a : α) (g : α → AM β) : (pure a >>= g) = g a := rfl
+
+theorem f2_get {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') {i : Nat} {x : α} (hi : l[i]? = some x) :
+    ∃ y, l'[i]? = some y ∧ R x y := by
+  induction h generalizing i with
+  | nil => simp at hi
+  | cons hab _ ih =>
+    cases i with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hi
+      subst hi
+      exact ⟨_, rfl, hab⟩
+    | succ i => simpa using ih (by simpa using hi)
+
+theorem list3 {α : Type} {l : List α} {a b c : α} (h : l.length = 3) (h0 : l[0]? = some a)
+    (h1 : l[1]? = some b) (h2 : l[2]? = some c) : l = [a, b, c] := by
+  rcases l with _ | ⟨x, _ | ⟨y, _ | ⟨z, _ | ⟨_, _⟩⟩⟩⟩ <;> simp_all
+
+theorem len_bne_three {α : Type} {ds : alloc.vec.Vec α} (h : ds.val.length = 3) :
+    ¬ (alloc.vec.Vec.len ds != 3#usize) = true := by
+  simp only [bne_iff_ne]
+  intro hn
+  exact hn (UScalar.eq_of_val_eq (by simpa using h))
+
+theorem len_bne_ne {α : Type} {ds : alloc.vec.Vec α} (h : ¬ ds.val.length = 3) :
+    (alloc.vec.Vec.len ds != 3#usize) = true := by
+  simp only [bne_iff_ne]
+  intro he
+  apply h
+  have := congrArg (fun x : Std.Usize => x.val) he
+  simpa using this
+
+/-- `take_decoded`: the value at `i`, and the others stay. -/
+theorem take_dec {ds i d ds'} (h : frontend.olean.fast.take_decoded ds i = ok (d, ds')) :
+    ds.val[i.val]? = some d ∧ ∀ j, j ≠ i.val → ds'.val[j]? = ds.val[j]? := by
+  rw [frontend.olean.fast.take_decoded] at h
+  peel h as ⟨md, back⟩, hm
+  have hb := ConRon.Refine2.Frontend.idt_index_mut_back hm
+  rw [alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize] at hm
+  peel hm as y, hy
+  simp only [Result.ok.injEq, Prod.mk.injEq] at hm
+  obtain ⟨rfl, -⟩ := hm
+  cases Result.ok_injective h
+  subst hb
+  refine ⟨ConRon.Refine.ExprOps.vec_index_getElem? (by rw [alloc.vec.Vec.index_slice_index]; exact hy), ?_⟩
+  intro j hj
+  rw [alloc.vec.Vec.set_val_eq, List.getElem?_set_ne (Ne.symm hj)]
+
+/-- **`check_imports_pre` is `checkImportsPre`.** -/
+theorem check_imports_pre_refines {pk pers st lst f f' d d'}
+    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
+      (importsPre (absPins pk) (absBytes s)))
+    (hf : ModFilesRel f f') (hd : DecRel d d') :
+    RS pers DecRel st lst (check_imports_pre pk pers st.store f d) (checkImportsPre (absPins pk) f' d') := by
+  rw [check_imports_pre, checkImportsPre, hf.exported]
+  refine RS.of_eq (RS.bind (g := fun pre => if pre == d'.imports then pure (some d') else pure none)
+    (hI st lst _) (fun e s1 => by cases e <;> rfl) fun a b s1 lst1 hab => ?_) ?_
+  · cases hab
+    refine RS.pure_step fun c hc => ?_
+    rw [dec_imports hd, ← imports_beq_eq hc]
+    cases c with
+    | true =>
+      rw [ite_eq_left rfl]
+      exact RS.some hd
+    | false =>
+      rw [ite_eq_right (by simp)]
+      exact RS.none
+  · congr 1
+    funext o
+    cases o <;> rfl
+
+/-- **`parse_view` is `parseView`.** -/
+theorem parse_view_refines {pk pers st lst f f' level}
+    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
+      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
+    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
+      (importsPre (absPins pk) (absBytes s)))
+    (hf : ModFilesRel f f') :
+    RS pers DecRel st lst (parse_view pk pers st.store f level) (parseView (absPins pk) f' (absLevel level)) := by
+  rw [parse_view, parseView]
+  refine RS.pure_step fun o ho => ?_
+  have hV := mod_files_view_region_eq hf ho
+  cases o with
+  | none =>
+    rw [show f'.viewRegion (absLevel level) = none from hV]
+    exact RS.none
+  | some p =>
+    obtain ⟨vb, a⟩ := p
+    dsimp only
+    refine RS.pure_step fun bs hb => RS.pure_step fun r hr => ?_
+    obtain ⟨e, hfit⟩ := hV bs r hb hr
+    rw [e]
+    dsimp only
+    refine RS.of_eq (RS.bind (g := fun d => checkImportsPre (absPins pk) f' d) (hP _ _ _ _ _ hfit) ?_ ?_) ?_
+    · intros; rfl
+    · intro _ _ _ _ hab
+      exact check_imports_pre_refines hI hf hab
+    · congr 1
+      funext o
+      cases o <;> rfl
+
+/-- **`parse_all_views_module` is `parseAllViewsModule`.** -/
+theorem parse_all_views_module_refines {pk pers st lst f f' s p}
+    (hM : ∀ bs r addrs st lst, RegionFits bs r → RS pers (fun ds l => List.Forall₂ DecRel ds.val l) st lst
+      (frontend.olean.fast.parse_many pk pers st.store bs r addrs)
+      (parseMany (absPins pk) (absRegion bs r) (addrs.val.map absWord)))
+    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
+      (importsPre (absPins pk) (absBytes s)))
+    (hf : ModFilesRel f f') (hs : f.server = some s) (hp : f.private_part = some p) :
+    RS pers AllViewsRel st lst (parse_all_views_module pk pers st.store f s p)
+      (parseAllViewsModule (absPins pk) f' (absPart s) (absPart p)) := by
+  have fE := hf.fitsE
+  have fS := hf.fitsS s hs
+  have fP := hf.fitsP p hp
+  rw [parse_all_views_module, parseAllViewsModule, hf.exported]
+  refine RS.pure_step fun ae hae => RS.pure_step fun a_s has => RS.pure_step fun ap hap =>
+    RS.pure_step fun r1 hr1 => RS.pure_step fun b hb => ?_
+  obtain ⟨e1, -⟩ := region_single_eq fE hr1
+  rw [loc_is_some_eq (alloc.vec.Vec.deref f.exported.bytes) hb, e1, part_module_data_addr_eq hae]
+  rw [← part_module_data_addr_eq hae, ← part_module_data_addr_eq has, ← part_module_data_addr_eq hap]
+  by_cases c1 : ((single (absPart f.exported)).loc (absWord ae)).isSome = true
+  · rw [ite_eq_left c1, ite_eq_left c1]
+    simp only [am_pure_bind]
+    refine RS.pure_step fun b1 hb1 => ?_
+    rw [loc_in_two_eq fE fS hb1]
+    cases e2 : ofParts #[absPart f.exported, absPart s] with
+    | error _ =>
+      rw [ite_eq_right (by simp)]
+      exact RS.none
+    | ok r2 =>
+      dsimp only
+      by_cases c2 : (r2.loc (absWord a_s)).isSome = true
+      · rw [ite_eq_left c2, ite_eq_left c2]
+        refine RS.pure_step fun o3 ho3 => ?_
+        have e3 := region_of_parts3_eq fE fS fP ho3
+        cases o3 with
+        | Err _ =>
+          obtain ⟨-, _, em⟩ := e3
+          rw [em]
+          exact RS.none
+        | Ok buf =>
+          obtain ⟨em, hfit⟩ := e3
+          rw [em]
+          dsimp only
+          intro hrel hinv o s' h
+          peel h as a1, h1
+          peel h as a2, h2
+          peel h as a3, h3
+          peel h as ⟨r2', ar1⟩, hmany
+          have hS := hM _ _ a3 st lst hfit hrel hinv r2' ar1 hmany
+          have ha : a3.val.map absWord = [absWord ae, absWord a_s, absWord ap] := by
+            rw [ConRon.Refine.vec_push_val h3, ConRon.Refine.vec_push_val h2, ConRon.Refine.vec_push_val h1]
+            rfl
+          rw [ha] at hS
+          cases r2' with
+          | Err ee =>
+            cases Result.ok_injective h
+            cases ee with
+            | Bad =>
+              obtain ⟨lst1, hx, hrel1, hinv1⟩ := hS
+              rw [am_bind_ok hx]
+              exact ⟨lst1, rfl, hrel1, hinv1⟩
+            | Err e =>
+              intro k' hk'
+              obtain ⟨le, hle, hkk⟩ := hS k' hk'
+              refine ⟨le, ?_, hkk⟩
+              rw [StateT.run_bind, hle]
+              rfl
+          | Ok ds =>
+            obtain ⟨l, lst1, hx, hl, hrel1, hinv1⟩ := hS
+            rw [am_bind_ok hx]
+            replace h : (if (alloc.vec.Vec.len ds != 3#usize) = true then _ else _) = ok (o, s') := h
+            by_cases hlen : ds.val.length = 3
+            · rw [ite_eq_right (len_bne_three hlen)] at h
+              peel h as ⟨dp, ds1⟩, ht2
+              peel h as ⟨d_s, ds2⟩, ht1
+              peel h as ⟨de, _⟩, ht0
+              obtain ⟨g2, k2⟩ := take_dec ht2
+              obtain ⟨g1, k1⟩ := take_dec ht1
+              obtain ⟨g0, -⟩ := take_dec ht0
+              have g0' := g0
+              rw [k1 _ (by decide), k2 _ (by decide)] at g0'
+              have g1' := g1
+              rw [k2 _ (by decide)] at g1'
+              obtain ⟨y0, hy0, r0⟩ := f2_get hl g0'
+              obtain ⟨y1, hy1, r1'⟩ := f2_get hl g1'
+              obtain ⟨y2, hy2, r2'⟩ := f2_get hl g2
+              have el := list3 (by rw [← hl.length_eq]; exact hlen) hy0 hy1 hy2
+              subst el
+              dsimp only
+              peel h as ⟨r3, ar2⟩, himp
+              have hS3 : RdOut pers (EqA absImports) (withStore st ar2) r3
+                  ((importsPre (absPins pk) (absPart f.exported).bytes).run lst1) :=
+                hI (withStore st ar1) lst1 _ hrel1 hinv1 r3 ar2 himp
+              cases r3 with
+              | Err ee =>
+                cases Result.ok_injective h
+                cases ee with
+                | Bad =>
+                  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hS3
+                  rw [am_bind_ok hx2]
+                  exact ⟨lst2, rfl, hrel2, hinv2⟩
+                | Err e =>
+                  intro k' hk'
+                  obtain ⟨le, hle, hkk⟩ := hS3 k' hk'
+                  refine ⟨le, ?_, hkk⟩
+                  rw [StateT.run_bind, hle]
+                  rfl
+              | Ok pre =>
+                obtain ⟨_, lst2, hx2, rfl, hrel2, hinv2⟩ := hS3
+                rw [am_bind_ok hx2]
+                dsimp only
+                replace h : (Std.bind (frontend.olean.spec.imports_beq _ de.imports) _) = ok (o, s') := h
+                rw [dec_imports r0, dec_imports r1', dec_imports r2']
+                peel h as b3, hb3
+                rw [← imports_beq_eq hb3]
+                cases b3 with
+                | false =>
+                  rw [ite_eq_right (by simp)] at h ⊢
+                  cases Result.ok_injective h
+                  exact ⟨lst2, rfl, hrel2, hinv2⟩
+                | true =>
+                  rw [ite_eq_left rfl] at h
+                  peel h as b4, hb4
+                  rw [← imports_beq_eq hb4]
+                  cases b4 with
+                  | false =>
+                    rw [ite_eq_right (by simp)] at h ⊢
+                    cases Result.ok_injective h
+                    exact ⟨lst2, rfl, hrel2, hinv2⟩
+                  | true =>
+                    rw [ite_eq_left rfl] at h
+                    peel h as b5, hb5
+                    rw [← imports_beq_eq hb5]
+                    cases b5 with
+                    | false =>
+                      rw [ite_eq_right (by simp)] at h ⊢
+                      cases Result.ok_injective h
+                      exact ⟨lst2, rfl, hrel2, hinv2⟩
+                    | true =>
+                      rw [ite_eq_left rfl] at h
+                      rw [ite_eq_left (show (true && true && true) = true from rfl)]
+                      cases Result.ok_injective h
+                      exact ⟨_, lst2, rfl, ⟨r0, r1', r2'⟩, hrel2, hinv2⟩
+            · rw [ite_eq_left (len_bne_ne hlen)] at h
+              cases Result.ok_injective h
+              have hne : l.length ≠ 3 := by rw [← hl.length_eq]; exact hlen
+              have hn : ∀ a b c, l ≠ [a, b, c] := by
+                rintro a b c rfl
+                exact hne rfl
+              refine ⟨lst1, ?_, hrel1, hinv1⟩
+              revert hn hne
+              rcases l with _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _⟩⟩⟩⟩ <;> intro hne hn <;>
+                first | exact absurd rfl (hn _ _ _) | rfl
+      · rw [ite_eq_right c2, ite_eq_right c2]
+        exact RS.none
+  · rw [ite_eq_right c1, ite_eq_right c1]
+    exact RS.none
+
+/-- **`parse_all_views` is `parseAllViews`.** -/
+theorem parse_all_views_refines {pk pers st lst f f'}
+    (hP : ∀ bs r a st lst, RegionFits bs r → RS pers DecRel st lst (frontend.olean.fast.parse_at pk pers st.store bs r a)
+      (parseAt (absPins pk) (absRegion bs r) (absWord a)))
+    (hM : ∀ bs r addrs st lst, RegionFits bs r → RS pers (fun ds l => List.Forall₂ DecRel ds.val l) st lst
+      (frontend.olean.fast.parse_many pk pers st.store bs r addrs)
+      (parseMany (absPins pk) (absRegion bs r) (addrs.val.map absWord)))
+    (hI : ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
+      (importsPre (absPins pk) (absBytes s)))
+    (hf : ModFilesRel f f') :
+    RS pers AllViewsRel st lst (parse_all_views pk pers st.store f) (parseAllViews (absPins pk) f') := by
+  rw [parse_all_views, parseAllViews]
+  refine RS.pure_step fun b hb => ?_
+  rw [← mod_files_is_module_eq hf hb]
+  cases b with
+  | true =>
+    rw [ite_eq_left rfl, ite_eq_left rfl, hf.server, hf.private]
+    cases hs : f.server with
+    | none => exact RS.none
+    | some s =>
+      cases hp : f.private_part with
+      | none => exact RS.none
+      | some p => exact parse_all_views_module_refines hM hI hf hs hp
+  | false =>
+    rw [ite_eq_right (by simp), ite_eq_right (by simp)]
+    refine RS.of_eq (RS.bind (g := fun d => pure (some ⟨d, d, d⟩))
+      (parse_view_refines (level := .Exported) hP hI hf) ?_ ?_) ?_
+    · intros; rfl
+    · intro d d' s1 lst1 hd
+      refine RS.pure_step fun d2 hd2 => ?_
+      obtain rfl := mod_decoded_dup_eq hd2
+      exact RS.some ⟨hd, hd, hd⟩
+    · congr 1
+      funext o
+      cases o <;> rfl
 
 end ConRon.Refine2.Frontend.Olean
