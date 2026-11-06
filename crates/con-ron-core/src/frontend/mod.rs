@@ -107,6 +107,7 @@
 pub mod export_c;
 pub mod nat_decimal;
 pub mod nat_op_ground;
+pub mod olean;
 pub mod prelude;
 pub mod prelude_text;
 pub mod prepare;

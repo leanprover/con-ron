@@ -4,6 +4,7 @@
 //! ```text
 //! con-ron [--verified|--trusted] [--jobs=<n>]
 //!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
+//! con-ron [flags] --olean --search-path=DIR[:DIR...] [--constant=NAME]... [--] MODULE...
 //! con-ron --help
 //! ```
 //!
@@ -87,6 +88,8 @@ const USAGE: &str = "\
 usage: con-ron [--verified|--trusted] [--jobs=<n>]
                [--progress[=<stride>]] [--pins FILE|--no-pins]
                [--] FILE.ndjson
+       con-ron [flags] --olean --search-path=DIR[:DIR...]
+               [--constant=NAME]... [--] MODULE...
        con-ron --help
 
   (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
@@ -128,6 +131,33 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>]
   --                every argument after it is a file, whatever it is called;
                     FILE.ndjson is a regular file, read forward (a FIFO or a
                     directory is exit 3)
+  --olean           read the input from .olean files instead of a lean4export
+                    stream: the arguments are root modules (Init, Std, Mathlib,
+                    ...; a component in «» is taken literally), checked with
+                    every constant of their import closure.  The closure is
+                    read at the private level (theorems with proofs,
+                    definitions with bodies), merged as Lean's own import
+                    merges it, and emitted as the records lean4export would
+                    write, so the same checker checks them.  Every object the
+                    imports and constants reach is decoded and validated,
+                    nothing in the files is trusted.  A file of another .olean
+                    format version declines (2).  OVERVIEW.md says how far the
+                    theorems reach on this path.
+  --constant=NAME   with --olean: check only this constant and what it
+                    mentions, not every constant of the closure, as
+                    lean4export's arguments after -- do; a component of digits
+                    is a number (_private.M.0.foo).  May be given more than
+                    once.  A name the closure does not hold is an error (3).
+  --search-path=DIR[:DIR...]
+                    the directories holding .olean trees, as LEAN_PATH lists
+                    them (the toolchain's lib/lean, a package's
+                    .lake/build/lib/lean).  May be given more than once.  Every
+                    module is looked up in every directory: its files (M.olean
+                    and, for a module of the module system, exactly
+                    M.olean.server and M.olean.private beside it) must be in
+                    one directory, counted once however often it is reached (a
+                    repeated entry, a symbolic link).  A module in two places,
+                    a missing, stray or split part is an error (3).
 
 build-time selection (cargo features, not command-line flags): the global
 allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
@@ -181,6 +211,12 @@ struct Args {
     jobs: Option<u64>,
     pins: Option<String>,
     no_pins: bool,
+    /// `--olean`: the positional arguments are root module names.
+    olean: bool,
+    /// `--search-path=DIR:DIR...`: where `--olean` looks for the files.
+    search_path: Vec<String>,
+    /// `--constant=NAME`: with `--olean`, the constants to start from.
+    constants: Vec<String>,
     bad: Option<String>,
 }
 
@@ -199,6 +235,9 @@ fn parse_args(argv: &[String]) -> Args {
         jobs: None,
         pins: None,
         no_pins: false,
+        olean: false,
+        search_path: Vec::new(),
+        constants: Vec::new(),
         bad: None,
     };
     let mut i = 0usize;
@@ -220,6 +259,7 @@ fn parse_args(argv: &[String]) -> Args {
             "--trusted" => a.verified = false,
             "--progress" => a.progress = 1,
             "--no-pins" => a.no_pins = true,
+            "--olean" => a.olean = true,
             "--pins" => {
                 i += 1;
                 if i >= argv.len() {
@@ -247,6 +287,11 @@ fn parse_args(argv: &[String]) -> Args {
                     }
                 } else if let Some(v) = s.strip_prefix("--pins=") {
                     a.pins = Some(v.to_string());
+                } else if let Some(v) = s.strip_prefix("--constant=") {
+                    a.constants.push(v.to_string());
+                } else if let Some(v) = s.strip_prefix("--search-path=") {
+                    a.search_path
+                        .extend(v.split(':').filter(|d| !d.is_empty()).map(|d| d.to_string()));
                 } else if s.starts_with('-') {
                     bad(
                         format!("unknown option {}", con_ron::render::display_str(s)),
@@ -314,6 +359,14 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
     }
 }
 
+/// con-leche: ConLeche/Driver/CheckMain.lean:58-61 Input
+/// **What a run reads**: a lean4export stream, or the import closure of root
+/// modules read from their `.olean` files along a search path.
+enum Input {
+    Ndjson(String),
+    Oleans(con_ron::olean_fs::OleanRequest),
+}
+
 /// con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
 /// con-leche: ConLeche/Driver/CheckMain.lean:86-94 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
@@ -321,7 +374,7 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
 /// around it (`Arena/Main.lean`), and `con-ron`'s `check_main` with the
 /// handles in place of the trees.
-fn check_main(a: &Args, file: &str) -> u8 {
+fn check_main(a: &Args, input: &Input) -> u8 {
     let t0 = Instant::now();
     let mode_tag = if a.verified {
         "--verified"
@@ -391,17 +444,25 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // block — mutual and nested included — installs through the kernel's
     // uniform installer, unconditionally (task #105).
     // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
-    let parsed: ParseResultD = match driver::parse_export_stream_d(
-        pers,
-        &mut st,
-        file,
-        export_c::CHUNK_SIZE,
-    ) {
-        Err(e) => {
-            eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
-            return 3;
-        }
-        Ok((Err((e, line)), _)) => match classify(&e) {
+    // The `.olean` path ends in the same records (task #142); no capstone
+    // premise is about it yet (OVERVIEW.md).
+    let read: std::io::Result<Result<ParseResultD, (CheckError, u64)>> = match input {
+        Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
+            Err(e) => {
+                eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
+                return 3;
+            }
+            Ok((r, _)) => Ok(r),
+        },
+        Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req)),
+    };
+    let label: String = match input {
+        Input::Ndjson(file) => con_ron::render::display_path(file),
+        Input::Oleans(req) => req.label(pers, &st),
+    };
+    let parsed: ParseResultD = match read {
+        Err(_) => return 3,
+        Ok(Err((e, line))) => match classify(&e) {
             FrontendClass::Declined(what) => {
                 eprintln!("con-ron: declined: {} ({})", what, mode_tag);
                 return 2;
@@ -413,11 +474,11 @@ fn check_main(a: &Args, file: &str) -> u8 {
                 return 1;
             }
             FrontendClass::Internal(msg) => {
-                eprintln!("con-ron: {}:{}: {}", con_ron::render::display_path(file), line, msg);
+                eprintln!("con-ron: {}:{}: {}", label, line, msg);
                 return 3;
             }
         },
-        Ok((Ok(r), _)) => r,
+        Ok(Ok(r)) => r,
     };
     let file_records = parsed.decls.len();
     // From here on the store is the checker's state: the memo tables and the
@@ -550,14 +611,37 @@ fn main() -> ExitCode {
         eprintln!("{}", USAGE);
         return ExitCode::from(3);
     }
-    if a.files.len() != 1 {
-        eprintln!("{}", USAGE);
-        return ExitCode::from(3);
-    }
-    let file = a.files[0].clone();
+    let input: Input = if a.olean {
+        // `--olean`: the arguments are root modules, read with their import
+        // closure along the search path, module names as Lean spells them.
+        if a.files.is_empty() || a.search_path.is_empty() {
+            eprintln!("con-ron: --olean takes one or more module names and a --search-path=DIR[:DIR\u{2026}]");
+            eprintln!("{}", USAGE);
+            return ExitCode::from(3);
+        }
+        match con_ron::olean_fs::OleanRequest::new(&a.search_path, &a.files, &a.constants) {
+            Err(msg) => {
+                eprintln!("con-ron: {}", msg);
+                eprintln!("{}", USAGE);
+                return ExitCode::from(3);
+            }
+            Ok(req) => Input::Oleans(req),
+        }
+    } else {
+        if !a.search_path.is_empty() || !a.constants.is_empty() {
+            eprintln!("con-ron: --search-path and --constant take --olean");
+            eprintln!("{}", USAGE);
+            return ExitCode::from(3);
+        }
+        if a.files.len() != 1 {
+            eprintln!("{}", USAGE);
+            return ExitCode::from(3);
+        }
+        Input::Ndjson(a.files[0].clone())
+    };
     let h = std::thread::Builder::new()
         .stack_size(STACK_BYTES)
-        .spawn(move || check_main(&a, &file));
+        .spawn(move || check_main(&a, &input));
     match h {
         Err(e) => {
             eprintln!("con-ron: cannot spawn the checking thread: {}", e);
