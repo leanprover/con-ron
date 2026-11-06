@@ -182,19 +182,16 @@ theorem ConRon.Capstone.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     (hreads : ReadsAs sinst src chunks.val)
     (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-    (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
+    (h4 : frontend.prepare.prepare_d DeclUsedConsts.Insts… emptyTier st3 pre r.decls ()
+      = ok (.Ok prepared, st4))
     (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
     (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
     (h6 : (do
-        let t ← arena.checker.fold_start
-        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
-          prepared.decls 0#usize hook)
-      = ok (.Ok (n, fe, pend, blocks), st6))
-    (hord : arena.checker.job_order pend blocks = ok order)
-    (h7 : arena.checker.freeze_tier st6.store fe = ok (tier, frozen))
-    (hlayer : arena.checker.check_layer = ok layer)
-    (h8 : ParallelAll order.length (arena.checker.worker_state st6.pins)
-      (jobStep tier .Verified layer pend blocks order)) :
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+    (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+    (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
+      (jobStep tier .Verified ipins prepared.decls)) :
     False
 ```
 
@@ -211,16 +208,17 @@ of `check_main`.
 takes the same premises without `hfalse` and concludes
 
 ```lean
-    ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env)
+    ∃ env, RustDenotes prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env)
 ```
 
 where
 [`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L826-L830)
-says that the environment the Rust accepted (`fe`) is related to a twin
-environment, which denotes the con-leche environment `env`; `env` has a
-model (con-leche's `Model V env`) in every set theory `V`.  The statement
-goes through the twin because the Rust store is related to the twin's by a
-relation, not mapped by a function (§7.4).
+says that the records the Rust checked (`prepared.decls`), read in a twin state
+related to the Rust's final state, denote a con-leche stream `dsP`, and that
+`env` is that stream's environment (`streamEnv dsP`: every record's constants
+and tables, in order); `env` has a model (con-leche's `Model V env`) in every
+set theory `V`.  The statement goes through the twin because the Rust store
+is related to the twin's by a relation, not mapped by a function (§7.4).
 
 Both theorems are **partial correctness**.  The Rust has one error kind
 con-leche does not, `Native` (§6.5), raised at resource limits such as a
@@ -239,10 +237,10 @@ is why `#print axioms` does not list any of them.
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
 | `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L329-L347); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
-| `h6`, `hord`, `h7`, `hlayer`, `h8` (phase A, the jobs' order, the freeze, the value checks' layer, phase B) | the install phase (`install_fold_hooked`) accepted with environment `fe`, pending records `pend` and block jobs `blocks`; `job_order` merged them into `order`; `freeze_tier` moved the persistent tables and the installed index into the tier; `check_layer` made the empty layer every value check reads through; and phase B's `parallel_all` accepted: `ParallelAll` says there are index lists, one per worker, that together cover every job of `order`, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on `order[k]`, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once or in order | `h6`, `hord`, `h7` and `hlayer` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  They hold for every install hook, so `--progress` runs are covered |
+| `h6`, `h7`, `h8` (the index, the freeze, the check phase) | the stream's index was built from the records (`build_index`, from `stream_index_empty()`) as `ix`; `freeze_tier` moved the persistent tables and `ix` into the tier; and the check phase's `parallel_all` accepted: `ParallelAll` says there are lists of record positions, one per worker, that together cover every record, each in increasing order, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on each position, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  The driver's observer only prints, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
-| `.Verified` of `h6`, `h8` | verified mode | a `--trusted` run is outside the theorems |
+| `.Verified` of `h8` | verified mode | a `--trusted` run is outside the theorems |
 
 The prelude's bytes are not a premise: con-leche's `preparePrelude` puts the
 prelude's declarations into the checked stream, so soundness holds whatever
@@ -258,7 +256,7 @@ and
 on the same three axioms.  They take the calls of §3 with the stream's two
 replaced by the `.olean` reader's: `hroots`, the roots' names interned one by
 one, and `h3`, the whole read of their import closure.  Soundness, with the
-implicit arguments and the unchanged premises `h4`…`h8` left out:
+implicit arguments and the unchanged premises `h5`…`h7` left out:
 
 ```lean
 theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
@@ -272,18 +270,25 @@ theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
     (hroots : InternRoots emptyTier st2 names roots.val stR)
     (hsnap : SnapshotOf finst fsv F)
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
-      = ok (.Ok r, store3))
-    (h4 : frontend.prepare.prepare_d emptyTier { stR with store := store3 } pre r.decls
-      = ok (.Ok prepared, st4))
-    … : False
+      = ok (.Ok rd, store3))
+    (h4 : frontend.prepare.prepare_d OleanRead.Insts… emptyTier { stR with store := store3 } pre
+      rd.decls rd = ok (.Ok prepared, st4))
+    …
+    (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd dirs)) :
+    False
 ```
 
 In words: if, in the files `F`, a module of the roots' import closure holds a
 theorem whose type is `False`, then the binary's calls cannot all succeed.
 The closure and the module's contents are con-leche's specification of the
 format (`InClosure`, `ViewOf`), not anything about the fast decoder that
-reads them.  `model_exists_oleans` takes the same premises without `hcl` …
-`hty` and concludes as `model_exists` does.
+reads them.  The reader leaves a theorem's value in its file: the record holds
+a reference, and the theorem's job (`olean_job`) reads the value into its own
+scratch tier and checks the theorem with it.  `model_exists_oleans` takes the
+same premises without `hcl` … `hty` and concludes as `model_exists` does, at
+`RustDenotesFilled`: the records' stream with each reference replaced by a value
+(con-leche states no model theorem for `--olean`).
 
 The one new trust premise is
 [`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L575-L587):
@@ -717,9 +722,13 @@ corresponding con-leche function computes.  The per-declaration statement
 is
 [`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L143-L158),
 and
-[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L106-L117)
-lifts it to the whole two-phase fold: the pure fold accepts the denoted
-stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
+[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Pool.lean#L96-L116)
+lifts it to the check phase the driver runs: the index built from the records
+denotes con-leche's index of the denoted stream, and every job accepting is
+the pure fold accepting that stream at some fuel.  The proof is an induction
+in fold order: a job runs at the frozen index's view of its position, which is
+the environment of the records before it, and the jobs before it (each worker's
+claims are increasing) give that the fold accepted them.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
 
 The store primitives and the type checker are specified by Hoare triples
@@ -938,12 +947,12 @@ contains no new mathematics, only glue:
 
 1. **Theorem 2, stage by stage**: each of `h1`…`h5` becomes a twin run from
    the twin's own start state, related at every step.  The sixth stage
-   (`h6`…`h8`, `hord` and `hlayer`, assembled by `poolAccepts_intro`) goes through
+   (`h6`…`h8`, assembled by `poolAccepts_intro`) goes through
    [`pool_accepts_refines`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L428-L438).
-2. **Theorem 1**: the twin runs feed `Arena.pooledAccepts_bridge`, so
-   con-leche's pure fold accepts the denoted stream.  Theorem 1 also
-   supplies the one twin-side fact the headline relation needs: `StoreWF`
-   of the final twin store.
+2. **Theorem 1** (`Bridge/Stages.lean`): the twin runs feed
+   `Arena.pooledAccepts_bridge`, so con-leche's pure fold accepts the denoted
+   stream at `streamEnv` of it.  Theorem 1 also supplies the one twin-side fact
+   the headline relation needs: `StoreWF` of the final twin store.
 3. **con-leche**: `checkDeclsPure_sound_of` turns the pure accept into a
    model, and `no_proof_of_False_pure` rules out the `False` theorem.
 
