@@ -99,7 +99,7 @@ macro "bad_arm" : tactic =>
 /-! ## A block member, a constructor -/
 
 /-- The test of a member's `skipped` against the type's. -/
-theorem skip_arm {m : frontend.olean.closure.CEntry} {m' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel m m')
+theorem skip_arm {m : frontend.olean.lazy.CEntry} {m' : Arena.Frontend.Olean.CEntry} (hc : CEntryRel m m')
     {sk : Bool} {x : AM Unit}
     {k : Result (core.result.Result Unit kernel.core_types.CheckError)}
     (hk : PR (fun _ _ => True) k x) :
