@@ -36,6 +36,12 @@
 #                        (`diff-fixtures.sh`, 315 of these 348 fixtures
 #                        through a text dump of con-leche's own parsed
 #                        declarations): the end-to-end sweep subsumes it.
+#   scripts/diff-olean.sh  The `.olean` table (task #142): con-leche's
+#                        `tests/olean.sh`, 109 cases, on the fixtures its
+#                        `tests/olean/build.sh` compiles under `_tmp/`, against
+#                        the binary and `olean-compare`.  Its `--compare` lane
+#                        (lean4export, record for record) needs an exporter
+#                        and is run by hand.
 #
 # Everything the differentials need is in con-leche's own tree, resolved
 # through `provenance.py dir` (task #91: a plain lake dependency, not
@@ -367,6 +373,11 @@ jobs:
         shell: nix develop --command bash -euo pipefail {0}
         # `LOG` absolute: the script `cd`s to the repository root itself.
         run: LOG="$PWD/_tmp/diff-e2e-jobs4.log" scripts/diff-e2e.sh --timeout=60 --jobs=4
+
+      # con-leche's `.olean` table (task #142).
+      - name: scripts/diff-olean.sh (the olean table, 109 cases)
+        shell: nix develop --command bash -euo pipefail {0}
+        run: scripts/diff-olean.sh
 
       # The two Lean saves are LAST, and `if: always()`, on purpose: a red
       # run must still leave its environment behind, or every push to a

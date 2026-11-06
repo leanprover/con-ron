@@ -24,7 +24,6 @@ use std::process::ExitCode;
 use con_ron::driver;
 use con_ron::olean_fs;
 use con_ron::olean_fs::StdFs;
-use con_ron::render;
 
 use con_ron_core::arena::canon;
 use con_ron_core::arena::env::{IConstantInfo, IDeclaration};
@@ -110,6 +109,39 @@ fn fail_with(e: &CheckError) -> u8 {
     driver::exit_code(e)
 }
 
+/// con-leche: none — `tests/ConLecheTests/OleanTests.lean`'s `agree`, at a module's
+/// home: every read of a part of a view is its part, so that `--views` runs the
+/// reads no checking path takes.
+fn agree(pk: &spec::OleanPins, pers: &PersTier, st: &mut AState, f: &view::ModFiles, d: &spec::ModDecoded, level: &OLeanLevel) -> bool {
+    use con_ron_core::ron::hashmap::Eq2;
+    let l = match view::read_name_positions(pk, pers, &mut st.store, f, level) {
+        Ok(l) => l,
+        Err(_) => return false,
+    };
+    if !spec::imports_beq(&l.header.imports, &d.imports) || l.consts.len() != d.constants.len() {
+        return false;
+    }
+    for (x, y) in l.consts.iter().zip(d.constants.iter()) {
+        if !x.name.eq2(&y.name) {
+            return false;
+        }
+        match view::read_entry(pk, pers, &mut st.store, f, level, x.loc) {
+            Ok(en) if module::entry_same(&en, y) => {}
+            _ => return false,
+        }
+    }
+    let locs: Vec<u64> = l.consts.iter().map(|p| p.loc).collect();
+    let ss = match view::read_stmts(pk, pers, &mut st.store, f, level, &locs) {
+        Ok(ss) => ss,
+        Err(_) => return false,
+    };
+    ss.len() == d.constants.len()
+        && ss.iter().zip(d.constants.iter()).all(|(s, c)| {
+            let w = spec::c_entry_stmt(c);
+            s.name.eq2(&w.name) && s.ty.eq2(&w.ty) && module::nidx_list_eq(&s.level_params, &w.level_params)
+        })
+}
+
 /// con-leche: OleanCompare.lean:127-144 runViews
 /// `--views`: every module of the closure.
 fn run_views(sp: &[String], mods: &[String]) -> u8 {
@@ -144,13 +176,32 @@ fn run_views(sp: &[String], mods: &[String]) -> u8 {
                 Ok(d) => d,
                 Err(e) => return fail_with(&e),
             };
+            let shown = String::from_utf8_lossy(&view::level_repr(&level).iter().map(|c| *c as u8).collect::<Vec<u8>>()).to_string();
             if !views_eq(&d, view::all_views_at(&v, &level)) {
                 eprintln!(
                     "module {}: the {} view differs from the home's",
                     driver::name_of(pers, &st.store, m),
-                    render::name_str(&con_ron_core::kernel::name::anonymous())
+                    shown
                 );
                 return 3;
+            }
+            match files::read_files(&StdFs, pers, &st.store, &req.search_path, m, &OLeanLevel::Private) {
+                Err(e) => return fail_with(&e),
+                Ok(f) => {
+                    if !agree(&pk, pers, &mut st, &f, &d, &level) {
+                        eprintln!("module {}: the {} reads of a part differ from the view", driver::name_of(pers, &st.store, m), shown);
+                        return 3;
+                    }
+                    // an importer holding the files up to the view reads the home's
+                    let up = view::mod_files_up_to(f, &level);
+                    match view::parse_view(&pk, pers, &mut st.store, &up, &level) {
+                        Ok(d2) if views_eq(&d2, &d) => {}
+                        _ => {
+                            eprintln!("module {}: the {} view of its files up to the view differs", driver::name_of(pers, &st.store, m), shown);
+                            return 3;
+                        }
+                    }
+                }
             }
         }
     }

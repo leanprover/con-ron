@@ -149,93 +149,93 @@
   1194  }
 
 == crates/con-ron/src/bin/con-ron.rs#L86-L172
-    86  const USAGE: &str = "\
-    87  usage: con-ron [--verified|--trusted] [--jobs=<n>]
-    88                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-    89                 [--] FILE.ndjson
-    90         con-ron --help
-    91  
-    92    (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
-    93    pure checker over an append-only DAG of per-constructor handle arrays, with
-    94    con-leche's command line and con-leche's exit codes, so that
-    95    scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
-    96    the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
-    97    the checking path there is no Arc, no tagged pointer and no reference count
-    98    at all.  (The PINNED DATA the checker compares against is still
-    99    con-leche's own constants as Expr values, interned into the persistent tier
-   100    once at startup -- crates/con-ron-core/src/lib.rs says why.)
-   101  
-   102    --verified        the default, and the mode the main theorem is about: every
-   103                      environment the fold accepts in this mode has a model in
-   104                      every set theory (ConLeche.model_exists), so a stream
-   105                      declaring a theorem of type False is never accepted.  The
-   106                      same two statements are PROVED about this program's
-   107                      pipeline (ConRon.Capstone.model_exists and
-   108                      no_False_declaration, on the Aeneas model of the Rust),
-   109                      using only the axioms propext, Classical.choice and
-   110                      Quot.sound.  What they still assume are hypotheses, not
-   111                      axioms: that the driver runs the extracted stages in the
-   112                      order it does on the file's bytes.  They hold at every pin
-   113                      text and every prelude.  OVERVIEW.md section 3.1 lists
-   114                      them.
-   115    --trusted         the unverified mode: the SAME checker bodies at the mode
-   116                      with the certification-only work switched off.  An accept
-   117                      in this mode is outside the theorem.
-   118    --jobs=<n>        the check phase runs on <n> worker threads sharing the
-   119                      persistent tier and the installed index by reference
-   120                      (DESIGN.md section 8.3): each worker owns a scratch tier,
-   121                      its own caches and a copy of the pin handles, and the
-   122                      results are merged by record index and walked in record
-   123                      order, so the verdict and the record a rejection names are
-   124                      the same at every <n>.  Default: one per hardware thread,
-   125                      capped at 16.  A worker reserves 1 GiB of stack, which a
-   126                      `ulimit -v` must allow for.  0 or a non-numeral is a usage
-   127                      error, as in con-leche.
-   128    --                every argument after it is a file, whatever it is called;
-   129                      FILE.ndjson is a regular file, read forward (a FIFO or a
-   130                      directory is exit 3)
-   131  
-   132  build-time selection (cargo features, not command-line flags): the global
-   133  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
-   134  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
-   135  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-   136  It is the same edge `crates/con-ron` has, so the two checkers are measured on
-   137  the same allocator unless a build says otherwise.
-   138  
-   139  Any other option is a usage error: the run reports it, prints this text and
-   140  exits 3 without reading its input.
-   141  
-   142  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
-   143  An out-of-memory condition is NEITHER: this program aborts the way Rust aborts
-   144  on a failed allocation ('memory allocation of <n> bytes failed', SIGABRT,
-   145  which a shell reports as 134).  A panic is exit 3.
-   146  
-   147  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
-   148  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-   149  built-in prelude's own records are not counted; a stream record that declares
-   150  a prelude declaration IS counted.  That count is a property of the INPUT; the
-   151  number of environment CONSTANTS is not.
-   152  
-   153  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-   154  checker's own little prelude -- the five pinned basis blocks (Eq, Nat, Empty,
-   155  False, Quot) and the toolchain's Bool and And blocks, embedded at build
-   156  time -- so the pin-certified Nat operations find their ground whatever order
-   157  the export chose.  It is parsed into the SAME store as the stream, which is
-   158  what the persistent tier is for: the prelude's nodes and the stream's are
-   159  hash-consed together.
-   160  
-   161  NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is no
-   162  external tool, no dependency and no spawn.  Every inductive block --
-   163  structures, sums, indexed families, recursive, reflexive, mutual and nested
-   164  blocks -- is installed by the ONE uniform installer: it checks the type formers
-   165  and constructors, runs the positivity check, and GENERATES the block's
-   166  recursors; the stream's recursor records are compared with the generated ones
-   167  up to definitional equality, types and rules, and what is installed is the
-   168  stream's type and rules' right-hand sides.  No model is ever read from the input: a
-   169  stream record whose name carries a `_model` component is an ordinary
-   170  declaration with no effect on any block.  A block whose shape the installer
-   171  does not recognise declines (exit 2), naming it.  The binary reads no
-   172  environment variable.";
+    86  /// and the single-lane phase B.
+    87  const USAGE: &str = "\
+    88  usage: con-ron [--verified|--trusted] [--jobs=<n>]
+    89                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+    90                 [--] FILE.ndjson
+    91         con-ron [flags] --olean --search-path=DIR[:DIR...]
+    92                 [--constant=NAME]... [--] MODULE...
+    93         con-ron --help
+    94  
+    95    (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
+    96    pure checker over an append-only DAG of per-constructor handle arrays, with
+    97    con-leche's command line and con-leche's exit codes, so that
+    98    scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
+    99    the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
+   100    the checking path there is no Arc, no tagged pointer and no reference count
+   101    at all.  (The PINNED DATA the checker compares against is still
+   102    con-leche's own constants as Expr values, interned into the persistent tier
+   103    once at startup -- crates/con-ron-core/src/lib.rs says why.)
+   104  
+   105    --verified        the default, and the mode the main theorem is about: every
+   106                      environment the fold accepts in this mode has a model in
+   107                      every set theory (ConLeche.model_exists), so a stream
+   108                      declaring a theorem of type False is never accepted.  The
+   109                      same two statements are PROVED about this program's
+   110                      pipeline (ConRon.Capstone.model_exists and
+   111                      no_False_declaration, on the Aeneas model of the Rust),
+   112                      using only the axioms propext, Classical.choice and
+   113                      Quot.sound.  What they still assume are hypotheses, not
+   114                      axioms: that the driver runs the extracted stages in the
+   115                      order it does on the file's bytes.  They hold at every pin
+   116                      text and every prelude.  OVERVIEW.md section 3.1 lists
+   117                      them.
+   118    --trusted         the unverified mode: the SAME checker bodies at the mode
+   119                      with the certification-only work switched off.  An accept
+   120                      in this mode is outside the theorem.
+   121    --jobs=<n>        the check phase runs on <n> worker threads sharing the
+   122                      persistent tier and the installed index by reference
+   123                      (DESIGN.md section 8.3): each worker owns a scratch tier,
+   124                      its own caches and a copy of the pin handles, and the
+   125                      results are merged by record index and walked in record
+   126                      order, so the verdict and the record a rejection names are
+   127                      the same at every <n>.  Default: one per hardware thread,
+   128                      capped at 16.  A worker reserves 1 GiB of stack, which a
+   129                      `ulimit -v` must allow for.  0 or a non-numeral is a usage
+   130                      error, as in con-leche.
+   131    --                every argument after it is a file, whatever it is called;
+   132                      FILE.ndjson is a regular file, read forward (a FIFO or a
+   133                      directory is exit 3)
+   134    --olean           read the input from .olean files instead of a lean4export
+   135                      stream: the arguments are root modules (Init, Std, Mathlib,
+   136                      ...; a component in «» is taken literally), checked with
+   137                      every constant of their import closure.  The closure is
+   138                      read at the private level (theorems with proofs,
+   139                      definitions with bodies), merged as Lean's own import
+   140                      merges it, and emitted as the records lean4export would
+   141                      write, so the same checker checks them.  Every object the
+   142                      imports and constants reach is decoded and validated,
+   143                      nothing in the files is trusted.  A file of another .olean
+   144                      format version declines (2).  OVERVIEW.md says how far the
+   145                      theorems reach on this path.
+   146    --constant=NAME   with --olean: check only this constant and what it
+   147                      mentions, not every constant of the closure, as
+   148                      lean4export's arguments after -- do; a component of digits
+   149                      is a number (_private.M.0.foo).  May be given more than
+   150                      once.  A name the closure does not hold is an error (3).
+   151    --search-path=DIR[:DIR...]
+   152                      the directories holding .olean trees, as LEAN_PATH lists
+   153                      them (the toolchain's lib/lean, a package's
+   154                      .lake/build/lib/lean).  May be given more than once.  Every
+   155                      module is looked up in every directory: its files (M.olean
+   156                      and, for a module of the module system, exactly
+   157                      M.olean.server and M.olean.private beside it) must be in
+   158                      one directory, counted once however often it is reached (a
+   159                      repeated entry, a symbolic link).  A module in two places,
+   160                      a missing, stray or split part is an error (3).
+   161  
+   162  build-time selection (cargo features, not command-line flags): the global
+   163  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   164  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   165  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   166  It is the same edge `crates/con-ron` has, so the two checkers are measured on
+   167  the same allocator unless a build says otherwise.
+   168  
+   169  Any other option is a usage error: the run reports it, prints this text and
+   170  exits 3 without reading its input.
+   171  
+   172  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  //! | exit | verdict | meaning |
@@ -511,26 +511,26 @@
    532      ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
 == crates/con-ron/src/bin/con-ron.rs#L339-L358
-   339      let mut st = AState::empty();
-   340      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-   341      // #97-P6-6b).  The parse and phase A's setup own their own — the store
-   342      // is owned (not frozen) outside a declaration bracket — so what they are
-   343      // handed here is the EMPTY tier, and the single-lane computation is
-   344      // unchanged.  Each phase-A bracket freezes the store and reads through
-   345      // the tier it took out; phase B freezes the store's tier into a
-   346      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
-   347      // where that happens.
-   348      // ConRon.Capstone: `emptyTier`
-   349      let pers: &PersTier = &PersTier::empty();
-   350      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   351      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   352      // tier is closed here, so every pinned handle is persistent and survives
-   353      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
-   354      // read raises `Internal` rather than answering — which is what makes the
-   355      // initialisation-order hazard task #97c named impossible rather than
-   356      // unlikely.
-   357      // ConRon.Capstone: h1
-   358      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+   339      }
+   340  }
+   341  
+   342  /// con-leche: none — a frontend failure's exit, one place: the decline, the
+   343  /// reject and the internal error of the two frontend gates and of the
+   344  /// preparation (con-leche writes the three arms out at each gate).
+   345  fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
+   346      match classify(e) {
+   347          FrontendClass::Declined(what) => {
+   348              eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   349              2
+   350          }
+   351          FrontendClass::Invalid(what) => {
+   352              eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   353              1
+   354          }
+   355          FrontendClass::Internal(msg) => {
+   356              eprintln!("con-ron: {} ({})", msg, mode_tag);
+   357              3
+   358          }
 
 == proof/ConRon/Refine2/Frontend/Source.lean#L34-L38
     34  def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
@@ -1272,194 +1272,194 @@
     40  //!   a `Live` slot with a stale stamp is free space, indistinguishable from
 
 == crates/con-ron/src/bin/con-ron.rs#L326-L513
-   326      let mode_tag = if a.verified {
-   327          "--verified"
-   328      } else {
-   329          "--trusted"
-   330      };
-   331      let mode = if a.verified {
-   332          CheckMode::Verified
-   333      } else {
-   334          CheckMode::Trusted
-   335      };
-   336      // ONE store for the whole run: the prelude, the stream and the pins are
-   337      // hash-consed together into its persistent tier (DESIGN.md §8.3).
-   338      // ConRon.Capstone: `startState`
-   339      let mut st = AState::empty();
-   340      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-   341      // #97-P6-6b).  The parse and phase A's setup own their own — the store
-   342      // is owned (not frozen) outside a declaration bracket — so what they are
-   343      // handed here is the EMPTY tier, and the single-lane computation is
-   344      // unchanged.  Each phase-A bracket freezes the store and reads through
-   345      // the tier it took out; phase B freezes the store's tier into a
-   346      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
-   347      // where that happens.
-   348      // ConRon.Capstone: `emptyTier`
-   349      let pers: &PersTier = &PersTier::empty();
-   350      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   351      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   352      // tier is closed here, so every pinned handle is persistent and survives
-   353      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
-   354      // read raises `Internal` rather than answering — which is what makes the
-   355      // initialisation-order hazard task #97c named impossible rather than
-   356      // unlikely.
-   357      // ConRon.Capstone: h1
-   358      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
-   359          Ok(()) => (),
-   360          Err(e) => {
-   361              eprintln!(
-   362                  "con-ron: the reserved-name pins do not intern ({}) ({})",
-   363                  con_ron::driver::message(&e),
-   364                  mode_tag
-   365              );
-   366              return 3;
-   367          }
-   368      }
-   369      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
-   370      // ConRon.Capstone: h2
-   371      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
-   372          Ok(p) => p,
-   373          Err((e, line)) => {
-   374              let what = match classify(&e) {
-   375                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
-   376                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
-   377                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
-   378              };
-   379              eprintln!(
-   380                  "con-ron: the built-in prelude {}; regenerate it with \
-   381                   `lake exe natop-pins-export` ({})",
-   382                  what, mode_tag
-   383              );
-   384              return 3;
-   385          }
-   386      };
-   387      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
-   388      // parsed and dropped, so neither a wholesale text buffer nor a scratch
-   389      // file exists.  What comes out is the FILE's records as HANDLES into the
-   390      // store above.  No model is ever read from the input: every inductive
-   391      // block — mutual and nested included — installs through the kernel's
-   392      // uniform installer, unconditionally (task #105).
-   393      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
-   394      let parsed: ParseResultD = match driver::parse_export_stream_d(
-   395          pers,
-   396          &mut st,
-   397          file,
-   398          export_c::CHUNK_SIZE,
-   399      ) {
-   400          Err(e) => {
-   401              eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
-   402              return 3;
-   403          }
-   404          Ok((Err((e, line)), _)) => match classify(&e) {
-   405              FrontendClass::Declined(what) => {
-   406                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
-   407                  return 2;
-   408              }
-   409              // A stream whose inductive block contradicts its own declarations
-   410              // in a REDUNDANT field is rejected at the parse.
-   411              FrontendClass::Invalid(what) => {
-   412                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
-   413                  return 1;
-   414              }
-   415              FrontendClass::Internal(msg) => {
-   416                  eprintln!("con-ron: {}:{}: {}", con_ron::render::display_path(file), line, msg);
-   417                  return 3;
-   418              }
-   419          },
-   420          Ok((Ok(r), _)) => r,
-   421      };
-   422      let file_records = parsed.decls.len();
-   423      // From here on the store is the checker's state: the memo tables and the
-   424      // per-declaration caches join it (`AState`), and every handle the parse
-   425      // produced indexes into it.
-   426      // **PREPARE** (`frontend::prepare`): what the fold runs over is
-   427      // `prepare_prelude` of the file's records — the prelude's declarations
-   428      // first (the stream's own copies where it has them, the rest synthesised),
-   429      // then the stream's, with every pinned `Nat` operation's stream-certified
-   430      // ground hoisted ahead of it.  It takes the whole state since task
-   431      // #97-P4d: step 2 is the real ground hoist, which interns.
-   432      // ConRon.Capstone: h4
-   433      let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
-   434          Ok(p) => p,
-   435          Err(e) => return frontend_exit(&e, mode_tag),
-   436      };
-   437      // the ground hoist's receipt
-   438      if !prepared.hoisted.is_empty() {
-   439          let names: Vec<String> = prepared
-   440              .hoisted
-   441              .iter()
-   442              .map(|n| driver::name_of(pers, &st.store, n))
-   443              .collect();
-   444          eprintln!(
-   445              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
-   446               they ground: {}",
-   447              prepared.hoisted.len(),
-   448              names.join(", ")
-   449          );
-   450      }
-   451      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
-   452      // outside the theorems)
-   453      let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
-   454          Ok(p) => p,
-   455          Err(e) => {
-   456              eprintln!("con-ron: {}", e);
-   457              return 3;
-   458          }
-   459      };
-   460      // The heartbeat's first line: the parse and the preparation are done.
-   461      let mut hb = Heartbeat::new(a.progress, t0);
-   462      hb.parse_done(
-   463          prepared.decls.len(),
-   464          file_records,
-   465          prepared.synthesised,
-   466          (
-   467              st.store.node_count(pers),
-   468              st.store.ls().node_count(pers),
-   469              st.store.ns().node_count(pers),
-   470          ),
-   471      );
-   472      // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
-   473      // pinned datum the checker compares a stream record against — the six
-   474      // basis blocks in both forms, the axiom pins, the reserved names and the
-   475      // `Nat`-operation variants — interned ONCE, here, while the scratch tier
-   476      // is still off, so that nothing the fold compares against lives in a tier
-   477      // that is about to vanish.  Its result is the fold's pin parameter.
-   478      // ConRon.Capstone: h5
-   479      let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
-   480          Ok(p) => p,
-   481          Err(e) => return frontend_exit(&e, mode_tag),
+   326      Declined(String),
+   327      Invalid(String),
+   328      Internal(String),
+   329  }
+   330  
+   331  /// con-leche: none — `FrontendClass` of a `CheckError` (see there).
+   332  fn classify(e: &CheckError) -> FrontendClass {
+   333      let m = con_ron::driver::message(e);
+   334      match e {
+   335          CheckError::NotImplemented(_) => FrontendClass::Declined(m),
+   336          CheckError::Native(_) => FrontendClass::Declined(m),
+   337          CheckError::Invalid(_) => FrontendClass::Invalid(m),
+   338          CheckError::Internal(_) => FrontendClass::Internal(m),
+   339      }
+   340  }
+   341  
+   342  /// con-leche: none — a frontend failure's exit, one place: the decline, the
+   343  /// reject and the internal error of the two frontend gates and of the
+   344  /// preparation (con-leche writes the three arms out at each gate).
+   345  fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
+   346      match classify(e) {
+   347          FrontendClass::Declined(what) => {
+   348              eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   349              2
+   350          }
+   351          FrontendClass::Invalid(what) => {
+   352              eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   353              1
+   354          }
+   355          FrontendClass::Internal(msg) => {
+   356              eprintln!("con-ron: {} ({})", msg, mode_tag);
+   357              3
+   358          }
+   359      }
+   360  }
+   361  
+   362  /// con-leche: ConLeche/Driver/CheckMain.lean:58-61 Input
+   363  /// **What a run reads**: a lean4export stream, or the import closure of root
+   364  /// modules read from their `.olean` files along a search path.
+   365  enum Input {
+   366      Ndjson(String),
+   367      Oleans(con_ron::olean_fs::OleanRequest),
+   368  }
+   369  
+   370  /// con-leche: ConLeche/Driver/CheckMain.lean:96-286 checkMainG
+   371  /// con-leche: ConLeche/Driver/CheckMain.lean:86-94 readInputG
+   372  /// The driver's front matter: the prelude, the streaming parse, the
+   373  /// preparation, the pin walk, the receipts, then the fold and the verdict.
+   374  /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
+   375  /// around it (`Arena/Main.lean`), and `con-ron`'s `check_main` with the
+   376  /// handles in place of the trees.
+   377  fn check_main(a: &Args, input: &Input) -> u8 {
+   378      let t0 = Instant::now();
+   379      let mode_tag = if a.verified {
+   380          "--verified"
+   381      } else {
+   382          "--trusted"
+   383      };
+   384      let mode = if a.verified {
+   385          CheckMode::Verified
+   386      } else {
+   387          CheckMode::Trusted
+   388      };
+   389      // ONE store for the whole run: the prelude, the stream and the pins are
+   390      // hash-consed together into its persistent tier (DESIGN.md §8.3).
+   391      // ConRon.Capstone: `startState`
+   392      let mut st = AState::empty();
+   393      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
+   394      // #97-P6-6b).  The parse and phase A's setup own their own — the store
+   395      // is owned (not frozen) outside a declaration bracket — so what they are
+   396      // handed here is the EMPTY tier, and the single-lane computation is
+   397      // unchanged.  Each phase-A bracket freezes the store and reads through
+   398      // the tier it took out; phase B freezes the store's tier into a
+   399      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
+   400      // where that happens.
+   401      // ConRon.Capstone: `emptyTier`
+   402      let pers: &PersTier = &PersTier::empty();
+   403      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   404      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   405      // tier is closed here, so every pinned handle is persistent and survives
+   406      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+   407      // read raises `Internal` rather than answering — which is what makes the
+   408      // initialisation-order hazard task #97c named impossible rather than
+   409      // unlikely.
+   410      // ConRon.Capstone: h1
+   411      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+   412          Ok(()) => (),
+   413          Err(e) => {
+   414              eprintln!(
+   415                  "con-ron: the reserved-name pins do not intern ({}) ({})",
+   416                  con_ron::driver::message(&e),
+   417                  mode_tag
+   418              );
+   419              return 3;
+   420          }
+   421      }
+   422      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
+   423      // ConRon.Capstone: h2
+   424      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
+   425          Ok(p) => p,
+   426          Err((e, line)) => {
+   427              let what = match classify(&e) {
+   428                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
+   429                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
+   430                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
+   431              };
+   432              eprintln!(
+   433                  "con-ron: the built-in prelude {}; regenerate it with \
+   434                   `lake exe natop-pins-export` ({})",
+   435                  what, mode_tag
+   436              );
+   437              return 3;
+   438          }
+   439      };
+   440      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
+   441      // parsed and dropped, so neither a wholesale text buffer nor a scratch
+   442      // file exists.  What comes out is the FILE's records as HANDLES into the
+   443      // store above.  No model is ever read from the input: every inductive
+   444      // block — mutual and nested included — installs through the kernel's
+   445      // uniform installer, unconditionally (task #105).
+   446      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
+   447      // The `.olean` path ends in the same records (task #142); no capstone
+   448      // premise is about it yet (OVERVIEW.md).
+   449      let read: std::io::Result<Result<ParseResultD, (CheckError, u64)>> = match input {
+   450          Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
+   451              Err(e) => {
+   452                  eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
+   453                  return 3;
+   454              }
+   455              Ok((r, _)) => Ok(r),
+   456          },
+   457          Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req)),
+   458      };
+   459      let label: String = match input {
+   460          Input::Ndjson(file) => con_ron::render::display_path(file),
+   461          Input::Oleans(req) => req.label(pers, &st),
+   462      };
+   463      let parsed: ParseResultD = match read {
+   464          Err(_) => return 3,
+   465          Ok(Err((e, line))) => match classify(&e) {
+   466              FrontendClass::Declined(what) => {
+   467                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   468                  return 2;
+   469              }
+   470              // A stream whose inductive block contradicts its own declarations
+   471              // in a REDUNDANT field is rejected at the parse.
+   472              FrontendClass::Invalid(what) => {
+   473                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   474                  return 1;
+   475              }
+   476              FrontendClass::Internal(msg) => {
+   477                  eprintln!("con-ron: {}:{}: {}", label, line, msg);
+   478                  return 3;
+   479              }
+   480          },
+   481          Ok(Ok(r)) => r,
    482      };
-   483      // ONE driver, and the heartbeat is printed between its steps
-   484      // (`driver::check_decls_driver`: phase A, the frozen tier, and the pool
-   485      // for its phase B).
-   486      let jobs: u64 = match a.jobs {
-   487          Some(n) => n,
-   488          None => con_ron::driver::default_jobs(),
-   489      };
-   490      // ONE lane, whatever the flags: the driver is what freezes the persistent
-   491      // tier at the phase boundary and phase B is the pool at every worker count
-   492      // (task #97-P6-6b), so a run with no heartbeat is the same computation as
-   493      // a run with one and `install_then_check` is no longer a second path.
-   494      // ConRon.Capstone: h6, hord, h7, hlayer, h8 (the driver's steps, either observer)
-   495      let verdict = if a.progress > 0 {
-   496          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
-   497      } else {
-   498          let mut silent = driver::Silent;
-   499          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
-   500      };
-   501      // **The headline number is the FILE's declaration-record count**: the
-   502      // records the PARSE produced, which are the file's own.  Nothing the
-   503      // preparation does moves it.
-   504      let stream_records = file_records as u64;
-   505      let code = match &verdict {
-   506          Ok(_) => driver::verdict_accept(stream_records, mode_tag),
-   507          Err((e, i)) => {
-   508              driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
-   509          }
-   510      };
-   511      exit_after_verdict(code)
-   512  }
-   513  
+   483      let file_records = parsed.decls.len();
+   484      // From here on the store is the checker's state: the memo tables and the
+   485      // per-declaration caches join it (`AState`), and every handle the parse
+   486      // produced indexes into it.
+   487      // **PREPARE** (`frontend::prepare`): what the fold runs over is
+   488      // `prepare_prelude` of the file's records — the prelude's declarations
+   489      // first (the stream's own copies where it has them, the rest synthesised),
+   490      // then the stream's, with every pinned `Nat` operation's stream-certified
+   491      // ground hoisted ahead of it.  It takes the whole state since task
+   492      // #97-P4d: step 2 is the real ground hoist, which interns.
+   493      // ConRon.Capstone: h4
+   494      let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
+   495          Ok(p) => p,
+   496          Err(e) => return frontend_exit(&e, mode_tag),
+   497      };
+   498      // the ground hoist's receipt
+   499      if !prepared.hoisted.is_empty() {
+   500          let names: Vec<String> = prepared
+   501              .hoisted
+   502              .iter()
+   503              .map(|n| driver::name_of(pers, &st.store, n))
+   504              .collect();
+   505          eprintln!(
+   506              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
+   507               they ground: {}",
+   508              prepared.hoisted.len(),
+   509              names.join(", ")
+   510          );
+   511      }
+   512      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
+   513      // outside the theorems)
 
 == crates/con-ron-core/src/arena/pins.rs#L1-L60
      1  //! `arena::pins` — the reserved names, interned ONCE (task #97-P6-4a).

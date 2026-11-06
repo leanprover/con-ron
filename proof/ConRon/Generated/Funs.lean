@@ -84579,7 +84579,7 @@ def frontend.olean.view.undecodable
   kernel.core_types.internal v3
 
 /-- [con_ron_core::frontend::olean::files::read_imports_at::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 667:53-667:98 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 668:53-668:98 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_imports_at.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
@@ -84792,7 +84792,7 @@ def frontend.olean.header.hdr_walk
   frontend.olean.header.hdr_walk_loop b g size
 
 /-- [con_ron_core::frontend::olean::files::hdr_short]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 635:0-640:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 636:0-641:1
     Visibility: public -/
 def frontend.olean.files.hdr_short
   (acc : alloc.vec.Vec Std.U8) : Result Bool := do
@@ -84804,13 +84804,13 @@ def frontend.olean.files.hdr_short
   | frontend.olean.header.HdrWalk.Bad => ok false
 
 /-- [con_ron_core::frontend::olean::files::HDR_CHUNK]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 621:0-621:32
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 622:0-622:32
     Visibility: public -/
 @[global_simps, irreducible]
 def frontend.olean.files.HDR_CHUNK : Std.U64 := 4096#u64
 
 /-- [con_ron_core::frontend::olean::files::read_hdr_bytes]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 649:4-658:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 650:4-659:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.read_hdr_bytes_loop
@@ -84846,7 +84846,7 @@ def frontend.olean.files.read_hdr_bytes_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::read_hdr_bytes]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 645:0-658:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 646:0-659:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.files.read_hdr_bytes
@@ -85565,7 +85565,7 @@ def frontend.olean.region.region_ptr_fld
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::import_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1134:0-1151:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1135:0-1152:1
     Visibility: public -/
 def frontend.olean.spec.import_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (i : Std.U64) :
@@ -85594,7 +85594,7 @@ def frontend.olean.spec.import_skel
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::import_map]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1124:0-1129:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1125:0-1130:1
     Visibility: public -/
 def frontend.olean.spec.import_map
   {R : Type} (PtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -86105,7 +86105,7 @@ def frontend.olean.header.imports_pre
     ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
 
 /-- [con_ron_core::frontend::olean::files::hdr_fin]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 626:0-631:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 627:0-632:1
     Visibility: public -/
 def frontend.olean.files.hdr_fin
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -86315,7 +86315,7 @@ def frontend.olean.files.mod_file
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_imports_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 666:0-684:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 667:0-685:1
     Visibility: public -/
 def frontend.olean.files.read_imports_at
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -86353,7 +86353,7 @@ def frontend.olean.files.read_imports_at
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
 /-- [con_ron_core::frontend::olean::files::find_module::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 604:36-604:160 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 605:36-605:160 -/
 @[global_simps, irreducible]
 def frontend.olean.files.find_module.M_1 : Array Std.U32 22#usize :=
   Array.make 22#usize [
@@ -86363,7 +86363,7 @@ def frontend.olean.files.find_module.M_1 : Array Std.U32 22#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::find_module::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 603:32-603:87 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 604:32-604:87 -/
 @[global_simps, irreducible]
 def frontend.olean.files.find_module.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -87300,7 +87300,7 @@ def frontend.olean.files.locate_hits
     (alloc.vec.Vec.new frontend.olean.files.Hit) 0#usize
 
 /-- [con_ron_core::frontend::olean::files::find_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 597:0-608:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 598:0-609:1
     Visibility: public -/
 def frontend.olean.files.find_module
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -87328,7 +87328,7 @@ def frontend.olean.files.find_module
     | frontend.olean.files.LocErr.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::module_imports]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 689:0-694:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 690:0-695:1
     Visibility: public -/
 def frontend.olean.files.module_imports
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -87848,7 +87848,7 @@ def frontend.olean.view.view_server
     | core.result.Result.Err _ => ok none
 
 /-- [con_ron_core::frontend::olean::spec::imports_skel]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1166:4-1174:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1167:4-1175:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.imports_skel_loop
@@ -87874,7 +87874,7 @@ def frontend.olean.spec.imports_skel_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::imports_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1163:0-1174:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1164:0-1175:1
     Visibility: public -/
 def frontend.olean.spec.imports_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region)
@@ -87916,7 +87916,7 @@ def frontend.olean.region.region_obj_array
     else ok none
 
 /-- [con_ron_core::frontend::olean::spec::module_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1178:0-1202:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1179:0-1203:1
     Visibility: public -/
 def frontend.olean.spec.module_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (root : Std.U64) :
@@ -88062,7 +88062,7 @@ def frontend.olean.view.view_bytes
   | frontend.olean.view.ViewBytes.Joined b => ok (alloc.vec.Vec.deref b.bytes)
 
 /-- [con_ron_core::frontend::olean::spec::name_entry_agrees]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1214:0-1228:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1215:0-1229:1
     Visibility: public -/
 def frontend.olean.spec.name_entry_agrees
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -88090,31 +88090,31 @@ def frontend.olean.spec.name_entry_agrees
       | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 981:43-981:79 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 982:43-982:79 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel.M_3 : Array Std.U32 3#usize :=
   Array.make 3#usize [ 105#u32, 110#u32, 100#u32 ]
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 980:43-980:84 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 981:43-981:84 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel.M_2 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 108#u32, 105#u32, 102#u32, 116#u32 ]
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 979:43-979:83 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 980:43-980:83 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel.M_1 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 99#u32, 116#u32, 111#u32, 114#u32 ]
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 978:43-978:84 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 979:43-979:84 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel.M : Array Std.U32 4#usize :=
   Array.make 4#usize [ 116#u32, 121#u32, 112#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::olean::spec::nat_f]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 778:0-780:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 779:0-781:1
     Visibility: public -/
 def frontend.olean.spec.nat_f
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (g : Std.U64)
@@ -88125,7 +88125,7 @@ def frontend.olean.spec.nat_f
   frontend.olean.region.region_nat_sat bs r g i1
 
 /-- [con_ron_core::frontend::olean::spec::rule_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 813:0-832:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 814:0-833:1
     Visibility: public -/
 def frontend.olean.spec.rule_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64)
@@ -88154,7 +88154,7 @@ def frontend.olean.spec.rule_skel
     else ok none
 
 /-- [con_ron_core::frontend::olean::spec::rules_skel]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 839:4-847:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 840:4-848:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.rules_skel_loop
@@ -88180,7 +88180,7 @@ def frontend.olean.spec.rules_skel_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::rules_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 836:0-847:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 837:0-848:1
     Visibility: public -/
 def frontend.olean.spec.rules_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64)
@@ -88248,7 +88248,7 @@ def frontend.olean.region.region_list
       frontend.olean.region.region_list_go bs r c (alloc.vec.Vec.new Std.U64)
 
 /-- [con_ron_core::frontend::olean::spec::name_list]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 784:0-786:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 785:0-787:1
     Visibility: public -/
 def frontend.olean.spec.name_list
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (g : Std.U64)
@@ -88259,7 +88259,7 @@ def frontend.olean.spec.name_list
   frontend.olean.region.region_list bs r g i1
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_recur]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 904:0-936:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 905:0-937:1
     Visibility: public -/
 def frontend.olean.spec.kind_skel_recur
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64) :
@@ -88310,7 +88310,7 @@ def frontend.olean.spec.kind_skel_recur
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_induct]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 871:0-900:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 872:0-901:1
     Visibility: public -/
 def frontend.olean.spec.kind_skel_induct
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64) :
@@ -88356,7 +88356,7 @@ def frontend.olean.spec.kind_skel_induct
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_defn::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 862:61-862:115 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 863:61-863:115 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel_defn.M_2 : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -88364,13 +88364,13 @@ def frontend.olean.spec.kind_skel_defn.M_2 : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_defn::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 861:61-861:101 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 862:61-862:101 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel_defn.M_1 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 115#u32, 97#u32, 102#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_defn::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 860:61-860:111 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 861:61-861:111 -/
 @[global_simps, irreducible]
 def frontend.olean.spec.kind_skel_defn.M : Array Std.U32 6#usize :=
   Array.make 6#usize [ 117#u32, 110#u32, 115#u32, 97#u32, 102#u32, 101#u32 ]
@@ -88396,7 +88396,7 @@ def frontend.olean.region.region_u32
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::hints_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 790:0-809:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 791:0-810:1
     Visibility: public -/
 def frontend.olean.spec.hints_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64)
@@ -88425,7 +88425,7 @@ def frontend.olean.spec.hints_skel
         else ok none
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel_defn]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 851:0-867:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 852:0-868:1
     Visibility: public -/
 def frontend.olean.spec.kind_skel_defn
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (x : Std.U64) :
@@ -88467,7 +88467,7 @@ def frontend.olean.spec.kind_skel_defn
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::kind_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 940:0-1009:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 941:0-1010:1
     Visibility: public -/
 def frontend.olean.spec.kind_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (t : Std.U64)
@@ -88587,7 +88587,7 @@ def frontend.olean.spec.kind_skel
               else frontend.olean.spec.kind_skel_recur bs r x
 
 /-- [con_ron_core::frontend::olean::spec::const_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1014:0-1048:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1015:0-1049:1
     Visibility: public -/
 def frontend.olean.spec.const_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region) (c : Std.U64) :
@@ -88650,7 +88650,7 @@ def frontend.olean.spec.const_skel
   else ok none
 
 /-- [con_ron_core::frontend::olean::spec::const_name_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1232:0-1252:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1233:0-1253:1
     Visibility: public -/
 def frontend.olean.spec.const_name_step
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -88695,7 +88695,7 @@ def frontend.olean.spec.const_name_step
         ok (core.result.Result.Err e, ar1, seen)
 
 /-- [con_ron_core::frontend::olean::spec::const_names_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1259:4-1268:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1260:4-1269:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.const_names_go_loop
@@ -88728,7 +88728,7 @@ def frontend.olean.spec.const_names_go_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::const_names_go]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1257:0-1268:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1258:0-1269:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.spec.const_names_go
@@ -88743,7 +88743,7 @@ def frontend.olean.spec.const_names_go
   frontend.olean.spec.const_names_go_loop pk pers ar bs r ns cs seen 0#usize
 
 /-- [con_ron_core::frontend::olean::spec::const_names_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1273:0-1294:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1274:0-1295:1
     Visibility: public -/
 def frontend.olean.spec.const_names_ok
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -88783,7 +88783,7 @@ def frontend.olean.spec.const_names_ok
     else ok (core.result.Result.Ok false, ar)
 
 /-- [con_ron_core::frontend::olean::fast::take_decoded]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 746:0-748:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 750:0-752:1
     Visibility: public -/
 def frontend.olean.fast.take_decoded
   (ds : alloc.vec.Vec frontend.olean.spec.ModDecoded) (i : Std.Usize) :
@@ -88809,7 +88809,7 @@ def frontend.olean.fast.take_decoded
   ok (md1, ds1)
 
 /-- [con_ron_core::frontend::olean::spec::hints_dup]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 704:0-710:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 705:0-711:1
     Visibility: public -/
 def frontend.olean.spec.hints_dup
   (h : frontend.scan_types.HintsRec) :
@@ -88823,7 +88823,7 @@ def frontend.olean.spec.hints_dup
   | frontend.scan_types.HintsRec.Regular _ => ok h
 
 /-- [con_ron_core::frontend::olean::spec::rules_map]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 690:4-701:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 691:4-702:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.rules_map_loop
@@ -88859,7 +88859,7 @@ def frontend.olean.spec.rules_map_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::rules_map]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 687:0-701:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 688:0-702:1
     Visibility: public -/
 def frontend.olean.spec.rules_map
   {R : Type} (PtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -88878,7 +88878,7 @@ def frontend.olean.spec.rules_map
     0#usize
 
 /-- [con_ron_core::frontend::olean::spec::names_map]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 675:4-683:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 676:4-684:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.names_map_loop
@@ -88907,7 +88907,7 @@ def frontend.olean.spec.names_map_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::names_map]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 672:0-683:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 673:0-684:1
     Visibility: public -/
 def frontend.olean.spec.names_map
   {R : Type} (PtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -88923,7 +88923,7 @@ def frontend.olean.spec.names_map
     0#usize
 
 /-- [con_ron_core::frontend::olean::spec::c_kind_map]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 714:0-752:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 715:0-753:1
     Visibility: public -/
 def frontend.olean.spec.c_kind_map
   {R : Type} (PtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -89000,7 +89000,7 @@ def frontend.olean.spec.c_kind_map
     | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::spec::c_entry_map]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 756:0-773:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 757:0-774:1
     Visibility: public -/
 def frontend.olean.spec.c_entry_map
   {R : Type} (PtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -89034,7 +89034,7 @@ def frontend.olean.spec.c_entry_map
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::fast::mod_skel_constants]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 596:4-604:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 600:4-608:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.mod_skel_constants_loop
@@ -89068,7 +89068,7 @@ def frontend.olean.fast.mod_skel_constants_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::mod_skel_constants]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 593:0-604:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 597:0-608:1
     Visibility: public -/
 def frontend.olean.fast.mod_skel_constants
   {R : Type} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -89088,7 +89088,7 @@ def frontend.olean.fast.mod_skel_constants
     r cs out 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::mod_skel_imports]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 581:4-589:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 585:4-593:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.mod_skel_imports_loop
@@ -89121,7 +89121,7 @@ def frontend.olean.fast.mod_skel_imports_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::mod_skel_imports]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 578:0-589:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 582:0-593:1
     Visibility: public -/
 def frontend.olean.fast.mod_skel_imports
   {R : Type} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -89139,7 +89139,7 @@ def frontend.olean.fast.mod_skel_imports
     sk.imports imports 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::mod_skel_read]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 566:0-574:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 570:0-578:1
     Visibility: public -/
 def frontend.olean.fast.mod_skel_read
   {R : Type} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
@@ -89165,7 +89165,7 @@ def frontend.olean.fast.mod_skel_read
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::fast::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::fast::DS}::rd_expr]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 503:4-508:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 507:4-512:5
     Visibility: public -/
 def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_expr
   (self : frontend.olean.fast.DS) (_pk : frontend.olean.spec.OleanPins)
@@ -89187,7 +89187,7 @@ def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_expr
     ok (core.result.Result.Ok e, _ar)
 
 /-- [con_ron_core::frontend::olean::fast::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::fast::DS}::rd_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 490:4-499:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 494:4-503:5
     Visibility: public -/
 def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name
   (self : frontend.olean.fast.DS) (pk : frontend.olean.spec.OleanPins)
@@ -89214,7 +89214,7 @@ def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name
       ok (core.result.Result.Ok n, _ar)
 
 /-- Trait implementation: [con_ron_core::frontend::olean::fast::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::fast::DS}]
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 487:0-509:1 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 491:0-513:1 -/
 @[reducible]
 def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead :
   frontend.olean.spec.PtrRead frontend.olean.fast.DS := {
@@ -89225,7 +89225,7 @@ def frontend.olean.fast.DS.Insts.Con_ron_coreFrontendOleanSpecPtrRead :
 }
 
 /-- [con_ron_core::frontend::olean::fast::many_read]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 695:4-703:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 699:4-707:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_read_loop
@@ -89262,7 +89262,7 @@ def frontend.olean.fast.many_read_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_read]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 692:0-703:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 696:0-707:1
     Visibility: public -/
 def frontend.olean.fast.many_read
   (st : frontend.olean.fast.DS) (pk : frontend.olean.spec.OleanPins)
@@ -89279,7 +89279,7 @@ def frontend.olean.fast.many_read
   frontend.olean.fast.many_read_loop st pk pers ar bs r sks skels out 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::c_entry_exprs]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 555:12-558:13
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 559:12-562:13
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.c_entry_exprs_loop
@@ -89300,7 +89300,7 @@ def frontend.olean.fast.c_entry_exprs_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::c_entry_exprs]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 547:0-562:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 551:0-566:1
     Visibility: public -/
 def frontend.olean.fast.c_entry_exprs
   (c : frontend.olean.spec.CEntryF Std.U64 Std.U64)
@@ -89320,7 +89320,7 @@ def frontend.olean.fast.c_entry_exprs
     frontend.olean.fast.c_entry_exprs_loop out1 rules 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::push_all]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 539:4-542:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 543:4-546:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.push_all_loop
@@ -89339,7 +89339,7 @@ def frontend.olean.fast.push_all_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::push_all]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 537:0-543:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 541:0-547:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.fast.push_all
@@ -89349,7 +89349,7 @@ def frontend.olean.fast.push_all
   frontend.olean.fast.push_all_loop xs out 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::c_entry_names]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 526:12-529:13
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 530:12-533:13
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.c_entry_names_loop
@@ -89370,7 +89370,7 @@ def frontend.olean.fast.c_entry_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::c_entry_names]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 513:0-533:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 517:0-537:1
     Visibility: public -/
 def frontend.olean.fast.c_entry_names
   (c : frontend.olean.spec.CEntryF Std.U64 Std.U64)
@@ -89395,7 +89395,7 @@ def frontend.olean.fast.c_entry_names
     frontend.olean.fast.c_entry_names_loop out3 rules 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::many_roots]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 671:8-674:9
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 675:8-678:9
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_roots_loop0_loop0
@@ -89419,7 +89419,7 @@ def frontend.olean.fast.many_roots_loop0_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_roots]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 669:4-676:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 673:4-680:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_roots_loop0
@@ -89438,7 +89438,7 @@ def frontend.olean.fast.many_roots_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_roots]: loop 3:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 680:8-684:9
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 684:8-688:9
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_roots_loop1_loop0
@@ -89467,7 +89467,7 @@ def frontend.olean.fast.many_roots_loop1_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_roots]: loop 2:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 678:4-686:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 682:4-690:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_roots_loop1
@@ -89487,7 +89487,7 @@ def frontend.olean.fast.many_roots_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_roots]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 665:0-688:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 669:0-692:1
     Visibility: public -/
 def frontend.olean.fast.many_roots
   (sks : alloc.vec.Vec frontend.olean.spec.ModSkel)
@@ -89502,7 +89502,7 @@ def frontend.olean.fast.many_roots
     0#usize
 
 /-- [con_ron_core::frontend::olean::spec::rules_too_big]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1075:4-1082:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1076:4-1083:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.rules_too_big_loop
@@ -89524,7 +89524,7 @@ def frontend.olean.spec.rules_too_big_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::rules_too_big]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1073:0-1082:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1074:0-1083:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.spec.rules_too_big
@@ -89534,7 +89534,7 @@ def frontend.olean.spec.rules_too_big
   frontend.olean.spec.rules_too_big_loop rules 0#usize
 
 /-- [con_ron_core::frontend::olean::spec::skel_fits]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1053:0-1070:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1054:0-1071:1
     Visibility: public -/
 def frontend.olean.spec.skel_fits
   {N : Type} {E : Type} (c : frontend.olean.spec.CEntryF N E) :
@@ -89583,7 +89583,7 @@ def frontend.olean.spec.skel_fits
   else ok (core.result.Result.Ok ())
 
 /-- [con_ron_core::frontend::olean::fast::consts_skel]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 627:4-638:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 631:4-642:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.consts_skel_loop
@@ -89615,7 +89615,7 @@ def frontend.olean.fast.consts_skel_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::consts_skel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 624:0-638:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 628:0-642:1
     Visibility: public -/
 def frontend.olean.fast.consts_skel
   (bs : Slice Std.U8) (r : frontend.olean.region.Region)
@@ -89629,7 +89629,7 @@ def frontend.olean.fast.consts_skel
   frontend.olean.fast.consts_skel_loop bs r consts out 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::many_skels]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 646:4-660:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 650:4-664:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.many_skels_loop
@@ -89664,7 +89664,7 @@ def frontend.olean.fast.many_skels_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::many_skels]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 642:0-660:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 646:0-664:1
     Visibility: public -/
 def frontend.olean.fast.many_skels
   (bs : Slice Std.U8) (r : frontend.olean.region.Region)
@@ -89682,7 +89682,7 @@ def frontend.olean.fast.many_skels
   frontend.olean.fast.many_skels_loop bs r addrs sks skels 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::all_const_names_ok]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 610:4-619:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 614:4-623:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.all_const_names_ok_loop
@@ -89712,7 +89712,7 @@ def frontend.olean.fast.all_const_names_ok_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::all_const_names_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 608:0-619:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 612:0-623:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.fast.all_const_names_ok
@@ -89725,7 +89725,7 @@ def frontend.olean.fast.all_const_names_ok
   frontend.olean.fast.all_const_names_ok_loop pk pers ar bs r addrs 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::max_loc]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 451:4-457:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 455:4-461:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.max_loc_loop
@@ -89749,7 +89749,7 @@ def frontend.olean.fast.max_loc_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::max_loc]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 448:0-459:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 452:0-463:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.fast.max_loc
@@ -89780,7 +89780,7 @@ def frontend.olean.fast.mark
   else ok m
 
 /-- [con_ron_core::frontend::olean::fast::mark_root]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 419:0-431:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 423:0-435:1
     Visibility: public -/
 def frontend.olean.fast.mark_root
   (r : frontend.olean.region.Region) (k : Std.U8) (nil : Bool)
@@ -89809,7 +89809,7 @@ def frontend.olean.fast.mark_root
       ok (true, m1)
 
 /-- [con_ron_core::frontend::olean::fast::mark_roots]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 437:4-444:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 441:4-448:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.mark_roots_loop
@@ -89832,7 +89832,7 @@ def frontend.olean.fast.mark_roots_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::mark_roots]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 435:0-444:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 439:0-448:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.fast.mark_roots
@@ -90333,7 +90333,7 @@ def frontend.olean.fast.marked
 @[global_simps, irreducible] def frontend.olean.fast.K_EXPR : Std.U8 := 4#u8
 
 /-- [con_ron_core::frontend::olean::fast::build_kind_expr]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 361:0-373:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 365:0-377:1
     Visibility: public -/
 def frontend.olean.fast.build_kind_expr
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90448,7 +90448,7 @@ def frontend.olean.spec.levels_node
 @[global_simps, irreducible] def frontend.olean.fast.K_LEVELS : Std.U8 := 8#u8
 
 /-- [con_ron_core::frontend::olean::fast::build_kind_levels]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 344:0-356:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 347:0-359:1
     Visibility: public -/
 def frontend.olean.fast.build_kind_levels
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90581,7 +90581,7 @@ def frontend.olean.spec.level_node
 @[global_simps, irreducible] def frontend.olean.fast.K_LEVEL : Std.U8 := 2#u8
 
 /-- [con_ron_core::frontend::olean::fast::build_kind_level]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 327:0-339:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 329:0-341:1
     Visibility: public -/
 def frontend.olean.fast.build_kind_level
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90644,7 +90644,7 @@ def frontend.olean.spec.name_node
 @[global_simps, irreducible] def frontend.olean.fast.K_NAME : Std.U8 := 1#u8
 
 /-- [con_ron_core::frontend::olean::fast::build_kind_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 310:0-322:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 311:0-323:1
     Visibility: public -/
 def frontend.olean.fast.build_kind_name
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90674,7 +90674,7 @@ def frontend.olean.fast.build_kind_name
   else ok (core.result.Result.Ok (), ar, st)
 
 /-- [con_ron_core::frontend::olean::fast::build_slot]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 377:0-388:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 381:0-392:1
     Visibility: public -/
 def frontend.olean.fast.build_slot
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90702,7 +90702,7 @@ def frontend.olean.fast.build_slot
   | core.result.Result.Err _ => ok (r1, ar1, st1)
 
 /-- [con_ron_core::frontend::olean::fast::build_marked]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 392:0-398:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 396:0-402:1
     Visibility: public -/
 def frontend.olean.fast.build_marked
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -90718,7 +90718,7 @@ def frontend.olean.fast.build_marked
   else ok (core.result.Result.Ok (), ar, st)
 
 /-- [con_ron_core::frontend::olean::fast::build_pass]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 405:4-413:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 409:4-417:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.build_pass_loop
@@ -90742,7 +90742,7 @@ def frontend.olean.fast.build_pass_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::build_pass]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 403:0-413:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 407:0-417:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.fast.build_pass
@@ -91047,7 +91047,7 @@ def frontend.olean.fast.zeros
   alloc.vec.Vec.resize core.clone.CloneU8 (alloc.vec.Vec.new Std.U8) n 0#u8
 
 /-- [con_ron_core::frontend::olean::fast::run_passes]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 464:0-482:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 468:0-486:1
     Visibility: public -/
 def frontend.olean.fast.run_passes
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -91088,7 +91088,7 @@ def frontend.olean.fast.run_passes
   else ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
 
 /-- [con_ron_core::frontend::olean::fast::parse_many]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 709:0-724:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 713:0-728:1
     Visibility: public -/
 def frontend.olean.fast.parse_many
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -91120,7 +91120,7 @@ def frontend.olean.fast.parse_many
     ok (core.result.Result.Err (frontend.olean.spec.RdErr.Err e), ar1)
 
 /-- [con_ron_core::frontend::olean::fast::parse_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 728:0-742:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 732:0-746:1
     Visibility: public -/
 def frontend.olean.fast.parse_at
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -91205,7 +91205,7 @@ def frontend.olean.view.view_error
     | core.result.Result.Err e => ok (e, ar1)
 
 /-- [con_ron_core::frontend::olean::spec::import_rec_beq]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1099:0-1104:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1100:0-1105:1
     Visibility: public -/
 def frontend.olean.spec.import_rec_beq
   (a : frontend.olean.spec.ImportF arena.handle.NIdx)
@@ -91225,7 +91225,7 @@ def frontend.olean.spec.import_rec_beq
   else ok false
 
 /-- [con_ron_core::frontend::olean::spec::imports_beq]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1113:4-1120:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1114:4-1121:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.spec.imports_beq_loop
@@ -91252,7 +91252,7 @@ def frontend.olean.spec.imports_beq_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::spec::imports_beq]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1108:0-1120:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1109:0-1121:1
     Visibility: public -/
 def frontend.olean.spec.imports_beq
   (a : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
@@ -91345,7 +91345,7 @@ def frontend.olean.module.bad_module
   kernel.core_types.internal v3
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 768:55-768:139 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 769:55-769:139 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M_1 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -91354,7 +91354,7 @@ def frontend.olean.files.read_files_parts.M_1 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 756:55-756:135 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 757:55-757:135 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -91363,7 +91363,7 @@ def frontend.olean.files.read_files_parts.M : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_part]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 612:0-617:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 613:0-618:1
     Visibility: public -/
 def frontend.olean.files.read_part
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -91379,7 +91379,7 @@ def frontend.olean.files.read_part
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 755:0-776:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 756:0-777:1
     Visibility: public -/
 def frontend.olean.files.read_files_parts
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -91433,7 +91433,7 @@ def frontend.olean.files.read_files_parts
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#7]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 747:53-747:141 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 748:53-748:141 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_7 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -91442,7 +91442,7 @@ def frontend.olean.files.read_files.M_7 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#6]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 744:53-744:137 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 745:53-745:137 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_6 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -91451,7 +91451,7 @@ def frontend.olean.files.read_files.M_6 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 738:36-738:123 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 739:36-739:123 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_5 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -91460,7 +91460,7 @@ def frontend.olean.files.read_files.M_5 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 736:32-736:116 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 737:32-737:116 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_4 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -91469,7 +91469,7 @@ def frontend.olean.files.read_files.M_4 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 734:32-734:120 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 735:32-735:120 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_3 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -91478,7 +91478,7 @@ def frontend.olean.files.read_files.M_3 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 731:36-731:122 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 732:36-732:122 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_2 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -91487,7 +91487,7 @@ def frontend.olean.files.read_files.M_2 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 730:32-730:245 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 731:32-731:245 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M_1 : Array Std.U32 40#usize :=
   Array.make 40#usize [
@@ -91499,19 +91499,19 @@ def frontend.olean.files.read_files.M_1 : Array Std.U32 40#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 715:55-715:100 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 716:55-716:100 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 701:28-701:67 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 702:28-702:67 -/
 @[global_simps, irreducible]
 def frontend.olean.files.missing_part.M_1 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 105#u32, 110#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 699:24-699:247 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 700:24-700:247 -/
 @[global_simps, irreducible]
 def frontend.olean.files.missing_part.M : Array Std.U32 42#usize :=
   Array.make 42#usize [
@@ -91524,7 +91524,7 @@ def frontend.olean.files.missing_part.M : Array Std.U32 42#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 698:0-703:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 699:0-704:1
     Visibility: public -/
 def frontend.olean.files.missing_part
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -91544,7 +91544,7 @@ def frontend.olean.files.missing_part
   frontend.olean.module.bad_module pers ar m v3
 
 /-- [con_ron_core::frontend::olean::files::read_files]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 709:0-750:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 710:0-751:1
     Visibility: public -/
 def frontend.olean.files.read_files
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -91771,7 +91771,7 @@ def frontend.olean.files.read_files
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_view]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 780:0-789:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 781:0-790:1
     Visibility: public -/
 def frontend.olean.files.read_view
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -91976,7 +91976,7 @@ def frontend.olean.emit.emit_cv
   ok ({ «name» := n, level_params := lps, ty := t }, st3)
 
 /-- [con_ron_core::frontend::olean::emit::emit_one]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 97:0-116:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 98:0-117:1
     Visibility: public -/
 def frontend.olean.emit.emit_one
   (st : frontend.olean.emit.Emit) (c : frontend.olean.closure.CEntry) :
@@ -92014,7 +92014,7 @@ def frontend.olean.emit.emit_one
   | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok st1
 
 /-- [con_ron_core::frontend::olean::emit::emit_ty_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 120:0-138:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 121:0-139:1
     Visibility: public -/
 def frontend.olean.emit.emit_ty_step
   (st : frontend.olean.emit.Emit)
@@ -92049,7 +92049,7 @@ def frontend.olean.emit.emit_ty_step
   | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok (st, acc)
 
 /-- [con_ron_core::frontend::olean::emit::emit_ctor_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 142:0-158:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 143:0-159:1
     Visibility: public -/
 def frontend.olean.emit.emit_ctor_step
   (st : frontend.olean.emit.Emit)
@@ -92082,7 +92082,7 @@ def frontend.olean.emit.emit_ctor_step
   | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok (st, acc)
 
 /-- [con_ron_core::frontend::olean::emit::emit_rule_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 162:0-166:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 163:0-167:1
     Visibility: public -/
 def frontend.olean.emit.emit_rule_step
   (st : frontend.olean.emit.Emit)
@@ -92100,7 +92100,7 @@ def frontend.olean.emit.emit_rule_step
   ok (st2, acc1)
 
 /-- [con_ron_core::frontend::olean::emit::emit_rec_step]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 176:12-179:13
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 177:12-180:13
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_rec_step_loop
@@ -92123,7 +92123,7 @@ def frontend.olean.emit.emit_rec_step_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_rec_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 170:0-193:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 171:0-194:1
     Visibility: public -/
 def frontend.olean.emit.emit_rec_step
   (st : frontend.olean.emit.Emit)
@@ -92184,7 +92184,7 @@ def frontend.olean.merge.mg_get
     ok (some c)
 
 /-- [con_ron_core::frontend::olean::emit::ty_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 197:0-202:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 198:0-203:1
     Visibility: public -/
 def frontend.olean.emit.ty_named
   (st : frontend.olean.emit.Emit) (mg : frontend.olean.merge.Merged)
@@ -92199,7 +92199,7 @@ def frontend.olean.emit.ty_named
   | some c => frontend.olean.emit.emit_ty_step st acc c
 
 /-- [con_ron_core::frontend::olean::emit::ctor_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 206:0-211:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 207:0-212:1
     Visibility: public -/
 def frontend.olean.emit.ctor_named
   (st : frontend.olean.emit.Emit) (mg : frontend.olean.merge.Merged)
@@ -92214,7 +92214,7 @@ def frontend.olean.emit.ctor_named
   | some c => frontend.olean.emit.emit_ctor_step st acc c
 
 /-- [con_ron_core::frontend::olean::emit::rec_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 215:0-220:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 216:0-221:1
     Visibility: public -/
 def frontend.olean.emit.rec_named
   (st : frontend.olean.emit.Emit) (mg : frontend.olean.merge.Merged)
@@ -92228,7 +92228,7 @@ def frontend.olean.emit.rec_named
   | some c => frontend.olean.emit.emit_rec_step st acc c
 
 /-- [con_ron_core::frontend::olean::emit::one_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 224:0-229:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 225:0-230:1
     Visibility: public -/
 def frontend.olean.emit.one_named
   (st : frontend.olean.emit.Emit) (mg : frontend.olean.merge.Merged)
@@ -92241,7 +92241,7 @@ def frontend.olean.emit.one_named
   | some c => frontend.olean.emit.emit_one st c
 
 /-- [con_ron_core::frontend::olean::emit::emit_block]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 237:4-240:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 238:4-241:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_block_loop0
@@ -92264,7 +92264,7 @@ def frontend.olean.emit.emit_block_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_block]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 243:4-246:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 244:4-247:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_block_loop1
@@ -92287,7 +92287,7 @@ def frontend.olean.emit.emit_block_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_block]: loop 2:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 249:4-252:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 250:4-253:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_block_loop2
@@ -92310,7 +92310,7 @@ def frontend.olean.emit.emit_block_loop2
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_block]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 234:0-254:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 235:0-255:1
     Visibility: public -/
 def frontend.olean.emit.emit_block
   (st : frontend.olean.emit.Emit) (mg : frontend.olean.merge.Merged)
@@ -92346,7 +92346,7 @@ def frontend.olean.merge.mg_has
     arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 mg.map n
 
 /-- [con_ron_core::frontend::olean::emit::block_tys]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 261:4-266:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 262:4-267:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.block_tys_loop
@@ -92374,7 +92374,7 @@ def frontend.olean.emit.block_tys_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::block_tys]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 258:0-268:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 259:0-269:1
     Visibility: public -/
 def frontend.olean.emit.block_tys
   (mg : frontend.olean.merge.Merged) (all : alloc.vec.Vec arena.handle.NIdx) :
@@ -92385,7 +92385,7 @@ def frontend.olean.emit.block_tys
   frontend.olean.emit.block_tys_loop mg all out 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::push_stored]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 286:4-291:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 287:4-292:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.push_stored_loop
@@ -92413,7 +92413,7 @@ def frontend.olean.emit.push_stored_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::push_stored]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 284:0-292:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 285:0-293:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.push_stored
@@ -92424,7 +92424,7 @@ def frontend.olean.emit.push_stored
   frontend.olean.emit.push_stored_loop mg cs out 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_ctors_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 272:0-280:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 273:0-281:1
     Visibility: public -/
 def frontend.olean.emit.block_ctors_of
   (mg : frontend.olean.merge.Merged) (n : arena.handle.NIdx)
@@ -92447,7 +92447,7 @@ def frontend.olean.emit.block_ctors_of
     | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok out
 
 /-- [con_ron_core::frontend::olean::emit::block_ctors]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 299:4-302:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 300:4-303:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.block_ctors_loop
@@ -92468,7 +92468,7 @@ def frontend.olean.emit.block_ctors_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::block_ctors]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 296:0-304:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 297:0-305:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.block_ctors
@@ -92479,7 +92479,7 @@ def frontend.olean.emit.block_ctors
     arena.handle.NIdx) 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_recs]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 308:0-313:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 309:0-314:1
     Visibility: public -/
 def frontend.olean.emit.block_recs
   (mg : frontend.olean.merge.Merged)
@@ -92496,7 +92496,7 @@ def frontend.olean.emit.block_recs
   | some a => frontend.olean.emit.block_tys mg a
 
 /-- [con_ron_core::frontend::olean::emit::quot_names]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 317:0-324:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 318:0-325:1
     Visibility: public -/
 def frontend.olean.emit.quot_names
   (pk : frontend.olean.spec.OleanPins) :
@@ -92516,7 +92516,7 @@ def frontend.olean.emit.quot_names
   alloc.vec.Vec.push v3 n3
 
 /-- [con_ron_core::frontend::olean::emit::quot_constants]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 328:0-330:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 329:0-331:1
     Visibility: public -/
 def frontend.olean.emit.quot_constants
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged) :
@@ -92526,7 +92526,7 @@ def frontend.olean.emit.quot_constants
   frontend.olean.emit.block_tys mg v
 
 /-- [con_ron_core::frontend::olean::emit::work_push]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 334:0-341:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 335:0-342:1
     Visibility: public -/
 def frontend.olean.emit.work_push
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92547,7 +92547,7 @@ def frontend.olean.emit.work_push
   ok (i1, stack1)
 
 /-- [con_ron_core::frontend::olean::emit::push_uses]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 349:4-352:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 350:4-353:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.push_uses_loop
@@ -92569,7 +92569,7 @@ def frontend.olean.emit.push_uses_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::push_uses]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 346:0-354:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 347:0-355:1
     Visibility: public -/
 def frontend.olean.emit.push_uses
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92580,7 +92580,7 @@ def frontend.olean.emit.push_uses
   frontend.olean.emit.push_uses_loop stack c.uses sp i
 
 /-- [con_ron_core::frontend::olean::emit::push_uses_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 370:0-375:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 371:0-376:1
     Visibility: public -/
 def frontend.olean.emit.push_uses_named
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92593,7 +92593,7 @@ def frontend.olean.emit.push_uses_named
   | some c => frontend.olean.emit.push_uses stack sp c
 
 /-- [con_ron_core::frontend::olean::emit::push_uses_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 361:4-364:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 362:4-365:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.push_uses_of_loop
@@ -92614,7 +92614,7 @@ def frontend.olean.emit.push_uses_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::push_uses_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 358:0-366:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 359:0-367:1
     Visibility: public -/
 def frontend.olean.emit.push_uses_of
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92625,7 +92625,7 @@ def frontend.olean.emit.push_uses_of
   frontend.olean.emit.push_uses_of_loop stack mg ns sp i
 
 /-- [con_ron_core::frontend::olean::emit::push_visits]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 382:4-385:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 383:4-386:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.push_visits_loop
@@ -92647,7 +92647,7 @@ def frontend.olean.emit.push_visits_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::push_visits]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 379:0-387:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 380:0-388:1
     Visibility: public -/
 def frontend.olean.emit.push_visits
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92658,7 +92658,7 @@ def frontend.olean.emit.push_visits
   frontend.olean.emit.push_visits_loop stack ns sp i
 
 /-- [con_ron_core::frontend::olean::emit::emit_ones]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 393:4-396:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 394:4-397:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_ones_loop
@@ -92679,7 +92679,7 @@ def frontend.olean.emit.emit_ones_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_ones]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 391:0-397:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 392:0-398:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.emit_ones
@@ -92690,7 +92690,7 @@ def frontend.olean.emit.emit_ones
   frontend.olean.emit.emit_ones_loop st mg cs 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::mark_all]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 403:4-406:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 404:4-407:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.mark_all_loop
@@ -92711,7 +92711,7 @@ def frontend.olean.emit.mark_all_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::mark_all]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 401:0-407:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 402:0-408:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.mark_all
@@ -92721,7 +92721,7 @@ def frontend.olean.emit.mark_all
   frontend.olean.emit.mark_all_loop st ns 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::push_uses_block]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 441:0-449:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 442:0-450:1
     Visibility: public -/
 def frontend.olean.emit.push_uses_block
   (stack : alloc.vec.Vec frontend.olean.emit.Work) (sp : Std.Usize)
@@ -92741,7 +92741,7 @@ def frontend.olean.emit.push_uses_block
   frontend.olean.emit.push_uses_of stack3 s2 mg t2
 
 /-- [con_ron_core::frontend::olean::emit::visit_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 411:0-436:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 412:0-437:1
     Visibility: public -/
 def frontend.olean.emit.visit_step
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged)
@@ -92809,7 +92809,7 @@ def frontend.olean.emit.visit_step
     ok (i, stack1, st1)
 
 /-- [con_ron_core::frontend::olean::emit::visit_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 453:0-468:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 454:0-469:1
     Visibility: public -/
 def frontend.olean.emit.visit_named
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged)
@@ -92836,7 +92836,7 @@ def frontend.olean.emit.visit_named
       else frontend.olean.emit.visit_step pk mg rec_map stack sp st n c
 
 /-- [con_ron_core::frontend::olean::emit::work_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 472:0-488:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 473:0-489:1
     Visibility: public -/
 def frontend.olean.emit.work_step
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged)
@@ -92861,7 +92861,7 @@ def frontend.olean.emit.work_step
     ok (sp, stack, st1)
 
 /-- [con_ron_core::frontend::olean::emit::emit_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 496:4-506:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 497:4-507:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.emit_loop_loop
@@ -92893,7 +92893,7 @@ def frontend.olean.emit.emit_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::emit_loop]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 493:0-506:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 494:0-507:1
     Visibility: public -/
 def frontend.olean.emit.emit_loop
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged)
@@ -92907,7 +92907,7 @@ def frontend.olean.emit.emit_loop
   frontend.olean.emit.emit_loop_loop pk mg rec_map stack st top fuel
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_add]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 510:0-525:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 511:0-526:1
     Visibility: public -/
 def frontend.olean.emit.rec_map_add
   (m : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
@@ -92947,7 +92947,7 @@ def frontend.olean.emit.rec_map_add
     ok m2
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_all]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 531:4-534:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 532:4-535:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.rec_map_all_loop
@@ -92970,7 +92970,7 @@ def frontend.olean.emit.rec_map_all_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_all]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 529:0-535:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 530:0-536:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.rec_map_all
@@ -92983,7 +92983,7 @@ def frontend.olean.emit.rec_map_all
   frontend.olean.emit.rec_map_all_loop m n all 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 539:0-547:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 540:0-548:1
     Visibility: public -/
 def frontend.olean.emit.rec_map_step
   (mg : frontend.olean.merge.Merged)
@@ -93008,7 +93008,7 @@ def frontend.olean.emit.rec_map_step
       frontend.olean.emit.rec_map_all m n all
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 554:4-557:5
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 555:4-558:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.rec_map_of_loop
@@ -93031,7 +93031,7 @@ def frontend.olean.emit.rec_map_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::rec_map_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 551:0-559:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 552:0-560:1
     Visibility: public -/
 def frontend.olean.emit.rec_map_of
   (mg : frontend.olean.merge.Merged) :
@@ -93044,7 +93044,7 @@ def frontend.olean.emit.rec_map_of
   frontend.olean.emit.rec_map_of_loop mg m 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::emit_all]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 563:0-572:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 564:0-573:1
     Visibility: public -/
 def frontend.olean.emit.emit_all
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged)
@@ -93070,13 +93070,13 @@ def frontend.olean.emit.emit_all
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::emit::block_bad::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 578:28-578:57 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 579:28-579:57 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_bad.M_1 : Array Std.U32 2#usize :=
   Array.make 2#usize [ 58#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::emit::block_bad::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 577:24-577:149 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 578:24-578:149 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_bad.M : Array Std.U32 22#usize :=
   Array.make 22#usize [
@@ -93086,7 +93086,7 @@ def frontend.olean.emit.block_bad.M : Array Std.U32 22#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_bad]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 576:0-580:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 577:0-581:1
     Visibility: public -/
 def frontend.olean.emit.block_bad
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93143,7 +93143,7 @@ def frontend.olean.module.nidx_list_eq
   else frontend.olean.module.nidx_list_eq_loop a b 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 600:62-600:202 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 601:62-601:202 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_member_ok.M_4 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -93154,7 +93154,7 @@ def frontend.olean.emit.block_member_ok.M_4 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 597:65-597:180 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 598:65-598:180 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_member_ok.M_3 : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -93164,7 +93164,7 @@ def frontend.olean.emit.block_member_ok.M_3 : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 594:69-594:280 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 595:69-595:280 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_member_ok.M_2 : Array Std.U32 40#usize :=
   Array.make 40#usize [
@@ -93176,7 +93176,7 @@ def frontend.olean.emit.block_member_ok.M_2 : Array Std.U32 40#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 587:61-587:150 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 588:61-588:150 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_member_ok.M_1 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -93185,7 +93185,7 @@ def frontend.olean.emit.block_member_ok.M_1 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 585:26-585:127 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 586:26-586:127 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_member_ok.M : Array Std.U32 17#usize :=
   Array.make 17#usize [
@@ -93195,7 +93195,7 @@ def frontend.olean.emit.block_member_ok.M : Array Std.U32 17#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_member_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 584:0-603:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 585:0-604:1
     Visibility: public -/
 def frontend.olean.emit.block_member_ok
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93282,7 +93282,7 @@ def frontend.olean.emit.block_member_ok
       ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 623:62-623:182 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 624:62-624:182 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_ctor_ok.M_4 : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -93292,7 +93292,7 @@ def frontend.olean.emit.block_ctor_ok.M_4 : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 620:65-620:177 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 621:65-621:177 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_ctor_ok.M_3 : Array Std.U32 19#usize :=
   Array.make 19#usize [
@@ -93302,7 +93302,7 @@ def frontend.olean.emit.block_ctor_ok.M_3 : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 617:69-617:280 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 618:69-618:280 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_ctor_ok.M_2 : Array Std.U32 40#usize :=
   Array.make 40#usize [
@@ -93314,7 +93314,7 @@ def frontend.olean.emit.block_ctor_ok.M_2 : Array Std.U32 40#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 610:61-610:150 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 611:61-611:150 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_ctor_ok.M_1 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -93323,7 +93323,7 @@ def frontend.olean.emit.block_ctor_ok.M_1 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 608:26-608:124 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 609:26-609:124 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_ctor_ok.M : Array Std.U32 16#usize :=
   Array.make 16#usize [
@@ -93332,7 +93332,7 @@ def frontend.olean.emit.block_ctor_ok.M : Array Std.U32 16#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_ctor_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 607:0-626:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 608:0-627:1
     Visibility: public -/
 def frontend.olean.emit.block_ctor_ok
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93418,7 +93418,7 @@ def frontend.olean.emit.block_ctor_ok
       ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::emit::block_members_ok]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 632:4-640:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 633:4-641:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.block_members_ok_loop
@@ -93443,7 +93443,7 @@ def frontend.olean.emit.block_members_ok_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::block_members_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 630:0-640:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 631:0-641:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.block_members_ok
@@ -93455,7 +93455,7 @@ def frontend.olean.emit.block_members_ok
   frontend.olean.emit.block_members_ok_loop pers ar mg n all sk 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_ctors_ok]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 646:4-654:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 647:4-655:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.block_ctors_ok_loop
@@ -93480,7 +93480,7 @@ def frontend.olean.emit.block_ctors_ok_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::block_ctors_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 644:0-654:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 645:0-655:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.block_ctors_ok
@@ -93492,7 +93492,7 @@ def frontend.olean.emit.block_ctors_ok
   frontend.olean.emit.block_ctors_ok_loop pers ar mg n cs sk 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_step_induct::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 660:44-660:189 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 661:44-661:189 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_induct.M : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -93503,7 +93503,7 @@ def frontend.olean.emit.block_step_induct.M : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_induct]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 658:0-666:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 659:0-667:1
     Visibility: public -/
 def frontend.olean.emit.block_step_induct
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93527,7 +93527,7 @@ def frontend.olean.emit.block_step_induct
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::emit::block_step_ctor::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 682:62-682:202 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 683:62-683:202 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_ctor.M_3 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -93538,7 +93538,7 @@ def frontend.olean.emit.block_step_ctor.M_3 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_ctor::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 679:65-679:168 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 680:65-680:168 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_ctor.M_2 : Array Std.U32 17#usize :=
   Array.make 17#usize [
@@ -93548,7 +93548,7 @@ def frontend.olean.emit.block_step_ctor.M_2 : Array Std.U32 17#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_ctor::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 673:61-673:150 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 674:61-674:150 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_ctor.M_1 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -93557,7 +93557,7 @@ def frontend.olean.emit.block_step_ctor.M_1 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_ctor::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 671:26-671:90 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 672:26-672:90 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_ctor.M : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -93566,7 +93566,7 @@ def frontend.olean.emit.block_step_ctor.M : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_ctor]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 670:0-685:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 671:0-686:1
     Visibility: public -/
 def frontend.olean.emit.block_step_ctor
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93643,7 +93643,7 @@ def frontend.olean.emit.block_step_ctor
       ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#8]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 716:59-716:199 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 717:59-717:199 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_8 : Array Std.U32 25#usize :=
   Array.make 25#usize [
@@ -93654,7 +93654,7 @@ def frontend.olean.emit.block_step_recur.M_8 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#7]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 715:36-715:189 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 716:36-716:189 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_7 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -93665,13 +93665,13 @@ def frontend.olean.emit.block_step_recur.M_7 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#6]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 711:63-711:93 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 712:63-712:93 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_6 : Array Std.U32 2#usize :=
   Array.make 2#usize [ 39#u32, 115#u32 ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 710:40-710:193 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 711:40-711:193 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_5 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -93682,7 +93682,7 @@ def frontend.olean.emit.block_step_recur.M_5 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 707:67-707:121 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 708:67-708:121 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_4 : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -93690,7 +93690,7 @@ def frontend.olean.emit.block_step_recur.M_4 : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 706:44-706:241 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 707:44-707:241 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_3 : Array Std.U32 37#usize :=
   Array.make 37#usize [
@@ -93702,7 +93702,7 @@ def frontend.olean.emit.block_step_recur.M_3 : Array Std.U32 37#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 698:55-698:144 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 699:55-699:144 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_2 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -93711,7 +93711,7 @@ def frontend.olean.emit.block_step_recur.M_2 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 697:32-697:185 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 698:32-698:185 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M_1 : Array Std.U32 28#usize :=
   Array.make 28#usize [
@@ -93722,7 +93722,7 @@ def frontend.olean.emit.block_step_recur.M_1 : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 691:44-691:193 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 692:44-692:193 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step_recur.M : Array Std.U32 27#usize :=
   Array.make 27#usize [
@@ -93733,7 +93733,7 @@ def frontend.olean.emit.block_step_recur.M : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step_recur]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 689:0-720:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 690:0-721:1
     Visibility: public -/
 def frontend.olean.emit.block_step_recur
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -93891,7 +93891,7 @@ def frontend.olean.reads.c_kind_tag
   | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok 7#u64
 
 /-- [con_ron_core::frontend::olean::emit::quot_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 738:0-743:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 739:0-744:1
     Visibility: public -/
 def frontend.olean.emit.quot_named
   (mg : frontend.olean.merge.Merged) (n : arena.handle.NIdx) :
@@ -93904,7 +93904,7 @@ def frontend.olean.emit.quot_named
               ok (i = 4#u64)
 
 /-- [con_ron_core::frontend::olean::emit::quot_all_quot]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 727:4-734:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 728:4-735:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.quot_all_quot_loop
@@ -93927,7 +93927,7 @@ def frontend.olean.emit.quot_all_quot_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::quot_all_quot]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 724:0-734:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 725:0-735:1
     Visibility: public -/
 def frontend.olean.emit.quot_all_quot
   (pk : frontend.olean.spec.OleanPins) (mg : frontend.olean.merge.Merged) :
@@ -93937,7 +93937,7 @@ def frontend.olean.emit.quot_all_quot
   frontend.olean.emit.quot_all_quot_loop mg qs 0#usize
 
 /-- [con_ron_core::frontend::olean::emit::block_step::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 762:49-762:299 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 763:49-763:299 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step.M_1 : Array Std.U32 48#usize :=
   Array.make 48#usize [
@@ -93950,7 +93950,7 @@ def frontend.olean.emit.block_step.M_1 : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 759:53-759:325 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 760:53-760:325 -/
 @[global_simps, irreducible]
 def frontend.olean.emit.block_step.M : Array Std.U32 53#usize :=
   Array.make 53#usize [
@@ -93964,7 +93964,7 @@ def frontend.olean.emit.block_step.M : Array Std.U32 53#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::emit::block_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 747:0-768:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 748:0-769:1
     Visibility: public -/
 def frontend.olean.emit.block_step
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -94052,7 +94052,7 @@ def frontend.olean.emit.block_step
       frontend.olean.emit.block_step_recur pers ar mg n all b
 
 /-- [con_ron_core::frontend::olean::emit::blocks_ok]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 774:4-782:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 775:4-783:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.emit.blocks_ok_loop
@@ -94077,7 +94077,7 @@ def frontend.olean.emit.blocks_ok_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::emit::blocks_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 772:0-782:1
+    Source: 'crates/con-ron-core/src/frontend/olean/emit.rs', lines 773:0-783:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.emit.blocks_ok
@@ -94088,7 +94088,7 @@ def frontend.olean.emit.blocks_ok
   frontend.olean.emit.blocks_ok_loop pk pers ar mg 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::stmts_roots]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 756:4-761:5
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 760:4-765:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.stmts_roots_loop
@@ -94112,7 +94112,7 @@ def frontend.olean.fast.stmts_roots_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::stmts_roots]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 752:0-763:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 756:0-767:1
     Visibility: public -/
 def frontend.olean.fast.stmts_roots
   (sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)) :
@@ -94124,7 +94124,7 @@ def frontend.olean.fast.stmts_roots
     0#usize
 
 /-- [con_ron_core::frontend::olean::fast::stmts_read]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 770:4-784:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 774:4-788:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.fast.stmts_read_loop
@@ -94171,7 +94171,7 @@ def frontend.olean.fast.stmts_read_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::fast::stmts_read]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 767:0-784:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 771:0-788:1
     Visibility: public -/
 def frontend.olean.fast.stmts_read
   (st : frontend.olean.fast.DS) (pk : frontend.olean.spec.OleanPins)
@@ -94186,7 +94186,7 @@ def frontend.olean.fast.stmts_read
   frontend.olean.fast.stmts_read_loop st pk pers ar bs r sks out 0#usize
 
 /-- [con_ron_core::frontend::olean::fast::stmts_fast]:
-    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 789:0-795:1
+    Source: 'crates/con-ron-core/src/frontend/olean/fast.rs', lines 793:0-799:1
     Visibility: public -/
 def frontend.olean.fast.stmts_fast
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -94407,7 +94407,7 @@ def frontend.olean.files.parse_const_name
   frontend.olean.files.scan_name true s
 
 /-- [con_ron_core::frontend::olean::files::first_bad_view]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 793:0-804:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 794:0-805:1
     Visibility: public -/
 def frontend.olean.files.first_bad_view
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -96551,7 +96551,7 @@ def frontend.olean.module.check_views
         ok (core.result.Result.Ok v1, ar)
 
 /-- [con_ron_core::frontend::olean::files::read_all_views]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 808:0-824:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 809:0-825:1
     Visibility: public -/
 def frontend.olean.files.read_all_views
   {F : Type} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -97202,7 +97202,7 @@ def frontend.olean.records.decls_go
   frontend.olean.records.decls_go_loop pers ar st out 0#usize
 
 /-- [con_ron_core::frontend::olean::records::decls_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 57:0-68:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 58:0-69:1
     Visibility: public -/
 def frontend.olean.records.decls_of
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -97228,7 +97228,7 @@ def frontend.olean.records.decls_of
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::records::first_absent]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 74:4-81:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 75:4-82:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.records.first_absent_loop
@@ -97252,7 +97252,7 @@ def frontend.olean.records.first_absent_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::records::first_absent]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 72:0-81:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 73:0-82:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.records.first_absent
@@ -97262,7 +97262,7 @@ def frontend.olean.records.first_absent
   frontend.olean.records.first_absent_loop mg cs 0#usize
 
 /-- [con_ron_core::frontend::olean::records::root_constants::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 93:57-93:217 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 94:57-94:217 -/
 @[global_simps, irreducible]
 def frontend.olean.records.root_constants.M_1 : Array Std.U32 29#usize :=
   Array.make 29#usize [
@@ -97273,7 +97273,7 @@ def frontend.olean.records.root_constants.M_1 : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::records::root_constants::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 92:36-92:119 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 93:36-93:119 -/
 @[global_simps, irreducible]
 def frontend.olean.records.root_constants.M : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -97282,7 +97282,7 @@ def frontend.olean.records.root_constants.M : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::records::root_constants]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 86:0-99:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 87:0-100:1
     Visibility: public -/
 def frontend.olean.records.root_constants
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -97317,7 +97317,7 @@ def frontend.olean.records.root_constants
          ok (core.result.Result.Ok v)
 
 /-- [con_ron_core::frontend::olean::records::emit_merged]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 103:0-111:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 104:0-112:1
     Visibility: public -/
 def frontend.olean.records.emit_merged
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -97530,7 +97530,7 @@ def frontend.olean.spec.olean_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::records::read_oleans]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 117:0-135:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 118:0-136:1
     Visibility: public -/
 def frontend.olean.records.read_oleans
   {F : Type} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -97564,7 +97564,7 @@ def frontend.olean.records.read_oleans
   | core.result.Result.Err e => ok (core.result.Result.Err (e, 0#u64), ar1)
 
 /-- [con_ron_core::frontend::olean::spec::c_entry_stmt]:
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1306:0-1312:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1307:0-1313:1
     Visibility: public -/
 def frontend.olean.spec.c_entry_stmt
   (c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx) :

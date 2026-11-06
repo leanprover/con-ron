@@ -28,6 +28,7 @@
 //! | `nat_op_ground` | `Arena/Frontend/NatOpGround.lean` | `Frontend/NatOpGround.lean` |
 //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
 //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
+//! | `olean` | `Arena/Frontend/Olean/*` | `Frontend/Olean/*`, task #142, its own table |
 //!
 //! ## The byte recogniser is not twinned, and that is deliberate
 //!

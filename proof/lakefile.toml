@@ -126,7 +126,7 @@ root = "ConRon.Arena.Exe"
 # as `tests/olean.sh`'s `CMP`.  Not a default target, like `con-ron-lean`.
 [[lean_exe]]
 name = "con-ron-lean-olean-compare"
-root = "ConRon.Arena.OleanCompare"
+root = "ConRon.Arena.OleanCompareExe"
 
 # The `ExprOps` micro-benchmark (DESIGN.md §8.6 P2b, task #97b).  The
 # performance phase comes before the proofs, so the memo and cutoff choices of

@@ -1808,7 +1808,7 @@ inductive frontend.olean.spec.CKindF (N : Type) (E : Type) where
   frontend.olean.spec.CKindF N E
 
 /-- [con_ron_core::frontend::olean::spec::CEntryF]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 653:0-658:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 654:0-659:1
     Visibility: public -/
 structure frontend.olean.spec.CEntryF (N : Type) (E : Type) where
   «name» : N
@@ -1824,7 +1824,7 @@ structure frontend.olean.closure.CEntry where
   uses : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::frontend::olean::spec::ImportF]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1086:0-1091:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1087:0-1092:1
     Visibility: public -/
 structure frontend.olean.spec.ImportF (N : Type) where
   module : N
@@ -1886,7 +1886,7 @@ structure frontend.olean.region.Region where
   segs : alloc.vec.Vec frontend.olean.region.Seg
 
 /-- Trait declaration: [con_ron_core::frontend::olean::spec::PtrRead]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 663:0-668:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 664:0-669:1
     Visibility: public -/
 structure frontend.olean.spec.PtrRead (Self : Type) where
   rd_name : Self → frontend.olean.spec.OleanPins → arena.store.PersTier →
@@ -1935,7 +1935,7 @@ structure frontend.olean.closure.Loaded where
   constants : alloc.vec.Vec frontend.olean.closure.CEntry
 
 /-- [con_ron_core::frontend::olean::spec::ModDecoded]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1206:0-1210:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1207:0-1211:1
     Visibility: public -/
 structure frontend.olean.spec.ModDecoded where
   is_module : Bool
@@ -1976,7 +1976,7 @@ structure frontend.olean.view.ModFiles where
   private_part : Option frontend.olean.region.Part
 
 /-- [con_ron_core::frontend::olean::spec::ModSkel]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1155:0-1159:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1156:0-1160:1
     Visibility: public -/
 structure frontend.olean.spec.ModSkel where
   is_module : Bool
@@ -2033,7 +2033,7 @@ structure frontend.olean.merge.Merged where
   order : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::frontend::olean::spec::StmtRec]
-    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1298:0-1302:1
+    Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1299:0-1303:1
     Visibility: public -/
 structure frontend.olean.spec.StmtRec where
   «name» : arena.handle.NIdx

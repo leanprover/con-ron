@@ -112,7 +112,7 @@ CAPSTONES = [
     "ConRon.Capstone.no_False_declaration_embedded",
 ]
 # executable roots: each declares `main`, so each is a pass of its own
-EXE_ROOTS = ["ConRon.Arena.Exe", "ConRon.Arena.Bench", "ConRon.Gen.Main",
+EXE_ROOTS = ["ConRon.Arena.Exe", "ConRon.Arena.OleanCompareExe", "ConRon.Arena.Bench", "ConRon.Gen.Main",
              "ConRon.Dump.Pins"]
 SEED_MODULE_PREFIXES = ("ConRon.Tools", "ConRon.Generated")
 LINK_RE = re.compile(r"\[[^\]`]*`([A-Za-z_][A-Za-z0-9_'!?.]*)`[^\]]*\]"

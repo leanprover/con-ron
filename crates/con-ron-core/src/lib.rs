@@ -19,7 +19,7 @@
 //! | `ron` | replacements for Lean runtime primitives (DESIGN.md §3.3): no Lean source to cite |
 //! | `kernel` | the representation-free types and the PINNED DATA the checker compares against, as `Expr`-valued con-leche constants |
 //! | `arena` | the checker itself, over the four interned stores — the Rust twin of `proof/ConRon/Arena/*` |
-//! | `frontend` | the export parser, straight into the store |
+//! | `frontend` | the export parser and the `.olean` reader, straight into the store |
 //!
 //! ## `ron`
 //!

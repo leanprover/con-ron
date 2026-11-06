@@ -98,6 +98,18 @@ translates as a *type* (`Str → Err`) but Aeneas fails to build the **construct
 should be no bottoms in the value"*, and the constructor comes out `sorry` (#14, measured
 in a throwaway crate).  We represent every string in the core as `Vec<u32>` code points.
 
+**F18. A record with a borrowed field runs Aeneas out of memory.** **[bug]** (#142) With
+`struct Region<'a> { bytes: &'a [u8], segs: Vec<Seg> }` and `r: &Region`, a small loop reading
+`r.segs[i]` took 40 GB and ended in *"Fatal error: allocation failure during minor GC"*, after
+*"Internal error"* and *"Unreachable"* on whatever came before.  Fix: no reference in a record; the
+slice is a parameter beside it (`bs: &[u8], r: &Region`).  `charon cargo --start-from <item>` makes
+this a seconds-long experiment, the way to find such a thing.
+
+**F19. An `else if` chain of `&&` tests blows up.** **[limitation]** (#142) A 12-arm
+`if t == 5 && n == 2 { … } else if t == 0 && n == 1 { … } …` over a `&mut` state, run on, ran out of
+25 GB: to all appearance exponential, each `&&` being two paths into the rest of the chain.  Fix:
+`match t { 5 => if n == 2 { … } else { … }, … }`, a tree, each arm a call: 6 s, 1.5 GB.
+
 **F17. A `&str` constant's double quotes are emitted UNESCAPED.** **[bug]** (#84) A
 `const S: &str = "opaque\""` comes out as `def … : Str := toStr "opaque""`, and Lean says
 *"unexpected token; expected command"*.  Aeneas escapes `\n` in the same literal, so its

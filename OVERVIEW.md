@@ -70,6 +70,8 @@ equality (§6.3).
 con-ron [--verified|--trusted] [--jobs=<n>]
         [--progress[=<stride>]] [--pins FILE|--no-pins]
         [--] FILE.ndjson
+con-ron [flags] --olean --search-path=DIR[:DIR...] [--constant=NAME]...
+        [--] MODULE...
 con-ron --help
 ```
 
@@ -91,6 +93,19 @@ con-ron --help
 * **`--`** ends the options: every argument after it is a file, whatever it is
   called, and only a `--help` before it is help.  The input is a regular file,
   read forward; a FIFO or a directory is exit 3.
+* **`--olean`** reads the input from `.olean` files instead of a lean4export
+  stream (§6.2): the arguments are root modules, checked with every constant of
+  their import closure.  **The theorems do not yet cover this path**: the reader
+  is in the verified crate and extracted, but no theorem of §3 is about it.  An
+  accept on the `.olean` path has the checking of §6.3 behind it, on records the
+  theorems do not relate to the files.
+* **`--search-path=DIR[:DIR...]`** names the directories holding `.olean` trees,
+  as `LEAN_PATH` lists them.  Every module is looked up in every directory, and a
+  module in two places, or a missing, stray or split part, is exit 3.
+* **`--constant=NAME`** restricts `--olean` to this constant and what it mentions,
+  as lean4export's arguments after `--` do.  It may be given more than once.
+  Without it every constant of the closure is checked, whatever its name; unsafe
+  and partial constants stay out, as lean4export leaves them out.
 
 ### 2.2 Exit codes
 
@@ -488,6 +503,19 @@ own sharing.  No expression tree is built.
 The parser is the one place where the Rust uses loops rather than recursion,
 because a per-byte recursion would overflow the stack.  Aeneas turns each
 loop back into a recursive function, which mirrors con-leche's.
+
+**From `.olean` files** (`--olean`).  The reader is con-leche's
+`Frontend/Olean/*`, one Rust module per file, in the same directory of the
+verified crate, and it is **not yet covered by the theorems**.  Nothing in the files
+is trusted: the files are read through one trait of file operations (`OleanFs`,
+implemented over `std` in the driver), every object is located, bounds-checked and
+read field by field, and each object of a module is read once, in two passes, by
+con-leche's fast decoder.  The values are interned straight into the persistent tier,
+as the stream's are, so a node two modules share is one node.  The closure is taken
+at the private level, merged as Lean's own import merges it and emitted in
+lean4export's order, through the stream parser's own record builder, so that
+everything after the parse is the stream path's.  The read is sequential: the store
+has one writer, and con-leche's parallel load is not ported.
 
 ### 6.3 The fold: install, then check
 
@@ -1005,7 +1033,11 @@ ends with con-leche's display gate (three fixtures whose names and `safety`
 field carry control sequences, run with `--progress=1`: no raw control, bidi
 or zero-width character and no line starting with `::` may reach the
 output).  This covers what the proof does not: the driver and the pool.  CI
-runs it (`.github/workflows/ci.yml`).
+runs it (`.github/workflows/ci.yml`).  `scripts/diff-olean.sh` runs con-leche's
+`.olean` table (`tests/olean.sh`, 109 cases, on fixtures compiled by its
+`tests/olean/build.sh` under `_tmp/`) against the binary, and CI runs that too;
+with `--compare` it also compares the reader's records with lean4export's, on
+`Init` and on one constant's cone, which needs an exporter and is not in CI.
 
 **The gates.**  `scripts/gates.sh` runs before every commit
 ([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L36)).
@@ -1042,7 +1074,7 @@ snake case.  Twin files mirror the Rust modules.
 | [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30) | the parser: scanner, record assembly, ground hoist, prelude |
 | [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
 | `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
-| `con-ron/src/` | unverified: the binary, `driver`, `pool` |
+| `con-ron/src/` | unverified: the binary, `driver`, `pool`, `olean_fs` (the `.olean` reader's file operations over `std`), and `olean-compare` |
 | `con-ron-dump/` | unverified: the `con-ron-pins/2` reader and writer, the global allocator |
 
 **Lean** (`proof/ConRon/`)

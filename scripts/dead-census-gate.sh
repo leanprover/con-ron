@@ -10,6 +10,6 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 key=$(printf '%s' "$root" | sha256sum | cut -c1-12)
-( cd "$root/proof" && lake build ConRon.Bridge ConRon.Refine2 con-ron-lean \
+( cd "$root/proof" && lake build ConRon.Bridge ConRon.Refine2 con-ron-lean con-ron-lean-olean-compare \
     con-ron-arena-bench con-ron-gen-tables con-ron-dump-pins )
 python3 "$root/scripts/dead-census.py" --out "_tmp/deadcode-$key" --check

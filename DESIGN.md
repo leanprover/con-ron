@@ -71388,3 +71388,227 @@ stays sequential: about 10 s of a 115 s run at 8 workers, against about 53 s for
 diff-e2e, 640 fixtures, the final binary: 640/640 at `--jobs=1` and `--jobs=4`, display gate 9/9,
 command-line gate 10/10.  A panic in `promote.rs`'s name assertions is exit 3, never a verdict
 (`bin/con-ron.rs`), and no fixture reaches one.
+
+### Task #142 — the `.olean` reader: con-leche's whole `Frontend/Olean/*`, as a Rust and twin pair (2026-11-06, Opus)
+
+Maintainer: "do the whole olean reader machinery.  port all parser entry points, even
+the unused ones."  And: "we don't want to diverge from con-leche without a very good
+reason".  This is the code phase; Theorem 1 and Theorem 2 are other lanes, and **no
+theorem is about the `.olean` path yet** (OVERVIEW.md says so where it describes the flag).
+
+**What landed.**  `crates/con-ron-core/src/frontend/olean/*`, one module per upstream file,
+every entry point of `Frontend/Olean.lean`'s tables; `crates/con-ron/src/olean_fs.rs`, the
+trait's `std` instance; `--olean`, `--search-path=`, `--constant=` on both binaries;
+`proof/ConRon/Arena/Frontend/Olean/*`, the twin; `olean-compare` (Rust) and
+`con-ron-lean-olean-compare` (twin, `--views`); `scripts/diff-olean.sh`;
+`crates/con-ron/tests/olean_reads.rs`, `OleanTests.lean`'s evaluated checks.
+
+| upstream | Lean lines | Rust | twin |
+|---|---:|---:|---:|
+| `Region` | 381 | 651 | imported |
+| `Spec` | 500 | 1 313 | 372 |
+| `Header` | 85 | 143 | 48 |
+| `Fast` | 344 | 799 | 225 |
+| `Sparse` | 171 | 315 | 121 |
+| `Reads` | 94 | 169 | 80 |
+| `View` | 183 | 445 | 134 |
+| `Module` | 161 | 379 | 146 |
+| `Files` | 263 | 825 | 222 |
+| `Closure` | 160 | 383 | 142 |
+| `Merge` | 75 | 200 | 113 |
+| `Emit` | 443 | 783 | 314 |
+| `Records` | 91 | 136 | 63 |
+
+The Rust's size is the messages as code-point arrays and the match chains.  Generated
+model: `Funs.lean` +13 679, `Types.lean` +372 (88 444 → 102 123 and 1 774 → 2 146),
+`lake build ConRon.Generated.Funs` 215 s.  No new external: 1 type, 5 functions, as before.
+
+#### The design
+
+**Terms go straight into the store, as the stream parser's do.**  A node function
+(`name_node`, `level_node`, `levels_node`, `expr_node`) reads an object off the bytes and
+interns; the memo holds handles.  So a value is a handle, a node two modules share is one
+node, and equality of two constants' terms is handle equality.  The emission ends in the
+stream parser's `process_line_core_d` over a `StateD` whose tables ARE the emitter's, so the
+outcome is `ParseResultD`, and everything from `prepare_d` on is the stream path's unchanged.
+What the reader builds beyond the store is plain data: skeletons, `CEntry`, `Merged`, `Emit`.
+
+**The twin imports what holds no term, as it does for `Scan/*`.**  All of `Region.lean`; of
+`Spec.lean` the skeletons (`constSkel`, `kindSkel`, `moduleSkel`, `importSkel`, …), `CKindF`,
+`CEntryF` and their `mapM`s, at `OptionT AM`; of `Fast.lean` the whole mark pass and `zeros`,
+`maxLoc`, `markRoot`; of `Sparse.lean` the kid table; `OLeanLevel`, `ModFiles`, `viewRegion`,
+`upTo`; `modFile`, `parseModName`, `parseConstName`, `locateOf`, `hdrWalk`; `Expo`, `hintsEq`,
+`CKindF.skipped`, `.tag`.  A twin of a byte reader would be a copy, and importing it gives
+Theorem 1 upstream's lemmas on those functions as they stand, for free.  What is twinned holds
+a handle.  A read is `AM (Option α)`: upstream's `none`, or the store's capacity decline.
+
+**The seam: `OleanFs`**, one trait in the `ChunkSource` idiom, with upstream's class's
+operations the reader uses: `path_exists`, `real_path`, `read_bin_file`, `read_range`,
+`file_size`.  **All five take `&self`**, not `&mut self` as `next_chunk` does: an operation is a
+function of its arguments, which is exactly upstream's `ModelIO` on one snapshot (`FS`), and the
+extraction is a typeclass of plain functions into `Result`, with no state to thread.  A failure
+is the operation's message, a value.
+
+The twin takes **the same operations abstractly**: `structure OleanFs` of five pure functions
+into `Except String`, a parameter of the reader.  That keeps Theorem 2 lockstep: it relates a
+trait instance to a record value answer for answer, and needs nothing else about the instance.
+A later hypothesis (generalising `ReadsAs`) says the instance's answers are one snapshot's:
+`SnapshotOf inst fs : ∀ p, inst.path_exists p = ok (.Ok (fs.real p).isSome) ∧ …`, up to which
+message an absent file gives.  The twin's binary value `stdFs` wraps `IO` in `unsafeBaseIO`
+behind `@[implemented_by]`, in `Arena/Main.lean`, outside every theorem.
+
+**Sequential: `parMapExcept` is not ported.**  Measured on Mathlib, hot page cache,
+instrumented scratch copy, `--jobs=8`, one run:
+
+| step of the parse | s |
+|---|---:|
+| the closure's headers (`closure_order`) | 2.1 |
+| reading and validating the files (`read_files`) | 9.6 |
+| name tables (`const_names_ok`) | 0.9 |
+| skeletons | 0.1 |
+| the mark pass | 2.2 |
+| **the upward build: every intern** | **26.9** |
+| `uses` (`consts_of`) | 4.3 |
+| merge, `blocks_ok`, emission, records | 0.8 |
+| total | 47.4 |
+
+The store has one writer, and interning is what a parallel read cannot take: 27 s of it stays
+serial whatever is done.  What could move to threads is at most 19 s of the 47, so that eight
+perfect workers would save 17 s of the run's 99 (17 %).  The natural design, each worker decoding a
+module into a store of its own and the main thread absorbing it node by node, re-interns every node
+and is a second decode path, whose equality to the direct one Theorem 2 would owe: it is not the
+lever the 53 s suggested.  Upstream's parse is 15.9 s at `--jobs=8` because its values are per
+module trees that nothing compares; that same choice is why its check phase takes 111.7 s here
+and this one 42 s, on one hash-consed DAG.  **The whole run is what to judge**: con-ron 90.5 s,
+3 515 G instructions, con-leche 136.7 s, 7 668 G.  What remains open and costs no theorem:
+`read_files` is an instance's business, so a read-ahead thread behind `OleanFs` changes no
+verdict; it would help the cold page cache most (the first run's parse was 113 s, 39-47 s hot).
+Not built, since no hint of the load order crosses the trait.
+
+#### What the extraction taught
+
+Found by Charon's `--start-from` on single items, which made Aeneas a seconds-long loop
+(`scripts/extract.sh` itself is 76 s here):
+
+1. **A record with a borrowed field exhausts Aeneas's memory**: `Region<'a> { bytes: &'a [u8],
+   … }` took 40 GB on the smallest loop over it, and died.  So `Region` is `{ segs }` and every
+   reader takes `bs: &[u8]` beside it.  The twin's `Region` stays upstream's, holding both.
+2. **A chain of `else if t == 5 && n == 2` blows up**, by all appearance exponentially, each `&&`
+   being two paths into the rest of the chain: `spec` ran out of 25 GB with `expr_node`, `level_node`
+   and the `mark_*` so written.  A `match` on the tag with `if n == k` in each arm: 6 s, 1.5 GB.  That
+   is also upstream's `match r.tag g, r.nobjs g with`.  (AENEAS_FINDINGS §2.1, F18 and F19.)
+3. F1 and F16 as documented: `let s = &r.segs[i]` in a loop, a `match` on `mg_get` inside a loop,
+   a nested `return`.  Each became a one-line helper; `Vec<&Part>` became `region_of_parts2`/`3`.
+4. No `Vec::pop` in the model, so a Lean list used as a stack is a `Vec` and a top index, with
+   `mem::replace` on a popped non-`Copy` item; the twin keeps upstream's `List`s (head = top).
+
+#### Deviations, each with its reason
+
+* `Nat` is `u64` for a location, with `sat_add`/`sat_mul8` on sums holding a number read off a file;
+  a file past 2^60 bytes is the `Native` decline (`PART_MAX`).  A location therefore fits its word.
+* A `Nat` that does not fit a word (only a crafted file) saturates to `u64::MAX` in a skeleton and
+  is the `Native` decline right after it (`skel_fits`), and at once in a node (`nat_word`).  The
+  twin has the same checks (`skelFits`, `natWord`), at `2^64 - 1`.  Exit 2 where upstream goes on.
+* `Merged.map` holds `(module, index)`, and `Merged` owns the loaded modules: nothing is copied.
+  A `Work` item names constants instead of holding them.
+* `constsGo`'s sets are cleared between constants, by the epoch, where upstream allocates per
+  constant.  An allocation, not a cache: nothing outlives a constant.
+* `constsGo` is `partial` and `emitLoop` well-founded upstream; both take fuel here (§3.4), as
+  `closureGo` does.  `Emit.unvisited` and its lemmas are not ported.
+* `levels_node` interns every suffix the file holds as a cell.  A few nodes of a short list.
+* An IO failure of a read is `.internal` through the reader's channel, exit 3, not an exception;
+  the line is `con-ron: <roots>:<n>: <path>: <io error>`.  Upstream: `internal error: …`, exit 3.
+* `parseConstName` of a numeric component past the word saturates, so it is not in the closure,
+  exit 3 as upstream's.
+* A path in a message is `display_path`'s (task #131); the twin's goes through `displayPathF`.
+* The other kernel-level words on the verdict line are §3.1's and the stream path's own
+  (`declined:` for upstream's `not implemented yet:`, constant messages).
+
+`scripts/provenance-skip.txt` loses the 13 deferrals and gains what does not execute: `levelAt`,
+`levelsAt`, `exprAt`, `exprP`, `constSpec`, `decodeAt`, `stmtP`, `decodeModuleSpec` (`noncomputable`
+upstream; Theorem 1 cites them) and `Emit.unvisited`.  `CheckerIO`'s skip lines for what is cited
+now go.
+
+#### Test results
+
+`scripts/diff-olean.sh`, upstream's 109 cases on fixtures its `build.sh` compiled under `_tmp/`:
+**con-ron 109/109**.  With `--upstream=` against con-leche's own binary at this pin: every line
+that differs is the stream path's kernel wording of the last bullet above, or the usage text's
+last line.  **con-ron-lean 109/109**, each case's limit raised from 60 s to 900 s, seven cases checking all of `Init`.  `--compare`, record for record against
+lean4export at this toolchain: `Init` 57 919 stream / 63 937 olean records, the 6 018 under
+internal names, **0 differences**, as upstream's; the cone of `Nat.add_comm`, 37 / 37, 0 differences.
+`cargo test`: 6 reader tests beside the rest.  diff-e2e: **640/640 at `--jobs=1` and `--jobs=4`**,
+display gate 9/9, command-line gate 10/10.
+
+**Mathlib** (`56a005855ea`, its `v4.35.0`, the shared package's), `ulimit -v 27000000`, one run each,
+`--verified`, hot page cache.
+
+| | accepted | instructions:u | peak RSS | wall | parse / install / check |
+|---|---:|---:|---:|---:|---|
+| con-ron `--jobs=1` | 775 321 | 3 494 G | 6.62 GiB | 364.7 s | 39.2 / 8.9 / 316.4 s |
+| con-ron `--jobs=8` | 775 321 | 3 515 G | 7.01 GiB | 90.5 s | 39.4 / 9.0 / 41.9 s |
+| con-leche `--jobs=8`, its binary at this pin, same files | 775 321 | 7 668 G | 6.24 GiB | 136.7 s | 15.9 / 8.3 / 111.7 s |
+
+Peak RSS is 1.12x con-leche's, inside the 3x budget.  The store holds 108.1 M expression nodes at
+the parse's end, 108.2 M after the install.
+
+#### What the theorem lanes owe
+
+**Theorem 2**: `read_oleans` and everything under it is the twin's, with `OleanFs`'s instance and
+the record answering alike (`FsRel inst fs`).  The pieces: `region::*` = upstream's `Region.*` over
+bytes (`Vec U8` against `ByteArray`, `sat_add` against `Nat`: new leaf lemmas, `rd_u64` the
+largest); `spec` node functions = `nameNode`… (store-level `lockstep`, as `parse_*_entry_d`);
+`mark_*` = upstream's `mark*`, per arm; `build_pass`; `c_entry_map` = `entryMap` via the `PtrRead`
+instance; the stacks' `Vec`+top = `List`, one invariant (`stack[..sp].reverse = l`), three uses;
+`mg_get` = `Merged.get`; the emission; `decls_of` = `declsOf`.
+
+**Theorem 1**: from the twin's accept to upstream's `readOleans` on the denotations.  By function:
+
+| twin | upstream | via |
+|---|---|---|
+| `nameNode`…, `DS` | `nameNode`… , `DS` | `denote` commutes; handle equality is `Name`/`Expr` equality on `WF` (the store's existing lemmas) |
+| `parseAt` | `parseAt` | the passes; marks are upstream's own |
+| `parseView`, `parseAllViews` | `parseView`, `parseAllViews` | **reuse** `parseView_eq_spec`, `parseAllViews_eq` to reach `decodeModuleSpec` |
+| `entryAt`, `stmtsAt`, `namePositionsAt`, `readEntry`, … | the same | `readEntry_of_view` etc. reused; or leave them out of the capstone |
+| `findModule`, `readFiles`, `readView` | at `ModelIO`, on `FS` | answers by `SnapshotOf`; `readFiles_ok` reused |
+| `closureGo` | `closureGo` | same lists; `closureOrder_ok` reused |
+| `constsGo` | none needed | see below: nothing below reads what `uses` holds |
+| `mergeAll`, `Merged.get` | `mergeAll`, `mg.map[n]?` | per-entry; `mergeAll_ok` reused |
+| `blocksOk` | `blocksOk` | `blocksOk_good` reused |
+| `emitAll` | `emitAll` | `emitAll_spec`, `emitAll_covers` reused; `declsOf_thm`, `declsOf_from` reused |
+| `readOleans` | its steps | `readOleans_thm`'s short proof, re-run at the twin's `uses` |
+
+The one thing that cannot be reused whole: `constsOf` is `partial` upstream, so `CEntry.ofRead` has no
+equation, and `readOleans_ok`/`readOleans_thm` state their `Loaded`s through it, so the twin's `uses`
+cannot be proved upstream's.  **They need not be**: `mergeAll_ok`, `blocksOk_good`, `emitAll_spec`,
+`emitAll_covers`, `declsOf_thm`, `declsOf_from` are all stated for an arbitrary `Merged`, and no theorem of
+`Verify/Frontend/Olean/` mentions `constsOf` (a `grep` finds none) or reads a `CEntry`'s `uses`.  So Theorem 1
+denotes the twin's `Merged` with the twin's `uses`, shows its emission is upstream's `emitAll` on that value
+(fuel against the measure, the fuel `1 <<< 40` a premise as in `closureGo`), and re-runs `readOleans_thm`'s
+proof, 20 lines over those lemmas and `readView_of_viewOf`.
+
+**An analogue of `main_oleans_no_False`.**  con-ron's capstone keeps its premise shape and replaces
+the stream's two premises:
+
+```lean
+theorem no_False_oleans (V) [SetTheory V] {F : FS} {r m : Name} {d : Olean.ModDecoded} …
+    (hsnap : SnapshotOf finst fsv F)                      -- generalises hreads
+    (hcl : Olean.InClosure sp F #[r] m) (hv : Olean.ViewOf sp F m d)
+    (hmem : c ∈ d.constants) (hk : c.kind = .thm v all) (hty : c.type = .const falseName [])
+    (h1) (h2)
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier st2.store dirs roots none = ok (.Ok r', store3))
+    (hroots : roots denote #[r])
+    (h4 …)(hpins …)(h5 …)(h6 …)(hord …)(h7 …)(hlayer …)(h8 …) : False
+```
+
+`InClosure` and `ViewOf` are upstream's, by the specification, so nothing about the fast parser is in
+the statement, as upstream's.  Its proof: Theorem 2 gives the twin's `readOleans` at a record answering as `finst`; `hsnap` makes the
+reads upstream's at `ModelIO F`; Theorem 1 gives upstream's `declsOf (emitAll mg rs) = .ok ds`, `ds` the
+denotation of `r'.decls`; `readOleans_thm`'s argument gives the `thmDecl` in `ds`; and from there `h4`…`h8` run as they do now, ending in `no_False_theorem_accepted_pure` on
+`mem_preparePrelude`.  Upstream's own step from `runArgs` to `readOleans` (`runArgs_olean_accept`) has no
+counterpart: as for the stream, the premises state what the driver runs.  The `h3` store is `st2.store`,
+since the reader takes the store alone, `AState` unchanged around it.
+
+The gate left for the landing: `scripts/dead-census-gate.sh` has `ConRon.Arena.OleanCompareExe` as
+an executable root, so that the reader's twin is reachable; it was not run here, and neither was a
+`lake build` of `ConRonRefine2`/`ConRonBridge` against the grown `Funs.lean`.
