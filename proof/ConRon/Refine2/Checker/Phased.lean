@@ -59,6 +59,21 @@ theorem freeze_tier_ok {ar ar' : arena.store.EStore} {ix : arena.stream_index.IS
   obtain ⟨rfl, rfl⟩ := h'
   exact ⟨rfl, rfl⟩
 
+/-- **`pins_dup` is the identity on the value.** -/
+theorem pins_dup_val {p q : arena.pins.Pins} (h : arena.checker.pins_dup p = ok q) :
+    q = p := by
+  rw [arena.checker.pins_dup] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨li, hli, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := (Result.ok_injective h).symm
+  subst h'
+  have e1 : v = p.names := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv)
+  have e2 : v1 = p.reserved := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)
+  rw [e1, e2, dupId_lsidx _ _ hli, dupId_lidx _ _ hl, dupId_eidx _ _ he]
+
 /-- **A check-phase worker over the frozen tier is the twin's worker of the
 driver's state, idle** (task #98-FREEZE).  `worker_state` builds an empty store
 and freezes it (`EStore::empty_frozen`): its scratch tiers are on and empty,
@@ -237,9 +252,9 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
       have hkU : (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)).val
           ≤ Std.Usize.max := by
         have h2 : Std.Usize.max = 2 ^ UScalarTy.Usize.numBits - 1 := by
-      rw [← UScalar.max_USize_eq, UScalar.max_def]
-    have h3 := Nat.one_le_two_pow (n := UScalarTy.Usize.numBits)
-    rw [hu, h2]; omega
+          rw [← UScalar.max_USize_eq, UScalar.max_def]
+        have h3 := Nat.one_le_two_pow (n := UScalarTy.Usize.numBits)
+        rw [hu, h2]; omega
       obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU hs1
       rw [hu] at hlt
       have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
