@@ -322,7 +322,20 @@ its binder's domain, the domains instantiated along the spine. -/
         (checkSpineAt (ConRon.Refine.absMode mode) lf (absU d) (absEIdx t)
           (absEIdxLFrom as_ i)) := by
   intro i t st lst hrel hinv
-  sorry -- T143-STUB
+  simp only [absEIdxLFrom]
+  refine ls_cursor_acc as_ absEIdx
+    (fun (w : arena.handle.EIdx) l =>
+      checkSpineAt (ConRon.Refine.absMode mode) lf (absU d) (absEIdx w) l)
+    (fun st k w => arena.inductives.positivity.check_spine_at pers st mode rf d w as_ k)
+    ?_ ?_ i st lst t hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.check_spine_at.eq_def,
+      ite_eq_left (show k ≥ alloc.vec.Vec.len as_ by scalar_tac), checkSpineAt]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    rw [arena.inductives.positivity.check_spine_at.eq_def,
+      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len as_ by scalar_tac), checkSpineAt]
+    lockstep
 
 /-- `family_key_check` ⊑ `familyKeyCheck`: a family at a key, typed. -/
 @[lockstep] theorem family_key_check_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
