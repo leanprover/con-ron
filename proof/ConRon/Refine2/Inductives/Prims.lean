@@ -94,27 +94,9 @@ namespace IndPrims
 
 end IndPrims
 
--- A checker-tier statement at a split counter reads `lf.restrictTo (absU vis)`;
--- where the counter is the environment's own (`hvis`), that IS `lf`.
-macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| (apply IFEnv.restrictTo_of_eq; assumption))
-
-
-/-! ## The recursor rule's two install bits (`core::rec_rule_bits`)
-
-Moved down from `PrimsModeled.lean` (coordinator's ruling, task #97-T2-LOCKSTEP
-lane Inductives Install), names kept: the sum route's `sum_rules` needs them
-too.  The record-field equations are registered locally: `Shape`'s
-`absIRecRule_{ctor,nfields,rhs}_eq`, `Core/LS/Iota`'s `absIRecRule_{fire,k,eta}` and
-`absIIndCaps_{eta,etaCtor}`, and the ones only this tier needs in `IndModeledPrims`. -/
+/-! ## Two record-field readings this tier needs (`IndModeledPrims`) -/
 
 namespace IndModeledPrims
-
-theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
-    (absIRecRule r).ctorParams = absU r.ctor_params := rfl
-
-theorem absIIndCaps_ruleK (c : arena.env.IIndCaps) : (absIIndCaps c).ruleK = c.rule_k := rfl
 
 /-- `decide (x = 0)` at a `u64` is the twin's `(x : Nat) == 0`. -/
 theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := by
@@ -135,5 +117,29 @@ open Lockstep in
     intro v; simp [absEIdxLFrom, absEIdxL]
   rw [e, e]
   cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
+
+/-! ## The core tier's telescope openers, until the core tier states them -/
+
+namespace IndStub
+
+open Lockstep
+
+@[lockstep] theorem ind_open_pis_at_fvars_ls {pers st lst}
+    {n : Std.U64} {h : arena.handle.EIdx} {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
+      (arena.core.open_pis_at_fvars pers st n h i) lst
+      (openPisAtFvars (absU n) (absEIdx h) (absU i)) := by
+  sorry -- T143-STUB
+
+@[lockstep] theorem ind_open_pis_at_fvars_f_ls {pers st lst}
+    {n : Std.U64} {e : arena.handle.EIdx} {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
+      (arena.core.open_pis_at_fvars_f pers st n e i) lst
+      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
+  sorry -- T143-STUB
+
+end IndStub
 
 end ConRon.Refine2

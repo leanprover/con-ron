@@ -6,7 +6,7 @@
 `proof/ConRon/Arena/Inductives/BlockRec.lean`: the elimination guard
 `block_large_elim_allowed` ⊑ `blockLargeElimAllowed`.
 -/
-import ConRon.Refine2.Inductives.BlockParts
+import ConRon.Refine2.Inductives.BlockShape
 import ConRon.Arena.Inductives.BlockRec
 
 open Aeneas Aeneas.Std Result
@@ -27,7 +27,7 @@ Rust-only step on a read-back level). -/
       (fun b => TwinEq (ConRon.Refine.absLevel l).isNeverZero b) :=
   fun _ h => (ConRon.Refine.Level.is_never_zero_refines h).symm
 
-theorem absBlockShape_large (p : arena.inductives.block_parts.BlockShape) :
+theorem absBlockShape_large (p : arena.inductives.block_shape.BlockShape) :
     (absBlockShape p).large = p.large := rfl
 
 theorem u64_eq_one_iff (a : Std.U64) : a = 1#u64 ↔ a.val = 1 :=
@@ -35,7 +35,7 @@ theorem u64_eq_one_iff (a : Std.U64) : a = 1#u64 ↔ a.val = 1 :=
 
 /-- `block_large_elim_allowed` ⊑ `blockLargeElimAllowed`. -/
 @[lockstep] theorem block_large_elim_allowed_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape) (nested : Bool) :
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape) (nested : Bool) :
     LS pers (fun a b => b = a)
       (arena.inductives.block_rec.block_large_elim_allowed pers st p nested) lst
       (blockLargeElimAllowed (absBlockShape p) nested) := by
