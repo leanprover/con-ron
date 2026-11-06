@@ -1713,7 +1713,7 @@ theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
 
 /-! ## The structural-`Nat` gate, assembled -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:57-72 checkDecl — the reads of
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:60-73 checkDecl — the reads of
 the `.defnDecl` arm's structural-`Nat` gate at `env2`, the environment WITH the
 definition (`Arena.checkStructuralNatPinAtFe2`): the guard, the dependency
 list, their storage, then the stored value.  No core call. -/
@@ -1773,7 +1773,7 @@ theorem checkStructuralNatPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     | .ctorInfo _ _ _, hfind
     | .recInfo _ _ _ _ _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:57-72 checkDecl — **the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:60-73 checkDecl — **the
 structural-`Nat` gate** (`Arena.checkStructuralNatPin`): the reads at
 `fe.push ci` (con-leche's `env2`), then `certifyNatEqs` at the popped index,
 which answers as `fe`, over the equations with the operation's

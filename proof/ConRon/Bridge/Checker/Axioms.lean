@@ -216,8 +216,7 @@ namespace ConRon.Bridge
 -- the install half of the front door, and the pinned-constant install
 #print axioms installHeader_pure
 #print axioms installHeader_bridge
-#print axioms installValueGuards_pure
-#print axioms installValueGuards_bridge
+#print axioms valueGuards_bridge
 
 -- the readback facts `Base.lean` reads
 #print axioms beq_handle_iff
@@ -226,7 +225,14 @@ namespace ConRon.Bridge
 #print axioms denoteCV_inv
 #print axioms denoteCIList_get
 #print axioms denoteEList_cons
+#print axioms natOpName_run
+#print axioms natIndOk_optRun
+#print axioms natZeroOk_optRun
+#print axioms natSuccOk_optRun
+#print axioms litShapeOk_run
 #print axioms checkConstantVal_pure
+#print axioms checkConstantVal_bridge
+#print axioms checkConstantVal_bridge_of_fold
 #print axioms checkConstantVal_mono
 
 -- one fuel per arm
@@ -300,7 +306,7 @@ namespace ConRon.Bridge
 #print axioms StepOK.push
 
 -- `ConstWF` at an install: the type half (a hypothesis, read off the front
--- door's own pure run), the value half (con-leche's `installValueGuards_inv`),
+-- door's own pure run), the value half (`valueGuards_bridge`),
 -- and the three introductions
 #print axioms CVTypeWF.cons
 #print axioms checkConstantVal_typeWF
@@ -309,9 +315,17 @@ namespace ConRon.Bridge
 #print axioms constWF_axiomInfo
 
 -- the three value checks
+#print axioms checkDefnVal_pure
+#print axioms checkThmVal_pure
+#print axioms checkOpaqueVal_pure
 #print axioms checkDefnVal_bridge
 #print axioms checkThmVal_bridge
 #print axioms checkOpaqueVal_bridge
+
+-- the gates' push-and-pop
+#print axioms IFEnv.sameView_popTemp
+#print axioms checkStructuralNatPinAtFe2_bridge
+#print axioms checkStructuralNatPin_bridge
 
 -- the check half of the install/check seam, on the same machinery
 #print axioms checkValueGroup_bridge
@@ -390,6 +404,7 @@ namespace ConRon.Bridge
 #print axioms reduceDeclPin_run
 #print axioms reduceCertVar_run
 #print axioms reducePinGuard_run
+#print axioms checkReducePinPre_bridge
 #print axioms checkReducePin_bridge
 #print axioms reservedBasisNames_sstep
 #print axioms natOpEquations_run
@@ -447,6 +462,7 @@ hypotheses of the statement. -/
 #print axioms Arena.installStep_split
 -- `checkDivModPin_bridge` and its loop
 #print axioms checkDivModPinLoop_bridge
+#print axioms checkDivModPinAtFe2_bridge
 #print axioms checkDivModPin_bridge
 
 -- `DeclOut`'s two clauses (each prints the three standard axioms)

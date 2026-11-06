@@ -7,8 +7,8 @@ name's first entry winning (`insertConsts`, `insertTables`).  con-leche's `build
 (`ConLeche/Cached/StreamIndex.lean`) does the same over the denoted records.  `buildIndex_run`:
 the twin's index denotes con-leche's (`IndexDenotes`), and every handle in it is persistent.
 
-The two maps are related by one generic relation (`MapRel2`) and one generic insertion lemma
-(`MapRel2.insertIfNew`): a first entry wins on both sides at keys that denote each other, by
+The two maps are related by one generic relation (`IdxRel2`) and one generic insertion lemma
+(`IdxRel2.insertIfNew`): a first entry wins on both sides at keys that denote each other, by
 `denoteN_inj`.  What a record installs is taken from the records' walks as the two hypotheses
 `ConstsSpec` and `TablesSpec`, discharged in `Bridge/Checker/Pool.lean`.
 -/
@@ -28,18 +28,18 @@ open ConLeche ConRon.Arena
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex — two maps answer each other
 through the denotation: at keys that denote each other, the same counter, the values related. -/
-@[expose] def MapRel2 {V W : Type} (st : EStore) (R : V → W → Prop)
+@[expose] def IdxRel2 {V W : Type} (st : EStore) (R : V → W → Prop)
     (m : Std.HashMap NIdx (Nat × V)) (mJ : Std.HashMap ConLeche.Name (Nat × W)) : Prop :=
   (∀ n p, m[n]? = some p → ∃ nm q, denoteN st.ns n = some nm ∧ R p.2 q ∧ mJ[nm]? = some (p.1, q)) ∧
     (∀ nm q, mJ[nm]? = some q → ∃ n v, denoteN st.ns n = some nm ∧ m[n]? = some (q.1, v) ∧ R v q.2)
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:45-55 insertConsts / insertTables — **a first
 entry wins on both sides**: inserting at keys that denote each other keeps the maps related. -/
-theorem MapRel2.insertIfNew {V W : Type} {st : EStore} {R : V → W → Prop}
+theorem IdxRel2.insertIfNew {V W : Type} {st : EStore} {R : V → W → Prop}
     {m : Std.HashMap NIdx (Nat × V)} {mJ : Std.HashMap ConLeche.Name (Nat × W)}
-    (hwf : StoreWF st) (h : MapRel2 st R m mJ) {k : NIdx} {kn : ConLeche.Name} {c : Nat}
+    (hwf : StoreWF st) (h : IdxRel2 st R m mJ) {k : NIdx} {kn : ConLeche.Name} {c : Nat}
     {v : V} {w : W} (hk : denoteN st.ns k = some kn) (hR : R v w) :
-    MapRel2 st R (m.insertIfNew k (c, v)) (mJ.insertIfNew kn (c, w)) := by
+    IdxRel2 st R (m.insertIfNew k (c, v)) (mJ.insertIfNew kn (c, w)) := by
   obtain ⟨rk, hrk⟩ := hwf
   -- the key is new on one side exactly when it is new on the other
   have hmem : k ∈ m ↔ kn ∈ mJ := by
@@ -111,8 +111,8 @@ theorem insertConsts_rel {st : EStore} (hwf : StoreWF st) :
       (m : Std.HashMap NIdx (Nat × IConstantInfo)) (mJ : Std.HashMap ConLeche.Name (Nat × ConstantInfo))
       (c : Nat),
       Frontend.denoteCIList st L = some LJ → PersCIList L →
-      MapRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj) m mJ → PersMap PersCI m →
-      MapRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj)
+      IdxRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj) m mJ → PersMap PersCI m →
+      IdxRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj)
           (ConRon.Arena.insertConsts m c L).1 (ConLeche.Cached.insertConsts mJ c LJ).1 ∧
         (ConRon.Arena.insertConsts m c L).2 = (ConLeche.Cached.insertConsts mJ c LJ).2 ∧
         PersMap PersCI (ConRon.Arena.insertConsts m c L).1
@@ -141,9 +141,9 @@ theorem insertTables_rel {st : EStore} (hwf : StoreWF st) (r : Nat) :
     ∀ (Q : List IProjTable) (QJ : List ProjTable)
       (m : Std.HashMap NIdx (Nat × IProjTable)) (mJ : Std.HashMap ConLeche.Name (Nat × ProjTable)),
       Frontend.denoteProjTableList st Q = some QJ → (∀ t ∈ Q, PersProjTable t ∧ IProjTableOK t) →
-      MapRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t) m mJ →
+      IdxRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t) m mJ →
       PersMap PersProjTable m →
-      MapRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t)
+      IdxRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t)
           (ConRon.Arena.insertTables m r Q) (ConLeche.Cached.insertTables mJ r QJ) ∧
         PersMap PersProjTable (ConRon.Arena.insertTables m r Q)
   | [], QJ, m, mJ, hQ, _, hR, hP => by
@@ -165,11 +165,11 @@ theorem insertTables_rel {st : EStore} (hwf : StoreWF st) (r : Nat) :
           (hR.insertIfNew hwf (denoteProjTable_structName h1) ⟨h1, hokt⟩)
           (hP.insertIfNew hpt.structName hpt)
 
-/-- con-leche: none — `MapRel2` across an append of the store. -/
-theorem MapRel2.mono {V W : Type} {st st' : EStore} {R : V → W → Prop} {R' : V → W → Prop}
+/-- con-leche: none — `IdxRel2` across an append of the store. -/
+theorem IdxRel2.mono {V W : Type} {st st' : EStore} {R : V → W → Prop} {R' : V → W → Prop}
     {m : Std.HashMap NIdx (Nat × V)} {mJ : Std.HashMap ConLeche.Name (Nat × W)}
-    (h : MapRel2 st R m mJ) (hx : Ext st st') (hR : ∀ v w, R v w → R' v w) :
-    MapRel2 st' R' m mJ :=
+    (h : IdxRel2 st R m mJ) (hx : Ext st st') (hR : ∀ v w, R v w → R' v w) :
+    IdxRel2 st' R' m mJ :=
   ⟨fun n p hp => by
       obtain ⟨nm, q, h1, h2, h3⟩ := h.1 n p hp
       exact ⟨nm, q, denoteN_ext h1 hx, hR _ _ h2, h3⟩,
@@ -211,8 +211,8 @@ everything in it persistent. -/
 structure IndexRel (st : EStore) (I : IStreamIndex) (J : ConLeche.Cached.StreamIndex) : Prop where
   firsts : I.firsts = J.firsts
   next : I.next = J.next
-  idx : MapRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj) I.base.idx J.base.idx
-  tbls : MapRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t)
+  idx : IdxRel2 st (fun ci cj => Frontend.denoteCI st ci = some cj) I.base.idx J.base.idx
+  tbls : IdxRel2 st (fun t pt => Frontend.denoteProjTable st t = some pt ∧ IProjTableOK t)
     I.base.tbls J.base.tbls
   persIdx : PersMap PersCI I.base.idx
   persTbls : PersMap PersProjTable I.base.tbls
