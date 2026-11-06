@@ -4,8 +4,8 @@
 Task #97-P5-Core round 5, region B.  `crates/con-ron-core/src/arena/core.rs`'s
 `Nat`/`String` literal section and structural-`Nat` acceleration against
 `Arena/Core.lean`'s twins: the fifteen `nat*Name` pins, the name lists, the
-stored-declaration shape guards (`natLitSupported`, `strLitSupported` and their
-eleven helpers), the constructor forms of a literal, `rawNatLit?`,
+stored-declaration shape guards (`natLitSupported`, `strLitStored` and their
+helpers), the constructor forms of a literal, `rawNatLit?`,
 `natOpResult` and the headline `reduceNat` (`reduce_nat_ls`).
 -/
 import ConRon.Refine2.Core.LS.PrimsB

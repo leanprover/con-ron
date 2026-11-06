@@ -81,7 +81,6 @@ ConRon.Refine2.Lockstep.PE.laneKnotAt_true_infer	rfl lemma a `simp`/`dsimp` call
 ConRon.Refine2.Lockstep.PF.beq_of_decEq	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Frontend.except_pure_bind	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absBlockShape_recs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.absMemberShape_nIdx	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absMemberShape_cvT	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absBlockShape_large	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absBinderL_new	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term

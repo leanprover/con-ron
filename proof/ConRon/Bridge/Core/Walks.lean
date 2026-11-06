@@ -48,8 +48,7 @@
   shape, the binder readers of con-leche task #342 (`binderDom`, `lamProj?`,
   `unwrapIdDefs`, `peelPisW`, `substPWAt`), then `propIrrel_spec`.
 * `Walks/StrLit.lean` — **the `String`-literal guard**:
-  `strLitStored_spec`, `strLitSupported_spec` and its seven stored-shape
-  tests.
+  `strLitStored_spec` and the seven stored-shape tests.
 * `Walks/Former.lean` — **the walk to a family's sort, at use** (con-leche
   task #480): `formerSortLoop_spec`, `formerNeverZeroAt_spec`,
   `iotaCase3At_spec`, `projGuardSort_spec`, over the knot's `whnf`.

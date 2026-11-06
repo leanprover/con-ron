@@ -468,10 +468,6 @@ structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
-/-- con-leche: none — arena infrastructure; **the promotion-window store
-invariant**: `StoreWF` with the freshness clauses dropped at every tier. -/
-def StoreWF' (st : EStore) : Prop := ∃ rk, EWFAt' st rk
-
 /-! ### Forgetting the freshness clauses
 
 Four one-liners: the strong invariant is the weak one.  Every consumer of the
@@ -508,35 +504,5 @@ theorem LsStoreWF'.of_wf {st : LsStore} (h : LsStoreWF st) : LsStoreWF' st :=
 
 /-! The expression store's own `of_wf` is in `Arena/WFProofs.lean`'s
 append-only section. -/
-
-/-! ### A promotion's added precondition: the view's children are persistent
-
-`Arena/Store.lean`'s `internPersistent` note: *"`childOK` carries
-`i.isPersistent → c.isPersistent`, so the view handed to `internPersistent`
-must have PERSISTENT CHILDREN"*.  `intern`'s persistent branch gets this for
-free from `scrOff`; a promotion gets it by construction, because it promotes
-the children first. -/
-
-/-- con-leche: none — arena infrastructure; a name view's handles are all
-persistent. -/
-def NViewPers (v : NNodeView) : Prop := ∀ c ∈ v.children, c.isPersistent = true
-
-/-- con-leche: none — arena infrastructure; a level view's handles are all
-persistent. -/
-structure LViewPers (v : LNodeView) : Prop where
-  lvl : ∀ c ∈ v.lchildren, c.isPersistent = true
-  nm : ∀ c ∈ v.nchildren, c.isPersistent = true
-
-/-- con-leche: none — arena infrastructure; a level-list view's handles are
-all persistent. -/
-def LsViewPers (v : LsNodeView) : Prop := ∀ c ∈ v, c.isPersistent = true
-
-/-- con-leche: none — arena infrastructure; an expression view's handles are
-all persistent, at all four handle kinds. -/
-structure EViewPers (v : ENodeView) : Prop where
-  expr : ∀ c ∈ v.echildren, c.isPersistent = true
-  nm : ∀ c ∈ v.nchildren, c.isPersistent = true
-  lvl : ∀ c ∈ v.lchildren, c.isPersistent = true
-  lst : ∀ c ∈ v.lschildren, c.isPersistent = true
 
 end ConRon.Arena

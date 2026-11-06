@@ -854,7 +854,7 @@ guard (at a fresh memo) ahead of `unresolved_consts_error`, at the kind. -/
   lockstep
 
 open Lockstep in
-/-- `unresolved_consts_fail` ⊑ `throw (unresolvedConstsErrorL (strLitSupported
+/-- `unresolved_consts_fail` ⊑ `throw (unresolvedConstsErrorL (strLitStored
 fe) where_ e)` — the failing arm every front door spells, the support test
 read first. -/
 @[lockstep] theorem unresolved_consts_fail_ls {α β : Type} {R : α → β → Prop}

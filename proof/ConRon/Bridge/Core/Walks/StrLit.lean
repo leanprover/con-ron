@@ -2,8 +2,8 @@
 # `ConRon.Bridge.Core.Walks.StrLit` — the `String` literal guard
 
 The literal clauses of `inferBody` and `inferBodyIO` run `natLitStored`
-(`Walks/Nat.lean`) and `strLitStored`; the declaration checker runs
-`strLitSupported`.  This module is the spec of those two and the seven state-only walks under it (`stringTyOk`,
+(`Walks/Nat.lean`) and `strLitStored`.  This module is the spec of
+`strLitStored` and of the seven state-only walks (`stringTyOk`,
 `stringOfListTyOk`, `listTyOk`, `listNilTyOk`, `listConsTyOk`, `charTyOk`,
 `charOfNatTyOk`), each an EQUATION with the con-leche function of the same
 name (`ConLeche/Kernel/CoreDefs.lean:301-403`) — `Walks/Nat.lean`'s
@@ -974,7 +974,7 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       dsimp only
       exact triple_pureS ⟨hok6, hx06, hp06, (fnTyOks_not_forallE
         (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm⟩
-/-! ## 6. `strLitSupported` and `strLitStored` -/
+/-! ## 6. `strLitStored` -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:366-371 strLitStored
 con-leche: ConLeche/Kernel/FEnv.lean:196-201 strLitStoredF —

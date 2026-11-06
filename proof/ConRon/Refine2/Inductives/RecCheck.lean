@@ -990,11 +990,6 @@ theorem rc_absBlockShape_members_length (p : arena.inductives.block_shape.BlockS
     (absBlockShape p).members.length = p.members.val.length := by
   simp [absBlockShape]
 
-theorem rc_absCtorsLL_length
-    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
-    (absCtorsLL v).length = v.val.length := by
-  simp [absCtorsLL]
-
 theorem rc_absBlockShape_nP (p : arena.inductives.block_shape.BlockShape) :
     (absBlockShape p).nP = p.n_p.val := rfl
 
@@ -1004,12 +999,6 @@ theorem rc_absBlockShape_members_getElem (p : arena.inductives.block_shape.Block
       simpa [absBlockShape] using h)) := by
   simp [absBlockShape]
 
-theorem rc_absCtorsLL_getElem
-    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) (i : Nat)
-    (h : i < (absCtorsLL v).length) :
-    (absCtorsLL v)[i] = absCtorsL (v.val[i]'(by simpa [absCtorsLL] using h)) := by
-  simp [absCtorsLL]
-
 theorem rc_ctors_dup_spec (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LSP (arena.inductives.block_shape.ctors_dup cs 0#usize
       (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => o = cs) :=
@@ -1018,7 +1007,7 @@ theorem rc_ctors_dup_spec (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64
 attribute [local lockstep high] rc_ctors_dup_spec
 
 attribute [local lockstep_simp] rc_unwrapOr_getElem? rc_absBlockShape_members_length
-  rc_absCtorsLL_length rc_absBlockShape_nP rc_absBlockShape_members_getElem rc_absCtorsLL_getElem
+  rc_absBlockShape_nP rc_absBlockShape_members_getElem
 
 attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
   arena.inductives.rec_check.target_major_outside arena.inductives.rec_check.target_major_outside_aux

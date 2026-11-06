@@ -6,8 +6,7 @@ The twin of `olean/records.rs`.  Upstream's `declOfF em.nm em.lv em.ex r` is
 emitter's: the stream parser's own record builder, over tables of handles.
 
 A theorem's record holds a reference to its value (`valueRef`), which its check reads
-(`readValue`, upstream task #481; the check phase is `Arena/OleanJobs.lean`);
-`readOleansFull` reads them all, for the comparison tool.
+(`readValue`, upstream task #481; the check phase is `Arena/OleanJobs.lean`).
 -/
 module
 
@@ -151,41 +150,5 @@ def readValue (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (value
       match ← frontierExpr pk r md.frontier (refLoc code) with
       | some e => pure (c, .ok e)
       | none => pure (c, .error (undecodable (← readName md.name)))
-
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:164-171 fillRecord
-A record with its theorem's value read, if it is a theorem's whose value is a
-reference. -/
-def fillRecord (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (values : Array ModRef)
-    (c : ValueCache) : IDeclaration → AM (ValueCache × Except CheckError IDeclaration)
-  | .thmDecl cv v => do
-    match ← viewBVar v with
-    | some code =>
-      match ← readValue fs pk sp values c code with
-      | (c, .ok e) => pure (c, .ok (.thmDecl cv e))
-      | (c, .error e) => pure (c, .error e)
-    | none => pure (c, .ok (.thmDecl cv v))
-  | d => pure (c, .ok d)
-
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:173-180 fillRecords
-`fillRecord` of each record, in order. -/
-def fillRecords (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (values : Array ModRef)
-    (c : ValueCache) : List IDeclaration → Array IDeclaration → AM (Except CheckError (Array IDeclaration))
-  | [], acc => pure (.ok acc)
-  | d :: ds, acc => do
-    match ← fillRecord fs pk sp values c d with
-    | (_, .error e) => pure (.error e)
-    | (c, .ok d) => fillRecords fs pk sp values c ds (acc.push d)
-
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:182-192 readOleansFull
-**The records with every theorem's value read**, for the tools that compare them:
-the checker itself reads a value in its check (`Arena/OleanJobs.lean`). -/
-def readOleansFull (fs : OleanFs) (sp : List System.FilePath) (roots : Array NIdx)
-    (constants : Option (Array NIdx)) : AM (Except (CheckError × Nat) (Array IDeclaration)) := do
-  match ← readOleans fs sp roots constants with
-  | .error e => pure (.error e)
-  | .ok rd =>
-    match ← fillRecords fs rd.pins sp rd.values {} rd.decls.toList #[] with
-    | .error e => pure (.error (e, 0))
-    | .ok ds => pure (.ok ds)
 
 end ConRon.Arena.Frontend.Olean

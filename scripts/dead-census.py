@@ -27,7 +27,7 @@ Mathlib, Aeneas, con-leche and every module of ours (~10 GB, a few minutes).
   translates the whole crate, so an unreached generated function is a Rust
   question — `scripts/dead-rust.py` — not a proof one);
 * the executables' closures: `main` in each executable root (EXE_ROOTS: the
-  arena driver, its bench, the table generator, the pin dump), each in a
+  arena driver, its olean comparer, its bench, the pin dump), each in a
   pass of its own because every one of them declares `main`;
 * every declaration the README or OVERVIEW links by name;
 * every `@[csimp]` theorem and, through the dump's extra edges, the

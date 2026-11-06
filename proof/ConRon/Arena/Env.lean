@@ -202,13 +202,6 @@ structure IEnv where
 environment; the starting point of every checker run. -/
 def IEnv.empty : IEnv := ⟨[], []⟩
 
-/-- con-leche: ConLeche/Kernel/Env.lean:467-468 Env.find? — the linear lookup.
-A name comparison is a handle comparison, which is sound because `denoteN` is
-injective (task #97a's `denoteN_inj`; DESIGN §8.3 makes exactness a soundness
-obligation for exactly this reason). -/
-def IEnv.find? (env : IEnv) (n : NIdx) : Option IConstantInfo :=
-  env.consts.find? (·.name == n)
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:27-39 FBase — **a frozen lookup layer**:
 the index of a whole stream, built once before any record is checked and never
 written again (`Arena/StreamIndex.lean`).  An entry `n ↦ (c, ci)` says that the

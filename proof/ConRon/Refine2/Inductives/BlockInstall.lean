@@ -67,10 +67,6 @@ open Lockstep
 open scoped IndSide
 
 attribute [local lockstep_simp] Lockstep.core_walk_fuel_val absMemberShape_cvT
-@[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_shape.MemberShape) :
-    (absMemberShape m).nIdx = absU m.n_idx := rfl
-@[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_shape.MemberShape) :
-    (absMemberShape m).ctors = absCtorsL m.ctors := rfl
 
 /-! ## The capability record: `block_caps_at` (pure) -/
 
@@ -158,7 +154,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       cases Result.ok_injective h
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc, List.map_nil] at hv'
-      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
+      simp only [absMemberShape, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
     · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
@@ -174,8 +170,8 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       obtain ⟨ul, hul, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ctors, hctors, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
-      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_nil,
-        absMemberShape_nIdx, absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
+      simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil,
+        absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
         IIndCaps.mk.injEq]
       simp only [pn_u64_bne_zero] at heta hul
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
@@ -193,7 +189,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       cases Result.ok_injective h
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc] at hv'
-      simp only [absMemberShape_ctors, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
+      simp only [absMemberShape, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
   · have hget : (absBlockShape p).members[absU mi]? = none := by
       show (p.members.val.map absMemberShape)[mi.val]? = _

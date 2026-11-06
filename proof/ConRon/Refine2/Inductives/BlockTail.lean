@@ -304,13 +304,6 @@ the pops.  Its answer is the twin's popped environment. -/
   lockstep
 
 attribute [local lockstep_simp] absMemberShape_cvT
-@[local lockstep_simp] theorem bt_absMemberShape_nIdx (m : arena.inductives.block_shape.MemberShape) :
-    (absMemberShape m).nIdx = absU m.n_idx := rfl
-@[local lockstep_simp] theorem bt_absMemberShape_ctors (m : arena.inductives.block_shape.MemberShape) :
-    (absMemberShape m).ctors = absCtorsL m.ctors := rfl
-@[local lockstep_simp] theorem bt_absMemberShape_declared
-    (m : arena.inductives.block_shape.MemberShape) :
-    (absMemberShape m).declared = absIConstantVal m.declared := rfl
 
 /-- `block_recs` from the first record into an empty accumulator. -/
 theorem bt_block_recs_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -355,7 +348,7 @@ attribute [local lockstep_inline] arena.inductives.block_tail.reduce_member_chec
     LS pers (fun a b => b = absMemberShape a)
       (arena.inductives.block_tail.reduce_member pers st mode rf ms n_p) lst
       (reduceMember (ConRon.Refine.absMode mode) lf (absMemberShape ms) (absU n_p)) := by
-  rw [arena.inductives.block_tail.reduce_member, reduceMember]
+  rw [arena.inductives.block_tail.reduce_member, reduceMember, absMemberShape]
   lockstep
   all_goals
     refine LS.pure ?_ ‹_› ‹_›

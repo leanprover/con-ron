@@ -800,26 +800,6 @@ def stringOfListTyOk : Option IConstantInfo → AM Bool
       else pure false
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:350-364 strLitSupported
-`natLitSupported` plus the seven string-support declarations at exactly the
-expected types. -/
-def strLitSupported (fe : IFEnv) : AM Bool := do
-  if !(← natLitSupported fe) then pure false else do
-    let st ← pinString
-    if !(← stringTyOk (fe.find? st)) then pure false else do
-      let sl ← pinStringOfList
-      if !(← stringOfListTyOk (fe.find? sl)) then pure false else do
-        let li ← pinList
-        if !(← listTyOk (fe.find? li)) then pure false else do
-          let ln ← pinListNil
-          if !(← listNilTyOk (fe.find? ln)) then pure false else do
-            let lc ← pinListCons
-            if !(← listConsTyOk (fe.find? lc)) then pure false else do
-              let ch ← pinChar
-              if !(← charTyOk (fe.find? ch)) then pure false else do
-                let co ← pinCharOfNat
-                charOfNatTyOk (fe.find? co)
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:366-371 strLitStored
 con-leche: ConLeche/Kernel/FEnv.lean:196-201 strLitStoredF
 Whether a `String` literal's constants are stored: `natLitStored` and the
