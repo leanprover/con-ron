@@ -165,8 +165,7 @@ hand proofs are not rewritten, and `HashMap`/`Nat`, `Pins*` and `Ind*` are out
 of its scope.
 
 The two sets `Refine/SimpSets.lean` registers are populated here with the
-plumbing above; later files add their own (`ExprOps.binder_meta_eq`,
-`BasisTables`'s `expr_dup_eq`). -/
+plumbing above; later files add their own (`ExprOps.binder_meta_eq`). -/
 
 attribute [rust_reduce, rust_invert] arc_deref_eq bind_ok lift_eq ptr_new_eq
   ptr_clone_eq name_dup_eq level_dup_eq name.NameNode.hash._simpLemma_
@@ -574,10 +573,7 @@ and the node layer of the port's three-type mutual inductive. -/
 /-! ## The environment records (task #46)
 
 `kernel::env`'s seven stored-constant records, its two little enums and the
-environment itself.  These came here from `ConRon/Refine/BasisTables.lean`'s
-temporary `T22` namespace (task #22 wrote them there because `Abs.lean` had
-nothing above `Expr` yet, and said so in a note); the `T22` namespace is gone
-and this is the one copy.
+environment itself.
 
 None of them carries derived data, so none needs a smart constructor: a
 record's abstraction is its fields' abstractions, and its well-formedness
@@ -663,11 +659,9 @@ def absQuotKind : env.QuotKind → ConLeche.QuotKind
   | .Ind => .ind
   | .Sound => .sound
 
-/- These are deliberately **not** in the plumbing `simp` set: task #22's
-`BasisTables.lean` drives its 192-node `step*` proof with `simp only
-[absBasisKind]` and friends at the end, and a global `simp` attribute makes
-those calls no-ops ("`simp` made no progress").  Each client unfolds the one it
-needs by name. -/
+/- These are deliberately **not** in the plumbing `simp` set: a global `simp`
+attribute makes a client's `simp only [absBasisKind]` a no-op ("`simp` made no
+progress").  Each client unfolds the one it needs by name. -/
 
 /-! ## Well-formedness of the environment records (task #46)
 

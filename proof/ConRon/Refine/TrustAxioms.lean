@@ -42,7 +42,7 @@ is against the `Env`-indexed `Expr.constsResolve`; it therefore carries
 `CoreKSupport`'s own `henv` hypothesis (`lfe.find? = lenv.find?`), and the
 conclusion is the `F`-twin, the two being the same clauses.
 
-## The two hypotheses this file imports
+## The hypothesis this file imports
 
 Task #56's files are written in parallel, so — exactly as task #49's eleven
 `CoreK*` files did — what a sibling owns travels as an explicit hypothesis of
@@ -51,12 +51,8 @@ the lemma that needs it:
 * **`MatchesPinSpec`**: `std_axioms::matches_pin_fast` is `ConstantVal.matchesPin`.
   It is `Refine/StdAxioms.lean`'s (`Expr.erasePwEq_eq` is con-leche's own
   agreement between the lockstep descent and the specification).
-* **`BasisPinsSpec`**: `basis_pins::eq_basis_pinned` / `nat_basis_pinned` are
-  `decide (fe.find? eqName = some eqA)` / `decide (fe.find? natName = some natA)`
-  — the two pins compared by exact `ConstantInfo` equality rather than through
-  `matchesPin`, which is why they have a module of their own.
 
-Neither is a new claim; both are discharged where the sibling lands.
+It is not a new claim; it is discharged where the sibling lands.
 
 ## Two things proved here that belong elsewhere
 
