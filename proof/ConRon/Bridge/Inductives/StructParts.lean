@@ -3,8 +3,10 @@
 
 `Arena/Inductives/StructParts.lean`'s twins against
 `ConLeche/Kernel/Inductives/StructParts.lean`: the parameter spines, the
-elimination level, the constructor-residual test, the projection bodies and
-guards, and the memoised loose-bound-variable test.
+elimination level, the constructor-residual test, the projection bodies, and
+the memoised loose-bound-variable test (`Arena/Core.lean`'s `hasLooseBVarBGo`,
+con-leche's `Kernel/CoreDefs.lean`) with the field-use test `structUsedLater`
+built on it.
 
 **Every twin here is PURE grade.**  Not one of them calls the knot: they
 intern nodes, read the store, read the pin table and walk handles.  So every
@@ -580,7 +582,7 @@ theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
-/-! ## The projection guards -/
+/-! ## A field used later -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:393-396 structUsedLater
 Is field `j` mentioned by a later field's domain?
@@ -608,211 +610,6 @@ theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     rw [hsp]
     exact hasLooseBVarBFast_spec 0 rest x _ _ r hok hx h2
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:425-429 structUsedLaterGo
-The same with the memo threaded (task #236's one shared memo across `nF`
-calls).
-
-**Proof:** `hasLooseBVarBGo_spec` under the
-telescope, the memo travelling verbatim through the `none` arm. -/
-theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
-    (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
-    PSpec (fun st => denoteE st cty = some ctyP ∧ LooseMemoOK memo st)
-      (Arena.structUsedLaterGo memo cty nP j)
-      (fun st r => r.1 = ConLeche.structUsedLater ctyP nP j ∧
-        LooseMemoOK r.2 st) := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hd, hm⟩ := hp
-  simp only [Arena.structUsedLaterGo] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
-  show PStep s₀ s' ∧ r.1 = ConLeche.structUsedLater ctyP nP j ∧
-    LooseMemoOK r.2 s'.store
-  rw [ConLeche.structUsedLater]
-  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
-  cases o with
-  | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    rw [stripPis_none hbp]
-    exact ⟨PStep.refl hok, rfl, hm⟩
-  | some p =>
-    obtain ⟨bs, rest⟩ := p
-    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
-    rw [hsp]
-    exact hasLooseBVarBGo_spec memo 0 Arena.coreWalkFuel rest x _ _ r hok
-      ⟨hx, hm⟩ h2
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:442-447 structUsedLaterList
-The `n` answers from `base` up, one memo through all of them.
-
-**Proof:** a `Nat` recursion over
-`structUsedLaterGo_spec`, generalising the memo AND the base.  Stronger than
-con-leche's own `structUsedLaterList_spec`, which says only what the `t`-th
-entry is: here the LIST is named, which is what `structProjGuards_spec`'s
-fold needs. -/
-theorem structUsedLaterList_spec (cty : EIdx) (ctyP : Expr) (nP : Nat)
-    (memo : Std.HashMap (EIdx × Nat) Bool) (n base : Nat) :
-    PSpec (fun st => denoteE st cty = some ctyP ∧ LooseMemoOK memo st)
-      (Arena.structUsedLaterList cty nP memo n base)
-      (RV ((List.range n).map fun k => ConLeche.structUsedLater ctyP nP (base + k))) := by
-  induction n generalizing memo base with
-  | zero =>
-    intro s₀ s' r hok _ hrun
-    simp only [Arena.structUsedLaterList] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, by simp⟩
-  | succ n ih =>
-    intro s₀ s' r hok hp hrun
-    obtain ⟨hd, hm⟩ := hp
-    simp only [Arena.structUsedLaterList] at hrun
-    obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok hrun
-    obtain ⟨hsA, hrA, hmA⟩ :=
-      structUsedLaterGo_spec memo cty ctyP nP base _ _ p hok ⟨hd, hm⟩ h1
-    obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨hsB, hrB⟩ :=
-      ih p.2 (base + 1) _ _ rest hsA.ok ⟨denote_ext hd hsA.ext, hmA⟩ h3
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-    refine ⟨hsA.trans hsB, ?_⟩
-    show p.1 :: rest = _
-    rw [hrA, hrB, List.range_succ_eq_map]
-    simp only [List.map_cons, List.map_map, Function.comp_def, Nat.add_zero]
-    congr 1
-    exact List.map_congr_left (fun k _ => by congr 1; omega)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:404-411
-structProjGuards — **the guard list has one entry per field**, by
-construction: the pure function is a `List.range nF` map.  This is the fact
-`Bridge/StateOK.lean`'s `IProjTableOK.guards` asks of the table
-`checkStructProjTable` pushes, and `checkStructProjTable_run`'s hypothesis
-`hg` is where it has to arrive.  The chain is
-`structProjGuards_spec` (the handle list denotes the pure one) plus
-`denoteLList_length` (a denotation keeps its length) plus this. -/
-theorem structProjGuards_length (cty : Expr) (nP nF : Nat)
-    (sorts : List Level) :
-    (ConLeche.structProjGuards cty nP nF sorts).length = nF := by
-  simp only [ConLeche.structProjGuards, List.length_map, List.length_range]
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:404-411 structProjGuards
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:479-487 structProjGuardsFast
-The guard level of each field: `Prop` where the field is used later, the
-field's own sort otherwise.  The answer is a `List LIdx` and NOT an `LsIdx`
-(task #97d-2's deviation 6), so the relation is `RLL`.
-
-**At `PSpecP`, not `PSpec`.**  The twin opens with
-`let z ← zeroLevel`, a PIN READ, and `PSpec`'s precondition is a predicate on
-the STORE: it cannot say what `s.pins.zeroLevel` denotes, and
-`Arena/Pins.lean`'s `pinsReady` tests only the name array's SIZE.  At a state
-whose `pins.zeroLevel` denotes `.param foo` the run accepts and answers
-something else — take `sorts = []`, `sortsP = []`, `nF = 1`, where the
-statement reduces to exactly `denoteL st.ls z = some .zero`.  `PinsOK` is the
-missing licence and `PSpecP` is the shape that carries it; this is the only
-twin of the tier under a `PSpec` that reads the pin table (the other four pin
-readers — `withSort`, `structPartsCore?`, `nativeShape?`, `checkSumCtor` —
-are already at `CSpec`, which has `CheckOK.pins`).
-
-The proof: `structUsedLaterList_spec` for the answer table, then the two
-`let rec`s by their own inductions — `col` over `List.range' j k` and `row`
-over `List.range' i k`, the guard `j < nF` travelling as `j + k ≤ nF`. -/
-theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
-    (sorts : List LIdx) (sortsP : List Level) :
-    PSpecP (fun st => denoteE st cty = some ctyP ∧
-        denoteLList st.ls sorts = some sortsP)
-      (Arena.structProjGuards cty nP nF sorts)
-      (RLL (ConLeche.structProjGuards ctyP nP nF sortsP)) := by
-  intro s₀ s' r hok hpins hp hrun
-  obtain ⟨hd, hs⟩ := hp
-  simp only [Arena.structProjGuards] at hrun
-  obtain ⟨z, s₁, hz, h2⟩ := AM.bind_ok hrun
-  obtain ⟨rfl, hzd⟩ := zeroLevel_run hpins hz
-  obtain ⟨used, s₂, hu, h3⟩ := AM.bind_ok h2
-  obtain ⟨hsU, hrU⟩ :=
-    structUsedLaterList_spec cty ctyP nP ∅ nF 0 _ _ used hok
-      ⟨hd, LooseMemoOK.empty⟩ hu
-  -- the answer table reads back, entry by entry
-  have hused : ∀ m, m < nF →
-      used.getD m false = ConLeche.structUsedLater ctyP nP m := by
-    intro m hm
-    rw [show used = _ from hrU, List.getD_eq_getElem?_getD, List.getElem?_map,
-      List.getElem?_range hm]
-    simp
-  -- `col`: the inner fold, over `List.range' j k`
-  have hcol : ∀ (k j : Nat) (acc : LIdx) (accP : Level) (sa sb : AState)
-      (rr : LIdx), StateOK sa →
-      denoteLList sa.store.ls sorts = some sortsP →
-      denoteL sa.store.ls z = some .zero →
-      denoteL sa.store.ls acc = some accP → j + k ≤ nF →
-      Arena.structProjGuards.col sorts z used j k acc sa = .ok (rr, sb) →
-      PStep sa sb ∧ denoteL sb.store.ls rr =
-        some ((List.range' j k).foldl (fun a m =>
-          if ConLeche.structUsedLater ctyP nP m then
-            Level.max a (sortsP.getD m .zero) else a) accP) := by
-    intro k
-    induction k with
-    | zero =>
-      intro j acc accP sa sb rr hoka _ _ hacc _ hr
-      simp only [Arena.structProjGuards.col] at hr
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
-      exact ⟨PStep.refl hoka, by simpa using hacc⟩
-    | succ k ih =>
-      intro j acc accP sa sb rr hoka hsa hza hacc hle hr
-      have hjn : j < nF := by omega
-      simp only [Arena.structProjGuards.col] at hr
-      rw [List.range'_succ]
-      simp only [List.foldl_cons, Nat.add_one]
-      rw [hused j hjn] at hr
-      split at hr
-      · rename_i hcond
-        rw [ite_eq_left hcond]
-        obtain ⟨m, sm, hm, hr'⟩ := AM.bind_ok hr
-        obtain ⟨hstepM, hmd⟩ :=
-          internMaxL_run hoka hacc (denoteLList_getD hsa hza j) hm
-        obtain ⟨hstepR, hrd⟩ :=
-          ih (j + 1) m _ sm sb rr hstepM.ok
-            (denoteLList_ext hstepM.ext.lss.ls _ _ hsa) (denoteL_ext hza hstepM.ext)
-            hmd (by omega) hr'
-        exact ⟨hstepM.trans hstepR, hrd⟩
-      · rename_i hcond
-        rw [ite_eq_right hcond]
-        exact ih (j + 1) acc accP sa sb rr hoka hsa hza hacc (by omega) hr
-  -- `row`: the outer map, over `List.range' i k`
-  have hrow : ∀ (k i : Nat) (sa sb : AState) (rr : List LIdx), StateOK sa →
-      denoteLList sa.store.ls sorts = some sortsP →
-      denoteL sa.store.ls z = some .zero → i + k ≤ nF →
-      Arena.structProjGuards.row sorts z used i k sa = .ok (rr, sb) →
-      PStep sa sb ∧ denoteLList sb.store.ls rr =
-        some ((List.range' i k).map fun m =>
-          (List.range m).foldl (fun a n =>
-            if ConLeche.structUsedLater ctyP nP n then
-              Level.max a (sortsP.getD n .zero) else a) (sortsP.getD m .zero)) := by
-    intro k
-    induction k with
-    | zero =>
-      intro i sa sb rr hoka _ _ _ hr
-      simp only [Arena.structProjGuards.row] at hr
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
-      exact ⟨PStep.refl hoka, by simp [denoteLList]⟩
-    | succ k ih =>
-      intro i sa sb rr hoka hsa hza hle hr
-      simp only [Arena.structProjGuards.row] at hr
-      obtain ⟨g, sg, hg, hr1⟩ := AM.bind_ok hr
-      obtain ⟨hstepG, hgd⟩ :=
-        hcol i 0 (sorts.getD i z) (sortsP.getD i .zero) sa sg g hoka hsa hza
-          (denoteLList_getD hsa hza i) (by omega) hg
-      obtain ⟨rest, sr, hrest, hr2⟩ := AM.bind_ok hr1
-      obtain ⟨hstepR, hrd⟩ :=
-        ih (i + 1) sg sr rest hstepG.ok (denoteLList_ext hstepG.ext.lss.ls _ _ hsa)
-          (denoteL_ext hza hstepG.ext) (by omega) hrest
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
-      refine ⟨hstepG.trans hstepR, ?_⟩
-      rw [List.range'_succ]
-      simp only [List.map_cons, Nat.add_one]
-      simp only [denoteLList, opt2, denoteL_ext hgd hstepR.ext, hrd,
-        ← List.range_eq_range']
-  obtain ⟨hstepRow, hrowd⟩ :=
-    hrow nF 0 _ _ r hsU.ok (denoteLList_ext hsU.ext.lss.ls _ _ hs)
-      (denoteL_ext hzd hsU.ext) (by omega) h3
-  refine ⟨hsU.trans hstepRow, ?_⟩
-  show denoteLList s'.store.ls r = some _
-  rw [hrowd, ConLeche.structProjGuards, ← List.range_eq_range']
 
 /-! ## The projection bodies -/
 
