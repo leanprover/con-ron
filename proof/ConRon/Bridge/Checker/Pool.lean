@@ -121,7 +121,7 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
       Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
     obtain ⟨hi', h⟩ := hget i (by simpa using hi)
     exact ⟨hi', denoteDecl_ext hx (by simpa using h)⟩
-  exact pooled_fold V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'
+  exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'
     (hpinsOK.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI parts hcov hinc hacc
 
