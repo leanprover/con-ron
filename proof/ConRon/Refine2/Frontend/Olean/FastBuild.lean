@@ -3,7 +3,7 @@
 
 **Task #142, Theorem 2.**  The memo holds words against the twin's handles (`DSRel`); the
 word `0` is the twin's `default`.  The upward sweep threads the store and the memo, in the
-judgement `BS`.  `run_passes_refines` is both passes.
+judgement `TS`.  `run_passes_refines` is both passes.
 
 The Rust's `(c / 8) as usize` is the identity on a location of the region and truncates
 past `usize`, which no location is, so `SubRel` holds of the memo at `subT`, the twin's
@@ -304,31 +304,38 @@ theorem ds_fresh_rel {n : Std.Usize} {d} (h : ds_fresh n = ok d) :
       rw [e0, e1]; simp [List.resize]
     exact ⟨hl hn _ rfl, hl hn _ rfl, hl hn _ rfl, hl hn _ rfl⟩
 
-/-! ## `BS`: a read that threads the store and the memo -/
+/-! ## `TS`: a read that threads the store and a memo -/
 
-/-- **The lockstep judgement of the upward sweep.** -/
-def BS (pers : arena.store.PersTier) (st : arena.monad.AState) (lst : AState)
-    (m : Result (core.result.Result Unit frontend.olean.spec.RdErr × arena.store.EStore × frontend.olean.fast.DS))
-    (x : AM (Option TDS)) : Prop :=
+/-- **The lockstep judgement of a read that threads the store and a memo**, `Rel` between
+the memos. -/
+def TS {δ τ : Type} (Rel : δ → τ → Prop) (pers : arena.store.PersTier) (st : arena.monad.AState)
+    (lst : AState)
+    (m : Result (core.result.Result Unit frontend.olean.spec.RdErr × arena.store.EStore × δ))
+    (x : AM (Option τ)) : Prop :=
   AStateRel₀ pers st lst → AStateInv pers st → ∀ o s' d', m = ok (o, s', d') →
-    RdOut pers (fun _ t' => DSRel d' t') (withStore st s') o (x.run lst)
+    RdOut pers (fun _ t' => Rel d' t') (withStore st s') o (x.run lst)
 
-theorem BS.pure_step {γ : Type} {pers st lst} {f : Result γ} {k} {x : AM (Option TDS)}
-    (h : ∀ a, f = ok a → BS pers st lst (k a) x) : BS pers st lst (Std.bind f k) x := by
+section TS
+variable {δ τ : Type} {Rel : δ → τ → Prop}
+
+theorem TS.pure_step {γ : Type} {pers st lst} {f : Result γ} {k} {x : AM (Option τ)}
+    (h : ∀ a, f = ok a → TS Rel pers st lst (k a) x) : TS Rel pers st lst (Std.bind f k) x := by
   intro hrel hinv o s' d' hm
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact h a h1 hrel hinv o s' d' h2
 
-theorem BS.leaf {pers st lst} {d} {t : TDS} (h : DSRel d t) :
-    BS pers st lst (ok (.Ok (), st.store, d)) (pure (some t)) := by
+theorem TS.leaf {pers st lst} {d} {t : τ} (h : Rel d t) :
+    TS Rel pers st lst (ok (.Ok (), st.store, d)) (pure (some t)) := by
   intro hrel hinv o s' d' hm
   cases Result.ok_injective hm
   exact ⟨t, lst, rfl, h, hrel, hinv⟩
 
 /-- The twin's run moved along an equation. -/
-theorem BS.of_eq {pers st lst} {m} {x y : AM (Option TDS)} (h : BS pers st lst m x) (hxy : y = x) :
-    BS pers st lst m y := by
+theorem TS.of_eq {pers st lst} {m} {x y : AM (Option τ)} (h : TS Rel pers st lst m x) (hxy : y = x) :
+    TS Rel pers st lst m y := by
   rw [hxy]; exact h
+
+end TS
 
 /-- An error answer survives a bind that passes `none` on. -/
 theorem rdout_err_bind {α α' β β' : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
@@ -347,17 +354,18 @@ theorem rdout_err_bind {α α' β β' : Type} {pers : arena.store.PersTier} {R :
     refine ⟨le, ?_, hkk⟩
     rw [StateT.run_bind, hle]; rfl
 
-/-- The twin's continuation of a step of the sweep. -/
-@[reducible] def seqK (g : TDS → AM (Option TDS)) : Option TDS → AM (Option TDS)
+/-- The twin's continuation of a step of a sweep. -/
+@[reducible] def seqK {τ : Type} (g : τ → AM (Option τ)) : Option τ → AM (Option τ)
   | none => pure none
   | some t => g t
 
-/-- **A step of the sweep, then the rest.** -/
-theorem BS.bind {pers st lst} {f} {x : AM (Option TDS)} {g : TDS → AM (Option TDS)}
-    {KR : arena.store.EStore → frontend.olean.fast.DS → Result (core.result.Result Unit frontend.olean.spec.RdErr × arena.store.EStore × frontend.olean.fast.DS)}
-    (hf : BS pers st lst f x)
-    (hk : ∀ s1 d1 t1 lst1, DSRel d1 t1 → BS pers (withStore st s1) lst1 (KR s1 d1) (g t1)) :
-    BS pers st lst
+/-- **A step of a sweep, then the rest.** -/
+theorem TS.bind {δ τ : Type} {Rel : δ → τ → Prop} {pers st lst} {f} {x : AM (Option τ)}
+    {g : τ → AM (Option τ)}
+    {KR : arena.store.EStore → δ → Result (core.result.Result Unit frontend.olean.spec.RdErr × arena.store.EStore × δ)}
+    (hf : TS Rel pers st lst f x)
+    (hk : ∀ s1 d1 t1 lst1, Rel d1 t1 → TS Rel pers (withStore st s1) lst1 (KR s1 d1) (g t1)) :
+    TS Rel pers st lst
       (do
         let (r1, ar1, d1) ← f
         match r1 with
@@ -392,12 +400,12 @@ set_option hygiene false in
 script, not a lemma: the Rust's `match`es are its own matchers.  It reads `hd` and `hp`. -/
 macro "kind_tac " hn:term " , " hu:term : tactic =>
   `(tactic| (
-    refine BS.pure_step fun b hb => ?_
+    refine TS.pure_step fun b hb => ?_
     rw [← marked_eq hb, kindT]
     cases b with
-    | false => exact BS.leaf hd
+    | false => exact TS.leaf hd
     | true =>
-      refine BS.pure_step fun i hi => ?_
+      refine TS.pure_step fun i hi => ?_
       rw [← mul8_val hi]
       simp only [↓reduceIte]
       intro hrel hinv o s' d' hm
@@ -420,7 +428,7 @@ macro "kind_tac " hn:term " , " hu:term : tactic =>
 
 theorem kind_name {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_kind_name pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_kind_name pk pers st.store bs r m d p)
       (kindT (ConLeche.Frontend.Olean.marked (absM m) kName p.val)
         (nameNode (absPins pk) (absRegion bs r) (8 * p.val) (ConRon.Arena.Frontend.Olean.DS.sub t))
         (ConRon.Arena.Frontend.Olean.DS.setName t p.val) t) := by
@@ -429,7 +437,7 @@ theorem kind_name {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64}
 
 theorem kind_level {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_kind_level pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_kind_level pk pers st.store bs r m d p)
       (kindT (ConLeche.Frontend.Olean.marked (absM m) kLevel p.val)
         (levelNode (absPins pk) (absRegion bs r) (8 * p.val) (ConRon.Arena.Frontend.Olean.DS.sub t))
         (ConRon.Arena.Frontend.Olean.DS.setLevel t p.val) t) := by
@@ -438,7 +446,7 @@ theorem kind_level {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64
 
 theorem kind_levels {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_kind_levels pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_kind_levels pk pers st.store bs r m d p)
       (kindT (ConLeche.Frontend.Olean.marked (absM m) kLevels p.val)
         (levelsNode (absPins pk) (absRegion bs r) (8 * p.val) (ConRon.Arena.Frontend.Olean.DS.sub t))
         (ConRon.Arena.Frontend.Olean.DS.setLevels t p.val) t) := by
@@ -447,7 +455,7 @@ theorem kind_levels {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U6
 
 theorem kind_expr {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_kind_expr pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_kind_expr pk pers st.store bs r m d p)
       (kindT (ConLeche.Frontend.Olean.marked (absM m) kExpr p.val)
         (exprNode (absPins pk) (absRegion bs r) (8 * p.val) (ConRon.Arena.Frontend.Olean.DS.sub t))
         (ConRon.Arena.Frontend.Olean.DS.setExpr t p.val) t) := by
@@ -493,69 +501,71 @@ theorem buildSlot_eq (P : ConRon.Arena.Frontend.Olean.OleanPins) (R : ConLeche.F
     | (refine congrArg (Bind.bind _) (funext fun o => ?_); cases o)
 
 /-- **`build_slot` is `buildSlot`.** -/
-theorem build_slot_bs {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
+theorem build_slot_ts {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_slot pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_slot pk pers st.store bs r m d p)
       (buildSlot (absPins pk) (absRegion bs r) (absM m) t p.val) := by
   rw [build_slot, buildSlot_eq]
-  refine BS.bind (kind_name hr hp hd) fun s1 d1 t1 lst1 h1 => ?_
-  refine BS.bind (kind_level hr hp h1) fun s2 d2 t2 lst2 h2 => ?_
-  refine BS.bind (kind_levels hr hp h2) fun s3 d3 t3 lst3 h3 => ?_
+  refine TS.bind (kind_name hr hp hd) fun s1 d1 t1 lst1 h1 => ?_
+  refine TS.bind (kind_level hr hp h1) fun s2 d2 t2 lst2 h2 => ?_
+  refine TS.bind (kind_levels hr hp h2) fun s3 d3 t3 lst3 h3 => ?_
   exact kind_expr hr hp h3
 
 /-- `build_marked`, the test of a slot of `buildPass`. -/
-theorem build_marked_bs {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
+theorem build_marked_ts {pk bs r pers st lst} {m : alloc.vec.Vec Std.U8} {p : Std.U64} {d t}
     (hr : RegionFits bs r) (hp : p.val ≤ Std.Usize.max) (hd : DSRel d t) :
-    BS pers st lst (build_marked pk pers st.store bs r m d p)
+    TS DSRel pers st lst (build_marked pk pers st.store bs r m d p)
       (if (marksAt (absM m) p.val != 0) = true then
         buildSlot (absPins pk) (absRegion bs r) (absM m) t p.val
        else pure (some t)) := by
   rw [build_marked]
-  refine BS.pure_step fun i hi => ?_
+  refine TS.pure_step fun i hi => ?_
   rw [← marks_at_eq hi, ← absByte_bne_zero]
   split
-  · exact build_slot_bs hr hp hd
-  · exact BS.leaf hd
+  · exact build_slot_ts hr hp hd
+  · exact TS.leaf hd
 
 /-- **`build_pass` is `buildPass`.** -/
-theorem build_pass_loop_bs {pk bs r pers} {m : alloc.vec.Vec Std.U8} {n : Std.U64}
+theorem build_pass_loop_ts {pk bs r pers} {m : alloc.vec.Vec Std.U8} {n : Std.U64}
     (hr : RegionFits bs r) (hn : n.val ≤ Std.Usize.max) :
     ∀ (f : Nat) {st lst} {p : Std.U64} {d t}, n.val - p.val ≤ f → DSRel d t →
-      BS pers st lst (build_pass_loop pk pers st.store bs r m n d p)
+      TS DSRel pers st lst (build_pass_loop pk pers st.store bs r m n d p)
         (buildPass (absPins pk) (absRegion bs r) (absM m) n.val t p.val) := by
   intro f
   induction f with
   | zero =>
     intro st lst p d t hf hd
     rw [build_pass_loop, buildPass, ite_eq_right (by scalar_tac), ite_eq_right (by omega)]
-    exact BS.leaf hd
+    exact TS.leaf hd
   | succ f ih =>
     intro st lst p d t hf hd
     rw [build_pass_loop, buildPass]
     by_cases hlt : p < n
     · have hlt' : p.val < n.val := hlt
       rw [ite_eq_left hlt, ite_eq_left hlt']
-      refine BS.of_eq (BS.bind (build_marked_bs hr (by omega) hd)
+      refine TS.of_eq (TS.bind (build_marked_ts hr (by omega) hd)
         (g := fun t1 => buildPass (absPins pk) (absRegion bs r) (absM m) n.val t1 (p.val + 1))
         fun s1 d1 t1 lst1 h1 => ?_) ?_
       rotate_left
       · split
-        · rfl
+        · refine congrArg (_ >>= ·) (funext fun o => ?_)
+          cases o <;> rfl
         · simp
-      refine BS.pure_step fun p1 hp1 => ?_
+      refine TS.pure_step fun p1 hp1 => ?_
       have hv := uscalar_add_eq hp1
       have l : (1#u64 : Std.U64).val = 1 := by decide
       rw [show p.val + 1 = p1.val by omega]
       exact ih (st := withStore st s1) (by omega) h1
     · have hlt' : ¬ p.val < n.val := hlt
       rw [ite_eq_right hlt, ite_eq_right hlt']
-      exact BS.leaf hd
+      exact TS.leaf hd
 
 /-! ## Both passes -/
 
-/-- `RS` from `BS`: the memo is the answer. -/
-theorem RS.of_BS {pers st lst} {f} {x : AM (Option TDS)} (h : BS pers st lst f x) :
-    RS pers DSRel st lst
+/-- `RS` from `TS`: the memo is the answer. -/
+theorem RS.of_TS {δ τ : Type} {Rel : δ → τ → Prop} {pers st lst} {f} {x : AM (Option τ)}
+    (h : TS Rel pers st lst f x) :
+    RS pers Rel st lst
       (do
         let (r1, ar1, st1) ← f
         match r1 with
@@ -633,8 +643,8 @@ theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec St
         refine RS.pure_step fun d0 hd0 => ?_
         have hf := ds_fresh_rel hd0
         rw [hc] at hf
-        have hb := build_pass_loop_bs (pk := pk) (pers := pers) (m := m3) hr hnm _ (st := st) (lst := lst)
+        have hb := build_pass_loop_ts (pk := pk) (pers := pers) (m := m3) hr hnm _ (st := st) (lst := lst)
           (p := 0#u64) (Nat.le_refl _) hf
-        exact RS.of_BS (by rw [build_pass]; exact hb)
+        exact RS.of_TS (by rw [build_pass]; exact hb)
 
 end ConRon.Refine2.Frontend.Olean
