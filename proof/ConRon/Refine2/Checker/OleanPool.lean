@@ -248,4 +248,36 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
       simp only [oleanJob, hgetT _ hd, absIDeclaration]
       exact hplainT lst' hx
 
+open ConRon.Refine2.Frontend.Olean in
+/-- **A worker's `--olean` fold ⊑ `checkOleanJobList`**: each claimed index is a record
+position, and the worker's jobs, from one idle state and a related cache, are the twin's. -/
+theorem foldAllOk_oleanJobStep_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+    {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
+    {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {rd : frontend.olean.records.OleanRead}
+    {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel rd.values.val values'.toList)
+    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I) :
+    ∀ (ks : List Nat) {st lst c c'},
+      AIdle tier st lst → AStateInv tier st → lst.store.scratchOn = false → VCRel c c' →
+      FoldAllOk (oleanJobStep inst fsv tier mode pins ds rd sp) (st, c) ks →
+      (∀ k ∈ ks, k < ds.val.length) ∧
+      ∃ s'', checkOleanJobList fs (absPins rd.pins) (absSearchPath sp) values'
+        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray ks c' lst
+        = .ok (.ok (), s'')
+  | [], _, lst, _, _, _, _, _, _, _ => ⟨by simp, lst, rfl⟩
+  | k :: ks, _, lst, _, _, hidle, hinv, hoff, hc, ⟨⟨st1, c1⟩, hs1, hf⟩ => by
+    obtain ⟨hlt, c1', lst1, hx, hc1, hidle1, hinv1, hoff1⟩ :=
+      olean_job_step_refines hfs hv hidle hinv hoff htf hI hc hs1
+    obtain ⟨hall, s'', h⟩ :=
+      foldAllOk_oleanJobStep_refines hfs hv htf hI ks hidle1 hinv1 hoff1 hc1 hf
+    refine ⟨?_, s'', ?_⟩
+    · intro x hx
+      rcases List.mem_cons.mp hx with rfl | hx
+      · exact hlt
+      · exact hall x hx
+    · simp only [checkOleanJobList]
+      rw [hx]
+      exact h
+
 end ConRon.Refine2
