@@ -315,7 +315,7 @@ def kindsSameT : CKindF NIdx EIdx → CKindF NIdx EIdx → Bool
 /-- A stored constant's kind, as the twin's relation asks. -/
 abbrev KRel := KindRel (N := arena.handle.NIdx) (E := arena.handle.EIdx) absNIdx absEIdx ValRel
 
-theorem rules_map {r : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)}
+theorem rules_abs_map {r : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)}
     {r' : List (NIdx × Nat × EIdx)} (h : List.Forall₂ (RuleRel absNIdx absEIdx ValRel) r.val r') :
     r' = r.val.map absRule := by
   generalize r.val = l at h
@@ -362,7 +362,7 @@ theorem kinds_same_bt {a b : frontend.olean.spec.CKindF arena.handle.NIdx arena.
       BT.andc (u64_iff _ _) <| BT.dec (bool_iff _ _)).of_eq (by simp only [kindsSameT, Bool.and_assoc])
   · obtain ⟨rfl, rfl, rfl, rfl, rfl, h1, rfl, rfl⟩ := ha
     obtain ⟨rfl, rfl, rfl, rfl, rfl, h2, rfl, rfl⟩ := hb
-    rw [rules_map h1, rules_map h2]
+    rw [rules_abs_map h1, rules_abs_map h2]
     exact (BT.and (nidx_list_eq_bt _ _) <| BT.andc (u64_iff _ _) <| BT.andc (u64_iff _ _) <|
       BT.andc (u64_iff _ _) <| BT.andc (u64_iff _ _) <| BT.and (rules_eq_bt _ _) <|
       BT.andc (bool_iff _ _) <| BT.dec (bool_iff _ _)).of_eq (by simp only [kindsSameT, Bool.and_assoc])
@@ -655,7 +655,7 @@ theorem priv_loc_of_rel {consts : alloc.vec.Vec Std.U64} {o} (h : priv_loc_of co
     have : ¬ i.val < consts.val.length := by simpa [UScalar.lt_equiv] using hc
     omega
 
-theorem names_map {cs : List (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+theorem entry_names_map {cs : List (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
     {cs' : List (CEntryF NIdx EIdx)} (h : List.Forall₂ ERel cs cs') :
     (cs.map (fun c => c.name)).map absNIdx = cs'.map (fun c => c.name) := by
   induction h with
@@ -670,7 +670,7 @@ theorem priv_idx_of_rel {cs : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.h
       (cs'.size.fold (init := {}) fun i _ acc => acc.insert cs'[i].name i) cs.val.length := by
   have hlen : cs'.size = (cs.val.map (fun c => c.name)).length := by
     simpa using hcs.length_eq.symm
-  rw [posMap_fold cs' (fun c => c.name), ← names_map hcs, hlen]
+  rw [posMap_fold cs' (fun c => c.name), ← entry_names_map hcs, hlen]
   have hl2 : cs.val.length = (cs.val.map (fun c => c.name)).length := by simp
   rw [hl2]
   rw [priv_idx_of] at h
