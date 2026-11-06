@@ -269,17 +269,15 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
     (hrec : RecordSpec pins pinsP) (hpp : PersPinSets pins)
     (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁) (hpins : PinsDenote s₁.store pins pinsP)
     (hpd : ∀ x ∈ ds.toList, PersDecl x)
-    (hden : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
-      Frontend.denoteDecl s₁.store ds[i] = some dsP[i])
     (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
     (hpI : PersIFBase I.base)
-    (hw : WorkerOK s₁ w) (hk : k < ds.size) (hP : PrefixOK pinsP dsP k)
+    (hw : WorkerOK s₁ w) (hk : k < ds.size) (hk' : k < dsP.length)
+    (hdk : Frontend.denoteDecl s₁.store ds[k] = some dsP[k]) (hP : PrefixOK pinsP dsP k)
     (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
     (hjob : recordJob .verified pins I k ds[k] w = .ok ((), w')) :
-    WorkerOK s₁ w' ∧ ∃ (hk' : k < dsP.length) (env' : Env) (F : Nat),
+    WorkerOK s₁ w' ∧ ∃ (env' : Env) (F : Nat),
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
         (ConLeche.Cached.streamEnv (dsP.take k)) dsP[k] = .ok env' := by
-  obtain ⟨hk', hdk⟩ := hden k hk
   -- the bracket
   simp only [recordJob, Bind.bind, StateT.bind, Except.bind] at hjob
   have henter : enterScratch w =
@@ -312,7 +310,7 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
     refine ⟨{ state := ⟨EStore.dropScratch_wf hst'.wf⟩
               pext := (hxj.trans (PExt.of_ext hx')).trans (PExt.dropScratch hst'.wf)
               caches := rfl
-              pins := hp'.trans hpj }, hk', env', F, hF⟩
+              pins := hp'.trans hpj }, env', F, hF⟩
 
 /-! ## A worker's list
 
@@ -484,8 +482,9 @@ theorem pooled_fold_records (V : Type w) [ConLeche.SetTheory V]
     (fun w hw => ?_)
   · intro k w w' _ hw hP hnd hrun
     obtain ⟨hk, hj⟩ := hrun
-    obtain ⟨hw', hk', env', F, hF⟩ :=
-      job_spec V hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hw hk hP hnd hj
+    obtain ⟨hk', hdk⟩ := hden k hk
+    obtain ⟨hw', env', F, hF⟩ :=
+      job_spec V hrec hpp hpinsOK hpersPins hpins hpd hI hpI hw hk hk' hdk hP hnd hj
     exact ⟨hw', env', F, hF⟩
   · intro t w w' hr
     obtain ⟨hk, -⟩ := hr

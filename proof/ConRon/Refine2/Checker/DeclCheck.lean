@@ -812,7 +812,49 @@ theorem check_reduce_pin_refines {pers st lst} {rf lf}
     SimEnv pers lst o
       (checkReducePin (ConRon.Refine.absMode mode) lf (absIConstantInfo ci) (absNIdx c)
         (absEIdx value)) := by
-  sorry -- T143-STUB
+  rw [arena.decl_check.check_reduce_pin] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdup := i_constant_info_dup_abs hii
+  obtain ⟨⟨prev, fe1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hfe1 := (ifenv_push_temp_refines hfeI h1).1
+  rw [hdup] at hfe1
+  obtain ⟨⟨stored, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := reduce_stored_ok_refines hrel hinv hfe1.rel hfe1.inv h2
+  obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2
+  simp only [SimEnv, checkReducePin]
+  cases stored with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok b =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS.apply
+    rw [Lockstep.run_bind_ok hx1]
+    cases b with
+    | false =>
+      simp only [id, Bool.false_eq_true, ↓reduceIte] at hrun ⊢
+      obtain ⟨s1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r0, hr0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := fail_run hr0
+      obtain rfl := (Result.ok_injective hrun).symm
+      exact AErrSim.notImplemented rfl
+    | true =>
+      simp only [id, ↓reduceIte] at hrun ⊢
+      obtain ⟨⟨r, st2⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain rfl := (Result.ok_injective hrun).symm
+      have hP := check_reduce_pin_pre_refines hrel1 hinv1 hfe2.rel hfe2.inv h4
+      rw [← checkReducePinPre_unfold] at hP
+      cases r with
+      | Err e =>
+        show AErrSim e _
+        rw [StateT.run_bind]; exact AErrSim.bind hP _
+      | Ok u =>
+        obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hP.apply
+        exact ⟨_, lst2, by rw [StateT.run_bind, hx2]; rfl, hfe2, hrel2, hinv2⟩
 
 /-! ## The three value kinds
 
@@ -946,6 +988,101 @@ open Lockstep in
       (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) :=
   LS.ofSim₀ fun _ h => check_opaque_val_refines hrel hinv hfe.rel hfe.inv h
+
+/-! ### The record a value check returns is at the declared name
+
+The pinned gates push the record and pop at the declared name, which must be the
+record's own (`ifenv_pop_temp_refines`); a Rust-side fact, read off the last
+step of each check. -/
+
+/-- The tail every value check ends in: the type comparison, then the record. -/
+private theorem value_tail_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {mk : arena.env.IConstantVal → arena.env.IConstantInfo}
+    {M : Array Std.U32 n} {ci st'}
+    (hmk : ∀ iv, (absIConstantInfo (mk iv)).name = absNIdx iv.name)
+    (h : (do
+      let (r1, st2) ← arena.core.infer_type_core pers st mode rf arena.core.CHECK_FUEL 0#u64 value
+      match r1 with
+      | core.result.Result.Ok vtype =>
+        let (r2, st3) ← arena.core.is_def_eq_core pers st2 mode rf arena.core.CHECK_FUEL 0#u64
+          vtype cv.ty
+        match r2 with
+        | core.result.Result.Ok ok1 =>
+          if ok1 then
+            let iv ← arena.env.i_constant_val_dup cv
+            ok (core.result.Result.Ok (mk iv), st3)
+          else
+            let s ← lift (Array.to_slice M)
+            let v ← kernel.core_types.code_points s
+            let r3 ← arena.monad.fail arena.env.IConstantInfo (kernel.core_types.CheckError.Invalid v)
+            ok (r3, st3)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st2)) = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok vt =>
+    obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r2 with
+    | Err e => exact absurd (Result.ok_injective h) (by simp)
+    | Ok b =>
+      cases b with
+      | false =>
+        obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain rfl := fail_run hr3
+        exact absurd (Result.ok_injective h) (by simp)
+      | true =>
+        obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        rw [hmk]
+        exact congrArg IConstantVal.name (i_constant_val_dup_abs hiv)
+
+/-- `check_opaque_val`'s record is at the declared name. -/
+theorem check_opaque_val_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {ci st'}
+    (h : arena.decl_check.check_opaque_val pers st mode rf cv value = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  rw [arena.decl_check.check_opaque_val] at h
+  obtain ⟨⟨r, s⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok u =>
+  exact value_tail_name (mk := arena.env.IConstantInfo.AxiomInfo) (fun _ => rfl) h
+
+/-- `check_defn_val`'s record is at the declared name. -/
+theorem check_defn_val_name {pers st mode rf} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {hint : kernel.env.ReducibilityHint} {ci st'}
+    (h : arena.decl_check.check_defn_val pers st mode rf cv value hint = ok (.Ok ci, st')) :
+    (absIConstantInfo ci).name = absNIdx cv.name := by
+  rw [arena.decl_check.check_defn_val] at h
+  obtain ⟨⟨r, s⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok u =>
+  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact absurd (Result.ok_injective h) (by simp)
+  | Ok vt =>
+    obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r2 with
+    | Err e => exact absurd (Result.ok_injective h) (by simp)
+    | Ok b =>
+      cases b with
+      | false =>
+        obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain rfl := fail_run hr3
+        exact absurd (Result.ok_injective h) (by simp)
+      | true =>
+        obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨rh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        exact congrArg IConstantVal.name (i_constant_val_dup_abs hiv)
 
 /-! ## The `Nat`-operation pin certification -/
 
@@ -3134,7 +3271,10 @@ theorem check_div_mod_pin_at_fe2_refines {pers st lst} {rf2 lf2}
     (hfe : IFEnvRel pers rf2 lf2) (hfinv : IFEnvInv rf2)
     (hrun : arena.decl_check.check_div_mod_pin_at_fe2 pers st rf2 c = ok o) :
     Sim₀ absEIdx pers lst o (checkDivModPinAtFe2 lf2 (absNIdx c)) := by
-  sorry -- T143-STUB
+  have hfeI : IFEnvRelI pers rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.check_div_mod_pin_at_fe2, checkDivModPinAtFe2_split]
+  lockstep
 
 /-- **`check_div_mod_pin` ⊑ `checkDivModPin`**: the reads at the environment with
 the definition pushed, then the variant loop at the environment without it.
@@ -3150,7 +3290,40 @@ theorem check_div_mod_pin_refines {pers st lst} {rf lf}
     SimEnv pers lst o
       (checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIConstantInfo ci) (absNIdx c)) := by
-  sorry -- T143-STUB
+  rw [arena.decl_check.check_div_mod_pin] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdup := i_constant_info_dup_abs hii
+  obtain ⟨⟨prev, fe1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hfe1 := (ifenv_push_temp_refines hfeI h1).1
+  rw [hdup] at hfe1
+  obtain ⟨⟨at2, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := check_div_mod_pin_at_fe2_refines hrel hinv hfe1.rel hfe1.inv h2
+  obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2
+  simp only [SimEnv, checkDivModPin]
+  cases at2 with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok value2 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS.apply
+    rw [Lockstep.run_bind_ok hx1]
+    obtain ⟨⟨r, st2⟩, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    have hP := check_div_mod_pin_loop_refines (ltried := []) hrel1 hinv1 hfe2.rel hfe2.inv h4
+    have hz : absINatOpPinSetLFrom pins 0#usize = absINatOpPinSetL pins := by
+      simp [absINatOpPinSetLFrom, absINatOpPinSetL]
+    rw [hz] at hP
+    cases r with
+    | Err e =>
+      show AErrSim e _
+      rw [StateT.run_bind]; exact AErrSim.bind hP _
+    | Ok u =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hP.apply
+      exact ⟨_, lst2, by rw [StateT.run_bind, hx2]; rfl, hfe2, hrel2, hinv2⟩
 
 /-! ## The basis installs -/
 
@@ -3253,6 +3426,33 @@ theorem install_basis_decls_refines {pers : arena.store.PersTier} {lst} {rf lf}
     SimRelR (fun r v => IFEnvRelI pers r v) lst o
       (installBasisDecls lf (absICILFrom decls i)) :=
   install_basis_decls_aux _ decls i rfl hfe hfinv hrun
+
+open Lockstep in
+/-- `install_basis_decl` as the read the `lockstep` zip steps over. -/
+@[lockstep] theorem install_basis_decl_ls {pers st lst} {rf lf} {ci : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LSR pers (IFEnvRelI pers) (arena.decl_check.install_basis_decl pers rf ci) st lst
+      (installBasisDecl lf (absIConstantInfo ci)) := by
+  intro o h
+  have H := install_basis_decl_refines (lst := lst) hfe.rel hfe.inv h
+  cases o with
+  | Err e => exact H
+  | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩
+
+open Lockstep in
+/-- `install_basis_decls` from the start, as the read the `lockstep` zip steps over. -/
+@[lockstep] theorem install_basis_decls_ls {pers st lst} {rf lf}
+    {decls : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LSR pers (IFEnvRelI pers) (arena.decl_check.install_basis_decls pers rf decls 0#usize) st lst
+      (installBasisDecls lf (absICIL decls)) := by
+  intro o h
+  have H := install_basis_decls_refines (lst := lst) hfe.rel hfe.inv h
+  have e0 : absICILFrom decls 0#usize = absICIL decls := by simp [absICILFrom, absICIL]
+  rw [e0] at H
+  cases o with
+  | Err e => exact H
+  | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩
 
 /-! ## The axiom census -/
 

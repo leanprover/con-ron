@@ -5,7 +5,7 @@
 rule 5 — *a `HashMap::get` match that produces a value is its own function; a
 `view`'s loans must be dead at the memo's join* — makes the Rust of the
 declaration checker **finer-grained than the twin**: `check_constant_val` is
-four Rust functions, `check_value_group` is three.
+four Rust functions, `value_guards` two.
 None of those splits has a twin of its own, and DESIGN §3.1's one-to-one rule
 is about the TWIN's granularity, not the port's.
 
@@ -18,7 +18,8 @@ is that transcription, collected rather than scattered, so that
 * each Rust split has exactly one twin-side subject, spelled once;
 * the `_unfold` equations that tie the transcriptions back to the named twins
   are in one place, where a reader can check them against
-  `Arena/CheckerBase.lean` and `Arena/CheckerSplit.lean` clause for clause;
+  `Arena/CheckerBase.lean`, `Arena/DeclCheck.lean` and `Arena/CheckDecl.lean` clause
+  for clause;
 * nothing under `Arena/` is edited to make the refinement convenient, which is
   the standing rule for a twin (DESIGN §8.4).
 
@@ -121,7 +122,7 @@ def indParamsOkAtSpec (nP : Nat) : IConstantInfo → AM Bool
 
 Each says that the named twin IS its transcription composed — the file's whole
 proof obligation, and the only thing a reader has to check against
-`Arena/CheckerBase.lean` and `Arena/CheckerSplit.lean`. -/
+`Arena/CheckerBase.lean` and `Arena/DeclCheck.lean`. -/
 
 /-- `checkConstantVal` is its three pieces and the inference. -/
 theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
@@ -270,7 +271,7 @@ theorem ofReduceAxOk_split (fe : IFEnv) (cv : IConstantVal) :
       let c ← ofReduceOp cv.name
       if !(← eqStored fe) then pure false
       else ofReduceAxOkRestSpec fe cv c) := by
-  simp only [ofReduceAxOk, ofReduceAxOkRestSpec, bind_assoc, pure_bind]
+  simp only [ofReduceAxOk, ofReduceAxOkRestSpec]
 
 /-- `trustCompilerOk` split where the port splits it, the twin's literal arity
 pattern read as the port's explicit test. -/
@@ -408,6 +409,12 @@ def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
       "unsupported compiler-trust opaque spelling (pin ground constants absent)")
   else fail (.notImplemented
     "unsupported compiler-trust opaque declaration")
+
+/-- `checkReducePinPre` is its three transcriptions. -/
+theorem checkReducePinPre_unfold (mode : CheckMode) (fe : IFEnv) (c : NIdx) (value : EIdx) :
+    checkReducePinPre mode fe c value = checkReducePinPreSpec mode fe c value := by
+  twin_reduce [checkReducePinPre, checkReducePinPreSpec, checkReducePinValueSpec,
+    checkReduceIdentitySpec]
 
 /-! ### The three value kinds' tails -/
 
@@ -757,6 +764,57 @@ def defnValueOf (fe : IFEnv) (c : NIdx) : Option EIdx :=
   match fe.find? c with
   | some (.defnInfo _ v _) => some v
   | _ => none
+
+/-- `checkDivModPinAtFe2` at the stored value as the Rust reads it (`defn_value`). -/
+theorem checkDivModPinAtFe2_split (fe2 : IFEnv) (c : NIdx) :
+    checkDivModPinAtFe2 fe2 c = (do
+      if ← divModEnvGuard fe2 c then
+        match defnValueOf fe2 c with
+        | some v => pure v
+        | none => fail (.internal "Nat.div/mod operation not stored")
+      else fail (.notImplemented "unsupported Nat.div/mod environment")) := by
+  unfold checkDivModPinAtFe2 defnValueOf
+  refine ConRon.Refine2.am_bind_congr _ fun g => ?_
+  cases g
+  · rfl
+  · simp only [ite_true]
+    rcases fe2.find? c with _ | ci
+    · rfl
+    · cases ci <;> rfl
+
+/-- `checkStructuralNatPinAtFe2` in the Rust's arrangement: the two guards nested,
+the stored value as `defn_value` reads it. -/
+theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
+    checkStructuralNatPinAtFe2 fe2 n = (do
+      let g ← natOpGuard fe2 n
+      let deps ← natOpDeps n
+      let d ← natOpStoredOkAll fe2 deps
+      if g then
+        if d then
+          match defnValueOf fe2 n with
+          | some v => pure v
+          | none => fail (.internal "structural Nat operation not stored")
+        else fail (.notImplemented "nonstandard structural Nat operation environment")
+      else fail (.notImplemented "nonstandard structural Nat operation environment")) := by
+  unfold checkStructuralNatPinAtFe2 defnValueOf
+  refine ConRon.Refine2.am_bind_congr _ fun g => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun d => ?_
+  cases g <;> cases d <;> simp only [Bool.and_true, Bool.and_false, Bool.false_eq_true,
+    ↓reduceIte, ConRon.Refine2.am_fail_bind]
+  all_goals
+    rcases fe2.find? n with _ | ci
+    · rfl
+    · cases ci <;> rfl
+
+/-- `checkStructuralNatPin` is the reads at the environment with the definition,
+the pop, and the certification (`check_structural_nat_pin_eqs`). -/
+theorem checkStructuralNatPin_split (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
+    (n : NIdx) :
+    checkStructuralNatPin mode fe ci n = (do
+      let v ← checkStructuralNatPinAtFe2 (fe.push ci) n
+      checkStructuralNatPinEqsSpec mode ((fe.push ci).popTemp n fe.idx[n]?) n v
+      pure ((fe.push ci).popTemp n fe.idx[n]?)) := by
+  twin_reduce [checkStructuralNatPin, checkStructuralNatPinEqsSpec]
 
 theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :

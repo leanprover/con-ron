@@ -843,4 +843,11 @@ theorem frontier_expr_refines {pk bs r pers st lst} {b : frontend.olean.sparse.F
       rw [StateT.run_bind]
       exact AErrSim.bind hF _
 
+/-- `REF_BASE` is `refBase`. -/
+theorem ref_base_val {x : Std.U64} (h : frontend.olean.lazy.REF_BASE = ok x) :
+    x.val = ConLeche.Frontend.Olean.refBase := by
+  rw [frontend.olean.lazy.REF_BASE] at h
+  have := (ConRon.Refine.Nat.ushiftLeftI_val h).2
+  rw [this]; decide
+
 end ConRon.Refine2.Frontend.Olean

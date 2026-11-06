@@ -71862,3 +71862,145 @@ deleted, new and changed twin signatures are in this task's report; the notable 
 … (allowOp)`, `blockCapsAt` pure, `checkBlock` over `BlockShape` ending in `pushDelta`, `majorToCtor`/
 `prepareMajor` take `isK`, the value checks return the record unpushed, `checkDivModPin`/`checkReducePin`
 take `ci` and return the environment, `prepareD`/the hoist take `used`, `readOleans` returns `OleanRead`.
+
+#### Theorem 2
+
+**The relation follows the stream index.**  `Refine2/AbsState.lean`: a job's environment is an empty
+layer over the frozen index on both sides, so `IFEnvRel pers rf lf` lost `E₀` and is field for field
+again: `IFEnvRead` (the layer's own rows and tables through their slots, `ownRow`/`ownTbl`, against the
+twin's own maps; the frozen index `pers.env` against the twin's `base` by `BaseRel` over `ixRow`/`ixTbl`,
+the counter and the constant at that slot; the two bounds) plus the pushed lists.  `CoreCtx` is
+`IFEnvRead` with the layer's `IFEnvInv`.  `BaseOK` carries the index's range clauses (every stored
+counter and slot below its list's length), without which the `as usize` casts of the base lookups are
+not the identity.  Gone: `IConstantInfoWF` (its one clause was the deleted `sort_z`), `IFEnvKeys`,
+`IFEnvTblKeys`, `IFEnvOwn`, `overEnv`, `PersEnvEmpty`, the visibility counter and every `vis`/`hvis`
+(a mechanical pass, tier-wide).  `Checker/StreamIndex.lean`: `StreamIndexRel ix I` (`IxConsts`: rows,
+the list exactly `next` long, the map well formed, counters in range; `IxTables`; the firsts; the
+counter), with `insert_consts_rel`, `insert_tables_rel` (a name's first entry wins: Rust
+`contains_key` then `insert`, twin `insertIfNew`) and `stream_index_view_rel`.
+
+**The pipeline.**  `Checker/IndexBuild.lean`: `stream_index_add_refines`, `build_index_refines`,
+`build_index_empty_refines` (from `ixEmpty`, `stream_index_empty()`'s value), over the IND sub-lane's
+`decl_constants_refines`/`decl_tables_refines` (`Checker/Install.lean`).  `Checker/Jobs.lean`:
+`record_check_refines` (the `And` pin, then `check_decl_refines` at `stream_index_view_rel`),
+`record_job_refines` (`enter_record`/`leave_record` against `enterScratch`/`dropScratch`, between two
+`AIdle` states, the twin worker's scratch tier off after it), `run_job_refines`, and the pool's
+contract `ParallelAll`/`FoldAllOk`.  `Checker/Phased.lean`: `PoolAccepts pers st mode pins ds ix st'`
+(`build_index … ixEmpty ds 0 = ok (.Ok ix, st')`, `freeze_tier st'.store ix = ok (tier, est)`,
+`ParallelAll ds.length (worker_state st'.pins) (jobStep tier mode pins ds)`), `poolAccepts_intro`
+(the driver's three premises), `pool_accepts_refines` into `PooledAccepts … lst I lst'` with
+`AStateRel₀ pers st' lst'` and `StreamIndexRel ix I`, under `AStateRel₀`/`AStateInv`/`pers.frozen =
+false` only.  `ParallelAll` now promises each worker's claims increasing (`List.Pairwise (· < ·)`, the
+coordinator's ruling for Theorem 1's induction; `pool.rs`'s contract note says so and why).
+`jobStep` is `run_job` at the `usize` index cast up (`UScalar.cast .U64`), as the driver's `k as u64`.
+
+**`--olean`.**  The twin read every theorem value up front (`readOleansFull`) where the binary reads
+each in its job.  The twin now does what the binary does (bfa06d5e): `Arena/OleanJobs.lean`'s `oleanJob`
+(the bracket opened, `readValue`, `recordCheck` with the value in place, the bracket closed; any other
+record `runJob`'s), the worker fold with its `ValueCache`, `checkOleans`, `PooledOleanAccepts`;
+`oleanPipeline` prepares with `rd.usedOf`, as the binary's `prepare_d` with the `OleanRead` instance;
+`fillRecord` reads the reference with `viewBVar`, as `fill_record`'s `view_bvar`.  After it:
+`diff-olean.sh --lean` 116/122 (the six `read:` lines, as before), `diff-e2e.sh --timeout=60
+--bin=con-ron-lean` 682/682, display 6/9 (#139's three), command line 10/10.  The binary's job
+`driver::olean_job` is not extracted (it is in the binary crate), so `Checker/OleanPool.lean` states it
+as `oleanJobStep`, the same straight line of calls into the verified crate (the `bvar` tag test of
+43aaefef included), with `oleanWorkerInit` the driver's init closure; `olean_job_step_refines` relates it
+to `oleanJob` between idle workers with the caches related (`VCRel`), `foldAllOk_oleanJobStep_refines`
+a worker, and `olean_pool_accepts_refines` lands in `PooledOleanAccepts fs (absPins rd.pins)
+(absSearchPath sp) values' …` at `List.Forall₂ ModRefRel rd.values.val values'.toList`, which with the
+pins is what `OleanReadRel` (`Frontend/Olean/Contract.lean`, `ReadOleansRefines` now ends in it) gives.
+
+**The sub-lanes.**  Six forks, each in its own worktree off this branch, each first making its
+modules build at the final statements with marked stubs (STAGE 1), merged here at once so the next
+could build, then closing the stubs (STAGE 2):
+* CORE (`Core/**`, `ExprOps/**`, `KnotHyp`, `Leaves`, `Tactic/Tests`): the readers against `CoreCtx`;
+  the at-use computations `eta_rescue_ok`, `former_z`, `former_never_zero(_at)`, `ctor_family`,
+  `iota_case3_at`; a new `Core/LS/ProjGuard.lean` (`is_always_zero`, `names_all_in_from`,
+  `zero_where_zero`, the loose-bvar walk, `struct_used_later`, `open_pis_at_fvars(_f, _f_go)`,
+  `proj_guard_rows(_at)`, `former_res_sort`, `former_sort_loop`, `proj_guard_sort`, `check_guard_rows`);
+  `check_proj_guard`; `stored`, `nat_lit_stored`, `str_lit_stored`, `lit_shape_ok`; `rec_fire_args`'
+  new argument and `major_to_ctor`/`prepare_major`'s `isK` mechanical.
+* PINS (`Refine/**`, `Promote/**`, `Checker/{Init,PinsWF,Pins,Canon,Axioms}`, new `Checker/Basis.lean`):
+  the kernel types' abstractions, `basis_raw`'s `*_a`, every `arena::basis` function (the renamings
+  `*_at_lps`, `pin_copy(ies)_ok`, `pin_list_ok`, the link checks, `basis_name_hit`, `basis_kind_at_block`,
+  `quot_pin`, `quot_at`, `quot_pin_hit`, `quot_preds_ok`); promotion deleted (`Promote/Promote.lean`,
+  the persistent interns), `arena::intern` at the new types.
+* CHECK (`Checker/{Spec,Base,DeclCheck,Top}`): `check_constant_val` with `allow_op` (`_guards`,
+  `_guards_rest`, `_tail`), `value_guards(_tail)`, `eq_stored`, the overlay pair
+  (`ifenv_push_temp`/`ifenv_pop_temp`), the pinned gates through it (`check_reduce_pin`,
+  `check_div_mod_pin(_at_fe2)`, `check_structural_nat_pin(_at_fe2, _eqs)`, `gate_push_refines`),
+  `check_quot_record`, `check_basis_block`; the install-header, `checker_split`, phase-A, basis-install
+  and quotient-record families deleted.  The pinned gates take `hname : absNIdx n = (absIConstantInfo
+  ci).name`, discharged inside the value arms from the Rust value check's own last step.
+* FRONT (`Frontend/**`): export without the K check; `prepare_d_refines` over any `UsedRel`
+  (`decl_used_rel`, `olean_read_used_rel`); `read_oleans_refines` at `OleanReadRel`; `read_value_refines`
+  with `region_for_ok`; the lazy load (`Frontend/Olean/Lazy.lean`: the frontier walk, the imports, the
+  entries, the uses walk, whose extraction is twelve thousand lines, one object kind at a time).
+* IND (`Inductives/**`, `Checker/Install.lean`) and INST (`Install.lean`'s last four): BlockShape,
+  StreamRecs (`stream_rec_check`, `stream_k_check`, `rec_k_expected`), BlockTail's check onto the
+  constructors' environment (`push_delta_refines`), the positivity and recursor changes; `decl_constants`
+  and `decl_tables`.
+
+**Twin fixes the lockstep found** (none an invariant on a theorem): 820965d5, the twin's `usesGo` and
+`frontierWalk` take fuel as the Rust's (upstream's are `partial`, so no relation to them could be
+proved; Theorem 1's `loadAt_run` follows); 02a64c77, `checkConstantVal`'s certified-operation message
+reads the name with `readName` as the Rust's `read_name` (failure path only).  No Rust change.  Shared
+core: `read_name_ls` in `Tactic/Prims.lean`; `Lockstep.lean`'s tier-walk note (doc only; `LST`/`packT`
+stay as an unused extension point).
+
+**Status.**  STATUS-PLACEHOLDER
+
+#### Theorem 1
+
+**The shape.**  No phase A and no restore: each record's job runs at the frozen index's view of its
+position (`IStreamIndex.view k`), and `Bridge/Checker/Pooled.lean`'s `pooled_fold` is an induction in
+fold order.  At position `k` every earlier position is accepted (`PrefixOK`: the pure fold accepts the
+prefix at some fuel, with distinct names), so `view_foldOK` gives `FoldOK (streamEnv (dsP.take k))
+(I.view k)` at any persistent extension of the driver's state: upstream's `IndexSpec`/`viewTwin` make
+the view the prefix's environment, the kernel's pushes and freshness (`checkDecl_pushes`,
+`checkDecl_fresh`) carry the prefix one step, and `EnvWF` of the prefix comes from con-leche's model
+(`Model.foldPM` → `EnvModelOk` → `toEnvFacts.wf`).  That last step is why the set theory `V` is a
+hypothesis of `Arena.pooledAccepts_bridge`, as it is of con-leche's own `declsRun_model`.  A worker
+reaches its job `k` only through jobs below `k` (`worker_reaches`): this needs each worker's claims
+increasing, so `ParallelAll` promises it (`Arena.PooledAccepts`'s `Pairwise` clause, `pool.rs`'s
+note, OVERVIEW §8.2's row).  The step is generic (`JobSpecAt Inv Run`): `job_spec` for `recordJob`,
+`oleanJob_spec` for `--olean`.
+
+**`--olean`.**  The index is built from the records with their references; upstream's
+`buildIndex_fill` makes it the filled stream's.  A reference's job reads the value into the scratch
+tier (`readValue_run`, at the reader's `ValuesRel`/`NullsRel` carried to the worker by `pmono`) and is
+`recordCheck` with the value in place, so `pooled_fold_oleans` concludes the pure fold of
+`fillStream sp F valuesP dsP` (each reference replaced by `valueOf`, the snapshot's `ValueAt`, unique
+by upstream's `ValueAt.unique`).  `stagesO_no_False` is upstream's `main_oleans_no_False` at the twin:
+the closure's `False` theorem is a record with a reference, `fillDecl` keeps its statement.
+
+**The capstone.**  The twin side moved into the Bridge library (`Bridge/Stages.lean`:
+`stages_frame/model/no_False`, `stagesO_frame/model/no_False`), so it builds without Theorem 2;
+`ConRon/Capstone.lean` is the Rust walk and the headlines.  `h6` is `build_index` from
+`stream_index_empty()`, `h7` `freeze_tier st6.store ix`, `h8` `ParallelAll prepared.decls.length
+(worker_state st6.pins) (jobStep tier .Verified ipins prepared.decls)` (on `--olean`
+`oleanWorkerInit`/`oleanJobStep`); `hord`, `hlayer` and the install hook are gone.  `emptyTier`'s
+`env` is the empty stream index.  `RustDenotes` before: `∃ lst lfe, AStateRel emptyTier st lst ∧
+IFEnvOwn fe lfe ∧ denoteFEnv lst.store lfe = some env` (the environment phase A returned).  After:
+`RustDenotes ds st env := ∃ lst dsP, AStateRel emptyTier st lst ∧ denoteDecls lst.store (absIDeclL ds)
+= some dsP ∧ env = streamEnv dsP` — no environment is returned any more, so the Rust's final state is
+tied to `streamEnv` of what its records denote.  `model_exists_oleans` concludes at
+`RustDenotesFilled`, the same with `dsP.map (fillDecl (fillRef val))` for some `val`; upstream states no
+model theorem for `--olean`, and the values' identity (`valueOf` at the snapshot) is in
+`stagesO_model`'s proof, not in the headline.
+
+**Deleted** with the twin code they proved: the install fold's walks and frame (`installFold_*`,
+`Bridge/Checker/Phased.lean`, `Frame.lean`, the promotion and restore lemmas, `FoldOK_of_start`); the
+census lines of what went.
+
+**Findings.**
+* `view_bvar` reads the bvar table at a handle's slot without testing its tag; `driver::olean_job`
+  and the twin's `oleanJob` took a theorem's value as a file reference whenever it answered.  Fixed in
+  both (43aaefef: the tag test first, as every other caller).  No regression fixture: on `--olean`
+  every theorem record is a reader reference and the built-in prelude declares no theorem, so no plain
+  value reaches the job; the case is latent.  cargo test, diff-olean 122/122, diff-e2e 682/682.
+* A closure theorem's own value need not be the value at its reference (the merge may keep another
+  module's copy of the constant); upstream also states only the filled stream, so the theorems do too.
+* The Inductives lane (part 2): the twin's rule-domain test agrees with upstream's only because
+  `targetRecPins` keeps the ten literal-guard names off pushed recursors (`DomPass`); dropping that pin
+  would make the twin accept string literals upstream rejects.

@@ -548,7 +548,7 @@ theorem stream_unwrap_err {β γ : Type} {x : AM (Except (Arena.CheckError × Na
 Four functions, and their error channel is a PAIR — the position travels as a
 VALUE because (B) has ONE monad (DESIGN §8.4), where con-leche changes monad
 to `StateT CState (Except (CheckError × Nat))`.  The port matches exactly, so
-`SimStream` is `Refine2/Checker/Top.lean`'s `SimFold` at this pair. -/
+the refinement is `SimStream` at this pair. -/
 
 /-- **`size_error`** — THE SIZE GUARD's error: an input of `USize.size` bytes
 or more is refused before any of it is read.  The port drops the interpolated
@@ -1386,17 +1386,20 @@ theorem builtin_prelude_e_refines {pers rst lst o}
 /-! ## The preparation (moved here from `Prepare.lean`, task #97-P5-Front)
 
 `prepare_d` runs the hoist and `export_c::sat_sub`, so its refinement sits
-above both. -/
+above both.  It holds at any `UsedConsts` instance the twin's `used` relates to
+(`UsedRel`): the stream's (`decl_used_rel`) and an `--olean` read's. -/
 
 /-- **`prepare::prepare_d` refines `prepareD`**
 (`Arena/Frontend/Prepare.lean:128-131`) — one of the tier's named
 deliverables.  Composed from `front_of_refines`, `prepared_stream_refines`,
 `hoist_nat_op_ground_refines` and `sat_sub_refines`. -/
-theorem prepare_d_refines {pers rst lst pre ds o}
+theorem prepare_d_refines {U : Type} {inst : frontend.nat_op_ground.UsedConsts U} {u : U}
+    {used : IDeclaration → AM (Array NIdx)} {pers rst lst pre ds o}
+    (hu : UsedRel inst u used pers)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.prepare.prepare_d pers rst pre ds = ok o) :
+    (h : frontend.prepare.prepare_d inst pers rst pre ds u = ok o) :
     Sim₀ absPrepared pers lst o
-      (prepareD (absPreludeIx pre) (absIDeclArr ds)) := by
+      (prepareD (absPreludeIx pre) (absIDeclArr ds) used) := by
   rw [frontend.prepare.prepare_d] at h
   obtain ⟨⟨r, e⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hF := front_of_refines hrel hinv hf
@@ -1415,7 +1418,7 @@ theorem prepare_d_refines {pers rst lst pre ds o}
     obtain ⟨all, hall, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hs := prepared_stream_refines hwf1.1 hall
     obtain ⟨⟨r1, st1⟩, hh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hH := hoist_nat_op_ground_refines hrel1 hinv1 hh
+    have hH := hoist_nat_op_ground_refines hu hrel1 hinv1 hh
     simp only [Sim₀] at hH
     have hfr : (absPlan pre.decls ds (v1, v2)).1 ++ (absPlan pre.decls ds (v1, v2)).2
         = absIDeclArr all := by rw [hs]; rfl
@@ -1453,7 +1456,7 @@ theorem prepare_prelude_refines {pers rst lst pre ds o}
       (preparePrelude (absPreludeIx pre) (absIDeclArr ds)) := by
   rw [frontend.prepare.prepare_prelude] at h
   obtain ⟨⟨r, st1⟩, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hD := prepare_d_refines hrel hinv hd
+  have hD := prepare_d_refines decl_used_rel hrel hinv hd
   simp only [Sim₀] at hD ⊢
   simp only [preparePrelude, am_run_bind']
   cases r with

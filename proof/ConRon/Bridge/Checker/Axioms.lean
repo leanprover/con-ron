@@ -12,8 +12,9 @@ three standard axioms come in through `Std.HashMap`, `Classical` in `Option`'s
 lemmas and `Quot` in `String`, which is the same three every tier of this
 repository already carries.
 
-**Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
-`Arena.pooledAccepts_bridge`.  They print the three standard axioms only,
+**Group 2 — the headline theorems.**  `Arena.checkDecl_bridge`,
+`Arena.pooledAccepts_bridge` / `Arena.pooledOleanAccepts_bridge` and their uses at the twin's
+pipeline (`Bridge/Stages.lean`).  They print the three standard axioms only,
 like group 1 (the capstone's closure, which contains them, is
 `sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
@@ -31,6 +32,7 @@ public import ConRon.Bridge.Checker.Basis
 public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.Arms
+import ConRon.Bridge.Stages
 import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
@@ -434,5 +436,17 @@ hypotheses of the statement. -/
 #print axioms typePinStored_spec
 #print axioms typePinsGuard_spec
 #print axioms checkTypePins_spec
+
+-- the check phase (`Bridge/Checker/Pooled.lean`, `PooledOleans.lean`, `Pool.lean`)
+#print axioms pooled_fold
+#print axioms pooled_fold_records
+#print axioms pooled_fold_oleans
+#print axioms Arena.pooledAccepts_bridge
+#print axioms Arena.pooledOleanAccepts_bridge
+-- the twin's pipeline (`Bridge/Stages.lean`)
+#print axioms stages_model
+#print axioms stages_no_False
+#print axioms stagesO_model
+#print axioms stagesO_no_False
 
 end ConRon.Bridge

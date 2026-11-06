@@ -1,71 +1,22 @@
 /-
-# `ConRon.Refine2.Checker.Base` — Theorem 2 for `arena::checker_base` and `arena::checker_split`
+# `ConRon.Refine2.Checker.Base` — Theorem 2 for `arena::checker_base`
 
 **Task #97-P5-Checker**, deliverable 2 (DESIGN.md §8.2).
-`crates/con-ron-core/src/arena/{checker_base,checker_split}.rs` against
-`proof/ConRon/Arena/{CheckerBase,CheckerSplit}.lean`: the declaration
-checker's common ground — the per-declaration constant check, the two
-memoised guard walks, the declared parameter count — and the install/check
-seam of a value declaration.
+`crates/con-ron-core/src/arena/checker_base.rs` against
+`proof/ConRon/Arena/CheckerBase.lean`: the declaration checker's common
+ground — the per-declaration constant check, the two memoised guard walks, the
+declared parameter count — with a value's guards (`decl_check::value_guards`)
+and the temporary push the pinned gates read through
+(`ifenv_push_temp`/`ifenv_pop_temp`).
 
-## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
+Every statement takes the environment as the checker tier does: `IFEnvRel pers
+rf lf` and `IFEnvInv rf`, from which the core tier's `CoreCtx` is built
+(`IFEnvInv.coreCtx`).  A layer carries no reader bound of its own: what a
+lookup sees is the layer's own rows and the frozen base at the layer's two
+bounds, on both sides.
 
-Task #97-P6-6b took the visibility counter OUT of the environment record's
-read path: `ifenv_find(vis, fe, n)` takes `vis : u64` beside `fe`, because
-reading `fe.visible_below` inside the call forced a copy of the record.  The
-twin's `IFEnv.find?` reads `fe.visibleBelow`.  So every statement whose Rust
-takes a `vis` parameter carries
-
-    
-
-and it is discharged at the top by `IFEnvRel.visibleBelow` — the call sites
-all pass `fe.visible_below` — but must be threaded through the tier, because
-inside it `vis` is an ordinary argument.  **Seventy-one statements of this
-tier carry it**, and like task #97-P5-0's finding 3
-it is a fact about the port's own calling convention rather than a
-divergence.
-
-## Where `hvis` is FALSE, and the nine statements that dropped it
-
-**Task #97-P5-Bracket's finding 3, repaired by task #97-P5-Checker round 3.**
-*"The call sites all pass `fe.visible_below`"* is true of phase A and false of
-phase B.  `arena::checker::check_pending` (`checker.rs:1229`) passes
-`pc.vis` — the counter the pending declaration was installed at — against the
-WHOLE environment phase A ended with, and that difference is the entire point
-of phase B.  Paired with `hfe : IFEnvRel rf lf`, whose third clause is
-`lf.visibleBelow = absU rf.visible_below`, the `hvis` above forces
-`vis = rf.visible_below`: the statement is then satisfiable nowhere on phase
-B's path, and `check_pending_refines` has nothing to be proved from.
-
-The repair moves the restriction from the hypothesis to the CONCLUSION:
-`hfe` stays at the unrestricted environment, `hvis` goes, and the twin is
-called at `lf.restrictTo (absU vis)` — which is what the twin's own
-`checkValueGroup mode (fe.restrictTo pc.vis) pc.vg` says anyway.  The old form
-is recovered at a phase-A call site by rewriting with `IFEnvRel.visibleBelow`,
-since `lf.restrictTo lf.visibleBelow = lf`.
-
-**Which nine.**  Exactly the functions the port can reach from
-`check_value_group` while still threading that `vis`, computed from the Rust
-call graph and no wider: `check_value_group`, `check_value_group_value`,
-`check_value_group_tail`, `install_value_guards`, `install_value_guards_tail`
-(`arena::checker_split`) and `consts_resolve_f_{go,node,two,fast}`
-(`arena::checker_base`).  The rest of the closure is `arena::core`'s, where
-the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (lookups only, through the
-layer and the tier, so the counter is the `vis` clause's business alone) — and
-`arena::prop_read`'s five readers and `arena::env::ifenv_find_proj`, which take the general
-form.
-
-Every OTHER `hvis` of this tier and of `Refine2/Checker/DeclCheck.lean` is
-sound as it stands: those functions are phase A's, where the port really is
-only ever called at `fe.visible_below`.
-
-## What these lemmas wait on
-
-`Refine2/Specs.lean`'s `view`/`intern_e` family, `Refine2/ExprOps/**`
-(statements only when this was written; all closed now) and
-`Refine2/Core/**` — P5-Core's tier, which is where `annotateCore`,
-`inferTypeCore`, `isDefEqCore` and `ensureSortCore` live.  `KnotRel` carries
-them here (`Refine2/Checker/KnotHyp.lean`).
+The core front doors (`inferTypeCore`, `isDefEqCore`, `ensureSortCore`) come
+from `Refine2/Core/**` through `KnotRel` (`Refine2/Checker/KnotHyp.lean`).
 -/
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Checker.Spec
@@ -513,14 +464,6 @@ namespace Lockstep
   rw [arena.core.nat_trio_stored, natTrioStoredSpec]
   lockstep
 
-@[lockstep] theorem str_support_stored_ls {pers st lst} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers rf lf) :
-    LS pers (fun a b => b = id a) (arena.core.str_support_stored pers st rf) lst
-      (strSupportStoredSpec lf) := by
-  rw [arena.core.str_support_stored, strSupportStoredSpec]
-  lockstep
-
 end Lockstep
 
 theorem consts_resolve_aux (n : Nat) :
@@ -599,8 +542,7 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
   fun _ h => (memo_b_get_refines hm h).symm
 
 /-- `consts_resolve_f_go` ⊑ `constsResolveFGo`, by induction on the fuel, at
-any twin environment the port's `(vis, rf)` is a `CoreCtx` of (finding 10's
-`vis`: the caller passes `lf.restrictTo (absU vis)`). -/
+any twin environment the port's `rf` is a `CoreCtx` of. -/
 theorem consts_resolve_f_go_aux (n : Nat) :
     ∀ {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
       (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (lm : Std.HashMap EIdx Bool)
@@ -984,6 +926,10 @@ namespace Lockstep
       (fun r => IFEnvRelI pers r (lf.pushTable (absIProjTable t))) :=
   fun _ h => ifenv_push_table_refines hfe.rel hfe.inv h
 
+attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
+
+end Lockstep
+
 /-! ### A temporary push and its pop (con-leche's `FEnv.overlay`)
 
 The pinned gates read the environment with the declared constant on it and then
@@ -1006,7 +952,25 @@ theorem ifenv_push_temp_refines {pers : arena.store.PersTier} {rf rf1 : arena.en
           Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some s)) ∧
       rf1.env.tables = rf.env.tables ∧ rf1.tbls = rf.tbls ∧
       rf1.base_below = rf.base_below ∧ rf1.base_below_rec = rf.base_below_rec := by
-  sorry -- T143-STUB
+  rw [arena.env.ifenv_push_temp] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨old, hm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hinv', hold, hupd, -⟩ :=
+    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+      hfe.inv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+  have hpush : arena.env.ifenv_push rf ci =
+      ok { rf with env := { rf.env with consts := v }, idx := hm } := by
+    rw [arena.env.ifenv_push, hs]
+    simp only [bind_ok, hn, hq, hv]
+    rfl
+  have hsv : s.val = rf.env.consts.val.length := by
+    simp only [lift, Result.ok.injEq] at hs; subst hs
+    rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
+  exact ⟨ifenv_push_refines hfe.rel hfe.inv hpush, n, hn, hold,
+    ConRon.Refine.vec_push_val hv, ⟨s, hsv, hupd⟩, rfl, rfl, rfl, rfl⟩
 
 /-- **`ifenv_pop_temp` after `ifenv_push_temp` ⊑ `IFEnv.popTemp` after `IFEnv.push`**:
 the layer the push started from, on both sides — the twin's displaced own row is
@@ -1019,11 +983,99 @@ theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena
     (h2 : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
     IFEnvRelI pers rf2
       ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?) := by
-  sorry -- T143-STUB
-
-attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
-
-end Lockstep
+  obtain ⟨-, n', hn', hprev, hcs, ⟨s, hsv, hidx⟩, htb, htbl, hbb, hbr⟩ :=
+    ifenv_push_temp_refines hfe h1
+  have hnn : n' = n := absNIdx_inj (by rw [i_constant_info_name_abs hn', hn])
+  subst n'
+  unfold arena.env.ifenv_pop_temp at h2
+  obtain ⟨v, hv, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+  have hvv : v.val = rf.env.consts.val := by
+    have hlen : rf1.env.consts.val.length = rf.env.consts.val.length + 1 := by
+      rw [hcs]; simp
+    split at hv
+    · rename_i h0
+      exfalso
+      have h0' : rf1.env.consts.val.length = 0 := by
+        have := congrArg (fun x : Std.Usize => x.val) h0
+        simpa [alloc.vec.Vec.len] using this
+      omega
+    · obtain ⟨i, hi', hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      have hiv := ConRon.Refine.Nat.usub_val hi'
+      rw [alloc.vec.Vec.resize, ite_eq_left (by grind), Result.ok.injEq] at hv
+      subst hv
+      simp only [List.resize, alloc.vec.Vec.len] at *
+      simp [hiv.2, hcs]
+  have hidx2 : ∃ hm, ConRon.Refine.HashMap2.Inv
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
+      ConRon.Refine.HashMap2.toFun hm = ConRon.Refine.HashMap2.toFun rf.idx ∧
+      rf2 = { rf1 with env := { rf1.env with consts := v }, idx := hm } := by
+    have hi1 : ConRon.Refine.HashMap2.Inv
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf1.idx :=
+      (ifenv_push_temp_refines hfe h1).1.inv.idxInv
+    have hback : Function.update (ConRon.Refine.HashMap2.toFun rf1.idx) n prev =
+        ConRon.Refine.HashMap2.toFun rf.idx := by
+      rw [hidx, hprev, Function.update_idem, Function.update_eq_self]
+    cases prev with
+    | none =>
+      obtain ⟨⟨q1, hm⟩, hq, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
+          hi1 ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hm, hinv', by rw [hupd, hback], (Result.ok_injective h2).symm⟩
+    | some row =>
+      obtain ⟨n1, hn1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      obtain ⟨⟨q1, hm⟩, hq, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      rw [dupId_nidx _ _ hn1] at hq
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+          hi1 ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hm, hinv', by rw [hupd, hback], (Result.ok_injective h2).symm⟩
+  obtain ⟨hm, hminv, hmfun, rfl⟩ := hidx2
+  have hown : ∀ m, ownRow { rf1 with env := { rf1.env with consts := v }, idx := hm } m =
+      ownRow rf m := by
+    intro m; simp only [ownRow, hmfun, hvv]
+  have hownT : ∀ m, ownTbl { rf1 with env := { rf1.env with consts := v }, idx := hm } m =
+      ownTbl rf m := by
+    intro m; simp only [ownTbl]; rw [htb, htbl]
+  have hpop : ∀ k : NIdx,
+      ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?).idx[k]? =
+        lf.idx[k]? := by
+    intro k
+    simp only [IFEnv.push, IFEnv.popTemp]
+    cases hp : lf.idx[absNIdx n]? with
+    | none =>
+      rw [_root_.Std.HashMap.getElem?_erase]
+      by_cases hk : absNIdx n = k
+      · subst hk; simp [hp]
+      · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
+        rw [ite_eq_right (by simpa [← hn] using hk)]
+    | some r =>
+      rw [_root_.Std.HashMap.getElem?_insert]
+      by_cases hk : absNIdx n = k
+      · subst hk; simp [hp]
+      · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
+        rw [ite_eq_right (by simpa [← hn] using hk)]
+  refine ⟨⟨⟨fun m => ?_, fun m => ?_, ?_, ?_, ?_, ?_⟩, ?_⟩, hminv, ?_, ?_, ?_⟩
+  · rw [hown, hfe.rel.idx m, hpop]
+  · rw [hownT, hfe.rel.tbls m]; rfl
+  · exact hfe.rel.base
+  · show lf.base.below = absU rf1.base_below; rw [hbb]; exact hfe.rel.below
+  · show lf.base.belowRec = absU rf1.base_below_rec; rw [hbr]; exact hfe.rel.belowRec
+  · exact hfe.rel.baseOK
+  · show (IFEnv.popTemp _ _ _).env = absIEnv _
+    simp only [IFEnv.push, IFEnv.popTemp, List.tail_cons, absIEnv, hvv]
+    rw [hfe.rel.env, absIEnv, htb]
+  · intro m p hp
+    rw [hmfun] at hp
+    show p.val < v.val.length
+    rw [hvv]; exact hfe.inv.idxRange m p hp
+  · show ConRon.Refine.HashMap2.Inv _ rf1.tbls
+    rw [htbl]; exact hfe.inv.tblInv
+  · intro m p hp
+    rw [htbl] at hp
+    show p.val < rf1.env.tables.val.length
+    rw [htb]; exact hfe.inv.tblRange m p hp
 
 /-! ## The per-declaration constant check -/
 
