@@ -346,4 +346,138 @@ theorem frontierExpr_run {pk : OleanPins} {r : Region} {b : Frontier} {c : Nat} 
   cases hv
   exact ⟨hst, x, h3, h4⟩
 
+/-! ## The worker's cache -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:126-131 ValueCache — **a cached region is the
+region of the files of the module it is cached for**, by upstream's values. -/
+@[expose] def CacheOK (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
+    (c : ValueCache) : Prop :=
+  ∀ r, c.region = some r → ∃ mdP f a, valuesP[c.idx]? = some mdP ∧
+    (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+    f.viewRegion .private = some (r, a)
+
+theorem CacheOK.empty (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef) :
+    CacheOK sp F valuesP {} := fun r h => by cases h
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor — the read of a module's
+region off its files: the files are the snapshot's, and the cache it leaves is good. -/
+theorem readRegion_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {idx : Nat}
+    {valuesP : Array ConLeche.Frontend.Olean.ModRef} {mdP : ConLeche.Frontend.Olean.ModRef}
+    {c' : ValueCache} {r : Region} {s s' : AState} (hm : denoteN s.store.ns m = some mdP.name)
+    (hidx : valuesP[idx]? = some mdP)
+    (h : ConRon.Arena.Frontend.Olean.regionFor.readRegion (modelFs F) pk sp m idx s =
+      .ok ((c', .ok r), s')) :
+    s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
+      (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      f.viewRegion .private = some (r, a) := by
+  unfold ConRon.Arena.Frontend.Olean.regionFor.readRegion at h
+  obtain ⟨mn, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, hd1⟩ := readName_run h1
+  obtain rfl : mn = mdP.name := Option.some.inj (hd1.symm.trans hm)
+  cases hrf : ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp mdP.name .private with
+  | error e =>
+    rw [hrf] at h2
+    cases (AM.pure_ok h2).1
+  | ok f =>
+  rw [hrf] at h2
+  simp only [] at h2
+  cases hv : f.viewRegion .private with
+  | none =>
+    rw [hv] at h2
+    obtain ⟨_, s₂, -, h3⟩ := AM.bind_ok h2
+    cases (AM.pure_ok h3).1
+  | some p =>
+  obtain ⟨r0, a0⟩ := p
+  rw [hv] at h2
+  obtain ⟨hv', rfl⟩ := AM.pure_ok h2
+  simp only [Prod.mk.injEq, Except.ok.injEq] at hv'
+  obtain ⟨rfl, rfl⟩ := hv'
+  refine ⟨rfl, fun r' hr' => ?_, f, a0, readFiles_sim hrf, hv⟩
+  simp only [Option.some.injEq] at hr'
+  subst hr'
+  exact ⟨mdP, f, a0, hidx, readFiles_sim hrf, hv⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor — **the region of module
+`idx`, from the cache or the files**: the files of the module upstream's values name at `idx`. -/
+theorem regionFor_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {idx : Nat}
+    {valuesP : Array ConLeche.Frontend.Olean.ModRef} {mdP : ConLeche.Frontend.Olean.ModRef}
+    {c c' : ValueCache} {r : Region} {s s' : AState} (hm : denoteN s.store.ns m = some mdP.name)
+    (hidx : valuesP[idx]? = some mdP) (hc : CacheOK sp F valuesP c)
+    (h : ConRon.Arena.Frontend.Olean.regionFor (modelFs F) pk sp m idx c s = .ok ((c', .ok r), s')) :
+    s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
+      (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      f.viewRegion .private = some (r, a) := by
+  unfold ConRon.Arena.Frontend.Olean.regionFor at h
+  cases hr : c.region with
+  | none =>
+    rw [hr] at h
+    exact readRegion_run hm hidx h
+  | some r0 =>
+    rw [hr] at h
+    simp only [] at h
+    by_cases hi : (c.idx == idx) = true
+    · rw [ite_eq_left hi] at h
+      obtain ⟨hv, rfl⟩ := AM.pure_ok h
+      simp only [Prod.mk.injEq, Except.ok.injEq] at hv
+      obtain ⟨rfl, rfl⟩ := hv
+      obtain ⟨mdP', f, a, h1, h2, h3⟩ := hc _ hr
+      rw [beq_iff_eq.mp hi, hidx] at h1
+      cases h1
+      exact ⟨rfl, hc, f, a, h2, h3⟩
+    · rw [ite_eq_right hi] at h
+      exact readRegion_run hm hidx h
+
+/-! ## A theorem's value -/
+
+theorem array_listRel_getElem? {α β : Type} {R : α → β → Prop} {a : Array α} {b : Array β}
+    (h : ListRel R a.toList b.toList) {i : Nat} {x : α} (hx : a[i]? = some x) :
+    ∃ y, b[i]? = some y ∧ R x y := by
+  obtain ⟨hi, rfl⟩ := Array.getElem?_eq_some_iff.mp hx
+  obtain ⟨hj, hr⟩ := listRel_get h (i := i) (by simpa using hi)
+  refine ⟨b[i]'(by simpa using hj), Array.getElem?_eq_getElem _, ?_⟩
+  simpa using hr
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:150-162 readValue — **THEOREM 1 FOR A
+THEOREM'S VALUE**: where the twin's read of the value at a reference's code answers, on the
+record `modelFs F` of a snapshot, its handle denotes the value upstream's `ValueAt` names, on
+upstream's values `valuesP` (`readOleans_run`'s); the state moves as a parse step does, whatever
+the scratch flag, and the cache stays good. -/
+theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
+    {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+    {c c' : ValueCache} {code : Nat} {e : EIdx} {s s' : AState}
+    (hok : StateOK s) (hnu : NullsRel s.store pk) (hv : ValuesRel sp F s.store values valuesP)
+    (hc : CacheOK sp F valuesP c)
+    (h : ConRon.Arena.Frontend.Olean.readValue (modelFs F) pk sp values c code s =
+      .ok ((c', .ok e), s')) :
+    ParseStep s s' ∧ CacheOK sp F valuesP c' ∧
+      ∃ x, denoteE s'.store e = some x ∧ ConLeche.Frontend.Olean.ValueAt sp F valuesP code x := by
+  unfold ConRon.Arena.Frontend.Olean.readValue at h
+  cases hmd : values[ConLeche.Frontend.Olean.refModule code]? with
+  | none =>
+    rw [hmd] at h
+    cases (AM.pure_ok h).1
+  | some md =>
+  rw [hmd] at h
+  simp only [] at h
+  obtain ⟨mdP, hmdP, hname, f, hf, r0, a0, hreg0, hgood⟩ := array_listRel_getElem? hv hmd
+  obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨c1, _ | r⟩ := p
+  · cases (AM.pure_ok h2).1
+  obtain ⟨rfl, hc1, f', a, hf', hreg⟩ := regionFor_run hname hmdP hc h1
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  rw [hreg0] at hreg
+  cases hreg
+  simp only [] at h2
+  obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
+  cases o with
+  | none =>
+    obtain ⟨_, s₃, -, h5⟩ := AM.bind_ok h4
+    cases (AM.pure_ok h5).1
+  | some e' =>
+  obtain ⟨hv', rfl⟩ := AM.pure_ok h4
+  simp only [Prod.mk.injEq, Except.ok.injEq] at hv'
+  obtain ⟨rfl, rfl⟩ := hv'
+  obtain ⟨hst, x, hx, hdx⟩ := frontierExpr_run ⟨hok, hnu⟩ hgood h3
+  exact ⟨hst, hc1, x, hdx, mdP, f, _, _, hmdP, hf, hreg0, hx⟩
+
 end ConRon.Bridge.Frontend.Olean

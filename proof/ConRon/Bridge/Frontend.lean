@@ -27,7 +27,8 @@ The modules, in dependency order:
 * `Bridge/Frontend/Olean/*` — **the `.olean` reader**, on the record of one file system snapshot
   (`modelFs`): `Nodes`, `Fast`, `Read`, `Parse` (a view is the specification's `decodeModuleSpec`),
   `Files`, `Closure` (the reads, `closureOrder`, the lazy load `loadAt_run`), `Merge`, `MergeAll`, `EmitRec`, `EmitWalk`,
-  `EmitRun`, `Blocks`, `Records` (`readOleans_run`, the whole read).
+  `EmitRun`, `Blocks`, `Records` (`readOleans_run`, the whole read; `filled_of`, a record's
+  reference with its value), `Value` (`readValue_run`: a theorem's value, read in its job).
 
 ## What this tier does NOT contain, and why
 
@@ -66,5 +67,6 @@ public import ConRon.Bridge.Frontend.Prepare
 public import ConRon.Bridge.Frontend.Capstone
 public import ConRon.Bridge.Frontend.Axioms
 public import ConRon.Bridge.Frontend.Olean.Records
+public import ConRon.Bridge.Frontend.Olean.Value
 
 public section
