@@ -10,6 +10,7 @@ a function that reads a file claims nothing.
 -/
 import ConRon.Refine2.Frontend.Olean.Files
 import ConRon.Refine2.Frontend.Olean.Module
+import ConRon.Refine2.Frontend.Olean.Header
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -26,17 +27,22 @@ open ConRon.Refine2.Lockstep (LSP)
 open ConRon.Refine2 (AErrKind absAErrKind)
 open Arena.Frontend.Olean (findModule readPart hdrShort readHdrBytes hdrChunkN)
 
-/-! ## The premises other files of the tier close -/
+/-! ## The premise `View.lean`'s theorems take -/
 
-/-- `hdr_short` is `hdrShort`: `Header.lean`'s `hdr_walk`. -/
-def HdrShortSpec : Prop :=
-  ∀ {acc : alloc.vec.Vec Std.U8} {b : Bool}, hdr_short acc = ok b →
-    b = hdrShort (absBytes (alloc.vec.Vec.deref acc))
-
-/-- `imports_pre` is `importsPre`: `Header.lean`. -/
+/-- `imports_pre` is `importsPre`, as `parse_view_refines` and `parse_all_views_refines` take it. -/
 def ImportsPreSpec (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier) : Prop :=
   ∀ st lst s, RS pers (EqA absImports) st lst (frontend.olean.header.imports_pre pk pers st.store s)
     (Arena.Frontend.Olean.importsPre (absPins pk) (absBytes s))
+
+/-- **`hdr_short` is `hdrShort`**, of fewer than `2 ^ 60` bytes. -/
+theorem hdr_short_eq {acc : alloc.vec.Vec Std.U8} {b : Bool} (hb : acc.val.length < 2 ^ 60)
+    (h : hdr_short acc = ok b) : b = hdrShort (absBytes (alloc.vec.Vec.deref acc)) := by
+  rw [hdr_short] at h
+  peel h as w, hw
+  have ew := hdr_walk_eq (by rw [deref_val]; exact hb) hw
+  rw [show frontend.olean.region.DATA_START.val = ConLeche.Frontend.Olean.dataStart from data_start_val] at ew
+  rw [hdrShort, ← ew]
+  cases w <;> exact (Result.ok_injective h).symm
 
 /-! ## The literals -/
 
@@ -86,10 +92,59 @@ variable {F : Type} {inst : OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.Olea
 
 theorem hdr_chunk_val : HDR_CHUNK.val = hdrChunkN := by unfold HDR_CHUNK hdrChunkN; decide
 
-/-- **`read_hdr_bytes`'s loop is `readHdrBytes`.** -/
-theorem read_hdr_bytes_loop_ok {p : alloc.vec.Vec Std.U32} {q : System.FilePath} {size : Std.U64}
-    (hfs : FsRel inst fsv fs) (hS : HdrShortSpec) (hrel : PathRel p q)
+/-- The loop only appends. -/
+theorem read_hdr_bytes_loop_mono {p : alloc.vec.Vec Std.U32} {size : Std.U64}
     (acc : alloc.vec.Vec Std.U8) (off : Std.U64) (more : Bool) {o}
+    (h : read_hdr_bytes_loop inst fsv p size acc off more = ok (.Ok o)) :
+    acc.val.length ≤ o.val.length := by
+  rw [read_hdr_bytes_loop] at h
+  by_cases hm : more = true
+  · rw [ite_eq_left hm] at h
+    by_cases hlt : off < size
+    · rw [ite_eq_left hlt] at h
+      peel h as r, -
+      cases r with
+      | Err e =>
+        peel h as ce, -
+        cases Result.ok_injective h
+      | Ok c =>
+        peel h as acc1, hacc
+        peel h as i, hi
+        peel h as i1, hi1
+        peel h as off1, hoff
+        peel h as more1, -
+        have hiv : i.val = size.val - off.val := ConRon.Refine.HashMap.uscalar_sub_eq hi
+        have hoffv : off1.val = off.val + i1.val := ConRon.Refine.HashMap.uscalar_add_eq hoff
+        have hlt' : off.val < size.val := hlt
+        have hpos : 0 < i1.val := by
+          by_cases hc : HDR_CHUNK < i
+          · rw [ite_eq_left hc] at hi1
+            cases Result.ok_injective hi1
+            rw [hdr_chunk_val]
+            unfold hdrChunkN
+            omega
+          · rw [ite_eq_right hc] at hi1
+            cases Result.ok_injective hi1
+            omega
+        have ih := read_hdr_bytes_loop_mono acc1 off1 more1 h
+        have el : acc1.val.length = acc.val.length + c.val.length := by
+          rw [extend_u8_val hacc, deref_val]; simp
+        omega
+    · rw [ite_eq_right hlt] at h
+      cases Result.ok_injective h
+      exact Nat.le_refl _
+  · rw [ite_eq_right hm] at h
+    cases Result.ok_injective h
+    exact Nat.le_refl _
+termination_by (if more then size.val + 1 else 0) - off.val
+decreasing_by
+  repeat' split
+  all_goals omega
+
+/-- **`read_hdr_bytes`'s loop is `readHdrBytes`**, what it answers being under the size limit. -/
+theorem read_hdr_bytes_loop_ok {p : alloc.vec.Vec Std.U32} {q : System.FilePath} {size : Std.U64}
+    (hfs : FsRel inst fsv fs) (hrel : PathRel p q)
+    (acc : alloc.vec.Vec Std.U8) (off : Std.U64) (more : Bool) {o} (hb : o.val.length < 2 ^ 60)
     (h : read_hdr_bytes_loop inst fsv p size acc off more = ok (.Ok o)) :
     (if more then readHdrBytes fs q size.val off.val (absBytes (alloc.vec.Vec.deref acc))
       else .ok (absBytes (alloc.vec.Vec.deref acc))) = .ok (absBytes (alloc.vec.Vec.deref o)) := by
@@ -120,7 +175,7 @@ theorem read_hdr_bytes_loop_ok {p : alloc.vec.Vec Std.U32} {q : System.FilePath}
         peel h as i1, hi1
         peel h as off1, hoff
         peel h as more1, hm
-        have eS := hS hm
+        have eS := hdr_short_eq (Nat.lt_of_le_of_lt (read_hdr_bytes_loop_mono _ _ _ h) hb) hm
         have ea : absBytes (alloc.vec.Vec.deref acc) ++ absBytes (alloc.vec.Vec.deref c) =
             absBytes (alloc.vec.Vec.deref acc1) :=
           (join_bytes (extend_u8_val hacc ▸ (by rw [deref_val]))).symm
@@ -140,7 +195,7 @@ theorem read_hdr_bytes_loop_ok {p : alloc.vec.Vec Std.U32} {q : System.FilePath}
             omega
         have hpos : off.val < off1.val := by
           rw [hmin]; unfold hdrChunkN; omega
-        have ih := read_hdr_bytes_loop_ok hfs hS hrel acc1 off1 more1 h
+        have ih := read_hdr_bytes_loop_ok hfs hrel acc1 off1 more1 hb h
         show (let acc := _; if hdrShort acc = true then _ else _) = _
         dsimp only
         rw [ea, ← eS, ← hmin]
@@ -157,11 +212,11 @@ decreasing_by
 
 /-- **`read_hdr_bytes` is `readHdrBytes`**, from the start of the file. -/
 theorem read_hdr_bytes_ok {p : alloc.vec.Vec Std.U32} {q : System.FilePath} {size : Std.U64} {o}
-    (hfs : FsRel inst fsv fs) (hS : HdrShortSpec) (hrel : PathRel p q)
+    (hfs : FsRel inst fsv fs) (hrel : PathRel p q) (hb : o.val.length < 2 ^ 60)
     (h : read_hdr_bytes inst fsv p size = ok (.Ok o)) :
     readHdrBytes fs q size.val 0 .empty = .ok (absBytes (alloc.vec.Vec.deref o)) := by
   rw [read_hdr_bytes] at h
-  have := read_hdr_bytes_loop_ok hfs hS hrel _ _ _ h
+  have := read_hdr_bytes_loop_ok hfs hrel _ _ _ hb h
   have e0 : absBytes (alloc.vec.Vec.deref (alloc.vec.Vec.new Std.U8)) = ByteArray.empty := by
     apply ByteArray.ext
     simp only [absBytes, deref_val]
@@ -208,7 +263,7 @@ theorem read_imports_at_name {pk pers ar loc m a s'}
 /-- **`read_imports_at`'s accept is the twin's `readImportsAt`.** -/
 theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {loc : Located} {m : arena.handle.NIdx}
-    {n : kernel.name.Name} (hfs : FsRel inst fsv fs) (hS : HdrShortSpec) (hI : ImportsPreSpec pk pers)
+    {n : kernel.name.Name} (hfs : FsRel inst fsv fs)
     (hn : arena.env.read_name pers st.store m = ok (.Ok n)) :
     AS pers (EqA absImports) st lst (read_imports_at inst fsv pk pers st.store loc m)
       (Arena.Frontend.Olean.readImportsAt fs (absPins pk) (absLocated loc) (absName n)) := by
@@ -236,7 +291,6 @@ theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.st
       cases r2 with
       | Err e => cases Result.ok_injective h
       | Ok acc =>
-        have e2 := read_hdr_bytes_ok hfs hS hrelP hr2
         dsimp only at h
         peel h as q3, hq3
         obtain ⟨r3, ar1⟩ := q3
@@ -248,8 +302,9 @@ theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.st
           cases Result.ok_injective hq3
           cases Result.ok_injective h
         | Ok pt =>
-          obtain ⟨e3, hb, -⟩ := hP
+          obtain ⟨e3, hb, hfit⟩ := hP
           cases hb
+          have e2 := read_hdr_bytes_ok hfs hrelP hfit.size hr2
           dsimp only at hq3
           cases r3 with
           | Err re =>
@@ -261,7 +316,8 @@ theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.st
           | Ok imps =>
             obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
             cases h1
-            obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := hI st lst _ hrel hinv _ _ hq3
+            obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := imports_pre_refines (st := st) (lst := lst) (pk := pk) (b := alloc.vec.Vec.deref pt.bytes)
+              (by rw [deref_val]; exact hfit.size) hrel hinv _ _ hq3
             refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
             have hE : (Arena.Frontend.Olean.readImportsAt fs (absPins pk) (absLocated loc) (absName n)).run lst =
                 ((Arena.Frontend.Olean.importsPre (absPins pk) (absBytes (alloc.vec.Vec.deref pt.bytes)) >>= fun o =>
@@ -277,7 +333,7 @@ theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.st
 /-- **`module_imports`'s accept is the twin's `moduleImports`.** -/
 theorem module_imports_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) (hS : HdrShortSpec) (hI : ImportsPreSpec pk pers) :
+    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) :
     AS pers (EqA absImports) st lst (module_imports inst fsv pk pers st.store sp m)
       (Arena.Frontend.Olean.moduleImports fs (absPins pk) (absSearchPath sp) (absNIdx m)) := by
   intro hrel hinv a s' h
@@ -289,7 +345,7 @@ theorem module_imports_refines {pk : frontend.olean.spec.OleanPins} {pers : aren
     dsimp only at h
     obtain ⟨n, hn⟩ := read_imports_at_name h
     have e1 := find_module_ok hfs hn hr
-    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := read_imports_at_ok hfs hS hI hn hrel hinv a s' h
+    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := read_imports_at_ok hfs hn hrel hinv a s' h
     refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
     show ((Arena.readName (absNIdx m)) >>= _).run lst = _
     rw [am_bind_ok (read_name_run hrel hn)]
@@ -553,6 +609,73 @@ theorem read_view_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.sto
       show ((pure f' : AM _) >>= _).run lst = _
       rw [am_bind_ok rfl, am_bind_ok hx]
       rfl
+
+/-- `entry_at` is `entryAt`: `Reads.lean`. -/
+def EntryAtSpec (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier) : Prop :=
+  ∀ bs r c st lst, RS pers ERel st lst (frontend.olean.reads.entry_at pk pers st.store bs r c)
+    (Arena.Frontend.Olean.entryAt (absPins pk) (absRegion bs r) c.val)
+
+/-- **`read_all_views`' accept is the twin's `readAllViews`.** -/
+theorem read_all_views_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+    {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) (hI : ImportsPreSpec pk pers)
+    (hE : EntryAtSpec pk pers) :
+    AS pers (fun a b => AllViewsRel a.1 b.1 ∧ ExpoRel a.2 b.2) st lst
+      (read_all_views inst fsv pk pers st.store sp m)
+      (Arena.Frontend.Olean.readAllViews fs (absPins pk) (absSearchPath sp) (absNIdx m)) := by
+  intro hrel hinv a s' h
+  rw [read_all_views] at h
+  peel h as r, hr
+  cases r with
+  | Err e =>
+    obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+  | Ok f =>
+    dsimp only at h
+    obtain ⟨n, hn⟩ := read_files_name hr
+    obtain ⟨f', e1, hf⟩ := read_files_refines hfs hn hr
+    peel h as q, hq
+    obtain ⟨r1, ar1⟩ := q
+    cases r1 with
+    | Err re =>
+      cases re with
+      | Bad =>
+        peel h as q2, -
+        obtain ⟨r2, ar2⟩ := q2
+        cases r2 with
+        | Err e =>
+          obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+          cases h1
+        | Ok level =>
+          peel h as q3, -
+          obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+          cases h1
+      | Err e =>
+        obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        cases h1
+    | Ok v =>
+      obtain ⟨v', lst1, hx, hR, hrel1, hinv1⟩ := parse_all_views_refines (st := st) (lst := lst) hI hf hrel hinv _ _ hq
+      peel h as q2, hq2
+      obtain ⟨r2, ar2⟩ := q2
+      cases r2 with
+      | Err e =>
+        obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        cases h1
+      | Ok expo =>
+        obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+        cases h1
+        obtain ⟨ex', lst2, hc, hR2, hrel2, hinv2⟩ := check_views_refines (st := withStore st ar1) (lst := lst1)
+          (m' := absName n) hE hf hR hrel1 hinv1 _ _ hq2
+        refine ⟨(v', ex'), lst2, ?_, ⟨hR, hR2⟩, hrel2, hinv2⟩
+        show ((Arena.readName (absNIdx m)) >>= _).run lst = _
+        rw [am_bind_ok (read_name_run hrel hn)]
+        have e1' : Arena.Frontend.Olean.readFiles fs (absSearchPath sp) (absName n) .private = .ok f' := e1
+        simp only [e1', Arena.Frontend.Olean.liftE]
+        show ((pure f' : AM _) >>= _).run lst = _
+        rw [am_bind_ok rfl, am_bind_ok hx]
+        dsimp only
+        rw [am_bind_ok hc]
+        rfl
 
 end reads
 

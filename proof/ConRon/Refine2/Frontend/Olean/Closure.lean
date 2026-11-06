@@ -121,12 +121,12 @@ theorem stack_push_eq {stack : alloc.vec.Vec arena.handle.EIdx} {sp : Std.Usize}
   exact h.push ht hi1
 
 /-- A walk's entry, as the twin's. -/
-@[reducible] def absWalk (p : arena.handle.NIdx × Bool) : NIdx × Bool := (absNIdx p.1, p.2)
+@[reducible] def absWEnt (p : arena.handle.NIdx × Bool) : NIdx × Bool := (absNIdx p.1, p.2)
 
 /-- `walk_push`. -/
 theorem walk_push_eq {stack : alloc.vec.Vec (arena.handle.NIdx × Bool)} {sp : Std.Usize}
-    {l : List (NIdx × Bool)} {x i st1} (h : StackRel absWalk stack sp l)
-    (hr : walk_push stack sp x = ok (i, st1)) : StackRel absWalk st1 i (absWalk x :: l) := by
+    {l : List (NIdx × Bool)} {x i st1} (h : StackRel absWEnt stack sp l)
+    (hr : walk_push stack sp x = ok (i, st1)) : StackRel absWEnt st1 i (absWEnt x :: l) := by
   rw [walk_push] at hr
   peel hr as t, ht
   peel hr as i1, hi1
@@ -1035,9 +1035,9 @@ theorem import_on_path_eq {imps : alloc.vec.Vec (frontend.olean.spec.ImportF are
 theorem walk_expand_loop_eq (stack : alloc.vec.Vec (arena.handle.NIdx × Bool))
     (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
     {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {s' : _root_.Std.HashSet NIdx} (hs : NSet seen s')
-    (s i : Std.Usize) {l : List (NIdx × Bool)} (hl : StackRel absWalk stack s l) {o}
+    (s i : Std.Usize) {l : List (NIdx × Bool)} (hl : StackRel absWEnt stack s l) {o}
     (h : walk_expand_loop stack imps seen s i = ok o) :
-    StackRel absWalk o.2 o.1 (walkKids s' ((imps.val.take i.val).map impMod) ++ l) := by
+    StackRel absWEnt o.2 o.1 (walkKids s' ((imps.val.take i.val).map impMod) ++ l) := by
   rw [walk_expand_loop] at h
   by_cases hp : i > 0#usize
   · rw [ite_eq_left hp] at h
@@ -1085,9 +1085,9 @@ decreasing_by all_goals omega
 theorem walk_expand_eq {stack : alloc.vec.Vec (arena.handle.NIdx × Bool)}
     {imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
     {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {s' : _root_.Std.HashSet NIdx} (hs : NSet seen s')
-    {sp : Std.Usize} {m : arena.handle.NIdx} {l : List (NIdx × Bool)} (hl : StackRel absWalk stack sp l) {o}
+    {sp : Std.Usize} {m : arena.handle.NIdx} {l : List (NIdx × Bool)} (hl : StackRel absWEnt stack sp l) {o}
     (h : walk_expand stack sp m imps seen = ok o) :
-    StackRel absWalk o.2 o.1 (walkKids s' (imps.val.map impMod) ++ (absNIdx m, true) :: l) := by
+    StackRel absWEnt o.2 o.1 (walkKids s' (imps.val.map impMod) ++ (absNIdx m, true) :: l) := by
   rw [walk_expand] at h
   peel h as n, hn
   cases nidx_dup2_ok hn
@@ -1099,8 +1099,8 @@ theorem walk_expand_eq {stack : alloc.vec.Vec (arena.handle.NIdx × Bool)}
 /-- `roots`, the last first, onto the walk's stack: `roots.head` on top. -/
 theorem closure_order_loop_eq (roots : alloc.vec.Vec arena.handle.NIdx)
     (stack : alloc.vec.Vec (arena.handle.NIdx × Bool)) (sp i : Std.Usize) {l : List (NIdx × Bool)}
-    (hl : StackRel absWalk stack sp l) {o} (h : closure_order_loop roots stack sp i = ok o) :
-    StackRel absWalk o.1 o.2 ((roots.val.take i.val).map (fun r => (absNIdx r, false)) ++ l) := by
+    (hl : StackRel absWEnt stack sp l) {o} (h : closure_order_loop roots stack sp i = ok o) :
+    StackRel absWEnt o.1 o.2 ((roots.val.take i.val).map (fun r => (absNIdx r, false)) ++ l) := by
   rw [closure_order_loop] at h
   by_cases hp : i > 0#usize
   · rw [ite_eq_left hp] at h
