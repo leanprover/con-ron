@@ -533,7 +533,7 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
     {ls : Array Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded}
     (hrel : ListRel (LoadedRel s.store) ls.toList lsC)
     {mg : Merged} {s' : AState} (h : mergeAll pk ls s = .ok (mg, s')) :
-    s' = s ∧ ∃ mgC, ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC ∧
+    s' = s ∧ mg.ls = ls ∧ ∃ mgC, ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC ∧
       MergedRel s.store mg mgC := by
   let stepC : ConLeche.Frontend.Olean.Merged → ConLeche.Frontend.Olean.Loaded →
       Except ConLeche.CheckError ConLeche.Frontend.Olean.Merged :=
@@ -602,7 +602,7 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
     have := hrel.length_eq
     simpa using this.symm
   rw [← hlen, List.take_length] at hf
-  refine ⟨hs.symm, mgC, ?_, hrd⟩
+  refine ⟨hs.symm, hbl, mgC, ?_, hrd⟩
   simp only [ConLeche.Frontend.Olean.mergeAll, List.foldlM_toArray]
   exact hf
 
