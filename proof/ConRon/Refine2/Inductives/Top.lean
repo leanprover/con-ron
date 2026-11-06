@@ -13,7 +13,7 @@ over the three companions this module exports:
 
 | Rust | twin |
 |---|---|
-| `block_parts::block_parts` | `blockParts?` |
+| `block_shape::block_shape` | `blockShape?` |
 | `block_tail::check_block` | `checkBlock` |
 | `check_decl::check_shapeless` | `checkShapeless` |
 
@@ -55,7 +55,6 @@ skipped). -/
     LS pers (fun a b => b = a)
       (arena.check_decl.check_shapeless_formers pers st mode rf block i) lst
       (checkShapelessFormers (ConRon.Refine.absMode mode) lf (absICILFrom block i)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   revert st lst hrel hinv
   simp only [absICILFrom]
   intro st lst hrel hinv

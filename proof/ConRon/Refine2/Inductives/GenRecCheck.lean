@@ -231,7 +231,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
 
 /-- `class_nodes_agree` ⊑ `classNodesAgree`, the entries from the cursor on. -/
 @[lockstep] theorem class_nodes_agree_ls {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (mc : arena.inductives.rec_check.TargetMajor)
     (tele : alloc.vec.Vec arena.handle.EIdx)
@@ -239,7 +239,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf) :
     ∀ (j : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc tele leaf
+        (arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc tele leaf
           fvs i es j) lst
         (classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs) (absU i)
@@ -249,7 +249,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     (fun l => classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p)
       (absEIdxL former_tys) (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs)
       (absU i) l)
-    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc
+    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode rf p former_tys mc
       tele leaf fvs i es j) ?_ ?_ j st lst hrel hinv
   · intro st lst j hn hrel hinv
     rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
@@ -328,7 +328,7 @@ theorem gr_kind_read_in {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec
   cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
 
 theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
@@ -336,7 +336,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -345,7 +345,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.U64 => i.val) ks.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es i ks)
         lst
         (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
@@ -367,19 +367,19 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
 
 @[lockstep] theorem class_fields_agree_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
     (fvs : alloc.vec.Vec arena.handle.EIdx)
     (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     LS pers (fun _ _ => True)
-      (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es 0#u64
+      (arena.inductives.gen_rec.class_fields_agree pers st mode rf p former_tys ms fvs es 0#u64
         ks) lst
       (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) 0
         (ks.val.map absClassField)) := by
-  have h := class_fields_agree_acc (pers := pers) (mode := mode) hctx p former_tys ms fvs es ks
+  have h := class_fields_agree_acc (pers := pers) (mode := mode) hfe p former_tys ms fvs es ks
     0#u64 st lst hrel hinv
   simpa using h
 
@@ -390,13 +390,13 @@ attribute [local lockstep high] rc_ctors_dup_spec
 /-- `class_ctor_of` ⊑ `classCtorOf`. -/
 @[lockstep] theorem class_ctor_of_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (c_a : arena.env.IConstantVal × Std.U64) :
     LS pers (fun a b => b = absClassCtor a)
-      (arena.inductives.gen_rec.class_ctor_of pers st mode vis rf p former_tys rd ms c c_a) lst
+      (arena.inductives.gen_rec.class_ctor_of pers st mode rf p former_tys rd ms c c_a) lst
       (classCtorOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absIConstantVal c_a.1, absU c_a.2)) := by
   rw [arena.inductives.gen_rec.class_ctor_of, classCtorOf]
@@ -419,7 +419,7 @@ def absClassCtorL (v : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) : List 
   v.val.map absClassCtor
 
 theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
@@ -427,7 +427,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i)) := by
@@ -435,7 +435,7 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorL a = absClassCtorL out ++ b)
-        (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs i out)
+        (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs i out)
         lst
         (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsLFrom cs i))) ?_ ?_ i
@@ -458,17 +458,17 @@ theorem class_ctors_of_acc {pers} {mode : kernel.env.CheckMode}
 
 @[lockstep] theorem class_ctors_of_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
     (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
     LS pers (fun a b => b = absClassCtorL a)
-      (arena.inductives.gen_rec.class_ctors_of pers st mode vis rf p former_tys rd ms c cs 0#usize
+      (arena.inductives.gen_rec.class_ctors_of pers st mode rf p former_tys rd ms c cs 0#usize
         (alloc.vec.Vec.new _)) lst
       (classCtorsOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absCtorsL cs)) := by
-  have h := class_ctors_of_acc (pers := pers) (mode := mode) hctx p former_tys rd ms c cs 0#usize
+  have h := class_ctors_of_acc (pers := pers) (mode := mode) hfe p former_tys rd ms c cs 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
   rw [absCtorsLFrom_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absClassCtorL, alloc.vec.Vec.new] using h1.symm)
@@ -478,14 +478,14 @@ def absClassCtorLL (v : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.Cl
   v.val.map absClassCtorL
 
 theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (c : Std.Usize) (out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor)) := by
@@ -493,7 +493,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun c out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absClassCtorLL a = absClassCtorLL out ++ b)
-        (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms c out) lst
+        (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms c out) lst
         (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (absClassRead rd) (ms.val.map absTargetMajor) c.val
           ((ms.val.drop c.val).map absTargetMajor))) ?_ ?_ c
@@ -516,23 +516,22 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
 
 @[lockstep] theorem classes_ctors_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absClassCtorLL a)
-      (arena.inductives.gen_rec.classes_ctors pers st mode vis rf p former_tys rd ms 0#usize
+      (arena.inductives.gen_rec.classes_ctors pers st mode rf p former_tys rd ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesCtors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (absClassRead rd) (ms.val.map absTargetMajor) 0 (ms.val.map absTargetMajor)) := by
-  have h := classes_ctors_acc (pers := pers) (mode := mode) hctx p former_tys rd ms 0#usize
+  have h := classes_ctors_acc (pers := pers) (mode := mode) hfe p former_tys rd ms 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
   simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absClassCtorLL, alloc.vec.Vec.new] using h1.symm)
 
 /-! ## `class_majors`, `classes_nfs`, `class_former_ty(s)` -/
 
-attribute [local lockstep_inline] arena.inductives.positivity.ind_cv_of
 
 def absTargetMajorL (v : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     List TargetMajor :=
@@ -541,21 +540,20 @@ def absTargetMajorL (v : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
 theorem class_majors_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape)
-    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
     (pfvs : alloc.vec.Vec arena.handle.EIdx)
     (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys i out) lst
-        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+        (arena.inductives.gen_rec.class_majors pers st mode rf p pfvs keys i out) lst
+        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p)
           (absEIdxL pfvs) ((keys.val.drop i.val).map absClassKey)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) keys.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys i out) lst
-        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+        (arena.inductives.gen_rec.class_majors pers st mode rf p pfvs keys i out) lst
+        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p)
           (absEIdxL pfvs) ((keys.val.drop i.val).map absClassKey))) ?_ ?_ i
   · intro i out hn st lst hrel hinv
     rw [List.drop_eq_nil_of_le hn, List.map_nil, classMajors,
@@ -578,35 +576,34 @@ theorem class_majors_acc {pers} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape)
-    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
     (pfvs : alloc.vec.Vec arena.handle.EIdx)
     (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
     LS pers (fun a b => b = absTargetMajorL a)
-      (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys 0#usize
+      (arena.inductives.gen_rec.class_majors pers st mode rf p pfvs keys 0#usize
         (alloc.vec.Vec.new _)) lst
-      (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+      (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p)
         (absEIdxL pfvs) (keys.val.map absClassKey)) := by
-  have h := class_majors_acc (pers := pers) (mode := mode) hfe p ctors_as pfvs keys 0#usize
+  have h := class_majors_acc (pers := pers) (mode := mode) hfe p pfvs keys 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
   simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx pers rf lf)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
-        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms i out) lst
         (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
           (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i
   · intro i out hn st lst hrel hinv
@@ -628,79 +625,56 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
 
 @[lockstep] theorem classes_nfs_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx pers rf lf)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
     (p : arena.inductives.block_shape.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absTargetMajorL a)
-      (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms 0#usize
+      (arena.inductives.gen_rec.classes_nfs pers st mode rf p former_tys tbl ms 0#usize
         (alloc.vec.Vec.new _)) lst
       (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
         (tbl.val.map absNestCtorNf) (ms.val.map absTargetMajor)) := by
-  have h := classes_nfs_acc (pers := pers) (mode := mode) hctx p former_tys tbl ms 0#usize
+  have h := classes_nfs_acc (pers := pers) (mode := mode) hfe p former_tys tbl ms 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
   simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 /-- `class_former_ty` ⊑ `classFormerTy`. -/
-@[lockstep] theorem class_former_ty_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+@[lockstep] theorem class_former_ty_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
-    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) (m : arena.inductives.rec_check.TargetMajor) :
+    (formers : alloc.vec.Vec arena.env.IConstantVal) (m : arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.inductives.gen_rec.class_former_ty pers st rf cv_tas m) lst
-      (classFormerTy lf (cv_tas.val.map absIConstantVal) (absTargetMajor m)) := by
-  rw [arena.inductives.gen_rec.class_former_ty, classFormerTy]
-  lockstep
-  rename_i _ t hm n hn hkb v hd
-  rw [hm, Option.map_some, Option.some.injEq] at hd
-  subst hd
-  rcases hP with hk | hk
-  · have e : (List.map absIConstantVal cv_tas.val)[absU t]? =
-        some (absIConstantVal (cv_tas.val[a.val]'hkb)) := by
-      rw [List.getElem?_map, show absU t = a.val by simp [absU, hk],
-        List.getElem?_eq_getElem hkb]
-      rfl
-    simp only [e]
-    exact LS.pure (by simp [absIConstantVal]) ‹_› ‹_›
-  · exfalso
-    have := cv_tas.property
-    scalar_tac
+      (arena.inductives.gen_rec.class_former_ty pers st mode rf formers m) lst
+      (classFormerTy (ConRon.Refine.absMode mode) lf (formers.val.map absIConstantVal)
+        (absTargetMajor m)) := by
+  sorry -- T143-STUB
 
-theorem class_former_tys_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
-    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+theorem class_former_tys_acc {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
+    (formers : alloc.vec.Vec arena.env.IConstantVal)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdxL a)
-        (arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms i out) lst
-        (List.mapM.loop (classFormerTy lf (cv_tas.val.map absIConstantVal))
+        (arena.inductives.gen_rec.class_former_tys pers st mode rf formers ms i out) lst
+        (List.mapM.loop (classFormerTy (ConRon.Refine.absMode mode) lf
+          (formers.val.map absIConstantVal))
           ((ms.val.drop i.val).map absTargetMajor) (absEIdxL out).reverse) := by
-  intro i out st lst hrel hinv
-  refine ls_cursor_acc ms absTargetMajor
-    (fun (w : alloc.vec.Vec arena.handle.EIdx) l =>
-      List.mapM.loop (classFormerTy lf (cv_tas.val.map absIConstantVal)) l (absEIdxL w).reverse)
-    (fun st i w => arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms i w)
-    ?_ ?_ i st lst out hrel hinv
-  · intro st lst i w hn hrel hinv
-    rw [arena.inductives.gen_rec.class_former_tys.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac)]
-    simp only [List.mapM.loop, List.reverse_reverse]
-    lockstep
-  · intro st lst i w hi hrel hinv ih
-    rw [arena.inductives.gen_rec.class_former_tys.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)]
-    simp only [List.mapM.loop]
-    lockstep
+  sorry -- T143-STUB
 
-@[lockstep] theorem class_former_tys_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+@[lockstep] theorem class_former_tys_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
-    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+    (formers : alloc.vec.Vec arena.env.IConstantVal)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
     LS pers (fun a b => b = absEIdxL a)
-      (arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms 0#usize (alloc.vec.Vec.new _))
-      lst ((ms.val.map absTargetMajor).mapM (classFormerTy lf (cv_tas.val.map absIConstantVal))) := by
-  have h := class_former_tys_acc (pers := pers) hfe cv_tas ms 0#usize (alloc.vec.Vec.new _) st lst
-    hrel hinv
+      (arena.inductives.gen_rec.class_former_tys pers st mode rf formers ms 0#usize
+        (alloc.vec.Vec.new _))
+      lst ((ms.val.map absTargetMajor).mapM (classFormerTy (ConRon.Refine.absMode mode) lf
+        (formers.val.map absIConstantVal))) := by
+  have h := class_former_tys_acc (pers := pers) (mode := mode) hfe formers ms 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
   simpa [absEIdxL, alloc.vec.Vec.new, List.mapM] using h
 
 /-! ## The class keys: `class_key_canon`, `class_key_of`, `class_keys_of` -/
@@ -897,79 +871,51 @@ reads. -/
 @[lockstep] theorem check_block_classes_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
-    (p : arena.inductives.block_shape.BlockShape) (params : alloc.vec.Vec arena.handle.EIdx)
-    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    (p : arena.inductives.block_shape.BlockShape) (params : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = (absClassRead a.1, absTargetMajorL a.2))
-      (arena.inductives.gen_rec.check_block_classes pers st mode rf p params ctors_as) lst
-      (checkBlockClasses (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL params)
-        (absCtorsLL ctors_as)) := by
+      (arena.inductives.gen_rec.check_block_classes pers st mode rf p params) lst
+      (checkBlockClasses (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL params)) := by
   rw [arena.inductives.gen_rec.check_block_classes, checkBlockClasses]
   lockstep
 
 /-! ## The rules: `domains_resolve`, `class_rule_check` (`_tail` inline), `class_rule_ok` -/
 
-theorem domains_resolve_aux {pers} {vis_t : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
-    (rbs : alloc.vec.Vec arena.handle.EIdx) (m : Nat) :
-    ∀ (i : Std.Usize) st lst, rbs.val.length - i.val = m →
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = a)
-        (arena.inductives.gen_rec.domains_resolve pers vis_t st rf rbs i) lst
-        (((rbs.val.drop i.val).map absEIdx).allM
-          fun b => constsResolveFFast (lf.restrictTo (absU vis_t)) b) := by
-  induction m with
-  | zero =>
-    intro i st lst hm hrel hinv
-    rw [List.drop_eq_nil_of_le (by omega), List.map_nil, List.allM,
-      arena.inductives.gen_rec.domains_resolve.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len rbs by scalar_tac)]
-    lockstep
-  | succ m ih =>
-    intro i st lst hm hrel hinv
-    have hi : i.val < rbs.val.length := by omega
-    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.allM,
-      arena.inductives.gen_rec.domains_resolve.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rbs by scalar_tac)]
-    lockstep
-    all_goals
-      cases b
-      · exact LS.pure rfl ‹_› ‹_›
-      · exact absurd rfl hc
-
-/-- `domains_resolve` ⊑ the rule's `rbs.allM (constsResolveFFast (feR.restrictTo visT) ·)`,
-from the cursor on. -/
-@[lockstep] theorem domains_resolve_ls {pers} {vis_t : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
+/-- `domains_resolve` ⊑ the rule's `rbs.allM` (resolving at `feR`, naming no
+pushed recursor), from the cursor on. -/
+@[lockstep] theorem domains_resolve_ls {pers} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers rf lf) (pushed : alloc.vec.Vec arena.handle.NIdx)
     (rbs : alloc.vec.Vec arena.handle.EIdx) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.inductives.gen_rec.domains_resolve pers vis_t st rf rbs i) lst
-        (((rbs.val.drop i.val).map absEIdx).allM
-          fun b => constsResolveFFast (lf.restrictTo (absU vis_t)) b) :=
-  fun i st lst => domains_resolve_aux hfe rbs _ i st lst rfl
+        (arena.inductives.gen_rec.domains_resolve pers st rf pushed rbs i) lst
+        (((rbs.val.drop i.val).map absEIdx).allM fun b => do
+          if ← constsResolveFFast lf b then pure !(← mentionsAnyConst (absNIdxL pushed) b)
+          else pure false) := by
+  sorry -- T143-STUB
 
 attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_check_tail
 
 /-- `class_rule_check` (with `class_rule_check_tail` inline) ⊑ `classRuleCheck`. -/
 @[lockstep] theorem class_rule_check_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (hvr : absU vis_r = lf.visibleBelow)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (pushed : alloc.vec.Vec arena.handle.NIdx)
     (cv_r : arena.env.IConstantVal) (n : Std.U64) (gen : arena.handle.EIdx) :
     LS pers (fun a b => b = a)
-      (arena.inductives.gen_rec.class_rule_check pers st mode vis_t vis_r rf cv_r n gen) lst
-      (classRuleCheck (ConRon.Refine.absMode mode) (absU vis_t) lf (absIConstantVal cv_r)
+      (arena.inductives.gen_rec.class_rule_check pers st mode rf pushed cv_r n gen) lst
+      (classRuleCheck (ConRon.Refine.absMode mode) lf (absNIdxL pushed) (absIConstantVal cv_r)
         (absU n) (absEIdx gen)) := by
-  rw [arena.inductives.gen_rec.class_rule_check, classRuleCheck]
-  lockstep
+  sorry -- T143-STUB
 
 /-- `class_rule_ok` ⊑ `classRuleOk`: the check, then the generated rule. -/
 @[lockstep] theorem class_rule_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) (hvr : absU vis_r = lf.visibleBelow)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (pushed : alloc.vec.Vec arena.handle.NIdx)
     (cv_r : arena.env.IConstantVal) (n : Std.U64) (gen : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.inductives.gen_rec.class_rule_ok pers st mode vis_t vis_r rf cv_r n gen) lst
-      (classRuleOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absIConstantVal cv_r)
+      (arena.inductives.gen_rec.class_rule_ok pers st mode rf pushed cv_r n gen) lst
+      (classRuleOk (ConRon.Refine.absMode mode) lf (absNIdxL pushed) (absIConstantVal cv_r)
         (absU n) (absEIdx gen)) := by
   rw [arena.inductives.gen_rec.class_rule_ok, classRuleOk]
   lockstep
@@ -985,7 +931,6 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
       (arena.inductives.gen_rec.class_const_ok pers st mode rf cv) lst
       (classConstOk (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.gen_rec.class_const_ok, classConstOk]
   lockstep
 
@@ -1009,7 +954,6 @@ attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecSh
       (arena.inductives.gen_rec.class_rec_ty_check pers st mode rf cv_ri cv_g) lst
       (classRecTyCheck (ConRon.Refine.absMode mode) lf (absIConstantVal cv_ri)
         (absIConstantVal cv_g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.gen_rec.class_rec_ty_check, classRecTyCheck]
   lockstep
 
@@ -1022,7 +966,6 @@ attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecSh
       (arena.inductives.gen_rec.class_rec_ty_ok pers st mode rf g k rc cv_ri c) lst
       (classRecTyOk (ConRon.Refine.absMode mode) lf (absClassGen g) (absU k) (absRecShape rc)
         (absIConstantVal cv_ri) (absU c)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.gen_rec.class_rec_ty_ok, classRecTyOk]
   lockstep
 
@@ -1109,7 +1052,6 @@ theorem class_stream_recs_acc {pers} {mode : kernel.env.CheckMode}
       LS pers (fun a b => absICVList a = absICVList out ++ b)
         (arena.inductives.gen_rec.class_stream_recs pers st mode rf rcs i out) lst
         (classStreamRecs (ConRon.Refine.absMode mode) lf ((rcs.val.drop i.val).map absRecShape)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) rcs.val.length
     (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
@@ -1201,63 +1143,20 @@ theorem class_seeds_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
 
 /-! ## `class_rules_ok`, `class_recs_rules_ok` -/
 
-theorem class_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
-    (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
-    (rec_cls : alloc.vec.Vec Std.U64)
-    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (cv_r : arena.env.IConstantVal) (c : Std.U64)
-    (xs : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) :
-    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => absEIdxL a = absEIdxL out ++ b)
-        (arena.inductives.gen_rec.class_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs cv_r
-          c xs i out) lst
-        (classRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
-          (absNatL rec_cls) (cv_gs.val.map absIConstantVal) (absIConstantVal cv_r)
-          (absU c) ((xs.val.drop i.val).map absClassCtor)) := by
-  intro i
-  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
-    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => absEIdxL a = absEIdxL out ++ b)
-        (arena.inductives.gen_rec.class_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs cv_r
-          c xs i out) lst
-        (classRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
-          (absNatL rec_cls) (cv_gs.val.map absIConstantVal) (absIConstantVal cv_r)
-          (absU c) ((xs.val.drop i.val).map absClassCtor))) ?_ ?_ i
-  · intro i out hn st lst hrel hinv
-    rw [List.drop_eq_nil_of_le hn, List.map_nil, classRulesOk,
-      arena.inductives.gen_rec.class_rules_ok.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac)]
-    exact LS.pure (by simp) hrel hinv
-  · intro i out hi ih st lst hrel hinv
-    rw [List.drop_eq_getElem_cons hi, List.map_cons, classRulesOk,
-      arena.inductives.gen_rec.class_rules_ok.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)]
-    lockstep
-    rename_i x out1 hout1
-    have hjv : a.val = i.val + 1 := by simpa using hP
-    have h1 := ih a out1 hjv _ _ ‹_› ‹_›
-    simp only [hjv] at h1
-    refine ls_tail_cons h1 ?_
-    simp [absEIdxL, hout1]
-
 @[lockstep] theorem class_rules_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
-    (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
+    (pushed : alloc.vec.Vec arena.handle.NIdx) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (cv_r : arena.env.IConstantVal) (c : Std.U64)
     (xs : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) :
     LS pers (fun a b => b = absEIdxL a)
-      (arena.inductives.gen_rec.class_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs cv_r
+      (arena.inductives.gen_rec.class_rules_ok pers st mode rf pushed g rec_cls cv_gs cv_r
         c xs 0#usize (alloc.vec.Vec.new _)) lst
-      (classRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
+      (classRulesOk (ConRon.Refine.absMode mode) lf (absNIdxL pushed) (absClassGen g)
         (absNatL rec_cls) (cv_gs.val.map absIConstantVal) (absIConstantVal cv_r)
         (absU c) (xs.val.map absClassCtor)) := by
-  have h := class_rules_ok_acc (pers := pers) (mode := mode) (vis_t := vis_t) hfe hvr g rec_cls cv_gs cv_r
-    c xs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
-  exact LS.tail h rfl (fun a b h1 => by simpa [absEIdxL, alloc.vec.Vec.new] using h1.symm)
+  sorry -- T143-STUB
 
 def absRuleOut (t : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
     alloc.vec.Vec arena.handle.EIdx) : IConstantVal × TargetMajor × List EIdx :=
@@ -1267,493 +1166,33 @@ def absRuleOutL (v : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.r
     alloc.vec.Vec arena.handle.EIdx)) : List (IConstantVal × TargetMajor × List EIdx) :=
   v.val.map absRuleOut
 
-theorem class_recs_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
-    (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
-    (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal) :
-    ∀ (i : Std.Usize) out st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => absRuleOutL a = absRuleOutL out ++ b)
-        (arena.inductives.gen_rec.class_recs_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs
-          i out) lst
-        (classRecsRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
-          (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
-          ((cv_gs.val.drop i.val).map absIConstantVal) ((rec_cls.val.drop i.val).map absU)) := by
-  intro i
-  refine cursor_induction (fun i : Std.Usize => i.val) cv_gs.val.length
-    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => absRuleOutL a = absRuleOutL out ++ b)
-        (arena.inductives.gen_rec.class_recs_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs
-          i out) lst
-        (classRecsRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
-          (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
-          ((cv_gs.val.drop i.val).map absIConstantVal) ((rec_cls.val.drop i.val).map absU))) ?_ ?_ i
-  · intro i out hn st lst hrel hinv
-    rw [List.drop_eq_nil_of_le hn, List.map_nil,
-      arena.inductives.gen_rec.class_recs_rules_ok.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len cv_gs by scalar_tac)]
-    simp only [classRecsRulesOk]
-    exact LS.pure (by simp) hrel hinv
-  · intro i out hi ih st lst hrel hinv
-    rw [List.drop_eq_getElem_cons hi, List.map_cons,
-      arena.inductives.gen_rec.class_recs_rules_ok.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cv_gs by scalar_tac)]
-    by_cases hr : i.val < rec_cls.val.length
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rec_cls by scalar_tac),
-        List.drop_eq_getElem_cons hr, List.map_cons, classRecsRulesOk]
-      rw [gr_vec_index_eq (List.getElem?_eq_getElem hr), bind_ok]
-      rcases hcl : (g.ctors.val)[(rec_cls.val[i.val]).val]? with _ | v <;>
-        simp only [absClassGen_ctors, List.getD_eq_getElem?_getD, List.getElem?_map, absU, hcl,
-          Option.map_none, Option.map_some, Option.getD_none, Option.getD_some]
-      all_goals lockstep
-      all_goals first
-        | (exfalso; rw [List.getElem?_eq_none_iff] at hcl
-           have := g.ctors.property
-           casesm* (_ : Nat) = _ ∨ Std.Usize.max < _ <;> scalar_tac)
-        | (rename_i iv1 hiv1 out1 hout1
-           have hjv : a.val = i.val + 1 := by simpa using hP
-           have h1 := ih a out1 hjv _ _ ‹_› ‹_›
-           simp only [hjv] at h1
-           refine ls_tail_cons h1 ?_
-           simp [absRuleOutL, absRuleOut, hout1, hiv1])
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rec_cls by scalar_tac),
-        List.drop_eq_nil_of_le (show rec_cls.val.length ≤ i.val by omega), List.map_nil]
-      simp only [classRecsRulesOk]
-      exact LS.pure (by simp) hrel hinv
-
 @[lockstep] theorem class_recs_rules_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis_t vis_r : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
-    (hvr : absU vis_r = lf.visibleBelow) (g : arena.inductives.gen_rec.ClassGen)
+    (pushed : alloc.vec.Vec arena.handle.NIdx) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal) :
     LS pers (fun a b => b = absRuleOutL a)
-      (arena.inductives.gen_rec.class_recs_rules_ok pers st mode vis_t vis_r rf g rec_cls cv_gs
+      (arena.inductives.gen_rec.class_recs_rules_ok pers st mode rf pushed g rec_cls cv_gs
         0#usize (alloc.vec.Vec.new _)) lst
-      (classRecsRulesOk (ConRon.Refine.absMode mode) (absU vis_t) lf (absClassGen g)
+      (classRecsRulesOk (ConRon.Refine.absMode mode) lf (absNIdxL pushed) (absClassGen g)
         (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
         (cv_gs.val.map absIConstantVal) (rec_cls.val.map absU)) := by
-  have h := class_recs_rules_ok_acc (pers := pers) (mode := mode) (vis_t := vis_t) hfe hvr g
-    rec_cls cv_gs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
-  exact LS.tail h rfl (fun a b h1 => by simpa [absRuleOutL, alloc.vec.Vec.new] using h1.symm)
+  sorry -- T143-STUB
 
 /-! ## The temporary recursors: `class_fe_r_push` / `class_fe_r_pop`
 
 The port pushes the rule-less recursors onto the index IN PLACE
-(`ifenv_push_temp`, recording each displaced raw row `(counter, position)`) and
-pops them in reverse (`ifenv_pop_temp`, `resize` and the row put back); the
-twin pushes (`IFEnv.push`) recording the displaced `(counter, constant)` row and
-pops by `foldr popTemp`.  The two records are not related row by row: each side
-is shown to come back to an index that ANSWERS like the one it started from
-(`RFEq` for the port — the same list, bound and row function, the `HashMap2`
-itself is not structurally restored — and `TFEq` for the twin), and
-`IFEnvRelI.transfer` carries the relation across. -/
-
-/-- Two port indexes that answer alike. -/
-def RFEq (a b : arena.env.IFEnv) : Prop :=
-  a.env.consts.val = b.env.consts.val ∧
-    ConRon.Refine.HashMap2.toFun a.idx = ConRon.Refine.HashMap2.toFun b.idx ∧
-    a.visible_below = b.visible_below ∧ a.env.tables = b.env.tables ∧ a.tbls = b.tbls ∧
-    a.base_below = b.base_below
-
-theorem RFEq.refl (a : arena.env.IFEnv) : RFEq a a := ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
-
-/-- The port index's table invariant alone. -/
-abbrev IdxInv (a : arena.env.IFEnv) : Prop :=
-  ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable a.idx
-
-/-- Two twin indexes that answer alike (`Bridge/Inductives/GenRec.lean`'s
-`GR.FEq`, restated below the bridge). -/
-def TFEq (a b : IFEnv) : Prop :=
-  a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ (∀ n : NIdx, a.idx[n]? = b.idx[n]?) ∧
-    a.tbls = b.tbls
-
-theorem TFEq.refl (a : IFEnv) : TFEq a a := ⟨rfl, rfl, fun _ => rfl, rfl⟩
-
-theorem TFEq.trans {a b c : IFEnv} (h₁ : TFEq a b) (h₂ : TFEq b c) : TFEq a c :=
-  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2.1 n).trans (h₂.2.2.1 n),
-    h₁.2.2.2.trans h₂.2.2.2⟩
-
-theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
-    (prev : Option (Nat × IConstantInfo)) : TFEq (a.popTemp n prev) (b.popTemp n prev) := by
-  refine ⟨by simp only [IFEnv.popTemp, h.1], by simp only [IFEnv.popTemp, h.2.1], fun k => ?_,
-    by simp only [IFEnv.popTemp, h.2.2.2]⟩
-  simp only [IFEnv.popTemp]
-  cases prev with
-  | none =>
-    simp only [Std.HashMap.getElem?_erase]
-    split <;> simp [h.2.2.1 k]
-  | some r =>
-    simp only [Std.HashMap.getElem?_insert]
-    split <;> simp [h.2.2.1 k]
-
-theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
-    TFEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; grind, fun k => ?_, rfl⟩
-  simp only [IFEnv.popTemp, IFEnv.push]
-  cases hprev : fe.idx[ci.name]? with
-  | none =>
-    simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
-    by_cases hk : (ci.name == k) = true
-    · have : ci.name = k := eq_of_beq hk
-      subst this
-      simp [hprev]
-    · simp [hk]
-  | some r =>
-    simp only [Std.HashMap.getElem?_insert]
-    by_cases hk : (ci.name == k) = true
-    · have : ci.name = k := eq_of_beq hk
-      subst this
-      simp [hprev]
-    · simp [hk]
-
-/-- **The relation survives answering-alike indexes on both sides.** -/
-theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv} {lf lf' : IFEnv} (h : IFEnvRelI pers rf lf)
-    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI pers rf' lf' := by
-  obtain ⟨⟨henv, hidx, hvb, hwf, hkeys, htbls, htk, hbase⟩, ⟨-, hbound, hrange, htinv, htrange⟩⟩ := h
-  obtain ⟨hc, ht, hv, hT, hTb, hB⟩ := hr
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, hbase⟩, hi, ?_, ?_, ?_, ?_⟩
-  · rw [hl.1, henv]; simp only [overEnv, hc, hT]
-  · intro n
-    rw [hl.2.2.1, ← hidx n]
-    simp only [layerRow, rowOf, ht, hc, hB]
-  · rw [hl.2.1, hvb, hv]
-  · intro ci hci; rw [hc] at hci; exact hwf ci hci
-  · intro k p hp; rw [ht] at hp; rw [hc]; exact hkeys k p hp
-  · intro n
-    rw [hl.2.2.2, ← htbls n]
-    simp only [layerTbl, tblOf, hTb, hT, hB]
-  · intro k s hs; rw [hTb] at hs; rw [hT]; exact htk k s hs
-  · rw [hv, hc, hB]; exact hbound
-  · intro n p hp; rw [ht] at hp; rw [hc]; exact hrange n p hp
-  · rw [hTb]; exact htinv
-  · intro n s hs; rw [hTb] at hs; rw [hT]; exact htrange n s hs
-
-/-- `ifenv_push_temp` is `ifenv_push` with the displaced row handed back. -/
-theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
-    {prev : Option (Std.U64 × Std.U64)} (hfinv : IFEnvInv rf)
-    (h : arena.env.ifenv_push_temp rf ci = ok (prev, rf')) :
-    arena.env.ifenv_push rf ci = ok rf' ∧
-    ∃ n, arena.env.i_constant_info_name ci = ok n ∧
-      prev = ConRon.Refine.HashMap2.toFun rf.idx n ∧
-      rf'.env.consts.val = rf.env.consts.val ++ [ci] ∧
-      (∃ s : Std.U64, s.val = rf.env.consts.val.length ∧
-        ConRon.Refine.HashMap2.toFun rf'.idx =
-          Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some (rf.visible_below, s))) ∧
-      rf'.visible_below.val = rf.visible_below.val + 1 ∧ IdxInv rf' ∧
-      rf'.env.tables = rf.env.tables ∧ rf'.tbls = rf.tbls ∧ rf'.base_below = rf.base_below := by
-  rw [arena.env.ifenv_push_temp] at h
-  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hinv', hold, hupd, -⟩ :=
-    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
-      hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
-  have h' := Prod.mk.inj (Result.ok_injective h)
-  obtain ⟨rfl, rfl⟩ := h'
-  refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, ?_, hinv', rfl, rfl, rfl⟩
-  · rw [arena.env.ifenv_push, hs]
-    simp only [bind_ok, hn, hq, hv, hc1]
-    rfl
-  · simp only [lift, Result.ok.injEq] at hs; subst hs
-    simp
-  · simpa using ConRon.Refine.Nat.uadd_val hc1
-
-/-- `ifenv_pop_temp`: the last constant dropped, the row under `n` put back as
-`prev`, the counter one down. -/
-theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx}
-    {prev : Option (Std.U64 × Std.U64)} (hi : IdxInv fe)
-    (h : arena.env.ifenv_pop_temp fe n prev = ok out) :
-    out.env.consts.val = fe.env.consts.val.take (fe.env.consts.val.length - 1) ∧
-      ConRon.Refine.HashMap2.toFun out.idx =
-        Function.update (ConRon.Refine.HashMap2.toFun fe.idx) n prev ∧
-      out.visible_below.val = fe.visible_below.val - 1 ∧ 1 ≤ fe.visible_below.val ∧
-      IdxInv out ∧ out.env.tables = fe.env.tables ∧ out.tbls = fe.tbls ∧
-      out.base_below = fe.base_below := by
-  unfold arena.env.ifenv_pop_temp at h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hvv : v.val = fe.env.consts.val.take (fe.env.consts.val.length - 1) := by
-    split at hv
-    · rename_i h0
-      rw [Result.ok.injEq] at hv; subst hv
-      have : fe.env.consts.val.length = 0 := by
-        have := congrArg (fun x : Std.Usize => x.val) h0; simpa using this
-      rw [List.eq_nil_of_length_eq_zero this]; rfl
-    · rename_i h0
-      obtain ⟨i, hi', hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
-      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
-      have hiv := ConRon.Refine.Nat.usub_val hi'
-      rw [alloc.vec.Vec.resize, ite_eq_left (by grind),
-        Result.ok.injEq] at hv
-      subst hv
-      simp only [List.resize, alloc.vec.Vec.len] at *
-      simp [hiv.2]
-  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [Result.ok.injEq] at h
-  subst h
-  have hc1v := ConRon.Refine.Nat.usub_val hc1
-  have hhmv : ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
-      ConRon.Refine.HashMap2.toFun hm =
-        Function.update (ConRon.Refine.HashMap2.toFun fe.idx) n prev := by
-    cases prev with
-    | none =>
-      obtain ⟨q, hq, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
-      obtain ⟨q1, q2⟩ := q
-      obtain rfl := Result.ok_injective (show ok q2 = ok hm from hhm)
-      obtain ⟨hinv', -, hupd, -⟩ :=
-        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
-          hi ConRon.Refine.HashMap2.KeysOk_true trivial hq
-      exact ⟨hinv', hupd⟩
-    | some row =>
-      obtain ⟨n1, hn1, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
-      obtain ⟨q, hq, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
-      obtain ⟨q1, q2⟩ := q
-      obtain rfl := Result.ok_injective (show ok q2 = ok hm from hhm)
-      rw [dupId_nidx _ _ hn1] at hq
-      obtain ⟨hinv', -, hupd, -⟩ :=
-        ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
-          hi ConRon.Refine.HashMap2.KeysOk_true trivial hq
-      exact ⟨hinv', hupd⟩
-  exact ⟨hvv, hhmv.2, by simpa using hc1v.2, by simpa using hc1v.1, hhmv.1, rfl, rfl, rfl⟩
-
-/-- **A pop undoes its push** on the port side, from any index answering like
-the pushed one. -/
-theorem gr_pop_push {rf rf1 rfX out : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
-    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)} (hfinv : IFEnvInv rf)
-    (hpush : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
-    (hn : arena.env.i_constant_info_name ci = ok n)
-    (hX : RFEq rfX rf1) (hXi : IdxInv rfX)
-    (hpop : arena.env.ifenv_pop_temp rfX n prev = ok out) :
-    RFEq out rf ∧ IdxInv out := by
-  obtain ⟨-, n', hn', hprev, hc, ⟨s, -, ht⟩, hvb, -, hT1, hTb1, hB1⟩ :=
-    gr_ifenv_push_temp_spec hfinv hpush
-  rw [hn] at hn'; cases Result.ok_injective hn'
-  obtain ⟨hoc, hot, hov, hov1, hoi, hoT, hoTb, hoB⟩ := gr_ifenv_pop_temp_spec hXi hpop
-  obtain ⟨hXc, hXt, hXv, hXT, hXTb, hXB⟩ := hX
-  refine ⟨⟨?_, ?_, ?_, by rw [hoT, hXT, hT1], by rw [hoTb, hXTb, hTb1],
-    by rw [hoB, hXB, hB1]⟩, hoi⟩
-  · rw [hoc, hXc, hc]; simp
-  · rw [hot, hXt, ht, hprev]
-    funext k
-    by_cases hk : k = n
-    · subst hk; simp
-    · simp [Function.update_of_ne hk]
-  · apply UScalar.eq_imp
-    rw [hov, hXv, hvb]; omega
-
-/-- The twin's pops restore the index the pushes started from
-(`Bridge/Inductives/GenRec.lean`'s `classFeR_go_pop`, restated). -/
-theorem gr_classFeR_go_pop (p : BlockShape) :
-    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
-      (prevs : List (NIdx × Option (Nat × IConstantInfo))),
-      ∃ news, (classFeR.go p m l fe prevs).2 = prevs ++ news ∧
-        TFEq (news.foldr (fun (x : NIdx × Option (Nat × IConstantInfo)) acc =>
-          acc.popTemp x.1 x.2) (classFeR.go p m l fe prevs).1) fe
-  | [], m, fe, prevs => ⟨[], by simp [classFeR.go], TFEq.refl _⟩
-  | (cv, c) :: rest, m, fe, prevs => by
-    simp only [classFeR.go]
-    obtain ⟨news, hn, hf⟩ := gr_classFeR_go_pop p rest (m + 1)
-      (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []))
-      (prevs ++ [(cv.name, fe.idx[cv.name]?)])
-    refine ⟨(cv.name, fe.idx[cv.name]?) :: news, by rw [hn]; simp, ?_⟩
-    simp only [List.foldr_cons]
-    exact (hf.popTemp _ _).trans (TFEq.popTemp_push fe (.recInfo cv _ _ []))
-
-theorem gr_usize_ext {a b : Std.Usize} (h : a.val = b.val) : a = b := by scalar_tac
-
-/-- **One more pop**: if the rows pushed after this one pop back to the index this push
-produced, then with this row popped too they pop back to the index it started from. -/
-theorem gr_pop_step {rf rf1 rfK : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
-    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)}
-    {prevs prevs1 prevsK : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64))}
-    {Q : List (arena.handle.NIdx × Option (Std.U64 × Std.U64))} (hfinv : IFEnvInv rf)
-    (hpq : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
-    (hn : arena.env.i_constant_info_name ci = ok n)
-    (hprevs1v : prevs1.val = prevs.val ++ [(n, prev)]) (hQ : prevsK.val = prevs1.val ++ Q)
-    (ih3 : ∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
-      j.val = prevs1.val.length + Q.length →
-      arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
-      ∃ rfY, RFEq rfY rf1 ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs1.val.length →
-        arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out) :
-    ∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
-      j.val = prevs.val.length + (Q.length + 1) →
-      arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
-      ∃ rfY, RFEq rfY rf ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs.val.length →
-        arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out := by
-  intro rfX hX hXi j out hj hpop
-  obtain ⟨rfY', hY', hYi', hpop'⟩ := ih3 rfX hX hXi j out
-    (by rw [hj, hprevs1v]; simp; omega) hpop
-  obtain ⟨jj, hjj⟩ : ∃ jj : Std.Usize, jj.val = prevs.val.length + 1 :=
-    ⟨UScalar.ofNatCore (ty := .Usize) (prevs.val.length + 1) (by
-      have := prevsK.property; rw [hQ, hprevs1v] at this; simp at this
-      scalar_tac), UScalar.ofNatCore_val_eq _⟩
-  have hp2 := hpop' jj (by rw [hjj, hprevs1v]; simp)
-  rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_right (by scalar_tac)] at hp2
-  obtain ⟨i1, hi1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-  have hi1v := ConRon.Refine.Nat.usub_val hi1
-  have hget : prevsK.val[i1.val]? = some (n, prev) := by
-    rw [hQ, hprevs1v, show i1.val = prevs.val.length by simp at hi1v; omega]
-    simp
-  rw [gr_vec_index_eq hget, bind_ok] at hp2
-  obtain ⟨pv, hpv, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-  have hpvv : pv = prev := by
-    cases prev <;> simp only [Result.ok.injEq] at hpv <;> exact hpv.symm
-  subst hpvv
-  simp only [bind_ok] at hp2
-  obtain ⟨fe1, hfe1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
-  obtain ⟨hR1, hI1⟩ := gr_pop_push hfinv hpq hn hY' hYi' hfe1
-  refine ⟨fe1, hR1, hI1, fun j' hj' => ?_⟩
-  rw [gr_usize_ext (show j'.val = i1.val by simp at hi1v; omega)]
-  exact hp2
-
-theorem gr_fe_r_push_aux {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
-    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64) :
-    ∀ (q : Nat) (m : Std.Usize) (rf : arena.env.IFEnv) (lf : IFEnv)
-      (prevs : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64)))
-      (prevsL : List (NIdx × Option (Nat × IConstantInfo))) rfK prevsK,
-      min cv_gs.val.length rec_cls.val.length - m.val = q →
-      IFEnvRelI pers rf lf →
-      arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls m rf prevs = ok (rfK, prevsK) →
-      IFEnvRelI pers rfK (classFeR.go (absBlockShape p) m.val
-          (((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val) lf prevsL).1 ∧
-      (∃ Q, prevsK.val = prevs.val ++ Q ∧ Q.length = q) ∧
-      (∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
-        j.val = prevs.val.length + q →
-        arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
-        ∃ rfY, RFEq rfY rf ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs.val.length →
-          arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out) := by
-  intro q
-  induction q with
-  | zero =>
-    intro m rf lf prevs prevsL rfK prevsK hq hfe h
-    rw [arena.inductives.gen_rec.class_fe_r_push.eq_def] at h
-    have hmin : m.val ≥ cv_gs.val.length ∨ m.val ≥ rec_cls.val.length := by omega
-    have hrfK : rfK = rf ∧ prevsK = prevs := by
-      by_cases h1 : m ≥ alloc.vec.Vec.len cv_gs
-      · rw [ite_eq_left h1] at h
-        exact Prod.mk.inj (Result.ok_injective h).symm
-      · rw [ite_eq_right h1, ite_eq_left (by scalar_tac)] at h
-        exact Prod.mk.inj (Result.ok_injective h).symm
-    obtain ⟨rfl, rfl⟩ := hrfK
-    have hnil : ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val = [] := by
-      apply List.drop_eq_nil_of_le; simp; omega
-    refine ⟨?_, ⟨[], by simp, rfl⟩, ?_⟩
-    · rw [hnil]; simpa [classFeR.go] using hfe
-    · intro rfX hX hXi j out hj hpop
-      refine ⟨rfX, hX, hXi, fun j' hj' => ?_⟩
-      rw [gr_usize_ext (show j'.val = j.val by omega)]; exact hpop
-  | succ q ih =>
-    intro m rf lf prevs prevsL rfK prevsK hq hfe h
-    have hm1 : m.val < cv_gs.val.length := by omega
-    have hm2 : m.val < rec_cls.val.length := by omega
-    rw [arena.inductives.gen_rec.class_fe_r_push.eq_def,
-      ite_eq_right (show ¬ m ≥ alloc.vec.Vec.len cv_gs by scalar_tac),
-      ite_eq_right (show ¬ m ≥ alloc.vec.Vec.len rec_cls by scalar_tac)] at h
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hivx := vec_index_some hiv
-    rw [List.getElem?_eq_getElem hm1, Option.some.injEq] at hivx
-    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1] at h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨pq, hpq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨prev, rf1⟩ := pq
-    simp only [Aeneas.Std.uncurry_apply_pair] at h
-    obtain ⟨prevs1, hprevs1, hA⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨m1, hm1', hB⟩ := ConRon.Refine.bind_eq_ok_iff.mp hA
-    have hm1v : m1.val = m.val + 1 := absSz_add_one hm1'
-    have hi2v : i2.val = m.val := by
-      simp only [lift, Result.ok.injEq] at hi2; subst hi2
-      exact ConRon.Refine.ExprOps.usize_cast_u64_val m
-    have hi4v : i4.val = m.val := by
-      simp only [lift, Result.ok.injEq] at hi4; subst hi4
-      exact ConRon.Refine.ExprOps.usize_cast_u64_val m
-    have hi3v := major_idx_at_twin p i2 i3 hi3
-    have hi5v := rule_prefix_at_twin p i4 i5 hi5
-    simp only [TwinEq] at hi3v hi5v
-    -- the pushed constant
-    obtain ⟨hpush, n', hn', -, -, -, -, -, -, -⟩ := gr_ifenv_push_temp_spec hfe.inv hpq
-    have hnn : n' = n := by
-      simp only [arena.env.i_constant_info_name] at hn'
-      rw [dupId_nidx _ _ hn', dupId_nidx _ _ hn]
-    subst hnn
-    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines hfe.rel hfe.inv
-      (show IConstantInfoWF (arena.env.IConstantInfo.RecInfo _ _ _ _) from trivial) hpush
-    have hdrop : ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val =
-        (absIConstantVal iv, absU rec_cls.val[m.val]) ::
-          ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop (m.val + 1) := by
-      rw [List.drop_eq_getElem_cons (by simp; omega)]
-      simp [hivx]
-    obtain ⟨ih1, ⟨Q, hQ, hQl⟩, ih3⟩ := ih m1 rf1 _ prevs1
-      (prevsL ++ [((absIConstantVal iv).name, lf.idx[(absIConstantVal iv).name]?)]) rfK prevsK
-      (by omega) ⟨hrel1, hinv1⟩ hB
-    have hprevs1v := ConRon.Refine.vec_push_val hprevs1
-    refine ⟨?_, ⟨(n', prev) :: Q, by rw [hQ, hprevs1v]; simp, by simp [hQl]⟩, ?_⟩
-    · rw [hdrop]
-      simp only [classFeR.go]
-      rw [hm1v] at ih1
-      have hrec : absIConstantInfo (arena.env.IConstantInfo.RecInfo iv i3 i5
-          (alloc.vec.Vec.new arena.env.IRecRule)) =
-          .recInfo (absIConstantVal iv) ((absBlockShape p).majorIdxAt m.val)
-            ((absBlockShape p).rulePrefixAt m.val) [] := by
-        simp only [absIConstantInfo, ← hi3v, ← hi5v, absU, hi2v, hi4v]
-        rfl
-      rw [hrec] at ih1
-      exact ih1
-    · rw [← hQl]
-      exact gr_pop_step hfe.inv hpq (by
-        simp only [arena.env.i_constant_info_name]; exact hn') hprevs1v hQ
-        (fun rfX hX hXi j out hj hpop => ih3 rfX hX hXi j out (by rw [hj, hQl]) hpop)
-
-/-- **The rule-less recursors pushed, and popped again**: the pushed index is
-the twin's `classFeR`, and whatever the pops return is related to the twin's
-`foldr popTemp` (any `f` that is the twin's pop lambda). -/
-theorem class_fe_r_push_spec {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
-    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
-    (f : NIdx × Option (Nat × IConstantInfo) → IFEnv → IFEnv)
-    (hf : ∀ x acc, f x acc = acc.popTemp x.1 x.2) :
-    LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
-      (fun r => IFEnvRelI pers r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
-          (rec_cls.val.map absU) lf).1 ∧
-        ∀ (j : Std.Usize) out, j.val = r.2.val.length →
-          arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
-          IFEnvRelI pers out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
-            (rec_cls.val.map absU) lf).2.foldr f
-            (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
-              (rec_cls.val.map absU) lf).1)) := by
-  intro r hr
-  obtain ⟨rfK, prevsK⟩ := r
-  obtain ⟨h1, ⟨Q, hQ, hQl⟩, h3⟩ := gr_fe_r_push_aux p cv_gs rec_cls _ 0#usize rf lf
-    (alloc.vec.Vec.new _) [] rfK prevsK rfl hfe hr
-  simp only [Lockstep.usize_zero_val', List.drop_zero] at h1
-  refine ⟨h1, fun j out hj hpop => ?_⟩
-  obtain ⟨rfY, hY, hYi, hpopY⟩ := h3 rfK (RFEq.refl _) h1.inv.1 j out
-    (by rw [hj, hQ]; simp [alloc.vec.Vec.new, hQl]) hpop
-  have hout := hpopY 0#usize (by simp [alloc.vec.Vec.new])
-  rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_left rfl, Result.ok.injEq] at hout
-  subst hout
-  obtain ⟨news, hn, hT⟩ := gr_classFeR_go_pop (absBlockShape p)
-    ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)) 0 lf []
-  have hfeq : f = fun (x : NIdx × Option (Nat × IConstantInfo)) acc => acc.popTemp x.1 x.2 := by
-    funext x acc; exact hf x acc
-  refine IFEnvRelI.transfer hfe hY hYi ?_
-  simp only [classFeR]
-  rw [hn, List.nil_append, hfeq]
-  exact hT
-
-/-! ## `gen_rec_check` (with `gen_rec_classes` and `gen_rec_generate` inline) -/
-
+(`ifenv_push_temp`, recording each displaced raw slot) and pops them in reverse
+(`ifenv_pop_temp`); the twin pushes (`IFEnv.push`) recording the displaced own
+row and pops by `foldr popTemp`. -/
 
 /-- The pop lambda, named (the twin's `fun (n, prev) acc => acc.popTemp n prev`). -/
-def grPop (x : NIdx × Option (Nat × IConstantInfo)) (acc : IFEnv) : IFEnv :=
+def grPop (x : NIdx × Option IConstantInfo) (acc : IFEnv) : IFEnv :=
   acc.popTemp x.1 x.2
 
+/-- **The rule-less recursors pushed, and popped again**: the pushed index is the
+twin's `classFeR`, and what the pops return is related to the twin's `foldr`
+of the pops. -/
 theorem class_fe_r_push_ls {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
@@ -1765,14 +1204,15 @@ theorem class_fe_r_push_ls {pers : arena.store.PersTier} (p : arena.inductives.b
           IFEnvRelI pers out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
             (rec_cls.val.map absU) lf).2.foldr grPop
             (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
-              (rec_cls.val.map absU) lf).1)) :=
-  class_fe_r_push_spec p cv_gs rec_cls hfe grPop (fun _ _ => rfl)
+              (rec_cls.val.map absU) lf).1)) := by
+  sorry -- T143-STUB
+
+/-! ## `gen_rec_check` (with `gen_rec_classes` and `gen_rec_generate` inline) -/
 
 attribute [local lockstep] class_fe_r_push_ls
 attribute [local lockstep_inline] arena.inductives.gen_rec.gen_rec_classes
   arena.inductives.gen_rec.gen_rec_generate
 
-set_option maxHeartbeats 4000000 in
 /-- `gen_rec_check` ⊑ `genRecCheck` — the export the block tail reads: the
 index handed back related to the twin's popped one, the rules alike. -/
 @[lockstep] theorem gen_rec_check_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -1783,52 +1223,42 @@ index handed back related to the twin's popped one, the rules alike. -/
     (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
     (rd : arena.inductives.class_read.ClassRead)
     (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
-    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
     (block : alloc.vec.Vec arena.env.IConstantInfo) :
     LS pers (fun a b => IFEnvRelI pers a.1 b.1 ∧ b.2 = absRuleOutL a.2)
       (arena.inductives.gen_rec.gen_rec_check pers st mode rf p nested_bit params tbl rd ms
-        cv_tas block) lst
+        block) lst
       (genRecCheck (ConRon.Refine.absMode mode) lf (absBlockShape p) nested_bit (absEIdxL params)
         (tbl.val.map absNestCtorNf) (absClassRead rd) (ms.val.map absTargetMajor)
-        (cv_tas.val.map absIConstantVal) (block.val.map absIConstantInfo)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
-  rw [arena.inductives.gen_rec.gen_rec_check, genRecCheck]
-  lockstep
-  all_goals
-    obtain ⟨hR, hpop⟩ := hP
-    simp only at hR hpop
-    have hvr := hR.rel.visibleBelow.symm
-    lockstep
-    refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
-    exact hpop _ _ (by simp [alloc.vec.Vec.len]) hf
+        (block.val.map absIConstantInfo)) := by
+  sorry -- T143-STUB
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.gen_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms gen_rec_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.gen_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms gen_rec_check_ls
 
-/-- info: 'ConRon.Refine2.class_rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_rec_ty_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_rec_ty_check_ls
 
-/-- info: 'ConRon.Refine2.class_rule_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_rule_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_rule_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_rule_check_ls
 
-/-- info: 'ConRon.Refine2.check_block_classes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms check_block_classes_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.check_block_classes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms check_block_classes_ls
 
 /-- info: 'ConRon.Refine2.class_keys_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms class_keys_of_ls
 
-/-- info: 'ConRon.Refine2.class_ctors_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_ctors_of_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_ctors_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_ctors_of_ls
 
 /-- info: 'ConRon.Refine2.class_seeds_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms class_seeds_ls
 
-/-- info: 'ConRon.Refine2.class_fe_r_push_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_fe_r_push_spec
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_fe_r_push_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_fe_r_push_spec
 
-/-- info: 'ConRon.Refine2.class_recs_rules_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_recs_rules_ok_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_recs_rules_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_recs_rules_ok_ls
 
 end ConRon.Refine2

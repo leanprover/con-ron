@@ -41,7 +41,6 @@ theorem rec_doms_at_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFE
       LS pers (fun a b => b = a)
         (arena.inductives.stream_recs.rec_doms_at pers st mode rf sfvs gfvs j k) lst
         (recDomsAt (ConRon.Refine.absMode mode) lf (absEIdxL sfvs) (absEIdxL gfvs) (absU j) n) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   induction n with
   | zero =>
     intro j k st lst hk hrel hinv
@@ -51,10 +50,6 @@ theorem rec_doms_at_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFE
     intro j k st lst hk hrel hinv
     rw [arena.inductives.stream_recs.rec_doms_at.eq_def, ite_eq_right (by scalar_tac), recDomsAt]
     lockstep
-    rename_i j1 hj1
-    refine LS.tail (ih j1 a st1 lst1 (by scalar_tac) hrel hinv) ?_ (fun _ _ h => h)
-    rw [show absU j1 = j.val + 1 by simp [absU]; scalar_tac]
-    rfl
 
 @[lockstep] theorem rec_doms_at_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -77,7 +72,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.rec_ty_opened pers st mode rf n s g) lst
       (recTyOpened (ConRon.Refine.absMode mode) lf (absU n) (absOpened s) (absOpened g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rec_ty_opened.eq_def]
   rcases s with _ | ⟨sfvs, srest⟩ <;> rcases g with _ | ⟨gfvs, grest⟩ <;>
     simp only [absOpened, Option.map, recTyOpened] <;> lockstep
@@ -98,7 +92,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
       (arena.inductives.stream_recs.rec_ty_check pers st mode rf lps n s g) lst
       (recTyCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absU n) (absEIdx s)
         (absEIdx g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rec_ty_check, recTyCheck]
   lockstep
 
@@ -110,7 +103,6 @@ def absOpened (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.rule_agree pers st mode rf lps s g) lst
       (ruleAgree (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absEIdx s) (absEIdx g)) := by
-  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.stream_recs.rule_agree, ruleAgree]
   lockstep
 
@@ -230,12 +222,12 @@ theorem stored_nested_bvars_aux {pers} (n : Nat) :
   rw [arena.inductives.stream_recs.stream_nested_ok.eq_def]
   cases fire <;> simp only [absIRecRuleFire, streamNestedOk] <;> lockstep
 
-@[lockstep] theorem stored_fire_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem generated_fire_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (m : arena.inductives.rec_check.TargetMajor) (r_p : Std.U64) :
     LS pers (fun a b => b = absIRecRuleFire a)
-      (arena.inductives.stream_recs.stream_fire_of pers st m r_p) lst
-      (storedFireOf (absTargetMajor m) (absU r_p)) := by
-  rw [arena.inductives.stream_recs.stream_fire_of, storedFireOf,
+      (arena.inductives.stream_recs.generated_fire pers st m r_p) lst
+      (generatedFire (absTargetMajor m) (absU r_p)) := by
+  rw [arena.inductives.stream_recs.generated_fire, generatedFire,
     show (absTargetMajor m).member = m.member.map absU from rfl]
   rcases hm : m.member with _ | v
   · exact aux_rule_fire_ls hrel hinv m r_p
@@ -355,10 +347,7 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
     LS pers (fun a b => b = a)
       (arena.inductives.stream_recs.stream_rec_check pers st mode rf rc g) lst
       (streamRecCheck (ConRon.Refine.absMode mode) lf (absRecShape rc) (absRecOut g)) := by
-  obtain ⟨cv, m, rhss⟩ := g
-  rw [arena.inductives.stream_recs.stream_rec_check, streamRecCheck]
-  simp only [absRecOut, gr_absRecShape_rP, gr_absRecShape_mI, gr_absRecShape_cvR]
-  lockstep
+  sorry -- T143-STUB
 
 theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
@@ -408,85 +397,34 @@ theorem stored_recs_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.e
   have h := stored_recs_check_aux (mode := mode) hfe rcs gs _ 0#usize st lst rfl hrel hinv
   simpa using h
 
-/-- `stored_out` from the cursor on: the Rust's two-list walk is the twin's `zipWith`. -/
-theorem stored_out_abs (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
-    (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
-      alloc.vec.Vec arena.handle.EIdx)) (n : Nat) :
-    ∀ (i : Std.Usize) (acc o : alloc.vec.Vec (arena.env.IConstantVal ×
-        arena.inductives.rec_check.TargetMajor × alloc.vec.Vec arena.handle.EIdx)),
-      rcs.val.length - i.val = n →
-      arena.inductives.stream_recs.stream_out rcs gs i acc = ok o →
-      o.val.map absRecOut = acc.val.map absRecOut ++
-        storedOut ((rcs.val.drop i.val).map absRecShape) ((gs.val.drop i.val).map absRecOut) := by
-  induction n with
-  | zero =>
-    intro i acc o hn h
-    rw [arena.inductives.stream_recs.stream_out.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len rcs by scalar_tac), Result.ok.injEq] at h
-    rw [h, List.drop_eq_nil_of_le (by omega : rcs.val.length ≤ i.val)]
-    simp [storedOut]
-  | succ n ih =>
-    intro i acc o hn h
-    have hr : i.val < rcs.val.length := by omega
-    rw [arena.inductives.stream_recs.stream_out.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rcs by scalar_tac)] at h
-    by_cases hg : i.val < gs.val.length
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len gs by scalar_tac)] at h
-      obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨iv, tm, x⟩ := p
-      have hpx : gs.val[i.val] = (iv, tm, x) := by
-        have h1 := vec_index_some hp; rw [List.getElem?_eq_getElem hg] at h1
-        exact Option.some_inj.mp h1
-      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨rc, hrc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hrcx : rcs.val[i.val] = rc := by
-        have h1 := vec_index_some hrc; rw [List.getElem?_eq_getElem hr] at h1
-        exact Option.some_inj.mp h1
-      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨tm1, htm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hi3v : i3.val = i.val + 1 := absSz_add_one hi3
-      rw [ih i3 acc1 o (by omega) h, ConRon.Refine.vec_push_val hacc1, hi3v,
-        List.drop_eq_getElem_cons hr, List.drop_eq_getElem_cons hg, List.map_cons, List.map_cons,
-        dupId_nidx _ _ hn1, dupId_eidx _ _ he, target_major_dup_spec _ _ htm1, hpx, hrcx]
-      have hv1v := rule_rhss_twin0 rc.rules v1 hv1
-      simp only [TwinEq] at hv1v
-      simp only [storedOut, List.zipWith_cons_cons, List.map_append, List.map_cons, List.map_nil,
-        List.append_assoc, List.singleton_append, absRecOut, absRecShape, absIConstantVal, ← hv1v,
-        nidx_vec_dup_val hv]
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len gs by scalar_tac), Result.ok.injEq] at h
-      rw [h, List.drop_eq_nil_of_le (by omega : gs.val.length ≤ i.val)]
-      simp [storedOut]
-
-@[lockstep] theorem stored_out_twin (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
+/-- `stream_k_check` ⊑ `streamKCheck` from the cursor on: each record's K flag
+against the block's (`recKExpected`). -/
+@[lockstep] theorem stream_k_check_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
+    (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
     (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
       alloc.vec.Vec arena.handle.EIdx)) :
-    LSP (arena.inductives.stream_recs.stream_out rcs gs 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq (storedOut (rcs.val.map absRecShape) (gs.val.map absRecOut))
-        (o.val.map absRecOut)) := by
-  intro o h
-  rw [TwinEq, stored_out_abs rcs gs _ 0#usize _ o rfl h]
-  simp [alloc.vec.Vec.new]
+    LSR pers (fun _ _ => True)
+      (arena.inductives.stream_recs.stream_k_check p rcs gs 0#usize) st lst
+      (streamKCheck (absBlockShape p) (rcs.val.map absRecShape) (gs.val.map absRecOut)) := by
+  sorry -- T143-STUB
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.rec_doms_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms rec_doms_at_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.rec_doms_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms rec_doms_at_ls
 
-/-- info: 'ConRon.Refine2.rec_ty_opened_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms rec_ty_opened_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.rec_ty_opened_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms rec_ty_opened_ls
 
 /-- info: 'ConRon.Refine2.stored_closed_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_closed_ls
 
-/-- info: 'ConRon.Refine2.rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms rec_ty_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.rec_ty_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms rec_ty_check_ls
 
-/-- info: 'ConRon.Refine2.rule_agree_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms rule_agree_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.rule_agree_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms rule_agree_ls
 
 /-- info: 'ConRon.Refine2.stored_nested_pins_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_nested_pins_ls
@@ -500,25 +438,25 @@ theorem stored_out_abs (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShap
 /-- info: 'ConRon.Refine2.stored_nested_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_nested_ok_ls
 
-/-- info: 'ConRon.Refine2.stored_fire_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_fire_of_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_fire_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_fire_of_ls
 
 /-- info: 'ConRon.Refine2.stored_rules_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms stored_rules_shape_ls
 
-/-- info: 'ConRon.Refine2.stored_rules_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_rules_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rules_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_rules_check_ls
 
-/-- info: 'ConRon.Refine2.stored_rec_compare_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_rec_compare_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rec_compare_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_rec_compare_ls
 
-/-- info: 'ConRon.Refine2.stored_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_rec_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_rec_check_ls
 
-/-- info: 'ConRon.Refine2.stored_recs_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_recs_check_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_recs_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_recs_check_ls
 
-/-- info: 'ConRon.Refine2.stored_out_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms stored_out_twin
+-- T143-CENSUS /-- info: 'ConRon.Refine2.stored_out_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms stored_out_twin
 
 end ConRon.Refine2

@@ -140,6 +140,20 @@ open Lockstep
       (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
   sorry -- T143-STUB
 
+@[lockstep] theorem ind_former_def_headed_ls {pers st lst} {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a)
+      (arena.core.former_def_headed pers st cv) st lst
+      (formerDefHeaded (absIConstantVal cv)) := by
+  sorry -- T143-STUB
+
+@[lockstep] theorem ind_struct_used_later_ls {pers st lst} {cty : arena.handle.EIdx}
+    {n_p j : Std.U64} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_used_later pers st cty n_p j) lst
+      (structUsedLater (absEIdx cty) (absU n_p) (absU j)) := by
+  sorry -- T143-STUB
+
 end IndStub
 
 end ConRon.Refine2

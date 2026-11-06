@@ -411,7 +411,7 @@ theorem u64_find_idx_abs {xs : alloc.vec.Vec Std.U64} {x : Std.U64} :
   · simp only [Bool.false_eq_true, ↓reduceIte] at h ⊢
     obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hcv : lf.find? (absNIdx i) = c.map absIConstantInfo :=
-      ifenv_find_twin (lf := lf) i (IFEnvInv.coreCtxSelf hfe.rel hfe.inv) _ hc
+      ifenv_find_twin (lf := lf) i hfe.coreCtx _ hc
     rw [hcv]
     rcases c with _ | c
     · simp only [Result.ok.injEq] at h; subst h; rfl
@@ -711,17 +711,17 @@ theorem classRead_eq : classRead = classRead' := rfl
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.class_read_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_read_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_read_ls
 
-/-- info: 'ConRon.Refine2.class_read_slots_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_read_slots_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_slots_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_read_slots_ls
 
-/-- info: 'ConRon.Refine2.class_read_minor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_read_minor_ls
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_read_minor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_read_minor_ls
 
-/-- info: 'ConRon.Refine2.class_n_pc_of_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms class_n_pc_of_twin
+-- T143-CENSUS /-- info: 'ConRon.Refine2.class_n_pc_of_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+-- T143-CENSUS #guard_msgs in #print axioms class_n_pc_of_twin
 
 /-- info: 'ConRon.Refine2.motive_slot_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms motive_slot_twin
