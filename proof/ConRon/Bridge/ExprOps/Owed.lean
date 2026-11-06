@@ -308,6 +308,7 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     ⦃fun s => s = s₁⦄ rec h
     ⦃fun r s' => StateOK s' ∧ InstLPMemoF ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -316,6 +317,13 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
         s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         InstLPAt ks us s₁.store h s'.store r; ⊤⦄
+
+/-- con-leche: none — the expression store's scratch flag is its level-list
+store's (`StoreWF`'s `sync` clause): an intern that leaves `lss` alone leaves
+the flag alone. -/
+theorem scratchOn_eq_lss {st : EStore} (h : StoreWF st) :
+    st.scratchOn = st.lss.scratchOn :=
+  h.scratchSync.lss
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `instantiateLevelParams`**, at one level of the recursion, by
@@ -334,7 +342,8 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
     dsimp only
-    sym only [bridge_grind, denoteEView, opt2, opt3, instLPFn_cutoff, view_eq_viewAt] =>
+    sym only [bridge_grind, denoteEView, opt2, opt3, instLPFn_cutoff, view_eq_viewAt,
+        scratchOn_eq_lss] =>
       vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
         instLPArmForallE, instLPArmLet, instLPArmProj, ih.run,
         substLMemoAt_spec, substLsMemoAt_spec,
@@ -351,6 +360,7 @@ theorem instLPGo_spec (fuel : Nat) (ks : List ConLeche.Name) (us : List Level)
     ⦃fun s => s = s₁⦄ instLPGo ks us fuel h
     ⦃fun r s' => StateOK s' ∧ InstLPMemoF ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
+        s'.store.scratchOn = s₁.store.scratchOn ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -454,6 +464,36 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     vcgen [instLPFast, instLPGo_spec fuel] <;> finish
 
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2718-2722 Expr.instLPFast —
+`instLPFast_spec` with the scratch flag framed: a caller on the driver's state
+(the scratch tier closed) keeps it closed. -/
+theorem instLPFast_specS (fuel : Nat) (s₀ : AState) (ks : List NIdx)
+    (us : LsIdx) (e : EIdx) (ksv : List ConLeche.Name) (usv : List Level)
+    (hok : StateOK s₀)
+    (hcn : ReadNCacheOK s₀.caches.readNC s₀.store)
+    (hcl : ReadLCacheOK s₀.caches.readLC s₀.store)
+    (hcls : ReadLsCacheOK s₀.caches.readLsC s₀.store)
+    (hks : Frontend.denoteNList s₀.store.ns ks = some ksv)
+    (hus : denoteLs s₀.store.lss us = some usv)
+    (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => s = s₀⦄ instLPFast fuel ks us e
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
+        s'.store.scratchOn = s₀.store.scratchOn ∧
+        ReadLCacheOK s'.caches.readLC s'.store ∧
+        ReadLsCacheOK s'.caches.readLsC s'.store ∧
+        ReadNCacheOK s'.caches.readNC s'.store ∧
+        s'.caches =
+          { s₀.caches with
+            readLC := s'.caches.readLC, readNC := s'.caches.readNC,
+            readLsC := s'.caches.readLsC } ∧
+        s'.pins = s₀.pins ∧
+        RelE (fun x => x.instantiateLevelParams ksv usv) s₀.store e
+          s'.store r; ⊤⦄ := by
+  dsimp only
+  sym only [bridge_grind, instLPFn, Expr.instantiateLevelParams_eq_self, MemoOK.of_empty,
+      MemoLOK.of_empty, MemoLsOK.of_empty] =>
+    vcgen [instLPFast, instLPGo_spec fuel] <;> finish
+
 /-! ## The axiom check -/
 
 #print axioms abstract1Fast_spec
@@ -461,5 +501,6 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
 #print axioms abstractRangeFast_spec
 #print axioms instLPGo_specS
 #print axioms instLPFast_spec
+#print axioms instLPFast_specS
 
 end ConRon.Bridge.ExprOps
