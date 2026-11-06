@@ -5,7 +5,7 @@
 values) and `&mut` on the Rust's.  `EmitRel` relates the two: the visited names as a set, by
 membership, with the table's `Inv`; the tables and the record stream elementwise, and every
 record's spellings well formed, which `process_line_core_d`'s refinement asks.  This file is
-the records; `EmitWalk.lean` is the walk.
+the records; `EmitWalk.lean` is the walk, `EmitBlocks.lean` the check of the blocks.
 -/
 import ConRon.Refine2.Frontend.Olean.Merge
 
@@ -562,7 +562,7 @@ theorem named_rel {S S' : Type} {Rel : S → S' → Prop}
     cases hr with
     | some hc => exact hstep _ _ _ _ _ hs hc h
 
-/-- `Vec` indexing over a list of positions, as the map's fold. -/
+/-- A fold over a mapped list. -/
 theorem foldl_map' {α β γ : Type} (g : α → β) (f : γ → β → γ) (l : List α) (y : γ) :
     (l.map g).foldl f y = l.foldl (fun y x => f y (g x)) y := List.foldl_map ..
 

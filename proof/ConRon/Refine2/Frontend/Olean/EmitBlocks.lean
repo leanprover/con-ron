@@ -3,7 +3,7 @@
 
 **Task #142, Theorem 2.**  The check reads the merge and writes nothing: `PR`.  Every failure
 is `.internal`, on both sides, whether or not the name in the twin's message reads back
-(`arena::Monad`'s `readName` fails at `.internal` too): `FailsInt`.  Messages are never compared.
+(the twin's `readName` fails at `.internal` too): `FailsInt`.  Messages are never compared.
 -/
 import ConRon.Refine2.Frontend.Olean.EmitWalk
 
