@@ -167,6 +167,11 @@ theorem load_roots_val {sk : frontend.olean.spec.ModSkel} {sk' : ConLeche.Fronte
   · rw [ee, forall₂_flatMap_map (fun _ _ h => exprsL_abs h) hv]
     rfl
 
+/-- Related lists, at a position. -/
+theorem forall₂_getElem {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') {i : Nat} (h1 : i < l.length) (h2 : i < l'.length) : R l[i] l'[i] := by
+  simpa using (List.forall₂_iff_get.mp h).2 i h1 h2
+
 /-! ## What each constant mentions: the walk -/
 
 theorem stamps_len {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts) :
@@ -290,7 +295,7 @@ theorem push_kid_rel {bs : Slice Std.U8} {r : frontend.olean.region.Region} {g i
       exact Or.inr ⟨_, _, rfl, rfl, hs.push hst2 hi3⟩
 
 /-- **`uses_go`'s loop is `usesGo`**, fuel for fuel, where the Rust's walk finishes. -/
-theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {stamp : Std.U64} :
     ∀ (n : Nat) (fuel : Std.U64) (stamps : alloc.vec.Vec Std.U64) (ts : Array Nat)
       (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (l : List Nat) (out : alloc.vec.Vec Std.U64)
@@ -657,15 +662,133 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (
       rw [hst.nil_of_zero hp]
       exact ⟨ts, out', by rw [usesGo], hs, ho⟩
 
+/-- **`uses_roots`' loop is `usesRoots`**, from root `i` on, each root a walk of its own. -/
+theorem uses_roots_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {stamp : Std.U64} {vs : alloc.vec.Vec Std.U64} :
+    ∀ (k : Nat) (i : Std.Usize) (stamps : alloc.vec.Vec Std.U64) (ts : Array Nat)
+      (out : alloc.vec.Vec Std.U64) (out' : Array UInt64) (stack : alloc.vec.Vec Std.U64) {stamps' out''},
+      vs.val.length - i.val = k → StampsRel stamps ts → OutRel out out' →
+      uses_roots_loop bs r stamps stamp out vs stack i = ok (true, stamps', out'') →
+      ∃ ts' o', usesRoots (absRegion bs r) ts stamp.val out' ((vs.val.drop i.val).map absWord) =
+          some (ts', o') ∧ StampsRel stamps' ts' ∧ OutRel out'' o' := by
+  intro k
+  induction k with
+  | zero =>
+    intro i stamps ts out out' stack stamps' out'' hk hs ho h
+    rw [uses_roots_loop] at h
+    have hi : ¬ i < alloc.vec.Vec.len vs := by
+      have : ¬ i.val < vs.val.length := by omega
+      exact this
+    rw [ite_eq_right hi] at h
+    obtain ⟨-, h2⟩ := Prod.mk.inj (Result.ok_injective h)
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj h2
+    rw [List.drop_of_length_le (by omega)]
+    exact ⟨ts, out', rfl, hs, ho⟩
+  | succ k ih =>
+    intro i stamps ts out out' stack stamps' out'' hk hs ho h
+    rw [uses_roots_loop] at h
+    have hlt : i.val < vs.val.length := by omega
+    have hi : i < alloc.vec.Vec.len vs := hlt
+    rw [ite_eq_left hi] at h
+    peel h as x, hx
+    obtain ⟨_hl, rfl⟩ := vec_index_eq hx
+    peel h as og, hog
+    have eg := region_loc_eq bs hog
+    rw [List.drop_eq_getElem_cons hlt, List.map_cons, usesRoots, ← eg]
+    cases og with
+    | none => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | some g =>
+    obtain ⟨⟨sp, stack1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [push_at] at hp
+    peel hp as st2, hst2
+    peel hp as i3, hi3
+    cases Result.ok_injective hp
+    have hS := (StackRel.empty (A := fun x : Std.U64 => x.val) stack).push hst2 hi3
+    obtain ⟨⟨b, stamps1, stack2, out1⟩, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [uses_go] at hg
+    peel hg as fuel, hfuel
+    cases b with
+    | false => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | true =>
+    obtain ⟨ts1, o1, hU, hs1, ho1⟩ :=
+      uses_go_loop_ok (bs := bs) (r := r) _ fuel stamps ts _ _ _ out out' (closure_fuel_val hfuel) hs hS ho hg
+    simp only [locOf, Option.map_some, hU]
+    peel h as i4, hi4
+    have e4 : i4.val = i.val + 1 := by rw [ConRon.Refine.HashMap.uscalar_add_eq hi4]; rfl
+    rw [← e4]
+    exact ih i4 stamps1 ts1 out1 o1 stack2 (by omega) hs1 ho1 h
+
+/-- **`uses_of`'s loop is `usesOf`**, from constant `i` on, a walk per constant. -/
+theorem uses_of_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
+    {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
+    {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels) :
+    ∀ (k : Nat) (i : Std.Usize) (stamps : alloc.vec.Vec Std.U64) (ts : Array Nat)
+      (outs : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (outsT : Array (Array UInt64)) (stamp : Std.U64)
+      {o3 s'}, v.val.length - i.val = k → StampsRel stamps ts → OutsRel outs outsT →
+      uses_of_loop bs r stamps v outs stamp i = ok (some o3, s') →
+      ∃ res, usesOf (absRegion bs r) ts stamp.val (skels.drop i.val) outsT = some res ∧ OutsRel o3 res := by
+  have hlen := hv.length_eq
+  intro k
+  induction k with
+  | zero =>
+    intro i stamps ts outs outsT stamp o3 s' hk hs ho h
+    rw [uses_of_loop] at h
+    have hi : ¬ i < alloc.vec.Vec.len v := by
+      have : ¬ i.val < v.val.length := by omega
+      exact this
+    rw [ite_eq_right hi] at h
+    obtain ⟨h1, -⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    rw [List.drop_of_length_le (by omega)]
+    exact ⟨outsT, rfl, ho⟩
+  | succ k ih =>
+    intro i stamps ts outs outsT stamp o3 s' hk hs ho h
+    rw [uses_of_loop] at h
+    have hlt : i.val < v.val.length := by omega
+    have hlt' : i.val < skels.length := by omega
+    have hi : i < alloc.vec.Vec.len v := hlt
+    rw [ite_eq_left hi] at h
+    peel h as cf, hcf
+    obtain ⟨_hl, rfl⟩ := vec_index_eq hcf
+    peel h as es, hes
+    have ees := c_entry_exprs_val hes
+    have hnew : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
+    rw [hnew, List.nil_append] at ees
+    obtain ⟨⟨b, stamps1, out⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases b with
+    | false => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | true =>
+    obtain ⟨ts1, o1, hU, hs1, ho1⟩ := uses_roots_loop_ok (bs := bs) (r := r) _ 0#usize stamps ts _ #[] _ rfl hs
+      (by show List.map absWord (alloc.vec.Vec.new Std.U64).val = _; rw [hnew]; rfl) hq
+    peel h as outs1, houts1
+    peel h as stamp1, hstamp1
+    peel h as i2, hi2
+    have e2 : i2.val = i.val + 1 := by rw [ConRon.Refine.HashMap.uscalar_add_eq hi2]; rfl
+    have es1 : stamp1.val = stamp.val + 1 := by rw [ConRon.Refine.HashMap.uscalar_add_eq hstamp1]; rfl
+    have hEV : EV v.val[i.val] skels[i.val] := forall₂_getElem hv hlt hlt'
+    rw [List.drop_eq_getElem_cons hlt', usesOf]
+    rw [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, ees, exprsL_abs hEV] at hU
+    rw [hU]
+    dsimp only
+    rw [← e2, ← es1]
+    refine ih i2 stamps1 ts1 outs1 (outsT.push o1) stamp1 (by omega) hs1 ?_ h
+    show List.Forall₂ OutRel outs1.val (outsT.push o1).toList
+    rw [ConRon.Refine.vec_push_val houts1, Array.toList_push]
+    exact List.rel_append ho (List.Forall₂.cons ho1 .nil)
+
 /-- **`uses_of` is `usesOf`**, from fresh stamps: every constant's output. -/
-theorem uses_of_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
+theorem uses_of_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {stamps : alloc.vec.Vec Std.U64} {ts : Array Nat} (hs : StampsRel stamps ts)
     {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
     {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels)
     {o3 s'} (h : uses_of bs r stamps 1#u64 v = ok (some o3, s')) :
     ∃ outs, usesOf (absRegion bs r) ts 1 skels (Array.mkEmpty skels.length) = some outs ∧
       OutsRel o3 outs := by
-  sorry -- T143-STUB
+  rw [uses_of] at h
+  have e0 : (alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U64) (alloc.vec.Vec.len v)).val = [] := rfl
+  have := uses_of_loop_ok (bs := bs) (r := r) hv _ 0#usize stamps ts _ (Array.mkEmpty skels.length) 1#u64 rfl hs
+    (by show List.Forall₂ OutRel _ _; rw [e0]; exact .nil) h
+  simpa using this
 
 /-- **`uses_names` appends `usesNames`.** -/
 theorem uses_names_val {o3 : alloc.vec.Vec (alloc.vec.Vec Std.U64)} {outs : Array (Array UInt64)}
@@ -1235,11 +1358,6 @@ theorem uses_read_eq {pk pers} {bs : Slice Std.U8} {r : frontend.olean.region.Re
   rw [e, ConRon.Arena.Frontend.Olean.usesRead, ← Array.foldl_toList, ← (ho : out.val.map absWord = out'.toList)]
   rfl
 
-/-- Related lists, at a position. -/
-theorem forall₂_getElem {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
-    (h : List.Forall₂ R l l') {i : Nat} (h1 : i < l.length) (h2 : i < l'.length) : R l[i] l'[i] := by
-  simpa using (List.forall₂_iff_get.mp h).2 i h1 h2
-
 /-- **`lazy_entries`' loop is `lazyEntries`** from constant `k` on. -/
 theorem lazy_entries_loop_ok {pk pers st} {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {d : frontend.olean.fast.DS} {t : TDS} (hr : RegionFits bs r) (hd : DSRel d t) {i : Std.U64}
@@ -1305,7 +1423,7 @@ theorem lazy_entries_loop_ok {pk pers st} {bs : Slice Std.U8} {r : frontend.olea
         obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hq)
         have hkl : ¬ k.val < outs.size := by rw [← hlo]; exact ho2
         rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega), Option.getD_none]
-        exact ⟨rfl, by simp [Slice.from_val]; rfl⟩
+        exact ⟨rfl, by simp; rfl⟩
     obtain ⟨rfl, hU⟩ := hu
     peel h2 as es1, hes1
     peel h2 as k1, hk1
@@ -1955,7 +2073,7 @@ theorem load_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.Pers
   cases o2 with
   | none => cases (Prod.mk.inj (Result.ok_injective h)).1
   | some o3 =>
-  obtain ⟨outs, hU, hO⟩ := uses_of_ok hfit hstv hEV hq2
+  obtain ⟨outs, hU, hO⟩ := uses_of_ok hstv hEV hq2
   peel h as nb1, hnb1
   have enb1 := uses_names_val hO hnb1
   peel h as lz, hlz
