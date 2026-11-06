@@ -656,14 +656,6 @@ theorem RS.nat_word_step {α β : Type} {pers : arena.store.PersTier} {R : α �
       rw [StateT.run_bind]
       exact AErrSim.bind hw _
 
-/-- The saturated read of a number: upstream's `none`, or the word and its `Nat`. -/
-theorem sat_elim {P : Prop} {o : Option Std.U64} {y : Option Nat} (h : Option.Rel SatRel o y)
-    (hn : o = Option.none → y = Option.none → P)
-    (hs : ∀ k n, o = Option.some k → y = Option.some n → SatRel k n → P) : P := by
-  cases h with
-  | none => exact hn rfl rfl
-  | some h => exact hs _ _ rfl rfl h
-
 /-- A saturated number of a node, or the twin's `none`. -/
 macro "sat_step " e:term " as " n:ident hk:ident : tactic =>
   `(tactic| (refine sat_elim $e (fun hA hy => by subst hA; rw [hy]; exact RS.none)
