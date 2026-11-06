@@ -52,7 +52,7 @@ use std::vec::Vec;
 // The mode (`Env.lean:69-194`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:21-60 CheckMode
+/// con-leche: ConLeche/Kernel/Env.lean:20-58 CheckMode
 /// The checker's mode: `--verified` or `--trusted`.  The official kernel's
 /// `m_eager_reduce` flag is not the mode's: it is internal to the knot
 /// (`arena::core::KnotMode`).  `deriving DecidableEq, Repr, Inhabited` is
@@ -63,7 +63,7 @@ pub enum CheckMode {
     Trusted,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:62-83 CheckMode.verifiedChecks
+/// con-leche: ConLeche/Kernel/Env.lean:60-81 CheckMode.verifiedChecks
 /// The verified mode's extra checks: the η and λ/λ body-type comparisons and
 /// the certificate families (the K/`And` rescues' proof irrelevance, ι's
 /// case-3 decision, the projection fire's arity check) — everything the
@@ -119,7 +119,7 @@ pub fn exprs_copy_from(es: &Vec<Expr>, i: usize, out: Vec<Expr>) -> Vec<Expr> {
 // The stored-constant records (`Env.lean:197-496`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:86-90 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:84-88 ConstantVal
 /// Data common to all constants.  Deviation: the field `type` is `ty` —
 /// `type` is a Rust keyword (task #6's modulo rule).
 pub struct ConstantVal {
@@ -128,7 +128,7 @@ pub struct ConstantVal {
     pub ty: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:86-90 ConstantVal
+/// con-leche: ConLeche/Kernel/Env.lean:84-88 ConstantVal
 /// The record copy: two `P` bumps and one `Vec<Name>` spine.
 pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
     ConstantVal {
@@ -138,7 +138,8 @@ pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:92-118 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:90-122 RecRuleFire
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::RecRuleFire_refines, then delete this line
 /// How a stored recursor rule fires (install-computed; the parse placeholder
 /// is `.plain`): `.plain` at a member major, `.nested lvls pins` at an outside
 /// one (the comparands of a case-3 fire).
@@ -147,7 +148,8 @@ pub enum RecRuleFire {
     Nested(Vec<Level>, Vec<Expr>),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:92-118 RecRuleFire
+/// con-leche: ConLeche/Kernel/Env.lean:90-122 RecRuleFire
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_fire_dup_refines, then delete this line
 /// The copy; `.nested`'s two lists are copied spine-wise.
 pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
     match f {
@@ -158,7 +160,8 @@ pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:120-151 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::RecRule_refines, then delete this line
 /// One iota rule of a recursor.  The four install-computed fields
 /// (`ctorParams`, `fire`, `k`, `eta`) carry parse placeholders
 /// `0`/`.plain`/`false` until the install computes them
@@ -174,7 +177,8 @@ pub struct RecRule {
     pub eta: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:120-151 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_dup_refines, then delete this line
 /// The record copy.
 pub fn rec_rule_dup(r: &RecRule) -> RecRule {
     RecRule {
@@ -188,8 +192,10 @@ pub fn rec_rule_dup(r: &RecRule) -> RecRule {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:120-151 RecRule
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
+/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:114-117 BasisDSL.rule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
 /// A rule at the cited *parse placeholders* — the Lean's field defaults
 /// `ctorParams := 0`, `fire := .plain`, `k := eta := false`,
 /// which a parsed stream always carries (task #10's census: all 2 715 parsed
@@ -207,7 +213,7 @@ pub fn rec_rule_parsed(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:159-163 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:147-151 ReducibilityHint
 /// The reducibility hint of a definition.  Deviation: `opaque` and `abbrev`
 /// are spelled `Opaque`/`Abbrev` (the Lean writes them in `«»` because they
 /// are Lean keywords; they are not Rust ones, but the constructor case is
@@ -218,7 +224,7 @@ pub enum ReducibilityHint {
     Regular(u64),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:159-163 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:147-151 ReducibilityHint
 /// The copy.
 pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     match h {
@@ -228,7 +234,7 @@ pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:170-175 ReducibilityHint.lt
+/// con-leche: ConLeche/Kernel/Env.lean:158-163 ReducibilityHint.lt
 /// `h₁.lt h₂`: `h₁` is strictly less eager to unfold than `h₂`.  The cited
 /// five arms overlap, so they are read *in order*: the first arm matching a
 /// pair wins.  Spelled here as one nested match in the same order, with
@@ -249,7 +255,7 @@ pub fn reducibility_hint_lt(h1: &ReducibilityHint, h2: &ReducibilityHint) -> boo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:185-187 ReducibilityHint.sameRegular
+/// con-leche: ConLeche/Kernel/Env.lean:173-175 ReducibilityHint.sameRegular
 /// Both hints are `regular` at the *same* height.
 pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHint) -> bool {
     match h1 {
@@ -263,7 +269,7 @@ pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHi
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:191-194 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:179-182 BasisKind
 /// The trusted basis inductives.
 pub enum BasisKind {
     EqK,
@@ -273,7 +279,7 @@ pub enum BasisKind {
     QuotK,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:191-194 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:179-182 BasisKind
 /// The copy.
 pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     match k {
@@ -285,7 +291,8 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:196-243 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type, recorded at
 /// install.  Every field of the cited structure has a default; see
 /// `ind_caps_default`.
@@ -306,7 +313,8 @@ pub struct IndCaps {
     pub ctors: Vec<Name>,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:196-243 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `etaCtor := .anonymous`, `etaParams := etaFields := 0`,
 /// `unitlike := false`, `unitParams := 0`, `ruleK := false` and — the one
@@ -330,7 +338,8 @@ pub fn ind_caps_default() -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:196-243 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     IndCaps {
@@ -348,7 +357,8 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:317-334 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
 /// Information stored about an accepted constant.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
@@ -377,7 +387,8 @@ pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Ve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:317-334 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove env::constant_info_dup_refines, then delete this line
 /// The record copy; what `fenv::push` needs, because a pushed constant lands
 /// both in `env.consts` and in the index (where Lean shares one value).
 pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
@@ -409,7 +420,7 @@ pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {
 // above) — what the two pinned-basis guards read (`kernel::basis_pins`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:153-163 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:141-151 ReducibilityHint
 /// Lean's `deriving DecidableEq` on `ReducibilityHint`.
 pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool {
     match a {
@@ -428,7 +439,7 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:336-347 QuotKind
+/// con-leche: ConLeche/Kernel/Env.lean:314-325 QuotKind
 /// Which of the four quotient constants a `#QUOT` record declares — the
 /// record's `kind` field, decoded — plus `Sound`, which is not a kind the
 /// decoder reads but the slot `Quot.sound`'s own axiom record is compared at
@@ -441,7 +452,7 @@ pub enum QuotKind {
     Sound,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:349-352 QuotKind.slot
+/// con-leche: ConLeche/Kernel/Env.lean:327-330 QuotKind.slot
 /// The quotient constant's position in the pinned block.
 ///
 /// Deviation: the cited `Nat` is a `u64` (§3.3).

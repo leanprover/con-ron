@@ -126,14 +126,15 @@ structure Prepared where
   /-- the records moved ahead of a pinned `Nat` operation they ground -/
   hoisted : Array NIdx := #[]
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:159-163 prepareD —
+/-- con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD —
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Prepare.prepareD_bridge, then delete this line
 `preparePrelude`, with its receipts. -/
 def prepareD (pre : PreludeIx) (ds : Array IDeclaration) : AM Prepared := do
   let (front, rest) ← frontOf #[] pre.decls.toList ds
   let (decls, hoisted) ← hoistNatOpGround (front ++ rest)
   pure ⟨decls, decls.size - ds.size, hoisted⟩
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:165-172 preparePrelude — the
+/-- con-leche: ConLeche/Frontend/Prepare.lean:168-175 preparePrelude — the
 parsed stream, prepared for the fold: the prelude's declarations first (the
 stream's own copies where it has them), the rest of the stream after them,
 every pinned `Nat` operation's stream-certified ground ahead of it.  An array

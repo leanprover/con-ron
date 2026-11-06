@@ -167,6 +167,7 @@ pub fn iff_rec_intro() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::iff_rec_a_refines, then delete this line
 /// `Iff.rec.{u} (a b : Prop) (motive : Iff a b → Sort u)`
 /// `(intro : ∀ mp mpr, motive (Iff.intro a b mp mpr)) (t : Iff a b) :`
 /// `motive t`.
@@ -293,6 +294,7 @@ pub fn nonempty_intro_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove std_axioms::nonempty_rec_a_refines, then delete this line
 /// `Nonempty.rec.{u} (α : Sort u) (motive : Nonempty α → Prop)`
 /// `(intro : ∀ val, motive (Nonempty.intro α val)) (t : Nonempty α) :`
 /// `motive t`.  The motive sort is pinned to `Prop` (the cited guidance: a

@@ -31,84 +31,84 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:41-42 BasisDSL.bn
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:38-39 BasisDSL.bn
 /// A top-level (single-component) name: `bn "Eq"` is `Eq`.  Deviation: the
 /// argument is the code-point spelling of the string (DESIGN.md §3.3).
 pub fn bn(s: Vec<u32>) -> Name {
     name::mk_str(name::anonymous(), s)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:44-45 BasisDSL.uN
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:41-42 BasisDSL.uN
 /// The universe parameter `u` — every basis block's first one.
 pub fn u_n() -> Name {
     bn({ const S: [u32; 1] = [117]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:47-48 BasisDSL.u
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:44-45 BasisDSL.u
 /// The universe parameter `u`, as a level.
 pub fn u() -> Level {
     level::param(u_n())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:50-51 BasisDSL.vN
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:47-48 BasisDSL.vN
 /// The universe parameter `v` (`Quot.lift`'s target sort).
 pub fn v_n() -> Name {
     bn({ const S: [u32; 1] = [118]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:53-54 BasisDSL.v
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:50-51 BasisDSL.v
 /// The universe parameter `v`, as a level.
 pub fn v() -> Level {
     level::param(v_n())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:56-58 BasisDSL.u1N
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:53-55 BasisDSL.u1N
 /// The universe parameter `u_1` — the motive sort the exporter names for a
 /// recursor whose type former already spends `u`.
 pub fn u1_n() -> Name {
     bn({ const S: [u32; 3] = [117, 95, 49]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:60-61 BasisDSL.u1
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:57-58 BasisDSL.u1
 /// The universe parameter `u_1`, as a level.
 pub fn u1() -> Level {
     level::param(u1_n())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:63-64 BasisDSL.bv
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:60-61 BasisDSL.bv
 /// A bound variable, by de Bruijn index.
 pub fn bv(i: u64) -> Expr {
     expr::bvar(i)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:66-67 BasisDSL.srt
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:63-64 BasisDSL.srt
 /// `Sort u`.
 pub fn srt(u: Level) -> Expr {
     expr::sort(u)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:69-70 BasisDSL.prop
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:66-67 BasisDSL.prop
 /// `Prop` = `Sort 0`.
 pub fn prop() -> Expr {
     expr::sort(level::zero())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:72-73 BasisDSL.type1
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:69-70 BasisDSL.type1
 /// `Type` = `Sort 1`.
 pub fn type1() -> Expr {
     expr::sort(level::succ(level::zero()))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:75-76 BasisDSL.cnst
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:72-73 BasisDSL.cnst
 /// A constant, at the given universe arguments.  Deviation: Lean's `us`
 /// default `[]` is spelled at every call site (Rust has no default argument).
 pub fn cnst(n: Name, us: Vec<Level>) -> Expr {
     expr::mk_const(n, us)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:85-88 BasisDSL.pi
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:90-93 BasisDSL.piI
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:95-97 BasisDSL.piA
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:82-85 BasisDSL.pi
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:87-90 BasisDSL.piI
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:92-94 BasisDSL.piA
 /// `∀ (x : ty), body`.  The three cited helpers build the same node and
 /// differ only in the binder name they document, which `Expr` does not carry
 /// — see the module note.
@@ -116,26 +116,26 @@ pub fn pi(ty: Expr, body: Expr) -> Expr {
     expr::forall_e(ty, body)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:99-101 BasisDSL.lm
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:103-106 BasisDSL.lmI
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:96-98 BasisDSL.lm
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:100-103 BasisDSL.lmI
 /// `fun (x : ty) => body` (see `pi`).
 pub fn lm(ty: Expr, body: Expr) -> Expr {
     expr::lam(ty, body)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:108-109 BasisDSL.ap2
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:105-106 BasisDSL.ap2
 /// Binary application.
 pub fn ap2(f: Expr, a: Expr, b: Expr) -> Expr {
     expr::app(expr::app(f, a), b)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:111-112 BasisDSL.ap3
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:108-109 BasisDSL.ap3
 /// Ternary application.
 pub fn ap3(f: Expr, a: Expr, b: Expr, c: Expr) -> Expr {
     expr::app(ap2(f, a, b), c)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:114-115 BasisDSL.ap4
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:111-112 BasisDSL.ap4
 /// Quaternary application.
 pub fn ap4(f: Expr, a: Expr, b: Expr, c: Expr, d: Expr) -> Expr {
     expr::app(ap3(f, a, b, c), d)

@@ -40,6 +40,7 @@ open ConLeche
 /-! ## The pinned basis install -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:464-474 checkBasisDecl —
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkBasisDecl_bridge, then delete this line
 **install the pinned (pre-annotated) basis block.**  The three records that
 install one — the fold's own `basisDecl` kind, a stream block `basisPinHit`
 recognises and a quotient record `quotPinHit` recognises — share this body.
@@ -55,7 +56,7 @@ def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
 /-! ## A block the recogniser does not read -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
-con-leche: ConLeche/Cached/ParsedC.lean:74-82 checkShapelessS
+con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
 The cited `block.foldlM`: every type former checked as a constant and
 discarded, every other member skipped (the Rust's
 `check_shapeless_formers`). -/
@@ -70,7 +71,7 @@ def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
     | _ => checkShapelessFormers mode fe rest
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
-con-leche: ConLeche/Cached/ParsedC.lean:74-82 checkShapelessS
+con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
 **An inductive block the recogniser does not read**: its type formers are
 checked as constants (a reserved name, a duplicate, a malformed type are
 official's rejects and stay rejects), and what survives that is a POSITIVE
@@ -84,8 +85,10 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:129-150 checkIndDeclC — **check a
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
+con-leche: ConLeche/Cached/ParsedC.lean:154-173 checkIndDeclC — **check a
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
@@ -219,7 +222,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       | .sound => "quotient soundness axiom mismatch"
       | _ => "quotient declaration mismatch"))
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — **one
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — **one
 step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
 scratch tier, with the constants it installed promoted before the tier goes.
 
@@ -243,7 +246,7 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   dropScratch
   pure fe
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — check a
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — check a
 list of declarations in order, starting from the empty environment.  THE
 THEOREM'S SHAPE (module note): one step per record, install and check
 together.  con-leche's `ds.foldlM (checkDecl mode ops pins) Env.empty` takes a
@@ -254,7 +257,7 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — the fold
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure — the fold
 from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv :=

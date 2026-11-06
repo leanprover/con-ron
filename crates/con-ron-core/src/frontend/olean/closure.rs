@@ -35,6 +35,7 @@ use crate::ron::hashmap::Dup;
 use crate::ron::hashmap2::HashMap2;
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::ConstsWork_refines, then delete this line
 /// The two sets and the stack of `constsGo`, reused between constants.
 pub struct ConstsWork {
     pub stack: Vec<EIdx>,
@@ -43,12 +44,14 @@ pub struct ConstsWork {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:64-69 constsOf
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::consts_work_empty_refines, then delete this line
 /// Fresh work space.
 pub fn consts_work_empty() -> ConstsWork {
     ConstsWork { stack: Vec::new(), seen: HashMap2::new(), seen_n: HashMap2::new() }
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::stack_push_refines, then delete this line
 /// Push onto a stack with its top at `sp`; the new top.
 #[inline(always)]
 pub fn stack_push(stack: &mut Vec<EIdx>, sp: usize, x: EIdx) -> usize {
@@ -61,6 +64,7 @@ pub fn stack_push(stack: &mut Vec<EIdx>, sp: usize, x: EIdx) -> usize {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::add_n_refines, then delete this line
 /// A name, once: "written out at each leaf" upstream.
 #[inline(always)]
 pub fn add_n(seen_n: &mut HashMap2<NIdx, bool>, out: &mut Vec<NIdx>, n: &NIdx) {
@@ -70,7 +74,7 @@ pub fn add_n(seen_n: &mut HashMap2<NIdx, bool>, out: &mut Vec<NIdx>, n: &NIdx) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:125-127 closureFuel
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:52-54 closureFuel
 /// The walks' step bound: far beyond any closure.
 pub const CLOSURE_FUEL: u64 = 1 << 40;
 
@@ -80,6 +84,7 @@ pub fn out_of_fuel<T>() -> Result<T, CheckError> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::consts_children_refines, then delete this line
 /// A compound node's children, onto the stack; the new top.  A first visit.
 pub fn consts_children(pers: &PersTier, ar: &EStore, stack: &mut Vec<EIdx>, sp: usize, e: &EIdx, t: u32) -> Result<usize, CheckError> {
     if t == ETAG_APP {
@@ -123,6 +128,7 @@ pub fn consts_children(pers: &PersTier, ar: &EStore, stack: &mut Vec<EIdx>, sp: 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::consts_go_refines, then delete this line
 /// The DAG walk of `constsOf`, from the `sp` entries on the stack.
 pub fn consts_go(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWork, sp: usize, out: Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
     let mut sp = sp;
@@ -164,6 +170,7 @@ pub fn consts_go(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWor
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:64-69 constsOf
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::consts_of_refines, then delete this line
 /// **The constants the expressions on `es` mention**, in first-visit order, and
 /// the literal dependencies lean4export adds.
 pub fn consts_of(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWork, es: &Vec<EIdx>) -> Result<Vec<NIdx>, CheckError> {
@@ -178,20 +185,21 @@ pub fn consts_of(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWor
     consts_go(pk, pers, ar, w, sp, Vec::new())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:71-75 CEntry
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:154-158 CEntry
 /// **One stored constant**, as the merge and the emitter need it.
 pub struct CEntry {
     pub c: CEntryF<NIdx, EIdx>,
     pub uses: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:79-80 CEntry.skipped
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:162-163 CEntry.skipped
 /// `CKindF.skipped` of a stored constant.
 pub fn c_entry_skipped(c: &CEntry) -> bool {
     crate::frontend::olean::reads::c_kind_skipped(&c.c.kind)
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:82-87 CEntry.deps
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::c_entry_deps_refines, then delete this line
 /// The expressions a record depends on.
 pub fn c_entry_deps(c: &CEntryF<NIdx, EIdx>) -> Vec<EIdx> {
     let mut out: Vec<EIdx> = Vec::new();
@@ -213,6 +221,7 @@ pub fn c_entry_deps(c: &CEntryF<NIdx, EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:89-92 CEntry.ofRead
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::c_entry_of_read_refines, then delete this line
 /// A constant with what it mentions.
 pub fn c_entry_of_read(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWork, c: CEntryF<NIdx, EIdx>) -> Result<CEntry, CheckError> {
     let es = c_entry_deps(&c);
@@ -222,7 +231,7 @@ pub fn c_entry_of_read(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut Con
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:96-123 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
 /// The cycle check of `closureGo`: the first import of `m` on the walk's current
 /// path, if any.
 pub fn import_on_path<'a>(imps: &'a Vec<ImportRec>, seen: &HashMap2<NIdx, bool>, done: &HashMap2<NIdx, bool>) -> Option<&'a NIdx> {
@@ -237,7 +246,7 @@ pub fn import_on_path<'a>(imps: &'a Vec<ImportRec>, seen: &HashMap2<NIdx, bool>,
     None
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:96-123 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
 /// Push onto the walk's stack with its top at `sp`; the new top.
 pub fn walk_push(stack: &mut Vec<(NIdx, bool)>, sp: usize, x: (NIdx, bool)) -> usize {
     if sp < stack.len() {
@@ -248,7 +257,7 @@ pub fn walk_push(stack: &mut Vec<(NIdx, bool)>, sp: usize, x: (NIdx, bool)) -> u
     sp + 1
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:96-123 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
 /// `kids ++ (m, true) :: rest`, onto the stack; the new top.
 pub fn walk_expand(stack: &mut Vec<(NIdx, bool)>, sp: usize, m: &NIdx, imps: &Vec<ImportRec>, seen: &HashMap2<NIdx, bool>) -> usize {
     let mut s = walk_push(stack, sp, (m.dup2(), true));
@@ -262,7 +271,7 @@ pub fn walk_expand(stack: &mut Vec<(NIdx, bool)>, sp: usize, m: &NIdx, imps: &Ve
     s
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:96-123 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
 /// **The import closure, in Lean's module order**: a module after everything it
 /// imports, a depth-first post-order, by an explicit stack.  A module whose imports
 /// are being expanded is on the walk's current path, so an import of it is a cycle.
@@ -303,7 +312,7 @@ pub fn closure_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut 
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:129-131 closureOrder
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:56-58 closureOrder
 /// The closure's module order from the roots.
 pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
     let mut stack: Vec<(NIdx, bool)> = Vec::with_capacity(roots.len());
@@ -316,14 +325,16 @@ pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &m
     closure_go(fs, pk, pers, ar, sp_dirs, stack, sp)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:135-138 Loaded
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:165-170 Loaded
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::Loaded_refines, then delete this line
 /// A loaded module: its constants at the private level.
 pub struct Loaded {
     pub name: NIdx,
     pub constants: Vec<CEntry>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:140-146 loadModule
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::entries_of_read_refines, then delete this line
 /// `d.constants.map CEntry.ofRead`.
 pub fn entries_of_read(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut ConstsWork, d: ModDecoded) -> Result<Vec<CEntry>, CheckError> {
     let mut cs = d.constants;
@@ -343,7 +354,8 @@ pub fn entries_of_read(pk: &OleanPins, pers: &PersTier, ar: &EStore, w: &mut Con
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:140-146 loadModule
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::load_module_refines, then delete this line
 /// **Load one module** for the merge: its private view, what Lean's own import
 /// outside the module system and lean4export load.
 pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, w: &mut ConstsWork, sp_dirs: &Vec<Vec<u32>>, m: &NIdx) -> Result<Loaded, CheckError> {
@@ -356,7 +368,8 @@ pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:148-158 loadClosure
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::load_all_refines, then delete this line
 /// `order.toList`, loaded in order, up to the first failure.
 pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, order: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
     let mut w: ConstsWork = consts_work_empty();
@@ -372,7 +385,8 @@ pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut ES
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:148-158 loadClosure
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove closure::load_closure_refines, then delete this line
 /// **The closure, loaded**: its modules in Lean's order, decoded (module note on
 /// `parMapExcept`).
 pub fn load_closure<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {

@@ -536,7 +536,7 @@ impl<'a> prop_when::NameToPw for SubstZ<'a> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:199-205 substPW
+/// con-leche: ConLeche/Kernel/Level.lean:215-221 substPW
 /// `Level.substPW`: push a level-parameter substitution through a zero-ness
 /// datum.  Canonical on output, because `PropWhen.bindZ` is.  Filled in at
 /// task #13 alongside `zeroness_of`; `crate::kernel::expr_ops`'s

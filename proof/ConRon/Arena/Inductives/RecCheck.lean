@@ -246,13 +246,15 @@ def targetMajorNfs (mode : CheckMode) (fe : IFEnv) (p : BlockShape)
     else pure rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:366-370 targetCtorsOf
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetCtorsOf_bridge, then delete this line
 The constructors of a stored inductive `I` and its parameter count
 (`nestContainer`'s reading, which reads nothing of its context but the
 lookup). -/
 def targetCtorsOf (fe : IFEnv) (I : NIdx) : AM (Option (Nat × List (IConstantVal × Nat))) :=
   nestContainer fe I
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:372-386 targetOutsideInst
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:372-387 targetOutsideInst
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetOutsideInst_bridge, then delete this line
 The instantiated type former of an OUTSIDE major `I.{us} ds`: its index count
 and its result sort. -/
 def targetOutsideInst (fe : IFEnv) (I : NIdx) (us : LsIdx) (ds : List EIdx) :
@@ -273,7 +275,8 @@ def targetOutsideInst (fe : IFEnv) (I : NIdx) (us : LsIdx) (ds : List EIdx) :
 
 /-! ## A recursor's class, resolved -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:390-449 targetMajorOf
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:391-448 targetMajorOf
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetMajorOf_bridge, then delete this line
 **A recursor's major, resolved** from its opened type `mty`: a MEMBER of the
 block at the block's levels and parameters, or — a nested block's container —
 any other stored inductive at one of the block's auxiliary types: not `Quot`,
@@ -338,7 +341,7 @@ def targetMajorOf (fe : IFEnv) (p : BlockShape)
     fail (.invalid "target rec: the recursor's major premise is not an inductive's \
       application")
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:451-468 targetPinTys
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:450-467 targetPinTys
 **An outside major's parameters, typed at the rule prefix** (depth `d`), in
 order. -/
 def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Unit
@@ -347,7 +350,8 @@ def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Un
     let _ ← inferTypeCore mode fe checkFuel d x
     targetPinTys mode fe d xs
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:470-486 targetMajorPins
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:469-484 targetMajorPins
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.targetMajorPins_bridge, then delete this line
 The check at a resolved major: an outside major's parameters typed at the rule
 prefix, and the instantiation `I.{us} D⃗` itself typed there.  Nothing at a
 member. -/
@@ -364,7 +368,7 @@ def targetMajorPins (mode : CheckMode) (fe : IFEnv) (rP : Nat) (M : TargetMajor)
 
 /-! ## The recursor records' pins -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:490-528 targetRecPins
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
 **The recursor records' pins**: the level parameters, the reserved names, the
 member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
 `T_0.rec_1 … T_0.rec_n` (member 0's name, `.anonymous` at no member,
@@ -403,7 +407,7 @@ def targetRecPins (p : BlockShape) (block : List IConstantInfo) : AM Unit := do
 
 /-! ## A class's constructors, and node agreement (K.53′) -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:532-538 targetCtorAt
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-536 targetCtorAt
 A constructor's type at the major's LEVELS: a member's as stored, an outside
 inductive's instantiated at the major's. -/
 def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
@@ -411,7 +415,7 @@ def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
   | some _ => pure c.type
   | none => instLPFast coreWalkFuel c.levelParams M.lvls c.type
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:538-564 targetK53
 **K.53′ at one recorded field** `f`: its telescope is the call's `tele` and its
 leaf the callee's major `majDom`, up to the free variables' annotations, the
 leaf's head and arity the major's, its indices up to annotations, its class
@@ -452,7 +456,7 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
                 else pure false
       else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:568-573 targetPiDomsWith
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:566-571 targetPiDomsWith
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -470,7 +474,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-591 Expr.abstractPrefix
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:582-589 Expr.abstractPrefix
 **The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
 `bvar (c + k - 1 - i)`, as the fold of `abstract1` passes, innermost first.
 Structural on `k`. -/
@@ -480,7 +484,7 @@ def abstractPrefix : Nat → Nat → EIdx → AM EIdx
     let e' ← abstract1Fast coreWalkFuel e k c
     abstractPrefix k (c + 1) e'
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:591-598 auxRuleFire —
 `M.ds.map (Expr.abstractPrefix rP 0)`, as an explicit list recursion (DESIGN
 §3.4). -/
 def abstractPrefixList (rP : Nat) : List EIdx → AM (List EIdx)
@@ -490,7 +494,7 @@ def abstractPrefixList (rP : Nat) : List EIdx → AM (List EIdx)
     let xs ← abstractPrefixList rP ds
     pure (x :: xs)
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:591-598 auxRuleFire —
 **the firing mode of a rule at an OUTSIDE major** (rule prefix `rP`):
 `.nested` at the class's levels and its parameters closed over the rule
 prefix (con-leche's task #342 S5C: computed, not read off the recursor's
@@ -501,6 +505,7 @@ def auxRuleFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire := do
   pure (.nested lvls pins)
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.tgtStoredRules_bridge, then delete this line
 **One checked recursor's stored rules, at its major**: `sumRules` at the
 major's parameter count and constructors; at an OUTSIDE major every rule fires
 `auxRuleFire`. -/
@@ -513,15 +518,17 @@ def tgtStoredRules (fe : IFEnv) (cv : IConstantVal) (rP : Nat) (M : TargetMajor)
     let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:635-641 blockNestedBit
 **The block's container bit**: some field kind is not flat or some recursor's
 major is not a member. -/
 def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) : Bool :=
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
-con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:643-653 blockRecInfosTF
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 FEnv.pushAll
+con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:80-91 consBlockRecsT
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 **The checked family consed through the index, at its majors**: each recursor
 with its rules at ITS major, the rules' lookups at the constructors'
 environment, i.e. at its visibility bound `vis₂` while the recursors are pushed

@@ -1,6 +1,7 @@
 //! The stored basis blocks, generated (DESIGN.md §5 P1.5, task #22).
 //!
 //! con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+//! con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove crates/con-ron-core/src/kernel/basis_tables.rs_refines, then delete this line
 //!
 //! **Generated file — do not edit.**  Written by
 //! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)
@@ -35,11 +36,16 @@ use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-27 eqRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:29-35 eqReflRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:37-41 eqRecMotive
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:43-60 eqRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:62-63 eqBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// The stored `eq` block (`BasisKind.declsA .eqK` = [eqA, eqReflA, eqRecA]).
 ///
 /// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
@@ -151,14 +157,20 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:21-22 natT
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:29-31 natZeroRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:33-35 natSuccRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:37-38 natRecMotive
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:40-45 natRecSucc
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:47-66 natRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:68-69 natBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// The stored `nat` block (`BasisKind.declsA .natK` = [natA, natZeroA, natSuccA, natRecA]).
 ///
 /// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 4
@@ -270,9 +282,13 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:20-22 emptyRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:24-31 emptyRecRaw
-/// con-leche: ConLeche/Kernel/Basis/Empty.lean:33-34 emptyBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
 /// The stored `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
 ///
 /// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
@@ -329,9 +345,13 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/False.lean:41-48 falseRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/False.lean:50-51 falseBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// The stored `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
 ///
 /// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
@@ -388,17 +408,24 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:26-28 quotRel
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:27-29 quotRel
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:36-42 quotMkRaw
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotLiftF
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotLiftH
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:45-46 quotLiftF
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:48-54 quotLiftH
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:55-72 quotLiftRaw
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:74-77 quotIndMotive
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:79-83 quotIndMk
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:75-78 quotIndMotive
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:80-84 quotIndMk
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:85-100 quotIndRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:102-114 quotSoundRaw
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:116-118 quotBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:117-119 quotBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
 /// The stored `quot` block (`BasisKind.declsA .quotK` = [quotA, quotMkA, quotLiftA, quotIndA, quotSoundA]).
 ///
 /// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 5

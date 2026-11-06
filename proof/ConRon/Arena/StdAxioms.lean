@@ -72,6 +72,7 @@ def iffA : AM IConstantInfo := internCI ConLeche.iffA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA -/
 def iffIntroA : AM IConstantInfo := internCI ConLeche.iffIntroA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA -/
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StdAxioms.iffRecA_bridge, then delete this line
 def iffRecA : AM IConstantInfo := internCI ConLeche.iffRecA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:126-133 propextA -/
 def propextA : AM IConstantVal := internCV ConLeche.propextA
@@ -80,17 +81,20 @@ def nonemptyA : AM IConstantInfo := internCI ConLeche.nonemptyA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA -/
 def nonemptyIntroA : AM IConstantInfo := internCI ConLeche.nonemptyIntroA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA -/
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StdAxioms.nonemptyRecA_bridge, then delete this line
 def nonemptyRecA : AM IConstantInfo := internCI ConLeche.nonemptyRecA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:161-166 choiceA -/
 def choiceA : AM IConstantVal := internCV ConLeche.choiceA
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the stored `Eq` pin,
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StdAxioms.eqA_bridge, then delete this line
 `ConLeche.eqA` (spliced by `#stored_basis`, so the citation is the command's
 range), interned.  It is the comparand of every "requires the pinned `Eq`
 basis" test in the checker. -/
 def eqA : AM IConstantInfo := internCI ConLeche.eqA
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the stored `Nat` pin,
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StdAxioms.natA_bridge, then delete this line
 `ConLeche.natA`, interned. -/
 def natA : AM IConstantInfo := internCI ConLeche.natA
 

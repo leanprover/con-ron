@@ -196,7 +196,8 @@ pub fn prepared_front(
     out
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:159-163 prepareD
+/// con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove prepare::prepared_rest_refines, then delete this line
 /// The cited `front ++ rest`'s second half: the stream's records the mask does
 /// not carry, in the stream's order.
 pub fn prepared_rest(
@@ -229,7 +230,8 @@ pub struct Prepared {
     pub hoisted: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:159-163 prepareD
+/// con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove prepare::prepare_d_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:129-134 prepareD` —
 /// `prepare_prelude`, with its receipts.
 pub fn prepare_d(
@@ -260,7 +262,7 @@ pub fn prepare_d(
     })
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:165-172 preparePrelude
+/// con-leche: ConLeche/Frontend/Prepare.lean:168-175 preparePrelude
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:136-143 preparePrelude`
 /// — the parsed stream, prepared for the fold: the prelude's declarations
 /// first (the stream's own copies where it has them), the rest of the stream

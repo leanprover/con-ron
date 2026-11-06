@@ -36,7 +36,7 @@ use crate::kernel::env as cenv;
 use crate::kernel::env::{BasisKind, QuotKind};
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:37-43 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:41-44 BasisKind.decls` — the RAW
 /// constants of one basis block, in dependency order, interned.
 pub fn basis_kind_decls(
@@ -48,6 +48,7 @@ pub fn basis_kind_decls(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::basis_kind_decls_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:46-50 BasisKind.declsA` — the
 /// ANNOTATED constants of one basis block, in dependency order, interned.
 /// This is what `check_basis_decl` installs.
@@ -60,6 +61,7 @@ pub fn basis_kind_decls_a(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::block_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:52-56 blockNames` — the names of
 /// a block's members, for `basis_pin_hit`'s name pre-filter.
 /// `i_constant_info_name` is pure (task #97e), so this is a plain map, spelled
@@ -75,6 +77,7 @@ pub fn block_names(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::basis_pin_hit_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:58-74 basisPinHitGo` — the four
 /// kinds tried in con-leche's order, with con-leche's task-#215 NAME
 /// pre-filter in front: `canon` renames only level parameters, so a block can
@@ -121,6 +124,7 @@ pub fn basis_pin_hit_go(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::basis_pin_hit_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:76-84 basisPinHit` — the four
 /// pinned blocks, in con-leche's order.  `.quotK` is deliberately not among
 /// them (a quotient block arrives as four `quotDecl` records, which
@@ -135,7 +139,8 @@ pub fn basis_pin_hit(
     basis_pin_hit_go(pers, st, block, &ks, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:68-73 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:152-158 quotPinHit
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::quot_pin_hit_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:86-95 quotPinHit` — **the
 /// quotient-pin match**: the record is the pinned package's constant at the
 /// slot it declares itself at, compared at `toConstantVal`.  The twin's
@@ -196,7 +201,8 @@ pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::block_and_named_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:114-119 blockAndNamed` — the
 /// `.indDecl` arm's `block.any fun c => andPinNames.contains c.name`, as a
 /// cursor recursion (§3.4 forbids the closure).
@@ -210,7 +216,8 @@ pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::and_pin_name_free_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:121-126 andPinNameFree` — the
 /// arm of every one-constant record: it may not declare one of the pinned
 /// `And` block's names.
@@ -221,7 +228,8 @@ pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis::and_pin_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:128-148 andPinOk` — **the `And`
 /// pin's test**: the record declares none of the pinned `And` block's names,
 /// or it IS that block — two parameters, and equal to `andPin` up to

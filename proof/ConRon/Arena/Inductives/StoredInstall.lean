@@ -40,32 +40,35 @@ open ConLeche
 
 /-! ## Pointer-first equality of what an install pushes -/
 
-/-- con-leche: ConLeche/Cached/StoredInstall.lean:62-65 listBeqBy
+/-- con-leche: ConLeche/Kernel/Canon.lean:292-295 listBeqBy
 Element-wise comparison of two lists by `f`. -/
 def listBeqBy {α : Type} (f : α → α → Bool) : List α → List α → Bool
   | [], [] => true
   | a :: as, b :: bs => f a b && listBeqBy f as bs
   | _, _ => false
 
-/-- con-leche: ConLeche/Cached/StoredInstall.lean:76-77 ConstantVal.beqP
+/-- con-leche: ConLeche/Kernel/Canon.lean:306-307 ConstantVal.beqP
 `IConstantVal` equality, the type by handle. -/
 def IConstantVal.beqP (a b : IConstantVal) : Bool :=
   a.name == b.name && a.levelParams == b.levelParams && a.type == b.type
 
-/-- con-leche: ConLeche/Cached/StoredInstall.lean:87-90 RecRuleFire.beqP
+/-- con-leche: ConLeche/Kernel/Canon.lean:316-321 RecRuleFire.beqP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.IRecRuleFire.beqP_bridge, then delete this line
 `IRecRuleFire` equality, the pins by handle. -/
 def IRecRuleFire.beqP : IRecRuleFire → IRecRuleFire → Bool
   | .plain, .plain => true
   | .nested l p, .nested l' p' => l == l' && p == p'
   | _, _ => false
 
-/-- con-leche: ConLeche/Cached/StoredInstall.lean:96-98 RecRule.beqP
+/-- con-leche: ConLeche/Kernel/Canon.lean:326-328 RecRule.beqP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.IRecRule.beqP_bridge, then delete this line
 `IRecRule` equality, the right-hand side by handle. -/
 def IRecRule.beqP (a b : IRecRule) : Bool :=
   a.ctor == b.ctor && a.nfields == b.nfields && a.ctorParams == b.ctorParams &&
     a.fire.beqP b.fire && a.rhs == b.rhs && a.k == b.k && a.eta == b.eta
 
-/-- con-leche: ConLeche/Cached/StoredInstall.lean:109-117 ConstantInfo.beqP
+/-- con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.IConstantInfo.beqP_bridge, then delete this line
 **`IConstantInfo` equality, pointer-first**: every term by handle, the rest by
 its decidable equality. -/
 def IConstantInfo.beqP : IConstantInfo → IConstantInfo → Bool
@@ -79,6 +82,7 @@ def IConstantInfo.beqP : IConstantInfo → IConstantInfo → Bool
   | _, _ => false
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:132-135 ProjTable.beqP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.IProjTable.beqP_bridge, then delete this line
 **`IProjTable` equality, pointer-first**: every term and level by handle. -/
 def IProjTable.beqP (a b : IProjTable) : Bool :=
   a.structName == b.structName && a.levelParams == b.levelParams &&
@@ -88,7 +92,9 @@ def IProjTable.beqP (a b : IProjTable) : Bool :=
 /-! ## The reading -/
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTry_bridge, then delete this line
 con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTry_bridge, then delete this line
 **A stored inference, in a scratch bracket of its own**, from fresh caches:
 `run`, framed (`scratchRun`), and what it answers promoted by `keep` before the drop.  A failure of `run`
 is `none`, at the state the bracket opened at with its scratch tier dropped (the
@@ -108,6 +114,7 @@ def storedTry {α β : Type} (run : AM α) (keep : α → AM β) : AM (Option β
   attempt
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTeleRun_bridge, then delete this line
 The cited `run`: the telescope official's `whnf` loop reads, closed over its sort. -/
 def storedTeleRun (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) :
     AM (EIdx × LIdx) := do
@@ -117,6 +124,7 @@ def storedTeleRun (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) 
   pure (ty, s)
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTele_bridge, then delete this line
 **A former's telescope, as the checked install computes it** (`checkSumTele`,
 without its checks): the stored type where it is a syntactic telescope of `n`
 binders ending in a sort; else the telescope official's `whnf` loop reads, closed,
@@ -138,6 +146,7 @@ def storedTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) :
   | none => slow
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:175-180 storedFormers
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedFormers_bridge, then delete this line
 The members' formers at their telescopes, each at its record as declared where its
 telescope cannot be read, and member 0's result sort (`s0`, the recogniser's
 placeholder where it cannot be read); `i` is the member's position. -/
@@ -151,6 +160,7 @@ def storedFormers (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
     | none => storedFormers mode fe nP rest (i + 1) (ms.cvT :: out) s0
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:186-197 storedMajor
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedMajorDom_bridge, then delete this line
 The outside container named by a major's domain, at the domain's levels and
 parameters. -/
 def storedMajorDom (fe : IFEnv) (dom : EIdx) : AM (Option TargetMajor) := do
@@ -168,6 +178,7 @@ def storedMajorDom (fe : IFEnv) (dom : EIdx) : AM (Option TargetMajor) := do
   else pure none
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:186-197 storedMajor
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedMajor_bridge, then delete this line
 **A recursor record's major**, as `tgtStoredRules` reads it: a member (its parameter
 count and constructors), or an outside container at the levels and parameters of
 the stored major domain opened at the recursor's prefix. -/
@@ -188,6 +199,7 @@ def storedMajor (fe : IFEnv) (p : BlockShape) (rc : RecShape) : AM (Option Targe
       else pure none
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:202-208 storedRecs
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedRecs_bridge, then delete this line
 **The recursors' records**, in the block's order, pushed; the rules' lookups at the
 constructors' bound `vis₂` while they are pushed above it.  A recursor whose major
 cannot be read keeps its rules as declared. -/
@@ -205,6 +217,7 @@ def storedRecs (vis₂ : Nat) (p : BlockShape) : Nat → List RecShape → IFEnv
         (fe.push (.recInfo rc.cvR (p.majorIdxAt r) (p.rulePrefixAt r) rules))
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedGuardsRun_bridge, then delete this line
 The cited `run` and the guards off its sorts. -/
 def storedGuardsRun (mode : CheckMode) (fe₁ : IFEnv) (p : BlockShape)
     (c : IConstantVal × Nat) : AM (List LIdx) := do
@@ -216,6 +229,7 @@ def storedGuardsRun (mode : CheckMode) (fe₁ : IFEnv) (p : BlockShape)
   structProjGuards c.1.type p.nP c.2 sorts
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedGuards_bridge, then delete this line
 **A structure's guard levels**: the fields' sorts at the formers' environment `fe₁`,
 from fresh caches, by the constructor stage's own walk; `[]` where the walk fails
 (the block's checked install then fails at the same walk, and the job reports it). -/
@@ -227,6 +241,7 @@ def storedGuards (mode : CheckMode) (fe₁ : IFEnv) (p : BlockShape)
   pure (g.getD [])
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:228-241 storedTables
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedGuardsAll_bridge, then delete this line
 The guards of every structure-like member (one constructor, no index), one list
 per member. -/
 def storedGuardsAll (mode : CheckMode) (fe₁ : IFEnv) (p : BlockShape) :
@@ -247,6 +262,7 @@ def storedGuardsAll (mode : CheckMode) (fe₁ : IFEnv) (p : BlockShape) :
       pure ([] :: r)
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:228-241 storedTables
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTables_bridge, then delete this line
 **The projection tables**, member by member in block order, pushed, at every
 structure-like member; none where the bodies cannot be built. -/
 def storedTables (p : BlockShape) :
@@ -266,12 +282,14 @@ def storedTables (p : BlockShape) :
     | _ => storedTables p rest gs.tail fe
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedCtors_bridge, then delete this line
 The cited `FEnv.pushAll ctors`, member by member: every constructor as declared. -/
 def storedCtors (nP : Nat) : List MemberShape → IFEnv → IFEnv
   | [], fe => fe
   | ms :: rest, fe => storedCtors nP rest (consSumCtors nP ms.ctors fe)
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedTail_bridge, then delete this line
 The reading's last bracket: the constructors, the recursors and the tables pushed
 above the formers, and everything new since the counter `vis` and the table count
 `nt` promoted. -/
@@ -291,12 +309,14 @@ def storedTail (p : BlockShape) (guards : List (List LIdx)) (vis nt : Nat) (fe�
   pure fe₅
 
 /-- con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.namesFree_bridge, then delete this line
 **The names a block pushes are free**: the cited `slotsOk`, read before anything
 is pushed. -/
 def namesFree (fe : IFEnv) (ns : List NIdx) : Bool :=
   ns.all fun n => (fe.find? n).isNone
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedParts_bridge, then delete this line
 **A block the recogniser reads**: its names distinct and free; the formers read and
 pushed with their capability records; the guards at the formers' environment; and
 the last bracket.  The test of the scratch flag never fails: what it buys is that what
@@ -318,6 +338,7 @@ def storedParts (mode : CheckMode) (fe : IFEnv) (p₀ : BlockParts) : AM IFEnv :
     storedTail p guards vis nt fe₁
 
 /-- con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredInstall.storedInstall_bridge, then delete this line
 **The stored install of a block** on `fe`.  A block matching a basis pin pushes the
 pin's constants, a block the recogniser does not read pushes nothing, and every
 other block its reading, each part at its record as declared where the reading

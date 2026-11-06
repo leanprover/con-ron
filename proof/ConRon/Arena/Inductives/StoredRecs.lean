@@ -30,7 +30,7 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:45-59 recDomsAt
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:41-55 recDomsAt
 **The stored type's domains against the generated one's**, binder by binder
 from binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
 one at its depth, both telescopes opened at their own locals. -/
@@ -47,7 +47,7 @@ def recDomsAt (mode : CheckMode) (fe : IFEnv) (sfvs gfvs : List EIdx) :
       recDomsAt mode fe sfvs gfvs (j + 1) k
     | _, _ => fail (.internal "stored recursor: domain index")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:61-74 recTyOpened
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:57-70 recTyOpened
 The stored and the generated type, opened `n` binders deep: the domains, then
 the residues. -/
 def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
@@ -59,8 +59,8 @@ def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
   | none, _ => fail (.invalid "the type of the recursor  is not the generated one: it has fewer than  binders")
   | some _, none => fail (.internal "the generated type of the recursor  has fewer than  binders")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-90 recTyCheck
-con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
+con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
 The test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`. -/
 def storedClosed (s g : EIdx) : AM Bool := do
   if ← looseBVarsBoundedFast coreWalkFuel 0 s then
@@ -70,7 +70,7 @@ def storedClosed (s g : EIdx) : AM Bool := do
       pure !h
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-90 recTyCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
 **The stored type's check**: closed, at the record's level parameters `lps`,
 resolving, a type (inferred, a sort), and the generated one binder by binder up
 to the major (`n` binders): the domains, then the residues. -/
@@ -88,7 +88,7 @@ def recTyCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (n : Nat) (s g 
   let go ← openPisAtFvars n g 0
   recTyOpened mode fe n so go
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
 **One stored rule's check**: the stored right-hand side `s` is closed, at the
 record's level parameters `lps`, resolving; it and the generated `g` are
 inferred, their types are definitionally equal, and so are they. -/
@@ -107,6 +107,7 @@ def ruleAgree (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (s g : EIdx) : A
     fail (.invalid "the recursor 's rule for  has a right-hand side that is not definitionally equal to the generated one")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedNestedDom_bridge, then delete this line
 The major's domain against the firing data: its head a constant at the firing
 levels, its arguments the pins lifted past the index binders and the index
 variables.  The Rust's `stored_nested_pins` and `stored_nested_bvars` are the two
@@ -127,6 +128,7 @@ def storedNestedDom (dom : EIdx) (n : Nat) (lvls : List LIdx) (pins : List EIdx)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedNestedOk_bridge, then delete this line
 **An auxiliary recursor's stored type fires where the generated one does**: its
 major's domain (binder `mI`) is the container at the firing data's levels,
 applied to the pins lifted past the index binders and the index variables.
@@ -144,6 +146,7 @@ def storedNestedOk (ty : EIdx) (mI rP : Nat) : IRecRuleFire → AM Bool
       else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:133-138 storedFireOf
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedFireOf_bridge, then delete this line
 The firing mode the generated recursor's rules carry at its major: `.nested` at
 an outside major, `.plain` at a member. -/
 def storedFireOf (M : TargetMajor) (rP : Nat) : AM IRecRuleFire :=
@@ -152,6 +155,7 @@ def storedFireOf (M : TargetMajor) (rP : Nat) : AM IRecRuleFire :=
   | some _ => pure .plain
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:140-152 storedRulesShape
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedRulesShape_bridge, then delete this line
 The stored rules' shape against the generated recursor's class: one rule per
 constructor of the class, in order, each with its field count. -/
 def storedRulesShape : List IRecRule → List (IConstantVal × Nat) → AM Unit
@@ -163,6 +167,7 @@ def storedRulesShape : List IRecRule → List (IConstantVal × Nat) → AM Unit
   | _, _ => fail (.invalid "the recursor  carries  more or fewer rules than the generated one ( unmatched)")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:154-163 storedRulesCheck
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedRulesCheck_bridge, then delete this line
 The stored rules' checks, each against the generated right-hand side at its
 position (a rule equal to the generated one needs none). -/
 def storedRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) :
@@ -175,6 +180,7 @@ def storedRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) :
   | _, _ => fail (.internal "the recursor : the generated rules are not one per stored rule")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:165-172 storedRecCompare
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedRecCompare_bridge, then delete this line
 **The comparison of one recursor**: its stored type unless it is the generated
 one, and its stored rules. -/
 def storedRecCompare (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
@@ -184,6 +190,7 @@ def storedRecCompare (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
   storedRulesCheck mode fe g.1.levelParams rc.rules g.2.2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:174-183 storedRecCheck
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedRecCheck_bridge, then delete this line
 **One recursor, stored against generated**: the rules' shape and the stored
 major's container, decided before anything is compared, then the comparison. -/
 def storedRecCheck (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
@@ -195,6 +202,7 @@ def storedRecCheck (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
   storedRecCompare mode fe rc g
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:185-193 storedRecsCheck
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedRecsCheck_bridge, then delete this line
 **The block's stored recursors against the generated ones**, record by record
 (the generated family is in the records' order). -/
 def storedRecsCheck (mode : CheckMode) (fe : IFEnv) :
@@ -206,6 +214,7 @@ def storedRecsCheck (mode : CheckMode) (fe : IFEnv) :
   | _, _ => fail (.internal "stored recursors: the generated family is not the records'")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:195-202 storedOut
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove StoredRecs.storedOut_bridge, then delete this line
 **What is installed**: each generated recursor with the stored type and the
 stored right-hand sides, at the generated recursor's name, level parameters and
 major. -/

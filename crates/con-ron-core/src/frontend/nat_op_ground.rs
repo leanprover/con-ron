@@ -157,6 +157,7 @@ pub fn used_consts_two(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::used_consts_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:79-89 usedConstsRules`
 /// — a recursor's rules, folded over ONE visited set.
 pub fn used_consts_rules(
@@ -182,6 +183,7 @@ pub fn used_consts_rules(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::used_consts_block_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:91-102 usedConstsBlock`
 /// — an inductive block's members, folded over ONE visited set: the type of
 /// each member and, for a recursor, every rule's right-hand side.
@@ -221,6 +223,7 @@ pub fn used_consts_block(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::decl_used_consts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:104-113
 /// IDeclaration.usedConsts` — the constants a parsed record references (types,
 /// values, recursor rule right-hand sides; a basis block references nothing the
@@ -249,6 +252,7 @@ pub fn decl_used_consts(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:79-95 Declaration.usedConsts
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::decl_used_consts_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:104-113
 /// IDeclaration.usedConsts` — the three value kinds' clause, which the twin
 /// spells once with an `|` pattern: the type and the value, at one visited set.
@@ -309,7 +313,8 @@ pub fn nidx_contains(ns: &Vec<NIdx>, n: &NIdx) -> bool {
 // Which records must move, and how far (`NatOpGround.lean:118-209`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_name_index_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:136-145 nameIndex`
 /// — name ↦ the index of the record declaring it; the FIRST record declaring a
 /// name wins (a duplicate is rejected by the fold anyway).
@@ -353,7 +358,8 @@ pub fn target_done(target: &HashMap<u64, u64>, k: u64, i: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_push_deps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:196-204 hoistClosure.pushOne` —
 /// the twin's inner `for n in ds[k]!.usedConsts` loop: the references of the
 /// record just targeted that lie after `i` go on the worklist.
@@ -402,7 +408,8 @@ pub fn stack_push_u64(stack: Vec<u64>, sp: usize, x: u64) -> (Vec<u64>, usize) {
     (stack, sp + 1)
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_close_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:162-204
 /// hoistClosure` — the worklist: the closure of the ground record `j` within
 /// the records after `i`, each reached record marked as having to precede `i`.
@@ -441,7 +448,8 @@ pub fn hoist_close(
     Ok(target)
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_targets_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:305-318 hoistTargetsGo.hoistDeps`
 /// — the twin's inner `for g in natOpDeps c` loop of one operation record at
 /// index `i`: each ground declared LATER carries its closure with it.
@@ -480,7 +488,8 @@ pub fn hoist_targets_at(
     Ok(target)
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_targets_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:320-325
 /// hoistTargets` — **which records must move, and how far**: the map from a
 /// record's index to the earliest pinned-operation index it must precede.
@@ -518,7 +527,7 @@ pub fn hoist_targets(
 
 
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:139-163 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist`
 /// — the moved records' indices, increasing.
 pub fn hoist_moved_idxs(n: usize, target: &HashMap<u64, u64>) -> Vec<u64> {
@@ -543,7 +552,7 @@ pub fn target_is(target: &HashMap<u64, u64>, k: u64, t: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:139-163 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist` —
 /// the twin's `(List.range ds.size).mergeSort (hoistLt …)`, as the module
 /// note's bucket pass: at each position `t`, first the moved records targeted
@@ -570,7 +579,7 @@ pub fn hoist_order(n: usize, target: &HashMap<u64, u64>, moved: &Vec<u64>) -> Ve
     order
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:139-163 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:357-364 reorder` —
 /// the records in the sorted order, one COPY per record (the module note's
 /// third deviation).
@@ -585,7 +594,7 @@ pub fn hoist_reorder(ds: &Vec<IDeclaration>, order: &Vec<u64>) -> Vec<IDeclarati
     out
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:139-163 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:347-355 movedNames`
 /// — the names of the records that moved, in index order: the driver's receipt.
 pub fn hoist_moved_names(ds: &Vec<IDeclaration>, moved: &Vec<u64>) -> Vec<NIdx> {
@@ -605,7 +614,7 @@ pub fn hoist_moved_names(ds: &Vec<IDeclaration>, moved: &Vec<u64>) -> Vec<NIdx> 
     out
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:139-163 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:366-371 applyHoist`
 /// — **the reorder**: the sorted record array and the names of the records
 /// moved.
@@ -620,7 +629,8 @@ pub fn apply_hoist(
     (out, names)
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround
+/// con-leche: ConLeche/Frontend/NatOpGround.lean:165-171 hoistNatOpGround
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove nat_op_ground::hoist_nat_op_ground_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:373-380
 /// hoistNatOpGround` — **the hoist.**  Returns the reordered records and the
 /// names of the records moved (empty, and the array untouched and uncopied,

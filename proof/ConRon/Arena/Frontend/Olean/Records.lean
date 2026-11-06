@@ -20,7 +20,7 @@ open ConLeche
 open ConLeche.Frontend
 open ConRon.Arena.Frontend
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:47-55 declsGo
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:51-59 declsGo
 `declsOf`'s walk: `k` the position of the first of `rs`. -/
 def declsGo (k : Nat) : List DeclRec → StateD → AM (Except (CheckError × Nat) StateD)
   | [], st => pure (.ok st)
@@ -29,7 +29,7 @@ def declsGo (k : Nat) : List DeclRec → StateD → AM (Except (CheckError × Na
     | .inl st => declsGo (k + 1) rs st
     | .inr v => pure (.error (v.toError, k))
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:57-61 declsOf
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:61-65 declsOf
 **The `Declaration` records**, through the stream reader's builder.  A record's
 verdict is the stream path's, at the record's position. -/
 def declsOf (em : Emit) : AM (Except (CheckError × Nat) ParseResultD) := do
@@ -38,7 +38,7 @@ def declsOf (em : Emit) : AM (Except (CheckError × Nat) ParseResultD) := do
   | .error e => pure (.error e)
   | .ok st => pure (.ok (ParseResultD.ofState st))
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:63-70 rootConstants
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:67-74 rootConstants
 The constants the emission starts from: the named ones, each of which the closure
 must hold, or all of them. -/
 def rootConstants (mg : Merged) : Option (Array NIdx) → AM (Array NIdx)
@@ -48,7 +48,8 @@ def rootConstants (mg : Merged) : Option (Array NIdx) → AM (Array NIdx)
     | some c => do fail (.internal s!"the constant {← readName c} is not in the import closure")
     | none => pure cs
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:72-89 readOleans
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Records.readOleans_bridge, then delete this line
 **The whole read**: load, merge, emit, build.  `constants` names the constants to start
 from; `none` is every constant of the closure. -/
 def readOleans (fs : OleanFs) (sp : List System.FilePath) (roots : Array NIdx)

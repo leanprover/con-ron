@@ -58,7 +58,7 @@ structure OleanPins where
   nQuotInd : NIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:22-23 mkN
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:42-43 mkN
 The reader's known handles, interned once, before any file is read. -/
 def oleanPins : AM OleanPins := do
   let anon ← internNNode .anonymous

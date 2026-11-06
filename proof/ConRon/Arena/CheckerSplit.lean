@@ -34,6 +34,7 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:36-42 ValueKind — the three
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.ValueKind_bridge, then delete this line
 declaration kinds whose value check is separable from their install.  Census
 class (P): no term in it, copied verbatim. -/
 inductive ValueKind where
@@ -43,6 +44,7 @@ inductive ValueKind where
   deriving DecidableEq, Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word — the
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.ValueKind.word_bridge, then delete this line
 kind's word in `checkDecl`'s type-mismatch message. -/
 def ValueKind.word : ValueKind → String
   | .defn => "definition"
@@ -50,6 +52,7 @@ def ValueKind.word : ValueKind → String
   | .opaque => "opaque"
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:50-58 ValueGroup — what the
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.ValueGroup_bridge, then delete this line
 install half hands the check half: the kind, the header, and the value —
 guarded for a definition or an opaque (the install half stored it), unguarded
 for a theorem (the install half never looked at it: a theorem is stored by its
@@ -61,6 +64,7 @@ structure ValueGroup where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader —
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.installHeader_bridge, then delete this line
 `checkConstantVal` minus its inference: the syntactic guards.  con-leche writes
 the shared clauses out twice and so does this, clause for clause. -/
 def installHeader (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
@@ -81,6 +85,7 @@ def installHeader (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
     fail (← unresolvedConstsErrorL (← strLitSupported fe) "type" cv.type)
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:81-92 installValueGuards — the
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.installValueGuards_bridge, then delete this line
 value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards. -/
 def installValueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
     AM Unit := do
@@ -95,6 +100,7 @@ def installValueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
     fail (← unresolvedConstsErrorL (← strLitSupported fe) "value" value)
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup —
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove CheckerSplit.checkValueGroup_bridge, then delete this line
 **the check half of a value declaration**, at the environment the constant was
 installed at: the type's sort, the theorem's is-a-proposition test, for a
 theorem the value's guards, and the value's type against the

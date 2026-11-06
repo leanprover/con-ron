@@ -105,7 +105,8 @@ pub fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
+/// con-leche: ConLeche/Kernel/Basis/Builder.lean:114-117 BasisDSL.rule
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::rule_refines, then delete this line
 /// A raw iota rule: the install-computed fields (`ctorParams`, `fire`, `k`,
 /// `eta`) at their parse placeholders, which is what the exporter emits and
 /// what `#stored_basis` recomputes.
@@ -116,6 +117,7 @@ pub fn rule(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
 // --- Eq --------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-27 eqRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::eq_raw_refines, then delete this line
 /// `Eq.{u} {α : Sort u} : α → α → Prop`.
 pub fn eq_raw() -> ConstantInfo {
     let caps = IndCaps {
@@ -136,6 +138,7 @@ pub fn eq_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:29-35 eqReflRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::eq_refl_raw_refines, then delete this line
 /// `Eq.refl.{u} {α : Sort u} (a : α) : Eq α a a`.
 pub fn eq_refl_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -179,6 +182,7 @@ pub fn eq_rec_refl_dom() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:43-60 eqRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::eq_rec_raw_refines, then delete this line
 /// `Eq.rec.{u_1, u} {α : Sort u} {a : α} {motive : ∀ b, Eq α a b → Sort u_1}
 /// (refl : motive a (Eq.refl α a)) {b : α} (t : Eq α a b) : motive b t`.
 pub fn eq_rec_raw() -> ConstantInfo {
@@ -223,6 +227,7 @@ pub fn eq_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:62-63 eqBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::eq_basis_refines, then delete this line
 /// The pinned `Eq` basis block, in install order.
 pub fn eq_basis() -> Vec<ConstantInfo> {
     vec3(eq_raw(), eq_refl_raw(), eq_rec_raw())
@@ -237,6 +242,7 @@ pub fn nat_t() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::nat_raw_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -251,12 +257,14 @@ pub fn nat_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:29-31 natZeroRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::nat_zero_raw_refines, then delete this line
 /// `Nat.zero : Nat`.
 pub fn nat_zero_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:33-35 natSuccRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::nat_succ_raw_refines, then delete this line
 /// `Nat.succ (n : Nat) : Nat`.
 pub fn nat_succ_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -295,6 +303,7 @@ pub fn nat_rec_zero_dom() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:47-66 natRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::nat_rec_raw_refines, then delete this line
 /// `Nat.rec.{u} {motive : Nat → Sort u} (zero : motive Nat.zero)
 /// (succ : ∀ n, motive n → motive n.succ) (t : Nat) : motive t`.
 pub fn nat_rec_raw() -> ConstantInfo {
@@ -356,6 +365,7 @@ pub fn nat_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:68-69 natBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::nat_basis_refines, then delete this line
 /// The pinned `Nat` basis block, in install order.
 pub fn nat_basis() -> Vec<ConstantInfo> {
     vec4(nat_raw(), nat_zero_raw(), nat_succ_raw(), nat_rec_raw())
@@ -364,6 +374,7 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:20-22 emptyRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::empty_raw_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -377,6 +388,7 @@ pub fn empty_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:24-31 emptyRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::empty_rec_raw_refines, then delete this line
 /// `Empty.rec.{u} (motive : Empty → Sort u) (t : Empty) : motive t`.  The
 /// exporter emits the motive as an *explicit* binder here (there is no major
 /// premise to infer it from).
@@ -399,7 +411,8 @@ pub fn empty_rec_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Empty.lean:33-34 emptyBasis
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::empty_basis_refines, then delete this line
 /// The pinned `Empty` basis block, in install order.
 pub fn empty_basis() -> Vec<ConstantInfo> {
     vec2(empty_raw(), empty_rec_raw())
@@ -408,6 +421,7 @@ pub fn empty_basis() -> Vec<ConstantInfo> {
 // --- False -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::false_raw_refines, then delete this line
 /// `False : Prop`.
 pub fn false_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -420,6 +434,7 @@ pub fn false_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:41-48 falseRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::false_rec_raw_refines, then delete this line
 /// `False.rec.{u} (motive : False → Sort u) (t : False) : motive t`.  The
 /// exporter emits the motive as an *explicit* binder here, as for
 /// `Empty.rec`.
@@ -443,6 +458,7 @@ pub fn false_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:50-51 falseBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::false_basis_refines, then delete this line
 /// The pinned `False` basis block, in install order.
 pub fn false_basis() -> Vec<ConstantInfo> {
     vec2(false_raw(), false_rec_raw())
@@ -450,13 +466,14 @@ pub fn false_basis() -> Vec<ConstantInfo> {
 
 // --- Quot ------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:26-28 quotRel
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:27-29 quotRel
 /// The relation argument's type in the `α` binder context: `α → α → Prop`.
 pub fn quot_rel() -> Expr {
     pi(bv(0), pi(bv(1), prop()))
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_raw_refines, then delete this line
 /// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`.
 pub fn quot_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -470,6 +487,7 @@ pub fn quot_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:36-42 quotMkRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_mk_raw_refines, then delete this line
 /// `Quot.mk.{u} {α : Sort u} (r : α → α → Prop) (a : α) : Quot α r`.
 pub fn quot_mk_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -492,13 +510,13 @@ pub fn quot_mk_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotLiftF
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:45-46 quotLiftF
 /// `Quot.lift`'s function slot, in the `α`/`r`/`β` context: `α → β`.
 pub fn quot_lift_f() -> Expr {
     pi(bv(2), bv(1))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotLiftH
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:48-54 quotLiftH
 /// `Quot.lift`'s coherence slot, in the `α`/`r`/`β`/`f` context:
 /// `∀ a b, r a b → f a = f b`.
 pub fn quot_lift_h() -> Expr {
@@ -520,6 +538,7 @@ pub fn quot_lift_h() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:55-72 quotLiftRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_lift_raw_refines, then delete this line
 /// `Quot.lift.{u, v} {α : Sort u} {r : α → α → Prop} {β : Sort v}
 /// (f : α → β) (h : ∀ a b, r a b → f a = f b) (q : Quot α r) : β`.
 pub fn quot_lift_raw() -> ConstantInfo {
@@ -572,7 +591,7 @@ pub fn quot_lift_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:74-77 quotIndMotive
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:75-78 quotIndMotive
 /// `Quot.ind`'s motive slot, in the `α`/`r` context: `Quot α r → Prop`.
 pub fn quot_ind_motive() -> Expr {
     pi(
@@ -581,7 +600,7 @@ pub fn quot_ind_motive() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:79-83 quotIndMk
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:80-84 quotIndMk
 /// `Quot.ind`'s minor premise, in the `α`/`r`/`β` context:
 /// `∀ a, β (Quot.mk α r a)`.
 pub fn quot_ind_mk() -> Expr {
@@ -595,6 +614,7 @@ pub fn quot_ind_mk() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:85-100 quotIndRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_ind_raw_refines, then delete this line
 /// `Quot.ind.{u} {α : Sort u} {r : α → α → Prop} {β : Quot α r → Prop}
 /// (mk : ∀ a, β (Quot.mk α r a)) (q : Quot α r) : β q`.
 pub fn quot_ind_raw() -> ConstantInfo {
@@ -642,6 +662,7 @@ pub fn quot_ind_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:102-114 quotSoundRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_sound_raw_refines, then delete this line
 /// `Quot.sound.{u} {α : Sort u} {r : α → α → Prop} {a b : α} :
 /// r a b → Quot.mk α r a = Quot.mk α r b`.
 pub fn quot_sound_raw() -> ConstantInfo {
@@ -672,7 +693,8 @@ pub fn quot_sound_raw() -> ConstantInfo {
     ))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:116-118 quotBasis
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:117-119 quotBasis
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::quot_basis_refines, then delete this line
 /// The pinned `Quot` basis block, in install order.
 pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
@@ -752,6 +774,7 @@ pub fn and_rec_minor() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/And.lean:73-92 andRecRaw
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::and_rec_raw_refines, then delete this line
 /// `And.rec.{u} {a b : Prop} {motive : And a b → Sort u} (intro : (left : a)
 /// → (right : b) → motive ⟨left, right⟩) (t : And a b) : motive t`.
 pub fn and_rec_raw() -> ConstantInfo {
@@ -807,7 +830,7 @@ pub fn and_pin() -> Vec<ConstantInfo> {
     vec3(and_raw(), and_intro_raw(), and_rec_raw())
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:37-43 BasisKind.decls
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
@@ -820,6 +843,7 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove basis_raw::block_pin_kinds_refines, then delete this line
 /// The four blocks the pin match tries, as a list: con-leche writes the
 /// literal `[BasisKind.eqK, .natK, .emptyK, .falseK]` inline in
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records

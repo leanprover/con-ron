@@ -16,7 +16,7 @@ namespace ConRon.Arena.Frontend.Olean
 open ConLeche
 open ConLeche.Frontend.Olean (Region CEntryF kName kLevel kExpr kLevels kidTable)
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:84-90 SM
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:92-98 SM
 A sparse decoder's memo: the values read so far, by location, one map per kind. -/
 structure SM where
   names : Std.HashMap Nat NIdx := {}
@@ -24,7 +24,7 @@ structure SM where
   lists : Std.HashMap Nat LsIdx := {}
   exprs : Std.HashMap Nat EIdx := {}
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:92-97 SM.has
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:100-105 SM.has
 Does the memo hold the object at `g` as kind `k`. -/
 def SM.has (st : SM) (k : UInt8) (g : Nat) : Bool :=
   if k = kName then st.names.contains g
@@ -33,6 +33,7 @@ def SM.has (st : SM) (k : UInt8) (g : Nat) : Bool :=
   else st.exprs.contains g
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:99-112 SM.build
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.SM.sub_bridge, then delete this line
 The memo's values as the node functions' `sub`. -/
 @[inline] def SM.sub (st : SM) : Sub where
   name c := st.names[c]?
@@ -41,6 +42,7 @@ The memo's values as the node functions' `sub`. -/
   expr c := st.exprs[c]?
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:99-112 SM.build
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.SM.build_bridge, then delete this line
 **The object at `g`, read as kind `k`**, by the node function, its kids' values from
 the memo, and added to it. -/
 def SM.build (pk : OleanPins) (r : Region) (k : UInt8) (g : Nat) (st : SM) : AM (Option SM) := do
@@ -55,7 +57,8 @@ def SM.build (pk : OleanPins) (r : Region) (k : UInt8) (g : Nat) (st : SM) : AM 
 
 set_option linter.unusedVariables false in
 mutual
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:119-131 sGo
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:184-197 sGo
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.sGo_bridge, then delete this line
 **The object at `g` read as kind `k`, into the memo**: nothing to do if it is there;
 else its kids, then the object itself. -/
 def sGo (pk : OleanPins) (r : Region) (k : UInt8) (g : Nat) (st : SM) : AM (Option SM) := do
@@ -70,7 +73,8 @@ def sGo (pk : OleanPins) (r : Region) (k : UInt8) (g : Nat) (st : SM) : AM (Opti
   else pure none
 termination_by (g, 1, 0)
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:133-148 kidsGo
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:199-214 kidsGo
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.kidsGo_bridge, then delete this line
 The kids the fields `fs` of the object at `g` lead to, into the memo. -/
 def kidsGo (pk : OleanPins) (r : Region) (g : Nat) :
     List (Nat × UInt8 × Bool) → SM → AM (Option SM)
@@ -90,7 +94,8 @@ decreasing_by
     | (apply Prod.Lex.left; exact ConLeche.Frontend.Olean.Region.down_lt hd)
 end
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:153-158 sparseNameP
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:223-228 sparseNameP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.sparseNameP_bridge, then delete this line
 **The `Name` a pointer stands for**, read sparsely. -/
 def sparseNameP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option NIdx) := do
   if v == 1 then pure (some pk.anon)
@@ -101,7 +106,8 @@ def sparseNameP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option NIdx) :=
       | none => pure none
     | none => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:160-164 sparseExprP
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:230-234 sparseExprP
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Sparse.sparseExprP_bridge, then delete this line
 **The `Expr` a pointer stands for**, read sparsely. -/
 def sparseExprP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option EIdx) := do
   match r.loc v with
@@ -111,7 +117,7 @@ def sparseExprP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option EIdx) :=
     | none => pure none
   | none => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:166-169 sparseEntry
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
 **A constant's names and expressions, read sparsely**: each root with a memo of its
 own. -/
 def sparseEntry (pk : OleanPins) (r : Region) (sk : CEntryF UInt64 UInt64) :

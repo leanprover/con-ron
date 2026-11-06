@@ -41,7 +41,8 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:26-53 BlockPass
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:24-42 BlockPass
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.BlockPass_bridge, then delete this line
 **What one pass over the formers, the constructors and the classes yields**:
 the environment holding all k formers, the annotated formers, the completed
 record, the annotated constructors and their fields' sorts per member, the
@@ -60,8 +61,10 @@ structure BlockPass where
   cls : List TargetMajor
   tbl : List NestCtorNf
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:55-75 checkBlockPass
-con-leche: ConLeche/Cached/CheckerC.lean:127-146 checkBlockPassS
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockPass_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:127-141 checkBlockPassS
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockPass_bridge, then delete this line
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -83,7 +86,8 @@ def checkBlockPass (mode : CheckMode) (fe : IFEnv) (p₀ : BlockParts) (isRec : 
          sortsss := sortsss, kinds := kinds, nfs := nfs, params := ctx.params,
          rd := rd, cls := ms, tbl := ns.ctorNfs.toList }
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:77-92 checkBlockRec
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-78 checkBlockRec
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockRec_bridge, then delete this line
 **The recursor stage on the uniform route**: the GENERATED recursor stage at
 the constructors' environment, on the stream's own recursor family (the raw
 `block`), the pass's classes and table, and the container bit. -/
@@ -93,8 +97,10 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (nested : Boo
     AM (IFEnv × List (IConstantVal × TargetMajor × List EIdx)) :=
   genRecCheck mode fe p.shape nested params tbl rd ms cvTas block
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:107-122 checkBlockTables
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:157-170 checkBlockTablesF
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-101 checkBlockTables
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:152-160 checkBlockTablesF
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTables_bridge, then delete this line
 **The projection table at every STRUCTURE-LIKE member** (one constructor, no
 index): the member's table; nothing at any other member.  The three lists are walked side by side, as the
 Rust's index `i` walks them. -/
@@ -113,8 +119,10 @@ def checkBlockTables (p : BlockShape) :
     | _, _ => checkBlockTables p ms css sss fe
   | _, _, _, fe => pure fe
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-105 consBlockRecsT
-con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:80-91 consBlockRecsT
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.consBlockRecsTemp_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.consBlockRecsTemp_bridge, then delete this line
 **The generated install, pushed TEMPORARILY**: each generated recursor with its
 rules at its major (the lookups at the constructors' bound `vis₂`).  Returns the
 rows the pushes displaced (`idx[n]?` before each push), in push order, for the
@@ -132,8 +140,10 @@ def consBlockRecsTemp (vis₂ : Nat) (p : BlockShape) :
     consBlockRecsTemp vis₂ p (m + 1) rest (fe.push (.recInfo cv mI rP rules))
       (prevs ++ [(cv.name, prev)])
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
-con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:103-115 checkBlockTail
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTailStored_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTailStored_bridge, then delete this line
 **The stored recursors against the generated ones, and their install**: the
 generated install pushed, a flush entering it, the comparison, the pushes undone
 in reverse order, a flush leaving it, and the stored recursors consed at their
@@ -147,8 +157,10 @@ def checkBlockTailStored (mode : CheckMode) (vis₂ : Nat) (p : BlockShape)
   flushCaches
   consBlockRecsTF vis₂ p 0 (storedOut p.recs out) fe2
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-142 checkBlockTail
-con-leche: ConLeche/Cached/CheckerC.lean:148-179 checkBlockTailS
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:103-115 checkBlockTail
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
 stored recursors against the generated ones and consed at their majors, and the
@@ -165,8 +177,10 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   let fe₃ ← checkBlockTailStored mode vis₂ q.p.shape out fe₂b
   checkBlockTables q.p.shape q.p.shape.members q.ctorsAs q.sortsss fe₃
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:144-152 checkBlock
-con-leche: ConLeche/Cached/CheckerC.lean:181-189 checkBlockKS
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:150-163 checkBlock
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlock_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:187-198 checkBlockKS
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove BlockTail.checkBlock_bridge, then delete this line
 **Check and install a block on the uniform route**: the distinct names, the
 flush, the pass at official's `is_rec`, and the install after it. -/
 def checkBlock (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)

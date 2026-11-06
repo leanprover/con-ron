@@ -107,7 +107,8 @@ def buildPass (pk : OleanPins) (r : Region) (m : ByteArray) (n : Nat) (st : DS) 
   else pure (some st)
 termination_by n - p
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:271-279 runPasses
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Fast.runPasses_bridge, then delete this line
 **Both passes** from the given name and expression roots. -/
 def runPasses (pk : OleanPins) (r : Region) (names exprs : List UInt64) : AM (Option DS) := do
   let n := maxLoc r exprs (maxLoc r names 0) / 8 + 1
@@ -120,7 +121,7 @@ def runPasses (pk : OleanPins) (r : Region) (names exprs : List UInt64) : AM (Op
       let m := markPass r m n
       if failedM m then pure none else buildPass pk r m n (DS.fresh n) 0
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:281-286 DS.nameOf
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:290-295 DS.nameOf
 A root's value, from the memo. -/
 @[inline] def DS.nameOf (pk : OleanPins) (r : Region) (st : DS) (v : UInt64) : Option NIdx :=
   if v == 1 then some pk.anon
@@ -128,19 +129,19 @@ A root's value, from the memo. -/
     | some c => some (st.names.getD (c / 8) default)
     | none => none
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:288-291 DS.exprOf -/
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:297-300 DS.exprOf -/
 @[inline] def DS.exprOf (r : Region) (st : DS) (v : UInt64) : Option EIdx :=
   match r.loc v with
   | some c => some (st.exprs.getD (c / 8) default)
   | none => none
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:281-286 DS.nameOf
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:290-295 DS.nameOf
 The memo as a pointer read. -/
 @[inline] def DS.read (pk : OleanPins) (r : Region) (st : DS) : PtrRead where
   rdName v := pure (st.nameOf pk r v)
   rdExpr v := pure (st.exprOf r v)
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:311-316 ModSkel.read
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:320-325 ModSkel.read
 A module's value from its skeletons, given what its pointers stand for. -/
 def ModSkel.read (rd : PtrRead) (sk : ModSkel) (cs : List (CEntryF UInt64 UInt64)) :
     AM (Option ModDecoded) :=
@@ -150,14 +151,14 @@ def ModSkel.read (rd : PtrRead) (sk : ModSkel) (cs : List (CEntryF UInt64 UInt64
     let constants ← cs.mapM (m := OptionT AM) fun c => OptionT.mk (entryMap rd c)
     pure ⟨sk.isModule, imports.toArray, constants.toArray⟩ : OptionT AM ModDecoded).run
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 `addrs.all (constNamesOk r)`. -/
 def allConstNamesOk (pk : OleanPins) (r : Region) : List UInt64 → AM Bool
   | [] => pure true
   | a :: as => do
     if ← constNamesOk pk r a then allConstNamesOk pk r as else pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 `sk.consts.mapM (constSkel r)`, each skeleton's numbers checked to fit. -/
 def constsSkel (r : Region) : List Nat → AM (Option (List (CEntryF UInt64 UInt64)))
   | [] => pure (some [])
@@ -170,7 +171,7 @@ def constsSkel (r : Region) : List Nat → AM (Option (List (CEntryF UInt64 UInt
       | none => pure none
       | some rest => pure (some (s :: rest))
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 `addrs.mapM (moduleSkel r)`, and each module's constants' skeletons. -/
 def manySkels (r : Region) : List UInt64 →
     AM (Option (List (ModSkel × List (CEntryF UInt64 UInt64))))
@@ -186,7 +187,7 @@ def manySkels (r : Region) : List UInt64 →
         | none => pure none
         | some rest => pure (some ((sk, cs) :: rest))
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 **The `ModuleData`s at some addresses of a region, each object read once**. -/
 def parseMany (pk : OleanPins) (r : Region) (addrs : List UInt64) : AM (Option (List ModDecoded)) := do
   unless ← allConstNamesOk pk r addrs do return none
@@ -204,14 +205,14 @@ def parseMany (pk : OleanPins) (r : Region) (addrs : List UInt64) : AM (Option (
       (ms.mapM (m := OptionT AM) fun p =>
         OptionT.mk (ModSkel.read (st.read pk r) p.1 p.2)).run
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:330-334 parseAt
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:339-343 parseAt
 **The `ModuleData` at one address**, fast. -/
 def parseAt (pk : OleanPins) (r : Region) (addr : UInt64) : AM (Option ModDecoded) := do
   match ← parseMany pk r [addr] with
   | some [d] => pure (some d)
   | _ => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:336-342 stmtsFast
+/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:345-351 stmtsFast
 **The statements of some constants, read once**: both passes from the chosen
 constants' roots alone. -/
 def stmtsFast (pk : OleanPins) (r : Region) (sks : List (CEntryF UInt64 UInt64)) :

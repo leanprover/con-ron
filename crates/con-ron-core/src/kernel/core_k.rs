@@ -142,133 +142,133 @@ pub fn nat_to_dec_go(i: u64, out: Vec<u32>) -> Vec<u32> {
 // The certified structural-`Nat` operations (`Core.lean:505-775`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:403 natPredName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:416 natPredName
 /// `Nat.pred`.
 pub fn nat_pred_name() -> Name {
     const S: [u32; 4] = [112, 114, 101, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:404 natAddName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:417 natAddName
 /// `Nat.add`.
 pub fn nat_add_name() -> Name {
     const S: [u32; 3] = [97, 100, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:405 natSubName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:418 natSubName
 /// `Nat.sub`.
 pub fn nat_sub_name() -> Name {
     const S: [u32; 3] = [115, 117, 98];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:406 natMulName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:419 natMulName
 /// `Nat.mul`.
 pub fn nat_mul_name() -> Name {
     const S: [u32; 3] = [109, 117, 108];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:407 natPowName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:420 natPowName
 /// `Nat.pow`.
 pub fn nat_pow_name() -> Name {
     const S: [u32; 3] = [112, 111, 119];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:408 natBeqName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:421 natBeqName
 /// `Nat.beq`.
 pub fn nat_beq_name() -> Name {
     const S: [u32; 3] = [98, 101, 113];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:409 natBleName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:422 natBleName
 /// `Nat.ble`.
 pub fn nat_ble_name() -> Name {
     const S: [u32; 3] = [98, 108, 101];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:410 natDivName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:423 natDivName
 /// `Nat.div`.
 pub fn nat_div_name() -> Name {
     const S: [u32; 3] = [100, 105, 118];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:411 natModName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:424 natModName
 /// `Nat.mod`.
 pub fn nat_mod_name() -> Name {
     const S: [u32; 3] = [109, 111, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:412 natGcdName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:425 natGcdName
 /// `Nat.gcd`.
 pub fn nat_gcd_name() -> Name {
     const S: [u32; 3] = [103, 99, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:413 natLandName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:426 natLandName
 /// `Nat.land`.
 pub fn nat_land_name() -> Name {
     const S: [u32; 4] = [108, 97, 110, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:414 natLorName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:427 natLorName
 /// `Nat.lor`.
 pub fn nat_lor_name() -> Name {
     const S: [u32; 3] = [108, 111, 114];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:415 natXorName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:428 natXorName
 /// `Nat.xor`.
 pub fn nat_xor_name() -> Name {
     const S: [u32; 3] = [120, 111, 114];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:416 natShiftLeftName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:429 natShiftLeftName
 /// `Nat.shiftLeft`.
 pub fn nat_shift_left_name() -> Name {
     const S: [u32; 9] = [115, 104, 105, 102, 116, 76, 101, 102, 116];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:417 natShiftRightName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:430 natShiftRightName
 /// `Nat.shiftRight`.
 pub fn nat_shift_right_name() -> Name {
     const S: [u32; 10] = [115, 104, 105, 102, 116, 82, 105, 103, 104, 116];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:418 boolName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:431 boolName
 /// `Bool`.
 pub fn bool_name() -> Name {
     const S: [u32; 4] = [66, 111, 111, 108];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:430 boolTrueName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:443 boolTrueName
 /// `Bool.true`.
 pub fn bool_true_name() -> Name {
     const S: [u32; 4] = [116, 114, 117, 101];
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:431 boolFalseName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:444 boolFalseName
 /// `Bool.false`.
 pub fn bool_false_name() -> Name {
     const S: [u32; 5] = [102, 97, 108, 115, 101];
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:420-422 eagerReduceName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:433-435 eagerReduceName
 /// `eagerReduce` (`Init/Core.lean`: `def eagerReduce (a : α) : α := a`), the
 /// gadget that sets the official kernel's eager flag.
 pub fn eager_reduce_name() -> Name {

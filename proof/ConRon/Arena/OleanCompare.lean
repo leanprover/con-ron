@@ -19,7 +19,7 @@ namespace ConRon.Arena.OleanCompare
 open ConLeche
 open ConRon.Arena.Frontend.Olean
 
-/-- con-leche: OleanCompare.lean:121-124 viewsEq
+/-- con-leche: OleanCompare.lean:118-121 viewsEq
 A view's constants by the checker's equality. -/
 def viewsEq (a b : ModDecoded) : Bool :=
   a.isModule == b.isModule && a.imports == b.imports && a.constants.size == b.constants.size &&
@@ -39,7 +39,7 @@ def agree (pk : OleanPins) (f : ConLeche.Frontend.Olean.ModFiles) (d : ModDecode
   let some ss ← readStmts pk f level (l.consts.toList.map (·.loc)) | return false
   return ss == d.constants.toList.map entryStmt
 
-/-- con-leche: OleanCompare.lean:127-144 runViews
+/-- con-leche: OleanCompare.lean:124-141 runViews
 `--views`: every module of the closure, as one `AM`. -/
 def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String Nat) := do
   let pk ← oleanPins
@@ -56,7 +56,8 @@ def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String
         return .error s!"module {← readName m}: the {repr level} reads of a part differ from the view"
   pure (.ok order.size)
 
-/-- con-leche: OleanCompare.lean:153-207 main
+/-- con-leche: OleanCompare.lean:150-204 main
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove OleanCompare.main_bridge, then delete this line
 The command line. -/
 def main (args : List String) : IO UInt8 := do
   match args with

@@ -149,8 +149,10 @@ pub fn check_struct_doms_at(
 // The projection table (`StructInstall.lean:42-72` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
 /// table per structure, in the environment's table component: the fields'
@@ -189,7 +191,8 @@ pub fn check_struct_proj_table(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
@@ -233,8 +236,10 @@ pub fn proj_bodies_scoped(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-84 checkStructProjTable
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-92 checkStructProjTableF
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_install::check_struct_proj_table_push_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove struct_install::check_struct_proj_table_push_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the table follows its structure, installed by the same block: the
 /// structure must be stored (an internal error otherwise), its table not yet

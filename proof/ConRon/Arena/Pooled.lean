@@ -31,7 +31,8 @@ into con-leche's per-job accepts, each at its job's own environment, and those
 assemble the pure fold whatever the split
 (`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge`). -/
 
-/-- con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool — **the pooled fold, accepted**:
+/-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool — **the pooled fold, accepted**:
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Pooled.PooledAccepts_bridge, then delete this line
 phase A (`installFold`) accepted with environment `fe`, pending records `pend` and
 block jobs `D`, ending in `s'`; and `parts`, one job list per worker, each drawn
 from `jobOrder pend D`, together covering it, each accepted by `checkJobList` from

@@ -144,7 +144,9 @@ pub enum ParallelError<E> {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::worker_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckPool.lean:184-211 checkOne
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::worker_refines, then delete this line
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -186,6 +188,7 @@ fn worker<S, E>(
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:229-234 mergeResults
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::merge_results_refines, then delete this line
 /// The workers' arrays merged **by index** into one table.  The table is the
 /// pool's whole interface to the verdict: which worker produced a result, and
 /// when, is recorded nowhere.
@@ -208,6 +211,7 @@ pub fn merge_results<E>(
 }
 
 /// con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::first_failure_refines, then delete this line
 /// **The results, walked in index order.**  Slot `k` holds index `k`'s
 /// result; the walk stops at the first failure, so its answer is the
 /// sequential fold's whatever order the results were produced in.  An empty
@@ -224,7 +228,8 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool
+/// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///

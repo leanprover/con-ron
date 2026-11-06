@@ -30,14 +30,14 @@ use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap;
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:32-36 Emit.nm
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:41-45 Emit.ex
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:36-40 Emit.nm
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:45-49 Emit.ex
 /// A table of the emitter's, as the stream reader's table.
 pub fn table_of<T>(dense: Vec<T>) -> IdTable<T> {
     IdTable { dense, sparse: hashmap::HashMap::new() }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:47-55 declsGo
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:51-59 declsGo
 /// `declsOf`'s walk.
 pub fn decls_go(pers: &PersTier, ar: &EStore, st: &mut StateD, out: &Vec<DeclRec>) -> Result<(), (CheckError, u64)> {
     let mut k = 0usize;
@@ -51,8 +51,8 @@ pub fn decls_go(pers: &PersTier, ar: &EStore, st: &mut StateD, out: &Vec<DeclRec
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:38-39 Emit.lv
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:57-61 declsOf
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:42-43 Emit.lv
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:61-65 declsOf
 /// **The `Declaration` records**, through the stream reader's builder.  A record's
 /// verdict is the stream path's, at the record's position.
 pub fn decls_of(pers: &PersTier, ar: &EStore, em: Emit) -> Result<ParseResultD, (CheckError, u64)> {
@@ -68,7 +68,7 @@ pub fn decls_of(pers: &PersTier, ar: &EStore, em: Emit) -> Result<ParseResultD, 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:63-70 rootConstants
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:67-74 rootConstants
 /// `cs.find? (!mg.map.contains ·)`, as a position (`cs.len()`: none).
 pub fn first_absent(mg: &Merged, cs: &Vec<NIdx>) -> usize {
     let mut i = 0usize;
@@ -81,7 +81,7 @@ pub fn first_absent(mg: &Merged, cs: &Vec<NIdx>) -> usize {
     i
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:63-70 rootConstants
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:67-74 rootConstants
 /// The constants the emission starts from: the named ones, each of which the
 /// closure must hold, or all of them.
 pub fn root_constants(pers: &PersTier, ar: &EStore, mg: &Merged, constants: &Option<Vec<NIdx>>) -> Result<Vec<NIdx>, CheckError> {
@@ -99,7 +99,8 @@ pub fn root_constants(pers: &PersTier, ar: &EStore, mg: &Merged, constants: &Opt
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:72-89 readOleans
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove records::emit_merged_refines, then delete this line
 /// `blocksOk`, `rootConstants` and the walk, over the merged closure.
 pub fn emit_merged(pk: &spec::OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, constants: &Option<Vec<NIdx>>) -> Result<Emit, CheckError> {
     match emit::blocks_ok(pk, pers, ar, mg) {
@@ -111,7 +112,8 @@ pub fn emit_merged(pk: &spec::OleanPins, pers: &PersTier, ar: &EStore, mg: &Merg
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:72-89 readOleans
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove records::read_oleans_refines, then delete this line
 /// **The whole read**: load, merge, emit, build.  `constants` names the constants
 /// to start from, as lean4export's arguments after `--` do; `None` is every
 /// constant of the closure.

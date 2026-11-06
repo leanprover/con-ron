@@ -462,7 +462,8 @@ pub fn max_loc(r: &Region, vs: &Vec<u64>, m: u64) -> u64 {
     m
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:271-279 runPasses
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:284-288 runPasses
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove fast::run_passes_refines, then delete this line
 /// **Both passes** from the given name and expression roots.  Every object they
 /// reach lies at or below the highest root, so the memo ends there.
 pub fn run_passes(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, names: &Vec<u64>, exprs: &Vec<u64>) -> Result<DS, RdErr> {
@@ -485,11 +486,11 @@ pub fn run_passes(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:281-286 DS.nameOf
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:288-291 DS.exprOf
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:290-295 DS.nameOf
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:297-300 DS.exprOf
 /// A root's value, from the memo.
 impl PtrRead for DS {
-    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:281-286 DS.nameOf
+    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:290-295 DS.nameOf
     #[inline(always)]
     fn rd_name(&self, pk: &OleanPins, _pers: &PersTier, _ar: &mut EStore, _bs: &[u8], r: &Region, v: u64) -> Result<NIdx, RdErr> {
         if v == 1 {
@@ -502,7 +503,7 @@ impl PtrRead for DS {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:288-291 DS.exprOf
+    /// con-leche: ConLeche/Frontend/Olean/Fast.lean:297-300 DS.exprOf
     #[inline(always)]
     fn rd_expr(&self, _pk: &OleanPins, _pers: &PersTier, _ar: &mut EStore, _bs: &[u8], r: &Region, v: u64) -> Result<EIdx, RdErr> {
         match region::region_loc(r, v) {
@@ -512,7 +513,7 @@ impl PtrRead for DS {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:293-301 CEntryF.names
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:302-310 CEntryF.names
 /// The names a constant's skeleton holds, onto `out`.
 pub fn c_entry_names(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
     out.push(c.name);
@@ -536,7 +537,7 @@ pub fn c_entry_names(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:293-301 CEntryF.names
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:302-310 CEntryF.names
 /// `++`.
 pub fn push_all(xs: &Vec<u64>, out: &mut Vec<u64>) {
     let mut i = 0usize;
@@ -546,7 +547,7 @@ pub fn push_all(xs: &Vec<u64>, out: &mut Vec<u64>) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:303-309 CEntryF.exprs
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:312-318 CEntryF.exprs
 /// The expressions a constant's skeleton holds, onto `out`.
 pub fn c_entry_exprs(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
     out.push(c.ty);
@@ -565,7 +566,7 @@ pub fn c_entry_exprs(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:311-316 ModSkel.read
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:320-325 ModSkel.read
 /// A module's value from its skeletons, given what its pointers stand for.
 pub fn mod_skel_read<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sk: &ModSkel, cs: &Vec<CEntryF<u64, u64>>) -> Result<ModDecoded, RdErr> {
     match mod_skel_imports(rd, pk, pers, ar, bs, r, sk) {
@@ -577,7 +578,7 @@ pub fn mod_skel_read<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &m
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:311-316 ModSkel.read
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:320-325 ModSkel.read
 /// `sk.imports.mapM (ImportF.mapM nm)`.
 pub fn mod_skel_imports<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sk: &ModSkel) -> Result<Vec<spec::ImportRec>, RdErr> {
     let mut imports: Vec<spec::ImportRec> = Vec::with_capacity(sk.imports.len());
@@ -592,7 +593,7 @@ pub fn mod_skel_imports<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar:
     Ok(imports)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:311-316 ModSkel.read
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:320-325 ModSkel.read
 /// `cs.mapM (CEntryF.mapM nm ex)`.
 pub fn mod_skel_constants<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, cs: &Vec<CEntryF<u64, u64>>) -> Result<Vec<CEntryF<NIdx, EIdx>>, RdErr> {
     let mut out: Vec<CEntryF<NIdx, EIdx>> = Vec::with_capacity(cs.len());
@@ -607,7 +608,7 @@ pub fn mod_skel_constants<R: PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, a
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// `addrs.all (constNamesOk r)`.
 pub fn all_const_names_ok(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, addrs: &Vec<u64>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -622,7 +623,7 @@ pub fn all_const_names_ok(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: 
     Ok(true)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// `sk.consts.mapM (constSkel r)`, each skeleton's numbers checked to fit
 /// (`spec::skel_fits`).
 pub fn consts_skel(bs: &[u8], r: &Region, consts: &Vec<u64>) -> Result<Vec<CEntryF<u64, u64>>, RdErr> {
@@ -641,7 +642,7 @@ pub fn consts_skel(bs: &[u8], r: &Region, consts: &Vec<u64>) -> Result<Vec<CEntr
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// `addrs.mapM (moduleSkel r)`, and each module's constants' skeletons.
 pub fn many_skels(bs: &[u8], r: &Region, addrs: &Vec<u64>) -> Result<(Vec<ModSkel>, Vec<Vec<CEntryF<u64, u64>>>), RdErr> {
     let mut sks: Vec<ModSkel> = Vec::with_capacity(addrs.len());
@@ -663,7 +664,7 @@ pub fn many_skels(bs: &[u8], r: &Region, addrs: &Vec<u64>) -> Result<(Vec<ModSke
     Ok((sks, skels))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// The roots of `runPasses`: the imports' names and the constants' names, and
 /// the constants' expressions.
 pub fn many_roots(sks: &Vec<ModSkel>, skels: &Vec<Vec<CEntryF<u64, u64>>>) -> (Vec<u64>, Vec<u64>) {
@@ -691,7 +692,7 @@ pub fn many_roots(sks: &Vec<ModSkel>, skels: &Vec<Vec<CEntryF<u64, u64>>>) -> (V
     (names, exprs)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// `(sks.zip skels).mapM fun p => p.1.read (st.nameOf r) (st.exprOf r) p.2`.
 pub fn many_read(st: &DS, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sks: &Vec<ModSkel>, skels: &Vec<Vec<CEntryF<u64, u64>>>) -> Result<Vec<ModDecoded>, RdErr> {
     let mut out: Vec<ModDecoded> = Vec::with_capacity(sks.len());
@@ -706,7 +707,7 @@ pub fn many_read(st: &DS, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: 
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:318-328 parseMany
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany
 /// **The `ModuleData`s at some addresses of a region, each object read once**,
 /// whichever of them reaches it: the name tables checked, both passes from all
 /// their names' and expressions' pointers, and one memo.
@@ -727,7 +728,7 @@ pub fn parse_many(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:330-334 parseAt
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:339-343 parseAt
 /// **The `ModuleData` at one address**, fast.
 pub fn parse_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, addr: u64) -> Result<ModDecoded, RdErr> {
     let mut addrs: Vec<u64> = Vec::with_capacity(1);
@@ -745,13 +746,13 @@ pub fn parse_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:330-334 parseAt
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:339-343 parseAt
 /// Entry `i` of a list of views, moved out.
 pub fn take_decoded(ds: &mut Vec<ModDecoded>, i: usize) -> ModDecoded {
     core::mem::replace(&mut ds[i], ModDecoded { is_module: false, imports: Vec::new(), constants: Vec::new() })
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:336-342 stmtsFast
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:345-351 stmtsFast
 /// The roots of `stmtsFast`.
 pub fn stmts_roots(sks: &Vec<CEntryF<u64, u64>>) -> (Vec<u64>, Vec<u64>) {
     let mut names: Vec<u64> = Vec::new();
@@ -766,7 +767,7 @@ pub fn stmts_roots(sks: &Vec<CEntryF<u64, u64>>) -> (Vec<u64>, Vec<u64>) {
     (names, exprs)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:336-342 stmtsFast
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:345-351 stmtsFast
 /// The statements read back out of the memo.
 pub fn stmts_read(st: &DS, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sks: &Vec<CEntryF<u64, u64>>) -> Result<Vec<StmtRec>, RdErr> {
     let mut out: Vec<StmtRec> = Vec::with_capacity(sks.len());
@@ -787,7 +788,7 @@ pub fn stmts_read(st: &DS, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs:
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Fast.lean:336-342 stmtsFast
+/// con-leche: ConLeche/Frontend/Olean/Fast.lean:345-351 stmtsFast
 /// **The statements of some constants, read once**: both passes from the chosen
 /// constants' roots alone.
 pub fn stmts_fast(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sks: &Vec<CEntryF<u64, u64>>) -> Result<Vec<StmtRec>, RdErr> {

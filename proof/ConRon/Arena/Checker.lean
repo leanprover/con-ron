@@ -97,7 +97,9 @@ open ConLeche
 /-! ## The two-phase fold the binary runs -/
 
 /-- con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
 con-leche: ConLeche/Cached/Installed.lean:308-315 checkPendingList
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
@@ -122,6 +124,7 @@ So the arm hands back the EMPTY state — which is what con-leche's arm means
 def AState.abandoned : AState := AState.init EStore.empty
 
 /-- con-leche: ConLeche/Cached/Installed.lean:91-99 PendingCheck — a phase-A
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.PendingCheck_bridge, then delete this line
 record awaiting its phase-B check: the datum that crosses the install/check
 seam, the fold position of the declaration (its error tag) and the environment
 counter at the install. -/
@@ -132,6 +135,7 @@ structure PendingCheck where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC — phase A's
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installStepGo_bridge, then delete this line
 step body: guard-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
@@ -172,6 +176,7 @@ def installStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     pure (← checkDecl mode pins fe pd, none)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:139-177 installStepC — **phase A's
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installStep_bridge, then delete this line
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
@@ -231,6 +236,7 @@ def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:51-57 BlockCheck
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.BlockCheck_bridge, then delete this line
 **A block's job of the check phase**: the view its checked install runs at (the
 environment as the block found it), the block, its parameter count, its fold position
 (the error tag), and what the stored install pushed: the constants `L` and the tables
@@ -244,6 +250,7 @@ structure BlockCheck where
   Q : List IProjTable
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:121-127 installStepG
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installBlockStep_bridge, then delete this line
 **Phase A's step on an inductive block**: the stored install, whose pushes the job
 records.  No value check is recorded: the block's verdict is its job's.  The caches
 go on the way out too, because a block the recogniser does not read has no bracket:
@@ -260,7 +267,9 @@ def installBlockStep (mode : CheckMode) (i : Nat) (fe : IFEnv) (D : Array BlockC
   pure (fe₂, D.push ⟨fe, block, nP, i, L, Q⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:179-200 installDeclStep
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installDeclStep_bridge, then delete this line
 con-leche: ConLeche/Verify/Cached/Defer.lean:108-110 deferredBlock?
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installDeclStep_bridge, then delete this line
 Phase A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the declaration
 that failed.  An inductive block is installed as stored (`installBlockStep`), every
@@ -296,7 +305,8 @@ def installDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     .ok (.error (.invalid "`And` must be the standard `And`", p.1), AState.abandoned)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls — phase A as
+/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls — phase A as
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installFold_bridge, then delete this line
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def installFold (mode : CheckMode) (pins : List INatOpPinSet)
@@ -310,6 +320,7 @@ def installFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .ok p' => installFold mode pins p' ds
 
 /-- con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending — **phase
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.checkPending_bridge, then delete this line
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -330,6 +341,7 @@ def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
 /-! ## The block jobs, and the check phase's jobs in fold order -/
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:68-70 pushesAgree
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.pushesAgree_bridge, then delete this line
 **The checked install pushed `L` and `Q`** onto the view: the constants and tables
 `W'` holds past the view's, in install order, compared pointer-first. -/
 def pushesAgree (view W' : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : Bool :=
@@ -339,6 +351,7 @@ def pushesAgree (view W' : IFEnv) (L : List IConstantInfo) (Q : List IProjTable)
       (W'.env.tables.take (W'.env.tables.length - view.env.tables.length)).reverse Q
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:77-84 blockCheck
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.blockCheck_bridge, then delete this line
 **The block's job**: its checked install at the view, from fresh caches and an empty
 scratch tier, and the comparison of its pushes with the stored install's.  A
 difference is an internal error: the stored reading is not the checked install's, a
@@ -352,6 +365,7 @@ def blockCheck (mode : CheckMode) (pins : List INatOpPinSet) (b : BlockCheck) : 
   dropScratch
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:217-221 blockFailure
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.blockFailure_bridge, then delete this line
 **The first failing block job**, in fold order, with its position. -/
 def blockFailure (mode : CheckMode) (pins : List INatOpPinSet) :
     List BlockCheck → AM (Option (CheckError × Nat))
@@ -362,6 +376,7 @@ def blockFailure (mode : CheckMode) (pins : List INatOpPinSet) :
     | .error e => .ok (some (e, b.pos), AState.abandoned)
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:213-227 checkWorker — **a phase-B worker's state**:
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.AState.worker_bridge, then delete this line
 the phase-A state with the scratch tier closed and empty, and fresh memos and
 caches.  The Rust's `worker_state` builds the same thing over the FROZEN tier
 (an empty store whose reads go to the `PersTier`); the twin has one store and
@@ -371,6 +386,7 @@ def AState.worker (s : AState) : AState :=
            caches := Caches.empty }
 
 /-- con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.phaseAFailure_bridge, then delete this line
 **The verdict of a phase A that failed at record `i` with `e`**: the first failing
 block job before it; else, at a block past its `And` pin, that block's own job (a
 name was taken, or the store gave out); else `e`.  `s` is the state phase A started
@@ -399,11 +415,13 @@ def phaseAFailure (mode : CheckMode) (pins : List INatOpPinSet) (ds : List IDecl
   | .error e₂ => (e₂, i)
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:243 Job
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.Job_bridge, then delete this line
 A job: a recorded value check (`false`) or a block job (`true`), by its index in
 its array. -/
 abbrev Job := Bool × Nat
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:255-276 runJob
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.runJob_bridge, then delete this line
 **Run a job**, the error tagged with its fold position. -/
 def runJob (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (pend : Array PendingCheck) (D : Array BlockCheck) (j : Job) :
@@ -424,6 +442,7 @@ def runJob (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     | none => .ok (.error (.internal "check phase: no such record", 0), AState.abandoned)
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.jobOrderGo_bridge, then delete this line
 The merge behind `jobOrder`, from positions `a` and `b`. -/
 def jobOrderGo (pend : Array PendingCheck) (D : Array BlockCheck) (a b : Nat)
     (acc : Array Job) : Array Job :=
@@ -437,12 +456,14 @@ def jobOrderGo (pend : Array PendingCheck) (D : Array BlockCheck) (a b : Nat)
 termination_by (pend.size - a) + (D.size - b)
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:281-292 jobOrder
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.jobOrder_bridge, then delete this line
 **The jobs in fold order**: the recorded checks and the block checks, each array
 sorted by position, merged (a block before a record at a larger position). -/
 def jobOrder (pend : Array PendingCheck) (D : Array BlockCheck) : Array Job :=
   jobOrderGo pend D 0 0 (Array.mkEmpty (pend.size + D.size))
 
 /-- con-leche: ConLeche/Verify/Cached/Defer.lean:299-338 collectJobs
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.checkJobList_bridge, then delete this line
 Phase B as a walk: every job in turn, on one state, the first failure the answer.
 A worker's fold over the jobs it claimed (`PooledAccepts`, `Arena/Pooled.lean`). -/
 def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
@@ -455,7 +476,8 @@ def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     | .ok (.error e, s') => .ok (.error e, s')
     | .error e => .error e
 
-/-- con-leche: ConLeche/Driver/Run.lean:87-210 checkDeclsIO
+/-- con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.installThenCheck_bridge, then delete this line
 **The declaration fold the binary runs**: install every record (phase A), run every
 job (phase B), return the environment.  A failure of phase A is reported at the
 first failing block job before it (`phaseAFailure`).  The `× Nat` of the error is the
@@ -471,7 +493,8 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => .error e
   | .error e => .error e
 
-/-- con-leche: ConLeche/Cached/Installed.lean:317-334 checkDecls — the fold's
+/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls — the fold's
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.atDecl_bridge, then delete this line
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`ConLeche/Driver/Run.lean`'s `checkMain`); the seam of (B) has no position channel
@@ -489,6 +512,7 @@ def atDecl : CheckError → Nat → CheckError
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Checker.internAllPins_bridge, then delete this line
 **The one-time tree walk of DESIGN §8.6 P2d**: every datum the checker
 compares a stream record against, interned into the tier that is live at the
 call — which, at the driver's call, is the persistent one.

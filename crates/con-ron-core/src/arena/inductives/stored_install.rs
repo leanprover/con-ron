@@ -99,14 +99,15 @@ pub const M_STORED_GUARDS: [u32; 13] = [115, 116, 111, 114, 101, 100, 32, 103, 1
 // Pointer-first equality of what an install pushes
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StoredInstall.lean:76-77 ConstantVal.beqP
+/// con-leche: ConLeche/Kernel/Canon.lean:306-307 ConstantVal.beqP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:50-53 IConstantVal.beqP`
 /// — `ConstantVal` equality, the type by handle.
 pub fn i_constant_val_beq_p(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
-/// con-leche: ConLeche/Cached/StoredInstall.lean:87-90 RecRuleFire.beqP
+/// con-leche: ConLeche/Kernel/Canon.lean:316-321 RecRuleFire.beqP
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::i_rec_rule_fire_beq_p_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:55-60 IRecRuleFire.beqP`
 /// — `RecRuleFire` equality, the pins by handle.
 pub fn i_rec_rule_fire_beq_p(a: &IRecRuleFire, b: &IRecRuleFire) -> bool {
@@ -122,7 +123,8 @@ pub fn i_rec_rule_fire_beq_p(a: &IRecRuleFire, b: &IRecRuleFire) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/StoredInstall.lean:96-98 RecRule.beqP
+/// con-leche: ConLeche/Kernel/Canon.lean:326-328 RecRule.beqP
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::i_rec_rule_beq_p_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:62-66 IRecRule.beqP`
 /// — `RecRule` equality, the right-hand side by handle.
 pub fn i_rec_rule_beq_p(a: &IRecRule, b: &IRecRule) -> bool {
@@ -135,7 +137,7 @@ pub fn i_rec_rule_beq_p(a: &IRecRule, b: &IRecRule) -> bool {
         && a.eta == b.eta
 }
 
-/// con-leche: ConLeche/Cached/StoredInstall.lean:62-65 listBeqBy
+/// con-leche: ConLeche/Kernel/Canon.lean:292-295 listBeqBy
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:43-48 listBeqBy` —
 /// `listBeqBy RecRule.beqP`, as an index recursion.
 pub fn i_rec_rules_beq_p(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
@@ -150,7 +152,8 @@ pub fn i_rec_rules_beq_p(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:196-243 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::i_ind_caps_beq_refines, then delete this line
 /// Lean twin: the `deriving DecidableEq` of `IIndCaps`, which `IConstantInfo.beqP`
 /// reads as `decide (c = c')`.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -167,7 +170,8 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
 }
 
-/// con-leche: ConLeche/Cached/StoredInstall.lean:109-117 ConstantInfo.beqP
+/// con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::i_constant_info_beq_p_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:68-79 IConstantInfo.beqP`
 /// — **`ConstantInfo` equality, pointer-first**: every term by handle, the rest
 /// by its decidable equality.
@@ -205,6 +209,7 @@ pub fn i_constant_info_beq_p(a: &IConstantInfo, b: &IConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:132-135 ProjTable.beqP
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::i_proj_table_beq_p_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:81-86 IProjTable.beqP`
 /// — **`ProjTable` equality, pointer-first**: every term and level by handle.
 pub fn i_proj_table_beq_p(a: &IProjTable, b: &IProjTable) -> bool {
@@ -223,7 +228,9 @@ pub fn i_proj_table_beq_p(a: &IProjTable, b: &IProjTable) -> bool {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_abandon_refines, then delete this line
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_abandon_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:90-108 storedTry` — the
 /// `Err` arm of a stored inference (the module note): the state written from what
 /// the failed run could not touch, the tier and the saved pins, with empty memos,
@@ -237,6 +244,7 @@ pub fn stored_abandon(st: &mut AState, tier: PersTier, saved: ScratchFrame) {
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_tele_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:119-138 storedTele` — **a
 /// former's telescope, as the checked install computes it** (`check_sum_tele`,
 /// without its checks): the stored type where it is a syntactic telescope of `n`
@@ -267,6 +275,7 @@ pub fn stored_tele(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_tele_slow_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:119-138 storedTele` — the
 /// `whnf` loop in a scratch bracket of its own, from fresh caches (the cited
 /// `flushC`); what it answers is promoted, a failure is `None`.
@@ -315,6 +324,7 @@ pub fn stored_tele_slow(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:161-170 storedTele
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_tele_run_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:119-138 storedTele` — the
 /// cited `run`: the telescope, closed over its sort.
 pub fn stored_tele_run(
@@ -338,6 +348,7 @@ pub fn stored_tele_run(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:175-180 storedFormers
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_formers_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:140-151 storedFormers` — the
 /// members' formers at their telescopes from member `i` on, each at its record
 /// as declared where its telescope cannot be read, and member 0's result sort
@@ -375,6 +386,7 @@ pub fn stored_formers(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:186-197 storedMajor
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:170-188 storedMajor` — **a
 /// recursor record's major**, as `tgt_stored_rules` reads it: a member (its
 /// parameter count and constructors), or an outside container at the levels and
@@ -422,6 +434,7 @@ pub fn stored_major(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:186-197 storedMajor
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_major_dom_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:170-188 storedMajor` — the
 /// outside container named by the major's domain.
 pub fn stored_major_dom(
@@ -464,6 +477,7 @@ pub fn stored_major_dom(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:186-197 storedMajor
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_take_refines, then delete this line
 /// Lean twin: the cited `dom.getAppArgs.take nPc`.
 pub fn stored_take(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i >= xs.len() || (i as u64) >= n {
@@ -476,6 +490,7 @@ pub fn stored_take(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:202-208 storedRecs
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_recs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:190-205 storedRecs` — **the
 /// recursors' records** from `r` on, in the block's order, pushed; the rules'
 /// lookups at the constructors' bound `vis2` while they are pushed above it.  A
@@ -530,6 +545,7 @@ pub fn stored_recs(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:218-227 storedGuards` — **a
 /// structure's guard levels**: the fields' sorts at the formers' environment
 /// `fe1`, from fresh caches, by the constructor stage's own walk, in a scratch
@@ -567,6 +583,7 @@ pub fn stored_guards(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_guards_run_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:218-227 storedGuards` — the
 /// cited `run` and the guards off its sorts.
 pub fn stored_guards_run(
@@ -611,6 +628,7 @@ pub fn stored_guards_run(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:214-223 storedGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_drop_refines, then delete this line
 /// Lean twin: the cited `xq.2.getAppArgs.drop p.nP`.
 pub fn stored_drop(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i >= xs.len() {
@@ -625,6 +643,7 @@ pub fn stored_drop(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:228-241 storedTables
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_guards_all_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:229-247 storedGuardsAll` —
 /// the guards of the cited walk's every structure-like member (one constructor,
 /// no index) from member `i` on, one list per member, read before the bracket
@@ -656,6 +675,7 @@ pub fn stored_guards_all(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:228-241 storedTables
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_tables_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:249-266 storedTables` — **the
 /// projection tables**, member by member in block order from `i` on, pushed, at
 /// every structure-like member; none where the bodies cannot be built.
@@ -703,6 +723,7 @@ pub fn stored_tables(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:268-272 storedCtors` — the
 /// cited `FEnv.pushAll ctors`, member by member from `i` on: every constructor as
 /// declared.
@@ -716,6 +737,7 @@ pub fn stored_ctors(n_p: u64, ms: &Vec<MemberShape>, i: usize, fe: IFEnv) -> IFE
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:274-291 storedTail` — the
 /// reading's last bracket: the constructors, the recursors and the tables pushed
 /// above the formers, and everything new since the counter `vis` and the table
@@ -763,6 +785,7 @@ pub fn stored_tail(
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:690-808 commitLoop
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_names_free_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:293-297 namesFree` — **the
 /// names a block pushes are free**: `slotsOk`, read before anything is pushed.
 pub fn stored_names_free(pers: &PersTier, vis: u64, fe: &IFEnv, ns: &Vec<NIdx>, i: usize) -> bool {
@@ -776,6 +799,7 @@ pub fn stored_names_free(pers: &PersTier, vis: u64, fe: &IFEnv, ns: &Vec<NIdx>, 
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::rec_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — the
 /// recursors' names from `i` on, appended.
 pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
@@ -789,6 +813,7 @@ pub fn rec_names(rs: &Vec<RecShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_parts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — **a
 /// block the recogniser reads**: its names distinct and free, the formers read,
 /// and the rest (`stored_parts_push`).
@@ -830,6 +855,7 @@ pub fn stored_parts(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_parts_push_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:299-318 storedParts` — past
 /// the formers' reading: pushed with their capability records, the guards, and
 /// the last bracket.
@@ -854,6 +880,7 @@ pub fn stored_parts_push(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_install_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StoredInstall.lean:320-338 storedInstall` — **the
 /// stored install of a block** on `fe`.  A block matching a basis pin pushes the
 /// pin's constants, a block the recogniser does not read pushes nothing, and
@@ -893,6 +920,7 @@ pub fn stored_install(
 }
 
 /// con-leche: ConLeche/Cached/StoredInstall.lean:251-267 storedInstall
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove stored_install::stored_push_all_refines, then delete this line
 /// Lean twin: the cited `kind.declsA`, pushed in order (`FEnv.pushAll`).
 pub fn stored_push_all(decls: &Vec<IConstantInfo>, i: usize, fe: IFEnv) -> IFEnv {
     if i >= decls.len() {

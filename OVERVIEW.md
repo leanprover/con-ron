@@ -75,7 +75,7 @@ con-ron [flags] --olean --search-path=DIR[:DIR...] [--constant=NAME]...
 con-ron --help
 ```
 
-([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L86-L172))
+([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L173))
 
 * **`--verified`** is the default, and the only mode the theorems cover.
 * **`--trusted`** runs the same checker with con-leche's certification-only
@@ -235,7 +235,7 @@ is why `#print axioms` does not list any of them.
 | premise | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
-| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L339-L358); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
+| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L342-L361); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
 | `h6`, `hord`, `h7`, `hlayer`, `h8` (phase A, the jobs' order, the freeze, the value checks' layer, phase B) | the install phase (`install_fold_hooked`) accepted with environment `fe`, pending records `pend` and block jobs `blocks`; `job_order` merged them into `order`; `freeze_tier` moved the persistent tables and the installed index into the tier; `check_layer` made the empty layer every value check reads through; and phase B's `parallel_all` accepted: `ParallelAll` says there are index lists, one per worker, that together cover every job of `order`, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on `order[k]`, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once or in order | `h6`, `hord`, `h7` and `hlayer` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  They hold for every install hook, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
@@ -386,7 +386,7 @@ empty scratch tier and FREEZES the store — its persistent tables leave it as
 the tier every read inside the bracket goes through (§4.4) — and
 `drop_scratch` discards the scratch tier, flushes the caches and thaws the
 tier back into the store
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10427-L10467)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10533-L10573)).
 Dropping the tier leaves persistent handles valid, because a persistent node
 never points into the scratch tier.
 
@@ -408,7 +408,7 @@ workers share nothing mutable.
 
 In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  At the phase boundary,
-[`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L998-L1020)
+[`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1033-L1055)
 moves the four stores' persistent tables and the installed index out into one
 [`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1211-L1263)
 value whose `frozen` bit is set.  Every persistent read goes to the
@@ -540,7 +540,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's steps 
 The parser is in the verified crate
 ([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30)).
 The driver reads the file forward in 4 MiB chunks through the
-[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L961-L1002)
+[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1006-L1047)
 chunk source and never holds the whole file.  Each line goes through a byte
 recogniser ported from con-leche's `Scan/Fast.lean`, the scanner
 con-leche's binary actually runs.  Records are interned straight into the

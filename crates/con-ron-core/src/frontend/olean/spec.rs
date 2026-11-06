@@ -70,13 +70,13 @@ pub struct OleanPins {
     pub n_quot_ind: NIdx,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-23 mkN
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:42-43 mkN
 /// One name, from a parent and a component (`mkN`'s step).
 pub fn mk_n_step(pers: &PersTier, ar: &mut EStore, p: NIdx, s: Vec<u32>) -> Result<NIdx, CheckError> {
     ar.intern_name(pers, NNodeView::Str(p, s))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-23 mkN
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:42-43 mkN
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:278-280 quotNames
 /// The reader's known handles, interned once, before any file is read.
 pub fn olean_pins(pers: &PersTier, ar: &mut EStore) -> Result<OleanPins, CheckError> {

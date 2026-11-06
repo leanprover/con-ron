@@ -5,35 +5,35 @@
 # or its text changed: re-read the paragraph that cites it, fix the link
 # or the prose, then regenerate.
 
-== con-leche/ConLeche/MainTheorem.lean#L90-L117
-    90  open ConLeche.Cached (checkDecls)
+== con-leche/ConLeche/MainTheorem.lean#L88-L115
+    88  open ConLeche.Cached (checkDecls)
+    89  
+    90  universe w
     91  
-    92  universe w
-    93  
-    94  /-- **The main theorem.**  Every environment the checker accepts has a
-    95  model in every set theory — at every `Nat.div`/`Nat.mod` pin list, so
-    96  consistency does not depend on which variants the install gate is
-    97  handed (the empty list included: under it every stream that declares
-    98  `Nat.div` declines).  The shipped binary runs the fold at
-    99  `natOpPinSets`. -/
-   100  theorem model_exists (V : Type w) [SetTheory V]
-   101      (pins : List NatOpPinSet) (ds : Array Declaration) (env : Env)
-   102      (accepted : checkDecls .verified pins ds = .ok env) :
-   103      Nonempty (Model V env) := by
-   104    obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) accepted
-   105    exact ⟨Model.Model.ofEnvModelM m⟩
-   106  
-   107  open Frontend in
-   108  /-- **The main corollary.**  A file declaring a theorem of type `False`
-   109  in the shape `jsonWithTheoremFalse` describes is rejected: the parse
-   110  reads the template's four lines into a theorem record of type `False`,
-   111  the preparation keeps the record, and a stream holding it is never
-   112  accepted.  At every pin list, as the main theorem: the shipped binary
-   113  runs the fold at `natOpPinSets`. -/
-   114  theorem no_False_declaration (V : Type w) [SetTheory V]
-   115      (pins : List NatOpPinSet) (chunks : List ByteArray)
-   116      (h : jsonWithTheoremFalse chunks) :
-   117      ∃ e, (do
+    92  /-- **The main theorem.**  Every environment the checker accepts has a
+    93  model in every set theory — at every `Nat.div`/`Nat.mod` pin list, so
+    94  consistency does not depend on which variants the install gate is
+    95  handed (the empty list included: under it every stream that declares
+    96  `Nat.div` declines).  The shipped binary runs the fold at
+    97  `natOpPinSets`. -/
+    98  theorem model_exists (V : Type w) [SetTheory V]
+    99      (pins : List NatOpPinSet) (ds : Array Declaration) (env : Env)
+   100      (accepted : checkDecls .verified pins ds = .ok env) :
+   101      Nonempty (Model V env) := by
+   102    obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) accepted
+   103    exact ⟨Model.Model.ofEnvModelM m⟩
+   104  
+   105  open Frontend in
+   106  /-- **The main corollary.**  A file declaring a theorem of type `False`
+   107  in the shape `jsonWithTheoremFalse` describes is rejected: the parse
+   108  reads the template's four lines into a theorem record of type `False`,
+   109  the preparation keeps the record, and a stream holding it is never
+   110  accepted.  At every pin list, as the main theorem: the shipped binary
+   111  runs the fold at `natOpPinSets`. -/
+   112  theorem no_False_declaration (V : Type w) [SetTheory V]
+   113      (pins : List NatOpPinSet) (chunks : List ByteArray)
+   114      (h : jsonWithTheoremFalse chunks) :
+   115      ∃ e, (do
 
 == con-leche/ConLeche/Verify/Cached/MainC.lean#L36-L42
     36  
@@ -148,94 +148,94 @@
   1193      pub projs: Tbl<ProjNode, EIdx, u64>,
   1194  }
 
-== crates/con-ron/src/bin/con-ron.rs#L86-L172
-    86  /// and the single-lane phase B.
-    87  const USAGE: &str = "\
-    88  usage: con-ron [--verified|--trusted] [--jobs=<n>]
-    89                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-    90                 [--] FILE.ndjson
-    91         con-ron [flags] --olean --search-path=DIR[:DIR...]
-    92                 [--constant=NAME]... [--] MODULE...
-    93         con-ron --help
-    94  
-    95    (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
-    96    pure checker over an append-only DAG of per-constructor handle arrays, with
-    97    con-leche's command line and con-leche's exit codes, so that
-    98    scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
-    99    the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
-   100    the checking path there is no Arc, no tagged pointer and no reference count
-   101    at all.  (The PINNED DATA the checker compares against is still
-   102    con-leche's own constants as Expr values, interned into the persistent tier
-   103    once at startup -- crates/con-ron-core/src/lib.rs says why.)
-   104  
-   105    --verified        the default, and the mode the main theorem is about: every
-   106                      environment the fold accepts in this mode has a model in
-   107                      every set theory (ConLeche.model_exists), so a stream
-   108                      declaring a theorem of type False is never accepted.  The
-   109                      same two statements are PROVED about this program's
-   110                      pipeline (ConRon.Capstone.model_exists and
-   111                      no_False_declaration, on the Aeneas model of the Rust),
-   112                      using only the axioms propext, Classical.choice and
-   113                      Quot.sound.  What they still assume are hypotheses, not
-   114                      axioms: that the driver runs the extracted stages in the
-   115                      order it does on the file's bytes.  They hold at every pin
-   116                      text and every prelude.  OVERVIEW.md section 3.1 lists
-   117                      them.
-   118    --trusted         the unverified mode: the SAME checker bodies at the mode
-   119                      with the certification-only work switched off.  An accept
-   120                      in this mode is outside the theorem.
-   121    --jobs=<n>        the check phase runs on <n> worker threads sharing the
-   122                      persistent tier and the installed index by reference
-   123                      (DESIGN.md section 8.3): each worker owns a scratch tier,
-   124                      its own caches and a copy of the pin handles, and the
-   125                      results are merged by record index and walked in record
-   126                      order, so the verdict and the record a rejection names are
-   127                      the same at every <n>.  Default: one per hardware thread,
-   128                      capped at 16.  A worker reserves 1 GiB of stack, which a
-   129                      `ulimit -v` must allow for.  0 or a non-numeral is a usage
-   130                      error, as in con-leche.
-   131    --                every argument after it is a file, whatever it is called;
-   132                      FILE.ndjson is a regular file, read forward (a FIFO or a
-   133                      directory is exit 3)
-   134    --olean           read the input from .olean files instead of a lean4export
-   135                      stream: the arguments are root modules (Init, Std, Mathlib,
-   136                      ...; a component in «» is taken literally), checked with
-   137                      every constant of their import closure.  The closure is
-   138                      read at the private level (theorems with proofs,
-   139                      definitions with bodies), merged as Lean's own import
-   140                      merges it, and emitted as the records lean4export would
-   141                      write, so the same checker checks them.  Every object the
-   142                      imports and constants reach is decoded and validated,
-   143                      nothing in the files is trusted.  A file of another .olean
-   144                      format version declines (2).  OVERVIEW.md says how far the
-   145                      theorems reach on this path.
-   146    --constant=NAME   with --olean: check only this constant and what it
-   147                      mentions, not every constant of the closure, as
-   148                      lean4export's arguments after -- do; a component of digits
-   149                      is a number (_private.M.0.foo).  May be given more than
-   150                      once.  A name the closure does not hold is an error (3).
-   151    --search-path=DIR[:DIR...]
-   152                      the directories holding .olean trees, as LEAN_PATH lists
-   153                      them (the toolchain's lib/lean, a package's
-   154                      .lake/build/lib/lean).  May be given more than once.  Every
-   155                      module is looked up in every directory: its files (M.olean
-   156                      and, for a module of the module system, exactly
-   157                      M.olean.server and M.olean.private beside it) must be in
-   158                      one directory, counted once however often it is reached (a
-   159                      repeated entry, a symbolic link).  A module in two places,
-   160                      a missing, stray or split part is an error (3).
-   161  
-   162  build-time selection (cargo features, not command-line flags): the global
-   163  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
-   164  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
-   165  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-   166  It is the same edge `crates/con-ron` has, so the two checkers are measured on
-   167  the same allocator unless a build says otherwise.
-   168  
-   169  Any other option is a usage error: the run reports it, prints this text and
-   170  exits 3 without reading its input.
-   171  
-   172  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+== crates/con-ron/src/bin/con-ron.rs#L87-L173
+    87  /// and the single-lane phase B.
+    88  const USAGE: &str = "\
+    89  usage: con-ron [--verified|--trusted] [--jobs=<n>]
+    90                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+    91                 [--] FILE.ndjson
+    92         con-ron [flags] --olean --search-path=DIR[:DIR...]
+    93                 [--constant=NAME]... [--] MODULE...
+    94         con-ron --help
+    95  
+    96    (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
+    97    pure checker over an append-only DAG of per-constructor handle arrays, with
+    98    con-leche's command line and con-leche's exit codes, so that
+    99    scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
+   100    the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
+   101    the checking path there is no Arc, no tagged pointer and no reference count
+   102    at all.  (The PINNED DATA the checker compares against is still
+   103    con-leche's own constants as Expr values, interned into the persistent tier
+   104    once at startup -- crates/con-ron-core/src/lib.rs says why.)
+   105  
+   106    --verified        the default, and the mode the main theorem is about: every
+   107                      environment the fold accepts in this mode has a model in
+   108                      every set theory (ConLeche.model_exists), so a stream
+   109                      declaring a theorem of type False is never accepted.  The
+   110                      same two statements are PROVED about this program's
+   111                      pipeline (ConRon.Capstone.model_exists and
+   112                      no_False_declaration, on the Aeneas model of the Rust),
+   113                      using only the axioms propext, Classical.choice and
+   114                      Quot.sound.  What they still assume are hypotheses, not
+   115                      axioms: that the driver runs the extracted stages in the
+   116                      order it does on the file's bytes.  They hold at every pin
+   117                      text and every prelude.  OVERVIEW.md section 3.1 lists
+   118                      them.
+   119    --trusted         the unverified mode: the SAME checker bodies at the mode
+   120                      with the certification-only work switched off.  An accept
+   121                      in this mode is outside the theorem.
+   122    --jobs=<n>        the check phase runs on <n> worker threads sharing the
+   123                      persistent tier and the installed index by reference
+   124                      (DESIGN.md section 8.3): each worker owns a scratch tier,
+   125                      its own caches and a copy of the pin handles, and the
+   126                      results are merged by record index and walked in record
+   127                      order, so the verdict and the record a rejection names are
+   128                      the same at every <n>.  Default: one per hardware thread,
+   129                      capped at 16.  A worker reserves 1 GiB of stack, which a
+   130                      `ulimit -v` must allow for.  0 or a non-numeral is a usage
+   131                      error, as in con-leche.
+   132    --                every argument after it is a file, whatever it is called;
+   133                      FILE.ndjson is a regular file, read forward (a FIFO or a
+   134                      directory is exit 3)
+   135    --olean           read the input from .olean files instead of a lean4export
+   136                      stream: the arguments are root modules (Init, Std, Mathlib,
+   137                      ...; a component in «» is taken literally), checked with
+   138                      every constant of their import closure.  The closure is
+   139                      read at the private level (theorems with proofs,
+   140                      definitions with bodies), merged as Lean's own import
+   141                      merges it, and emitted as the records lean4export would
+   142                      write, so the same checker checks them.  Every object the
+   143                      imports and constants reach is decoded and validated,
+   144                      nothing in the files is trusted.  A file of another .olean
+   145                      format version declines (2).  OVERVIEW.md says how far the
+   146                      theorems reach on this path.
+   147    --constant=NAME   with --olean: check only this constant and what it
+   148                      mentions, not every constant of the closure, as
+   149                      lean4export's arguments after -- do; a component of digits
+   150                      is a number (_private.M.0.foo).  May be given more than
+   151                      once.  A name the closure does not hold is an error (3).
+   152    --search-path=DIR[:DIR...]
+   153                      the directories holding .olean trees, as LEAN_PATH lists
+   154                      them (the toolchain's lib/lean, a package's
+   155                      .lake/build/lib/lean).  May be given more than once.  Every
+   156                      module is looked up in every directory: its files (M.olean
+   157                      and, for a module of the module system, exactly
+   158                      M.olean.server and M.olean.private beside it) must be in
+   159                      one directory, counted once however often it is reached (a
+   160                      repeated entry, a symbolic link).  A module in two places,
+   161                      a missing, stray or split part is an error (3).
+   162  
+   163  build-time selection (cargo features, not command-line flags): the global
+   164  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   165  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   166  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   167  It is the same edge `crates/con-ron` has, so the two checkers are measured on
+   168  the same allocator unless a build says otherwise.
+   169  
+   170  Any other option is a usage error: the run reports it, prints this text and
+   171  exits 3 without reading its input.
+   172  
+   173  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  //! | exit | verdict | meaning |
@@ -510,27 +510,27 @@
    829      AStateRel emptyTier st lst ∧ IFEnvOwn fe lfe ∧
    830      ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
-== crates/con-ron/src/bin/con-ron.rs#L339-L358
-   339      }
-   340  }
-   341  
-   342  /// con-leche: none — a frontend failure's exit, one place: the decline, the
-   343  /// reject and the internal error of the two frontend gates and of the
-   344  /// preparation (con-leche writes the three arms out at each gate).
-   345  fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
-   346      match classify(e) {
-   347          FrontendClass::Declined(what) => {
-   348              eprintln!("con-ron: declined: {} ({})", what, mode_tag);
-   349              2
-   350          }
-   351          FrontendClass::Invalid(what) => {
-   352              eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
-   353              1
-   354          }
-   355          FrontendClass::Internal(msg) => {
-   356              eprintln!("con-ron: {} ({})", msg, mode_tag);
-   357              3
-   358          }
+== crates/con-ron/src/bin/con-ron.rs#L342-L361
+   342      }
+   343  }
+   344  
+   345  /// con-leche: none — a frontend failure's exit, one place: the decline, the
+   346  /// reject and the internal error of the two frontend gates and of the
+   347  /// preparation (con-leche writes the three arms out at each gate).
+   348  fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
+   349      match classify(e) {
+   350          FrontendClass::Declined(what) => {
+   351              eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   352              2
+   353          }
+   354          FrontendClass::Invalid(what) => {
+   355              eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   356              1
+   357          }
+   358          FrontendClass::Internal(msg) => {
+   359              eprintln!("con-ron: {} ({})", msg, mode_tag);
+   360              3
+   361          }
 
 == proof/ConRon/Refine2/Frontend/Source.lean#L34-L38
     34  def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
@@ -898,48 +898,48 @@
   1126  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1127      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L10427-L10467
- 10427  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
- 10428  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3699 flushCaches` — **what
- 10429  /// the per-declaration bracket does to the caches**: it drops them whole,
- 10430  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
- 10431  /// this point.
- 10432  ///
- 10433  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
- 10434  /// rows whose key AND value are persistent — which is sound and strictly more
- 10435  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
- 10436  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
- 10437  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
- 10438  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
- 10439  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
- 10440  /// its eleven journals — P3 needs it to state that flushing is sound.
- 10441  pub fn flush_caches(st: &mut AState) {
- 10442      st.caches.reset();
- 10443  }
- 10444  
- 10445  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10446  /// Lean twin: `proof/ConRon/Arena/Core.lean:3701-3709 dropScratch` — drop the
- 10447  /// scratch tier of the store and the cache entries that name it, in one
- 10448  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 10449  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 10450  /// store is owned and scratch-off again.
- 10451  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 10452      flush_caches(st);
- 10453      st.store.thaw(tier);
- 10454  }
- 10455  
- 10456  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10457  /// Lean twin: `proof/ConRon/Arena/Core.lean:3711-3718 enterScratch` — turn the
- 10458  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 10459  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 10460  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 10461  /// are handed back as the `PersTier` every read inside the bracket goes
- 10462  /// through and promotion writes, and every append inside it is a scratch
- 10463  /// append.
- 10464  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 10465      st.memos.reset();
- 10466      st.store.freeze()
- 10467  }
+== crates/con-ron-core/src/arena/core.rs#L10533-L10573
+ 10533  /// con-leche: ConLeche/Cached/StateC.lean:336-343 CState.flushed
+ 10534  /// Lean twin: `proof/ConRon/Arena/Core.lean:3693-3699 flushCaches` — **what
+ 10535  /// the per-declaration bracket does to the caches**: it drops them whole,
+ 10536  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
+ 10537  /// this point.
+ 10538  ///
+ 10539  /// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
+ 10540  /// rows whose key AND value are persistent — which is sound and strictly more
+ 10541  /// caching; task #97f measured what it costs (`filter` is `O(table)` and the
+ 10542  /// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
+ 10543  /// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
+ 10544  /// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
+ 10545  /// surviving row, and so does `Caches::drop_scratch_entries` below it with
+ 10546  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 10547  pub fn flush_caches(st: &mut AState) {
+ 10548      st.caches.reset();
+ 10549  }
+ 10550  
+ 10551  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 10552  /// Lean twin: `proof/ConRon/Arena/Core.lean:3701-3709 dropScratch` — drop the
+ 10553  /// scratch tier of the store and the cache entries that name it, in one
+ 10554  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 10555  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 10556  /// store is owned and scratch-off again.
+ 10557  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 10558      flush_caches(st);
+ 10559      st.store.thaw(tier);
+ 10560  }
+ 10561  
+ 10562  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 10563  /// Lean twin: `proof/ConRon/Arena/Core.lean:3711-3718 enterScratch` — turn the
+ 10564  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 10565  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 10566  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 10567  /// are handed back as the `PersTier` every read inside the bracket goes
+ 10568  /// through and promotion writes, and every append inside it is a scratch
+ 10569  /// append.
+ 10570  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 10571      st.memos.reset();
+ 10572      st.store.freeze()
+ 10573  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -983,30 +983,30 @@
     39  //!   and it is threaded as an argument-and-result pair, a moved
     40  //!   `ron::HashMap` returned, which is `frontend::proj_rec`'s spelling for its
 
-== crates/con-ron-core/src/arena/checker.rs#L998-L1020
-   998  /// con-leche: none — the phase boundary, which con-leche has no tier to make
-   999  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
-  1000  /// persistent tier where it is (`AState.worker`, `Arena/Checker.lean`).
-  1001  /// **The persistent tier and the installed index out of phase A and into a
-  1002  /// value**: the four persistent tables and `fe` move into one `PersTier` handed
-  1003  /// back `frozen`, for the phase-B workers to read (`fe` is what `ifenv_find` reads
-  1004  /// below an own layer).  A pure MOVE: the store's scratch tiers and flags are
-  1005  /// untouched (a worker's store is its own, `worker_state`), and `thaw_tier` puts
-  1006  /// everything back where it was.  The driver's store is not read between the two.
-  1007  pub fn freeze_tier(ar: &mut EStore, fe: IFEnv) -> PersTier {
-  1008      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
-  1009      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
-  1010      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
-  1011      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
-  1012      PersTier {
-  1013          frozen: true,
-  1014          n,
-  1015          l,
-  1016          ls,
-  1017          e,
-  1018          env: fe,
-  1019      }
-  1020  }
+== crates/con-ron-core/src/arena/checker.rs#L1033-L1055
+  1033  /// con-leche: none — the phase boundary, which con-leche has no tier to make
+  1034  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
+  1035  /// persistent tier where it is (`AState.worker`, `Arena/Checker.lean`).
+  1036  /// **The persistent tier and the installed index out of phase A and into a
+  1037  /// value**: the four persistent tables and `fe` move into one `PersTier` handed
+  1038  /// back `frozen`, for the phase-B workers to read (`fe` is what `ifenv_find` reads
+  1039  /// below an own layer).  A pure MOVE: the store's scratch tiers and flags are
+  1040  /// untouched (a worker's store is its own, `worker_state`), and `thaw_tier` puts
+  1041  /// everything back where it was.  The driver's store is not read between the two.
+  1042  pub fn freeze_tier(ar: &mut EStore, fe: IFEnv) -> PersTier {
+  1043      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+  1044      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+  1045      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+  1046      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+  1047      PersTier {
+  1048          frozen: true,
+  1049          n,
+  1050          l,
+  1051          ls,
+  1052          e,
+  1053          env: fe,
+  1054      }
+  1055  }
 
 == crates/con-ron-core/src/arena/store.rs#L1211-L1263
   1211  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:365-373 EStore
@@ -1209,7 +1209,7 @@
    468  /// instead of a cleared one; see its note for how the value was chosen.
    469  pub const WALK_MEMO_KEEP: usize = 1 << 16;
    470  
-   471  /// con-leche: ConLeche/Kernel/Level.lean:386-388 Expr.allLevelParamsDefinedFast
+   471  /// con-leche: ConLeche/Kernel/Level.lean:402-404 Expr.allLevelParamsDefinedFast
    472  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
    473  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
    474  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
@@ -1754,49 +1754,49 @@
     29  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
     30  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron/src/driver.rs#L961-L1002
-   961  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   962  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
-   963  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
-   964  /// first empty read is the end of the input.  A failed read ends the input
-   965  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
-   966  /// place of whatever the parse of the truncated input said — so a read error
-   967  /// is exit 3, never a verdict, as before the loop moved.
-   968  pub struct HandleSource<'a, R: Read> {
-   969      /// The open reader.
-   970      pub h: &'a mut R,
-   971      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
-   972      pub chunk: usize,
-   973      /// The nonempty buffers handed out so far, for the heartbeat.
-   974      pub chunks: u64,
-   975      /// The first read failure, if any.
-   976      pub err: Option<std::io::Error>,
-   977  }
-   978  
-   979  /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   980  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
-   981      /// con-leche: ConLeche/Frontend/CheckerIO.lean:170-178 foldChunks
-   982      /// One read of up to `chunk` bytes; empty at the end or on a failure.
-   983      fn next_chunk(&mut self) -> Vec<u8> {
-   984          if self.err.is_some() {
-   985              return Vec::new();
-   986          }
-   987          let mut buf: Vec<u8> = vec![0u8; self.chunk];
-   988          match read_up_to(self.h, &mut buf) {
-   989              Ok(n) => {
-   990                  buf.truncate(n);
-   991                  if n > 0 {
-   992                      self.chunks += 1;
-   993                  }
-   994                  buf
-   995              }
-   996              Err(e) => {
-   997                  self.err = Some(e);
-   998                  Vec::new()
-   999              }
-  1000          }
-  1001      }
-  1002  }
+== crates/con-ron/src/driver.rs#L1006-L1047
+  1006  /// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+  1007  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
+  1008  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
+  1009  /// first empty read is the end of the input.  A failed read ends the input
+  1010  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
+  1011  /// place of whatever the parse of the truncated input said — so a read error
+  1012  /// is exit 3, never a verdict, as before the loop moved.
+  1013  pub struct HandleSource<'a, R: Read> {
+  1014      /// The open reader.
+  1015      pub h: &'a mut R,
+  1016      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
+  1017      pub chunk: usize,
+  1018      /// The nonempty buffers handed out so far, for the heartbeat.
+  1019      pub chunks: u64,
+  1020      /// The first read failure, if any.
+  1021      pub err: Option<std::io::Error>,
+  1022  }
+  1023  
+  1024  /// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+  1025  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
+  1026      /// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+  1027      /// One read of up to `chunk` bytes; empty at the end or on a failure.
+  1028      fn next_chunk(&mut self) -> Vec<u8> {
+  1029          if self.err.is_some() {
+  1030              return Vec::new();
+  1031          }
+  1032          let mut buf: Vec<u8> = vec![0u8; self.chunk];
+  1033          match read_up_to(self.h, &mut buf) {
+  1034              Ok(n) => {
+  1035                  buf.truncate(n);
+  1036                  if n > 0 {
+  1037                      self.chunks += 1;
+  1038                  }
+  1039                  buf
+  1040              }
+  1041              Err(e) => {
+  1042                  self.err = Some(e);
+  1043                  Vec::new()
+  1044              }
+  1045          }
+  1046      }
+  1047  }
 
 == crates/con-ron-core/src/arena/checker.rs#L1-L41
      1  //! `arena::checker` — the declaration fold, over handles.

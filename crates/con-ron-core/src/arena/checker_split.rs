@@ -106,6 +106,7 @@ pub const M_TYPE_MISMATCH_OPAQUE: [u32; 23] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:36-42 ValueKind
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::ValueKind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:36-43 ValueKind` — the
 /// three declaration kinds whose value check is separable from their install.
 /// Census class (P): no term in it, copied verbatim.
@@ -116,6 +117,7 @@ pub enum ValueKind {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::value_kind_word_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:45-50 ValueKind.word` — the
 /// kind's word in `checkDecl`'s type-mismatch message.  The twin returns the
 /// word and the caller interpolates it into a `String`; the port has the three
@@ -130,6 +132,7 @@ pub fn value_kind_word(k: &ValueKind) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:36-42 ValueKind
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::is_thm_refines, then delete this line
 /// The cited `deriving DecidableEq` at the one value the check half branches
 /// on (`g.kind = .thm`), spelled as a constructor test.
 pub fn is_thm(k: &ValueKind) -> bool {
@@ -140,6 +143,7 @@ pub fn is_thm(k: &ValueKind) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:50-58 ValueGroup
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::ValueGroup_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:52-61 ValueGroup` — what
 /// the install half hands the check half: the kind, the header and the value
 /// — guarded for a definition or an opaque, unguarded for a theorem (the
@@ -157,7 +161,9 @@ pub struct ValueGroup {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-79 installHeader
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:100-117 installHeaderC
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_header_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:63-81 installHeader` —
 /// `checkConstantVal` minus its inference: the syntactic guards, header and
 /// type.  con-leche writes the clauses out twice and so does the twin; the
@@ -179,7 +185,9 @@ pub fn install_header(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:81-92 installValueGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_value_guards_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:119-129 installValueGuardsC
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_value_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:83-95 installValueGuards`
 /// — the value half of `check{Defn,Thm,Opaque}Val` minus its inference: the
 /// value's syntactic guards (no loose bound variable, no free variable,
@@ -215,7 +223,9 @@ pub fn install_value_guards(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:81-92 installValueGuards
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_value_guards_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:119-129 installValueGuardsC
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::install_value_guards_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:83-95 installValueGuards`
 /// — the two guards past the scope tests: the level-parameter and the
 /// resolution guard (else `unresolvedConstsErrorL`'s verdict).
@@ -253,7 +263,9 @@ pub fn install_value_guards_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// **the check half of a value declaration**, at the environment the constant
 /// was installed at: the type's sort, the theorem's is-a-proposition test, for
@@ -278,7 +290,9 @@ pub fn check_value_group(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_value_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// the cited `if g.kind = .thm then …`: a theorem's statement must be a
 /// proposition, and its raw value's guards run here.  A definition's or an
@@ -318,7 +332,9 @@ pub fn check_value_group_value(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:94-110 checkValueGroup
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/Installed.lean:258-276 checkPending
+/// con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove checker_split::check_value_group_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:97-114 checkValueGroup` —
 /// the cited tail past the theorem's test: the value's inferred type against
 /// the declared one.  Split off so the two branches of the `if` are tail

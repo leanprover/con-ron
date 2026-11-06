@@ -26,12 +26,14 @@ open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel OLeanLevel)
 def outOfFuel {α : Type} : AM α := fail (.internal "the import closure's walk ran out of steps")
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.addN_bridge, then delete this line
 A name, once: "written out at each leaf" upstream. -/
 @[inline] def addN (seenN : Std.HashSet NIdx) (out : Array NIdx) (n : NIdx) :
     Std.HashSet NIdx × Array NIdx :=
   if seenN.contains n then (seenN, out) else (seenN.insert n, out.push n)
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:25-62 constsGo
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.constsGo_bridge, then delete this line
 The DAG walk of `constsOf`.  A leaf needs no visited entry; by the tag, as the Rust's
 walk tests it, so that a `bvar` or a `sort` is not looked at and a visited node is not
 looked at again. -/
@@ -67,22 +69,24 @@ def constsGo (pk : OleanPins) : Nat → List EIdx → Std.HashSet EIdx → Std.H
       | _ => constsGo pk fuel rest seen seenN out
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:64-69 constsOf
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.constsOf_bridge, then delete this line
 **The constants an expression mentions**, in first-visit order, and the literal
 dependencies lean4export adds. -/
 def constsOf (pk : OleanPins) (es : List EIdx) : AM (Array NIdx) :=
   constsGo pk closureFuel es (Std.HashSet.emptyWithCapacity 256) (Std.HashSet.emptyWithCapacity 64) #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:71-75 CEntry
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:154-158 CEntry
 **One stored constant**, as the merge and the emitter need it. -/
 structure CEntry where
   c : CEntryF NIdx EIdx
   uses : Array NIdx := #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:79-80 CEntry.skipped
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:162-163 CEntry.skipped
 `CKindF.skipped` of a stored constant. -/
 @[inline] def CEntry.skipped (c : CEntry) : Bool := c.c.kind.skipped
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:82-87 CEntry.deps
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.entryDeps_bridge, then delete this line
 The expressions a record depends on. -/
 def entryDeps (c : CEntryF NIdx EIdx) : List EIdx :=
   match c.kind with
@@ -91,11 +95,12 @@ def entryDeps (c : CEntryF NIdx EIdx) : List EIdx :=
   | _ => [c.type]
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:89-92 CEntry.ofRead
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.CEntry.ofRead_bridge, then delete this line
 A constant with what it mentions. -/
 def CEntry.ofRead (pk : OleanPins) (c : CEntryF NIdx EIdx) : AM CEntry := do
   pure { c, uses := ← constsOf pk (entryDeps c) }
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:96-123 closureGo
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
 **The import closure, in Lean's module order**: a module after everything it imports,
 by an explicit stack.  A module whose imports are being expanded is on the walk's
 current path, so an import of it is a cycle. -/
@@ -117,26 +122,29 @@ def closureGo (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) :
         let kids := imps.toList.filter (!seen.contains ·) |>.map (·, false)
         closureGo fs pk sp fuel (kids ++ (m, true) :: rest) seen done out
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:129-131 closureOrder
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:56-58 closureOrder
 The closure's module order from the roots. -/
 def closureOrder (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
     AM (Array NIdx) :=
   closureGo fs pk sp closureFuel (roots.toList.map (·, false)) {} {} #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:135-138 Loaded
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:165-170 Loaded
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.Loaded_bridge, then delete this line
 A loaded module: its constants at the private level. -/
 structure Loaded where
   name : NIdx
   constants : Array CEntry
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:140-146 loadModule
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.loadModule_bridge, then delete this line
 **Load one module** for the merge: its private view, what Lean's own import outside
 the module system and lean4export load. -/
 def loadModule (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) : AM Loaded := do
   let d ← readView fs pk sp m .private
   pure ⟨m, ← d.constants.mapM (CEntry.ofRead pk)⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:148-158 loadClosure
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Closure.loadClosure_bridge, then delete this line
 **The closure, loaded**: its modules in Lean's order, decoded. -/
 def loadClosure (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
     AM (Array Loaded) := do

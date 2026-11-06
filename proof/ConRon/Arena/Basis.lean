@@ -38,12 +38,13 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls — the RAW
+/-- con-leche: ConLeche/Kernel/Basis.lean:37-43 BasisKind.decls — the RAW
 constants of one basis block, in dependency order, interned. -/
 def BasisKind.decls (k : BasisKind) : AM (List IConstantInfo) :=
   internCIList (ConLeche.BasisKind.decls k)
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA — the
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.BasisKind.declsA_bridge, then delete this line
 ANNOTATED constants of one basis block, in dependency order, interned.  This
 is what `checkBasisDecl` installs. -/
 def BasisKind.declsA (k : BasisKind) : AM (List IConstantInfo) :=
@@ -56,6 +57,7 @@ def blockNames (block : List IConstantInfo) : List NIdx :=
   block.map (·.name)
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit — **the basis-pin
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.basisPinHitGo_bridge, then delete this line
 match**, with con-leche's task-#215 NAME pre-filter in front: `canon` renames
 only level parameters, so a block can match a pin only when its members' names
 are the pin's, member for member, and that test is a handful of handle
@@ -74,6 +76,7 @@ def basisPinHitGo (block : List IConstantInfo) :
     else basisPinHitGo block ks
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit — the four pinned
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.basisPinHit_bridge, then delete this line
 blocks, in con-leche's order.  con-leche writes `[…].find? …` with a closure;
 DESIGN §3.4's rule for a `List` recursion is a helper, so the search is
 `basisPinHitGo`.  `find?` stops at the FIRST kind whose names match and then
@@ -83,7 +86,8 @@ comparison is `none`, not "try the next kind", which is what the helper's
 def basisPinHit (block : List IConstantInfo) : AM (Option BasisKind) :=
   basisPinHitGo block [BasisKind.eqK, .natK, .emptyK, .falseK]
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:69-73 quotPinHit — **the
+/-- con-leche: ConLeche/Kernel/Basis.lean:152-158 quotPinHit — **the
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.quotPinHit_bridge, then delete this line
 quotient-pin match**: the record is the pinned package's constant at the slot
 it declares itself at, compared at `toConstantVal`. -/
 def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
@@ -111,21 +115,24 @@ def andPinNameHs : AM (List NIdx) := do
   let r ← pinAndRec
   pure [a, i, r]
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — the `.indDecl`
+/-- con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk — the `.indDecl`
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.blockAndNamed_bridge, then delete this line
 arm's `block.any fun c => andPinNames.contains c.name`, over handles (a name
 comparison is a handle comparison, `denoteN` being injective). -/
 def blockAndNamed (hs : List NIdx) : List IConstantInfo → Bool
   | [] => false
   | c :: cs => hs.contains c.name || blockAndNamed hs cs
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — the arm of every
+/-- con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk — the arm of every
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.andPinNameFree_bridge, then delete this line
 one-constant record: it may not declare one of the pinned `And` block's
 names. -/
 def andPinNameFree (n : NIdx) : AM Bool := do
   let hs ← andPinNameHs
   pure !(hs.contains n)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — **the `And` pin's
+/-- con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk — **the `And` pin's
+-- con-leche: CHANGED since 7cb7a45c — re-port, re-test, re-prove Basis.andPinOk_bridge, then delete this line
 test**: the record declares none of the pinned `And` block's names, or it IS
 that block — two parameters, and equal to `andPin` up to `ConstantInfo.canon`.
 The block comparison is `basisPinHit`'s: the pin is interned and compared with
