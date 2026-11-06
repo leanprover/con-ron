@@ -18,6 +18,7 @@ public import ConRon.Bridge.Core.Walks.Telescope
 public import ConLeche.Verify.ProjGuard
 import ConLeche.Kernel.CheckerBase
 import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Memo
@@ -364,6 +365,26 @@ theorem checkGuardRows_run {fuel : Nat} (hsim : KnotSpec eager env fe fuel) (g :
     · rw [ite_eq_right ht] at z2
       exact absurd z2 AM.fail_ok
 
+/-- con-leche: ConLeche/Verify/ProjGuard.lean:52 projGuardRowsAt_ws — the rows
+`projGuardRows` reads at a well-formed environment are scoped at their own
+depths. -/
+theorem projGuardRows_ws (henv : EnvWF env) {p : ProjEntry} {ls : List Level}
+    {rows : List (Nat × Expr)} (h : ConLeche.projGuardRows env.find? p ls = some rows) :
+    GuardRowsWS rows := by
+  cases hc : env.find? p.ctor with
+  | none => simp [ConLeche.projGuardRows, hc] at h
+  | some ci =>
+    cases ho : ConLeche.openPisAtFvars (p.numParams + p.idx + 1)
+        (ci.toConstantVal.type.instantiateLevelParams ci.toConstantVal.levelParams ls) 0 with
+    | none => simp [ConLeche.projGuardRows, hc, ho] at h
+    | some q =>
+      obtain ⟨fvs, o⟩ := q
+      simp only [ConLeche.projGuardRows, hc, ho, Option.some.injEq] at h
+      subst h
+      exact projGuardRowsAt_ws ho (Expr.WScoped.of_not_hasFvar (by
+        rw [Expr.hasFvar_instantiateLevelParams]; exact (henv.consts _ (Env.find?_mem hc)).1))
+
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1106-1119 checkProjGuard
 con-leche: ConLeche/Cached/CoreC.lean:993-1004 checkProjGuardI — **THEOREM 1
 for `checkProjGuard`**: official `infer_proj`'s restriction at this use. -/
@@ -375,7 +396,46 @@ theorem checkProjGuard_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       ConRon.Arena.checkProjGuard (coreKnot .verified eager fe id fuel) fe entry us
     ⦃fun _ s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         GuardOK eager env p ls; ⊤⦄ := by
-  sorry
+  refine AM.triple_of_run_at fun u s' hrun => ?_
+  obtain ⟨hsn, -, -, -, -, -, -⟩ := denoteProjEntry_inv hp
+  unfold ConRon.Arena.checkProjGuard at hrun
+  cases hfT : fe.find? entry.structName with
+  | none => rw [hfT] at hrun; exact absurd hrun AM.fail_ok
+  | some ci =>
+    rw [hfT] at hrun
+    cases ci with
+    | indInfo cvT caps =>
+        obtain ⟨nm', cP, hn', hci, hfind⟩ := hok.ienv.hit _ _ hfT
+        obtain rfl := Option.some.inj (hn'.symm.trans hsn)
+        obtain ⟨cvP, capsP, hcvP, hcapsP, rfl⟩ := denoteCI_indInfo_split hci
+        have hcl : cvP.type.hasFvar = false := (henv.consts _ (Env.find?_mem hfind)).1
+        obtain ⟨og, s1, k1, z1⟩ := AM.bind_ok hrun
+        obtain ⟨hok1, hx1, hp1, F1, hF1⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+          (projGuardSort_spec hsim s₀ cvT cvP caps capsP us ls hok hcvP hcapsP hus hcl)
+        cases og with
+        | none =>
+          obtain ⟨-, rfl⟩ := AM.pure_ok z1
+          refine ⟨hok1, hx1, hp1, F1, ?_⟩
+          simp only [ConLeche.checkProjGuard, hfind, hF1, bind, Except.bind]; rfl
+        | some gs =>
+          dsimp only at z1
+          obtain ⟨orow, s2, k2, z2⟩ := AM.bind_ok z1
+          obtain ⟨hok2, hx2, hp2, hrows⟩ := projGuardRows_run s1 s2 entry p us ls orow hok1
+            (denoteProjEntry_ext hp hx1) (denoteLs_ext hus hx1) k2
+          cases orow with
+          | none => exact absurd z2 AM.fail_ok
+          | some rows =>
+            dsimp only at z2
+            simp only [denoteRowsO, Option.map_eq_some_iff] at hrows
+            obtain ⟨rowsP, hdr, hpr⟩ := hrows
+            have hpr' : ConLeche.projGuardRows env.find? p ls = some rowsP := hpr.symm
+            obtain ⟨hok3, hx3, hp3, F3, hF3⟩ := checkGuardRows_run hsim gs rows rows.size 0 s2 s' u
+              rowsP (by omega) hok2 (by simpa using hdr) (projGuardRows_ws henv hpr') z2
+            refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1), max F1 F3, ?_⟩
+            simp only [ConLeche.checkProjGuard, hfind,
+              projGuardSortFueled_mono (Nat.le_max_left F1 F3) hF1, bind, Except.bind, hpr']
+            exact checkGuardRowsFueled_mono (Nat.le_max_right F1 F3) hF3
+    | _ => exact absurd hrun AM.fail_ok
 
 /-! ## The io view's guard is the record's
 
