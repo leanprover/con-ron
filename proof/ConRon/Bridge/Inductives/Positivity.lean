@@ -696,8 +696,7 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   intro s₀ s' r hok hp hrun
   obtain ⟨hctx, hkey⟩ := hp
   obtain ⟨hcn, hlv, hds⟩ := dKey_inv hkey
-  obtain ⟨namesP, lpsP, paramsP, sortP, rfl, hnames, hlps, hparams, hsort, hlvls⟩ :=
-    dCtx_inv hctx
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, rfl, hnames, hlps, hparams, hsort, hlvls, _⟩ := dCtx_inv hctx
   simp only [Arena.nestInstType] at hrun
   obtain ⟨cv, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hcv, hs1⟩ := unwrapOr_ok h1
@@ -1451,7 +1450,7 @@ theorem dCtx_fields {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
       Frontend.denoteEList st c.params = some cP.params ∧
       denoteLs st.lss c.lvls = some (cP.lps.map .param) ∧
       Frontend.denoteNList st.ns c.lps = some cP.lps := by
-  obtain ⟨namesP, lpsP, paramsP, sortP, rfl, h1, h2, h3, h4, h5⟩ := dCtx_inv h
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, rfl, h1, h2, h3, h4, h5, _⟩ := dCtx_inv h
   exact ⟨h1, rfl, rfl, h3, h5, h2⟩
 
 section Ctors

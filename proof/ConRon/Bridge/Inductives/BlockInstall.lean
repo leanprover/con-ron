@@ -1038,7 +1038,7 @@ theorem checkAbsCtorSorts_specF {env : Env} (fe : IFEnv)
       obtain ⟨x, hx, rfl⟩ := ho
       exact ⟨x, hx, rfl⟩
     have hW : Expr.WScoped (ctxP.hiAt 0) tyN := hws _ List.mem_cons_self
-    obtain ⟨namesP, lpsP, paramsP, sortP, hceq, hn, hl, -, hsort, -⟩ := dCtx_inv hctx
+    obtain ⟨namesP, lpsP, paramsP, sortP, _, hceq, hn, hl, -, hsort, -, _⟩ := dCtx_inv hctx
     have hl' : Frontend.denoteNList s₀.store.ns ctx.lps = some ctxP.lps := by rw [hceq]; exact hl
     have hsort' : denoteL s₀.store.ls ctx.sort = some ctxP.sort := by rw [hceq]; exact hsort
     have hhi : ctx.hiAt 0 = ctxP.hiAt 0 := by
@@ -1363,7 +1363,7 @@ theorem checkBlockPositivity_spec {env : Env} (fe : IFEnv)
   obtain ⟨hs4, hz⟩ := zeroLevel_run c3.ok.pins k4
   subst s₄
   obtain ⟨ov, s₅, k5, z5⟩ := AM.bind_ok z4
-  obtain ⟨namesP, lpsP, paramsP, sortP, hceq, -, -, -, hsort, -⟩ := dCtx_inv hctx
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, hceq, -, -, -, hsort, -, _⟩ := dCtx_inv hctx
   have hfind : ctxP.find? = env.find? := by rw [hceq]
   have hsort' : denoteL s₃.store.ls ctx.sort = some ctxP.sort := by
     rw [hceq]; exact denoteL_ext hsort (c2.ext.trans c3.ext)

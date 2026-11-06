@@ -801,7 +801,7 @@ theorem checkBlockPass_of (hk : CoreSpec Arena.checkFuel)
   dsimp only at hparN
   have x4 := c4.ext
   have x14 : Ext s₁.store s₄.store := x2.trans (x3.trans x4)
-  obtain ⟨namesP, lpsP, paramsP, sortP, hctxEq, -, -, hparams, -, -⟩ := dCtx_inv hctx
+  obtain ⟨namesP, lpsP, paramsP, sortP, _, hctxEq, -, -, hparams, -, -, _⟩ := dCtx_inv hctx
   -- the classes
   obtain ⟨⟨rd, ms⟩, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨c5, ⟨rdP, msP⟩, ⟨hrd, hmsP, hMsc⟩, hF5⟩ :=
