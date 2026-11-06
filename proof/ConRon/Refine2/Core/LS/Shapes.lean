@@ -308,13 +308,13 @@ theorem and_rescue_slots_go_abs {pers : arena.store.PersTier} (n : Nat) :
       have hbv := PA2.nidx_eq2_ls _ _ _ hb
       simp only [absIProjEntry]
       by_cases hc : b = true
-      · rw [if_pos hc] at h
+      · rw [ite_eq_left hc] at h
         rw [hc] at hbv
         have hcv : (absNIdx e.ctor == absNIdx ctor) = true := hbv.symm
         by_cases hp : e.num_params = n_p
-        · rw [if_pos hp] at h
+        · rw [ite_eq_left hp] at h
           by_cases hfl : e.num_fields = 2#u64
-          · rw [if_pos hfl] at h
+          · rw [ite_eq_left hfl] at h
             obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             have hiv : i.val = m := by
@@ -323,19 +323,19 @@ theorem and_rescue_slots_go_abs {pers : arena.store.PersTier} (n : Nat) :
               have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa [absU] using this
             rw [ih an ctor n_p i i1 hiv hctx h, hi1v]
             simp [hcv, hp, hfl, absU]
-          · rw [if_neg hfl] at h
+          · rw [ite_eq_right hfl] at h
             cases Result.ok_injective h
             have : (absU e.num_fields == 2) = false := by
               simp only [absU, beq_eq_false_iff_ne]
               intro hh; exact hfl (UScalar.eq_of_val_eq (by rw [hh]; rfl))
             simp [this]
-        · rw [if_neg hp] at h
+        · rw [ite_eq_right hp] at h
           cases Result.ok_injective h
           have : (absU e.num_params == absU n_p) = false := by
             simp only [absU, beq_eq_false_iff_ne]
             intro hh; exact hp (UScalar.eq_of_val_eq hh)
           simp [this]
-      · rw [if_neg hc] at h
+      · rw [ite_eq_right hc] at h
         cases Result.ok_injective h
         have hb' : b = false := by simpa using hc
         rw [hb'] at hbv
@@ -346,7 +346,7 @@ theorem and_rescue_slots_go_abs {pers : arena.store.PersTier} (n : Nat) :
     LSP (arena.core.and_rescue_slots_go pers fe an ctor n_p n j)
       (fun b => TwinEq (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) n.val
         (absU j)) b) :=
-  fun b h => (and_rescue_slots_go_abs _ an ctor n_p n j rfl hctx h).symm
+  fun _ h => (and_rescue_slots_go_abs _ an ctor n_p n j rfl hctx h).symm
 
 @[lockstep] theorem and_rescue_slots_ls {pers st fe lfe ctor n_p lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

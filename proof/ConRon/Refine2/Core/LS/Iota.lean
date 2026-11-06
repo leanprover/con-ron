@@ -323,6 +323,79 @@ attribute [lockstep_inline] arena.core.major_to_ctor_certs
   arena.core.major_to_ctor_eta_build arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build arena.core.major_to_ctor_at
 
+/-- `former_res_sort` ⊑ `formerResSort`: the sort a stored type ends in, if it is
+syntactically one. -/
+@[lockstep] theorem former_res_sort_ls {pers st ty lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a.map absLIdx) (arena.core.former_res_sort pers st ty) st lst
+      (formerResSort (absEIdx ty)) := by
+  apply LSR.of_LS
+  rw [arena.core.former_res_sort, formerResSort]
+  lockstep_c2
+
+/-- `former_z` ⊑ `formerZ`: the zero-ness datum of a former's stored sort. -/
+@[lockstep] theorem former_z_ls {pers st cvt lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
+      (arena.core.former_z pers st cvt) lst (formerZ (absIConstantVal cvt)) := by
+  rw [arena.core.former_z, formerZ]
+  lockstep_c2
+  all_goals
+    intro o st' h
+    cases Result.ok_injective h
+    exact ⟨_, _, rfl,
+      ⟨ConRon.Refine.PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hf,
+        by rw [ConRon.Refine.PropWhen.if_all_zero_refines hf]; simp [ConRon.Refine.absNames,
+          alloc.vec.Vec.new]⟩, hrel, hinv⟩
+
+/-- `former_never_zero` ⊑ `formerNeverZero`: the stored datum at the use's levels. -/
+@[lockstep] theorem former_never_zero_ls {pers st cvt us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.former_never_zero pers st cvt us) lst
+      (formerNeverZero (absIConstantVal cvt) (absLsIdx us)) := by
+  rw [arena.core.former_never_zero, formerNeverZero]
+  lockstep_c2
+
+theorem former_sort_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (d nn : Std.U64) (e : arena.handle.EIdx),
+      nn.val = n → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a.map absLIdx)
+        (arena.core.former_sort_loop pers st mode eager lane fu fe d nn e) lst
+        (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n
+          (absEIdx e)) := by
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
+    rw [arena.core.former_sort_loop, formerSortLoop]
+    lockstep_c2
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
+    rw [arena.core.former_sort_loop, formerSortLoop]
+    lockstep_c2
+
+/-- `former_sort_loop` ⊑ `formerSortLoop`: the sort a type reaches past `n`
+binders, head-normalising at each step. -/
+@[lockstep] theorem former_sort_loop_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe d n e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a.map absLIdx)
+      (arena.core.former_sort_loop pers st mode eager lane fu fe d n e) lst
+      (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n.val
+        (absEIdx e)) :=
+  former_sort_loop_aux hk _ d n e rfl hx hrel hinv hctx hf
+
+/-- `ctor_family` ⊑ `ctorFamily`: the stored family a constructor's type ends in. -/
+@[lockstep] theorem ctor_family_ls {pers st fe lfe cvj lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
+    LSR pers (fun a b => b = a.map fun p => (absIConstantVal p.1, absIIndCaps p.2))
+      (arena.core.ctor_family pers st fe cvj) st lst (ctorFamily lfe (absIConstantVal cvj)) := by
+  apply LSR.of_LS
+  rw [arena.core.ctor_family, ctorFamily]
+  lockstep_c2
+
 /-- `former_never_zero_at` ⊑ `formerNeverZeroAt`: the family's sort is never zero
 at the use's levels, read off its stored type at use. -/
 @[lockstep] theorem former_never_zero_at_ls {f : Nat} (hk : KnotRel f)
@@ -334,7 +407,8 @@ at the use's levels, read off its stored type at use. -/
       (arena.core.former_never_zero_at pers st mode eager lane fu fe cvt caps us) lst
       (formerNeverZeroAt (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         (absIConstantVal cvt) (absIIndCaps caps) (absLsIdx us)) := by
-  sorry -- T143-STUB
+  rw [arena.core.former_never_zero_at, formerNeverZeroAt]
+  lockstep_c2
 
 /-- `iota_case3_at` ⊑ `iotaCase3At`: case 3 of the ι case split, its family's sort
 read at use. -/
@@ -347,7 +421,8 @@ read at use. -/
       (arena.core.iota_case3_at pers st mode eager lane fu fe isK cvj us) lst
       (iotaCase3At (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe isK
         (absIConstantVal cvj) (absLsIdx us)) := by
-  sorry -- T143-STUB
+  rw [arena.core.iota_case3_at, iotaCase3At]
+  lockstep_c2
 
 section majorToCtor
 
@@ -362,7 +437,62 @@ at use. -/
     LSR pers (fun a b => b = a) (arena.core.eta_rescue_ok st ctor cvj cvt caps) st lst
       (etaRescueOk (absNIdx ctor) (absIConstantVal cvj) (absIConstantVal cvt)
         (absIIndCaps caps)) := by
-  sorry -- T143-STUB
+  intro o h
+  rw [arena.core.eta_rescue_ok] at h
+  simp only [etaRescueOk, absIIndCaps, absIConstantVal]
+  by_cases he : caps.eta = true
+  · rw [ite_eq_left he] at h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := PA2.nidx_eq2_ls _ _ _ hb
+    by_cases hbt : b = true
+    · rw [ite_eq_left hbt] at h
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hb1v := PC1.nidx_vec_beq_ls _ _ _ hb1
+      by_cases hb1t : b1 = true
+      · rw [ite_eq_left hb1t] at h
+        obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hp := PA1.pin_and_intro_run₀ hrel hinv hr
+        have hc : (absNIdx caps.eta_ctor == absNIdx ctor) = true := hbv ▸ hbt
+        have hl : (cvj.level_params.val.map absNIdx == cvt.level_params.val.map absNIdx) = true := by
+          rw [hb1t] at hb1v
+          simpa [absNIdxList] using hb1v.symm
+        rw [ite_eq_left (by simp [he, hc, hl])]
+        cases r with
+        | Err e =>
+          cases Result.ok_injective h
+          show AErrSim e ((pinAndIntro >>= fun ai => pure (absNIdx ctor != ai)).run lst)
+          exact AErrSim.bind hp _
+        | Ok ai =>
+          simp only at h
+          obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hb2v := PA2.nidx_eq2_ls _ _ _ hb2
+          cases Result.ok_injective h
+          refine ⟨absNIdx ctor != absNIdx ai, lst, ?_, ?_, hrel, hinv⟩
+          · show (pinAndIntro >>= fun ai => pure (absNIdx ctor != ai)).run lst = _
+            rw [run_bind_ok hp]
+            rfl
+          · simp only at hb2v
+            subst hb2v
+            show (!(absNIdx ctor == absNIdx ai)) = decide ¬(absNIdx ctor == absNIdx ai) = true
+            cases (absNIdx ctor == absNIdx ai) <;> rfl
+      · rw [ite_eq_right hb1t] at h
+        cases Result.ok_injective h
+        have hl : ¬ (cvj.level_params.val.map absNIdx == cvt.level_params.val.map absNIdx) = true := by
+          have : b1 = false := by simpa using hb1t
+          rw [this] at hb1v
+          simpa [absNIdxList] using hb1v.symm
+        rw [ite_eq_right (by simp [hl])]
+        exact ⟨_, lst, rfl, rfl, hrel, hinv⟩
+    · rw [ite_eq_right hbt] at h
+      cases Result.ok_injective h
+      have hc : ¬ (absNIdx caps.eta_ctor == absNIdx ctor) = true := by
+        rw [← hbv]; exact hbt
+      rw [ite_eq_right (by simp [hc])]
+      exact ⟨_, lst, rfl, rfl, hrel, hinv⟩
+  · rw [ite_eq_right he] at h
+    cases Result.ok_injective h
+    rw [ite_eq_right (by simp [he])]
+    exact ⟨_, lst, rfl, rfl, hrel, hinv⟩
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem major_to_ctor_ls {f : Nat} (hk : KnotRel f)
