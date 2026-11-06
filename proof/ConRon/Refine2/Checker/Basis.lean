@@ -652,15 +652,6 @@ past the block, the default constant (`i_constant_info_dummy`, the twin's
     rw [List.getD_eq_getElem _ _ (by simp only [List.length_map]; omega)]
     simp [hi2v, hsv]
 
-open Lockstep in
-/-- `quot_at` ⊑ `quotAt`: the slot's pin at the names the record declares. -/
-@[lockstep] theorem quot_at_ls {pers st lst} {k : kernel.env.QuotKind}
-    {cv : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.quot_at pers st k cv) lst
-      (quotAt (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  sorry -- T143-STUB: needs constant_info_at_lps_ls (param_levels, Inductives/StructParts)
-
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
