@@ -7,7 +7,7 @@
 standard axioms' pinned shapes and the compiler-trust axioms' — all of them
 con-leche's own data, which DESIGN §8.7 rules (B) IMPORTS rather than copies.
 
-## Why fifty-eight lemmas and almost no new ideas
+## Almost no new ideas
 
 `Arena/Intern.lean`'s module note is the whole story: *a handle twin of one of
 these would be the same tree spelled with `internE` instead of `Expr.app`, and
@@ -15,35 +15,20 @@ nothing would be gained*, so every twin here is **one line — the con-leche
 constant, interned** — and every lemma is `Refine2/Promote/Intern.lean`'s
 `intern_ci` / `intern_cv` / `intern_expr` / `intern_ci_list` at a named
 constant, with the con-leche value's `ConstantInfoWF` / `ConstantValWF` /
-`ExprWF` coming from `Refine/{BasisTables,StdAxioms,TrustAxioms,Pins*}.lean`,
-where the pinned-data tier already proved it.
+`ExprWF` coming from `Refine/{BasisRaw,StdAxioms,TrustAxioms,Pins*}.lean`,
+where the pinned-data tier proved it.
 
-**That is the deliberate dividend of the 47 surviving `Refine` modules** (task
-#97-SWAP §5): their SUBJECT survived the arena swap because the pins did, and
-this file is where the arena tower collects the interest.
+The one that is not a one-liner, `i_constant_val_matches_pin`, compares exact
+name, level parameters and type: a comparison of names or terms is a HANDLE
+comparison (DESIGN §8.3: `denoteN`/`denoteE` are injective, so index
+inequality IS structural inequality).  The Rust is a pure function, the twin a
+`pure`: a Rust-only `LSP` step.
 
-## The two that are not one-liners
-
-* `i_constant_val_matches_pin` — exact name, level parameters and type (plain
-  equality since con-leche's task #342: there is no binder datum left to
-  forgive, so the old `erase_pw_eq` walk is gone).  A comparison of names or
-  terms is a HANDLE comparison (DESIGN §8.3: `denoteN`/`denoteE` are
-  injective, so index inequality IS structural inequality), which is the one
-  place this file leans on exactness.  The Rust is a pure function, the twin a
-  `pure`: a Rust-only `LSP` step.
-* `basis_pin_hit_go` — con-leche's task-#215 NAME pre-filter in front of
-  `canonEqList`, and `find?`'s semantics spelled as a helper (DESIGN §3.4
-  forbids the closure): a name match that then fails the canonical comparison
-  is `none`, **not** "try the next kind".
-
-## What these lemmas wait on
-
-`Refine2/Promote/Intern.lean`'s four entries, and through them `Specs.lean`'s
-`intern_e` family (task #97-P5-1 §8's twenty-four, open when this was
-written).  All closed since: nothing here waits any more.
+A pin at a stream's level-parameter names, the block and quotient comparisons
+and what a pinned block's check installs (`arena::basis`'s renaming half) need
+the core and `param_levels`, so they are `Refine2/Checker/Basis.lean`'s.
 -/
 import ConRon.Refine2.Checker.Canon
-import ConRon.Refine.BasisPins
 import ConRon.Refine.BasisRaw
 
 open Aeneas Aeneas.Std Result
@@ -59,7 +44,7 @@ open ConRon.Arena
 
 Each Rust pin reader is `let c ← kernel::…::pin; intern_*(c)` and each twin
 is `intern* ConLeche.pin`: the pinned-data tier (`Refine/{StdAxioms,
-TrustAxioms,BasisPins,BasisRaw,BasisTables}.lean`) says the Rust pin
+TrustAxioms,BasisRaw}.lean`) says the Rust pin
 abstracts to con-leche's with its `*WF`, and `Refine2/Promote/Intern.lean`'s
 four intern entries do the rest.  These four helpers are that composition. -/
 
@@ -128,18 +113,21 @@ open Lockstep in
       (BasisKind.decls (ConRon.Refine.absBasisKind k)) :=
   LS.ofSim₀ fun _ h => basis_kind_decls_refines hrel hinv h
 
-/-- `basis_kind_decls_a` ⊑ `BasisKind.declsA` — the ANNOTATED constants, which is what `checkBasisDecl` installs. -/
-theorem basis_kind_decls_a_refines {pers st lst} {k : kernel.env.BasisKind} {o}
+/-- `arena::basis::nat_a` ⊑ `natA` — the pinned `Nat` type former, interned. -/
+theorem nat_a_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.basis.basis_kind_decls_a pers st k = ok o) :
-    Sim₀ absICIL pers lst o
-      (BasisKind.declsA (ConRon.Refine.absBasisKind k)) := by
-  rw [arena.basis.basis_kind_decls_a] at hrun
-  refine sim_intern_ci_list_of hrel hinv (fun v h => ⟨?_, ConRon.Refine.BasisPins.basis_decls_a_wf h⟩) hrun
-  obtain ⟨v', hv', habs⟩ := Aeneas.Std.WP.spec_imp_exists (ConRon.Refine.basis_decls_a_refines k)
-  rw [h] at hv'
-  obtain rfl := Result.ok_injective hv'
-  exact habs
+    (hrun : arena.basis.nat_a pers st = ok o) :
+    Sim₀ absIConstantInfo pers lst o natA := by
+  rw [arena.basis.nat_a] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.BasisRaw.nat_a_refines h) hrun
+
+open Lockstep in
+@[lockstep] theorem nat_a_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a)
+      (arena.basis.nat_a pers st) lst natA :=
+  LS.ofSim₀ fun _ h => nat_a_refines hrel hinv h
 
 theorem block_names_aux (k : Nat) :
     ∀ (block : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
@@ -208,118 +196,9 @@ handle lists. -/
   cases h' : decide (a.val.map absNIdx = b.val.map absNIdx) <;> simp_all
 
 open Lockstep in
-theorem basis_pin_hit_go_aux (k : Nat) :
-    ∀ {pers st lst} (block : alloc.vec.Vec arena.env.IConstantInfo)
-      (ks : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize),
-      ks.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = (Option.map ConRon.Refine.absBasisKind) a)
-        (arena.basis.basis_pin_hit_go pers st block ks i) lst
-        (basisPinHitGo (absICIL block) (absBasisKindLFrom ks i)) := by
-  induction k with
-  | zero =>
-    intro pers st lst block ks i hn hrel hinv
-    have hl := alloc.vec.Vec.len_val ks
-    have : absBasisKindLFrom ks i = [] := by
-      simp only [absBasisKindLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
-    rw [arena.basis.basis_pin_hit_go, this, basisPinHitGo, ite_eq_left (by scalar_tac)]
-    exact LS.pure rfl hrel hinv
-  | succ m ih =>
-    intro pers st lst block ks i hn hrel hinv
-    have hl := alloc.vec.Vec.len_val ks
-    have hi : i.val < ks.val.length := by omega
-    have hcons : absBasisKindLFrom ks i = ConRon.Refine.absBasisKind ks.val[i.val] ::
-        (ks.val.drop (i.val + 1)).map ConRon.Refine.absBasisKind := by
-      simp only [absBasisKindLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
-    rw [arena.basis.basis_pin_hit_go, hcons, basisPinHitGo, ite_eq_right (by scalar_tac)]
-    have hcanon : ∀ {st lst} (xs ys : alloc.vec.Vec arena.env.IConstantInfo),
-        AStateRel₀ pers st lst → AStateInv pers st →
-        LS pers (fun a b => b = id a) (arena.canon.canon_eq_list pers st xs ys 0#usize) lst
-          (canonEqList (absICIL xs) (absICIL ys)) := by
-      intro st lst xs ys hrel hinv
-      refine LS.ofSim₀ fun _ h => ?_
-      have := canon_eq_list_refines hrel hinv h
-      simpa [absICILFrom, absICIL] using this
-    simp only [absBasisKindLFrom] at ih
-    lockstep
-
-/-- `basis_pin_hit` ⊑ `basisPinHit` — the four pinned inductive blocks, in con-leche's order; `.quotK` is deliberately not among them. -/
-theorem basis_pin_hit_refines {pers st lst} {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.basis.basis_pin_hit pers st block = ok o) :
-    Sim₀ (Option.map ConRon.Refine.absBasisKind) pers lst o
-      (basisPinHit (absICIL block)) := by
-  rw [arena.basis.basis_pin_hit] at hrun
-  obtain ⟨ks, hks, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hk := ConRon.Refine.BasisRaw.block_pin_kinds_refines hks
-  have h := Lockstep.LS.toSim₀ (basis_pin_hit_go_aux _ block ks 0#usize rfl hrel hinv) hrun
-  have e : absBasisKindLFrom ks 0#usize =
-      [ConLeche.BasisKind.eqK, .natK, .emptyK, .falseK] := by
-    simp only [absBasisKindLFrom]; rw [← hk]; rfl
-  rw [e] at h
-  exact h
-
-open Lockstep in
 @[lockstep] theorem quot_kind_slot_spec (k : kernel.env.QuotKind) :
     LSP (kernel.env.quot_kind_slot k) (fun i => i.val = (ConRon.Refine.absQuotKind k).slot) :=
   fun _ h => ConRon.Refine.BasisRaw.quot_kind_slot_refines h
-
-theorem quotPinHit_split (k : ConLeche.QuotKind) (cv : ConRon.Arena.IConstantVal) :
-    quotPinHit k cv = (do
-      let blk ← ConRon.Arena.BasisKind.decls .quotK
-      if h : k.slot < blk.length then cv.canonEq blk[k.slot].toConstantVal
-      else pure false) := by
-  unfold quotPinHit
-  congr 1; funext blk
-  by_cases h : k.slot < blk.length
-  · rw [dite_eq_left h, List.getElem?_eq_getElem h]
-  · rw [dite_eq_right h, List.getElem?_eq_none (by omega)]
-
--- the twin's bound `dite` is split although no branch is ruled out at once
--- (the bounds contradiction needs `len_val`, below)
-set_option lockstep.twinSplit true in
-/-- `quot_pin_hit` ⊑ `quotPinHit` — the record is the pinned package's constant at the slot it declares itself at, compared at `toConstantVal`. -/
-theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.basis.quot_pin_hit pers st k cv = ok o) :
-    Sim₀ id pers lst o
-      (quotPinHit (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  have hcanon : ∀ {st lst} (cv cv2 : arena.env.IConstantVal),
-      AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => b = id a) (arena.canon.i_constant_val_canon_eq pers st cv cv2) lst
-        ((absIConstantVal cv).canonEq (absIConstantVal cv2)) :=
-    fun cv cv2 hrel hinv => Lockstep.LS.ofSim₀ fun _ h => i_constant_val_canon_eq_refines hrel hinv h
-  rw [arena.basis.quot_pin_hit, quotPinHit_split]
-  lockstep
-  -- the shared tactic splits the twin's bound `dite` (`lockstep.twinSplit`,
-  -- task #97-T2-TACTIC round 2); what is left is the bounds contradiction and the index read
-  all_goals first
-    | (exfalso
-       have := alloc.vec.Vec.len_val ‹alloc.vec.Vec arena.env.IConstantInfo›
-       simp only [absICIL, List.length_map] at *; scalar_tac)
-    | (generalize hblk : ‹alloc.vec.Vec arena.env.IConstantInfo› = blk at *
-       generalize hix : ‹Std.Usize› = ix at *
-       have hl := alloc.vec.Vec.len_val blk
-       have hia : ix.val = (ConRon.Refine.absQuotKind k).slot := by
-         obtain h | h := ‹_ ∨ Usize.max < _› <;> scalar_tac
-       have e : (absICIL blk)[(ConRon.Refine.absQuotKind k).slot]'(by
-           simp only [absICIL, List.length_map]; omega) =
-           absIConstantInfo (↑blk : List _)[ix.val] := by
-         simp only [absICIL, List.getElem_map]; congr 1; simp [hia]
-       rw [e, show (absIConstantInfo (↑blk : List _)[ix.val]).toConstantVal = _ from
-         ‹Lockstep.TwinEq _ _›]
-       exact hcanon _ _ ‹_› ‹_›)
-
-open Lockstep in
-@[lockstep] theorem quot_pin_hit_ls {pers st lst}
-    {k : kernel.env.QuotKind}
-    {cv : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a)
-      (arena.basis.quot_pin_hit pers st k cv) lst
-      (quotPinHit (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) :=
-  LS.ofSim₀ fun _ h => quot_pin_hit_refines hrel hinv h
 
 /-- `propext_name` ⊑ `propextName`, off the pin table. -/
 theorem propext_name_refines {pers st lst} {o}
@@ -644,42 +523,6 @@ open Lockstep in
       (arena.std_axioms.choice_a pers st) lst
       (choiceA) :=
   LS.ofSim₀ fun _ h => choice_a_refines hrel hinv h
-
-/-- `eq_a` ⊑ `eqA` — the con-leche constant, interned. -/
-theorem eq_a_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.std_axioms.eq_a pers st = ok o) :
-    Sim₀ absIConstantInfo pers lst o
-      (eqA) := by
-  rw [arena.std_axioms.eq_a] at hrun
-  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.BasisPins.eq_a_refines h) hrun
-
-open Lockstep in
-@[lockstep] theorem eq_a_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantInfo a)
-      (arena.std_axioms.eq_a pers st) lst
-      (eqA) :=
-  LS.ofSim₀ fun _ h => eq_a_refines hrel hinv h
-
-/-- `nat_a` ⊑ `natA` — the con-leche constant, interned. -/
-theorem nat_a_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.std_axioms.nat_a pers st = ok o) :
-    Sim₀ absIConstantInfo pers lst o
-      (natA) := by
-  rw [arena.std_axioms.nat_a] at hrun
-  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.BasisPins.nat_a_refines h) hrun
-
-open Lockstep in
-@[lockstep] theorem nat_a_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantInfo a)
-      (arena.std_axioms.nat_a pers st) lst
-      (natA) :=
-  LS.ofSim₀ fun _ h => nat_a_refines hrel hinv h
 
 /-- `true_name` ⊑ `trueName`, off the pin table. -/
 theorem true_name_refines {pers st lst} {o}

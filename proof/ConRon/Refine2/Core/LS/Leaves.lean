@@ -320,25 +320,7 @@ attribute [-lockstep_simp] ConRon.Refine.absLevels ConRon.Refine.absNames
   rw [arena.core.rule_rhs_at, ruleRhsAt]
   lockstep_a1
 
-/-! ## The level predicates -/
-
-@[lockstep] theorem proj_entry_fire_ok_ls {pers st entry us lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.proj_entry_fire_ok pers st entry us) lst
-      ((absIProjEntry entry).fireOk (absLsIdx us)) := by
-  rw [arena.core.proj_entry_fire_ok, IProjEntry.fireOk]
-  lockstep_a1
-
-/-- `hcaps`: the stored zero-ness datum is a well-formed `PropWhen` (a
-representation fact about the Rust input `caps`; `level::subst_pw`'s
-refinement needs it). -/
-@[lockstep] theorem caps_never_zero_ls {pers st lps us caps lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hcaps : ConRon.Refine.PropWhenWF caps.sort_z) :
-    LS pers (fun a b => b = a) (arena.core.caps_never_zero pers st lps us caps) lst
-      (capsNeverZero (lps.val.map absNIdx) (absLsIdx us) (absIIndCaps caps)) := by
-  rw [arena.core.caps_never_zero, capsNeverZero]
-  lockstep_a1
+/-! ## The projection entry's type -/
 
 @[lockstep] theorem proj_entry_type_at_ls {pers st entry us targs pe lst}
     (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -512,11 +494,11 @@ the twin in each arm — the same reads, so the split is taken once for both. -/
   cases hf : rl.fire <;> simp only [absIRecRuleFire] <;> lockstep_a1
 
 /-- `arena::core::rec_fire_args` against `recFireArgs`. -/
-@[lockstep] theorem rec_fire_args_ls {pers st rl lps us args r_p lst}
+@[lockstep] theorem rec_fire_args_ls {pers st rl cn_p lps us args r_p lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdxList a)
-      (arena.core.rec_fire_args pers st rl lps us args r_p) lst
-      (recFireArgs (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
+      (arena.core.rec_fire_args pers st rl cn_p lps us args r_p) lst
+      (recFireArgs (absIRecRule rl) (absU cn_p) (lps.val.map absNIdx) (absLsIdx us)
         (absEIdxList args) (absU r_p)) := by
   rw [arena.core.rec_fire_args, recFireArgs]
   simp only [absIRecRule]

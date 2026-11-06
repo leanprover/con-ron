@@ -474,10 +474,15 @@ structure BaseRel (ix : arena.stream_index.IStreamIndex) (b : IFBase) : Prop whe
   tbls : ∀ n, ixTbl ix n = b.tbls[absNIdx n]?
 
 /-- **What a reader needs of the frozen base** (`PersTier.env`): its two maps
-well formed, since `HashMap2.get` specifies nothing otherwise. -/
+well formed, since `HashMap2.get` specifies nothing otherwise, and every counter
+and slot they store in range, so the `as usize` casts are the identity. -/
 structure BaseOK (pers : arena.store.PersTier) : Prop where
   idx : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable pers.env.idx
   tbls : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable pers.env.tbls
+  idxRange : ∀ n c, ConRon.Refine.HashMap2.toFun pers.env.idx n = some c →
+    c.val < pers.env.consts.val.length
+  tblRange : ∀ n p, ConRon.Refine.HashMap2.toFun pers.env.tbls n = some p →
+    p.2.val < pers.env.tables.val.length
 
 /-- **A layer's own invariant**: its maps are well formed and every slot they
 store is in range (so a push at the end moves no row). -/

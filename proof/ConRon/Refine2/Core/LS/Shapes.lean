@@ -191,13 +191,13 @@ theorem tower_slots_all_go_abs {pers : arena.store.PersTier} (n : Nat) :
       o = towerSlotsAllGo lfe (absNIdx t) n (absU j) := by
   induction n with
   | zero =>
-    intro vis fe lfe t nn j o hn hctx h
+    intro fe lfe t nn j o hn hctx h
     rw [arena.core.tower_slots_all_go] at h
     rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rfl
   | succ m ih =>
-    intro vis fe lfe t nn j o hn hctx h
+    intro fe lfe t nn j o hn hctx h
     rw [arena.core.tower_slots_all_go] at h
     rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -278,39 +278,83 @@ theorem u64_val_beq (x y : Std.U64) : (x.val == y.val) = decide (x = y) :=
 attribute [local lockstep_simp] Option.map_none Option.map_some absIProjEntry u64_val_beq_two
   u64_val_beq
 
-theorem and_rescue_slots_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState}
-      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
-      (an ctor : arena.handle.NIdx) (n_p : Std.U64) (ust : arena.handle.LsIdx) (nn j : Std.U64),
-      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe →
-      LS pers (fun a b => b = a)
-        (arena.core.and_rescue_slots_go pers st fe an ctor n_p ust nn j) lst
-        (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) n (absU j)) := by
+theorem and_rescue_slots_go_abs {pers : arena.store.PersTier} (n : Nat) :
+    ∀ {fe : arena.env.IFEnv} {lfe : IFEnv}
+      (an ctor : arena.handle.NIdx) (n_p nn j : Std.U64) {o : Bool},
+      nn.val = n → CoreCtx pers fe lfe →
+      arena.core.and_rescue_slots_go pers fe an ctor n_p nn j = ok o →
+      o = andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) n (absU j) := by
   induction n with
   | zero =>
-    intro pers st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
-    rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
-    lockstep
+    intro fe lfe an ctor n_p nn j o hn hctx h
+    rw [arena.core.and_rescue_slots_go] at h
+    rw [ite_eq_left (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rfl
   | succ m ih =>
-    intro pers st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
-    rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
-    lockstep
+    intro fe lfe an ctor n_p nn j o hn hctx h
+    rw [arena.core.and_rescue_slots_go] at h
+    rw [ite_eq_right (by scalar_tac)] at h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hf := ifenv_find_proj_abs hctx ho1
+    rw [andRescueSlotsGo, ← hf]
+    cases o1 with
+    | none =>
+      cases Result.ok_injective h
+      rfl
+    | some e =>
+      simp only [Option.map_some] at h ⊢
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbv := PA2.nidx_eq2_ls _ _ _ hb
+      simp only [absIProjEntry]
+      by_cases hc : b = true
+      · rw [if_pos hc] at h
+        rw [hc] at hbv
+        have hcv : (absNIdx e.ctor == absNIdx ctor) = true := hbv.symm
+        by_cases hp : e.num_params = n_p
+        · rw [if_pos hp] at h
+          by_cases hfl : e.num_fields = 2#u64
+          · rw [if_pos hfl] at h
+            obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            have hiv : i.val = m := by
+              have := ConRon.Refine.HashMap.uscalar_sub_eq hi; simp at this; omega
+            have hi1v : absU i1 = absU j + 1 := by
+              have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa [absU] using this
+            rw [ih an ctor n_p i i1 hiv hctx h, hi1v]
+            simp [hcv, hp, hfl, absU]
+          · rw [if_neg hfl] at h
+            cases Result.ok_injective h
+            have : (absU e.num_fields == 2) = false := by
+              simp only [absU, beq_eq_false_iff_ne]
+              intro hh; exact hfl (UScalar.eq_of_val_eq (by rw [hh]; rfl))
+            simp [this]
+        · rw [if_neg hp] at h
+          cases Result.ok_injective h
+          have : (absU e.num_params == absU n_p) = false := by
+            simp only [absU, beq_eq_false_iff_ne]
+            intro hh; exact hp (UScalar.eq_of_val_eq hh)
+          simp [this]
+      · rw [if_neg hc] at h
+        cases Result.ok_injective h
+        have hb' : b = false := by simpa using hc
+        rw [hb'] at hbv
+        simp [← hbv]
 
-@[lockstep] theorem and_rescue_slots_go_ls {pers st fe lfe an ctor n_p ust n j lst}
+@[lockstep] theorem and_rescue_slots_go_ls {fe lfe} (hctx : CoreCtx pers fe lfe)
+    (an ctor : arena.handle.NIdx) (n_p n j : Std.U64) :
+    LSP (arena.core.and_rescue_slots_go pers fe an ctor n_p n j)
+      (fun b => TwinEq (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) n.val
+        (absU j)) b) :=
+  fun b h => (and_rescue_slots_go_abs _ an ctor n_p n j rfl hctx h).symm
+
+@[lockstep] theorem and_rescue_slots_ls {pers st fe lfe ctor n_p lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a)
-      (arena.core.and_rescue_slots_go pers st fe an ctor n_p ust n j) lst
-      (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) (absU n)
-        (absU j)) :=
-  and_rescue_slots_go_aux _ an ctor n_p ust n j rfl hrel hinv hctx
-
-@[lockstep] theorem and_rescue_slots_ls {pers st fe lfe ctor n_p ust lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a)
-      (arena.core.and_rescue_slots pers st fe ctor n_p ust) lst
-      (andRescueSlots lfe (absNIdx ctor) (absU n_p) (absLsIdx ust)) := by
+    LSR pers (fun a b => b = a)
+      (arena.core.and_rescue_slots pers st fe ctor n_p) st lst
+      (andRescueSlots lfe (absNIdx ctor) (absU n_p)) := by
+  apply LSR.of_LS
   rw [arena.core.and_rescue_slots, andRescueSlots]
   lockstep
 
