@@ -120,4 +120,53 @@ theorem read_oleans_refines : ReadOleansRefines := by
     rfl
   · rw [hdv.decls, absIDeclArr]
 
+/-- `olean_read_thm_uses` is `OleanRead.thmUses`: a theorem's mentions, from the load. -/
+theorem olean_read_thm_uses_eq {rd : frontend.olean.records.OleanRead}
+    {rd' : Arena.Frontend.Olean.OleanRead} (hrd : OleanReadRel rd rd') {d : arena.env.IDeclaration}
+    {o} (h : frontend.olean.records.olean_read_thm_uses rd d = ok o) :
+    o.map absNIdxArr = rd'.thmUses (absIDeclaration d) := by
+  rw [frontend.olean.records.olean_read_thm_uses.eq_def] at h
+  cases d <;> simp only at h <;> try (cases Result.ok_injective h; rfl)
+  rename_i cv v
+  peel h as o1, ho1
+  have hg := mg_get_rel hrd.merged ho1
+  simp only [absIDeclaration, Arena.Frontend.Olean.OleanRead.thmUses, absIConstantVal]
+  cases o1 with
+  | none =>
+    cases Result.ok_injective h
+    cases hgg : rd'.merged.get (absNIdx cv.name) with
+    | none => rfl
+    | some _ => rw [hgg] at hg; cases hg
+  | some c =>
+    simp only at h
+    peel h as u, hu
+    cases Result.ok_injective h
+    cases hgg : rd'.merged.get (absNIdx cv.name) with
+    | none => rw [hgg] at hg; cases hg
+    | some c' =>
+      rw [hgg] at hg
+      cases hg with
+      | some hc =>
+        simp only [Option.map_some, absNIdxArr, nidx_vec_dup_val hu, hc.2]
+
+/-- **An `--olean` read's `UsedConsts`** is the twin's `usedOf`: a theorem's mentions from the
+load, any other record's from its expressions. -/
+theorem olean_read_used_rel {pers : arena.store.PersTier} {rd : frontend.olean.records.OleanRead}
+    {rd' : Arena.Frontend.Olean.OleanRead} (hrd : OleanReadRel rd rd') :
+    UsedRel frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rd
+      rd'.usedOf pers := by
+  intro rst lst d o hrel hinv h
+  simp only [frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts] at h
+  peel h as o1, ho1
+  have e := olean_read_thm_uses_eq hrd ho1
+  rw [Arena.Frontend.Olean.OleanRead.usedOf]
+  cases o1 with
+  | none =>
+    rw [← e]
+    exact decl_used_consts_refines hrel hinv h
+  | some u =>
+    rw [← e]
+    cases Result.ok_injective h
+    exact AOut₀.ok rfl hrel hinv
+
 end ConRon.Refine2.Frontend.Olean
