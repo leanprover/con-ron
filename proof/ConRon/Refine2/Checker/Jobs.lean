@@ -79,7 +79,7 @@ visible, which the view's table map is by `EnvExt`. -/
 theorem layer_rel {tier : arena.store.PersTier} {lf view : IFEnv} {v : Std.U64}
     (hb : BaseOK tier) (hown : IFEnvOwn tier.env lf) (hext : EnvExt view lf) (hv : EnvOK view)
     (hvis : view.visibleBelow = absU v) :
-    IFEnvRel tier view.env { layer00 with visible_below := v, base_below := v } view := by
+    IFEnvRel tier { layer00 with visible_below := v, base_below := v } view := by
   have hnone := ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
     (K := arena.handle.NIdx) (V := Std.U64 × Std.U64) (m' := layer00.idx) rfl
@@ -89,7 +89,7 @@ theorem layer_rel {tier : arena.store.PersTier} {lf view : IFEnv} {v : Std.U64}
   -- the base's rows, at the view's bound
   have hrow : ∀ n, baseRow tier v n = view.idx[absNIdx n]? := by
     intro n
-    rw [hext.row_below hv, ← hown.idx n, baseRow, hvis]
+    rw [hext.row_below hv, ← hown.idx n, baseRow,]
     cases ConRon.Refine.HashMap2.toFun tier.env.idx n with
     | none => rfl
     | some p =>
@@ -97,7 +97,7 @@ theorem layer_rel {tier : arena.store.PersTier} {lf view : IFEnv} {v : Std.U64}
       cases tier.env.env.consts.val[p.2.val]? with
       | none => simp
       | some ci => simp
-  refine ⟨?_, fun n => ?_, hvis, by simp [layer00], ?_, fun n => ?_, ?_, hb⟩
+  refine ⟨?_, fun n => ?_,, by simp [layer00], ?_, fun n => ?_, ?_, hb⟩
   · simp [overEnv, layer00]
   · simp only [layerRow, hnone.2.2 n]
     exact hrow n
@@ -141,7 +141,7 @@ every row of the base is below the largest counter, and a table's structure has 
 theorem check_layer_rel {tier : arena.store.PersTier} {lf : IFEnv} {layer : arena.env.IFEnv}
     (hb : BaseOK tier) (hown : IFEnvOwn tier.env lf) (hok : EnvOK lf)
     (hL : arena.checker.check_layer = ok layer) :
-    IFEnvRel tier lf.env layer (lf.restrictTo 0) ∧ IFEnvInv layer := by
+    IFEnvRel tier layer (lf.restrictTo 0) ∧ IFEnvInv layer := by
   rw [arena.checker.check_layer] at hL
   obtain rfl := ifenv_layer_eq hL
   have hnone := ConRon.Refine.HashMap2.new_refines
@@ -518,7 +518,7 @@ structure JobsRel (tier : arena.store.PersTier) (layer : arena.env.IFEnv)
     (pend : alloc.vec.Vec arena.checker.PendingCheck)
     (d : alloc.vec.Vec arena.checker.BlockCheck) (lf : IFEnv) (lp : Array PendingCheck)
     (lD : Array BlockCheck) : Prop where
-  rel : IFEnvRel tier lf.env layer (lf.restrictTo 0)
+  rel : IFEnvRel tier layer (lf.restrictTo 0)
   inv : IFEnvInv layer
   pend : lp = (absPendingCheckL pend).toArray
   jobs : List.Forall₂ (JobRel tier) d.val lD.toList
