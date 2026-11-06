@@ -59,12 +59,12 @@ below slot `p` holds its value. -/
   ∀ s, s < p → ∀ k, IsKind k → marked m k s = true → SlotOK st r memo k s
 
 /-- `Built` and the kinds of slot `p` already swept. -/
-@[expose] def Part (st : EStore) (r : Region) (m : ByteArray) (memo : DS) (p : Nat)
+@[expose] def Swept (st : EStore) (r : Region) (m : ByteArray) (memo : DS) (p : Nat)
     (K : UInt8 → Prop) : Prop :=
   Built st r m memo p ∧ ∀ k, K k → IsKind k → marked m k p = true → SlotOK st r memo k p
 
-theorem Part.ext {st st' : EStore} {r : Region} {m : ByteArray} {memo : DS} {p : Nat}
-    {K : UInt8 → Prop} (h : Part st r m memo p K) (hx : Ext st st') : Part st' r m memo p K :=
+theorem Swept.ext {st st' : EStore} {r : Region} {m : ByteArray} {memo : DS} {p : Nat}
+    {K : UInt8 → Prop} (h : Swept st r m memo p K) (hx : Ext st st') : Swept st' r m memo p K :=
   ⟨fun s hs k hk hm => (h.1 s hs k hk hm).ext hx,
    fun k hK hk hm => (h.2 k hK hk hm).ext hx⟩
 
@@ -117,10 +117,10 @@ theorem getD_set_ne {α : Type} {a : Array α} {p s : Nat} {v d : α} (h : p ≠
 theorem kinds_ne' : kName ≠ kLevel ∧ kName ≠ kExpr ∧ kName ≠ kLevels ∧ kLevel ≠ kExpr ∧
     kLevel ≠ kLevels ∧ kExpr ≠ kLevels := by decide
 
-theorem Part.setName {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
-    {K : UInt8 → Prop} (h : Part st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : NIdx}
+theorem Swept.setName {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
+    {K : UInt8 → Prop} (h : Swept st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : NIdx}
     {x : ConLeche.Name} (hx : nameAt r (8 * p) = some x) (hv : denoteN st.ns v = some x) :
-    Part st r m (memo.setName p v) p (fun k => K k ∨ k = kName) ∧ Sized (memo.setName p v) n := by
+    Swept st r m (memo.setName p v) p (fun k => K k ∨ k = kName) ∧ Sized (memo.setName p v) n := by
   have hsz : memo.names.size = n := hs.names
   refine ⟨⟨fun s hsp k hk hm => ?_, fun k hK hk hm => ?_⟩, ?_⟩
   · obtain ⟨h1, h2, h3, h4⟩ := h.1 s hsp k hk hm
@@ -145,10 +145,10 @@ theorem Part.setName {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n
       exact hv
   · exact ⟨by simp [DS.setName, hs.names], hs.levels, hs.exprs, hs.lists⟩
 
-theorem Part.setLevel {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
-    {K : UInt8 → Prop} (h : Part st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : LIdx}
+theorem Swept.setLevel {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
+    {K : UInt8 → Prop} (h : Swept st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : LIdx}
     {x : Level} (hx : levelAt r (8 * p) = some x) (hv : denoteL st.ls v = some x) :
-    Part st r m (memo.setLevel p v) p (fun k => K k ∨ k = kLevel) ∧ Sized (memo.setLevel p v) n := by
+    Swept st r m (memo.setLevel p v) p (fun k => K k ∨ k = kLevel) ∧ Sized (memo.setLevel p v) n := by
   have hsz : memo.levels.size = n := hs.levels
   refine ⟨⟨fun s hsp k hk hm => ?_, fun k hK hk hm => ?_⟩, ?_⟩
   · obtain ⟨h1, h2, h3, h4⟩ := h.1 s hsp k hk hm
@@ -173,10 +173,10 @@ theorem Part.setLevel {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p 
       exact hv
   · exact ⟨hs.names, by simp [DS.setLevel, hs.levels], hs.exprs, hs.lists⟩
 
-theorem Part.setLevels {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
-    {K : UInt8 → Prop} (h : Part st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : LsIdx}
+theorem Swept.setLevels {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
+    {K : UInt8 → Prop} (h : Swept st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : LsIdx}
     {x : List Level} (hx : levelsAt r (8 * p) = some x) (hv : denoteLs st.lss v = some x) :
-    Part st r m (memo.setLevels p v) p (fun k => K k ∨ k = kLevels) ∧
+    Swept st r m (memo.setLevels p v) p (fun k => K k ∨ k = kLevels) ∧
       Sized (memo.setLevels p v) n := by
   have hsz : memo.lists.size = n := hs.lists
   refine ⟨⟨fun s hsp k hk hm => ?_, fun k hK hk hm => ?_⟩, ?_⟩
@@ -202,10 +202,10 @@ theorem Part.setLevels {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p
       exact hv
   · exact ⟨hs.names, hs.levels, hs.exprs, by simp [DS.setLevels, hs.lists]⟩
 
-theorem Part.setExpr {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
-    {K : UInt8 → Prop} (h : Part st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : EIdx}
+theorem Swept.setExpr {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p n : Nat}
+    {K : UInt8 → Prop} (h : Swept st r m memo p K) (hs : Sized memo n) (hp : p < n) {v : EIdx}
     {x : Expr} (hx : exprAt r (8 * p) = some x) (hv : denoteE st v = some x) :
-    Part st r m (memo.setExpr p v) p (fun k => K k ∨ k = kExpr) ∧ Sized (memo.setExpr p v) n := by
+    Swept st r m (memo.setExpr p v) p (fun k => K k ∨ k = kExpr) ∧ Sized (memo.setExpr p v) n := by
   have hsz : memo.exprs.size = n := hs.exprs
   refine ⟨⟨fun s hsp k hk hm => ?_, fun k hK hk hm => ?_⟩, ?_⟩
   · obtain ⟨h1, h2, h3, h4⟩ := h.1 s hsp k hk hm
@@ -258,9 +258,9 @@ theorem slotStep_run {α : Type} {b : Bool} {node : AM (Option α)} {memo memo' 
     | some v => exact .inr ⟨rfl, v, s₁, hn, hrest⟩
 
 /-- A kind not marked at the slot is swept. -/
-theorem Part.notMarked {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p : Nat}
-    {K : UInt8 → Prop} {K' : UInt8} (h : Part st r m memo p K) (hb : marked m K' p = false) :
-    Part st r m memo p (fun k => K k ∨ k = K') := by
+theorem Swept.notMarked {st : EStore} {r : Region} {m : ByteArray} {memo : DS} {p : Nat}
+    {K : UInt8 → Prop} {K' : UInt8} (h : Swept st r m memo p K) (hb : marked m K' p = false) :
+    Swept st r m memo p (fun k => K k ∨ k = K') := by
   refine ⟨h.1, fun k hK hk hm => ?_⟩
   rcases hK with hK | rfl
   · exact h.2 k hK hk hm
@@ -297,11 +297,11 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
   have hk2 : IsKind kLevel := Or.inr (Or.inl rfl)
   have hk3 : IsKind kExpr := Or.inr (Or.inr (Or.inl rfl))
   have hk4 : IsKind kLevels := Or.inr (Or.inr (Or.inr rfl))
-  have hp0 : Part s.store r m memo p (fun _ => False) := ⟨hb, fun _ h => h.elim⟩
+  have hp0 : Swept s.store r m memo p (fun _ => False) := ⟨hb, fun _ h => h.elim⟩
   have hspec : ∀ (a : Nat), 8 * a = 8 * a := fun _ => rfl
   -- the name
   obtain ⟨memo1, s1, hst1, hP1, hS1, hrun1⟩ :
-      ∃ memo1 s1, ParseStep s s1 ∧ Part s1.store r m memo1 p (fun k => False ∨ k = kName) ∧
+      ∃ memo1 s1, ParseStep s s1 ∧ Swept s1.store r m memo1 p (fun k => False ∨ k = kName) ∧
         Sized memo1 n ∧ slotStep (marked m kLevel p) (Arena.Frontend.Olean.levelNode pk r (8 * p) memo1.sub)
           memo1 (memo1.setLevel p)
           (fun memo => slotStep (marked m kLevels p) (Arena.Frontend.Olean.levelsNode pk r (8 * p) memo.sub)
@@ -319,7 +319,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
   -- the level
   obtain ⟨memo2, s2, hst2, hP2, hS2, hrun2⟩ :
       ∃ memo2 s2, ParseStep s1 s2 ∧
-        Part s2.store r m memo2 p (fun k => (False ∨ k = kName) ∨ k = kLevel) ∧
+        Swept s2.store r m memo2 p (fun k => (False ∨ k = kName) ∨ k = kLevel) ∧
         Sized memo2 n ∧ slotStep (marked m kLevels p) (Arena.Frontend.Olean.levelsNode pk r (8 * p) memo2.sub)
             memo2 (memo2.setLevels p)
             (fun memo => slotStep (marked m kExpr p) (Arena.Frontend.Olean.exprNode pk r (8 * p) memo.sub)
@@ -335,7 +335,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
   -- the list of levels
   obtain ⟨memo3, s3, hst3, hP3, hS3, hrun3⟩ :
       ∃ memo3 s3, ParseStep s2 s3 ∧
-        Part s3.store r m memo3 p (fun k => ((False ∨ k = kName) ∨ k = kLevel) ∨ k = kLevels) ∧
+        Swept s3.store r m memo3 p (fun k => ((False ∨ k = kName) ∨ k = kLevel) ∨ k = kLevels) ∧
         Sized memo3 n ∧ slotStep (marked m kExpr p) (Arena.Frontend.Olean.exprNode pk r (8 * p) memo3.sub)
               memo3 (memo3.setExpr p) (fun memo => pure (some memo)) s3 = .ok (some memo', s') := by
     rcases slotStep_run hrun2 with ⟨hb1, hk⟩ | ⟨hb1, v, s3, hn, hk⟩
@@ -348,7 +348,7 @@ theorem buildSlot_run {pk : OleanPins} {r : Region} {m : ByteArray} {n p : Nat} 
   have hctx3 := hctx2.step hst3
   -- the expression
   have hfin : ParseStep s3 s' ∧
-      Part s'.store r m memo' p
+      Swept s'.store r m memo' p
         (fun k => (((False ∨ k = kName) ∨ k = kLevel) ∨ k = kLevels) ∨ k = kExpr) ∧
       Sized memo' n := by
     rcases slotStep_run hrun3 with ⟨hb1, hk⟩ | ⟨hb1, v, s4, hn, hk⟩
