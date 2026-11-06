@@ -179,4 +179,24 @@ theorem rules_with_fire_abs {rules : alloc.vec.Vec arena.env.IRecRule}
       by simp [absIRecRule, dupId_nidx _ _ hn, dupId_eidx _ _ he,
         i_rec_rule_fire_dup_abs hirf], h⟩
 
+/-! ## What a declaration installs -/
+
+/-- **`decl_constants` ⊑ `declConstants`**: the constants a declaration installs,
+in push order, read off the record (`stream_index::build_index`'s step). -/
+theorem decl_constants_refines {pers st lst} {pd : arena.env.IDeclaration} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.install.decl_constants pers st pd = ok o) :
+    SimRel₀ (fun cs L => L = cs.val.map absIConstantInfo) pers lst o
+      (declConstants (absIDeclaration pd)) := by
+  sorry -- T143-STUB
+
+/-- **`decl_tables` ⊑ `declTables`**: the projection tables a declaration
+installs. -/
+theorem decl_tables_refines {pers st lst} {pd : arena.env.IDeclaration} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.install.decl_tables pers st pd = ok o) :
+    SimRel₀ (fun ts Q => Q = ts.val.map absIProjTable) pers lst o
+      (declTables (absIDeclaration pd)) := by
+  sorry -- T143-STUB
+
 end ConRon.Refine2
