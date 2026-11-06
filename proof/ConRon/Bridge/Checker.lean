@@ -55,7 +55,6 @@ public import ConRon.Bridge.Checker.Basis
 public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.DeclVal
 public import ConRon.Bridge.Checker.DivMod
-public import ConRon.Bridge.Checker.DeclWF
 public import ConRon.Bridge.Checker.Nodup
 public import ConRon.Bridge.Checker.Axioms
 

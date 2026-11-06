@@ -174,9 +174,10 @@ theorem stuckIrrel_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
 stuck-major fabrication. -/
-theorem majorToCtor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (rules : List RecRule) (e : Expr) :
-    MRefines (majorToCtor mode r₁ env d c rules e) (majorToCtor mode r₂ env d c rules e) := by
-  have := (majorToCtor mode (pairFns r₁ r₂ h) env d c rules e).property
+theorem majorToCtor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (isK : Bool)
+    (rules : List RecRule) (e : Expr) :
+    MRefines (majorToCtor mode r₁ env d c isK rules e) (majorToCtor mode r₂ env d c isK rules e) := by
+  have := (majorToCtor mode (pairFns r₁ r₂ h) env d c isK rules e).property
   rwa [majorToCtor_fst_proj, majorToCtor_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the literal
@@ -188,9 +189,10 @@ theorem litMajorToCtor_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the major
 prepared for the rule. -/
-theorem prepareMajor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (rules : List RecRule) (e : Expr) :
-    MRefines (prepareMajor mode r₁ env d c rules e) (prepareMajor mode r₂ env d c rules e) := by
-  have := (prepareMajor mode (pairFns r₁ r₂ h) env d c rules e).property
+theorem prepareMajor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (isK : Bool)
+    (rules : List RecRule) (e : Expr) :
+    MRefines (prepareMajor mode r₁ env d c isK rules e) (prepareMajor mode r₂ env d c isK rules e) := by
+  have := (prepareMajor mode (pairFns r₁ r₂ h) env d c isK rules e).property
   rwa [prepareMajor_fst_proj, prepareMajor_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
@@ -329,10 +331,11 @@ theorem stuckIrrelFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Exp
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `majorToCtor`. -/
-theorem majorToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {rules : List RecRule} {e r : Expr}
-    (hr : majorToCtorFueled mode eager env f d c rules e = .ok r) :
-    majorToCtorFueled mode eager env f' d c rules e = .ok r :=
-  majorToCtor_mono (pureFns_mono env hle) d c rules e r hr
+theorem majorToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {isK : Bool}
+    {rules : List RecRule} {e r : Expr}
+    (hr : majorToCtorFueled mode eager env f d c isK rules e = .ok r) :
+    majorToCtorFueled mode eager env f' d c isK rules e = .ok r :=
+  majorToCtor_mono (pureFns_mono env hle) d c isK rules e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `litMajorToCtor`. -/
@@ -343,10 +346,11 @@ theorem litMajorToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e r :
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `prepareMajor`. -/
-theorem prepareMajorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {rules : List RecRule} {e r : Expr}
-    (hr : prepareMajorFueled mode eager env f d c rules e = .ok r) :
-    prepareMajorFueled mode eager env f' d c rules e = .ok r :=
-  prepareMajor_mono (pureFns_mono env hle) d c rules e r hr
+theorem prepareMajorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Name} {isK : Bool}
+    {rules : List RecRule} {e r : Expr}
+    (hr : prepareMajorFueled mode eager env f d c isK rules e = .ok r) :
+    prepareMajorFueled mode eager env f' d c isK rules e = .ok r :=
+  prepareMajor_mono (pureFns_mono env hle) d c isK rules e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `boolTrueShortcut`. -/

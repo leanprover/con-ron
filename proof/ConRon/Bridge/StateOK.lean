@@ -387,10 +387,10 @@ rules, the rule whose constructor is the key's second name, and that rule's
 @[expose] def RuleRhsCacheOK (env : Env) (tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx)
     (st : EStore) : Prop :=
   ∀ (k : NIdx × NIdx × LsIdx) (i : EIdx), tbl[k]? = some i →
-    ∃ rn cn ls cv mi rp rules rl,
+    ∃ rn cn ls cv mi rp isK rules rl,
       denoteN st.ns k.1 = some rn ∧ denoteN st.ns k.2.1 = some cn ∧
       denoteLs st.lss k.2.2 = some ls ∧
-      env.find? rn = some (.recInfo cv mi rp rules) ∧
+      env.find? rn = some (.recInfo cv mi rp isK rules) ∧
       rules.find? (fun r => r.ctor == cn) = some rl ∧
       denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)
 
@@ -502,15 +502,14 @@ Stated at the denoted `ConstantInfo`, so that the Core tier's every
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:161 TableWF (the size clause) —
 **what a STORED projection table satisfies**, over the ARENA's `IProjTable`
-and not over con-leche's `ProjTable`: the two indexed columns have
-`numFields` entries.  `denoteProjTable` transports both pointwise and copies
+and not over con-leche's `ProjTable`: the body column has `numFields`
+entries.  `denoteProjTable` transports it pointwise and copies
 `numFields` verbatim, so the pure table's sizes ARE ours — which is why
 con-leche's own invariant is the wrong place to take this from (a simulation
 B ⇒ A takes invariants on the REFINED side only).  Its debtor is the table
 install (`Bridge/Inductives/StructInstall.lean`). -/
 structure IProjTableOK (t : IProjTable) : Prop where
   bodies : t.bodies.size = t.numFields
-  guards : t.guards.length = t.numFields
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
 index answers exactly what the denoted environment answers.
@@ -632,8 +631,8 @@ theorem RuleRhsCacheOK.mono {env : Env}
     (h : RuleRhsCacheOK env tbl st) (hx : Ext st st') :
     RuleRhsCacheOK env tbl st' := by
   intro k i hk
-  obtain ⟨rn, cn, ls, cv, mi, rp, rules, rl, h1, h2, h3, h4, h5, h6⟩ := h k i hk
-  exact ⟨rn, cn, ls, cv, mi, rp, rules, rl, denoteN_ext h1 hx,
+  obtain ⟨rn, cn, ls, cv, mi, rp, isK, rules, rl, h1, h2, h3, h4, h5, h6⟩ := h k i hk
+  exact ⟨rn, cn, ls, cv, mi, rp, isK, rules, rl, denoteN_ext h1 hx,
     denoteN_ext h2 hx, denoteLs_ext h3 hx, h4, h5, denote_ext h6 hx⟩
 
 theorem ReadLCacheOK.mono {tbl : Std.HashMap LIdx Level} {st st' : EStore}
@@ -956,7 +955,7 @@ theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
         rw [hcv, hc] at h
         obtain rfl := Option.some.inj h
         exact denoteCV_name hcv
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h
     cases hcv : Frontend.denoteCV st v with
     | none => rw [hcv] at h; simp at h
@@ -995,7 +994,7 @@ theorem denoteCI_toConstantVal {st : EStore} {ci : IConstantInfo}
     split at h
     · rename_i cv x hcv _; cases h; exact hcv
     · simp at h
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv _; cases h; exact hcv

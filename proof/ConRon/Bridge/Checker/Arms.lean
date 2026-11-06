@@ -32,7 +32,6 @@ below.
 module
 
 import ConRon.Bridge.Checker.DivMod
-import ConRon.Bridge.Checker.DeclWF
 import ConRon.Bridge.Checker.DeclVal
 import ConLeche.Verify.Extend.Inversions
 public import ConRon.Bridge.Checker.Decl

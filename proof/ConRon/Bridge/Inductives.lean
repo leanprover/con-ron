@@ -41,7 +41,6 @@ module
 public import ConRon.Bridge.Inductives.Records
 public import ConRon.Bridge.Inductives.Run
 public import ConRon.Bridge.Inductives.Rel
-public import ConRon.Bridge.Inductives.BlockWF
 public import ConRon.Bridge.Inductives.PosWalks
 public import ConRon.Bridge.Inductives.StructParts
 public import ConRon.Bridge.Inductives.StructInstall

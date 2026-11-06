@@ -20,7 +20,6 @@ import ConRon.Bridge.Inductives.StructInstall
 import ConRon.Bridge.Inductives.RecCheck
 import ConRon.Bridge.Inductives.StreamRecs
 import ConRon.Bridge.Inductives.GenRec
-import ConRon.Bridge.Inductives.BlockWF
 import ConRon.Bridge.Inductives.BlockTail
 
 public section

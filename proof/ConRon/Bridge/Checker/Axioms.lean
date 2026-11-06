@@ -35,7 +35,6 @@ import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Specs
-import ConRon.Bridge.Checker.DeclWF
 import ConRon.Bridge.Checker.TypePins
 
 public section

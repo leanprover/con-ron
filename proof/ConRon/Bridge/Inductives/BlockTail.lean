@@ -22,7 +22,6 @@ module
 import ConRon.Bridge.Inductives.BlockInstall
 public import ConRon.Bridge.Inductives.RecCheck
 public import ConRon.Bridge.Inductives.GenRec
-import ConRon.Bridge.Inductives.BlockWF
 import ConRon.Bridge.Inductives.StreamRecs
 import ConLeche.Verify.Inductives.PositivityInv
 public import ConRon.Bridge.Inductives.ClassRead

@@ -1,43 +1,36 @@
 /-
-# `ConRon.Bridge.Checker.Inv` — the fold's invariant, and the declaration layer across a drop
+# `ConRon.Bridge.Checker.Inv` — the invariant a check runs from, and the declaration layer across a drop
 
 Two things this tier needs that neither `Bridge/StateOK.lean` nor
 `Bridge/Rel.lean` has.
 
 **1. The declaration layer transports across a `PExt`**, not only across an
-`Ext`.  `Bridge/Rel.lean`'s ten `denote*_ext` lemmas carry a stored constant
-past an *append*; the fold needs to carry it past a *drop*, which is a weaker
-extension (`Bridge/Promote/Pers.lean`) available only at persistent handles.
-So each of the ten gets a `…_pext` twin with a `Pers…` hypothesis, and the
-pair is what the per-declaration bracket consumes: `Arena/Promote.lean` makes
-the environment persistent, `PExt.dropScratch` carries it, and nothing the
-fold can see changes.
+`Ext`.  `Bridge/Rel.lean`'s `denote*_ext` lemmas carry a stored constant past
+an *append*; a worker carries the stream's index and records past a *drop*,
+which is a weaker extension (`Bridge/Pers.lean`) available only at persistent
+handles.  So each gets a `…_pext` twin with a `Pers…` hypothesis.
 
-**2. `FoldOK` — the fold-step invariant.**  `Bridge/StateOK.lean`'s `CheckOK`
-is the CORE tier's invariant (the store, the fourteen caches, the pins, the
-index); the fold needs three clauses more, and all three are about what
-survives the next `dropScratch`:
+**2. `FoldOK` — the invariant a declaration's check runs from.**
+`Bridge/StateOK.lean`'s `CheckOK` is the CORE tier's invariant (the store, the
+fourteen caches, the pins, the index); a declaration's check needs a few
+clauses more:
 
-* `denoteFEnv s.store fe = some env` — the environment index DENOTES, as a
-  function.  `IFEnvOK` says what `find?` answers; `denoteFEnv` says what the
-  whole environment is, and it is `denoteFEnv` that `ConLeche.checkDecl`'s
-  statement names.  con-leche's own join point has exactly this pair
-  (`CSOKF s'` and `fe' = mkFEnv fe'.env`, `Verify/Cached/BridgeC.lean:609`);
-* `IFEnvCoh fe` — the index is its list's index, con-leche's `fe' = mkFEnv
-  fe'.env` letter for letter;
-* `PersIFEnv fe` and `PersPins s` — everything the step hands on is in the
-  persistent tier.  Without these two the very next `dropScratch` makes the
-  environment undecodable, and the fold's second declaration would have
-  nothing to say;
 * `EnvWF env` — con-leche's own environment well-formedness, which
-  `Verify/Cached/BridgeC.lean:609`'s join point takes as `henv` and which
-  `Bridge/Core`'s `knot_spec` takes for the same reason.  The Core tier's
-  theorem is stated AT a well-formed environment, so the fold has to carry
-  one.
+  `Verify/Cached/BridgeC.lean`'s `checkDeclStepC_run` takes as `henv` and
+  `Bridge/Core`'s `knot_spec` takes for the same reason;
+* `IFEnvCoh fe` — the own index is its list's index, con-leche's `fe' = mkFEnv
+  fe'.env` for the layer above the frozen one;
+* `TblGate fe` — no table without its structure, which is what lets a push of a
+  fresh name keep the index spec (`IFEnvOK.pushStored`);
+* `PersPins s` — the pin table is persistent.
+
+What a lookup answers is `IFEnvOK`'s, stated by lookups: the frozen layer has
+no list to denote.
 -/
 module
 
 public import ConRon.Bridge.EnvDenote
+public import ConRon.Bridge.StateOK
 public import ConLeche.Verify.EnvWF
 import ConRon.Bridge.EnvDenote
 
@@ -210,21 +203,8 @@ theorem denoteCV_pext {st st' : EStore} (hx : PExt st st') {cv : IConstantVal}
 
 theorem denoteFire_pext {st st' : EStore} (hx : PExt st st') {f : IRecRuleFire}
     {r : RecRuleFire} (hp : PersFire f) (h : Frontend.denoteFire st f = some r) :
-    Frontend.denoteFire st' f = some r := by
-  cases f with
-  | plain => exact h
-  | nested lvls pins =>
-    simp only [Frontend.denoteFire] at h ⊢
-    obtain ⟨hpl, hpe⟩ := hp
-    cases hl : denoteLList st.ls lvls with
-    | none => rw [hl] at h; simp at h
-    | some ls =>
-      cases he : Frontend.denoteEList st pins with
-      | none => rw [hl, he] at h; simp at h
-      | some ps =>
-        rw [hl, he] at h
-        rw [denoteLList_pext hx _ ls hpl hl, denoteEList_pext hx _ ps hpe he]
-        exact h
+    Frontend.denoteFire st' f = some r :=
+  hx.denoteFire hp r h
 
 theorem denoteRule_pext {st st' : EStore} (hx : PExt st st') {rl : IRecRule}
     {r : RecRule} (hp : PersRule rl) (h : Frontend.denoteRule st rl = some r) :
@@ -286,35 +266,8 @@ theorem denoteCaps_pext {st st' : EStore} (hx : PExt st st') {c : IIndCaps}
 theorem denoteProjTable_pext {st st' : EStore} (hx : PExt st st')
     {t : IProjTable} {x : ProjTable} (hp : PersProjTable t)
     (h : Frontend.denoteProjTable st t = some x) :
-    Frontend.denoteProjTable st' t = some x := by
-  simp only [Frontend.denoteProjTable] at h ⊢
-  cases hsn : denoteN st.ns t.structName with
-  | none => rw [hsn] at h; simp at h
-  | some sn =>
-    cases hlp : Frontend.denoteNList st.ns t.levelParams with
-    | none => rw [hsn, hlp] at h; simp at h
-    | some lps =>
-      cases hc : denoteN st.ns t.ctor with
-      | none => rw [hsn, hlp, hc] at h; simp at h
-      | some c =>
-        rw [hsn, hlp, hc] at h
-        rw [denoteN_pext hx hp.structName hsn,
-          denoteNList_pext hx _ lps hp.levelParams hlp,
-          denoteN_pext hx hp.ctor hc]
-        cases hss : denoteL st.ls t.structSort with
-        | none => rw [hss] at h; simp at h
-        | some ss =>
-          cases hb : Frontend.denoteEArray st t.bodies with
-          | none => rw [hss, hb] at h; simp at h
-          | some bs =>
-            cases hg : denoteLList st.ls t.guards with
-            | none => rw [hss, hb, hg] at h; simp at h
-            | some gs =>
-              rw [hss, hb, hg] at h
-              rw [denoteL_pext hx hp.structSort hss,
-                denoteEArray_pext hx hp.bodies hb,
-                denoteLList_pext hx _ gs hp.guards hg]
-              exact h
+    Frontend.denoteProjTable st' t = some x :=
+  hx.denoteProjTable hp x h
 
 theorem denoteCI_pext {st st' : EStore} (hx : PExt st st') {ci : IConstantInfo}
     {c : ConstantInfo} (hp : PersCI ci) (h : Frontend.denoteCI st ci = some c) :
@@ -354,7 +307,7 @@ theorem denoteCI_pext {st st' : EStore} (hx : PExt st st') {ci : IConstantInfo}
       | some caps =>
         rw [hcv, hcp] at h
         rw [denoteCV_pext hx hpv hcv, denoteCaps_pext hx hpc hcp]; exact h
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h ⊢
     obtain ⟨hpv, hpr⟩ := hp
     cases hcv : Frontend.denoteCV st v with
@@ -482,7 +435,6 @@ theorem denoteDecl_pext {st st' : EStore} (hx : PExt st st') {pd : IDeclaration}
     (h : Frontend.denoteDecl st pd = some d) :
     Frontend.denoteDecl st' pd = some d := by
   cases pd with
-  | basisDecl k => exact h
   | axiomDecl v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
     obtain ⟨cv, hcv, hc⟩ := h
@@ -610,6 +562,74 @@ theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
     obtain ⟨hpn, hpt⟩ := hp.rawTable (IFEnv.rawTable?_of_findTable? h2)
     exact ⟨n, t, denoteN_pext hx hpn h1, h2, denoteProjTable_pext hx hpt h3⟩
 
+/-! ## What a lookup reads
+
+`IFEnv.find?` reads the own index, then the frozen layer (`IFEnv.lookup`; an
+empty own index is not hashed into, which answers the same).  So a push answers
+at its own name and passes every other name through, whatever the index
+held — no coherence with the list is needed for that, unlike con-leche's
+`mkFEnv_find?`. -/
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:98-105 FEnv.lookup — the emptiness test
+answers what the hash map answers. -/
+theorem IFEnv.find?_eq (fe : IFEnv) (n : NIdx) :
+    fe.find? n = match fe.idx[n]? with
+      | some ci => some ci
+      | none => fe.base.find? n := by
+  simp only [IFEnv.find?, IFEnv.lookup]
+  split
+  · rename_i he
+    rw [Std.HashMap.isEmpty_iff_forall_not_mem] at he
+    have : fe.idx[n]? = none := Std.HashMap.getElem?_eq_none (he n)
+    rw [this]
+  · rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:130-134 FEnv.push — **a push answers at
+its own name and nowhere else**. -/
+theorem IFEnv.find?_push (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
+    (fe.push ci).find? n = if (ci.name == n) = true then some ci else fe.find? n := by
+  rw [IFEnv.find?_eq, IFEnv.find?_eq]
+  simp only [IFEnv.push, Std.HashMap.getElem?_insert]
+  by_cases hb : (ci.name == n) = true <;> simp [hb]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:136-141 FEnv.pushTable — a table install
+answers at its structure's name and nowhere else. -/
+theorem IFEnv.rawTable?_pushTable (fe : IFEnv) (t : IProjTable) (n : NIdx) :
+    (fe.pushTable t).rawTable? n =
+      if (t.structName == n) = true then some t else fe.rawTable? n := by
+  simp only [IFEnv.rawTable?, IFEnv.pushTable, Std.HashMap.getElem?_insert]
+  by_cases hb : (t.structName == n) = true <;> simp [hb]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:163-167 FEnv.findTable? — **no table
+without its structure**: a raw table hit is at a stored name.  `findTable?`'s
+gate is then never what hides a table, so a push of a fresh name opens no stale
+table.  The stream's index has it because a record's tables are named after its
+own constants (upstream's `declTables_sublist`), and a block installs its tables
+after its constants. -/
+@[expose] def TblGate (fe : IFEnv) : Prop :=
+  ∀ n t, fe.rawTable? n = some t → (fe.find? n).isSome = true
+
+/-- con-leche: none — a push keeps the gate. -/
+theorem TblGate.push {fe : IFEnv} (h : TblGate fe) (ci : IConstantInfo) :
+    TblGate (fe.push ci) := by
+  intro n t ht
+  rw [IFEnv.find?_push]
+  split
+  · rfl
+  · exact h n t ht
+
+/-- con-leche: none — a table install at a stored structure keeps the gate. -/
+theorem TblGate.pushTable {fe : IFEnv} (h : TblGate fe) {t : IProjTable}
+    (hT : (fe.find? t.structName).isSome = true) : TblGate (fe.pushTable t) := by
+  intro n t' ht
+  rw [IFEnv.rawTable?_pushTable] at ht
+  show (fe.find? n).isSome = true
+  split at ht
+  · rename_i hb
+    obtain rfl : t.structName = n := by simpa using hb
+    exact hT
+  · exact h n t' ht
+
 /-! ## The two invariants, and the rule that separates them
 
 **`StepOK` is the invariant at an index a step has just EXTENDED; `FoldOK` is
@@ -644,47 +664,43 @@ hands back separately, as `CoreStep env fe s s'`.  Putting `CheckOK` in
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK
 con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what a step knows about an index it has just extended**: the index answers
-its environment's `find?`, the environment is well formed, the index is its
-list's index, and it denotes as a function.
+its environment's `find?`, the environment is well formed, the own index is its
+list's index, and no table is without its structure.
 
 Nothing here is about the STATE's own invariant (that is `CheckOK`, at the
-environment the core ran at) and nothing here is about persistence (that is
-`promoteNew`'s, and it is `FoldOK`'s two remaining clauses). -/
+environment the core ran at). -/
 structure StepOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
   ienv : IFEnvOK env fe s
   envWF : EnvWF env
   coh : IFEnvCoh fe
-  denote : denoteFEnv s.store fe = some env
+  gate : TblGate fe
 
 /-- con-leche: none — `StepOK` transports across an append: `IFEnvOK.mono`
-and `denoteFEnv_mono` carry the two store clauses, the other two mention no
-store. -/
+carries the store clause, the other three mention no store. -/
 theorem StepOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
     (h : StepOK env fe s) (hx : Ext s.store s'.store) : StepOK env fe s' where
   ienv := h.ienv.mono hx
   envWF := h.envWF
   coh := h.coh
-  denote := denoteFEnv_mono hx h.denote
+  gate := h.gate
 
 /-! ## The fold-step invariant -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:262 CSOK
 con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
-**the fold-step invariant**: the Core tier's `CheckOK` plus the three clauses
-that make a step's output usable by the NEXT step — the environment denotes as
-a function, its index is its list's index (con-leche's `fe = mkFEnv fe.env`),
-and everything handed on is persistent. -/
+**the invariant a declaration's check runs from**: the Core tier's `CheckOK`,
+the environment well formed, the own index its list's index (con-leche's
+`fe = mkFEnv fe.env`, for the layer above the frozen one), no table without its
+structure, and the pin table persistent. -/
 structure FoldOK (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
   check : CheckOK false env fe s
   envWF : EnvWF env
-  /-- every table of the index's list is well shaped (`IFEnvOK_of_denote`'s
-  `hproj`, which the bracket's close re-derives the index spec from) -/
+  /-- every table of the own index's list is well shaped -/
   tblShape : ∀ t ∈ fe.env.tables, IProjTableOK t
   persPins : PersPins s
-  persEnv : PersIFEnv fe
   coh : IFEnvCoh fe
-  denote : denoteFEnv s.store fe = some env
+  gate : TblGate fe
 
 /-- con-leche: none — a boundary is a step: the four `StepOK` clauses are
 `FoldOK`'s own, `IFEnvOK` read off `CheckOK`.  This is what a theorem whose
@@ -698,105 +714,24 @@ theorem FoldOK.toStepOK {env : Env} {fe : IFEnv} {s : AState}
   ienv := h.check.ienv
   envWF := h.envWF
   coh := h.coh
-  denote := h.denote
+  gate := h.gate
 
 /-- con-leche: none — **`FoldOK` survives a step that only appends and leaves
 the environment alone.**  A step of an arm leaves `CheckOK` at the SAME
-environment and an `Ext`; the other four clauses are about the environment
-index and the pin handles, and both transport.
+environment; the other clauses are about the environment index, which did not
+move, and the pin handles, which did not either.
 
 It lives here rather than in `Bridge/Checker/Arms.lean` because
 `DeclVal.lean`'s `checkThmVal_bridge`, two modules lower, uses it. -/
 theorem FoldOK.step {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : FoldOK env fe s) (hck : CheckOK false env fe s')
-    (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
+    (h : FoldOK env fe s) (hck : CheckOK false env fe s') (hp : s'.pins = s.pins) :
     FoldOK env fe s' where
   check := hck
   envWF := h.envWF
   tblShape := h.tblShape
   persPins := h.persPins.mono hp
-  persEnv := h.persEnv
   coh := h.coh
-  denote := denoteFEnv_pext (PExt.of_ext hx) h.persEnv h.denote
-
-/-! ## The index IS the list
-
-con-leche's `mkFEnv_find?` (`Verify/EnvBound.lean`), at the arena's hash-map
-index: `mkIFEnvGo` inserts from the back, so the FRONT entry is inserted last
-and wins, which is exactly what `List.find?` does — and every counter it hands
-out is below the list's length, so the visibility bound never hides anything.
-Three small inductions, and then the whole of `IFEnvOK_of_denote` is a
-statement about two LISTS. -/
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
-build ends at is the list's length. -/
-theorem mkIFEnvGo_fst : ∀ (cs : List IConstantInfo),
-    (mkIFEnvGo cs).1 = cs.length := by
-  intro cs
-  induction cs with
-  | nil => rfl
-  | cons a as ih => simp only [mkIFEnvGo, List.length_cons, ih]
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean idxSpec — **the index answers
-`List.find?`**: the front entry is inserted last, so the hash map's answer is
-the first list entry with that handle. -/
-theorem mkIFEnvGo_snd : ∀ (cs : List IConstantInfo) (n : NIdx),
-    ((mkIFEnvGo cs).2[n]?).map Prod.snd = cs.find? (fun ci => ci.name == n) := by
-  intro cs
-  induction cs with
-  | nil => intro n; simp [mkIFEnvGo]
-  | cons a as ih =>
-    intro n
-    simp only [mkIFEnvGo, List.find?_cons]
-    rw [Std.HashMap.getElem?_insert]
-    by_cases hn : a.name == n
-    · rw [ite_eq_left hn]; simp [hn]
-    · rw [ite_eq_right hn]; simp only [hn]; exact ih n
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow — every counter the
-index hands out is below the list's length, so `mkIFEnv`'s own visibility
-bound hides nothing. -/
-theorem mkIFEnvGo_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
-    (c : Nat) (ci : IConstantInfo),
-    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < cs.length := by
-  intro cs
-  induction cs with
-  | nil => intro n c ci h; simp [mkIFEnvGo] at h
-  | cons a as ih =>
-    intro n c ci h
-    simp only [mkIFEnvGo] at h
-    rw [Std.HashMap.getElem?_insert] at h
-    by_cases hn : a.name == n
-    · rw [ite_eq_left hn] at h
-      obtain ⟨rfl, -⟩ := Prod.mk.injEq _ _ _ _ ▸ Option.some.inj h
-      rw [mkIFEnvGo_fst]
-      simp
-    · rw [ite_eq_right hn] at h
-      exact Nat.lt_succ_of_lt (ih n c ci h)
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — **the index of
-a list IS the list's lookup**. -/
-theorem mkIFEnv_find? (e : IEnv) (n : NIdx) : (mkIFEnv e).find? n = e.find? n := by
-  show (match (mkIFEnvGo e.consts).2[n]? with
-        | some (c, ci) => if c < (mkIFEnvGo e.consts).1 then some ci else none
-        | none => none) = e.consts.find? (fun ci => ci.name == n)
-  have hm := mkIFEnvGo_snd e.consts n
-  cases hg : (mkIFEnvGo e.consts).2[n]? with
-  | none => rw [hg] at hm; exact hm
-  | some p =>
-    obtain ⟨c0, ci0⟩ := p
-    rw [hg] at hm
-    dsimp only
-    rw [ite_eq_left (by rw [mkIFEnvGo_fst]; exact mkIFEnvGo_lt e.consts n c0 ci0 hg)]
-    simpa using hm
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — the same at a
-COHERENT index, which is the form every consumer has. -/
-theorem IFEnvCoh.find? {fe : IFEnv} (hcoh : IFEnvCoh fe) (n : NIdx) :
-    fe.find? n = fe.env.find? n := by
-  have h3 : fe.find? n = (mkIFEnv fe.env).find? n := by
-    simp only [IFEnv.find?, mkIFEnv, hcoh.idx n, hcoh.1, mkIFEnvGo_fst]
-  rw [h3, mkIFEnv_find?]
+  gate := h.gate
 
 /-! ## The index spec across a PUSH
 
@@ -817,18 +752,17 @@ It is owed once and paid once: `StepOK.push` takes it as a hypothesis and
 the run has already passed. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec survives a
-push.**  With `IFEnvCoh` on both sides the index reduces to its list:
-`(fe.push ci).find? n` is `List.find?` on a cons, con-leche's side is
-`Env.find?_cons`, and the two negative cases are `denoteN_inj` — a handle the
+push.**  `(fe.push ci).find? n` answers at the new name and passes every other
+through (`IFEnv.find?_push`), con-leche's side is `Env.find?_cons`, and the two negative cases are `denoteN_inj` — a handle the
 pushed key is not cannot denote the pushed constant's name, because the two
 handles would then be equal.
 
-A push touches neither the table map nor the environment's tables, but it
+A push touches neither the table maps nor the environment's tables, but it
 opens both table gates at the new name: `hA`/`hB` are the raw lookups there,
 side by side (`IFEnvOK.pushStored` discharges them). -/
 theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
     {ci : IConstantInfo} {c : ConstantInfo}
-    (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
+    (h : IFEnvOK env fe s) (hst : StateOK s)
     (hci : Frontend.denoteCI s.store ci = some c)
     (hA : ∀ t, fe.rawTable? ci.name = some t → ∃ pt,
       Frontend.denoteProjTable s.store t = some pt ∧
@@ -842,9 +776,7 @@ theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
   have keyE : ∀ n : NIdx, (fe.push ci).find? n
       = if (ci.name == n) = true then some ci else fe.find? n := by
     intro n
-    rw [(hcoh.push ci).find? n, hcoh.find? n]
-    show List.find? (fun x => x.name == n) (ci :: fe.env.consts) = _
-    cases hb : (ci.name == n) <;> simp [IEnv.find?, hb]
+    exact IFEnv.find?_push fe ci n
   have keyT : (fe.push ci).find? ci.name = some ci := by rw [keyE]; simp
   have keyF : ∀ n : NIdx, (ci.name == n) = false →
       (fe.push ci).find? n = fe.find? n := by
@@ -1049,269 +981,6 @@ theorem IFEnvOK.pushTable {env : Env} {fe : IFEnv} {s : AState}
         simp at hq
       | false => rw [keyTb, hb]; simpa using hf
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the two `find?`s agree,
-entry by entry**: the arena's list and its denotation answer at handles and
-names that denote each other.  One induction, both directions, and
-`denoteN_inj` is what makes the negative cases go through — a handle the
-arena's `find?` walked past cannot be the handle of the name con-leche's
-`find?` stopped at, because the two handles would then denote the same name
-and be equal. -/
-theorem denoteCIList_find? {st : EStore} (hwf : StoreWF st) :
-    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
-      Frontend.denoteCIList st cs = some zs →
-      (∀ n ci, cs.find? (fun d => d.name == n) = some ci →
-        ∃ nm c, denoteN st.ns n = some nm ∧ Frontend.denoteCI st ci = some c ∧
-          zs.find? (fun d => d.name == nm) = some c) ∧
-      (∀ nm c, zs.find? (fun d => d.name == nm) = some c →
-        ∃ n ci, denoteN st.ns n = some nm ∧
-          cs.find? (fun d => d.name == n) = some ci ∧
-          Frontend.denoteCI st ci = some c) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  intro cs
-  induction cs with
-  | nil =>
-    intro zs hz
-    simp only [Frontend.denoteCIList, Option.some.injEq] at hz
-    subst hz
-    exact ⟨by intro n ci h; simp at h, by intro nm c h; simp at h⟩
-  | cons a as ih =>
-    intro zs hz
-    simp only [Frontend.denoteCIList] at hz
-    cases ha : Frontend.denoteCI st a with
-    | none => rw [ha] at hz; simp at hz
-    | some x =>
-      cases has : Frontend.denoteCIList st as with
-      | none => rw [ha, has] at hz; simp at hz
-      | some xs =>
-        rw [ha, has] at hz
-        obtain rfl := Option.some.inj hz.symm
-        have hnm : denoteN st.ns a.name = some x.name := denoteCI_name ha
-        obtain ⟨ihH, ihC⟩ := ih xs has
-        constructor
-        · intro n ci h
-          simp only [List.find?_cons] at h
-          cases hb : (a.name == n) with
-          | true =>
-            rw [hb] at h
-            simp only [Option.some.injEq] at h
-            subst h
-            obtain rfl : a.name = n := by simpa using hb
-            exact ⟨x.name, x, hnm, ha, by simp⟩
-          | false =>
-            rw [hb] at h
-            simp only at h
-            obtain ⟨nm, c, hn1, hc1, hf1⟩ := ihH n ci h
-            refine ⟨nm, c, hn1, hc1, ?_⟩
-            have hne : (x.name == nm) = false := by
-              cases hx : (x.name == nm) with
-              | false => rfl
-              | true =>
-                obtain rfl : x.name = nm := by simpa using hx
-                rw [denoteN_inj hrk.nsWF hnm hn1] at hb
-                simp at hb
-            simp only [List.find?_cons, hne]
-            exact hf1
-        · intro nm c h
-          simp only [List.find?_cons] at h
-          cases hb : (x.name == nm) with
-          | true =>
-            rw [hb] at h
-            simp only [Option.some.injEq] at h
-            subst h
-            obtain rfl : x.name = nm := by simpa using hb
-            exact ⟨a.name, a, hnm, by simp, ha⟩
-          | false =>
-            rw [hb] at h
-            simp only at h
-            obtain ⟨n, ci, hn1, hf1, hc1⟩ := ihC nm c h
-            refine ⟨n, ci, hn1, ?_, hc1⟩
-            have hne : (a.name == n) = false := by
-              cases hx : (a.name == n) with
-              | false => rfl
-              | true =>
-                obtain rfl : a.name = n := by simpa using hx
-                rw [hn1] at hnm
-                obtain rfl : x.name = nm := (Option.some.inj hnm).symm
-                simp at hb
-            simp only [List.find?_cons, hne]
-            exact hf1
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the two raw table lookups
-agree, entry by entry**: `denoteCIList_find?` for the table lists, keyed on the
-structure name. -/
-theorem denoteProjTableList_find? {st : EStore} (hwf : StoreWF st) :
-    ∀ (ts : List IProjTable) (zs : List ProjTable),
-      Frontend.denoteProjTableList st ts = some zs →
-      (∀ n t, ts.find? (fun d => d.structName == n) = some t →
-        ∃ nm pt, denoteN st.ns n = some nm ∧ Frontend.denoteProjTable st t = some pt ∧
-          zs.find? (fun d => d.structName == nm) = some pt) ∧
-      (∀ nm pt, zs.find? (fun d => d.structName == nm) = some pt →
-        ∃ n t, denoteN st.ns n = some nm ∧
-          ts.find? (fun d => d.structName == n) = some t ∧
-          Frontend.denoteProjTable st t = some pt) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  intro ts
-  induction ts with
-  | nil =>
-    intro zs hz
-    simp only [Frontend.denoteProjTableList, Option.some.injEq] at hz
-    subst hz
-    exact ⟨by intro n t h; simp at h, by intro nm p h; simp at h⟩
-  | cons a as ih =>
-    intro zs hz
-    simp only [Frontend.denoteProjTableList] at hz
-    cases ha : Frontend.denoteProjTable st a with
-    | none => rw [ha] at hz; simp at hz
-    | some x =>
-      cases has : Frontend.denoteProjTableList st as with
-      | none => rw [ha, has] at hz; simp at hz
-      | some xs =>
-        rw [ha, has] at hz
-        obtain rfl := Option.some.inj hz.symm
-        have hnm : denoteN st.ns a.structName = some x.structName :=
-          denoteProjTable_structName ha
-        obtain ⟨ihH, ihC⟩ := ih xs has
-        constructor
-        · intro n t h
-          simp only [List.find?_cons] at h
-          cases hb : (a.structName == n) with
-          | true =>
-            rw [hb] at h
-            simp only [Option.some.injEq] at h
-            subst h
-            obtain rfl : a.structName = n := by simpa using hb
-            exact ⟨x.structName, x, hnm, ha, by simp⟩
-          | false =>
-            rw [hb] at h
-            simp only at h
-            obtain ⟨nm, p, hn1, hc1, hf1⟩ := ihH n t h
-            refine ⟨nm, p, hn1, hc1, ?_⟩
-            have hne : (x.structName == nm) = false := by
-              cases hx : (x.structName == nm) with
-              | false => rfl
-              | true =>
-                obtain rfl : x.structName = nm := by simpa using hx
-                rw [denoteN_inj hrk.nsWF hnm hn1] at hb
-                simp at hb
-            simp only [List.find?_cons, hne]
-            exact hf1
-        · intro nm p h
-          simp only [List.find?_cons] at h
-          cases hb : (x.structName == nm) with
-          | true =>
-            rw [hb] at h
-            simp only [Option.some.injEq] at h
-            subst h
-            obtain rfl : x.structName = nm := by simpa using hb
-            exact ⟨a.structName, a, hnm, by simp, ha⟩
-          | false =>
-            rw [hb] at h
-            simp only at h
-            obtain ⟨n, t, hn1, hf1, hc1⟩ := ihC nm p h
-            refine ⟨n, t, hn1, ?_, hc1⟩
-            have hne : (a.structName == n) = false := by
-              cases hx : (a.structName == n) with
-              | false => rfl
-              | true =>
-                obtain rfl : a.structName = n := by simpa using hx
-                rw [hn1] at hnm
-                obtain rfl : x.structName = nm := (Option.some.inj hnm).symm
-                simp at hb
-            simp only [List.find?_cons, hne]
-            exact hf1
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean idxSpec — **the table map answers
-`List.find?`**: the front table is inserted last. -/
-theorem mkIFEnvTblsGo_find? : ∀ (ts : List IProjTable) (n : NIdx),
-    (mkIFEnvTblsGo ts)[n]? = ts.find? (fun t => t.structName == n) := by
-  intro ts
-  induction ts with
-  | nil => intro n; simp [mkIFEnvTblsGo]
-  | cons a as ih =>
-    intro n
-    simp only [mkIFEnvTblsGo, List.find?_cons, Std.HashMap.getElem?_insert]
-    by_cases hn : a.structName == n
-    · simp [hn]
-    · simp only [hn]; exact ih n
-
-/-- con-leche: none — the raw table lookup at a COHERENT index is the table
-list's lookup. -/
-theorem IFEnvCoh.rawTable? {fe : IFEnv} (hcoh : IFEnvCoh fe) (n : NIdx) :
-    fe.rawTable? n = fe.env.tables.find? (fun t => t.structName == n) := by
-  rw [IFEnv.rawTable?, hcoh.tbls n, mkIFEnvTblsGo_find?]
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec from the
-denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
-and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
-the same linear search and `denoteN` is injective on a well-formed store.
-
-**It needs one thing the denotation does not carry**: the stored tables'
-SHAPE (`IProjTableOK`, their bodies and guards have `numFields` entries),
-which `Frontend.denoteProjTable` transports but does not constrain.  A
-simulation B ⇒ A takes invariants on the REFINED side only, so it is a
-hypothesis about OUR tables (`hproj`), quantified over membership in
-`fe.env.tables` (the install is the only place a table is created, so every
-table of the list satisfies it), and the conclusion's `tblHit` re-delivers it
-at what the table map answers (`IFEnvCoh.rawTable?` makes every answer a
-member).
-
-**The proof**, in two halves.  `IFEnvCoh.find?`
-(above) retires the index — `mkIFEnvGo` inserts from the back, so the hash
-map answers what `List.find?` answers, and every counter it hands out is below
-the list's length, so `mkIFEnv`'s own bound hides nothing — after which the
-theorem is a statement about two pairs of LISTS and `denoteCIList_find?` /
-`denoteProjTableList_find?` are the whole of it: one induction each, both
-directions, the key's denotation at each entry and `denoteN_inj` in the
-negative cases.  It is the one place `IFEnvCoh` is
-consumed rather than propagated, and it is con-leche's `mkFEnv_find?` at a
-denoted list. -/
-theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
-    (hwf : StateOK s) (hcoh : IFEnvCoh fe)
-    (hproj : ∀ t ∈ fe.env.tables, IProjTableOK t)
-    (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
-  obtain ⟨rk, hrk⟩ := hwf.wf
-  obtain ⟨hzs, hts⟩ := denoteIEnv_some.mp hd
-  obtain ⟨hH, hC⟩ := denoteCIList_find? hwf.wf fe.env.consts _ hzs
-  obtain ⟨tH, tC⟩ := denoteProjTableList_find? hwf.wf fe.env.tables _ hts
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro n ci hf
-    rw [hcoh.find?] at hf
-    exact hH n ci hf
-  · intro nm c he
-    obtain ⟨n, ci, h1, h2, h3⟩ := hC nm c he
-    exact ⟨n, ci, h1, by rw [hcoh.find?]; exact h2, h3⟩
-  · intro n t hf
-    have hgate := IFEnv.find?_of_findTable? hf
-    have hraw := IFEnv.rawTable?_of_findTable? hf
-    rw [hcoh.rawTable?] at hraw
-    obtain ⟨nm, pt, h1, h2, h3⟩ := tH n t hraw
-    obtain ⟨ci, hci⟩ := Option.isSome_iff_exists.mp hgate
-    rw [hcoh.find?] at hci
-    obtain ⟨nm', c, h1', -, h3'⟩ := hH n ci hci
-    obtain rfl := Option.some.inj (h1'.symm.trans h1)
-    refine ⟨nm', pt, h1, h2, ?_, hproj t (List.mem_of_find?_eq_some hraw)⟩
-    unfold Env.findTable?
-    have : (env.find? nm').isSome = true := by
-      show (env.consts.find? (·.name == nm')).isSome = true
-      rw [h3']; rfl
-    rw [ite_eq_left this]
-    exact h3
-  · intro nm pt he
-    unfold Env.findTable? at he
-    split at he
-    · rename_i hg
-      obtain ⟨c, hc⟩ := Option.isSome_iff_exists.mp hg
-      obtain ⟨n, t, h1, h2, h3⟩ := tC nm pt he
-      obtain ⟨n', ci, h1', h2', -⟩ := hC nm c hc
-      obtain rfl := denoteN_inj hrk.nsWF h1 h1'
-      refine ⟨n, t, h1, ?_, h3⟩
-      unfold IFEnv.findTable?
-      have : (fe.find? n).isSome = true := by
-        rw [hcoh.find?]; simp only [IEnv.find?, h2', Option.isSome_some]
-      rw [ite_eq_left this, hcoh.rawTable?]
-      exact h2
-    · cases he
-
 /-- con-leche: ConLeche/Verify/EnvWF.lean:161-162 TableWF — every stored table
 belongs to a stored structure: `TableWF`'s first clause alone, which is what the
 push of a fresh constant reads and what the basis install keeps without
@@ -1337,11 +1006,11 @@ table belongs to a stored structure (`TablesStored`, `TableWF`'s first
 clause).  At a name the index already holds, both gates are open already and
 the new name's raw lookups are the old visible ones (`IFEnvOK.tblHit`,
 `tblCover`); at a fresh name con-leche has no table (`TablesStored`) and the
-arena none either, because its tables denote con-leche's. -/
+arena none either, because no table is without its structure (`TblGate`). -/
 theorem IFEnvOK.pushStored {env : Env} {fe : IFEnv} {s : AState}
     {ci : IConstantInfo} {c : ConstantInfo}
-    (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
-    (hden : denoteFEnv s.store fe = some env) (hstored : TablesStored env)
+    (h : IFEnvOK env fe s) (hst : StateOK s) (hgate : TblGate fe)
+    (hstored : TablesStored env)
     (hci : Frontend.denoteCI s.store ci = some c) :
     IFEnvOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s := by
   obtain ⟨rk, hrk⟩ := hst.wf
@@ -1358,18 +1027,13 @@ theorem IFEnvOK.pushStored {env : Env} {fe : IFEnv} {s : AState}
         rw [hn, hfresh] at hg
         cases hg
     have hraw : fe.rawTable? ci.name = none := by
-      obtain ⟨-, hts⟩ := denoteIEnv_some.mp hden
-      obtain ⟨tH, -⟩ := denoteProjTableList_find? hst.wf fe.env.tables _ hts
       cases hf : fe.rawTable? ci.name with
       | none => rfl
       | some t =>
-        rw [hcoh.rawTable?] at hf
-        obtain ⟨nm, pt, hd, -, he⟩ := tH _ t hf
-        rw [hnm] at hd
-        obtain rfl := Option.some.inj hd
-        rw [htab] at he
-        cases he
-    refine h.push hst hcoh hci (fun t ht => ?_) (fun pt hp => ?_)
+        have := hgate _ t hf
+        rw [hfi] at this
+        cases this
+    refine h.push hst hci (fun t ht => ?_) (fun pt hp => ?_)
     · rw [hraw] at ht; cases ht
     · rw [htab] at hp; cases hp
   | some ci₀ =>
@@ -1381,7 +1045,7 @@ theorem IFEnvOK.pushStored {env : Env} {fe : IFEnv} {s : AState}
       simp only [IFEnv.findTable?, hfi, Option.isSome_some, ↓reduceIte]
     have gB : env.findTable? c.name = env.tables.find? (·.structName == c.name) := by
       simp only [Env.findTable?, he, Option.isSome_some, ↓reduceIte]
-    refine h.push hst hcoh hci (fun t ht => ?_) (fun pt hp => ?_)
+    refine h.push hst hci (fun t ht => ?_) (fun pt hp => ?_)
     · rw [← gA] at ht
       obtain ⟨nm', pt, hd', hp, he', hk⟩ := h.tblHit _ t ht
       rw [hnm] at hd'
@@ -1402,11 +1066,11 @@ theorem StepOK.push {env : Env} {fe : IFEnv} {s : AState}
     {ci : IConstantInfo} {c : ConstantInfo}
     (h : StepOK env fe s) (hst : StateOK s)
     (hci : Frontend.denoteCI s.store ci = some c)
-    (hcw : ConstWF ⟨c :: env.consts, env.tables⟩ c) :
+    (hs : litShapeOk c = true) (hcw : ConstWF ⟨c :: env.consts, env.tables⟩ c) :
     StepOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s where
-  ienv := h.ienv.pushStored hst h.coh h.denote (TablesStored.of_envWF h.envWF) hci
-  envWF := EnvWF.cons h.envWF hcw
+  ienv := h.ienv.pushStored hst h.gate (TablesStored.of_envWF h.envWF) hci
+  envWF := EnvWF.cons hs h.envWF hcw
   coh := h.coh.push ci
-  denote := denoteFEnv_push h.denote hci
+  gate := h.gate.push ci
 
 end ConRon.Bridge

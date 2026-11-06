@@ -1641,7 +1641,7 @@ theorem iDefnHint_cases (o : Option IConstantInfo) :
   match o with
   | some (.defnInfo _ _ _) => rfl
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.ctorInfo _ _ _)
-  | some (.recInfo _ _ _ _) | none => rfl
+  | some (.recInfo _ _ _ _ _) | none => rfl
 grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 
 /-! The same projections at the inductives and constructors. -/
@@ -1713,25 +1713,29 @@ and the recursors. -/
 /-- con-leche: none — an environment constructor's field count. -/
 @[expose] def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
 /-- con-leche: none — is a stored lookup a recursor. -/
-def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
-def iRecVal : Option IConstantInfo → IConstantVal | some (.recInfo v _ _ _) => v | _ => default
+def iRecVal : Option IConstantInfo → IConstantVal | some (.recInfo v _ _ _ _) => v | _ => default
 /-- con-leche: none — a stored recursor's major index. -/
-def iRecMI : Option IConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+def iRecMI : Option IConstantInfo → Nat | some (.recInfo _ m _ _ _) => m | _ => 0
 /-- con-leche: none — a stored recursor's rule prefix. -/
-def iRecRP : Option IConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+def iRecRP : Option IConstantInfo → Nat | some (.recInfo _ _ r _ _) => r | _ => 0
 /-- con-leche: none — a stored recursor's rules. -/
-def iRecRules : Option IConstantInfo → List IRecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+def iRecRules : Option IConstantInfo → List IRecRule | some (.recInfo _ _ _ _ rs) => rs | _ => []
+/-- con-leche: none — a stored recursor's K flag. -/
+def iRecK : Option IConstantInfo → Bool | some (.recInfo _ _ _ k _) => k | _ => false
 /-- con-leche: none — is an environment lookup a recursor. -/
-def cRec? : Option ConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
+def cRec? : Option ConstantInfo → Bool | some (.recInfo _ _ _ _ _) => true | _ => false
 /-- con-leche: none — a recursor's record. -/
-def cRecVal : Option ConstantInfo → ConstantVal | some (.recInfo v _ _ _) => v | _ => default
+def cRecVal : Option ConstantInfo → ConstantVal | some (.recInfo v _ _ _ _) => v | _ => default
 /-- con-leche: none — a recursor's major index. -/
-def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _) => m | _ => 0
+def cRecMI : Option ConstantInfo → Nat | some (.recInfo _ m _ _ _) => m | _ => 0
 /-- con-leche: none — a recursor's rule prefix. -/
-def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _) => r | _ => 0
+def cRecRP : Option ConstantInfo → Nat | some (.recInfo _ _ r _ _) => r | _ => 0
 /-- con-leche: none — a recursor's rules. -/
-def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ rs) => rs | _ => []
+def cRecRules : Option ConstantInfo → List RecRule | some (.recInfo _ _ _ _ rs) => rs | _ => []
+/-- con-leche: none — a recursor's K flag. -/
+def cRecK : Option ConstantInfo → Bool | some (.recInfo _ _ _ k _) => k | _ => false
 
 /-- con-leche: none — a denoting record's level parameters denote. -/
 theorem denoteCV_levelParams {st : EStore} {cv : IConstantVal} {c : ConstantVal}
@@ -1746,7 +1750,7 @@ theorem denoteCV_levelParams {st : EStore} {cv : IConstantVal} {c : ConstantVal}
 the environment's, through every projection the walks read: the two
 lookups agree on being present, a definition, a constructor, an inductive, a
 recursor, on a definition's hint, a constructor's counts and a recursor's
-indices, and the stored records denote the environment's (a definition's
+indices and K flag, and the stored records denote the environment's (a definition's
 record and value, a constructor's record, an inductive's record, level
 parameters and capabilities, a recursor's record and rules, any record). -/
 @[expose] def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
@@ -1767,7 +1771,7 @@ parameters and capabilities, a recursor's record and rules, any record). -/
   cRec? oc = iRec? oi ∧
   (iRec? oi = true → Frontend.denoteCV st (iRecVal oi) = some (cRecVal oc) ∧
     Frontend.denoteRules st (iRecRules oi) = some (cRecRules oc) ∧
-    cRecMI oc = iRecMI oi ∧ cRecRP oc = iRecRP oi)
+    cRecMI oc = iRecMI oi ∧ cRecRP oc = iRecRP oi ∧ cRecK oc = iRecK oi)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
 handle `c` denoting `nm`**: `IndexCI` between the two lookups. -/
@@ -1795,12 +1799,12 @@ theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
       exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl,
         fun _ => ⟨hcv, denoteCV_levelParams hcv, hcaps⟩, nofun, rfl, nofun⟩
     · cases h
-  | recInfo v mI rP rs =>
+  | recInfo v mI rP k rs =>
     simp only [Frontend.denoteCI] at h
     split at h
     · rename_i cv x hcv hrs; cases h
       exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl, nofun, nofun, rfl,
-        fun _ => ⟨hcv, hrs, rfl, rfl⟩⟩
+        fun _ => ⟨hcv, hrs, rfl, rfl, rfl⟩⟩
     · cases h
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
@@ -1868,14 +1872,16 @@ theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : Con
         Frontend.denoteCV st (iRecVal (fe.find? c)) = some (cRecVal (env.find? nm)) ∧
         Frontend.denoteRules st (iRecRules (fe.find? c)) = some (cRecRules (env.find? nm)) ∧
         cRecMI (env.find? nm) = iRecMI (fe.find? c) ∧
-        cRecRP (env.find? nm) = iRecRP (fe.find? c)) := H
+        cRecRP (env.find? nm) = iRecRP (fe.find? c) ∧
+        cRecK (env.find? nm) = iRecK (fe.find? c)) := H
 grind_pattern [bridge_grind] IndexAt.some => IndexAt env fe st c (some nm)
 
 /-- con-leche: none — a capability record's denotation, the scalar fields the
 walks compare (shared by the two tiers). -/
 def CapsFields (c : IIndCaps) : Option IndCaps → Prop
   | some dc => dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.nparams = c.nparams ∧
+      dc.nIdx = c.nIdx
   | none => True
 
 /-- con-leche: none — `CapsFields` at the denotation term. -/
@@ -1885,14 +1891,15 @@ theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteC
   | some dc =>
     simp only [Frontend.denoteCaps] at h
     split at h
-    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     · simp at h
 grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
 
 /-- con-leche: none — `CapsFields` at a denoting record. -/
 theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
     dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ := H
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.nparams = c.nparams ∧
+      dc.nIdx = c.nIdx := H
 grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
 
 end ConRon.Bridge

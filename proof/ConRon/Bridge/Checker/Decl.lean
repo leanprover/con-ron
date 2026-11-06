@@ -1,34 +1,23 @@
 /-
-# `ConRon.Bridge.Checker.Decl` — what each of `checkDecl`'s seven arms concludes
+# `ConRon.Bridge.Checker.Decl` — what each of `checkDecl`'s arms concludes
 
-`Arena/Checker.lean`'s `checkDecl` is a seven-way match, with one bridge
+`Arena/CheckDecl.lean`'s `checkDecl` is a six-way match, with one bridge
 theorem per arm, all with the same conclusion (`DeclOut` below).
 `Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge` is then `cases pd` and
 nothing else, which is what keeps the per-declaration theorem — the one DESIGN
 §8.2 states — free of arm-specific hypotheses.
 
-## What an arm concludes, and what it deliberately does not
+## What an arm concludes
 
-`DeclOut` has eight clauses; the sixth is §8.2's:
+`DeclOut` has four clauses; the fourth is §8.2's:
 
-    ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-      ConLeche.checkDecl .verified (fueledOps .verified F) pinsP env d = .ok env'
+    ∃ env' F, ConLeche.checkDecl .verified (fueledOps .verified F) pinsP env d = .ok env'
 
-The five before it are the plumbing the FOLD needs and the arm is the only
-place that can supply: the store invariant survives, the arena only grew, the
-pin table is untouched, the index is still its list's index, and **the step
-only pushed** (`Pushed`, `Bridge/Promote/Exact.lean`) — which is what makes
-`checkDeclStep`'s promotion counter `k` mean "the constants this step
-installed".  The two after it are what the
-bracket's close needs of the pushed index and only the arm can supply: the
-environment it denotes is well formed (`envWF`), and every projection table it
-holds is either an old one or well shaped (`proj`).
-
-There is **no persistence clause**: `checkDecl` does not promote.  The
-environment it hands back names scratch handles, and it is `promoteNew`'s job
-— one level up, in `checkDeclStep` — to make it persistent before
-`dropScratch`.  Writing `PersIFEnv` into `DeclOut` would be stating a
-falsehood about the very deviation DESIGN `### Task #97-P6-2` describes.
+The three before it are what the next job on the same worker needs: the store
+invariant survives, the arena only grew, the pin table is untouched.  The
+environment the arm built is not handed on: a job's environment is dropped with
+its scratch tier, and the next record checks at its own view of the stream's
+index.
 
 ## The pins
 
@@ -61,6 +50,7 @@ module
 
 public import ConLeche.Verify.EnvWF
 public import ConRon.Bridge.EnvDenote
+public import ConRon.Bridge.StateOK
 public import ConLeche.Kernel.CheckDecl
 
 public section
@@ -177,52 +167,20 @@ theorem PinsDenote.mono {st st' : EStore} (hx : Ext st st') :
 
 /-! ## What an arm concludes -/
 
-/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**the per-declaration bridge's conclusion**, at one `checkDecl` call.
-DESIGN §8.2's statement is the sixth clause; the other seven are what the
-fold needs and only the arm can supply.
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:281 checkDeclStepC_run —
+**the per-declaration bridge's conclusion**, at one `checkDecl` call: the store
+invariant survives, the arena only grew, the pin table is untouched, and
+con-leche's pure `checkDecl` accepts the denoted declaration at some fuel.
 
-`Ext` and not `PExt` here, deliberately: `checkDecl` appends and never drops,
-so the TOTAL extension holds, and `checkDeclStep` is where it weakens
-(`Bridge/Promote/Pers.lean`). -/
+What the environment becomes is not here: con-leche's `checkDecl` pushes what
+the declaration says (`Bridge/Checker/Pushes.lean`), and the next record's view
+is read off the stream's index, not off this run's environment. -/
 structure DeclOut (pinsP : List NatOpPinSet) (env : Env)
-    (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
+    (d : Declaration) (s : AState) (s' : AState) : Prop where
   state : StateOK s'
   ext : Ext s.store s'.store
   pins : s'.pins = s.pins
-  coh : IFEnvCoh fe'
-  pushed : Pushed fe fe'
-  run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
+  run : ∃ env' F,
     ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
-  /-- **the pushed environment is well formed**: what the bracket's close needs
-  (`Bridge/Checker/Split.lean`'s `BodyOut.envWF`) and only the arm can
-  supply.  Stated at every denotation, which `run` makes the one. -/
-  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
-  /-- the step only pushed tables onto the table list (what makes the
-  promotion's `kt` mean the step's tables) -/
-  tpushed : TPushed fe fe'
-  /-- **the pushed index's projection tables**: every table the index now
-  holds is one it held before, or is well shaped — `IFEnvOK.tblHit`'s shape
-  clause, over membership (the shape `IFEnvOK_of_denote` takes) and relative to
-  the step (the shape `Bridge/Inductives/Rel.lean`'s `ProjOut` has), so that no
-  arm needs the incoming tables' shape. -/
-  proj : ∀ t ∈ fe'.env.tables, t ∈ fe.env.tables ∨ IProjTableOK t
-
-/-- con-leche: none — `DeclOut`'s first six clauses and "no table installed",
-which every arm off the inductive route assembles by the same transcription;
-the last three clauses are derived from them once, in
-`Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
-structure DeclCore (pinsP : List NatOpPinSet) (env : Env)
-    (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
-  state : StateOK s'
-  ext : Ext s.store s'.store
-  pins : s'.pins = s.pins
-  coh : IFEnvCoh fe'
-  pushed : Pushed fe fe'
-  run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-    ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
-  /-- no table installed: the arms off the inductive route push constants
-  only -/
-  tables : fe'.env.tables = fe.env.tables
 
 end ConRon.Bridge

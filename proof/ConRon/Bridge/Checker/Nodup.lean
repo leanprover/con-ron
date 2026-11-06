@@ -30,7 +30,6 @@ public import ConLeche.Verify.EnvWF
 public import ConLeche.Verify.ExceptBind
 import ConLeche.Verify.Inductives.GenRecRun
 import ConLeche.Verify.Inductives.StreamRecsInv
-import ConRon.Bridge.Checker.DeclWF
 public import ConLeche.Semantics.Decl
 public import ConLeche.Semantics.Inductives.DeclBlock
 
