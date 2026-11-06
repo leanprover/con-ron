@@ -534,15 +534,6 @@ in block order, each with its capability record.  Pure on both sides. -/
     rw [hj] at this
     simpa [absICVLFrom, absIConstantInfo, ← hcapsv, absU, hi2v, hj] using this
 
-/-- `cons_block_inds` from member `0` (the install's call). -/
-@[lockstep] theorem cons_block_inds_ls0 {pers} (p1 : arena.inductives.block_shape.BlockShape)
-    (is_rec : Bool) (cvs : alloc.vec.Vec arena.env.IConstantVal)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.block_install.cons_block_inds p1 is_rec cvs 0#usize rf)
-      (fun o => IFEnvRelI pers o (consBlockInds (absBlockShape p1) is_rec (absICVL cvs) 0 lf)) := by
-  intro o h
-  simpa [absICVLFrom, absICVL] using cons_block_inds_ls p1 is_rec cvs 0#usize hfe o h
-
 /-- `check_block_inds` ⊑ `checkBlockInds` — stage 1. -/
 @[lockstep] theorem check_block_inds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
