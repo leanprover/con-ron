@@ -6,7 +6,7 @@ An `--olean` read leaves each theorem's value in its file (the record holds a re
 check phase reads it in the theorem's job: `driver::olean_job` (`crates/con-ron/src/
 driver.rs`, unverified), con-leche's `oleanJobRun`.  That function is a straight line of
 calls into the verified crate, written here as `oleanJobStep`: the reference read off the
-record (`view_bvar`), the job's bracket opened (`enter_record`), the value read into the
+record (a `bvar` handle's `view_bvar`), the job's bracket opened (`enter_record`), the value read into the
 worker's scratch tier (`records::read_value`, from the worker's `ValueCache`), the record
 checked with it in place (`stream_index::record_check`), the bracket closed
 (`leave_record`); any other record is `run_job`'s.  Its twin is `Arena/OleanJobs.lean`'s
@@ -40,7 +40,10 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
       ok (r, (st', w.2))
     match ds.val[k]? with
     | some (.ThmDecl cv v) => do
-      match ← arena.store.EStore.view_bvar w.1.store tier v with
+      let t ← arena.handle.EIdx.tag v
+      let code ← if t = arena.handle.ETAG_BVAR then arena.store.EStore.view_bvar w.1.store tier v
+        else ok none
+      match code with
       | some code =>
         let st1 ← arena.core.enter_record w.1
         let (r, ar, c) ← frontend.olean.records.read_value inst fs rd.pins tier st1.store sp
