@@ -1006,7 +1006,25 @@ theorem ifenv_push_temp_refines {pers : arena.store.PersTier} {rf rf1 : arena.en
           Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some s)) ∧
       rf1.env.tables = rf.env.tables ∧ rf1.tbls = rf.tbls ∧
       rf1.base_below = rf.base_below ∧ rf1.base_below_rec = rf.base_below_rec := by
-  sorry -- T143-STUB
+  rw [arena.env.ifenv_push_temp] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨old, hm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hinv', hold, hupd, -⟩ :=
+    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+      hfe.inv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+  have hpush : arena.env.ifenv_push rf ci =
+      ok { rf with env := { rf.env with consts := v }, idx := hm } := by
+    rw [arena.env.ifenv_push, hs]
+    simp only [bind_ok, hn, hq, hv]
+    rfl
+  have hsv : s.val = rf.env.consts.val.length := by
+    simp only [lift, Result.ok.injEq] at hs; subst hs
+    rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
+  exact ⟨ifenv_push_refines hfe.rel hfe.inv hpush, n, hn, hold,
+    ConRon.Refine.vec_push_val hv, ⟨s, hsv, hupd⟩, rfl, rfl, rfl, rfl⟩
 
 /-- **`ifenv_pop_temp` after `ifenv_push_temp` ⊑ `IFEnv.popTemp` after `IFEnv.push`**:
 the layer the push started from, on both sides — the twin's displaced own row is
@@ -1019,7 +1037,99 @@ theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena
     (h2 : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
     IFEnvRelI pers rf2
       ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?) := by
-  sorry -- T143-STUB
+  obtain ⟨-, n', hn', hprev, hcs, ⟨s, hsv, hidx⟩, htb, htbl, hbb, hbr⟩ :=
+    ifenv_push_temp_refines hfe h1
+  have hnn : n' = n := absNIdx_inj (by rw [i_constant_info_name_abs hn', hn])
+  subst n'
+  unfold arena.env.ifenv_pop_temp at h2
+  obtain ⟨v, hv, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+  have hvv : v.val = rf.env.consts.val := by
+    have hlen : rf1.env.consts.val.length = rf.env.consts.val.length + 1 := by
+      rw [hcs]; simp
+    split at hv
+    · rename_i h0
+      exfalso
+      have h0' : rf1.env.consts.val.length = 0 := by
+        have := congrArg (fun x : Std.Usize => x.val) h0
+        simpa [alloc.vec.Vec.len] using this
+      omega
+    · obtain ⟨i, hi', hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      have hiv := ConRon.Refine.Nat.usub_val hi'
+      rw [alloc.vec.Vec.resize, ite_eq_left (by grind), Result.ok.injEq] at hv
+      subst hv
+      simp only [List.resize, alloc.vec.Vec.len] at *
+      simp [hiv.2, hcs]
+  have hidx2 : ∃ hm, ConRon.Refine.HashMap2.Inv
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
+      ConRon.Refine.HashMap2.toFun hm = ConRon.Refine.HashMap2.toFun rf.idx ∧
+      rf2 = { rf1 with env := { rf1.env with consts := v }, idx := hm } := by
+    have hi1 : ConRon.Refine.HashMap2.Inv
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf1.idx :=
+      (ifenv_push_temp_refines hfe h1).1.inv.idxInv
+    have hback : Function.update (ConRon.Refine.HashMap2.toFun rf1.idx) n prev =
+        ConRon.Refine.HashMap2.toFun rf.idx := by
+      rw [hidx, hprev, Function.update_idem, Function.update_eq_self]
+    cases prev with
+    | none =>
+      obtain ⟨⟨q1, hm⟩, hq, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
+          hi1 ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hm, hinv', by rw [hupd, hback], (Result.ok_injective h2).symm⟩
+    | some row =>
+      obtain ⟨n1, hn1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      obtain ⟨⟨q1, hm⟩, hq, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      rw [dupId_nidx _ _ hn1] at hq
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+          hi1 ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hm, hinv', by rw [hupd, hback], (Result.ok_injective h2).symm⟩
+  obtain ⟨hm, hminv, hmfun, rfl⟩ := hidx2
+  have hown : ∀ m, ownRow { rf1 with env := { rf1.env with consts := v }, idx := hm } m =
+      ownRow rf m := by
+    intro m; simp only [ownRow, hmfun, hvv]
+  have hownT : ∀ m, ownTbl { rf1 with env := { rf1.env with consts := v }, idx := hm } m =
+      ownTbl rf m := by
+    intro m; simp only [ownTbl]; rw [htb, htbl]
+  have hpop : ∀ k : NIdx,
+      ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?).idx[k]? =
+        lf.idx[k]? := by
+    intro k
+    simp only [IFEnv.push, IFEnv.popTemp]
+    cases hp : lf.idx[absNIdx n]? with
+    | none =>
+      rw [_root_.Std.HashMap.getElem?_erase]
+      by_cases hk : absNIdx n = k
+      · subst hk; simp [hp]
+      · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
+        rw [ite_eq_right (by simpa [← hn] using hk)]
+    | some r =>
+      rw [_root_.Std.HashMap.getElem?_insert]
+      by_cases hk : absNIdx n = k
+      · subst hk; simp [hp]
+      · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
+        rw [ite_eq_right (by simpa [← hn] using hk)]
+  refine ⟨⟨⟨fun m => ?_, fun m => ?_, ?_, ?_, ?_, ?_⟩, ?_⟩, hminv, ?_, ?_, ?_⟩
+  · rw [hown, hfe.rel.idx m, hpop]
+  · rw [hownT, hfe.rel.tbls m]; rfl
+  · exact hfe.rel.base
+  · show lf.base.below = absU rf1.base_below; rw [hbb]; exact hfe.rel.below
+  · show lf.base.belowRec = absU rf1.base_below_rec; rw [hbr]; exact hfe.rel.belowRec
+  · exact hfe.rel.baseOK
+  · show (IFEnv.popTemp _ _ _).env = absIEnv _
+    simp only [IFEnv.push, IFEnv.popTemp, List.tail_cons, absIEnv, hvv]
+    rw [hfe.rel.env, absIEnv, htb]
+  · intro m p hp
+    rw [hmfun] at hp
+    show p.val < v.val.length
+    rw [hvv]; exact hfe.inv.idxRange m p hp
+  · show ConRon.Refine.HashMap2.Inv _ rf1.tbls
+    rw [htbl]; exact hfe.inv.tblInv
+  · intro m p hp
+    rw [htbl] at hp
+    show p.val < rf1.env.tables.val.length
+    rw [htb]; exact hfe.inv.tblRange m p hp
 
 attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
 
