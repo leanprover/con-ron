@@ -12,8 +12,9 @@ three standard axioms come in through `Std.HashMap`, `Classical` in `Option`'s
 lemmas and `Quot` in `String`, which is the same three every tier of this
 repository already carries.
 
-**Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
-`Arena.pooledAccepts_bridge`.  They print the three standard axioms only,
+**Group 2 — the headline theorems.**  `Arena.checkDecl_bridge`,
+`Arena.pooledAccepts_bridge` / `Arena.pooledOleanAccepts_bridge` and their uses at the twin's
+pipeline (`Bridge/Stages.lean`).  They print the three standard axioms only,
 like group 1 (the capstone's closure, which contains them, is
 `sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
@@ -31,6 +32,7 @@ public import ConRon.Bridge.Checker.Basis
 public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.DivMod
 public import ConRon.Bridge.Checker.Arms
+import ConRon.Bridge.Stages
 import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
@@ -51,8 +53,6 @@ namespace ConRon.Bridge
 #print axioms PExt.dropScratch
 
 -- the promotion memo and the frame
-#print axioms PMemoPi.empty
-#print axioms PMemoPi.mono
 #print axioms Pushed.refl
 #print axioms Pushed.trans
 #print axioms Pushed.push
@@ -83,7 +83,6 @@ namespace ConRon.Bridge
 #print axioms PinsOK.pmono
 #print axioms PersPins.mono
 #print axioms PinsDenote.mono
-#print axioms PinsDenote.pmono
 
 -- the core step's composition
 #print axioms CoreStep.refl
@@ -151,9 +150,6 @@ namespace ConRon.Bridge
 
 -- the sibling pin-table walks, in
 -- `reservedBasisNames_run`'s no-accumulator shape
-#print axioms natOpNames_run
-#print axioms natDivModNames_run
-#print axioms natOpDeps_run
 
 -- the pinned-block comparison's two entry points
 #print axioms internNNode_run
@@ -214,8 +210,6 @@ namespace ConRon.Bridge
 #print axioms constsResolveFFast_run
 
 -- the install half of the front door, and the pinned-constant install
-#print axioms installHeader_pure
-#print axioms installHeader_bridge
 #print axioms valueGuards_bridge
 
 -- the readback facts `Base.lean` reads
@@ -247,10 +241,6 @@ namespace ConRon.Bridge
 #print axioms FoldOK.step
 #print axioms FoldOK.ofCore
 #print axioms checkDecl_thm_pure
-#print axioms checkDecl_basis_pure
-#print axioms checkDecl_quot_type_pure
-#print axioms checkDecl_quot_other_pure
-#print axioms checkDecl_ind_basis_pure
 #print axioms checkDecl_opaque_pure
 #print axioms checkDecl_opaque_pin_pure
 #print axioms checkDecl_axiom_quotSound_pure
@@ -263,24 +253,10 @@ namespace ConRon.Bridge
 -- `canon` comparison, and the recurrence certifier.
 
 -- the index IS the list: con-leche's `mkFEnv_find?` at the arena's hash map
-#print axioms mkIFEnvGo_fst
-#print axioms mkIFEnvGo_snd
-#print axioms mkIFEnvGo_lt
-#print axioms mkIFEnv_find?
-#print axioms IFEnvCoh.find?
-#print axioms denoteCIList_find?
-#print axioms IFEnvOK_of_denote
 
 -- the bounded view, and `Env.prefixTo`: con-leche's `idxBelow_eq`
-#print axioms IFEnv.restrictTo_find?_le
-#print axioms mkIFEnvGo_below
-#print axioms mkIFEnvGo_below_of
 #print axioms denoteCIList_mem
-#print axioms denoteCIList_drop
 #print axioms denoteCIList_length
-#print axioms denoteCIList_nodup
-#print axioms IFEnvOK_restrictTo
-#print axioms IFEnvOK.congr_env
 
 -- the canonical-form comparison
 #print axioms denoteNList_inj
@@ -328,7 +304,6 @@ namespace ConRon.Bridge
 #print axioms checkStructuralNatPin_bridge
 
 -- the check half of the install/check seam, on the same machinery
-#print axioms checkValueGroup_bridge
 
 -- `Bridge/Checker/Basis.lean`, behind the frontend's scratch-agnostic
 -- intern family: the interned blocks, the name test, the renaming, the
@@ -409,13 +384,6 @@ namespace ConRon.Bridge
 #print axioms reservedBasisNames_sstep
 #print axioms natOpEquations_run
 #print axioms substConst0Pairs_run
-#print axioms PhaseA.foldlM
-#print axioms SplitInstall.checkDecl
-#print axioms SplitInstall.nodup
-#print axioms SplitInstall.tables
-#print axioms PendRel.mono
-#print axioms PendRel.prefix_find?
-#print axioms PendRel.prefix_findTable?
 
 /-! ## Group 2 — the three headline theorems
 
@@ -426,25 +394,16 @@ hypotheses of the statement. -/
 -- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel`
 #print axioms CoreSpec.of_knot
 
-#print axioms checkDecl_defn_pure_nn
-#print axioms checkDecl_defn_pure_nd
-#print axioms checkDecl_defn_pure_yn
-#print axioms checkDecl_defn_pure_yy
 
 #print axioms checkDecl_bridge_defn
 #print axioms checkDecl_bridge_thm
 #print axioms checkDecl_bridge_opaque
 #print axioms checkDecl_bridge_axiom
-#print axioms checkDecl_bridge_basis
 #print axioms checkDecl_bridge_ind
 #print axioms checkDecl_bridge_quot
 #print axioms Arena.checkDecl_bridge
 
 -- the fold's skeleton and the startup walk
-#print axioms Arena.installFold_bridge
-#print axioms installFold_frame
-#print axioms Arena.blockCheck_bridge
-#print axioms Arena.installBlockStep_bridge
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
 
@@ -452,29 +411,21 @@ hypotheses of the statement. -/
 #print axioms checkShapeless_ne_ok
 #print axioms checkDecl_pushes
 #print axioms checkDecl_fresh
-#print axioms Arena.checkPending_prefix
 #print axioms denoteN_default_of_pinNames
 #print axioms internPinSets_run
-#print axioms bracketClose_foldOK
 -- `installStep_split`'s bracket; it reaches `Arena.checkDecl_wfProj` through
 -- `Arena.installStepGo_full`
-#print axioms Arena.installStepGo_bridge
-#print axioms Arena.installStep_split
 -- `checkDivModPin_bridge` and its loop
 #print axioms checkDivModPinLoop_bridge
 #print axioms checkDivModPinAtFe2_bridge
 #print axioms checkDivModPin_bridge
 
 -- `DeclOut`'s two clauses (each prints the three standard axioms)
-#print axioms declBasisRun_envWF
-#print axioms checkDecl_wf_pure
-#print axioms DeclCore.out
 #print axioms divModEnvGuard_run
 #print axioms divModPinGuard_run
 #print axioms substConstAll_run
 -- `Arena.checkDecl_wfProj` reaches `IndSpec.wf` (the Inductives tier's
 -- hypothesis) and the arms' own leaves
-#print axioms Arena.checkDecl_wfProj
 -- the divMod gate's last two pieces; `checkDivModPin_bridge` reaches only the
 -- Core tier's leaves
 #print axioms divModCertStmts_run
@@ -485,5 +436,17 @@ hypotheses of the statement. -/
 #print axioms typePinStored_spec
 #print axioms typePinsGuard_spec
 #print axioms checkTypePins_spec
+
+-- the check phase (`Bridge/Checker/Pooled.lean`, `PooledOleans.lean`, `Pool.lean`)
+#print axioms pooled_fold
+#print axioms pooled_fold_records
+#print axioms pooled_fold_oleans
+#print axioms Arena.pooledAccepts_bridge
+#print axioms Arena.pooledOleanAccepts_bridge
+-- the twin's pipeline (`Bridge/Stages.lean`)
+#print axioms stages_model
+#print axioms stages_no_False
+#print axioms stagesO_model
+#print axioms stagesO_no_False
 
 end ConRon.Bridge

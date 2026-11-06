@@ -900,7 +900,7 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
   | some skels =>
   obtain ⟨hs2, hskels⟩ := constsSkel_run _ h2
   rw [hs2] at h
-  cases hU : ConLeche.Frontend.Olean.usesOf r (Array.replicate
+  cases hU : ConRon.Arena.Frontend.Olean.usesOf r (Array.replicate
       (ConLeche.Frontend.Olean.maxLoc r (ConRon.Arena.Frontend.Olean.loadRoots sk skels).snd
         (ConLeche.Frontend.Olean.maxLoc r (ConRon.Arena.Frontend.Olean.loadRoots sk skels).fst 0)
         / 8 + 1) 0) 1 skels (Array.mkEmpty skels.length) with

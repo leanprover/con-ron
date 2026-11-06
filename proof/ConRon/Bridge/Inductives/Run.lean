@@ -109,7 +109,7 @@ that one table and nothing else; the core grade's `CheckOK` carries it
 
 /-! ### The `Option` lift
 
-An `Option`-valued twin (`blockParts?`, `blockShape?`, `memberIdxAt?`,
+An `Option`-valued twin (`blockShape?`, `memberIdxAt?`,
 `structProjBodies`, …) needs its answer relation lifted through `Option`, and
 the lift must say `none ↔ none`: a twin that answers `none` where con-leche
 answers `some` would send the DISPATCH into the other route.  That is

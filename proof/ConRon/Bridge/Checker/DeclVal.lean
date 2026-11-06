@@ -615,6 +615,7 @@ table map and base, the same own list.  What a gate's push-and-pop
 (`IFEnv.popTemp`) hands back; every invariant of the tier reads an index only
 through these. -/
 structure IFEnv.SameView (fe' fe : IFEnv) : Prop where
+  idx : ∀ n : NIdx, fe'.idx[n]? = fe.idx[n]?
   find : ∀ n, fe'.find? n = fe.find? n
   tbls : fe'.tbls = fe.tbls
   base : fe'.base = fe.base
@@ -624,6 +625,7 @@ structure IFEnv.SameView (fe' fe : IFEnv) : Prop where
 the other three by the definitions). -/
 theorem IFEnv.sameView_popTemp (fe : IFEnv) (ci : IConstantInfo) :
     IFEnv.SameView ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe where
+  idx := IFEnv.idx_popTemp fe ci
   find := IFEnv.find?_popTemp fe ci
   tbls := rfl
   base := rfl

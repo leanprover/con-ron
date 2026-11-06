@@ -71862,3 +71862,58 @@ deleted, new and changed twin signatures are in this task's report; the notable 
 … (allowOp)`, `blockCapsAt` pure, `checkBlock` over `BlockShape` ending in `pushDelta`, `majorToCtor`/
 `prepareMajor` take `isK`, the value checks return the record unpushed, `checkDivModPin`/`checkReducePin`
 take `ci` and return the environment, `prepareD`/the hoist take `used`, `readOleans` returns `OleanRead`.
+
+#### Theorem 1
+
+**The shape.**  No phase A and no restore: each record's job runs at the frozen index's view of its
+position (`IStreamIndex.view k`), and `Bridge/Checker/Pooled.lean`'s `pooled_fold` is an induction in
+fold order.  At position `k` every earlier position is accepted (`PrefixOK`: the pure fold accepts the
+prefix at some fuel, with distinct names), so `view_foldOK` gives `FoldOK (streamEnv (dsP.take k))
+(I.view k)` at any persistent extension of the driver's state: upstream's `IndexSpec`/`viewTwin` make
+the view the prefix's environment, the kernel's pushes and freshness (`checkDecl_pushes`,
+`checkDecl_fresh`) carry the prefix one step, and `EnvWF` of the prefix comes from con-leche's model
+(`Model.foldPM` → `EnvModelOk` → `toEnvFacts.wf`).  That last step is why the set theory `V` is a
+hypothesis of `Arena.pooledAccepts_bridge`, as it is of con-leche's own `declsRun_model`.  A worker
+reaches its job `k` only through jobs below `k` (`worker_reaches`): this needs each worker's claims
+increasing, so `ParallelAll` promises it (`Arena.PooledAccepts`'s `Pairwise` clause, `pool.rs`'s
+note, OVERVIEW §8.2's row).  The step is generic (`JobSpecAt Inv Run`): `job_spec` for `recordJob`,
+`oleanJob_spec` for `--olean`.
+
+**`--olean`.**  The index is built from the records with their references; upstream's
+`buildIndex_fill` makes it the filled stream's.  A reference's job reads the value into the scratch
+tier (`readValue_run`, at the reader's `ValuesRel`/`NullsRel` carried to the worker by `pmono`) and is
+`recordCheck` with the value in place, so `pooled_fold_oleans` concludes the pure fold of
+`fillStream sp F valuesP dsP` (each reference replaced by `valueOf`, the snapshot's `ValueAt`, unique
+by upstream's `ValueAt.unique`).  `stagesO_no_False` is upstream's `main_oleans_no_False` at the twin:
+the closure's `False` theorem is a record with a reference, `fillDecl` keeps its statement.
+
+**The capstone.**  The twin side moved into the Bridge library (`Bridge/Stages.lean`:
+`stages_frame/model/no_False`, `stagesO_frame/model/no_False`), so it builds without Theorem 2;
+`ConRon/Capstone.lean` is the Rust walk and the headlines.  `h6` is `build_index` from
+`stream_index_empty()`, `h7` `freeze_tier st6.store ix`, `h8` `ParallelAll prepared.decls.length
+(worker_state st6.pins) (jobStep tier .Verified ipins prepared.decls)` (on `--olean`
+`oleanWorkerInit`/`oleanJobStep`); `hord`, `hlayer` and the install hook are gone.  `emptyTier`'s
+`env` is the empty stream index.  `RustDenotes` before: `∃ lst lfe, AStateRel emptyTier st lst ∧
+IFEnvOwn fe lfe ∧ denoteFEnv lst.store lfe = some env` (the environment phase A returned).  After:
+`RustDenotes ds st env := ∃ lst dsP, AStateRel emptyTier st lst ∧ denoteDecls lst.store (absIDeclL ds)
+= some dsP ∧ env = streamEnv dsP` — no environment is returned any more, so the Rust's final state is
+tied to `streamEnv` of what its records denote.  `model_exists_oleans` concludes at
+`RustDenotesFilled`, the same with `dsP.map (fillDecl (fillRef val))` for some `val`; upstream states no
+model theorem for `--olean`, and the values' identity (`valueOf` at the snapshot) is in
+`stagesO_model`'s proof, not in the headline.
+
+**Deleted** with the twin code they proved: the install fold's walks and frame (`installFold_*`,
+`Bridge/Checker/Phased.lean`, `Frame.lean`, the promotion and restore lemmas, `FoldOK_of_start`); the
+census lines of what went.
+
+**Findings.**
+* `view_bvar` reads the bvar table at a handle's slot without testing its tag; `driver::olean_job`
+  and the twin's `oleanJob` took a theorem's value as a file reference whenever it answered.  Fixed in
+  both (43aaefef: the tag test first, as every other caller).  No regression fixture: on `--olean`
+  every theorem record is a reader reference and the built-in prelude declares no theorem, so no plain
+  value reaches the job; the case is latent.  cargo test, diff-olean 122/122, diff-e2e 682/682.
+* A closure theorem's own value need not be the value at its reference (the merge may keep another
+  module's copy of the constant); upstream also states only the filled stream, so the theorems do too.
+* The Inductives lane (part 2): the twin's rule-domain test agrees with upstream's only because
+  `targetRecPins` keeps the ten literal-guard names off pushed recursors (`DomPass`); dropping that pin
+  would make the twin accept string literals upstream rejects.

@@ -1,15 +1,15 @@
 /-
-# `ConRon.Bridge.Inductives.StoredRecs` — Theorem 1 for the stored recursors
+# `ConRon.Bridge.Inductives.StreamRecs` — Theorem 1 for the stream's recursors
 
-`Arena/Inductives/StoredRecs.lean` against con-leche's
-`ConLeche/Kernel/Inductives/StoredRecs.lean`, function for function, in the
+`Arena/Inductives/StreamRecs.lean` against con-leche's
+`ConLeche/Kernel/Inductives/StreamRecs.lean`, function for function, in the
 tier's run form (`CSpecF` for what calls the knot, `PStep` for what does not);
 the upstream simulation this mirrors is `Verify/Cached/GenRecC.lean`'s
-`recDomsAtS_spec` … `storedRecsCheckS_spec`.
+`recDomsAtS_spec` … `streamRecsCheckS_spec`.
 
 Every comparison runs at one environment `env`, the generated install, whose
-index `fe` the caller holds `CheckOK` at (`checkBlockTailStored_of`,
-`Bridge/Inductives/BlockTail.lean`).  Errors are related by kind only (DESIGN
+index `fe` the caller holds `CheckOK` at (`Bridge/Inductives/BlockTail.lean`);
+the K flags (`streamKCheck_run`) read no environment.  Errors are related by kind only (DESIGN
 §3.1) and a failing run owes nothing, so no message content appears here.
 -/
 module
@@ -19,6 +19,7 @@ public import ConRon.Arena.Inductives.StreamRecs
 public import ConLeche.Kernel.Inductives.StreamRecs
 import ConLeche.Verify.Cached.BridgeCS3
 import ConLeche.Verify.Inductives.StreamRecsInv
+import ConLeche.Verify.Denote.IndFrame
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Names
@@ -93,7 +94,7 @@ theorem denoteRules_nil_inv {st : EStore} {ys : List RecRule}
     (h : Frontend.denoteRules st [] = some ys) : ys = [] := by
   simp only [Frontend.denoteRules, Option.some.injEq] at h; exact h.symm
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk —
 the pins lifted past the index binders, as the twin's `mapM`. -/
 theorem liftList_run (n : Nat) : ∀ (ps : List EIdx) (psP : List Expr) (s₀ s' : AState)
     (r : List EIdx), StateOK s₀ → Frontend.denoteEList s₀.store ps = some psP →
@@ -121,7 +122,7 @@ theorem liftList_run (n : Nat) : ∀ (ps : List EIdx) (psP : List Expr) (s₀ s'
     obtain rfl := (Option.some.inj hd).symm
     simp only [List.mapM_cons] at hrun
     obtain ⟨y, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨st1, x1, c1, p1, -, -, hrel⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+    obtain ⟨st1, x1, -, c1, p1, -, -, hrel⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
       (ExprOps.liftLooseBVarsFast_spec coreWalkFuel n 0 s₀ p hok (by rw [h1]; rfl))
     have q1 : PStep s₀ s1 := PStep.of_caches st1 x1 c1 p1
     obtain ⟨ys, s2, k2, z2⟩ := AM.bind_ok z1
@@ -131,7 +132,7 @@ theorem liftList_run (n : Nat) : ∀ (ps : List EIdx) (psP : List Expr) (s₀ s'
     simp only [List.map_cons, Frontend.denoteEList,
       denote_ext (hrel x h1) q2.ext, hys]
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk —
 the index variables, as the twin's `mapM` over `List.range`. -/
 theorem bvarList_run (n : Nat) : ∀ (l : List Nat) (s₀ s' : AState) (r : List EIdx),
     StateOK s₀ → l.mapM (fun i => internBVarE (n - 1 - i)) s₀ = .ok (r, s') →
@@ -171,13 +172,13 @@ open SR
 
 /-! ## The closedness test -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-113 recTyCheck, ruleAgree —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-109 recTyCheck, ruleAgree —
 the test both open with. -/
-theorem storedClosed_run {s₀ s' : AState} {a b : EIdx} {x y : Expr} {r : Bool}
+theorem streamClosed_run {s₀ s' : AState} {a b : EIdx} {x y : Expr} {r : Bool}
     (hok : StateOK s₀) (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
-    (hrun : Arena.storedClosed a b s₀ = .ok (r, s')) :
+    (hrun : Arena.streamClosed a b s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ r = (x.looseBVarsBounded 0 && !x.hasFvar && !y.hasFvar) := by
-  simp only [Arena.storedClosed] at hrun
+  simp only [Arena.streamClosed] at hrun
   obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, rfl⟩ := RC.looseBVarsBoundedFast_pstep hok hx k1
   split at z1
@@ -206,7 +207,7 @@ variable {env : Env}
 
 /-! ## The stored type -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:45-59 recDomsAt
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:41-55 recDomsAt
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:736 recDomsAtS_spec — the stored
 domains against the generated ones, binder by binder, both telescopes' types
 scoped at their own binders. -/
@@ -265,7 +266,7 @@ theorem recDomsAt_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvW
     exact FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr (FOk.bind hF3
       (by simp only [↓reduceIte]; exact FOk.seq (FOk.pure ()) hF4)))
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:61-74 recTyOpened
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:57-70 recTyOpened
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:754 recTyOpenedS_spec — the two
 telescopes opened at their own locals: the domains, then the residues. -/
 theorem recTyOpened_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
@@ -316,7 +317,7 @@ theorem recTyOpened_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : En
   subst hv
   exact FOk.bind hF1 (FOk.bind hF2 (by simp only [↓reduceIte]; exact FOk.pure ()))
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:76-90 recTyCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:790 recTyCheckS_spec — **the stored
 type's check**: closed, at the record's level parameters, resolving, inferred, a
 sort, and the generated one binder by binder up to the major. -/
@@ -333,7 +334,7 @@ theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : Env
   simp only [Arena.recTyCheck] at hrun
   -- closed
   obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, rfl⟩ := storedClosed_run hok.state hs hg k1
+  obtain ⟨p1, rfl⟩ := streamClosed_run hok.state hs hg k1
   obtain ⟨hcl, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
   replace z2 := AM.pure_bind_ok z2
   have hfs : sP.hasFvar = false := by
@@ -377,7 +378,7 @@ theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : Env
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
     (FOk.bind hF4 (FOk.bind hF5 hF8))))
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:92-113 ruleAgree
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:802 ruleAgreeS_spec — **one stored
 rule's check**. -/
 theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
@@ -392,7 +393,7 @@ theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvW
   obtain ⟨hlps, hs, hg⟩ := hpre
   simp only [Arena.ruleAgree] at hrun
   obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, rfl⟩ := storedClosed_run hok.state hs hg k1
+  obtain ⟨p1, rfl⟩ := streamClosed_run hok.state hs hg k1
   obtain ⟨hcl, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
   replace z2 := AM.pure_bind_ok z2
   have hfs : sP.hasFvar = false := by
@@ -445,20 +446,20 @@ end Knot
 
 /-! ## The stored major's container -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk —
 the major's domain against the firing data. -/
-theorem storedNestedDom_run {s₀ s' : AState} {dom : EIdx} {domP : Expr} {n : Nat}
+theorem streamNestedDom_run {s₀ s' : AState} {dom : EIdx} {domP : Expr} {n : Nat}
     {lvls : List LIdx} {lvlsP : List Level} {pins : List EIdx} {pinsP : List Expr} {r : Bool}
     (hok : StateOK s₀) (hd : denoteE s₀.store dom = some domP)
     (hl : denoteLList s₀.store.ls lvls = some lvlsP)
     (hp : Frontend.denoteEList s₀.store pins = some pinsP)
-    (hrun : Arena.storedNestedDom dom n lvls pins s₀ = .ok (r, s')) :
+    (hrun : Arena.streamNestedDom dom n lvls pins s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ r = ((match domP.getAppFn with
         | .const _ us => us == lvlsP
         | _ => false) &&
       domP.getAppArgs == pinsP.map (Expr.liftLooseBVars n 0) ++
         (List.range n).map (fun i => Expr.bvar (n - 1 - i))) := by
-  simp only [Arena.storedNestedDom] at hrun
+  simp only [Arena.streamNestedDom] at hrun
   obtain ⟨hh, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hd k1
   by_cases htc : (hh.tag == ETag.const) = true
@@ -503,18 +504,24 @@ theorem storedNestedDom_run {s₀ s' : AState} {dom : EIdx} {domP : Expr} {n : N
       exact absurd (by simpa using tag_const_of_denote hok.wf hhd) htc
     | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:115-131 storedNestedOk —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk —
 **an auxiliary recursor's stored type fires where the generated one does**. -/
-theorem storedNestedOk_run {s₀ s' : AState} {ty : EIdx} {tyP : Expr} {mI rP : Nat}
+theorem streamNestedOk_run {s₀ s' : AState} {ty : EIdx} {tyP : Expr} {mI rP : Nat}
     {fire : IRecRuleFire} {fireP : RecRuleFire} {r : Bool} (hok : StateOK s₀)
     (hty : denoteE s₀.store ty = some tyP) (hf : Frontend.denoteFire s₀.store fire = some fireP)
-    (hrun : Arena.storedNestedOk ty mI rP fire s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ r = ConLeche.storedNestedOk tyP mI rP fireP := by
+    (hrun : Arena.streamNestedOk ty mI rP fire s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ r = ConLeche.streamNestedOk tyP mI rP fireP := by
   cases fire with
   | plain =>
     simp only [Frontend.denoteFire, Option.some.injEq] at hf
     subst hf
-    simp only [Arena.storedNestedOk] at hrun
+    simp only [Arena.streamNestedOk] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | levels lvls =>
+    simp only [Frontend.denoteFire, Option.map_eq_some_iff] at hf
+    obtain ⟨ls, -, rfl⟩ := hf
+    simp only [Arena.streamNestedOk] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | nested lvls pins =>
@@ -527,11 +534,11 @@ theorem storedNestedOk_run {s₀ s' : AState} {ty : EIdx} {tyP : Expr} {mI rP : 
     | some ps =>
     rw [hls, hps] at hf
     obtain rfl := (Option.some.inj hf).symm
-    simp only [Arena.storedNestedOk] at hrun
+    simp only [Arena.streamNestedOk] at hrun
     obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hs1, ho⟩ := stripPis_pstep hok hty k1
     rw [hs1] at z1
-    simp only [ConLeche.storedNestedOk]
+    simp only [ConLeche.streamNestedOk]
     cases o with
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
@@ -554,7 +561,7 @@ theorem storedNestedOk_run {s₀ s' : AState} {ty : EIdx} {tyP : Expr} {mI rP : 
         obtain ⟨domP, bodyP, rfl, hdd, -⟩ := denote_forallE_inv hok.wf
           (view_forallE_of_viewBind htg ho2.symm) hrest
         dsimp only at z2 ⊢
-        exact storedNestedDom_run hok hdd hls hps z2
+        exact streamNestedDom_run hok hdd hls hps z2
       · rw [ite_eq_right htg] at z1
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
         refine ⟨PStep.refl hok, ?_⟩
@@ -562,15 +569,15 @@ theorem storedNestedOk_run {s₀ s' : AState} {ty : EIdx} {tyP : Expr} {mI rP : 
         | forallE d b => exact absurd (by simpa using tag_forallE_of_denote hok.wf hrest) htg
         | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:133-138 storedFireOf —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:130-135 generatedFire —
 the firing mode the generated recursor's rules carry at its major. -/
-theorem storedFireOf_run {s₀ s' : AState} {M : Arena.TargetMajor} {MP : ConLeche.TargetMajor}
+theorem generatedFire_run {s₀ s' : AState} {M : Arena.TargetMajor} {MP : ConLeche.TargetMajor}
     {rP : Nat} {r : IRecRuleFire} (hok : StateOK s₀) (hM : dMajor s₀.store M = some MP)
-    (hrun : Arena.storedFireOf M rP s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ Frontend.denoteFire s'.store r = some (ConLeche.storedFireOf MP rP) := by
+    (hrun : Arena.generatedFire M rP s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ Frontend.denoteFire s'.store r = some (ConLeche.generatedFire MP rP) := by
   obtain ⟨-, -, -, -, -, -, hmem, -, -⟩ := dMajor_inv hM
-  simp only [Arena.storedFireOf] at hrun
-  simp only [ConLeche.storedFireOf, ← hmem]
+  simp only [Arena.generatedFire] at hrun
+  simp only [ConLeche.generatedFire, ← hmem]
   cases hm : M.member with
   | none =>
     rw [hm] at hrun
@@ -582,15 +589,15 @@ theorem storedFireOf_run {s₀ s' : AState} {M : Arena.TargetMajor} {MP : ConLec
 
 /-! ## The stored rules -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:140-152 storedRulesShape —
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:137-149 streamRulesShape —
 one rule per constructor of the class, in order, each with its field count.
 Reads nothing but the store's name table. -/
-theorem storedRulesShape_run (rec : ConLeche.Name) :
+theorem streamRulesShape_run (rec : ConLeche.Name) :
     ∀ (rs : List IRecRule) (rsP : List RecRule) (cs : List (IConstantVal × Nat))
       (csP : List (ConstantVal × Nat)) (s₀ s' : AState) (r : Unit), StateOK s₀ →
       Frontend.denoteRules s₀.store rs = some rsP → dCtors s₀.store cs = some csP →
-      Arena.storedRulesShape rs cs s₀ = .ok (r, s') →
-      s' = s₀ ∧ FOk (ConLeche.storedRulesShape (m := FueledM) rec rsP csP) () := by
+      Arena.streamRulesShape rs cs s₀ = .ok (r, s') →
+      s' = s₀ ∧ FOk (ConLeche.streamRulesShape (m := FueledM) rec rsP csP) () := by
   intro rs
   induction rs with
   | nil =>
@@ -599,25 +606,25 @@ theorem storedRulesShape_run (rec : ConLeche.Name) :
     cases cs with
     | nil =>
       obtain rfl := mapM_option_nil_inv hc
-      simp only [Arena.storedRulesShape] at hrun
+      simp only [Arena.streamRulesShape] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨rfl, ?_⟩
-      simp only [ConLeche.storedRulesShape]
+      simp only [ConLeche.streamRulesShape]
       exact FOk.pure ()
     | cons _ _ =>
-      simp only [Arena.storedRulesShape] at hrun
+      simp only [Arena.streamRulesShape] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
   | cons x rs ih =>
     intro rsP cs csP s₀ s' r hok hr hc hrun
     cases cs with
     | nil =>
-      simp only [Arena.storedRulesShape] at hrun
+      simp only [Arena.streamRulesShape] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
     | cons c cs =>
       obtain ⟨y, ys, rfl, hy, hys⟩ := denoteRules_cons_inv hr
       obtain ⟨cP, csP', rfl, hcP, hcs⟩ := mapM_option_cons_inv hc
-      simp only [Arena.storedRulesShape] at hrun
-      obtain ⟨hyc, -, -, hnf, -⟩ := denoteRule_inv hy
+      simp only [Arena.streamRulesShape] at hrun
+      obtain ⟨hyc, -, -, hnf⟩ := denoteRule_inv hy
       simp only [dCtor, Option.map_eq_some_iff] at hcP
       obtain ⟨cvP, hcv, rfl⟩ := hcP
       have hn := beq_handle_eq hok.wf hyc (denoteCV_name hcv)
@@ -625,7 +632,7 @@ theorem storedRulesShape_run (rec : ConLeche.Name) :
       replace z1 := AM.pure_bind_ok z1
       obtain ⟨rfl, hF⟩ := ih ys cs csP' s₀ s' r hok hys hcs z1
       refine ⟨rfl, ?_⟩
-      simp only [ConLeche.storedRulesShape]
+      simp only [ConLeche.streamRulesShape]
       rw [hn, hnf] at hg
       rw [ite_eq_left hg]
       exact FOk.seq (FOk.pure ()) hF
@@ -634,17 +641,17 @@ section Knot
 
 variable {env : Env}
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:154-163 storedRulesCheck
-con-leche: ConLeche/Verify/Cached/GenRecC.lean:814 storedRulesCheckS_spec — each
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:151-160 streamRulesCheck
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:814 streamRulesCheckS_spec — each
 stored rule against the generated right-hand side at its position. -/
-theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rec : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) :
     ∀ (rs : List IRecRule) (rsP : List RecRule) (gs : List EIdx) (gsP : List Expr),
       CSpecF env fe
         (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
           Frontend.denoteRules st rs = some rsP ∧ Frontend.denoteEList st gs = some gsP)
-        (Arena.storedRulesCheck .verified fe lps rs gs) (fun _ _ _ => True)
-        (ConLeche.storedRulesCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP rsP gsP) := by
+        (Arena.streamRulesCheck .verified fe lps rs gs) (fun _ _ _ => True)
+        (ConLeche.streamRulesCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP rsP gsP) := by
   intro rs
   induction rs with
   | nil =>
@@ -655,20 +662,20 @@ theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
     | nil =>
       simp only [Frontend.denoteEList, Option.some.injEq] at hg
       subst hg
-      simp only [Arena.storedRulesCheck] at hrun
+      simp only [Arena.streamRulesCheck] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨CoreStep.refl hok, (), trivial, ?_⟩
-      simp only [ConLeche.storedRulesCheck]
+      simp only [ConLeche.streamRulesCheck]
       exact FOk.pure ()
     | cons _ _ =>
-      simp only [Arena.storedRulesCheck] at hrun
+      simp only [Arena.streamRulesCheck] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
   | cons x rs ih =>
     intro rsP gs gsP s₀ s' r hok hpre hrun
     obtain ⟨hlps, hr, hg⟩ := hpre
     cases gs with
     | nil =>
-      simp only [Arena.storedRulesCheck] at hrun
+      simp only [Arena.streamRulesCheck] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
     | cons g gs =>
       obtain ⟨y, ys, rfl, hy, hys⟩ := denoteRules_cons_inv hr
@@ -682,8 +689,8 @@ theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
       rw [h1, h2] at hg
       obtain rfl := (Option.some.inj hg).symm
       obtain ⟨hyc, -, hyr, -⟩ := denoteRule_inv hy
-      simp only [Arena.storedRulesCheck] at hrun
-      simp only [ConLeche.storedRulesCheck]
+      simp only [Arena.streamRulesCheck] at hrun
+      simp only [ConLeche.streamRulesCheck]
       rw [beq_of_denoteE hok.state.wf hyr h1] at hrun
       by_cases hq : (y.rhs == gP) = true
       · rw [ite_eq_left hq] at hrun
@@ -703,30 +710,30 @@ theorem storedRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
         rw [ite_eq_right hq]
         exact FOk.seq hF1 hF2
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:165-172 storedRecCompare
-con-leche: ConLeche/Verify/Cached/GenRecC.lean:843 storedRecCompareS_spec — one
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:162-167 streamRecCompare
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:843 streamRecCompareS_spec — one
 recursor's comparison: its stored type unless it is the generated one, and its
 stored rules. -/
-theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+theorem streamRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rc : Arena.RecShape) (rcP : ConLeche.RecShape)
     (g : IConstantVal × Arena.TargetMajor × List EIdx)
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
     CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
-      (Arena.storedRecCompare .verified fe rc g) (fun _ _ _ => True)
-      (ConLeche.storedRecCompare (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
+      (Arena.streamRecCompare .verified fe rc g) (fun _ _ _ => True)
+      (ConLeche.streamRecCompare (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, -, hmI, -, hrules, -⟩ := dRec_inv hrc
   obtain ⟨hcvG, hM, hrh⟩ := RC.dRecOut_inv hg
-  simp only [Arena.storedRecCompare] at hrun
-  simp only [ConLeche.storedRecCompare]
+  simp only [Arena.streamRecCompare] at hrun
+  simp only [ConLeche.streamRecCompare]
   obtain ⟨hnmG, hlpsG, htyG⟩ := Core.denoteCV_inv hcvG
   have hty := denoteCV_type hcv
   rw [beq_of_denoteE hok.state.wf hty htyG] at hrun
   by_cases hq : (rcP.cvR.type == gP.1.type) = true
   · rw [ite_eq_left hq] at hrun
     replace hrun := AM.pure_bind_ok hrun
-    obtain ⟨c1, _, -, hF⟩ := storedRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s₀ s' r hok
+    obtain ⟨c1, _, -, hF⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s₀ s' r hok
       ⟨hlpsG, hrules, hrh⟩ hrun
     refine ⟨c1, (), trivial, ?_⟩
     rw [ite_eq_left hq]
@@ -735,59 +742,59 @@ theorem storedRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
     obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, _, -, hF1⟩ := recTyCheck_spec fe hk henv gP.1.name _ _ (rc.mI + 1) _ _ _ _ s₀ s1 _
       hok ⟨hlpsG, hty, htyG⟩ k1
-    obtain ⟨c2, _, -, hF2⟩ := storedRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s1 s' r c1.ok
+    obtain ⟨c2, _, -, hF2⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s1 s' r c1.ok
       ⟨denoteNList_ext c1.ext.lss.ls.ns _ _ hlpsG, denoteRules_ext c1.ext _ _ hrules,
         denoteEList_ext c1.ext _ _ hrh⟩ z1
     refine ⟨c1.trans c2, (), trivial, ?_⟩
     rw [ite_eq_right hq, ← hmI]
     exact FOk.seq hF1 hF2
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:174-183 storedRecCheck
-con-leche: ConLeche/Verify/Cached/GenRecC.lean:875 storedRecCheckS_spec — **one
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:169-178 streamRecCheck
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:875 streamRecCheckS_spec — **one
 recursor, stored against generated**. -/
-theorem storedRecCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+theorem streamRecCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
     (rc : Arena.RecShape) (rcP : ConLeche.RecShape)
     (g : IConstantVal × Arena.TargetMajor × List EIdx)
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
     CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
-      (Arena.storedRecCheck .verified fe rc g) (fun _ _ _ => True)
-      (ConLeche.storedRecCheck (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
+      (Arena.streamRecCheck .verified fe rc g) (fun _ _ _ => True)
+      (ConLeche.streamRecCheck (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, hrP, hmI, -, hrules, -⟩ := dRec_inv hrc
   obtain ⟨hcvG, hM, hrh⟩ := RC.dRecOut_inv hg
   obtain ⟨-, -, -, -, -, hcs, -⟩ := dMajor_inv hM
-  simp only [Arena.storedRecCheck] at hrun
+  simp only [Arena.streamRecCheck] at hrun
   obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, hF1⟩ := storedRulesShape_run rcP.cvR.name rc.rules rcP.rules g.2.1.ctors
+  obtain ⟨hs1, hF1⟩ := streamRulesShape_run rcP.cvR.name rc.rules rcP.rules g.2.1.ctors
     gP.2.1.ctors s₀ s1 _ hok.state hrules hcs k1
   rw [hs1] at z1
   obtain ⟨fire, s2, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨p2, hfire⟩ := storedFireOf_run hok.state hM k2
+  obtain ⟨p2, hfire⟩ := generatedFire_run hok.state hM k2
   obtain ⟨b3, s3, k3, z3⟩ := AM.bind_ok z2
-  obtain ⟨p3, rfl⟩ := storedNestedOk_run p2.ok (denote_ext (denoteCV_type hcv) p2.ext) hfire k3
+  obtain ⟨p3, rfl⟩ := streamNestedOk_run p2.ok (denote_ext (denoteCV_type hcv) p2.ext) hfire k3
   obtain ⟨hn, z4⟩ := AM.dunless_ok AM.Never.fail_any z3
   replace z4 := AM.pure_bind_ok z4
   have c3 := (p2.trans p3).toCore hok
-  obtain ⟨c4, _, -, hF4⟩ := storedRecCompare_spec fe hk henv rc rcP g gP s3 s' r c3.ok
+  obtain ⟨c4, _, -, hF4⟩ := streamRecCompare_spec fe hk henv rc rcP g gP s3 s' r c3.ok
     ⟨dRec_ext c3.ext _ _ hrc, dRecOut_ext c3.ext _ _ hg⟩ z4
   refine ⟨c3.trans c4, (), trivial, ?_⟩
-  simp only [ConLeche.storedRecCheck]
+  simp only [ConLeche.streamRecCheck]
   rw [← hmI, ← hrP]
   rw [ite_eq_left hn]
   exact FOk.seq hF1 (FOk.seq (FOk.pure ()) hF4)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:185-193 storedRecsCheck
-con-leche: ConLeche/Verify/Cached/GenRecC.lean:882 storedRecsCheckS_spec — **THEOREM 1
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:180-188 streamRecsCheck
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:882 streamRecsCheckS_spec — **THEOREM 1
 for the block's stored recursors against the generated ones**, record by record. -/
-theorem storedRecsCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
+theorem streamRecsCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env) :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape)
       (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
       (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)),
       CSpecF env fe
         (fun st => recs.mapM (dRec st) = some recsP ∧ out.mapM (dRecOut st) = some outP)
-        (Arena.storedRecsCheck .verified fe recs out) (fun _ _ _ => True)
-        (ConLeche.storedRecsCheck (fueledOpsM .verified) .plain (mkFEnv env) recsP outP) := by
+        (Arena.streamRecsCheck .verified fe recs out) (fun _ _ _ => True)
+        (ConLeche.streamRecsCheck (fueledOpsM .verified) .plain (mkFEnv env) recsP outP) := by
   intro recs
   induction recs with
   | nil =>
@@ -797,81 +804,77 @@ theorem storedRecsCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv 
     cases out with
     | nil =>
       obtain rfl := mapM_option_nil_inv ho
-      simp only [Arena.storedRecsCheck] at hrun
+      simp only [Arena.streamRecsCheck] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨CoreStep.refl hok, (), trivial, ?_⟩
-      simp only [ConLeche.storedRecsCheck]
+      simp only [ConLeche.streamRecsCheck]
       exact FOk.pure ()
     | cons _ _ =>
-      simp only [Arena.storedRecsCheck] at hrun
+      simp only [Arena.streamRecsCheck] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
   | cons rc rcs ih =>
     intro recsP out outP s₀ s' r hok hpre hrun
     obtain ⟨hr, ho⟩ := hpre
     cases out with
     | nil =>
-      simp only [Arena.storedRecsCheck] at hrun
+      simp only [Arena.streamRecsCheck] at hrun
       exact absurd hrun (fun hc => AM.fail_ok hc)
     | cons g gs =>
       obtain ⟨rcP, rcsP, rfl, hrc, hrcs⟩ := mapM_option_cons_inv hr
       obtain ⟨gP, gsP, rfl, hgP, hgs⟩ := mapM_option_cons_inv ho
-      simp only [Arena.storedRecsCheck] at hrun
+      simp only [Arena.streamRecsCheck] at hrun
       obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
-      obtain ⟨c1, _, -, hF1⟩ := storedRecCheck_spec fe hk henv rc rcP g gP s₀ s1 _ hok ⟨hrc, hgP⟩ k1
+      obtain ⟨c1, _, -, hF1⟩ := streamRecCheck_spec fe hk henv rc rcP g gP s₀ s1 _ hok ⟨hrc, hgP⟩ k1
       obtain ⟨c2, _, -, hF2⟩ := ih rcsP gs gsP s1 s' r c1.ok
         ⟨dRec_ext.list c1.ext _ _ hrcs, dRecOut_ext.list c1.ext _ _ hgs⟩ z1
       refine ⟨c1.trans c2, (), trivial, ?_⟩
-      simp only [ConLeche.storedRecsCheck]
+      simp only [ConLeche.streamRecsCheck]
       exact FOk.seq hF1 hF2
 
 end Knot
 
-/-! ## What is installed -/
+/-! ## The K flags -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:195-202 storedOut — the
-stored family denotes con-leche's: the generated recursor's name, level
-parameters and major, the record's type and right-hand sides. -/
-theorem storedOut_denote {st : EStore} :
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:190-201 streamKCheck —
+**the records' K flags against the block**: each record's flag is the one the
+generated recursor has (`recKExpected_eq`).  Reads nothing of the state. -/
+theorem streamKCheck_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
     ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape)
       (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
-      (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)),
-      recs.mapM (dRec st) = some recsP → out.mapM (dRecOut st) = some outP →
-      (Arena.storedOut recs out).mapM (dRecOut st) = some (ConLeche.storedOut recsP outP) := by
+      (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)) (s₀ s' : AState) (r : Unit),
+      dShape s₀.store p = some pP → recs.mapM (dRec s₀.store) = some recsP →
+      out.mapM (dRecOut s₀.store) = some outP →
+      Arena.streamKCheck p recs out s₀ = .ok (r, s') →
+      s' = s₀ ∧ FOk (ConLeche.streamKCheck (m := FueledM) pP recsP outP) () := by
   intro recs
   induction recs with
   | nil =>
-    intro recsP out outP hr ho
+    intro recsP out outP s₀ s' r _ hr _ hrun
     obtain rfl := mapM_option_nil_inv hr
-    simp [Arena.storedOut, ConLeche.storedOut]
+    simp only [Arena.streamKCheck] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, by simp only [ConLeche.streamKCheck]; exact FOk.pure ()⟩
   | cons rc rcs ih =>
-    intro recsP out outP hr ho
+    intro recsP out outP s₀ s' r hp hr ho hrun
+    obtain ⟨rcP, rcsP, rfl, hrc, hrcs⟩ := mapM_option_cons_inv hr
     cases out with
     | nil =>
       obtain rfl := mapM_option_nil_inv ho
-      obtain ⟨rcP, rcsP, rfl, -, -⟩ := mapM_option_cons_inv hr
-      simp [Arena.storedOut, ConLeche.storedOut]
+      simp only [Arena.streamKCheck] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp only [ConLeche.streamKCheck]; exact FOk.pure ()⟩
     | cons g gs =>
-      obtain ⟨rcP, rcsP, rfl, hrc, hrcs⟩ := mapM_option_cons_inv hr
       obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv ho
-      obtain ⟨hcv, -, -, -, hrules, -⟩ := dRec_inv hrc
-      obtain ⟨hcvG, hM, -⟩ := RC.dRecOut_inv hg
-      obtain ⟨hnm, hlps, -⟩ := Core.denoteCV_inv hcvG
-      have ih' := ih rcsP gs gsP hrcs hgs
-      simp only [Arena.storedOut, ConLeche.storedOut, List.zipWith_cons_cons] at ih' ⊢
-      refine mapM_option_cons ?_ ih'
-      simp only [dRecOut, Frontend.denoteCV, hnm, hlps, denoteCV_type hcv, hM,
-        denoteRules_rhss _ _ hrules, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
-
-/-- con-leche: ConLeche/Kernel/Inductives/StoredRecs.lean:195-202 storedOut — the
-stored family's names are the generated family's, position by position (the
-freshness `consBlockRecsTF_spec` needs). -/
-theorem storedOut_fresh {env : Env} {recsP : List ConLeche.RecShape}
-    {outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)}
-    (h : ∀ t ∈ outP, env.find? t.1.name = none) :
-    ∀ t ∈ ConLeche.storedOut recsP outP, env.find? t.1.name = none := by
-  intro t ht
-  obtain ⟨g, hg, hn, -⟩ := ConLeche.mem_storedOut ht
-  rw [hn]
-  exact h g hg
+      have hK := (dRec_inv hrc).2.2.2.2.2
+      have hE := recKExpected_eq hp (RC.dRecOut_inv hg).2.1
+      simp only [Arena.streamKCheck] at hrun
+      obtain ⟨hc, z1⟩ := AM.dunless_ok AM.Never.fail_any hrun
+      replace z1 := AM.pure_bind_ok z1
+      obtain ⟨rfl, hF⟩ := ih rcsP gs gsP s₀ s' r hp hrcs hgs z1
+      refine ⟨rfl, ?_⟩
+      simp only [ConLeche.streamKCheck]
+      rw [hK, hE] at hc
+      rw [ite_eq_left hc]
+      exact FOk.seq (FOk.pure ()) hF
 
 end ConRon.Bridge.Inductives

@@ -16,6 +16,7 @@ reference's code.  It rests on three things:
 module
 
 public import ConRon.Bridge.Frontend.Olean.Records
+import ConRon.Bridge.Checker.Pins
 
 public section
 
@@ -479,5 +480,37 @@ theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
   obtain ⟨rfl, rfl⟩ := hv'
   obtain ⟨hst, x, hx, hdx⟩ := frontierExpr_run ⟨hok, hnu⟩ hgood h3
   exact ⟨hst, hc1, x, hdx, mdP, f, _, _, hmdP, hf, hreg0, hx⟩
+
+/-! ## On a worker's store
+
+A job runs on a worker's state, whose store is a persistent extension (`PExt`) of the driver's
+state where the read ran with the scratch tier closed.  Everything the read hands the job is a
+handle that denotes on that closed store, hence persistent, so `PExt` carries it. -/
+
+/-- con-leche: none — a frontier good on a closed store is good on a persistent extension. -/
+theorem FrontierGood.pmono {st st' : EStore} {r : Region} {b : Frontier} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) (h : FrontierGood st r b) (hx : PExt st st') :
+    FrontierGood st' r b :=
+  ⟨h.names.mono fun _ _ ⟨n, a, d⟩ => ⟨n, a, hx.lss.ls.ns _ _ (PersN_of_denote hwf hoff d) d⟩,
+   h.levels.mono fun _ _ ⟨n, a, d⟩ => ⟨n, a, hx.lss.ls.lvl _ _ (PersL_of_denote hwf hoff d) d⟩,
+   h.lists.mono fun _ _ ⟨n, a, d⟩ => ⟨n, a, hx.lss.lst _ _ (PersLs_of_denote hwf hoff d) d⟩,
+   h.exprs.mono fun _ _ ⟨n, a, d⟩ => ⟨n, a, hx.expr _ _ (PersE_of_denote hwf hoff d) d⟩⟩
+
+/-- con-leche: none — `ValuesRel` on a worker's store: the names and the frontiers' handles
+denote on the closed store of the read, so they are persistent. -/
+theorem ValuesRel.pmono {sp : SearchPath} {F : FS} {st st' : EStore}
+    {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+    (hwf : StoreWF st) (hoff : st.scratchOn = false) (h : ValuesRel sp F st values valuesP)
+    (hx : PExt st st') : ValuesRel sp F st' values valuesP :=
+  ListRel.mono' (fun _ _ ⟨a, f, b, r, a', hr, hg⟩ =>
+    ⟨hx.lss.ls.ns _ _ (PersN_of_denote hwf hoff a) a, f, b, r, a', hr,
+      hg.pmono hwf hoff hx⟩) h
+
+/-- con-leche: none — the reader's three nullary handles, on a worker's store. -/
+theorem NullsRel.pmono {st st' : EStore} {pk : OleanPins} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) (h : NullsRel st pk) (hx : PExt st st') : NullsRel st' pk :=
+  ⟨hx.lss.ls.ns _ _ (PersN_of_denote hwf hoff h.anon) h.anon,
+   hx.lss.ls.lvl _ _ (PersL_of_denote hwf hoff h.zero) h.zero,
+   hx.lss.lst _ _ (PersLs_of_denote hwf hoff h.nil) h.nil⟩
 
 end ConRon.Bridge.Frontend.Olean

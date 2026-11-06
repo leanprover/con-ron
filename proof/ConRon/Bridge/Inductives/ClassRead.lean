@@ -497,7 +497,7 @@ theorem motiveSlot_eq {st : EStore} {slots : List Arena.ClassSlot}
 
 /-! ## `classNPcOf` -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:138 memberNames — a
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155 memberNames — a
 denoting shape's member names denote con-leche's. -/
 theorem memberNames_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (h : dShape st p = some pP) :

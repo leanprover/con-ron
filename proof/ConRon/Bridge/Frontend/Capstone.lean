@@ -8,23 +8,24 @@ one a reader can check without knowing what an `Env` is:
 > a file whose chunks are one of the shapes `ConLeche.jsonWithTheoremFalse`
 > describes is never accepted by the Lean arena checker.
 
-`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge` is the statement
-at the FOLD (the twin's accept is con-leche's, at a declaration list); this is
-the letter at the BYTES, and the distance between them is exactly this tier:
-the parse's exactness, the preparation's, and the prelude.
+`Bridge/Checker/Pool.lean`'s `Arena.pooledAccepts_bridge` is the statement
+at the FOLD (the twin's accept is con-leche's, at a declaration list);
+`Bridge/Stages.lean`'s `stages_no_False` is the letter at the BYTES, and the
+distance between them is the frontend tier: the parse's exactness, the
+preparation's, and the prelude.  This module holds the last step.
 
 ## The assembly, four steps, one theorem each
 
 | step | the theorem |
 |---|---|
-| 1. the parse holds the record | `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` |
-| 2. the preparation keeps it | `Bridge/Frontend/Prepare.lean`'s `mem_preparePrelude_denote` |
-| 3. the twin's accept is con-leche's | `Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge` |
+| 1. the parse holds the record | `Bridge/Frontend/Chunks.lean`'s `parseChunks_run`, con-leche's `parseChunks_jsonWithTheoremFalse` |
+| 2. the preparation keeps it | `Bridge/Frontend/Prepare.lean`'s `preparePrelude_run`, con-leche's `mem_preparePrelude` |
+| 3. the twin's accept is con-leche's | `Bridge/Checker/Pool.lean`'s `Arena.pooledAccepts_bridge` |
 | 4. con-leche refutes it | `checkDeclsPure_thmDecl_const` + `ConLeche.Model.no_proof_of_False_pure` |
 
 **Step 4 is the one that is not a transport**, and §3 below says why: con-leche
 states its stream ingredient at the CACHED fold (`Cached.checkDecls_thmDecl_const`,
-`Verify/Cached/StreamThm.lean:101`) and the arena's bridge lands on the PURE
+`Verify/Cached/StreamThm.lean:80`) and the arena's bridge lands on the PURE
 one, so the pure-tier twin of that one lemma has to be stated here.
 
 ## Two things this statement does not need
@@ -76,9 +77,8 @@ universe w
 
 con-leche proves *"an accepted stream that declares a theorem of a bare
 constant type leaves a constant of that type in the environment"* at the
-CACHED fold (`Cached.checkDecls_thmDecl_const`, `Verify/Cached/StreamThm.lean:101`,
-through `installRun_thmDecl_const` and `installStepC_thm_consts`).  The arena's
-bridge (`Bridge/Checker/Fold.lean`, `Bridge/Checker/Split.lean`) lands on
+CACHED fold (`Cached.checkDecls_thmDecl_const`, `Verify/Cached/StreamThm.lean:80`).
+The arena's bridge (`Bridge/Checker/Pool.lean`) lands on
 `ConLeche.checkDeclsPure`, so the pure twin of that lemma is what this
 capstone needs and it is the one thing on the path con-leche does not already
 have.
@@ -91,11 +91,7 @@ PREFIX of an accepted pure run is an accepted pure run**, at the same mode,
 the same ops and the same fuel.
 
 `checkDeclsPure` is `ds.foldlM (checkDecl …) Env.empty` and nothing else, so
-this is `List.foldlM_append` read left to right.  The CACHED fold is not of
-that shape — `Cached.checkDecls` runs two phases over the whole array and
-phase B pends every value phase A installed — which is why con-leche's own
-stream lemma has to carry the installed constant to the END of the run
-(`installRun_trace`'s `PushChain`) and this tier does not. -/
+this is `List.foldlM_append` read left to right. -/
 theorem checkDeclsPure_prefix {μ : CheckMode} {F : Nat}
     {pins : List NatOpPinSet} {ds₁ ds₂ : List Declaration} {env' : Env}
     (h : ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F) pins (ds₁ ++ ds₂)
@@ -109,7 +105,7 @@ theorem checkDeclsPure_prefix {μ : CheckMode} {F : Nat}
   | error e => rw [h₁] at h; exact nomatch h
   | ok env₁ => exact ⟨env₁, rfl⟩
 
-/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:101 checkDecls_thmDecl_const
+/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:80 checkDecls_thmDecl_const
 — **the same lemma at the PURE fold**: an accepted `checkDeclsPure` run of a
 stream that declares a theorem of a bare constant type has an accepted PREFIX
 RUN whose environment holds a constant of that type.
