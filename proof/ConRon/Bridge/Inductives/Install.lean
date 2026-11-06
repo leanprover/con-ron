@@ -24,6 +24,8 @@ module
 import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.ExprOps.Subst
 public import ConRon.Bridge.Inductives.Rel
 /- `simp only` unfolds the toolchain's monadic list functions (`List.anyM`),
 whose bodies `Init.Data.List.Control` does not expose. -/
@@ -311,5 +313,157 @@ theorem blockCtors_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Bl
   obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hp
   simp only [Arena.blockCtors, ConLeche.blockCtors, hnP]
   exact ctorInfos_denote _ _ _ (BlockShape.allCtors_spec hp)
+
+/-! ## The recursors -/
+
+/-- con-leche: ConLeche/Kernel/Install.lean:34-37 Expr.dropVars
+**`n` variables dropped**, each instantiated at `Sort 0`: the zero pin, the
+sort interned, one `instantiate1` per variable. -/
+theorem exprDropVars_run : ∀ (n : Nat) {s s' : AState} {e r : EIdx} {eP : Expr},
+    StateOK s → PinsOK s → denoteE s.store e = some eP →
+    Arena.exprDropVars n e s = .ok (r, s') →
+    PStep s s' ∧ denoteE s'.store r = some (ConLeche.Expr.dropVars n eP)
+  | 0, s, s', e, r, eP, hok, _, he, hrun => by
+    simp only [Arena.exprDropVars] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, he⟩
+  | n + 1, s, s', e, r, eP, hok, hpins, he, hrun => by
+    simp only [Arena.exprDropVars] at hrun
+    obtain ⟨z, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
+    obtain ⟨s0, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hs0⟩ := internSortE_run hok hz k2
+    obtain ⟨e', s₃, k3, z3⟩ := AM.bind_ok z2
+    have he2 := denote_ext he p2.ext
+    obtain ⟨q1, q2, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run p2.ok hs0
+      (by rw [he2]; rfl) k3
+    have p3 : PStep s₂ s₃ := PStep.of_caches q1 q2 q4 q5
+    have he3 : denoteE s₃.store e' = some (eP.instantiate1 (.sort .zero) 0) := q7 _ he2
+    have p23 := p2.trans p3
+    obtain ⟨p4, hr⟩ := exprDropVars_run n p23.ok (hpins.mono p23.ext p23.pins) he3 z3
+    exact ⟨p23.trans p4, by simpa [ConLeche.Expr.dropVars] using hr⟩
+
+/-- con-leche: ConLeche/Kernel/Install.lean:51 recFire (the parameters'
+`map`) — `exprDropVars` over a list. -/
+theorem dropVarsList_run (n : Nat) : ∀ (as : List EIdx) (asP : List Expr) {s s' : AState}
+    {rs : List EIdx}, StateOK s → PinsOK s → Frontend.denoteEList s.store as = some asP →
+    as.mapM (Arena.exprDropVars n) s = .ok (rs, s') →
+    PStep s s' ∧ Frontend.denoteEList s'.store rs = some (asP.map (ConLeche.Expr.dropVars n))
+  | [], asP, s, s', rs, hok, _, ha, hrun => by
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | a :: as, asP, s, s', rs, hok, hpins, ha, hrun => by
+    simp only [Frontend.denoteEList] at ha
+    cases h1 : denoteE s.store a with
+    | none => rw [h1] at ha; simp at ha
+    | some x =>
+    cases h2 : Frontend.denoteEList s.store as with
+    | none => rw [h1, h2] at ha; simp at ha
+    | some xs =>
+    rw [h1, h2] at ha
+    obtain rfl := (Option.some.inj ha).symm
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨b, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨p1, hb⟩ := exprDropVars_run n hok hpins h1 k1
+    obtain ⟨bs, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hbs⟩ := dropVarsList_run n as xs p1.ok (hpins.mono p1.ext p1.pins)
+      (denoteEList_ext p1.ext _ _ h2) k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [List.map_cons, Frontend.denoteEList, denote_ext hb p2.ext, hbs]
+
+/-- con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
+**How a recursor's rules fire**, exactly: `.plain` at a member major and at
+anything the major's domain does not read as a container; at an outside
+container its levels and its parameters moved to the rule prefix. -/
+theorem recFire_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {rc : Arena.RecShape} {rcP : ConLeche.RecShape} {f : IRecRuleFire}
+    (hok : StateOK s) (hpins : PinsOK s) (hp : dShape s.store p = some pP)
+    (hrc : dRec s.store rc = some rcP) (hrun : Arena.recFire p rc s = .ok (f, s')) :
+    PStep s s' ∧ Frontend.denoteFire s'.store f = some (ConLeche.recFire pP rcP) := by
+  have hk := BlockShape.k_spec hp
+  obtain ⟨hcv, hrP, hmI, htgt, -, -⟩ := dRec_inv hrc
+  unfold Arena.recFire at hrun
+  by_cases ht : rc.tgt < p.k
+  · rw [ite_eq_left ht] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [ConLeche.recFire, show rcP.tgt < pP.k by rw [← htgt, ← hk]; exact ht, ite_true,
+      Frontend.denoteFire]
+  have ht' : ¬ rcP.tgt < pP.k := by rw [← htgt, ← hk]; exact ht
+  rw [ite_eq_right ht] at hrun
+  obtain ⟨o, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok (denoteCV_type hcv) k1
+  rw [hmI] at hbp
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [ConLeche.recFire, ht', ite_false, stripPis_none hbp, Frontend.denoteFire]
+  | some q =>
+  obtain ⟨bs, b⟩ := q
+  obtain ⟨xs, x, hsp, -, hb⟩ := denoteBP_some hbp
+  dsimp only at z1
+  by_cases htg : (b.tag == ETag.forallE) = true
+  · rw [ite_eq_left htg] at z1
+    obtain ⟨o2, s₂, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨rfl, ho2⟩ := viewBind_run k2
+    cases o2 with
+    | none => exact absurd z2 (fun hc => failDanglingE_ok hc)
+    | some q2 =>
+    obtain ⟨dom, body⟩ := q2
+    have hw := view_forallE_of_viewBind htg ho2.symm
+    obtain ⟨domP, bodyP, rfl, hdom, -⟩ := denote_forallE_inv hok.wf hw hb
+    dsimp only at z2
+    obtain ⟨hd, s₃, k3, z3⟩ := AM.bind_ok z2
+    obtain ⟨rfl, hhd⟩ := getAppFn_run hok hdom k3
+    by_cases htc : (hd.tag == ETag.const) = true
+    · rw [ite_eq_left htc] at z3
+      obtain ⟨o4, s₄, k4, z4⟩ := AM.bind_ok z3
+      obtain ⟨rfl, ho4⟩ := viewConst_run k4
+      cases o4 with
+      | none => exact absurd z4 (fun hc => failDanglingE_ok hc)
+      | some q4 =>
+      obtain ⟨cn, us⟩ := q4
+      have hvc := view_of_viewConst_tag htc ho4.symm
+      obtain ⟨nm, ls, hgf, -, hus⟩ := denote_const_inv hok.wf hvc hhd
+      dsimp only at z4
+      obtain ⟨lvls, s₅, k5, z5⟩ := AM.bind_ok z4
+      obtain ⟨rfl, hlv⟩ := viewLs_run k5
+      have hls := hus
+      simp only [denoteLs, hlv] at hls
+      obtain ⟨args, s₆, k6, z6⟩ := AM.bind_ok z5
+      obtain ⟨rfl, hargs⟩ := getAppArgs_run hok hdom k6
+      have hlen : args.length = domP.getAppArgs.length :=
+        (ExprOps.denoteEList_length _ _ hargs).symm
+      obtain ⟨ps, s₇, k7, z7⟩ := AM.bind_ok z6
+      obtain ⟨p7, hps⟩ := dropVarsList_run (rc.mI - rc.rP) _ _ hok hpins
+        (denoteEList_take hargs (args.length - (rc.mI - rc.rP))) k7
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z7
+      refine ⟨p7, ?_⟩
+      have hls' : denoteLList s'.store.ls lvls = some ls := denoteLList_ext p7.ext.lss.ls _ _ hls
+      simp only [ConLeche.recFire, ht', ite_false, hsp, hgf, Frontend.denoteFire,
+        hls', hps, hlen, hmI, hrP]
+    · rw [ite_eq_right htc] at z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+      refine ⟨PStep.refl hok, ?_⟩
+      have hnc : ∀ a b, domP.getAppFn ≠ .const a b := by
+        intro a b h
+        rw [h] at hhd
+        exact htc (by rw [tag_const_of_denote hok.wf hhd]; rfl)
+      -- the match's non-`const` arm, discharged off `hnc` in the context
+      simp only [ConLeche.recFire, ht', ite_false, hsp, Frontend.denoteFire]
+  · rw [ite_eq_right htg] at z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [ConLeche.recFire, ht', ite_false, hsp, Frontend.denoteFire]
+    split
+    · rename_i h
+      obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+      exact absurd (tag_forallE_of_denote hok.wf hb) (by simpa using htg)
+    · rfl
 
 end ConRon.Bridge.Inductives
