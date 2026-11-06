@@ -43,7 +43,7 @@ of the tier.  `intern_reserved_pins` and the three `intern_pin_set*` wait on
 `Specs.lean`'s four transient walks and its per-constructor interns (task
 #97-P5-1 §8's thirty-two).
 -/
-import ConRon.Refine2.Promote.Promote
+import ConRon.Refine2.Promote.Intern
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine.BasisNames

@@ -48,7 +48,6 @@ import ConRon.Refine2.ExprOps.Mut
 import ConRon.Refine2.Core
 import ConRon.Refine2.Checker.Shape
 import ConRon.Refine2.Promote.Intern
-import ConRon.Refine2.Promote.Promote
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Checker.Leaves
 import ConRon.Refine2.Checker.Pins
