@@ -42,16 +42,14 @@ theorem stream_index_add_refines {pers st lst} {ix ix' : arena.stream_index.IStr
   obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hS1 := decl_constants_refines hrel hinv h1
   cases r with
-  | Err e => simp only at hrun; cases Result.ok_injective hrun
+  | Err e => cases Result.ok_injective hrun
   | Ok cs =>
-    simp only at hrun
     obtain ⟨⟨r1, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨L, lst1, hx1, hL, hrel1, hinv1⟩ := hS1
     have hS2 := decl_tables_refines hrel1 hinv1 h2
     cases r1 with
-    | Err e => simp only at hrun; cases Result.ok_injective hrun
+    | Err e => cases Result.ok_injective hrun
     | Ok ts =>
-      simp only at hrun
       obtain ⟨Q, lst2, hx2, hQ, hrel2, hinv2⟩ := hS2
       obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hr2v := len_cast_val' hr2
@@ -59,35 +57,41 @@ theorem stream_index_add_refines {pers st lst} {ix ix' : arena.stream_index.IStr
       have hvv : v.val = ix.firsts.val ++ [ix.next] := ConRon.Refine.vec_push_val hv
       obtain ⟨ix2, hix2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+      obtain ⟨hii', rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+      cases hii'
       obtain ⟨hC, hN, hTb, hTm, hF⟩ := insert_consts_rel cs _ { ix with firsts := v } 0#usize
-        I.base.idx (by simp) ⟨hI.consts.rows, hI.consts.len, hI.consts.inv, hI.consts.range⟩ hix2
+        I.base.idx rfl ⟨hI.consts.rows, hI.consts.len, hI.consts.inv, hI.consts.range⟩ hix2
       obtain ⟨hT, hCs, hIdx, hNx, hF2⟩ := insert_tables_rel r2 ts _ ix2 0#usize I.base.tbls
-        (by simp) (by
-          rw [show ix2.tables = ix.tables from hTb, show ix2.tbls = ix.tbls from hTm]
+        rfl (by
           exact ⟨fun n => by simp only [ixTbl]; rw [hTb, hTm]; exact hI.tables.rows n,
             by rw [hTm]; exact hI.tables.inv,
             fun n p hp => by rw [hTb]; rw [hTm] at hp; exact hI.tables.range n p hp⟩) hii
-      refine ⟨_, lst2, ?_, hrel2, hinv2, ⟨?_, ?_, ?_, ?_⟩⟩
+      let I' : IStreamIndex :=
+        ⟨⟨(insertConsts I.base.idx I.next L).1, insertTables I.base.tbls I.firsts.size Q,
+          I.base.below, I.base.belowRec⟩, I.firsts.push I.next, (insertConsts I.base.idx I.next L).2⟩
+      refine ⟨I', lst2, ?_, hrel2, hinv2, ⟨?_, ?_, ?_, ?_⟩⟩
       · simp only [IStreamIndex.add, StateT.run_bind, hx1, hx2, except_ok_bind]
         rfl
       · -- the constants: unmoved by the table insertion
-        rw [← hL]
-        simp only [List.drop_zero] at hC
+        show IxConsts _ (insertConsts I.base.idx I.next L).1
+        simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hC
+        rw [hI.next, hL]
         have hC' := hC
         exact ⟨fun n => by simp only [ixRow]; rw [hCs, hIdx]; exact hC'.rows n,
           by rw [hCs, hNx]; exact hC'.len, by rw [hIdx]; exact hC'.inv,
           fun n c hc => by rw [hCs]; rw [hIdx] at hc; exact hC'.range n c hc⟩
-      · simp only [List.drop_zero] at hT
-        rw [← hQ]
+      · show IxTables _ (insertTables I.base.tbls I.firsts.size Q)
+        simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hT
         have hpos : absU r2 = I.firsts.size := by
           rw [absU, hr2v, ← Array.length_toList, hI.firsts, List.length_map]
-        rw [← hpos]
+        rw [hQ, ← hpos]
         exact hT
-      · simp only [Array.toList_push, hI.firsts, hF2, hF, hvv, List.map_append, List.map_cons,
-          List.map_nil, hI.next]
-      · simp only [List.drop_zero] at hN
-        rw [← hL, ← hN, hNx, hI.next]
+      · show (I.firsts.push I.next).toList = _
+        rw [Array.toList_push, hI.firsts, hF2, hF, hvv, hI.next]
+        simp
+      · show (insertConsts I.base.idx I.next L).2 = _
+        simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hN
+        rw [hI.next, hL, ← hN, hNx]
 
 /-- **`build_index` ⊑ `buildIndexGo`, accepting**: the records from cursor `i` on, each
 into the index, in order. -/
@@ -105,9 +109,10 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
     rw [arena.stream_index.build_index.eq_def] at hrun
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac)] at hrun
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    cases h1
     rw [List.drop_eq_nil_of_le (by simp [absIDeclL]; omega)]
-    exact ⟨I, lst, rfl, hrel, hinv, by cases (core.result.Result.Ok.inj ‹_›); exact hI⟩
+    exact ⟨I, lst, rfl, hrel, hinv, hI⟩
   | succ m ih =>
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
     rw [arena.stream_index.build_index.eq_def] at hrun
@@ -118,11 +123,9 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
     obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases r with
     | Err e =>
-      simp only at hrun
       obtain ⟨i3, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       cases Result.ok_injective hrun
     | Ok ix2 =>
-      simp only at hrun
       obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi3v : i3.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
       obtain ⟨I2, lst1, hx1, hrel1, hinv1, hI2⟩ := stream_index_add_refines hrel hinv hI h1
