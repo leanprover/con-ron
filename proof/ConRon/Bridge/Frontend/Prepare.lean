@@ -1109,17 +1109,23 @@ theorem usedConsts_run {s s' : AState} (hok : StateOK s)
 on both sides**: the twin's `used` at a denoting record moves the state as a parse step does and
 answers the names con-leche's `usedC` answers.  `IDeclaration.usedConsts` against
 `Declaration.usedConsts` is `usedConsts_run`. -/
-@[expose] def UsedRel (used : IDeclaration → AM (Array NIdx))
+@[expose] def UsedRel (st0 : EStore) (used : IDeclaration → AM (Array NIdx))
     (usedC : Declaration → Array ConLeche.Name) : Prop :=
-  ∀ {s s' : AState} {d : IDeclaration} {dP : Declaration} {ns : Array NIdx}, StateOK s →
-    s.store.scratchOn = false → ConRon.Arena.Frontend.denoteDecl s.store d = some dP →
-    used d s = .ok (ns, s') →
+  ∀ {s s' : AState} {d : IDeclaration} {dP : Declaration} {ns : Array NIdx}, Ext st0 s.store →
+    StateOK s → s.store.scratchOn = false →
+    ConRon.Arena.Frontend.denoteDecl s.store d = some dP → used d s = .ok (ns, s') →
     ParseStep s s' ∧ denoteNList s'.store.ns ns.toList = some (usedC dP).toList
+
+theorem UsedRel.mono {st0 st1 : EStore} {used : IDeclaration → AM (Array NIdx)}
+    {usedC : Declaration → Array ConLeche.Name} (hx : Ext st0 st1) (h : UsedRel st0 used usedC) :
+    UsedRel st1 used usedC :=
+  fun hx' hok hoff hd hrun => h (hx.trans hx') hok hoff hd hrun
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:82-95 usedConsts — the stream path's
 `used`. -/
-theorem usedRel_usedConsts : UsedRel IDeclaration.usedConsts ConLeche.Declaration.usedConsts :=
-  fun hok hoff hd hrun => usedConsts_run hok hoff hd hrun
+theorem usedRel_usedConsts (st0 : EStore) :
+    UsedRel st0 IDeclaration.usedConsts ConLeche.Declaration.usedConsts :=
+  fun _ hok hoff hd hrun => usedConsts_run hok hoff hd hrun
 
 /-! ## The target map
 
@@ -1320,7 +1326,7 @@ sides, with `usedConsts_run` for the pushed references and `pushOne_sim` for
 the push loop.  Fuel exhaustion is a `fail`, so an accepting run never meets
 it. -/
 theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
-    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} (hU : UsedRel used usedC)
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Unit → Std.HashMap Nat Nat × Array Nat →
@@ -1328,7 +1334,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
     (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (fuel : Nat) (s : AState) (target : Std.HashMap Nat Nat) (L : List Nat)
       (arr : Array Nat) (t' : Std.HashMap Nat Nat) (s' : AState),
-      StateOK s → s.store.scratchOn = false →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
       (∀ x ∈ L, x < ds.size) → arr.toList.reverse = L →
       hoistClosure used ds idx i fuel target L s = .ok (t', s') →
@@ -1336,7 +1342,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
   intro fuel
   induction fuel with
   | zero =>
-    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    intro s target L arr t' s' hok hx hoff hds hr hL harr hrun
     obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
     rw [hoistClosure] at hrun
     rw [hloop]
@@ -1354,7 +1360,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       simp only [hdrop] at hrun
       exact (AM.fail_ok hrun).elim
   | succ f ih =>
-    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    intro s target L arr t' s' hok hx hoff hds hr hL harr hrun
     obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
     rw [hoistClosure] at hrun
     rw [hloop]
@@ -1384,11 +1390,11 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       rw [dite_eq_left hk] at hpush
       obtain ⟨ns, s₂, hus, hpure⟩ := AM.bind_ok hpush
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hpure
-      obtain ⟨hstep, hns⟩ := hU hok hoff (declAt_denote hds hk) hus
+      obtain ⟨hstep, hns⟩ := hU hx hok hoff (declAt_denote hds hk) hus
       have hr1 := hr.mono hstep.ext (nsWF_of_StateOK hstep.ok)
       have hpushP := pushOne_sim hr1 i k ns.toList _ hns arr'.pop rest hpop
       have hoff1 : s₁.store.scratchOn = false := by rw [hstep.scratch]; exact hoff
-      obtain ⟨hstep2, hres⟩ := ih s₁ (target.insert k i) _ _ t' s' hstep.ok hoff1
+      obtain ⟨hstep2, hres⟩ := ih s₁ (target.insert k i) _ _ t' s' hstep.ok (hx.trans hstep.ext) hoff1
         (denoteDeclArray_ext hstep.ext hds) hr1
         (hoistClosure_pushOne_lt hidx k _ rest hrest) hpushP hrun
       refine ⟨hstep.trans hstep2, ?_⟩
@@ -1486,7 +1492,7 @@ def clDepStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:119-134 hoistTargets — the
 twin's `hoistDeps` is con-leche's `for g in natOpDeps c` loop. -/
 theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
-    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} (hU : UsedRel used usedC)
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
@@ -1494,7 +1500,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
     (hB : ∀ tg st, B i () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (gs : List NIdx) (gsP : List ConLeche.Name) (s : AState)
       (target t' : Std.HashMap Nat Nat) (s' : AState),
-      StateOK s → s.store.scratchOn = false →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
       denoteNL s.store gs gsP →
       hoistTargetsGo.hoistDeps used ds idx target i gs s = .ok (t', s') →
@@ -1502,7 +1508,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
   intro gs
   induction gs with
   | nil =>
-    intro gsP s target t' s' hok _ _ _ hgs hrun
+    intro gsP s target t' s' hok _ _ _ _ hgs hrun
     cases gsP with
     | cons _ _ => exact hgs.elim
     | nil =>
@@ -1510,7 +1516,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨ParseStep.refl hok, rfl⟩
   | cons g gs ih =>
-    intro gsP s target t' s' hok hoff hds hr hgs hrun
+    intro gsP s target t' s' hok hx hoff hds hr hgs hrun
     cases gsP with
     | nil => exact hgs.elim
     | cons gP gsP =>
@@ -1522,7 +1528,7 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       cases hj : idx[g]? with
       | none =>
         rw [hj] at hrun
-        exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+        exact ih gsP s target t' s' hok hx hoff hds hr hgs hrun
       | some j =>
         rw [hj] at hrun
         simp only [] at hrun ⊢
@@ -1531,16 +1537,16 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
           rw [ite_eq_left hji]
           obtain ⟨t1, s₁, h1, hrun⟩ := AM.bind_ok hrun
           obtain ⟨hstep1, rfl⟩ := hoistClosure_sim hU hidx (B i) hB ds.size s target [j] #[j]
-            t1 s₁ hok hoff hds hr (by simpa using hidx g j hj) (by simp) h1
+            t1 s₁ hok hx hoff hds hr (by simpa using hidx g j hj) (by simp) h1
           have hoff1 : s₁.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
-          obtain ⟨hstep2, hres⟩ := ih gsP s₁ _ t' s' hstep1.ok hoff1
+          obtain ⟨hstep2, hres⟩ := ih gsP s₁ _ t' s' hstep1.ok (hx.trans hstep1.ext) hoff1
             (denoteDeclArray_ext hstep1.ext hds)
             (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok))
             (denoteNL_ext hstep1.ext _ _ hgs) hrun
           exact ⟨hstep1.trans hstep2, hres⟩
         · rw [ite_eq_right hji] at hrun
           rw [ite_eq_right hji]
-          exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+          exact ih gsP s target t' s' hok hx hoff hds hr hgs hrun
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:117-134 hoistTargets — one
 turn of the outer `for i in [0:ds.size]` loop, as a value. -/
@@ -1556,7 +1562,7 @@ def clOuterStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
 twin's `hoistTargetsGo` (a tail recursion from `i`) is con-leche's outer loop
 over the rest of the index range. -/
 theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
-    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} (hU : UsedRel used usedC)
+    {usedC : Declaration → Array ConLeche.Name} {used : IDeclaration → AM (Array NIdx)} {st0 : EStore} (hU : UsedRel st0 used usedC)
     {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat}
     (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
     (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
@@ -1564,19 +1570,19 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
     (hB : ∀ i tg st, B i () (tg, st) = clCloseStep dsP usedC idxP i tg st) :
     ∀ (n i : Nat) (s : AState) (target t' : Std.HashMap Nat Nat) (s' : AState),
       ds.size - i = n →
-      StateOK s → s.store.scratchOn = false → PinsOK s →
+      StateOK s → Ext st0 s.store → s.store.scratchOn = false → PinsOK s →
       denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
       hoistTargetsGo used ds idx target i s = .ok (t', s') →
       ParseStep s s' ∧ t' = (List.range' i n).foldl (clOuterStep B dsP idxP) target := by
   intro n
   induction n with
   | zero =>
-    intro i s target t' s' hn hok _ _ _ _ hrun
+    intro i s target t' s' hn hok _ _ _ _ _ hrun
     rw [hoistTargetsGo, dite_eq_right (by omega)] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨ParseStep.refl hok, rfl⟩
   | succ n ih =>
-    intro i s target t' s' hn hok hoff hpins hds hr hrun
+    intro i s target t' s' hn hok hx hoff hpins hds hr hrun
     have hi : i < ds.size := by omega
     rw [hoistTargetsGo, dite_eq_left hi] at hrun
     obtain ⟨r, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -1590,7 +1596,7 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         cases h : ConLeche.Frontend.isNatOpRecord dsP[i]! with
         | none => rfl
         | some _ => rw [h] at hopt; exact hopt.elim
-      have := ih (i + 1) s target t' s' (by omega) hok hoff hpins hds hr hrun
+      have := ih (i + 1) s target t' s' (by omega) hok hx hoff hpins hds hr hrun
       simpa [clOuterStep, hcl] using this
     | some c =>
       simp only [] at hrun
@@ -1603,10 +1609,10 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         have hs2 := natOpDeps_state hpins h2
         rw [hs2] at hrun hgs
         obtain ⟨t1, s₃, h3, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hstep1, rfl⟩ := hoistDeps_sim hU hidx B (hB i) gs _ s target t1 s₃ hok hoff hds hr
+        obtain ⟨hstep1, rfl⟩ := hoistDeps_sim hU hidx B (hB i) gs _ s target t1 s₃ hok hx hoff hds hr
           hgs h3
         have hoff1 : s₃.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
-        obtain ⟨hstep2, hres⟩ := ih (i + 1) s₃ _ t' s' (by omega) hstep1.ok hoff1
+        obtain ⟨hstep2, hres⟩ := ih (i + 1) s₃ _ t' s' (by omega) hstep1.ok (hx.trans hstep1.ext) hoff1
           (hpins.mono hstep1.ext hstep1.pins) (denoteDeclArray_ext hstep1.ext hds)
           (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok)) hrun
         refine ⟨hstep1.trans hstep2, ?_⟩
@@ -1883,7 +1889,7 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     (_hwf : StoreWF s.store)
     (hds : denoteDeclArray s.store ds = some dsP)
     {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
-    (hU : UsedRel used usedC)
+    (hU : UsedRel s.store used usedC)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets used ds s = .ok (target, s')) :
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets usedC dsP := by
   have hnw := nsWF_of_StateOK hok
@@ -1897,7 +1903,7 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     rw [clIdx, ← hsz]; exact this
   have hidx := nameIndex_lt ds ds.size 0 ∅ (by simp) (by simp)
   obtain ⟨hstep, hres⟩ := hoistTargetsGo_sim hU hidx (clB dsP usedC (clIdx dsP)) (fun _ _ _ => rfl)
-    ds.size 0 s ∅ target s' (by simp) hok hoff hpins hds hr0 hrun
+    ds.size 0 s ∅ target s' (by simp) hok (Ext.refl _) hoff hpins hds hr0 hrun
   refine ⟨hstep, ?_⟩
   rw [hres, clHoistTargets_eq dsP usedC, hsz]
 
@@ -2083,7 +2089,7 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
     {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
-    (hU : UsedRel used usedC)
+    (hU : UsedRel s.store used usedC)
     {out : Array IDeclaration} {moved : Array NIdx}
     (hrun : hoistNatOpGround used ds s = .ok ((out, moved), s')) :
     ParseStep s s' ∧ PersDecls out ∧
@@ -2126,7 +2132,7 @@ theorem prepareD_run {s s' : AState} (hok : StateOK s)
     {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
     (hpds : PersDecls ds)
     {used : IDeclaration → AM (Array NIdx)} {usedC : Declaration → Array ConLeche.Name}
-    (hU : UsedRel used usedC) {prep : Prepared}
+    (hU : UsedRel s.store used usedC) {prep : Prepared}
     (hrun : prepareD pre ds used s = .ok (prep, s')) :
     ParseStep s s' ∧ PersDecls prep.decls ∧
       denoteDeclArray s'.store prep.decls
@@ -2156,7 +2162,7 @@ theorem prepareD_run {s s' : AState} (hok : StateOK s)
         rcases Array.mem_append.mp hd with h | h
         · exact hpf d h
         · exact hpr d h)
-      hU hhoist
+      (hU.mono hstep1.ext) hhoist
   have hdecls : prep.decls = decls := by rw [hv2]
   refine ⟨hstep1.trans hstep2, ?_, ?_⟩
   · rw [hdecls]; exact hpo
@@ -2180,6 +2186,6 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
   obtain ⟨prep, s₁, hprepD, hrest⟩ := AM.bind_ok hrun
   obtain ⟨hv, hs⟩ := AM.pure_ok hrest
   subst hv; subst hs
-  exact prepareD_run hok hoff hpins hpre hprep hds hpds usedRel_usedConsts hprepD
+  exact prepareD_run hok hoff hpins hpre hprep hds hpds (usedRel_usedConsts _) hprepD
 
 end ConRon.Bridge.Frontend

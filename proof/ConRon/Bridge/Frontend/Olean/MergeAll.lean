@@ -365,7 +365,8 @@ theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
       c.c.name = some c := by
     simp only [Merged.get, Std.HashMap.getElem?_insert_self]
     exact hc
-  refine ⟨fun {n nC x} hdn hx => ?_, fun {n nC} hdn hx => ?_, fun {n nC} hdn => ?_, hord⟩
+  refine ⟨fun {n nC x} hdn hx => ?_, fun {n nC} hdn hx => ?_, fun {n nC} hdn => ?_, hord,
+    fun {n p} hp => ?_, fun {nC z} hz => ?_⟩
   · by_cases e : n = c.c.name
     · subst e
       rw [hself] at hx
@@ -395,6 +396,20 @@ theorem MergedRel.insert {st : EStore} (hw : NStoreWF st.ns) {mg : Merged}
     · have hne : cC.name ≠ nC := fun e' => e (denoteN_inj hw hdn (e' ▸ hn))
       have hne' : c.c.name ≠ n := fun e' => e e'.symm
       rw [beq_eq_false_iff_ne.mpr hne, beq_eq_false_iff_ne.mpr hne']
+  · rw [Std.HashMap.getElem?_insert] at hp
+    by_cases e : c.c.name = n
+    · subst e
+      rw [hn]
+      rfl
+    · rw [beq_eq_false_iff_ne.mpr e] at hp
+      exact hm.keys hp
+  · rw [Std.HashMap.getElem?_insert] at hz
+    by_cases e : cC.name = nC
+    · subst e
+      exact ⟨c.c.name, hn, by simp⟩
+    · rw [beq_eq_false_iff_ne.mpr e] at hz
+      obtain ⟨n, hdn, hcn⟩ := hm.keysC hz
+      exact ⟨n, hdn, by simp [Std.HashMap.contains_insert, hcn]⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry — **one constant merged**,
 the arm upstream's. -/
@@ -532,7 +547,9 @@ theorem mergeAll_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
     ⟨fun {n nC c} _ hc => by simp [Merged.get] at hc,
      fun {n nC} _ _ => by simp,
      fun {n nC} _ => by simp,
-     .nil⟩
+     .nil,
+     fun {n p} hp => by simp at hp,
+     fun {nC c} hc => by simp at hc⟩
   have hI := forIn'_range_inv (I := fun m (b : Merged) t => s = t ∧ b.ls = ls ∧ ∃ mgC,
       (lsC.take m).foldlM stepC {} = .ok mgC ∧ MergedRel s.store b mgC)
     (fun m hm b t r t' hI hrun => by
