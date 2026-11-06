@@ -1055,401 +1055,7 @@ theorem order_block_ctors_refines
   rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at this
   exact this
 
-/-! ## The K flag and the recursor records -/
-
-theorem env_dangling_level_kind {ce : kernel.core_types.CheckError}
-    (h : arena.env.dangling_level = ok ce) : absAErrKind ce = some .internal := by
-  rw [arena.env.dangling_level] at h
-  simp only [lift, bind_ok] at h
-  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [kernel.core_types.internal] at h
-  cases Result.ok_injective h
-  rfl
-
-/-- **`env::read_level_at` is `denoteLAux`** at the same fuel, the answer
-well formed, and `Internal` exactly where the readback is `none`. -/
-theorem env_read_level_at_abs {pers rst lst} (hrel : AStateRel₀ pers rst lst)
-    (hinv : AStateInv pers rst) :
-    ∀ (n : Nat) (fuel : Std.U64) (i : arena.handle.LIdx) {o}, fuel.val = n →
-      arena.env.read_level_at pers rst.store fuel i = ok o →
-      match denoteLAux lst.store.ls n (absLIdx i) with
-      | some x => ∃ l, o = .Ok l ∧ ConRon.Refine.absLevel l = x ∧ ConRon.Refine.LevelWF l
-      | none => ∃ e, o = .Err e ∧ absAErrKind e = some .internal := by
-  intro n
-  induction n with
-  | zero =>
-    intro fuel i o hn hrun
-    rw [arena.env.read_level_at, ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
-      fuel = 0#u64)] at hrun
-    obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    cases Result.ok_injective hrun
-    exact ⟨ce, rfl, env_dangling_level_kind hce⟩
-  | succ k ih =>
-    intro fuel i o hn hrun
-    rw [arena.env.read_level_at, ite_eq_right (by intro hc; rw [hc] at hn; simp at hn)] at hrun
-    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.store.EStore.ls] at hl
-    cases Result.ok_injective hl
-    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hview : lst.store.ls.view (absLIdx i) = v.map absLNodeView :=
-      lstore_view_abs hrel.store.lss.lvl hv
-    rw [denoteLAux, hview]
-    have hf : ∀ {f1 : Std.U64}, fuel - 1#u64 = ok f1 → f1.val = k := by
-      intro f1 hf1
-      have h1 : f1.val = fuel.val - (1#u64 : Std.U64).val := (ConRon.Refine.Nat.usub_val hf1).2
-      rw [h1, hn]; rfl
-    cases v with
-    | none =>
-      obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      cases Result.ok_injective hrun
-      exact ⟨ce, rfl, env_dangling_level_kind hce⟩
-    | some lv =>
-      simp only [Option.map_some, Option.bind_some]
-      cases lv with
-      | Zero =>
-        obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        cases Result.ok_injective hrun
-        obtain ⟨hh, hue⟩ := ConRon.Refine.Level.level_zero_inv' hu
-        exact ⟨u, rfl, by rw [hue]; rfl, ConRon.Refine.LevelWF.zero hu⟩
-      | Succ a =>
-        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hih := ih f1 a (hf hf1) ho1
-        simp only [absLNodeView]
-        cases hd : denoteLAux lst.store.ls k (absLIdx a) with
-        | none =>
-          rw [hd] at hih
-          obtain ⟨e, rfl, hek⟩ := hih
-          cases Result.ok_injective hrun
-          exact ⟨e, rfl, hek⟩
-        | some x =>
-          rw [hd] at hih
-          obtain ⟨la, rfl, hla, hwa⟩ := hih
-          obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          cases Result.ok_injective hrun
-          obtain ⟨hh, hue⟩ := ConRon.Refine.level_succ_inv hu
-          refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.succ hwa hu⟩
-          rw [hue, ← hla]; rfl
-      | Max a b =>
-        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hiha := ih f1 a (hf hf1) ho1
-        simp only [absLNodeView]
-        cases hda : denoteLAux lst.store.ls k (absLIdx a) with
-        | none =>
-          rw [hda] at hiha
-          obtain ⟨e, rfl, hek⟩ := hiha
-          cases Result.ok_injective hrun
-          exact ⟨e, rfl, hek⟩
-        | some xa =>
-          rw [hda] at hiha
-          obtain ⟨la, rfl, hla, hwa⟩ := hiha
-          obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hihb := ih f1 b (hf hf1) ho2
-          cases hdb : denoteLAux lst.store.ls k (absLIdx b) with
-          | none =>
-            rw [hdb] at hihb
-            obtain ⟨e, rfl, hek⟩ := hihb
-            cases Result.ok_injective hrun
-            exact ⟨e, rfl, hek⟩
-          | some xb =>
-            rw [hdb] at hihb
-            obtain ⟨lb, rfl, hlb, hwb⟩ := hihb
-            obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            cases Result.ok_injective hrun
-            obtain ⟨hh, hue⟩ := ConRon.Refine.level_max_inv hu
-            refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.max hwa hwb hu⟩
-            rw [hue, ← hla, ← hlb]; rfl
-      | Imax a b =>
-        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hiha := ih f1 a (hf hf1) ho1
-        simp only [absLNodeView]
-        cases hda : denoteLAux lst.store.ls k (absLIdx a) with
-        | none =>
-          rw [hda] at hiha
-          obtain ⟨e, rfl, hek⟩ := hiha
-          cases Result.ok_injective hrun
-          exact ⟨e, rfl, hek⟩
-        | some xa =>
-          rw [hda] at hiha
-          obtain ⟨la, rfl, hla, hwa⟩ := hiha
-          obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hihb := ih f1 b (hf hf1) ho2
-          cases hdb : denoteLAux lst.store.ls k (absLIdx b) with
-          | none =>
-            rw [hdb] at hihb
-            obtain ⟨e, rfl, hek⟩ := hihb
-            cases Result.ok_injective hrun
-            exact ⟨e, rfl, hek⟩
-          | some xb =>
-            rw [hdb] at hihb
-            obtain ⟨lb, rfl, hlb, hwb⟩ := hihb
-            obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            cases Result.ok_injective hrun
-            obtain ⟨hh, hue⟩ := ConRon.Refine.level_imax_inv hu
-            refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.imax hwa hwb hu⟩
-            rw [hue, ← hla, ← hlb]; rfl
-      | Param nm =>
-        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hR := env_read_name_abs hrel.store ho1
-        have hW := env_read_name_wf hinv.store ho1
-        simp only [absLNodeView]
-        cases hdn : denoteN lst.store.ls.ns (absNIdx nm) with
-        | none =>
-          rw [show lst.store.ns = lst.store.ls.ns from rfl, hdn] at hR
-          obtain ⟨e, rfl, hek⟩ := hR
-          cases Result.ok_injective hrun
-          exact ⟨e, rfl, hek⟩
-        | some x =>
-          rw [show lst.store.ns = lst.store.ls.ns from rfl, hdn] at hR
-          obtain ⟨y, rfl, hy⟩ := hR
-          obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          cases Result.ok_injective hrun
-          obtain ⟨hh, hue⟩ := ConRon.Refine.level_param_inv hu
-          refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.param (hW y rfl) hu⟩
-          rw [hue, ← hy]; rfl
-
-/-- **`env::read_level` is `readLevel`** (the store's level readback,
-`denoteL` at `node_count + 1` fuel), with the answer well formed. -/
-theorem env_read_level_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
-    (hinv : AStateInv pers rst) {h : arena.handle.LIdx} {o}
-    (hrun : arena.env.read_level pers rst.store h = ok o) :
-    (∀ l, o = .Ok l → ConRon.Refine.LevelWF l) ∧
-      SimRE ConRon.Refine.absLevel lst o (readLevel (absLIdx h)) := by
-  rw [arena.env.read_level] at hrun
-  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [arena.store.EStore.ls] at hl
-  cases Result.ok_injective hl
-  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨c1, hc1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨c2, hc2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hcv := lstore_node_count_abs hrel.store.lss.lvl hc
-  have hc1v : c1.val = c.val := by
-    simp only [lift, Result.ok.injEq] at hc1
-    rw [← hc1]; exact usize_cast_u64_val' c
-  have hc2v : c2.val = lst.store.ls.nodeCount + 1 := by
-    have := ConRon.Refine.Nat.uadd_val hc2
-    rw [this, hc1v, hcv]; rfl
-  have H := env_read_level_at_abs hrel hinv _ c2 h hc2v hrun
-  have hrunl : (readLevel (absLIdx h)).run lst
-      = match denoteL lst.store.ls (absLIdx h) with
-        | some x => Except.ok (x, lst)
-        | none => Except.error (.internal "arena: dangling level handle") := by
-    show (match denoteL lst.store.ls (absLIdx h) with
-          | some l => (pure l : AM _)
-          | none => Arena.fail (.internal "arena: dangling level handle")).run lst = _
-    cases denoteL lst.store.ls (absLIdx h) <;> rfl
-  rw [denoteL] at hrunl
-  cases hd : denoteLAux lst.store.ls (lst.store.ls.nodeCount + 1) (absLIdx h) with
-  | none =>
-    rw [hd] at H hrunl
-    obtain ⟨e, rfl, hek⟩ := H
-    refine ⟨fun l' hl' => (nomatch hl'), ?_⟩
-    show AErrSim e _
-    rw [hrunl]
-    exact AErrSim.mk rfl (by rw [hek]; rfl)
-  | some x =>
-    rw [hd] at H hrunl
-    obtain ⟨l, rfl, hlx, hw⟩ := H
-    refine ⟨fun l' hl' => by cases hl'; exact hw, ?_⟩
-    show _ = _
-    rw [hrunl, hlx]
-
-/-- **`k_expected_of`** — official's `is_K_target`, against `kExpectedOfD`: a
-single type former with a single constructor of zero fields whose result sort
-is `Prop`. -/
-theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.k_expected_of pers rst.store fuel ty_types listed cts
-      = ok o) :
-    SimLR id lst o
-      (kExpectedOfD (absU fuel) (absEIdxL ty_types) (listed.val.map absNIdxL)
-        (absIndCtorRecs cts)) := by
-  rw [frontend.export_c.k_expected_of] at h
-  unfold kExpectedOfD
-  -- the shape test: one former, one listed constructor, one record
-  by_cases hs : ∃ e l0 n0 c0, ty_types.val = [e] ∧ listed.val = [l0] ∧ l0.val = [n0] ∧
-      cts.val = [c0]
-  swap
-  · have hRust : o = .Ok (some false) := by
-      simp only [bne_iff_ne, ne_eq] at h
-      split at h
-      · exact (Result.ok_injective h).symm
-      split at h
-      · exact (Result.ok_injective h).symm
-      split at h
-      · exact (Result.ok_injective h).symm
-      rename_i h1 h2 h3
-      obtain ⟨l0, hl0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      split at h
-      · exact (Result.ok_injective h).symm
-      rename_i h4
-      exfalso; apply hs
-      have e1 : ty_types.val.length = 1 := by
-        have := congrArg (·.val) (Classical.not_not.mp h1); simpa using this
-      have e2 : listed.val.length = 1 := by
-        have := congrArg (·.val) (Classical.not_not.mp h2); simpa using this
-      have e3 : cts.val.length = 1 := by
-        have := congrArg (·.val) (Classical.not_not.mp h3); simpa using this
-      have hl0' := vec_index_eq (i := 0#usize) (by simp; omega) hl0
-      have e4 : l0.val.length = 1 := by
-        have := congrArg (·.val) (Classical.not_not.mp h4); simpa using this
-      match hty : ty_types.val, hls : listed.val, hl : l0.val, hc : cts.val with
-      | [e], [l0'], [n0], [c0] =>
-        refine ⟨e, l0', n0, c0, rfl, rfl, ?_, rfl⟩
-        simp only [show (0#usize : Std.Usize).val = 0 from rfl, hls,
-          List.getElem_cons_zero] at hl0'
-        rw [hl0']; exact hl
-      | [], _, _, _ => simp [hty] at e1
-      | _ :: _ :: _, _, _, _ => simp [hty] at e1
-      | _, [], _, _ => simp [hls] at e2
-      | _, _ :: _ :: _, _, _ => simp [hls] at e2
-      | _, _, [], _ => simp [hl] at e4
-      | _, _, _ :: _ :: _, _ => simp [hl] at e4
-      | _, _, _, [] => simp [hc] at e3
-      | _, _, _, _ :: _ :: _ => simp [hc] at e3
-    subst hRust
-    split
-    · rename_i ty hd0 c hty hls hc
-      exfalso; apply hs
-      simp only [absEIdxL, List.map_eq_singleton_iff] at hty
-      simp only [List.map_eq_singleton_iff] at hls
-      simp only [absIndCtorRecs, List.map_eq_singleton_iff] at hc
-      obtain ⟨e, he, -⟩ := hty
-      obtain ⟨l0, hl0, hl0e⟩ := hls
-      obtain ⟨c0, hc0, -⟩ := hc
-      simp only [absNIdxL, List.map_eq_singleton_iff] at hl0e
-      obtain ⟨n0, hn0, -⟩ := hl0e
-      exact ⟨e, l0, n0, c0, he, hl0, hn0, hc0⟩
-    · rfl
-  obtain ⟨e, l0, n0, c0, he, hl0, hn0, hc0⟩ := hs
-  have hty : absEIdxL ty_types = [absEIdx e] := by simp [absEIdxL, he]
-  have hls : listed.val.map absNIdxL = [[absNIdx n0]] := by simp [absNIdxL, hl0, hn0]
-  have hc : absIndCtorRecs cts = [absIndCtorRec c0] := by simp [absIndCtorRecs, hc0]
-  rw [hty, hls, hc]
-  simp only
-  have len1 : ∀ {T : Type} (v : alloc.vec.Vec T) (x : T), v.val = [x] →
-      alloc.vec.Vec.len v = 1#usize := by
-    intro T v x hv; apply UScalar.eq_equiv _ _ |>.mpr; simp [alloc.vec.Vec.len, hv]
-  simp only [len1 ty_types e he, len1 listed l0 hl0, len1 cts c0 hc0, bne_self_eq_false,
-    Bool.false_eq_true, ↓reduceIte] at h
-  obtain ⟨l0', hl0', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hl0'' := vec_index_eq (i := 0#usize) (by simp [hl0]) hl0'
-  simp only [show (0#usize : Std.Usize).val = 0 from rfl, hl0, List.getElem_cons_zero] at hl0''
-  subst hl0''
-  simp only [len1 l0 n0 hn0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at h
-  obtain ⟨e', he', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have he'' := vec_index_eq (i := 0#usize) (by simp [he]) he'
-  simp only [show (0#usize : Std.Usize).val = 0 from rfl, he, List.getElem_cons_zero] at he''
-  subst he''
-  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hP := pi_result_refines (lst := lst) hrel hinv hr
-  cases r with
-  | Err err => cases Result.ok_injective h; exact SimLR.bind_err hP
-  | Ok res =>
-  refine SimLR.bind_ok hP ?_
-  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hV := env_view_e_run hrel hr1
-  cases r1 with
-  | Err err =>
-    obtain ⟨e2, rfl, hk⟩ := fail_refines h
-    show AErrSim _ _
-    rw [am_run_bind']
-    exact AErrSim.bind (fun k hk2 => hV k (by rw [← hk, hk2])) _
-  | Ok ev =>
-  have hV' : (view (absEIdx res)).run lst = .ok (absENodeView ev, lst) := hV
-  have eb : ∀ {β : Type} (f : ENodeView → AM β),
-      ((view (absEIdx res)) >>= f).run lst = (f (absENodeView ev)).run lst := by
-    intro β f; rw [am_run_bind', hV']; rfl
-  unfold SimLR
-  cases o with
-  | Ok ob =>
-    rw [eb]
-    cases ev with
-    | «Sort» s =>
-      simp only at h
-      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hwf, hRL⟩ := env_read_level_run hrel hinv hr2
-      cases r2 with
-      | Err err => obtain ⟨_, he2, _⟩ := fail_refines h; cases he2
-      | Ok l =>
-      have hRL' : (readLevel (absLIdx s)).run lst = .ok (ConRon.Refine.absLevel l, lst) := hRL
-      simp only [absENodeView]
-      rw [am_run_bind', hRL']
-      obtain ⟨z, hz, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨oq, hoq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hq := ConRon.Refine.Level.is_equiv_refines (hwf l rfl) (ConRon.Refine.Level.zero_wf hz) hoq
-      obtain ⟨hh, hzeq⟩ := ConRon.Refine.Level.level_zero_inv' hz
-      have hz' : ConRon.Refine.absLevel z = .zero := by rw [hzeq]; rfl
-      obtain ⟨ip, hip, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨icr, hicr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hicr' := vec_index_eq (i := 0#usize) (by simp [hc0]) hicr
-      simp only [show (0#usize : Std.Usize).val = 0 from rfl, hc0, List.getElem_cons_zero]
-        at hicr'
-      subst hicr'
-      have hipv : ip = (ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) .zero == some true) := by
-        rw [hz'] at hq
-        rw [hq]
-        cases oq with
-        | none => have := Result.ok_injective hip; rw [← this]; rfl
-        | some bq => have := Result.ok_injective hip; rw [← this]; cases bq <;> rfl
-      split at h
-      · rename_i hnf
-        cases Result.ok_injective h
-        have : (absIndCtorRec c0).numFields = 0 := by
-          simp only [absIndCtorRec, absU64, hnf]; rfl
-        show Except.ok _ = _
-        simp only [id, this, hipv, beq_self_eq_true, Bool.true_and]
-      · rename_i hnf
-        cases Result.ok_injective h
-        have : (absIndCtorRec c0).numFields ≠ 0 := by
-          simp only [absIndCtorRec, absU64]; intro h0
-          exact hnf (by rw [UScalar.eq_equiv]; simpa using h0)
-        show Except.ok _ = _
-        simp only [id]
-        rw [show ((absIndCtorRec c0).numFields == 0) = false from by simpa using this]
-        rfl
-    | BVar _ => cases Result.ok_injective h; rfl
-    | FVar _ _ => cases Result.ok_injective h; rfl
-    | Const _ _ => cases Result.ok_injective h; rfl
-    | App _ _ => cases Result.ok_injective h; rfl
-    | Lam _ _ => cases Result.ok_injective h; rfl
-    | ForallE _ _ => cases Result.ok_injective h; rfl
-    | LetE _ _ _ => cases Result.ok_injective h; rfl
-    | Lit _ => cases Result.ok_injective h; rfl
-    | Proj _ _ _ => cases Result.ok_injective h; rfl
-  | Err err =>
-    rw [eb]
-    cases ev with
-    | «Sort» s =>
-      simp only at h
-      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨-, hRL⟩ := env_read_level_run hrel hinv hr2
-      cases r2 with
-      | Ok l =>
-        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        split at h <;> cases Result.ok_injective h
-      | Err err2 =>
-        obtain ⟨e3, he3, hk3⟩ := fail_refines h
-        cases he3
-        simp only [absENodeView]
-        show AErrSim _ _
-        rw [am_run_bind']
-        exact AErrSim.bind (fun k hk2 => hRL k (by rw [← hk3, hk2])) _
-    | BVar _ => cases Result.ok_injective h
-    | FVar _ _ => cases Result.ok_injective h
-    | Const _ _ => cases Result.ok_injective h
-    | App _ _ => cases Result.ok_injective h
-    | Lam _ _ => cases Result.ok_injective h
-    | ForallE _ _ => cases Result.ok_injective h
-    | LetE _ _ _ => cases Result.ok_injective h
-    | Lit _ => cases Result.ok_injective h
-    | Proj _ _ _ => cases Result.ok_injective h
-
+/-! ## The recursor records -/
 /-- A Rust `CheckError` reader, then a verdict-carrying continuation. -/
 theorem SimLV.bind_re {α β γ δ : Type} {A : α → β} {V : β → Option RecordVerdict}
     {B : δ → γ} {lst : AState} {r : core.result.Result δ kernel.core_types.CheckError}
@@ -1708,17 +1314,17 @@ local macro "rec_view_tail" : tactic => `(tactic| (
       cases Result.ok_injective h
       rfl))
 
-/-- **`check_one_rec`** — the four count checks, the K flag and the indices
+/-- **`check_one_rec`** — the three count checks and the indices
 at one recursor record, against `checkOneRecD`. -/
 theorem check_one_rec_refines
-    {pers rst lst rsd lsd fuel r ty_names ty_types n_pd n_types n_ctors k_exp o}
+    {pers rst lst rsd lsd fuel r ty_names ty_types n_pd n_types n_ctors o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hlen : ty_names.val.length = ty_types.val.length)
     (h : frontend.export_c.check_one_rec pers rst.store fuel rsd r ty_names
-      ty_types n_pd n_types n_ctors k_exp = ok o) :
+      ty_types n_pd n_types n_ctors = ok o) :
     SimLV (fun _ => none) vOfOpt lst o
       (checkOneRecD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types) (absU n_pd)
-        (absU n_types) (absU n_ctors) k_exp (absIndRecRec r)) := by
+        (absU n_types) (absU n_ctors) (absIndRecRec r)) := by
   rw [frontend.export_c.check_one_rec] at h
   unfold checkOneRecD
   simp only [absIndRecRec]
@@ -1731,47 +1337,29 @@ theorem check_one_rec_refines
   rec_count r.num_params, n_pd
   rec_count r.num_motives, n_types
   rec_count r.num_minors, n_ctors
-  cases k_exp with
-  | none => rec_view_tail
-  | some kE =>
-    dsimp only at h ⊢
-    by_cases hk : (r.k != kE) = true
-    case pos =>
-      rw [ite_eq_left hk] at h
-      have hk' : ¬ (r.k == kE) = true := by simpa using hk
-      rw [ite_eq_right hk']
-      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
-        (fun e he => by subst he; exact (Result.ok_injective h).symm)
-      subst hv2
-      obtain ⟨_, rfl⟩ := msg_invalid_ok h
-      exact SimLV.invalid (by rfl) _
-    rw [ite_eq_right hk] at h
-    have hk' : (r.k == kE) = true := by simpa using hk
-    rw [ite_eq_left hk']
-    rec_view_tail
+  rec_view_tail
 
 /-- **`check_rec_records`** — the `for r in rcs` loop, against
 `checkRecRecordsD` (the caller skips it at a nested block, as the twin's
 `if nested then [] else rcs` does). -/
 theorem check_rec_records_refines
-    {pers rst lst rsd lsd fuel rcs ty_names ty_types n_pd n_types n_ctors k_exp o}
+    {pers rst lst rsd lsd fuel rcs ty_names ty_types n_pd n_types n_ctors o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hlen : ty_names.val.length = ty_types.val.length)
     (h : frontend.export_c.check_rec_records pers rst.store fuel rsd rcs ty_names
-      ty_types n_pd n_types n_ctors k_exp = ok o) :
+      ty_types n_pd n_types n_ctors = ok o) :
     SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
       (checkRecRecordsD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types) (absU n_pd)
-        (absU n_types) (absU n_ctors) k_exp (absIndRecRecs rcs)) := by
+        (absU n_types) (absU n_ctors) (absIndRecRecs rcs)) := by
   rw [frontend.export_c.check_rec_records] at h
   have H : ∀ (k : Nat) (i : Std.Usize) o, rcs.val.length - i.val = k →
       frontend.export_c.check_rec_records_loop pers rst.store fuel rsd rcs ty_names ty_types
-        n_pd n_types n_ctors k_exp (alloc.vec.Vec.len rcs) i = ok o →
+        n_pd n_types n_ctors (alloc.vec.Vec.len rcs) i = ok o →
       SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
         (forIn ((absIndRecRecs rcs).drop i.val)
           (⟨none, PUnit.unit⟩ : MProd (Option VRes) PUnit)
           fun r _ => recStepD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types)
-            (absU n_pd) (absU n_types) (absU n_ctors) k_exp r) := by
+            (absU n_pd) (absU n_types) (absU n_ctors) r) := by
     intro k
     induction k using Nat.strong_induction_on with
     | _ k ih =>
@@ -1982,7 +1570,7 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     exact ⟨_, rfl, rfl⟩
   subst hv4
   dsimp only at h
-  -- the K flag and the recursor records
+  -- the recursor records
   obtain ⟨nested, hnest, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [any_ty_nested_refines hnest] at h
   obtain ⟨n_types, hnt, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1993,12 +1581,6 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
   have hncv : absU n_ctors = (absIndCtorRecs v4).length := by
     simp only [lift, Result.ok.injEq] at hnc; subst hnc
     simp [absU, absIndCtorRecs]
-  obtain ⟨r5, hr5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hK := k_expected_of_refines hrel hinv hr5
-  refine SimLV.bind hK (fun v5 hv5 => ?_)
-    (fun e he => by subst he; exact (Result.ok_injective h).symm)
-  subst hv5
-  dsimp only at h
   by_cases hns : (absIndTypeRecs tys).any (·.numNested != 0) = true
   · rw [ite_eq_left hns] at h
     cases Result.ok_injective h
@@ -2027,12 +1609,10 @@ theorem i_ind_caps_default_abs {ic : arena.env.IIndCaps}
     (h : arena.env.i_ind_caps_default = ok ic) : absIIndCaps ic = {} := by
   rw [arena.env.i_ind_caps_default] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
   rw [arena.handle.NIdx.of_word] at hn
   cases Result.ok_injective hn
-  have hpwv := ConRon.Refine.PropWhen.if_all_zero_refines hpw
-  simp only [absIIndCaps, hpwv]
+  simp only [absIIndCaps]
   rfl
 
 /-- **`ind_block_types`** — the twin's `tys.mapM` into `IConstantInfo.indInfo`. -/
@@ -2126,7 +1706,7 @@ theorem ind_block_recs_refines {rsd lsd lst rcs out o} (hd : StateDRel rsd lsd)
           let rules ← r.rules.mapM (parseRuleD lsd)
           pure (IConstantInfo.recInfo (← parseCVD lsd r.cv)
             (r.numParams + r.numMotives + r.numMinors + r.numIndices)
-            (r.numParams + r.numMotives + r.numMinors) rules)
+            (r.numParams + r.numMotives + r.numMinors) r.k rules)
         pure (absICIL out ++ rs)) := by
   rw [frontend.export_c.ind_block_recs] at h
   have H := simLR_cursor (absY := absIConstantInfo) (absX := absIndRecRec) (xs := rcs)
@@ -2135,7 +1715,7 @@ theorem ind_block_recs_refines {rsd lsd lst rcs out o} (hd : StateDRel rsd lsd)
           let rules ← r.rules.mapM (parseRuleD lsd)
           pure (IConstantInfo.recInfo (← parseCVD lsd r.cv)
             (r.numParams + r.numMotives + r.numMinors + r.numIndices)
-            (r.numParams + r.numMotives + r.numMinors) rules))
+            (r.numParams + r.numMotives + r.numMinors) r.k rules))
     (loop := fun out i =>
       frontend.export_c.ind_block_recs_loop rsd rcs out (alloc.vec.Vec.len rcs) i)
     (fun out i o hn h => by
@@ -2241,7 +1821,7 @@ theorem ind_block_of_refines {rsd lsd lst tys cts rcs o} (hd : StateDRel rsd lsd
           let rules ← r.rules.mapM (parseRuleD lsd)
           pure (IConstantInfo.recInfo (← parseCVD lsd r.cv)
             (r.numParams + r.numMotives + r.numMinors + r.numIndices)
-            (r.numParams + r.numMotives + r.numMinors) rules)
+            (r.numParams + r.numMotives + r.numMinors) r.k rules)
         pure (ts ++ cs ++ rs)) := by
   rw [frontend.export_c.ind_block_of] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

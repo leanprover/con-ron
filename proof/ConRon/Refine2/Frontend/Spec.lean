@@ -117,7 +117,7 @@ def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
     let rules ← r.rules.mapM (parseRuleD st)
     pure (IConstantInfo.recInfo (← parseCVD st r.cv)
       (r.numParams + r.numMotives + r.numMinors + r.numIndices)
-      (r.numParams + r.numMotives + r.numMinors) rules)
+      (r.numParams + r.numMotives + r.numMinors) r.k rules)
   pure (types ++ ctors ++ recs)
 
 /-- **`installIndD_unfold`.**  Task #105 deletes the projection-owner table

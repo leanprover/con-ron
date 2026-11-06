@@ -6,7 +6,7 @@
 each able to `return` a verdict from inside; the port writes each loop and
 each loop body as its own function (`check_one_ctor`, `order_type_ctors`,
 `order_block_ctors`, `check_rec_indices`, `check_one_rec`,
-`check_rec_records`, and `k_expected_of` for the `is_K_target` match).
+and `check_rec_records`).
 
 These are their twin sides, in `Refine2/Frontend/Spec.lean`'s pattern (one
 transcription per port split, and an `_unfold` saying the twin IS their
@@ -109,18 +109,6 @@ def orderBlockCtorsD (st : StateD) (fuel : Nat) (ctorIx : Std.HashMap NIdx Nat)
     (out : Array IndCtorRec) : AM (MProd (Option VRes) (Array IndCtorRec)) :=
   forIn l ⟨none, out⟩ fun tn r => orderBlockStepD st fuel ctorIx ctsA nPd tn r.2
 
-/-- `kExpected?`, official's `is_K_target`. -/
-def kExpectedOfD (fuel : Nat) (tyTypes : List EIdx) (listed : List (List NIdx))
-    (cts : List IndCtorRec) : AM (Option Bool) :=
-  match tyTypes, listed, cts with
-  | [ty], [[_]], [c] => do
-    let r ← piResultD fuel ty
-    match ← view r with
-    | .sort s =>
-      pure (some (c.numFields == 0 && ConLeche.Level.isEquiv (← readLevel s) .zero == some true))
-    | _ => pure none
-  | _, _, _ => pure (some false)
-
 /-- One step of the second loop's inner `for tt in tyNames.zip tyTypes`. -/
 def recIndexStepD (fuel : Nat) (rn T : NIdx) (numIndices nPd : Nat) (tt : NIdx × EIdx) :
     AM (ForInStep (MProd (Option VRes) PUnit)) := do
@@ -141,10 +129,9 @@ def checkRecIndicesD (fuel : Nat) (rn T : NIdx) (numIndices nPd : Nat)
     (l : List (NIdx × EIdx)) : AM (MProd (Option VRes) PUnit) :=
   forIn l ⟨none, PUnit.unit⟩ fun tt _ => recIndexStepD fuel rn T numIndices nPd tt
 
-/-- The second loop's body at one recursor record: the four count checks,
-the K flag, and `numIndices` against the type former's telescope. -/
+/-- The second loop's body at one recursor record: the three count checks and `numIndices` against the type former's telescope. -/
 def checkOneRecD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EIdx)
-    (nPd nTypes nCtors : Nat) (kExpected? : Option Bool) (r : IndRecRec) :
+    (nPd nTypes nCtors : Nat) (r : IndRecRec) :
     AM (Option VRes) := do
   let rn ← st.name r.cv.name
   unless r.numParams == nPd do
@@ -156,10 +143,6 @@ def checkOneRecD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : Lis
   unless r.numMinors == nCtors do
     return some (.inl (.invalid s!"recursor {← readName rn} declares {r.numMinors} \
       minor premises; the block has {nCtors} constructors"))
-  if let some kE := kExpected? then
-    unless r.k == kE do
-      return some (.inl (.invalid s!"recursor {← readName rn} declares k := {r.k}; \
-        the generated recursor of this block is{if kE then "" else " not"} K-like"))
   match ← viewN rn with
   | .str T "rec" =>
     let r ← checkRecIndicesD fuel rn T r.numIndices nPd (tyNames.zip tyTypes)
@@ -169,7 +152,7 @@ def checkOneRecD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : Lis
 /-- The second loop's body at one recursor record, as the twin's loop body
 stands (`recStepD_eq` splits it at `checkOneRecD`). -/
 def recStepD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EIdx)
-    (nPd nTypes nCtors : Nat) (kExpected? : Option Bool) (r : IndRecRec) :
+    (nPd nTypes nCtors : Nat) (r : IndRecRec) :
     AM (ForInStep (MProd (Option VRes) PUnit)) := do
   let rn ← st.name r.cv.name
   unless r.numParams == nPd do
@@ -181,11 +164,6 @@ def recStepD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EI
   unless r.numMinors == nCtors do
     return .done ⟨some (.inl (.invalid s!"recursor {← readName rn} declares {r.numMinors} \
       minor premises; the block has {nCtors} constructors")), PUnit.unit⟩
-  if let some kE := kExpected? then
-    unless r.k == kE do
-      return .done ⟨some (.inl (.invalid s!"recursor {← readName rn} declares k := {r.k}; \
-        the generated recursor of this block is{if kE then "" else " not"} K-like")),
-        PUnit.unit⟩
   match ← viewN rn with
   | .str T "rec" =>
     let r ← checkRecIndicesD fuel rn T r.numIndices nPd (tyNames.zip tyTypes)
@@ -196,31 +174,10 @@ def recStepD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EI
 
 /-- The second loop, `for r in rcs`. -/
 def checkRecRecordsD (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EIdx)
-    (nPd nTypes nCtors : Nat) (kExpected? : Option Bool) (rcs : List IndRecRec) :
+    (nPd nTypes nCtors : Nat) (rcs : List IndRecRec) :
     AM (MProd (Option VRes) PUnit) :=
   forIn rcs ⟨none, PUnit.unit⟩ fun r _ =>
-    recStepD st fuel tyNames tyTypes nPd nTypes nCtors kExpected? r
-
-/-- `kExpectedOfD` with its continuation pushed into its arms, the shape the
-twin's `let kExpected? ← match …` elaborates to. -/
-theorem kExpectedOfD_bind {β : Type} (fuel : Nat) (tyTypes : List EIdx)
-    (listed : List (List NIdx)) (cts : List IndCtorRec) (g : Option Bool → AM β) :
-    kExpectedOfD fuel tyTypes listed cts >>= g =
-      (match tyTypes, listed, cts with
-       | [ty], [[_]], [c] => do
-         let r ← piResultD fuel ty
-         match ← view r with
-         | .sort s => do
-           let l ← readLevel s
-           g (some (c.numFields == 0 && ConLeche.Level.isEquiv l .zero == some true))
-         | _ => g none
-       | _, _, _ => g (some false)) := by
-  unfold kExpectedOfD
-  split
-  · simp only [bind_assoc]
-    refine bind_congr fun r => bind_congr fun v => ?_
-    split <;> simp only [bind_assoc, pure_bind]
-  · simp only [pure_bind]
+    recStepD st fuel tyNames tyTypes nPd nTypes nCtors r
 
 /-- **`validateIndD` IS its transcription composed.** -/
 theorem validateIndD_unfold (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
@@ -250,14 +207,12 @@ theorem validateIndD_unfold (st : StateD) (tys : List IndTypeRec) (cts : List In
       match r.1 with
       | none =>
         let ctsO := r.2.toList
-        let kExpected? ← kExpectedOfD fuel tyTypes listed ctsO
         let r2 ← checkRecRecordsD st fuel tyNames tyTypes nPd tys.length ctsO.length
-          kExpected? (if tys.any (·.numNested != 0) then [] else rcs)
+          (if tys.any (·.numNested != 0) then [] else rcs)
         match r2.1 with
         | none => pure (.inr (ctsO, nPd))
         | some a => pure a
       | some a => pure a) := by
-  simp only [kExpectedOfD_bind]
   rfl
 
 theorem ite_bind' {m : Type → Type} [Monad m] {α β : Type} (c : Prop) [Decidable c]
@@ -295,18 +250,20 @@ theorem orderCtorStepD_eq (st : StateD) (fuel : Nat) (T : NIdx)
 
 /-- The recursor loop's step, split at `checkOneRecD`. -/
 theorem recStepD_eq (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : List EIdx)
-    (nPd nTypes nCtors : Nat) (kExpected? : Option Bool) (r : IndRecRec) :
-    recStepD st fuel tyNames tyTypes nPd nTypes nCtors kExpected? r = (do
-      match ← checkOneRecD st fuel tyNames tyTypes nPd nTypes nCtors kExpected? r with
+    (nPd nTypes nCtors : Nat) (r : IndRecRec) :
+    recStepD st fuel tyNames tyTypes nPd nTypes nCtors r = (do
+      match ← checkOneRecD st fuel tyNames tyTypes nPd nTypes nCtors r with
       | some a => pure (.done ⟨some a, PUnit.unit⟩)
       | none => pure (.yield ⟨none, PUnit.unit⟩)) := by
   unfold recStepD checkOneRecD
   simp only [bind_assoc]
   refine bind_congr fun rn => ?_
-  rcases kExpected? with _ | kE <;>
-    simp only [bind_assoc, pure_bind, ite_bind'] <;> split_ifs <;>
-    (try simp only) <;>
-    (try refine bind_congr fun v => ?_) <;> (try split) <;> (try simp only [bind_assoc, pure_bind])
+  simp only [bind_assoc, pure_bind, ite_bind']
+  split_ifs
+  all_goals try simp only
+  all_goals try refine bind_congr fun v => ?_
+  all_goals try split
+  all_goals try simp only [bind_assoc, pure_bind]
   all_goals exact bind_congr fun x => by rcases x with ⟨_ | _, _⟩ <;> rfl
 
 end ConRon.Refine2.Frontend

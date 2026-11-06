@@ -1500,61 +1500,6 @@ theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
   have := H _ fuel 0#u64 h' o rfl h
   simpa using this
 
-/-- **`pi_result` refines `piResultD`** — three lines of spine walk, spelled
-locally in its one frontend caller (`k_expected_of`).  Its twin is the
-frontend's own `piResultD` (full `view` at each step), not `Arena/ExprOps.lean`'s
-`piResult` (`viewBindI`, which never decodes a binder's datum): at a `∀` over a
-dangling datum the port's `env::view_e` fails where that one walks on — a
-twin/Rust divergence, fixed in the twin by task #97-T2-LOCKSTEP lane
-Frontend. -/
-theorem pi_result_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
-    (h : frontend.export_c.pi_result pers rst.store fuel h' = ok o) :
-    SimLR absEIdx lst o (piResultD (absU fuel) (absEIdx h')) := by
-  rw [frontend.export_c.pi_result] at h
-  obtain ⟨cur, hcur, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hcv : cur = h' := dupId_eidx _ _ hcur
-  rw [hcv] at h
-  have H : ∀ (k : Nat) (left : Std.U64) (cur : arena.handle.EIdx) o, left.val = k →
-      frontend.export_c.pi_result_loop pers rst.store cur left = ok o →
-      SimLR absEIdx lst o (piResultD k (absEIdx cur)) := by
-    intro k
-    induction k with
-    | zero =>
-      intro left cur o hk h
-      rw [frontend.export_c.pi_result_loop.eq_def] at h
-      rw [ite_eq_right (by scalar_tac)] at h
-      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨m, rfl⟩ := merr_refines h
-      exact AErrSim.internal rfl
-    | succ k ih =>
-      intro left cur o hk h
-      rw [frontend.export_c.pi_result_loop.eq_def] at h
-      rw [ite_eq_left (by scalar_tac)] at h
-      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hV := env_view_e_run hrel hr
-      simp only [piResultD]
-      cases r with
-      | Err e =>
-        obtain ⟨e', rfl, hk'⟩ := fail_refines h
-        show AErrSim _ _
-        rw [am_run_bind']
-        exact AErrSim.bind (fun k hk2 => hV k (by rw [← hk', hk2])) _
-      | Ok ev =>
-        have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
-        unfold SimLR
-        cases ev with
-        | ForallE ty b =>
-          obtain ⟨left1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          have hl1v := (ConRon.Refine.Nat.usub_val hl1).2
-          have hR := ih left1 b o (by simp at hl1v; omega) h
-          rw [view_bind_run hV']
-          exact hR
-        | _ =>
-          all_goals (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
-  exact H _ fuel h' o rfl h
-
 /-! ## The recursor rules and the block record -/
 
 /-- **The cursor loop from `0` into a fresh accumulator**: `simLR_cursor` at
