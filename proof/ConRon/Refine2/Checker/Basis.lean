@@ -14,6 +14,7 @@ the store through `param_levels`, `inst_lp_fast`, `subst_levels_at` and
 `read_names_m`, which is why this file sits above `Inductives/StructParts.lean`.
 -/
 import ConRon.Refine2.Checker.Axioms
+import ConRon.Refine2.Core.LS.PrimsA1
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -266,5 +267,22 @@ theorem pin_agrees_refines {c c2 : arena.env.IConstantInfo} {o : Bool}
     first
     | (rw [i_constant_val_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
     | (rw [i_constant_info_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
+
+/-! ## What a quotient record's slot needs stored before it -/
+
+attribute [local lockstep_simp] Option.isSome_map core.option.Option.is_some
+
+open Lockstep in
+/-- `quot_preds_ok` ⊑ `quotPredsOk`: three pin reads and three lookups, read off
+the slot. -/
+@[lockstep] theorem quot_preds_ok_ls {pers st lst} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx pers fe lfe) {k : kernel.env.QuotKind}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = id a) (arena.basis.quot_preds_ok pers st fe k) st lst
+      (quotPredsOk lfe (ConRon.Refine.absQuotKind k)) := by
+  refine LSR.of_LS ?_
+  rw [arena.basis.quot_preds_ok]
+  unfold quotPredsOk
+  cases k <;> simp only [ConRon.Refine.absQuotKind] <;> lockstep
 
 end ConRon.Refine2
