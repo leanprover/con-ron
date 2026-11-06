@@ -14,7 +14,7 @@ defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
 [[require]]
 name = "con-leche"
 git = "https://github.com/leanprover/con-leche"
-rev = "7cb7a45cd573daf282766aa45c59fdd36b1b9470"
+rev = "701d72aefbb697fbbbd4e656877931330d57cb84"
 
 # The Aeneas Lean library, patched onto this project's toolchain by
 # `scripts/setup-aeneas-lean.sh` (DESIGN.md, tasks #2 and #110).  The path is
@@ -94,14 +94,6 @@ globs = ["ConRon.Bridge.*"]
 # it, with `crates/arena-spike` and `scripts/extract-spike.sh`: the idiom it
 # chose is DESIGN.md's task-#97s section, and P3's `ConRon/Bridge/` is where
 # it is written at scale.)
-
-# The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
-# source that rebuilds con-leche's elaboration-time tables
-# (`BasisKind.declsA`, later the Nat-op pin variants) with the crate's own
-# smart constructors, into `crates/con-ron-core/src/kernel/basis_tables.rs`.
-[[lean_exe]]
-name = "con-ron-gen-tables"
-root = "ConRon.Gen.Main"
 
 # The `Nat`-operation pin dump (DESIGN.md §3.6's runtime-data decision, task
 # #31): writes `ConLeche.natOpPinSets` in the `con-ron-pins/2` format
