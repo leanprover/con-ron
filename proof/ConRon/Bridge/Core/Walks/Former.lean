@@ -311,6 +311,43 @@ theorem formerNeverZeroAt_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       formerSortLoop_spec hsim, readLevelM_specC (eager := eager) (env := env) (fe := fe)] <;>
       finish (gen := 16)
 
+/-- con-leche: none — `NZ` at an optional level list (the answer shape of a
+caller that holds the list as a handle's denotation). -/
+@[expose] def NZA (eager : Bool) (env : Env) (cvT : ConstantVal) (caps : IndCaps) (b : Bool) :
+    Option (List Level) → Prop
+  | some us => NZ eager env cvT caps us b
+  | none => True
+
+/-- con-leche: none — `NZA` at a denoting list. -/
+@[bridge_grind =] theorem NZA.some_eq (cvT : ConstantVal) (caps : IndCaps) (b : Bool)
+    (us : List Level) : NZA eager env cvT caps b (some us) = NZ eager env cvT caps us b := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-488 formerNeverZeroAt —
+`formerNeverZeroAt_spec` at whatever the level list denotes. -/
+theorem formerNeverZeroAt_specA {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (cvT : IConstantVal) (cvTP : ConstantVal) (caps : IIndCaps)
+    (capsP : IndCaps) (us : LsIdx)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvT = some cvTP)
+    (hcaps : Frontend.denoteCaps s₀.store caps = some capsP)
+    (hus : (denoteLs s₀.store.lss us).isSome = true) (hcl : cvTP.type.hasFvar = false) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.formerNeverZeroAt (coreKnot .verified eager fe id fuel) cvT caps us
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        NZA eager env cvTP capsP r (denoteLs s₀.store.lss us); ⊤⦄ := by
+  obtain ⟨ls, hls⟩ := Option.isSome_iff_exists.mp hus
+  rw [hls]
+  exact formerNeverZeroAt_spec hsim s₀ cvT cvTP caps capsP us ls hok hcv hcaps hls hcl
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:102 ConstWF — a stored inductive's
+type is closed (and the default record's, where there is none). -/
+theorem indVal_closed (henv : EnvWF env) (T : ConLeche.Name) :
+    (cIndVal (env.find? T)).type.hasFvar = false := by
+  cases hf : env.find? T with
+  | none => rfl
+  | some ci =>
+    cases ci <;> try rfl
+    exact (henv.consts _ (Env.find?_mem hf)).1
+
 /-! ## 3. `iotaCase3At` -/
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:102 ConstWF — the family a
