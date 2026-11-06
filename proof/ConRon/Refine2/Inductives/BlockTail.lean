@@ -384,7 +384,35 @@ accumulator. -/
       (arena.inductives.block_tail.reduce_members pers st mode rf n_p ms i out) lst
       (reduceMembers (ConRon.Refine.absMode mode) lf (absU n_p)
         ((ms.val.drop i.val).map absMemberShape)) := by
-  sorry -- T143-STUB
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i (_ : Unit) => ∀ st lst (out : alloc.vec.Vec arena.inductives.block_shape.MemberShape),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absMemberShape = out.val.map absMemberShape ++ b)
+        (arena.inductives.block_tail.reduce_members pers st mode rf n_p ms i out) lst
+        (reduceMembers (ConRon.Refine.absMode mode) lf (absU n_p)
+          ((ms.val.drop i.val).map absMemberShape))) ?_ ?_ i () st lst out hrel hinv
+  · intro i _ hn st lst out hrel hinv
+    rw [arena.inductives.block_tail.reduce_members, ite_eq_left (by scalar_tac),
+      List.drop_eq_nil_of_le hn, List.map_nil, reduceMembers]
+    lockstep
+  · intro i _ hlt ih st lst out hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst
+        (out : alloc.vec.Vec arena.inductives.block_shape.MemberShape),
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => a.val.map absMemberShape = out.val.map absMemberShape ++ b)
+          (arena.inductives.block_tail.reduce_members pers st mode rf n_p ms j out) lst
+          (reduceMembers (ConRon.Refine.absMode mode) lf (absU n_p)
+            ((ms.val.drop (i.val + 1)).map absMemberShape)) := by
+      intro j hj; simpa only [hj] using ih j () hj
+    clear ih
+    rw [arena.inductives.block_tail.reduce_members, ite_eq_right (by scalar_tac),
+      List.drop_eq_getElem_cons hlt, List.map_cons, reduceMembers]
+    lockstep
+    rename_i out1 hout1
+    refine ls_map_twin (ih' _ (by scalar_tac) _ _ _ ‹_› ‹_›) ?_
+    intro r b hr
+    rw [hr, hout1]
+    simp_all
 
 /-- **`block_tail::check_block` ⊑ `checkBlock`** — a block checked, and its
 install pushed onto the constructors' environment. -/
