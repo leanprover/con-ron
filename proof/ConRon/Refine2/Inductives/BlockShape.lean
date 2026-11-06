@@ -1,16 +1,16 @@
 /-
-# `ConRon.Refine2.Inductives.BlockShape` — Theorem 2 for `arena::inductives::block_parts`
+# `ConRon.Refine2.Inductives.BlockShape` — Theorem 2 for `arena::inductives::block_shape`
 
 **Task #105** (DESIGN.md §8.2, Theorem 2).
-`crates/con-ron-core/src/arena/inductives/block_parts.rs` against
-`proof/ConRon/Arena/Inductives/BlockParts.lean`: the k-ary block's record, its
-projections and the recogniser `blockParts?`, whose companion `block_parts_ls`
-is the tier's contract with the checker lane.
+`crates/con-ron-core/src/arena/inductives/block_shape.rs` against
+`proof/ConRon/Arena/Inductives/BlockShape.lean`: the k-ary block's record, its
+projections and the recogniser `blockShape?`, whose companion `block_shape_ls`
+is the tier's contract with the checker lane and the install.
 
 ## Shapes
 
 * The record copies (`*_dup`) and the Rust-only list builders (`former_names`,
-  `ctors_nf`, `rule_rhss`, `zip_members`, …) are `LSP` steps whose `TwinEq`
+  `ctors_nf`, `zip_members`, …) are `LSP` steps whose `TwinEq`
   names the twin's pure expression (`cvTs.map (·.name)`, …).
 * The Rust's index cursors are the twin's structural recursions from the
   cursor on (`absXLFrom v i`); the accumulator stands in front.
@@ -452,29 +452,6 @@ theorem ctors_nf_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × S
   intro o h
   rw [TwinEq, ctors_nf_abs _ _ o h, absCtors3LFrom_zero]
   simp [absCtorsL]
-
-theorem rule_rhss_abs {rules : alloc.vec.Vec arena.env.IRecRule} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.EIdx),
-      arena.inductives.block_shape.rule_rhss rules i out = ok o →
-      absEIdxL o = absEIdxL out ++ (absIRecRuleLFrom rules i).map (·.rhs) := by
-  have := vec_cursor_copy rules absEIdx (fun r => absEIdx r.rhs)
-    (arena.inductives.block_shape.rule_rhss rules) ?_ ?_
-  · intro i out o h
-    simpa [absEIdxL, absIRecRuleLFrom, absIRecRule, Function.comp_def] using this i out o h
-  · bp_copy_stop arena.inductives.block_shape.rule_rhss.eq_def rules
-  · bp_copy_head arena.inductives.block_shape.rule_rhss.eq_def rules
-    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact ⟨i2, e, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      by rw [dupId_eidx _ _ he], h⟩
-
-@[lockstep] theorem rule_rhss_twin0 (rules : alloc.vec.Vec arena.env.IRecRule) :
-    LSP (arena.inductives.block_shape.rule_rhss rules 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq ((rules.val.map absIRecRule).map (·.rhs)) (absEIdxL o)) := by
-  intro o h
-  rw [TwinEq, rule_rhss_abs _ _ o h]
-  simp [absEIdxL, absIRecRuleLFrom]
 
 theorem member_names_abs {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} :
     ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
@@ -1541,16 +1518,6 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
 
 end recogniser
 
-/-- **`block_parts::block_parts` ⊑ `blockParts?`** — the recogniser. -/
-@[lockstep] theorem block_parts_ls {pers st lst} {n_pd : Std.U64}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = Option.map absBlockParts a)
-      (arena.inductives.block_shape.block_parts pers st n_pd block) lst
-      (blockParts? (absU n_pd) (absICIL block)) := by
-  rw [arena.inductives.block_shape.block_parts, blockParts?]
-  lockstep
-
 
 end ConRon.Refine2
 
@@ -1561,14 +1528,6 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open Lockstep
 open scoped IndSide
-
-@[lockstep] theorem complete_twin (p0 : arena.inductives.block_shape.BlockParts)
-    (p1 : arena.inductives.block_shape.BlockShape) :
-    LSP (arena.inductives.block_shape.complete p0 p1)
-      (fun o => TwinEq ((absBlockParts p0).complete (absBlockShape p1)) (absBlockParts o)) := by
-  intro o h
-  simp only [arena.inductives.block_shape.complete, Result.ok.injEq] at h
-  subst h; rfl
 
 @[lockstep] theorem shape_k_twin (p : arena.inductives.block_shape.BlockShape) :
     LSP (arena.inductives.block_shape.shape_k p)
@@ -1907,8 +1866,8 @@ theorem want_rec_names_ls {pers}
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.block_parts_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms block_parts_ls
+/-- info: 'ConRon.Refine2.block_shape_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_shape_ls
 
 /-- info: 'ConRon.Refine2.block_rec_name_set_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms block_rec_name_set_ok_ls
