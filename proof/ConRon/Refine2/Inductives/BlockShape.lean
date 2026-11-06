@@ -422,49 +422,6 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     refine ⟨i2, iv, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
     rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv]
 
-/-- `member_struct_ctor` ⊑ `MemberShape.structCtor?`: the one constructor of an
-index-free member. -/
-@[lockstep] theorem member_struct_ctor_twin (ms : arena.inductives.block_shape.MemberShape) :
-    LSP (arena.inductives.block_shape.member_struct_ctor ms)
-      (fun o => TwinEq (absMemberShape ms).structCtor?
-        (o.map fun c => (absIConstantVal c.1, absU c.2))) := by
-  intro o h
-  rw [arena.inductives.block_shape.member_struct_ctor] at h
-  rw [TwinEq, MemberShape.structCtor?]
-  rcases hc : ms.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
-  · have hlen : ¬ alloc.vec.Vec.len ms.ctors = 1#usize := by
-      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
-    rw [ite_eq_right hlen] at h
-    cases Result.ok_injective h
-    simp [absMemberShape, absCtorsL, hc]
-  · have hlen : alloc.vec.Vec.len ms.ctors = 1#usize := by
-      have : (alloc.vec.Vec.len ms.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
-      scalar_tac
-    rw [ite_eq_left hlen] at h
-    simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil]
-    by_cases hn : ms.n_idx = 0#u64
-    · rw [ite_eq_left hn] at h
-      have hidx0 : alloc.vec.Vec.index
-          (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
-          ms.ctors 0#usize = ok (cv, nf) := by
-        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
-        simp [hc]
-      rw [hidx0, bind_ok] at h
-      obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      cases Result.ok_injective h
-      rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1]
-      simp [hn, absU]
-    · rw [ite_eq_right hn] at h
-      cases Result.ok_injective h
-      have : (absU ms.n_idx == 0) = false := by
-        simp only [absU, beq_eq_false_iff_ne]; intro h0; exact hn (by scalar_tac)
-      simp [this]
-  · have hlen : ¬ alloc.vec.Vec.len ms.ctors = 1#usize := by
-      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
-    rw [ite_eq_right hlen] at h
-    cases Result.ok_injective h
-    simp [absMemberShape, absCtorsL, hc]
-
 /-- `block_split` from `0` into an empty accumulator IS `blockSplit`. -/
 @[lockstep] theorem block_split_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
     LSP (arena.inductives.block_shape.block_split block 0#usize (alloc.vec.Vec.new _))
