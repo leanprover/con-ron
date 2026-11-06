@@ -3,8 +3,9 @@
 
 `reduceNat`, the walk `Bridge/Core/Arms/Whnf.lean`'s `whnfBody_spec` runs
 before delta-unfolding.  This module is that walk and the six
-state-only walks under it (`rawNatLit?`, `natLitSupported`, `natBinOpName`,
-`natOpStored`, `natOpWfNames`, `natOpResult`), each an EQUATION with the
+state-only walks under it (`rawNatLit?`, `natLitStored`, `natBinOpName`,
+`natOpWfNames`, `natOpResult`; `natLitSupported`, which the declaration
+checker reads), each an EQUATION with the
 con-leche function of the same name — none of them is fueled on the pure
 side.
 
@@ -21,7 +22,7 @@ walk.  What makes them `grind`-shaped:
   `idxOfLs`, `idxOfExpr`, `Bridge/Grind.lean` §6, registered here): a handle test
   `c == ns` is the name test by congruence closure, in both directions;
 * every con-leche function the walks compare against as ONE unconditional
-  equation over tags and projections (`rawNatLit?_eq`, `natOpStored_eq`,
+  equation over tags and projections (`rawNatLit?_eq`,
   `natIndOk_eq`, `natZeroOk_eq`, `natSuccOk_eq`), and the environment's
   stored inductives and constructors as projections (`iInd?`/`cInd?`,
   `OptCI.at`), so that `grind` never splits a `match`;
@@ -357,26 +358,6 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft,
       ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;> finish (splits := 20)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:700-703 natOpStored — the
-function as ONE equation: is the lookup a definition. -/
-theorem natOpStored_eq (nm : ConLeche.Name) :
-    ConLeche.natOpStored env nm = cDefn? (env.find? nm) := by
-  simp only [ConLeche.natOpStored]
-  split <;> rename_i h
-  · simp_all [cDefn?]
-  · cases ho : env.find? nm with
-    | none => rfl
-    | some ci => cases ci <;> simp_all [cDefn?]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — **THEOREM 1
-for `natOpStored`**: is the operation stored as a definition. -/
-theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
-    (hok : CheckOK eager env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
-  sym only [bridge_grind, natOpStored_eq] =>
-    vcgen [ConRon.Arena.natOpStored] <;> finish
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:605-615 natOpWfNames — the
 handle list answers con-leche's membership test at every denoted name. -/
 def WfNames (st : NStore) (ws : List NIdx) : Prop :=
@@ -590,6 +571,17 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
       natSuccOk_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natSuccName),
       pinAt_specE] <;> finish
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:195-198 natLitStored
+con-leche: ConLeche/Kernel/FEnv.lean:192-194 natLitStoredF —
+**THEOREM 1 for `natLitStored`**: the three names present, read through the
+index (`indexAt`'s `isSome` clause). -/
+theorem natLitStored_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitStored fe
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natLitStored env; ⊤⦄ := by
+  sym only [bridge_grind, ConLeche.natLitStored] =>
+    vcgen [ConRon.Arena.natLitStored, ConRon.Arena.pinNat,
+      ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, pinAt_specE] <;> finish
+
 /-! ## 6. `reduceNat`'s pure side at its exits
 
 con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
@@ -598,7 +590,7 @@ con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ` on a
 literal-supported environment: the argument's head normal form, read. -/
 theorem reduceNatFueled_succ {F d : Nat} {c : ConLeche.Name} {a w : Expr}
-    (hg : c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)
+    (hg : c = ConLeche.natSuccName ∧ ConLeche.natLitStored env = true)
     (hw : ConLeche.whnf mode eager env F d a = .ok w) :
     ConLeche.reduceNatFueled mode eager env F d (.app (.const c []) a) =
       .ok ((ConLeche.rawNatLit? w).map (fun n => .lit (.natVal (n + 1)))) := by
@@ -610,7 +602,7 @@ theorem reduceNatFueled_succ {F d : Nat} {c : ConLeche.Name} {a w : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the unary guard
 declines. -/
 theorem reduceNatFueled_succ_no {F d : Nat} {c : ConLeche.Name} {a : Expr}
-    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitStored env = true)) :
     ConLeche.reduceNatFueled mode eager env F d (.app (.const c []) a) = .ok none := by
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, ite_eq_right hg]; rfl
 
@@ -618,7 +610,7 @@ theorem reduceNatFueled_succ_no {F d : Nat} {c : ConLeche.Name} {a : Expr}
 binary operation: the FIRST argument is head-normalised and read; only on a
 literal is the second. -/
 theorem reduceNatFueled_bin {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
-    (hg : NatBinOp c ∧ ConLeche.natOpStored env c = true)
+    (hg : NatBinOp c)
     (h1 : ConLeche.whnf mode eager env F d a = .ok w₁) :
     ConLeche.reduceNatFueled mode eager env F d (.app (.app (.const c []) a) b) =
       (match ConLeche.rawNatLit? w₁ with
@@ -636,8 +628,8 @@ theorem reduceNatFueled_bin {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the WF-pinned
 safety net. -/
 theorem reduceNatFueled_wf {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
-    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
-    (hw : ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)
+    (hg : ¬ (NatBinOp c))
+    (hw : ConLeche.natOpWfNames.contains c = true)
     (h1 : ConLeche.whnf mode eager env F d a = .ok w₁) :
     ConLeche.reduceNatFueled mode eager env F d (.app (.app (.const c []) a) b) =
       (match ConLeche.rawNatLit? w₁ with
@@ -655,8 +647,8 @@ theorem reduceNatFueled_wf {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — neither guard. -/
 theorem reduceNatFueled_bin_no {F d : Nat} {c : ConLeche.Name} {a b : Expr}
-    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
-    (hw : ¬ (ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)) :
+    (hg : ¬ (NatBinOp c))
+    (hw : ¬ (ConLeche.natOpWfNames.contains c = true)) :
     ConLeche.reduceNatFueled mode eager env F d (.app (.app (.const c []) a) b) =
       .ok none := by
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
@@ -775,7 +767,7 @@ theorem simOOp_binary_levels {d : Nat} {st : EStore} {nm : ConLeche.Name}
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the unary guard
 declines. -/
 theorem simOOp_succ_no {d : Nat} {st : EStore} {c : ConLeche.Name} {a : Expr}
-    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitStored env = true)) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d (.app (.const c []) a))
       d st none :=
   reduceNat_decline 0 (reduceNatFueled_succ_no hg)
@@ -783,8 +775,8 @@ theorem simOOp_succ_no {d : Nat} {st : EStore} {c : ConLeche.Name} {a : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — neither binary
 guard. -/
 theorem simOOp_bin_no {d : Nat} {st : EStore} {c : ConLeche.Name} {a b : Expr}
-    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
-    (hw : ¬ (ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)) :
+    (hg : ¬ (NatBinOp c))
+    (hw : ¬ (ConLeche.natOpWfNames.contains c = true)) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d
       (.app (.app (.const c []) a) b)) d st none :=
   reduceNat_decline 0 (reduceNatFueled_bin_no hg hw)
@@ -810,7 +802,7 @@ theorem simOOp_na {d : Nat} {st : EStore} {x : Expr} (h : ∀ f a, x ≠ .app f 
 binary operation FIRES. -/
 theorem simOOp_bin_fire {F₁ F₂ d n₁ n₂ : Nat} {nm : ConLeche.Name}
     {a b w₁ w₂ : Expr} {st : EStore} {r : Option EIdx}
-    (hb : NatBinOp nm) (hs : ConLeche.natOpStored env nm = true)
+    (hb : NatBinOp nm)
     (hw₁ : ConLeche.whnf mode eager env F₁ d a = .ok w₁)
     (hr₁ : some n₁ = ConLeche.rawNatLit? w₁)
     (hw₂ : ConLeche.whnf mode eager env F₂ d b = .ok w₂)
@@ -820,7 +812,7 @@ theorem simOOp_bin_fire {F₁ F₂ d n₁ n₂ : Nat} {nm : ConLeche.Name}
       (.app (.app (.const nm []) a) b)) d st r := by
   refine ⟨_, hres, fun y hy => natOpResult_wscoped hy, F₁ + F₂, ?_⟩
   dsimp only
-  rw [reduceNatFueled_bin ⟨hb, hs⟩ (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
+  rw [reduceNatFueled_bin hb (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
   simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hw₂,
     ← hr₂]
   rfl
@@ -829,7 +821,7 @@ theorem simOOp_bin_fire {F₁ F₂ d n₁ n₂ : Nat} {nm : ConLeche.Name}
 argument is not a literal. -/
 theorem simOOp_bin_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     {a b w₁ w₂ : Expr} {st : EStore}
-    (hb : NatBinOp nm) (hs : ConLeche.natOpStored env nm = true)
+    (hb : NatBinOp nm)
     (hw₁ : ConLeche.whnf mode eager env F₁ d a = .ok w₁)
     (hr₁ : some n₁ = ConLeche.rawNatLit? w₁)
     (hw₂ : ConLeche.whnf mode eager env F₂ d b = .ok w₂)
@@ -837,7 +829,7 @@ theorem simOOp_bin_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d
       (.app (.app (.const nm []) a) b)) d st none := by
   refine reduceNat_decline (F₁ + F₂) ?_
-  rw [reduceNatFueled_bin ⟨hb, hs⟩ (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
+  rw [reduceNatFueled_bin hb (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
   simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hw₂,
     ← hr₂]
   rfl
@@ -846,20 +838,19 @@ theorem simOOp_bin_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
 argument is not a literal. -/
 theorem simOOp_bin_fst {F₁ d : Nat} {nm : ConLeche.Name} {a b w₁ : Expr}
     {st : EStore}
-    (hb : NatBinOp nm) (hs : ConLeche.natOpStored env nm = true)
+    (hb : NatBinOp nm)
     (hw₁ : ConLeche.whnf mode eager env F₁ d a = .ok w₁)
     (hr₁ : none = ConLeche.rawNatLit? w₁) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d
       (.app (.app (.const nm []) a) b)) d st none :=
-  reduceNat_decline F₁ (by rw [reduceNatFueled_bin ⟨hb, hs⟩ hw₁, ← hr₁]; rfl)
+  reduceNat_decline F₁ (by rw [reduceNatFueled_bin hb hw₁, ← hr₁]; rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the safety
 net: the second argument is not a literal. -/
 theorem simOOp_wf_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     {a b w₁ w₂ : Expr} {st : EStore}
-    (hg : ¬ (NatBinOp nm ∧ ConLeche.natOpStored env nm = true))
+    (hg : ¬ (NatBinOp nm))
     (hc : ConLeche.natOpWfNames.contains nm = true)
-    (hs : ConLeche.natLitSupported env = true)
     (hw₁ : ConLeche.whnf mode eager env F₁ d a = .ok w₁)
     (hr₁ : some n₁ = ConLeche.rawNatLit? w₁)
     (hw₂ : ConLeche.whnf mode eager env F₂ d b = .ok w₂)
@@ -867,7 +858,7 @@ theorem simOOp_wf_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d
       (.app (.app (.const nm []) a) b)) d st none := by
   refine reduceNat_decline (F₁ + F₂) ?_
-  rw [reduceNatFueled_wf hg ⟨hc, hs⟩ (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
+  rw [reduceNatFueled_wf hg hc (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
   simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hw₂,
     ← hr₂]
   rfl
@@ -876,14 +867,13 @@ theorem simOOp_wf_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
 net: the first argument is not a literal. -/
 theorem simOOp_wf_fst {F₁ d : Nat} {nm : ConLeche.Name} {a b w₁ : Expr}
     {st : EStore}
-    (hg : ¬ (NatBinOp nm ∧ ConLeche.natOpStored env nm = true))
+    (hg : ¬ (NatBinOp nm))
     (hc : ConLeche.natOpWfNames.contains nm = true)
-    (hs : ConLeche.natLitSupported env = true)
     (hw₁ : ConLeche.whnf mode eager env F₁ d a = .ok w₁)
     (hr₁ : none = ConLeche.rawNatLit? w₁) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode eager env F d
       (.app (.app (.const nm []) a) b)) d st none :=
-  reduceNat_decline F₁ (by rw [reduceNatFueled_wf hg ⟨hc, hs⟩ hw₁, ← hr₁]; rfl)
+  reduceNat_decline F₁ (by rw [reduceNatFueled_wf hg hc hw₁, ← hr₁]; rfl)
 
 /-! ## 7. `reduceNat`'s exits as `grind` lemmas
 
@@ -959,7 +949,7 @@ declines. -/
 theorem natRed_succ_no {d : Nat} {x : Expr} {st : EStore}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.const)
     (h3 : exprConstLevels (exprFn x) = [])
-    (hg : ¬ (exprConstName (exprFn x) = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    (hg : ¬ (exprConstName (exprFn x) = ConLeche.natSuccName ∧ ConLeche.natLitStored env = true)) :
     NatRed mode eager env d x st none := by
   rw [exprTag_app h1, exprTag_const h2, h3]
   exact simOOp_succ_no hg
@@ -971,7 +961,7 @@ theorem natRed_succ {F d : Nat} {x w : Expr} {st : EStore} {r : Option EIdx}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.const)
     (h3 : exprConstLevels (exprFn x) = [])
     (hn : exprConstName (exprFn x) = ConLeche.natSuccName)
-    (hs : ConLeche.natLitSupported env = true)
+    (hs : ConLeche.natLitStored env = true)
     (hw : ConLeche.whnf mode eager env F d (exprArg x) = .ok w)
     (hr : denoteEO st r = some ((ConLeche.rawNatLit? w).map succLit)) :
     NatRed mode eager env d x st r := by
@@ -1009,10 +999,8 @@ theorem natRed_bin_no {d : Nat} {x : Expr} {st : EStore}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
     (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
     (h4 : exprConstLevels (exprFn (exprFn x)) = [])
-    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
-    (hw : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natLitSupported env) = false) : NatRed mode eager env d x st none := by
+    (hg : natBinOpB (exprConstName (exprFn (exprFn x))) = false)
+    (hw : ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) = false) : NatRed mode eager env d x st none := by
   rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
   refine simOOp_bin_no ?_ ?_
   · rw [← natBinOpB_iff]; simpa using hg
@@ -1025,13 +1013,12 @@ theorem natRed_bin_fst {F d : Nat} {x w : Expr} {st : EStore}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
     (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
     (h4 : exprConstLevels (exprFn (exprFn x)) = [])
-    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = true)
+    (hg : natBinOpB (exprConstName (exprFn (exprFn x))) = true)
     (hw : ConLeche.whnf mode eager env F d (exprArg (exprFn x)) = .ok w)
     (hr : ConLeche.rawNatLit? w = none) : NatRed mode eager env d x st none := by
   rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
-  simp only [Bool.and_eq_true, natBinOpB_iff] at hg
-  exact simOOp_bin_fst hg.1 hg.2 hw hr.symm
+  rw [natBinOpB_iff] at hg
+  exact simOOp_bin_fst hg hw hr.symm
 grind_pattern [bridge_grind] natRed_bin_fst =>
   NatRed mode eager env d x st none, ConLeche.whnf mode eager env F d (exprArg (exprFn x)), ConLeche.rawNatLit? w
 
@@ -1042,15 +1029,14 @@ theorem natRed_bin {F₁ F₂ d : Nat} {x w₁ w₂ : Expr} {st : EStore} {r : O
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
     (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
     (h4 : exprConstLevels (exprFn (exprFn x)) = [])
-    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = true)
+    (hg : natBinOpB (exprConstName (exprFn (exprFn x))) = true)
     (hw₁ : ConLeche.whnf mode eager env F₁ d (exprArg (exprFn x)) = .ok w₁)
     (hs : (ConLeche.rawNatLit? w₁).isSome = true)
     (hw₂ : ConLeche.whnf mode eager env F₂ d (exprArg x) = .ok w₂)
     (hr : denoteEO st r = some (binRes (exprConstName (exprFn (exprFn x)))
       (ConLeche.rawNatLit? w₁) (ConLeche.rawNatLit? w₂))) : NatRed mode eager env d x st r := by
   rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
-  simp only [Bool.and_eq_true, natBinOpB_iff] at hg
+  rw [natBinOpB_iff] at hg
   obtain ⟨n₁, hn₁⟩ := Option.isSome_iff_exists.mp hs
   rw [hn₁] at hr
   cases hn₂ : ConLeche.rawNatLit? w₂ with
@@ -1058,11 +1044,11 @@ theorem natRed_bin {F₁ F₂ d : Nat} {x w₁ w₂ : Expr} {st : EStore} {r : O
     rw [hn₂] at hr
     simp only [binRes, denoteEO] at hr
     cases r with
-    | none => exact simOOp_bin_snd hg.1 hg.2 hw₁ hn₁.symm hw₂ hn₂.symm
+    | none => exact simOOp_bin_snd hg hw₁ hn₁.symm hw₂ hn₂.symm
     | some r => simp [Option.map_eq_some_iff] at hr
   | some n₂ =>
     rw [hn₂] at hr
-    exact simOOp_bin_fire hg.1 hg.2 hw₁ hn₁.symm hw₂ hn₂.symm hr
+    exact simOOp_bin_fire hg hw₁ hn₁.symm hw₂ hn₂.symm hr
 grind_pattern [bridge_grind] natRed_bin =>
   NatRed mode eager env d x st r, ConLeche.whnf mode eager env F₁ d (exprArg (exprFn x)),
   ConLeche.whnf mode eager env F₂ d (exprArg x), ConLeche.rawNatLit? w₁, ConLeche.rawNatLit? w₂
@@ -1073,15 +1059,12 @@ theorem natRed_wf_fst {F d : Nat} {x w : Expr} {st : EStore}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
     (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
     (h4 : exprConstLevels (exprFn (exprFn x)) = [])
-    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
-    (hc : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natLitSupported env) = true)
+    (hg : natBinOpB (exprConstName (exprFn (exprFn x))) = false)
+    (hc : ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) = true)
     (hw : ConLeche.whnf mode eager env F d (exprArg (exprFn x)) = .ok w)
     (hr : ConLeche.rawNatLit? w = none) : NatRed mode eager env d x st none := by
   rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
-  simp only [Bool.and_eq_true] at hc
-  refine simOOp_wf_fst ?_ hc.1 hc.2 hw hr.symm
+  refine simOOp_wf_fst ?_ hc hw hr.symm
   rw [← natBinOpB_iff]; simpa using hg
 grind_pattern [bridge_grind] natRed_wf_fst =>
   NatRed mode eager env d x st none, ConLeche.whnf mode eager env F d (exprArg (exprFn x)), ConLeche.rawNatLit? w
@@ -1092,18 +1075,15 @@ theorem natRed_wf_snd {F₁ F₂ d : Nat} {x w₁ w₂ : Expr} {st : EStore}
     (h1 : exprTag x = ETag.app) (h2 : exprTag (exprFn x) = ETag.app)
     (h3 : exprTag (exprFn (exprFn x)) = ETag.const)
     (h4 : exprConstLevels (exprFn (exprFn x)) = [])
-    (hg : (natBinOpB (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natOpStored env (exprConstName (exprFn (exprFn x)))) = false)
-    (hc : (ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) &&
-      ConLeche.natLitSupported env) = true)
+    (hg : natBinOpB (exprConstName (exprFn (exprFn x))) = false)
+    (hc : ConLeche.natOpWfNames.contains (exprConstName (exprFn (exprFn x))) = true)
     (hw₁ : ConLeche.whnf mode eager env F₁ d (exprArg (exprFn x)) = .ok w₁)
     (hs : (ConLeche.rawNatLit? w₁).isSome = true)
     (hw₂ : ConLeche.whnf mode eager env F₂ d (exprArg x) = .ok w₂)
     (hr : ConLeche.rawNatLit? w₂ = none) : NatRed mode eager env d x st none := by
   rw [exprTag_app h1, exprTag_app h2, exprTag_const h3, h4]
-  simp only [Bool.and_eq_true] at hc
   obtain ⟨n₁, hn₁⟩ := Option.isSome_iff_exists.mp hs
-  refine simOOp_wf_snd ?_ hc.1 hc.2 hw₁ hn₁.symm hw₂ hr.symm
+  refine simOOp_wf_snd ?_ hc hw₁ hn₁.symm hw₂ hr.symm
   rw [← natBinOpB_iff]; simpa using hg
 grind_pattern [bridge_grind] natRed_wf_snd =>
   NatRed mode eager env d x st none, ConLeche.whnf mode eager env F₁ d (exprArg (exprFn x)),
@@ -1127,10 +1107,8 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
       KnotSpec.whnfS hsim, rawNatLit?_specA (eager := eager) (env := env) (fe := fe),
-      natLitSupported_spec (eager := eager) (env := env) (fe := fe),
+      natLitStored_spec (eager := eager) (env := env) (fe := fe),
       natBinOpName_spec (eager := eager) (env := env) (fe := fe)
-        (nm := exprConstName (exprFn (exprFn x))),
-      natOpStored_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
       natOpWfNames_spec (eager := eager) (env := env) (fe := fe),
       natOpResult_spec (eager := eager) (env := env) (fe := fe)
@@ -1167,7 +1145,6 @@ section Census
 
 #print axioms rawNatLit?_spec
 #print axioms natBinOpName_spec
-#print axioms natOpStored_spec
 #print axioms natOpWfNames_spec
 #print axioms natOpResult_spec
 #print axioms constE_spec
@@ -1175,6 +1152,7 @@ section Census
 #print axioms natZeroOk_spec
 #print axioms natSuccOk_spec
 #print axioms natLitSupported_spec
+#print axioms natLitStored_spec
 #print axioms natOpResult_wscoped
 #print axioms reduceNat_spec
 

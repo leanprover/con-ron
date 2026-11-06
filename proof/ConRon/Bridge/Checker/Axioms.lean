@@ -36,6 +36,7 @@ import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Checker.TypePins
+import ConRon.Bridge.Checker.Pushes
 
 public section
 
@@ -397,13 +398,9 @@ hypotheses of the statement. -/
 #print axioms internAllPins_run
 
 -- the fold's children (each prints the three standard axioms)
-#print axioms declBlockRun_nodup
 #print axioms checkShapeless_ne_ok
-#print axioms checkDecl_nodup
-#print axioms TblExt.trans
-#print axioms checkBlockTables_tables
-#print axioms declBlockRun_tables
-#print axioms checkDecl_tables
+#print axioms checkDecl_pushes
+#print axioms checkDecl_fresh
 #print axioms Arena.checkPending_prefix
 #print axioms denoteN_default_of_pinNames
 #print axioms internPinSets_run

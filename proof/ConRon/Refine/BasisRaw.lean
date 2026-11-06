@@ -2,40 +2,23 @@
 `kernel::basis_raw`, refined (DESIGN.md §3.5, task #83).
 
 `crates/con-ron-core/src/kernel/basis_raw.rs` is the port of
-`vendor/con-leche/ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot,And}.lean`
-and of `ConLeche/Kernel/Basis.lean:40-78` — the **raw** pinned basis blocks
-(each block exactly as an export carries it, the toolchain's `Init.Prelude`
-declaration at the parser's raw binder annotations) plus the two tests that
-recognise one in a stream record.
+`ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot,And}.lean` and of
+`ConLeche/Kernel/Basis.lean`'s `BasisKind.decls` — the pinned basis blocks, each
+exactly as an export carries it (every recursor rule firing `.plain` except the
+quotient eliminators', which store their comparand level, `.levels [u]`).
 
-**Why they are in the verified core.**  Until con-leche's task #293 the
-pinned-block match was the *parser's*, and this module lived in the unverified
-crate beside it.  Task #293 moved the recognition into the fold: the decoder
-emits the file's records and nothing else, and it is `check_decl` that
-recognises a block as one of the four pins (`basis_pin_hit`) and a `#QUOT`
-record — or the `Quot.sound` axiom record — as the pinned quotient package's
-(`quot_pin_hit`).  The match is part of the verdict, so the pins and the two
-tests are part of what has to be proved.
+**Why they are in the verified core.**  A stream block whose members' names are a
+pinned block's is compared with its pin up to its level-parameter names, and the
+environment holds each pin at the names its record declares; a quotient record
+likewise.  The comparison is part of the verdict, so the pins are part of what has
+to be proved.  There is one table: what a record is compared with and what is
+installed are the same blocks.
 
-**Why there are two tables.**  `ConRon/Refine/BasisTables.lean` refines the
-*annotated* blocks (`kernel::basis_tables`, con-leche's `BasisKind.declsA`),
-which is what an installation stores; the raw pins below are what an incoming
-record is MATCHED against.  They are not the same blocks: `canon` resets binder
-metadata and `IndCaps` on both sides but compares a recursor rule's
-install-computed fields verbatim, and the annotated `Nat.rec` rule carries
-`ctorParams = 2`, `fire = .plain`, `k = true` where a
-parsed one carries the placeholders.
-
-**The method, and why it is not `BasisTables.lean`'s.**  That file proves its
-tables *total* — its claim is about a closed term with no caller, so it has to
-be, and it pays for it with a `⦃ ⦄` specification tier and one Aeneas `step`
-per interned node.  Every function here *has* a caller inside the checker
-(`check_decl` reaches `basis_pin_hit` and `quot_pin_hit` with the Rust success
-equation in hand), so the tier's ordinary conditional shape — `(h : rust_f … =
-ok v) → abs v = lean_f … ∧ vWF v` — is both what the readers need and far
-cheaper: Charon emits one flat `do` chain per pin, one bind per builder call,
-so each pin is a `simp only [bind_eq_ok_iff]`, one `obtain`, and one lemma per
-bind.  Nothing below needs `step`, a heartbeat bump or a `⦃ ⦄`.
+**The method.**  Every function here has a caller inside the checker, so the
+tier's ordinary conditional shape — `(h : rust_f … = ok v) → abs v = lean_f … ∧
+vWF v` — is what the readers need: Charon emits one flat `do` chain per pin, one
+bind per builder call, so each pin is a `simp only [bind_eq_ok_iff]`, one
+`obtain`, and one lemma per bind.
 
 Everything is stated against con-leche's own `BasisDSL` helpers
 (`ConLeche/Kernel/Basis/Builder.lean`), which the port carries one-to-one in
@@ -282,14 +265,27 @@ theorem cv_refines {n : name.Name} {lps : alloc.vec.Vec name.Name} {ty : expr.Ex
   subst h
   exact ⟨rfl, ⟨hn, hlps, hty⟩⟩
 
-/-- `BasisDSL.rule`: a raw iota rule at the parse placeholders. -/
+/-- `BasisDSL.rule`: an iota rule that fires plainly. -/
 theorem rule_refines {ctor : name.Name} {nfields : Std.U64} {rhs : expr.Expr}
     {r : env.RecRule} (hc : NameWF ctor) (hr : ExprWF rhs)
     (h : basis_raw.rule ctor nfields rhs = ok r) :
     absRecRule r = ConLeche.BasisDSL.rule (absName ctor) nfields.val (absExpr rhs)
       ∧ RecRuleWF r := by
-  rw [basis_raw.rule] at h
-  exact ⟨by rw [Env.rec_rule_parsed_refines h]; rfl, Env.rec_rule_parsed_wf hc hr h⟩
+  rw [basis_raw.rule, Result.ok.injEq] at h
+  subst h
+  exact ⟨rfl, hc, trivial, hr⟩
+
+/-- `BasisDSL.ruleAt`: a quotient eliminator's iota rule, its comparand levels
+stored. -/
+theorem rule_at_refines {ctor : name.Name} {nfields : Std.U64}
+    {lvls : alloc.vec.Vec level.Level} {rhs : expr.Expr}
+    {r : env.RecRule} (hc : NameWF ctor) (hl : LevelsWF lvls) (hr : ExprWF rhs)
+    (h : basis_raw.rule_at ctor nfields lvls rhs = ok r) :
+    absRecRule r = ConLeche.BasisDSL.ruleAt (absName ctor) nfields.val (absLevels lvls)
+        (absExpr rhs) ∧ RecRuleWF r := by
+  rw [basis_raw.rule_at, Result.ok.injEq] at h
+  subst h
+  exact ⟨rfl, hc, hl, hr⟩
 
 /-- `env::ind_caps_default` in the pair shape. -/
 theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
@@ -301,22 +297,22 @@ so every entry is well formed. -/
 theorem vec_new_wf {T : Type} {W : T → Prop} : ∀ x ∈ (alloc.vec.Vec.new T).val, W x := by
   intro x hx; simp [alloc.vec.Vec.new] at hx
 
-/-- `name::dup` in the pair shape (`nat_rec_raw` reuses its recursor name). -/
+/-- `name::dup` in the pair shape (`nat_rec_a` reuses its recursor name). -/
 theorem name_dup_refines {n r : name.Name} (hn : NameWF n) (h : name.dup n = ok r) :
     absName r = absName n ∧ NameWF r := by
   rw [name_dup_eq, Result.ok.injEq] at h
   exact ⟨by rw [← h], h ▸ hn⟩
 
-/-- `{ ic with rule_k := true, all, nparams := 2, ctors }`, the four fields
-`eq_raw` sets. -/
+/-- `{ ic with all, nparams := 2, nIdx := 1, ctors }`, the four fields `eq_a`
+sets. -/
 theorem absIndCaps_eq {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
     (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
-    absIndCaps { c with rule_k := true, all := v, nparams := 2#u64, ctors := w }
-      = { ruleK := true, all := absNames v, nparams := 2, ctors := absNames w } := by
-  rw [show ({ ruleK := true, all := absNames v, nparams := 2, ctors := absNames w } :
+    absIndCaps { c with all := v, nparams := 2#u64, n_idx := 1#u64, ctors := w }
+      = { all := absNames v, nparams := 2, nIdx := 1, ctors := absNames w } := by
+  rw [show ({ all := absNames v, nparams := 2, nIdx := 1, ctors := absNames w } :
         ConLeche.IndCaps)
       = { ({} : ConLeche.IndCaps) with
-          ruleK := true, all := absNames v, nparams := 2, ctors := absNames w } from rfl, ← h]
+          all := absNames v, nparams := 2, nIdx := 1, ctors := absNames w } from rfl, ← h]
   rfl
 
 /-- `{ ic with all, nparams := 2, ctors }`, the three fields `and_raw` sets. -/
@@ -329,49 +325,16 @@ theorem absIndCaps_all_nparams_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name
           all := absNames v, nparams := 2, ctors := absNames w } from rfl, ← h]
   rfl
 
-/-- `{ ic with sort_z, all, ctors }`, the three fields `nat_raw` sets. -/
-theorem absIndCaps_sortZ_all_ctors {c : env.IndCaps} {pw : prop_when.PropWhen}
-    {v w : alloc.vec.Vec name.Name}
+/-- `{ ic with all, ctors }`, the two fields `nat_a` sets. -/
+theorem absIndCaps_all_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
     (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
-    absIndCaps { c with sort_z := pw, all := v, ctors := w }
-      = { sortZ := absPropWhen pw, all := absNames v, ctors := absNames w } := by
-  rw [show ({ sortZ := absPropWhen pw, all := absNames v, ctors := absNames w } :
-        ConLeche.IndCaps)
-      = { ({} : ConLeche.IndCaps) with
-          sortZ := absPropWhen pw, all := absNames v, ctors := absNames w } from rfl, ← h]
+    absIndCaps { c with all := v, ctors := w }
+      = { all := absNames v, ctors := absNames w } := by
+  rw [show ({ all := absNames v, ctors := absNames w } : ConLeche.IndCaps)
+      = { ({} : ConLeche.IndCaps) with all := absNames v, ctors := absNames w } from rfl, ← h]
   rfl
 
-/-- `{ ic with sort_z, all }`, the two fields `empty_raw` sets. -/
-theorem absIndCaps_sortZ_all {c : env.IndCaps} {pw : prop_when.PropWhen}
-    {v : alloc.vec.Vec name.Name}
-    (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
-    absIndCaps { c with sort_z := pw, all := v }
-      = { sortZ := absPropWhen pw, all := absNames v } := by
-  rw [show ({ sortZ := absPropWhen pw, all := absNames v } : ConLeche.IndCaps)
-      = { ({} : ConLeche.IndCaps) with sortZ := absPropWhen pw, all := absNames v } from rfl,
-    ← h]
-  rfl
-
-/-- `{ ic with sort_z }`, the one field `quot_raw` sets. -/
-theorem absIndCaps_sortZ {c : env.IndCaps} {pw : prop_when.PropWhen}
-    (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
-    absIndCaps { c with sort_z := pw } = { sortZ := absPropWhen pw } := by
-  rw [show ({ sortZ := absPropWhen pw } : ConLeche.IndCaps)
-      = { ({} : ConLeche.IndCaps) with sortZ := absPropWhen pw } from rfl, ← h]
-  rfl
-
-/-- `Level.zeronessOf (.succ .zero)`, the `sortZ` of `Nat` and `Empty`, as the
-port computes it (`level::zero`, `level::succ`, `level::zeroness_of`). -/
-theorem zeroness_type1 {l l1 : level.Level} {pw : prop_when.PropWhen}
-    (hl : level.zero = ok l) (hl1 : level.succ l = ok l1)
-    (hpw : level.zeroness_of l1 = ok pw) :
-    absPropWhen pw = ConLeche.Level.zeronessOf (.succ .zero) ∧ PropWhenWF pw := by
-  have w1 := Level.succ_wf (Level.zero_wf hl) hl1
-  obtain ⟨a, w⟩ := ExprOps.zeroness_of_refines w1 pw hpw
-  refine ⟨?_, w⟩
-  rw [a, Level.succ_refines hl1, Level.zero_refines hl]
-
-/-- `{ ic with all }`, the one field `false_raw` sets. -/
+/-- `{ ic with all }`, the one field `empty_a` and `false_a` set. -/
 theorem absIndCaps_all {c : env.IndCaps} {v : alloc.vec.Vec name.Name}
     (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
     absIndCaps { c with all := v } = { all := absNames v } := by
@@ -392,14 +355,14 @@ attribute [local simp] ConLeche.BasisDSL.pi ConLeche.BasisDSL.piI ConLeche.Basis
   ConLeche.BasisDSL.lm ConLeche.BasisDSL.lmI ConLeche.BasisDSL.bv ConLeche.BasisDSL.srt
   ConLeche.BasisDSL.prop ConLeche.BasisDSL.type1 ConLeche.BasisDSL.cnst
   ConLeche.BasisDSL.ap2 ConLeche.BasisDSL.ap3 ConLeche.BasisDSL.ap4
-  ConLeche.BasisDSL.rule
+  ConLeche.BasisDSL.rule ConLeche.BasisDSL.ruleAt
 
 /-! ### `Eq` -/
 
 /-- `ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw` -/
-theorem eq_raw_refines {ci : env.ConstantInfo} (h : basis_raw.eq_raw = ok ci) :
-    absConstantInfo ci = ConLeche.eqRaw ∧ ConstantInfoWF ci := by
-  rw [basis_raw.eq_raw] at h
+theorem eq_a_refines {ci : env.ConstantInfo} (h : basis_raw.eq_a = ok ci) :
+    absConstantInfo ci = ConLeche.eqA ∧ ConstantInfoWF ci := by
+  rw [basis_raw.eq_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, v, hv, n1, hn1, v1, hv1, ic, hic, n2, hn2, v2, hv2, l, hl, e, he, e1, he1,
     e2, he2, e3, he3, e4, he4, e5, he5, e6, he6, cv, hcv, rfl⟩ := h
@@ -419,13 +382,13 @@ theorem eq_raw_refines {ci : env.ConstantInfo} (h : basis_raw.eq_raw = ok ci) :
   obtain ⟨ae5, we5⟩ := pi_refines we1 we4 he5
   obtain ⟨ae6, we6⟩ := pi_refines we we5 he6
   obtain ⟨acv, wcv⟩ := cv_refines wn wv2 we6 hcv
-  refine ⟨?_, ⟨wcv, wic.1, wic.2.1, wv, wv1⟩⟩
+  refine ⟨?_, ⟨wcv, wic.1, wv, wv1⟩⟩
   simp [absConstantInfo, acv, an, ae6, ae5, ae4, ae3, ae2, ae1, ae, al, an2,
-    absNames, av2, absIndCaps_eq aic, av, av1, an1, ConLeche.eqRaw]
+    absNames, av2, absIndCaps_eq aic, av, av1, an1, ConLeche.eqA]
 
-theorem eq_refl_raw_refines {r : env.ConstantInfo} (h : basis_raw.eq_refl_raw = ok r) :
-    absConstantInfo r = ConLeche.eqReflRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.eq_refl_raw] at h
+theorem eq_refl_a_refines {r : env.ConstantInfo} (h : basis_raw.eq_refl_a = ok r) :
+    absConstantInfo r = ConLeche.eqReflA ∧ ConstantInfoWF r := by
+  rw [basis_raw.eq_refl_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, n2, hn2, v1, hv1, e2, he2, e3, he3,
     e4, he4, e5, he5, e6, he6, cv, hcv, rfl⟩ := h
@@ -445,7 +408,7 @@ theorem eq_refl_raw_refines {r : env.ConstantInfo} (h : basis_raw.eq_refl_raw = 
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we6 hcv
   refine ⟨?_, wcv⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae6, ae5, ae4, ae3, ae2, av1, an2, ae1, ae, al, av, an1, an,
-    ConLeche.eqReflRaw]
+    ConLeche.eqReflA]
 
 theorem eq_rec_motive_refines {r : expr.Expr} (h : basis_raw.eq_rec_motive = ok r) :
     absExpr r = ConLeche.eqRecMotive ∧ ExprWF r := by
@@ -490,9 +453,9 @@ theorem eq_rec_refl_dom_refines {r : expr.Expr} (h : basis_raw.eq_rec_refl_dom =
   simp [absLevels, ares, ae4, ae3, ae2, av, al, an, ae1, ae,
     ConLeche.BasisDSL.ap2, ConLeche.BasisDSL.cnst]
 
-theorem eq_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.eq_rec_raw = ok r) :
-    absConstantInfo r = ConLeche.eqRecRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.eq_rec_raw] at h
+theorem eq_rec_a_refines {r : env.ConstantInfo} (h : basis_raw.eq_rec_a = ok r) :
+    absConstantInfo r = ConLeche.eqRecA ∧ ConstantInfoWF r := by
+  rw [basis_raw.eq_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, n2, hn2, n3, hn3, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3,
     e4, he4, v1, hv1, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, e11, he11,
@@ -532,16 +495,16 @@ theorem eq_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.eq_rec_raw = ok
   obtain ⟨av2, wv2⟩ := vec1_refines wrr hv2
   refine ⟨?_, ⟨wcv, wv2⟩⟩
   simp [absConstantInfo, absNames, absLevels, av2, arr, ae20, ae19, ae18, ae17, ae16, an4, acv, ae15, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, av1, ae4, ae3, ae2, ae1, ae, al, av, an3, an2, an1, an,
-    ConLeche.eqRecRaw]
+    ConLeche.eqRecA]
 
 theorem eq_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.eq_basis = ok r) :
     absConstantInfos r = ConLeche.eqBasis ∧ ConstantInfosWF r := by
   rw [basis_raw.eq_basis] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨ci, hci, ci1, hci1, ci2, hci2, hres⟩ := h
-  obtain ⟨aci, wci⟩ := eq_raw_refines hci
-  obtain ⟨aci1, wci1⟩ := eq_refl_raw_refines hci1
-  obtain ⟨aci2, wci2⟩ := eq_rec_raw_refines hci2
+  obtain ⟨aci, wci⟩ := eq_a_refines hci
+  obtain ⟨aci1, wci1⟩ := eq_refl_a_refines hci1
+  obtain ⟨aci2, wci2⟩ := eq_rec_a_refines hci2
   obtain ⟨ares, wres⟩ := vec3_refines wci wci1 wci2 hres
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci2, aci1, aci,
@@ -558,28 +521,26 @@ theorem nat_t_refines {r : expr.Expr} (h : basis_raw.nat_t = ok r) :
   simp [absLevels, ares, an,
     ConLeche.natT]
 
-theorem nat_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_raw = ok r) :
-    absConstantInfo r = ConLeche.natRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.nat_raw] at h
+theorem nat_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_a = ok r) :
+    absConstantInfo r = ConLeche.natA ∧ ConstantInfoWF r := by
+  rw [basis_raw.nat_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, e, he, cv, hcv, l, hl, l1, hl1, pw, hpw, v, hv, n1, hn1, n2, hn2, v1, hv1,
-    ic, hic, rfl⟩ := h
+  obtain ⟨n, hn, e, he, cv, hcv, v, hv, n1, hn1, n2, hn2, v1, hv1, ic, hic, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.nat_name_refines hn
   obtain ⟨ae, we⟩ := type1_refines he
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we hcv
-  obtain ⟨apw, wpw⟩ := zeroness_type1 hl hl1 hpw
   obtain ⟨av, wv⟩ := vec1_refines wn hv
   obtain ⟨an1, wn1⟩ := BasisNames.nat_zero_name_refines hn1
   obtain ⟨an2, wn2⟩ := BasisNames.nat_succ_name_refines hn2
   obtain ⟨av1, wv1⟩ := vec2_refines wn1 wn2 hv1
   obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
-  refine ⟨?_, ⟨wcv, wic.1, wpw, wv, wv1⟩⟩
-  simp [absConstantInfo, absNames, absIndCaps_sortZ_all_ctors aic, acv, ae, an, av, av1, an1,
-    an2, apw, ConLeche.natRaw]
+  refine ⟨?_, ⟨wcv, wic.1, wv, wv1⟩⟩
+  simp [absConstantInfo, absNames, absIndCaps_all_ctors aic, acv, ae, an, av, av1, an1,
+    an2, ConLeche.natA]
 
-theorem nat_zero_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_zero_raw = ok r) :
-    absConstantInfo r = ConLeche.natZeroRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.nat_zero_raw] at h
+theorem nat_zero_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_zero_a = ok r) :
+    absConstantInfo r = ConLeche.natZeroA ∧ ConstantInfoWF r := by
+  rw [basis_raw.nat_zero_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, cv, hcv, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.nat_zero_name_refines hn
@@ -587,11 +548,11 @@ theorem nat_zero_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_zero_raw 
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we hcv
   refine ⟨?_, wcv⟩
   simp [absConstantInfo, absNames, acv, ae, an,
-    ConLeche.natZeroRaw]
+    ConLeche.natZeroA]
 
-theorem nat_succ_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_succ_raw = ok r) :
-    absConstantInfo r = ConLeche.natSuccRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.nat_succ_raw] at h
+theorem nat_succ_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_succ_a = ok r) :
+    absConstantInfo r = ConLeche.natSuccA ∧ ConstantInfoWF r := by
+  rw [basis_raw.nat_succ_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, e1, he1, cv, hcv, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.nat_succ_name_refines hn
@@ -600,7 +561,7 @@ theorem nat_succ_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_succ_raw 
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we1 hcv
   refine ⟨?_, wcv⟩
   simp [absConstantInfo, absNames, acv, ae1, ae, an,
-    ConLeche.natSuccRaw]
+    ConLeche.natSuccA]
 
 theorem nat_rec_motive_refines {r : expr.Expr} (h : basis_raw.nat_rec_motive = ok r) :
     absExpr r = ConLeche.natRecMotive ∧ ExprWF r := by
@@ -651,9 +612,9 @@ theorem nat_rec_zero_dom_refines {r : expr.Expr} (h : basis_raw.nat_rec_zero_dom
   simp [absLevels, ares, ae1, an, ae,
     ConLeche.BasisDSL.cnst]
 
-theorem nat_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_rec_raw = ok r) :
-    absConstantInfo r = ConLeche.natRecRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.nat_rec_raw] at h
+theorem nat_rec_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_rec_a = ok r) :
+    absConstantInfo r = ConLeche.natRecA ∧ ConstantInfoWF r := by
+  rw [basis_raw.nat_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, rec_name, hrec_name, n1, hn1, n2, hn2, v, hv, e, he, e1, he1, e2, he2, e3,
     he3, e4, he4, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, cv, hcv, n3, hn3,
@@ -699,40 +660,39 @@ theorem nat_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.nat_rec_raw = 
   obtain ⟨av2, wv2⟩ := vec2_refines wrr wrr1 hv2
   refine ⟨?_, ⟨wcv, wv2⟩⟩
   simp [absConstantInfo, absNames, absLevels, av2, arr1, ae23, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, av1, al, an4, arr, ae14, ae13, ae12, ae11, an3, acv, ae10, ae9, ae8, ae7, ae6, ae5, ae4, ae3, ae2, ae1, ae, av, an2, an1, arec_name, an,
-    ConLeche.natRecRaw]
+    ConLeche.natRecA]
 
 theorem nat_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.nat_basis = ok r) :
     absConstantInfos r = ConLeche.natBasis ∧ ConstantInfosWF r := by
   rw [basis_raw.nat_basis] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨ci, hci, ci1, hci1, ci2, hci2, ci3, hci3, hres⟩ := h
-  obtain ⟨aci, wci⟩ := nat_raw_refines hci
-  obtain ⟨aci1, wci1⟩ := nat_zero_raw_refines hci1
-  obtain ⟨aci2, wci2⟩ := nat_succ_raw_refines hci2
-  obtain ⟨aci3, wci3⟩ := nat_rec_raw_refines hci3
+  obtain ⟨aci, wci⟩ := nat_a_refines hci
+  obtain ⟨aci1, wci1⟩ := nat_zero_a_refines hci1
+  obtain ⟨aci2, wci2⟩ := nat_succ_a_refines hci2
+  obtain ⟨aci3, wci3⟩ := nat_rec_a_refines hci3
   obtain ⟨ares, wres⟩ := vec4_refines wci wci1 wci2 wci3 hres
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci3, aci2, aci1, aci,
     ConLeche.natBasis]
 
-theorem empty_raw_refines {r : env.ConstantInfo} (h : basis_raw.empty_raw = ok r) :
-    absConstantInfo r = ConLeche.emptyRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.empty_raw] at h
+theorem empty_a_refines {r : env.ConstantInfo} (h : basis_raw.empty_a = ok r) :
+    absConstantInfo r = ConLeche.emptyA ∧ ConstantInfoWF r := by
+  rw [basis_raw.empty_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, e, he, cv, hcv, l, hl, l1, hl1, pw, hpw, v, hv, ic, hic, rfl⟩ := h
+  obtain ⟨n, hn, e, he, cv, hcv, v, hv, ic, hic, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.empty_name_refines hn
   obtain ⟨ae, we⟩ := type1_refines he
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we hcv
-  obtain ⟨apw, wpw⟩ := zeroness_type1 hl hl1 hpw
   obtain ⟨av, wv⟩ := vec1_refines wn hv
   obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
-  refine ⟨?_, ⟨wcv, wic.1, wpw, wv, wic.2.2.2⟩⟩
-  simp [absConstantInfo, absNames, absIndCaps_sortZ_all aic, acv, ae, an, av, apw,
-    ConLeche.emptyRaw]
+  refine ⟨?_, ⟨wcv, wic.1, wv, wic.2.2⟩⟩
+  simp [absConstantInfo, absNames, absIndCaps_all aic, acv, ae, an, av,
+    ConLeche.emptyA]
 
-theorem empty_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.empty_rec_raw = ok r) :
-    absConstantInfo r = ConLeche.emptyRecRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.empty_rec_raw] at h
+theorem empty_rec_a_refines {r : env.ConstantInfo} (h : basis_raw.empty_rec_a = ok r) :
+    absConstantInfo r = ConLeche.emptyRecA ∧ ConstantInfoWF r := by
+  rw [basis_raw.empty_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, n2, hn2, v, hv, e, he, l, hl, e1, he1, e2, he2, e3, he3, e4, he4,
     e5, he5, e6, he6, e7, he7, e8, he8, cv, hcv, rfl⟩ := h
@@ -753,23 +713,23 @@ theorem empty_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.empty_rec_ra
   obtain ⟨acv, wcv⟩ := cv_refines wn1 wv we8 hcv
   refine ⟨?_, ⟨wcv, vec_new_wf⟩⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae8, ae7, ae6, ae5, ae4, ae3, ae2, ae1, al, ae, av, an2, an1, an,
-    ConLeche.emptyRecRaw]
+    ConLeche.emptyRecA]
 
 theorem empty_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.empty_basis = ok r) :
     absConstantInfos r = ConLeche.emptyBasis ∧ ConstantInfosWF r := by
   rw [basis_raw.empty_basis] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨ci, hci, ci1, hci1, hres⟩ := h
-  obtain ⟨aci, wci⟩ := empty_raw_refines hci
-  obtain ⟨aci1, wci1⟩ := empty_rec_raw_refines hci1
+  obtain ⟨aci, wci⟩ := empty_a_refines hci
+  obtain ⟨aci1, wci1⟩ := empty_rec_a_refines hci1
   obtain ⟨ares, wres⟩ := vec2_refines wci wci1 hres
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci1, aci,
     ConLeche.emptyBasis]
 
-theorem false_raw_refines {r : env.ConstantInfo} (h : basis_raw.false_raw = ok r) :
-    absConstantInfo r = ConLeche.falseRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.false_raw] at h
+theorem false_a_refines {r : env.ConstantInfo} (h : basis_raw.false_a = ok r) :
+    absConstantInfo r = ConLeche.falseA ∧ ConstantInfoWF r := by
+  rw [basis_raw.false_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, cv, hcv, v, hv, ic, hic, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.false_name_refines hn
@@ -777,13 +737,13 @@ theorem false_raw_refines {r : env.ConstantInfo} (h : basis_raw.false_raw = ok r
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we hcv
   obtain ⟨av, wv⟩ := vec1_refines wn hv
   obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
-  refine ⟨?_, ⟨wcv, wic.1, wic.2.1, wv, wic.2.2.2⟩⟩
+  refine ⟨?_, ⟨wcv, wic.1, wv, wic.2.2⟩⟩
   simp [absConstantInfo, absNames, absIndCaps_all aic, acv, ae, an, av,
-    ConLeche.falseRaw]
+    ConLeche.falseA]
 
-theorem false_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.false_rec_raw = ok r) :
-    absConstantInfo r = ConLeche.falseRecRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.false_rec_raw] at h
+theorem false_rec_a_refines {r : env.ConstantInfo} (h : basis_raw.false_rec_a = ok r) :
+    absConstantInfo r = ConLeche.falseRecA ∧ ConstantInfoWF r := by
+  rw [basis_raw.false_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, n2, hn2, v, hv, e, he, l, hl, e1, he1, e2, he2, e3, he3, e4, he4,
     e5, he5, e6, he6, e7, he7, e8, he8, cv, hcv, rfl⟩ := h
@@ -804,15 +764,15 @@ theorem false_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.false_rec_ra
   obtain ⟨acv, wcv⟩ := cv_refines wn1 wv we8 hcv
   refine ⟨?_, ⟨wcv, vec_new_wf⟩⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae8, ae7, ae6, ae5, ae4, ae3, ae2, ae1, al, ae, av, an2, an1, an,
-    ConLeche.falseRecRaw]
+    ConLeche.falseRecA]
 
 theorem false_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.false_basis = ok r) :
     absConstantInfos r = ConLeche.falseBasis ∧ ConstantInfosWF r := by
   rw [basis_raw.false_basis] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨ci, hci, ci1, hci1, hres⟩ := h
-  obtain ⟨aci, wci⟩ := false_raw_refines hci
-  obtain ⟨aci1, wci1⟩ := false_rec_raw_refines hci1
+  obtain ⟨aci, wci⟩ := false_a_refines hci
+  obtain ⟨aci1, wci1⟩ := false_rec_a_refines hci1
   obtain ⟨ares, wres⟩ := vec2_refines wci wci1 hres
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci1, aci,
@@ -832,12 +792,12 @@ theorem quot_rel_refines {r : expr.Expr} (h : basis_raw.quot_rel = ok r) :
   simp [ares, ae3, ae2, ae1, ae,
     ConLeche.quotRel]
 
-theorem quot_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_raw = ok r) :
-    absConstantInfo r = ConLeche.quotRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_raw] at h
+theorem quot_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_a = ok r) :
+    absConstantInfo r = ConLeche.quotA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3, e4, he4, cv, hcv,
-    pw, hpw, ic, hic, rfl⟩ := h
+    ic, hic, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.quot_name_refines hn
   obtain ⟨an1, wn1⟩ := u_n_refines hn1
   obtain ⟨av, wv⟩ := vec1_refines wn1 hv
@@ -848,15 +808,14 @@ theorem quot_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_raw = ok r) 
   obtain ⟨ae3, we3⟩ := pi_refines we1 we2 he3
   obtain ⟨ae4, we4⟩ := pi_refines we we3 he4
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we4 hcv
-  obtain ⟨apw, wpw⟩ := ExprOps.zeroness_of_refines wl pw hpw
   obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
-  refine ⟨?_, ⟨wcv, wic.1, wpw, wic.2.2⟩⟩
-  simp [absConstantInfo, absNames, absIndCaps_sortZ aic, acv, ae4, ae3, ae2, ae1, ae, al, av,
-    an1, an, apw, ConLeche.quotRaw]
+  refine ⟨?_, ⟨wcv, wic⟩⟩
+  simp [absConstantInfo, absNames, aic, acv, ae4, ae3, ae2, ae1, ae, al, av,
+    an1, an, ConLeche.quotA]
 
-theorem quot_mk_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_mk_raw = ok r) :
-    absConstantInfo r = ConLeche.quotMkRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_mk_raw] at h
+theorem quot_mk_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_mk_a = ok r) :
+    absConstantInfo r = ConLeche.quotMkA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_mk_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, n2, hn2, v1, hv1, e3, he3,
     e4, he4, e5, he5, e6, he6, e7, he7, e8, he8, cv, hcv, rfl⟩ := h
@@ -878,7 +837,7 @@ theorem quot_mk_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_mk_raw = 
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we8 hcv
   refine ⟨?_, wcv⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae8, ae7, ae6, ae5, ae4, ae3, av1, an2, ae2, ae1, ae, al, av, an1, an,
-    ConLeche.quotMkRaw]
+    ConLeche.quotMkA]
 
 theorem quot_lift_f_refines {r : expr.Expr} (h : basis_raw.quot_lift_f = ok r) :
     absExpr r = ConLeche.quotLiftF ∧ ExprWF r := by
@@ -918,15 +877,15 @@ theorem quot_lift_h_refines {r : expr.Expr} (h : basis_raw.quot_lift_h = ok r) :
   simp [absLevels, ares, ae11, ae10, ae9, ae8, ae7, ae6, ae5, av, al, an, ae4, ae3, ae2, ae1, ae,
     ConLeche.quotLiftH]
 
-theorem quot_lift_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_lift_raw = ok r) :
-    absConstantInfo r = ConLeche.quotLiftRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_lift_raw] at h
+theorem quot_lift_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_lift_a = ok r) :
+    absConstantInfo r = ConLeche.quotLiftA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_lift_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, n2, hn2, v, hv, l, hl, e, he, e1, he1, l1, hl1, e2, he2, e3, he3,
     e4, he4, n3, hn3, v1, hv1, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, e11,
-    he11, e12, he12, e13, he13, e14, he14, cv, hcv, n4, hn4, e15, he15, e16, he16, e17,
+    he11, e12, he12, e13, he13, e14, he14, cv, hcv, n4, hn4, v2, hv2, e15, he15, e16, he16, e17,
     he17, e18, he18, e19, he19, e20, he20, e21, he21, e22, he22, e23, he23, e24, he24, e25,
-    he25, rr, hrr, v2, hv2, rfl⟩ := h
+    he25, rr, hrr, v3, hv3, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.quot_lift_name_refines hn
   obtain ⟨an1, wn1⟩ := u_n_refines hn1
   obtain ⟨an2, wn2⟩ := v_n_refines hn2
@@ -952,6 +911,7 @@ theorem quot_lift_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_lift_ra
   obtain ⟨ae14, we14⟩ := pi_refines we we13 he14
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we14 hcv
   obtain ⟨an4, wn4⟩ := BasisNames.quot_mk_name_refines hn4
+  obtain ⟨av2, wv2⟩ := vec1_refines wl hv2
   obtain ⟨ae15, we15⟩ := srt_refines wl he15
   obtain ⟨ae16, we16⟩ := srt_refines wl1 he16
   obtain ⟨ae17, we17⟩ := bv_refines he17
@@ -963,11 +923,11 @@ theorem quot_lift_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_lift_ra
   obtain ⟨ae23, we23⟩ := lm_refines we16 we22 he23
   obtain ⟨ae24, we24⟩ := lm_refines we1 we23 he24
   obtain ⟨ae25, we25⟩ := lm_refines we15 we24 he25
-  obtain ⟨arr, wrr⟩ := rule_refines wn4 we25 hrr
-  obtain ⟨av2, wv2⟩ := vec1_refines wrr hv2
-  refine ⟨?_, ⟨wcv, wv2⟩⟩
-  simp [absConstantInfo, absNames, absLevels, av2, arr, ae25, ae24, ae23, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, an4, acv, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, av1, an3, ae4, ae3, ae2, al1, ae1, ae, al, av, an2, an1, an,
-    ConLeche.quotLiftRaw]
+  obtain ⟨arr, wrr⟩ := rule_at_refines wn4 wv2 we25 hrr
+  obtain ⟨av3, wv3⟩ := vec1_refines wrr hv3
+  refine ⟨?_, ⟨wcv, wv3⟩⟩
+  simp [absConstantInfo, absNames, absLevels, av3, av2, arr, ae25, ae24, ae23, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, an4, acv, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, av1, an3, ae4, ae3, ae2, al1, ae1, ae, al, av, an2, an1, an,
+    ConLeche.quotLiftA]
 
 theorem quot_ind_motive_refines {r : expr.Expr} (h : basis_raw.quot_ind_motive = ok r) :
     absExpr r = ConLeche.quotIndMotive ∧ ExprWF r := by
@@ -1008,14 +968,14 @@ theorem quot_ind_mk_refines {r : expr.Expr} (h : basis_raw.quot_ind_mk = ok r) :
   simp [absLevels, ares, ae6, ae5, ae4, ae3, ae2, av, al, an, ae1, ae,
     ConLeche.quotIndMk]
 
-theorem quot_ind_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_ind_raw = ok r) :
-    absConstantInfo r = ConLeche.quotIndRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_ind_raw] at h
+theorem quot_ind_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_ind_a = ok r) :
+    absConstantInfo r = ConLeche.quotIndA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_ind_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3, n2, hn2, v1, hv1,
     e4, he4, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, e11, he11, e12, he12,
-    e13, he13, e14, he14, cv, hcv, n3, hn3, e15, he15, e16, he16, e17, he17, e18, he18,
-    e19, he19, e20, he20, e21, he21, e22, he22, rr, hrr, v2, hv2, rfl⟩ := h
+    e13, he13, e14, he14, cv, hcv, n3, hn3, v2, hv2, e15, he15, e16, he16, e17, he17,
+    e18, he18, e19, he19, e20, he20, e21, he21, e22, he22, rr, hrr, v3, hv3, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.quot_ind_name_refines hn
   obtain ⟨an1, wn1⟩ := u_n_refines hn1
   obtain ⟨av, wv⟩ := vec1_refines wn1 hv
@@ -1039,6 +999,7 @@ theorem quot_ind_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_ind_raw 
   obtain ⟨ae14, we14⟩ := pi_refines we we13 he14
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we14 hcv
   obtain ⟨an3, wn3⟩ := BasisNames.quot_mk_name_refines hn3
+  obtain ⟨av2, wv2⟩ := vec1_refines wl hv2
   obtain ⟨ae15, we15⟩ := srt_refines wl he15
   obtain ⟨ae16, we16⟩ := bv_refines he16
   obtain ⟨ae17, we17⟩ := mk_app_refines we16 we8 he17
@@ -1047,15 +1008,15 @@ theorem quot_ind_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_ind_raw 
   obtain ⟨ae20, we20⟩ := lm_refines we2 we19 he20
   obtain ⟨ae21, we21⟩ := lm_refines we1 we20 he21
   obtain ⟨ae22, we22⟩ := lm_refines we15 we21 he22
-  obtain ⟨arr, wrr⟩ := rule_refines wn3 we22 hrr
-  obtain ⟨av2, wv2⟩ := vec1_refines wrr hv2
-  refine ⟨?_, ⟨wcv, wv2⟩⟩
-  simp [absConstantInfo, absNames, absLevels, av2, arr, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, an3, acv, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, ae4, av1, an2, ae3, ae2, ae1, ae, al, av, an1, an,
-    ConLeche.quotIndRaw]
+  obtain ⟨arr, wrr⟩ := rule_at_refines wn3 wv2 we22 hrr
+  obtain ⟨av3, wv3⟩ := vec1_refines wrr hv3
+  refine ⟨?_, ⟨wcv, wv3⟩⟩
+  simp [absConstantInfo, absNames, absLevels, av3, av2, arr, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, an3, acv, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, ae4, av1, an2, ae3, ae2, ae1, ae, al, av, an1, an,
+    ConLeche.quotIndA]
 
-theorem quot_sound_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_raw = ok r) :
-    absConstantInfo r = ConLeche.quotSoundRaw ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_sound_raw] at h
+theorem quot_sound_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_a = ok r) :
+    absConstantInfo r = ConLeche.quotSoundA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_sound_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3, e4, he4, e5, he5,
     n2, hn2, v1, hv1, e6, he6, n3, hn3, v2, hv2, e7, he7, e8, he8, e9, he9, e10, he10, n4,
@@ -1096,18 +1057,18 @@ theorem quot_sound_raw_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we20 hcv
   refine ⟨?_, wcv⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae20, ae19, ae18, ae17, ae16, ae15, ae14, ae13, av4, ae12, ae11, av3, an4, ae10, ae9, ae8, ae7, av2, an3, ae6, av1, an2, ae5, ae4, ae3, ae2, ae1, ae, al, av, an1, an,
-    ConLeche.quotSoundRaw]
+    ConLeche.quotSoundA]
 
 theorem quot_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.quot_basis = ok r) :
     absConstantInfos r = ConLeche.quotBasis ∧ ConstantInfosWF r := by
   rw [basis_raw.quot_basis] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨ci, hci, ci1, hci1, ci2, hci2, ci3, hci3, ci4, hci4, hres⟩ := h
-  obtain ⟨aci, wci⟩ := quot_raw_refines hci
-  obtain ⟨aci1, wci1⟩ := quot_mk_raw_refines hci1
-  obtain ⟨aci2, wci2⟩ := quot_lift_raw_refines hci2
-  obtain ⟨aci3, wci3⟩ := quot_ind_raw_refines hci3
-  obtain ⟨aci4, wci4⟩ := quot_sound_raw_refines hci4
+  obtain ⟨aci, wci⟩ := quot_a_refines hci
+  obtain ⟨aci1, wci1⟩ := quot_mk_a_refines hci1
+  obtain ⟨aci2, wci2⟩ := quot_lift_a_refines hci2
+  obtain ⟨aci3, wci3⟩ := quot_ind_a_refines hci3
+  obtain ⟨aci4, wci4⟩ := quot_sound_a_refines hci4
   obtain ⟨ares, wres⟩ := vec5_refines wci wci1 wci2 wci3 wci4 hres
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci4, aci3, aci2, aci1, aci,
@@ -1153,7 +1114,7 @@ theorem and_raw_refines {ci : env.ConstantInfo} (h : basis_raw.and_raw = ok ci) 
   obtain ⟨ae1, we1⟩ := pi_refines we we he1
   obtain ⟨ae2, we2⟩ := pi_refines we we1 he2
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we2 hcv
-  refine ⟨?_, ⟨wcv, wic.1, wic.2.1, wv, wv1⟩⟩
+  refine ⟨?_, ⟨wcv, wic.1, wv, wv1⟩⟩
   simp [absConstantInfo, absNames, absIndCaps_all_nparams_ctors aic, acv, ae2, ae1, ae,
     an, av, av1, an1, ConLeche.andRaw]
 
