@@ -17,7 +17,7 @@ open ConRon.Generated
 open frontend.olean.region (region_loc)
 open frontend.olean.spec (name_node level_node levels_node expr_node)
 open frontend.olean.fast (marks_at marked build_kind_name build_kind_level build_kind_levels
-  build_kind_expr build_slot build_marked build_pass build_pass_loop run_passes ds_fresh
+  build_kind_expr build_slot build_marked build_pass build_pass_loop run_passes run_marked ds_fresh
   K_NAME K_LEVEL K_LEVELS K_EXPR mark_roots mark_pass failed_m max_loc)
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
@@ -26,7 +26,7 @@ namespace ConRon.Refine2.Frontend.Olean
 
 open ConRon.Arena
 open ConRon.Arena.Frontend.Olean (Sub nameIn levelIn levelsIn exprIn nameNode levelNode levelsNode
-  exprNode buildSlot buildPass runPasses)
+  exprNode buildSlot buildPass runPasses runMarked)
 open ConLeche.Frontend.Olean (marksAt markRoot markPass failedM maxLoc kName kLevel kLevels kExpr)
 open ConRon.Refine.HashMap (uscalar_add_eq uscalar_div_eq)
 
@@ -586,13 +586,52 @@ theorem RS.of_TS {δ τ : Type} {Rel : δ → τ → Prop} {pers st lst} {f} {x 
 
 theorem usize_max_ge : 4294967295 ≤ Std.Usize.max := by scalar_tac
 
-/-- **`run_passes` is `runPasses`.** -/
-theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec Std.U64}
+/-- What `run_marked` hands back against `runMarked`'s: the memo's size, the marks
+and the memo. -/
+def MarkedRel (q : Std.U64 × alloc.vec.Vec Std.U8 × frontend.olean.fast.DS)
+    (q' : Nat × ByteArray × TDS) : Prop :=
+  q.1.val = q'.1 ∧ absM q.2.1 = q'.2.1 ∧ DSRel q.2.2 q'.2.2
+
+/-- `RS` from `TS`, the memo with its size and marks. -/
+theorem RS.of_TS_marked {pers st lst} {n : Std.U64} {m : alloc.vec.Vec Std.U8} {f}
+    {x : AM (Option TDS)} (h : TS DSRel pers st lst f x) :
+    RS pers MarkedRel st lst
+      (do
+        let (r1, ar1, st1) ← f
+        match r1 with
+        | .Ok _ => ok (.Ok (n, m, st1), ar1)
+        | .Err e => ok (.Err e, ar1))
+      (do
+        match ← x with
+        | Option.some st => pure (Option.some (n.val, absM m, st))
+        | Option.none => pure Option.none) := by
+  intro hrel hinv o s' hm
+  obtain ⟨⟨r1, ar1, d1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hF := h hrel hinv r1 ar1 d1 h1
+  cases r1 with
+  | Ok u =>
+    cases Result.ok_injective h2
+    obtain ⟨b, lst', hx, hR, hrel', hinv'⟩ := hF
+    exact ⟨(n.val, absM m, b), lst', by rw [am_bind_ok hx]; rfl, ⟨rfl, rfl, hR⟩, hrel', hinv'⟩
+  | Err e =>
+    cases Result.ok_injective h2
+    cases e with
+    | Bad =>
+      obtain ⟨lst', hx, hrel', hinv'⟩ := hF
+      exact ⟨lst', by rw [am_bind_ok hx]; rfl, hrel', hinv'⟩
+    | Err e =>
+      intro k' hk'
+      obtain ⟨le, hle, hkk⟩ := hF k' hk'
+      refine ⟨le, ?_, hkk⟩
+      rw [StateT.run_bind, hle]; rfl
+
+/-- **`run_marked` is `runMarked`**: the memo's size, the marks and the memo. -/
+theorem run_marked_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec Std.U64}
     (hr : RegionFits bs r) :
-    RS pers DSRel st lst (run_passes pk pers st.store bs r names exprs)
-      (runPasses (absPins pk) (absRegion bs r) (names.val.map absWord) (exprs.val.map absWord)) := by
-  rw [run_passes]
-  simp only [runPasses]
+    RS pers MarkedRel st lst (run_marked pk pers st.store bs r names exprs)
+      (runMarked (absPins pk) (absRegion bs r) (names.val.map absWord) (exprs.val.map absWord)) := by
+  rw [run_marked]
+  simp only [runMarked]
   refine RS.pure_step fun i hi => RS.pure_step fun i1 hi1 => RS.pure_step fun i2 hi2 =>
     RS.pure_step fun n hn => ?_
   have e1 := max_loc_eq (bs := bs) hi
@@ -645,6 +684,35 @@ theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec St
         rw [hc] at hf
         have hb := build_pass_loop_ts (pk := pk) (pers := pers) (m := m3) hr hnm _ (st := st) (lst := lst)
           (p := 0#u64) (Nat.le_refl _) hf
-        exact RS.of_TS (by rw [build_pass]; exact hb)
+        exact RS.of_TS_marked (by rw [build_pass]; exact hb)
+
+
+/-- **`run_passes` is `runPasses`.** -/
+theorem run_passes_refines {pk bs r pers st lst} {names exprs : alloc.vec.Vec Std.U64}
+    (hr : RegionFits bs r) :
+    RS pers DSRel st lst (run_passes pk pers st.store bs r names exprs)
+      (runPasses (absPins pk) (absRegion bs r) (names.val.map absWord) (exprs.val.map absWord)) := by
+  rw [run_passes]
+  simp only [runPasses]
+  intro hrel hinv o s' hm
+  obtain ⟨⟨r1, ar1⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hF := run_marked_refines (pk := pk) (names := names) (exprs := exprs) hr hrel hinv r1 ar1 h1
+  cases r1 with
+  | Ok q =>
+    obtain ⟨n, m, d⟩ := q
+    cases Result.ok_injective h2
+    obtain ⟨⟨n', m', t⟩, lst', hx, ⟨-, -, hR⟩, hrel', hinv'⟩ := hF
+    exact ⟨t, lst', by rw [am_bind_ok hx]; rfl, hR, hrel', hinv'⟩
+  | Err e =>
+    cases Result.ok_injective h2
+    cases e with
+    | Bad =>
+      obtain ⟨lst', hx, hrel', hinv'⟩ := hF
+      exact ⟨lst', by rw [am_bind_ok hx]; rfl, hrel', hinv'⟩
+    | Err e =>
+      intro k' hk'
+      obtain ⟨le, hle, hkk⟩ := hF k' hk'
+      refine ⟨le, ?_, hkk⟩
+      rw [StateT.run_bind, hle]; rfl
 
 end ConRon.Refine2.Frontend.Olean

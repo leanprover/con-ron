@@ -86,7 +86,8 @@ theorem runMarked_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
       (∀ v ∈ names, ∀ y, memo.nameOf pk r v = some y →
         ∃ z, nameP r v = some z ∧ denoteN s'.store.ns y = some z) ∧
       (∀ v ∈ exprs, ∀ y, memo.exprOf r v = some y →
-        ∃ z, exprP r v = some z ∧ denoteE s'.store y = some z) := by
+        ∃ z, exprP r v = some z ∧ denoteE s'.store y = some z) ∧
+      Built s'.store r ms memo nm := by
   have hK1 : IsKind kName := Or.inl rfl
   have hK2 : IsKind kExpr := Or.inr (Or.inr (Or.inl rfl))
   generalize hF : ConRon.Arena.Frontend.Olean.runMarked pk r names exprs = f at hrun
@@ -135,13 +136,13 @@ theorem runMarked_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
         | some st =>
         obtain ⟨hv, hs⟩ := AM.pure_ok hrest
         simp only [Option.some.injEq, Prod.mk.injEq] at hv
-        obtain ⟨-, -, rfl⟩ := hv
+        obtain ⟨hnm, hms, rfl⟩ := hv
         subst hs
         obtain ⟨hsub3, -, hc3⟩ := h3.2 hf3
         obtain ⟨hst, hb, -⟩ := buildPass_run hc3 _ 0 (Nat.le_refl _) hctx (sized_fresh n)
           (fun _ h => absurd h (by omega)) hbp
         have hb' := hb (by omega)
-        refine ⟨hst, ?_, ?_⟩
+        refine ⟨hst, ?_, ?_, by rw [← hnm, ← hms] at hb'; exact hb'⟩
         · intro v hv y hy
           by_cases e : v = 1
           · subst e
@@ -187,7 +188,7 @@ theorem runPasses_run {pk : OleanPins} {r : Region} {names exprs : List UInt64} 
   · obtain ⟨hv, hs⟩ := AM.pure_ok h2
     cases hv
     subst hs
-    exact runMarked_run hctx h1
+    exact (runMarked_run hctx h1).elim fun a b => ⟨a, b.1, b.2.1⟩
 
 /-! ## The name table -/
 
@@ -223,7 +224,7 @@ theorem constNamesGo_run {pk : OleanPins} {r : Region} :
       cases o with
       | none => cases (AM.pure_ok hrest).1
       | some a =>
-        obtain ⟨hst1, nC, hnC, hda⟩ := nameAt_run n hctx.ok hctx.off hctx.nulls hat
+        obtain ⟨hst1, nC, hnC, hda⟩ := nameAt_run n hctx.ok hctx.nulls hat
         have hctx1 := hctx.step hst1
         simp only [hnC]
         simp only [] at hrest
@@ -245,7 +246,7 @@ theorem constNamesGo_run {pk : OleanPins} {r : Region} :
               cases (AM.pure_ok hrest').1
             | some q =>
               simp only [pure_bind] at hrest'
-              obtain ⟨hst, z, hz, hdz⟩ := nameP_run hctx1.ok hctx1.off hctx1.nulls hp
+              obtain ⟨hst, z, hz, hdz⟩ := nameP_run hctx1.ok hctx1.nulls hp
               refine ⟨q == a, s₃, hst, fun hbt => ?_, hrest'⟩
               have hqa : q = a := by simpa using hbt
               subst hqa
@@ -604,7 +605,7 @@ theorem importsRead_run {pk : OleanPins} {r : Region} {imps : Array Nat}
       obtain ⟨hv', hs'⟩ := AM.pure_ok h4
       cases hv'
       subst hs'
-      obtain ⟨hst, z, hz, hd⟩ := nameP_run hctx.ok hctx.off hctx.nulls h3
+      obtain ⟨hst, z, hz, hd⟩ := nameP_run hctx.ok hctx.nulls h3
       refine ⟨hst, { a with module := z }, ?_, ?_⟩
       · rw [hsk]
         show ImportF.mapM (nameP r) a = _

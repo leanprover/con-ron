@@ -271,7 +271,7 @@ theorem dqArm_strL
           | .const cO usO => do
             let el ← emptyLevels
             let sl ← pinStringOfList
-            let sup ← ConRon.Arena.strLitSupported fe
+            let sup ← ConRon.Arena.strLitStored fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d c b'
@@ -295,8 +295,12 @@ theorem dqArm_strL
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitSupported_spec s₁ hok) ?_
-    rintro sup s4 ⟨hok4, hx4, hp4, rfl⟩
+    refine triple_seq (strLitStored_spec s₁ hok) ?_
+    rintro sup s4 ⟨hs4, rfl⟩
+    subst hs4
+    have hok4 := hok
+    have hx4 : Ext s4.store s4.store := Ext.refl _
+    have hp4 : s4.pins = s4.pins := rfl
     have hx04 := hx₁.trans hx4
     have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
     split
@@ -308,7 +312,7 @@ theorem dqArm_strL
       exact dq_defeq_exit hsim cc b' _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         hd5 (denote_ext hy (hx4.trans hx5)) (strLitToConstructor_WScoped st d)
         hwy (hG.imp fun _ hh r hr => hh r ((ite_eq_left (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
-          ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
+          ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitStored env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
       exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
@@ -339,7 +343,7 @@ theorem dqArm_strR
           | .const cO usO => do
             let el ← emptyLevels
             let sl ← pinStringOfList
-            let sup ← ConRon.Arena.strLitSupported fe
+            let sup ← ConRon.Arena.strLitStored fe
             if cO = sl ∧ usO = el ∧ sup = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d a' c
@@ -363,8 +367,12 @@ theorem dqArm_strR
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitSupported_spec s₁ hok) ?_
-    rintro sup s4 ⟨hok4, hx4, hp4, rfl⟩
+    refine triple_seq (strLitStored_spec s₁ hok) ?_
+    rintro sup s4 ⟨hs4, rfl⟩
+    subst hs4
+    have hok4 := hok
+    have hx4 : Ext s4.store s4.store := Ext.refl _
+    have hp4 : s4.pins = s4.pins := rfl
     have hx04 := hx₁.trans hx4
     have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
     split
@@ -376,7 +384,7 @@ theorem dqArm_strR
       exact dq_defeq_exit hsim a' cc _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         (denote_ext hx (hx4.trans hx5)) hd5 hwx (strLitToConstructor_WScoped st d)
         (hG.imp fun _ hh r hr => hh r ((ite_eq_left (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
-          ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
+          ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitStored env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
       exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)

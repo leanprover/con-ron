@@ -869,13 +869,14 @@ theorem whnfWalkFuel_spec (e : EIdx) (eP : Expr) :
 `dCtx` taken apart. -/
 theorem dCtx_inv {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     {c : Arena.NestCtx} {cP : ConLeche.NestCtx} (h : dCtx st fnd c = some cP) :
-    ∃ namesP lpsP paramsP sortP,
-      cP = ⟨namesP, lpsP, c.nP, c.nIdxs, paramsP, sortP, fnd⟩ ∧
+    ∃ namesP lpsP paramsP sortP formersP,
+      cP = ⟨namesP, lpsP, c.nP, c.nIdxs, paramsP, sortP, fnd, formersP⟩ ∧
       Frontend.denoteNList st.ns c.names = some namesP ∧
       Frontend.denoteNList st.ns c.lps = some lpsP ∧
       Frontend.denoteEList st c.params = some paramsP ∧
       denoteL st.ls c.sort = some sortP ∧
-      denoteLs st.lss c.lvls = some (lpsP.map .param) := by
+      denoteLs st.lss c.lvls = some (lpsP.map .param) ∧
+      c.formers.mapM (Frontend.denoteCV st) = some formersP := by
   simp only [dCtx] at h
   cases h1 : Frontend.denoteNList st.ns c.names with
   | none => rw [h1] at h; exact nomatch h
@@ -889,15 +890,18 @@ theorem dCtx_inv {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
   cases h4 : denoteL st.ls c.sort with
   | none => rw [h1, h2, h3, h4] at h; exact nomatch h
   | some so =>
+  cases h6 : c.formers.mapM (Frontend.denoteCV st) with
+  | none => rw [h1, h2, h3, h4, h6] at h; exact nomatch h
+  | some f =>
   cases h5 : denoteLs st.lss c.lvls with
-  | none => rw [h1, h2, h3, h4, h5] at h; exact nomatch h
+  | none => rw [h1, h2, h3, h4, h6, h5] at h; exact nomatch h
   | some l =>
-  rw [h1, h2, h3, h4, h5] at h
+  rw [h1, h2, h3, h4, h6, h5] at h
   simp only [Option.bind_eq_bind, Option.bind_some] at h
   split at h
   · rename_i hl
     subst hl
-    exact ⟨a, b, p, so, (Option.some.inj h).symm, rfl, rfl, rfl, rfl, rfl⟩
+    exact ⟨a, b, p, so, f, (Option.some.inj h).symm, rfl, rfl, rfl, rfl, rfl, rfl⟩
   · exact nomatch h
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-900 nestHoleImg
@@ -1330,7 +1334,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
     cases progP with
     | cons _ _ => simp [dProg] at h2
     | nil =>
-    obtain ⟨namesP, lpsP, paramsP, sortP, rfl, hN, _, hPa, _, hLv⟩ := dCtx_inv h1
+    obtain ⟨namesP, lpsP, paramsP, sortP, _, rfl, hN, _, hPa, _, hLv, _⟩ := dCtx_inv h1
     have hlen := denoteNList_length _ _ hN
     rw [Arena.nestHoleImg] at hrun
     dsimp only at hrun
@@ -1368,7 +1372,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
     obtain ⟨h1, h2, h3⟩ := hp
     have hn : n < prog.length := by omega
     obtain ⟨hP, progP', rfl, hH, hprog', hlenP⟩ := dProg_take_succ hn h2
-    obtain ⟨namesP, lpsP, paramsP, sortP, hctx, hN, _, _, _, _⟩ := dCtx_inv h1
+    obtain ⟨namesP, lpsP, paramsP, sortP, _, hctx, hN, _, _, _, _, _⟩ := dCtx_inv h1
     have hlen := denoteNList_length _ _ hN
     rw [Arena.nestHoleImg] at hrun
     dsimp only at hrun
@@ -1908,7 +1912,7 @@ The first hole-free index is the denoted context's. -/
 theorem hiAt_eq {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (h : dCtx st fnd ctx = some ctxP)
     (nf : Nat) : ctx.hiAt nf = ctxP.hiAt nf := by
-  obtain ⟨namesP, _, _, _, rfl, hN, _⟩ := dCtx_inv h
+  obtain ⟨namesP, _, _, _, _, rfl, hN, _⟩ := dCtx_inv h
   simp only [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, denoteNList_length _ _ hN]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:723-727 NestCtx.rootHoles
@@ -1917,17 +1921,16 @@ IS `lps.map .param` (`dCtx`'s own clause). -/
 theorem rootHoles_denote {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (h : dCtx st fnd ctx = some ctxP) :
     ctx.rootHoles.mapM (dHole st) = some ctxP.rootHoles := by
-  obtain ⟨namesP, lpsP, paramsP, _, rfl, hN, _, hPa, _, hLv⟩ := dCtx_inv h
+  obtain ⟨namesP, lpsP, paramsP, _, _, rfl, hN, _, hPa, _, hLv, _⟩ := dCtx_inv h
   simp only [Arena.NestCtx.rootHoles, ConLeche.NestCtx.rootHoles]
   clear h
-  revert namesP
-  induction ctx.names with
+  generalize ctx.nIdxs = ns
+  generalize ctx.names = names at hN ⊢
+  induction names generalizing namesP ns with
   | nil =>
-    intro namesP hN
     simp only [Frontend.denoteNList, Option.some.injEq] at hN
     subst hN; rfl
   | cons a as ih =>
-    intro namesP hN
     simp only [Frontend.denoteNList] at hN
     cases ha : denoteN st.ns a with
     | none => rw [ha] at hN; simp at hN
@@ -1937,8 +1940,10 @@ theorem rootHoles_denote {st : EStore} {fnd : ConLeche.Name → Option ConstantI
       | some xs =>
         rw [ha, has] at hN
         obtain rfl := Option.some.inj hN
-        simp only [List.map_cons, List.mapM_cons, ih xs has, dHole, dKey, ha, hLv, hPa,
-          Option.bind_eq_bind, Option.pure_def, Option.bind_some, Option.map_some]
+        have hgd : ∀ i, ns.getD (i + 1) 0 = ns.tail.getD i 0 := by
+          intro i; cases ns <;> simp
+        simp only [List.mapIdx_cons, List.mapM_cons, hgd, ih xs ns.tail has, dHole, dKey, ha,
+          hLv, hPa, Option.bind_eq_bind, Option.pure_def, Option.bind_some, Option.map_some]
 
 /-- con-leche: none — `Option`'s `mapM` at an index, as the `Option` lift. -/
 theorem mapM_option_getElem? {α β : Type} {f : α → Option β} {st : EStore} :
@@ -1982,7 +1987,7 @@ theorem nestHoleAt_rel {st : EStore} {fnd : ConLeche.Name → Option ConstantInf
     ROp (fun hP (st : EStore) h => dHole st h = some hP)
       (ConLeche.nestHoleAt ctxP progP i) st (Arena.nestHoleAt ctx prog i) := by
   have hnP : ctx.nP = ctxP.nP := by
-    obtain ⟨_, _, _, _, rfl, _⟩ := dCtx_inv hc; rfl
+    obtain ⟨_, _, _, _, _, rfl, _⟩ := dCtx_inv hc; rfl
   simp only [dProg, Option.map_eq_some_iff] at hp
   obtain ⟨ys, hys, rfl⟩ := hp
   have hall : (ctx.rootHoles ++ prog).mapM (dHole st) =

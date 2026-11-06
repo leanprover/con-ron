@@ -600,7 +600,11 @@ pub fn olean_job(
         None => return checker::run_job(tier, w, mode, pins, ds, k),
     };
     let code: Option<u64> = match d {
-        IDeclaration::ThmDecl(_, v) => w.store.view_bvar(tier, v),
+        // a theorem's value is a reference only if its handle is a `bvar`: the store's
+        // projection reads the bvar table at the handle's slot whatever its tag
+        IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
+            w.store.view_bvar(tier, v)
+        }
         _ => None,
     };
     match (code, d) {

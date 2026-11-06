@@ -35,6 +35,7 @@ public import ConRon.Bridge.Grind
 import ConRon.Bridge.Core.Walks.BinderLoop
 import ConRon.Bridge.Core.Walks.InferSpine
 import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.ProjGuard
 import ConRon.Bridge.Core.Walks.Spine
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Owed
@@ -82,10 +83,10 @@ theorem inferIO_letE {F d : Nat} {ty v b res : Expr}
 /-! ## 3. The body theorem -/
 
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — the
-projection at a **non-`Prop`** structure, at the io grade: `inferBody`'s
-clause verbatim, with the subject's type read through the io slot. -/
-theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
+/-- con-leche: ConLeche/Kernel/Core.lean:1231-1317 inferBodyIO — the
+projection at the io grade: `inferBody`'s clause verbatim, with the subject's
+type read through the io slot, past the projection guard. -/
+theorem inferIO_proj {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     {us : List Level} {entry : ProjEntry}
     (hpe : ConLeche.inferTypeIO mode eager env F d pe = .ok tpe)
     (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
@@ -93,37 +94,16 @@ theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     (ht : env.findProj? T i = some entry)
     (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
       us.length = entry.levelParams.length)
-    (hp : ¬ (Level.isEquiv entry.structSort .zero == some true)) :
+    (hgd : checkProjGuard (ConLeche.pureFns mode eager env F).inferIO
+      (ConLeche.pureFns mode eager env F).whnf env entry us = .ok ()) :
     ConLeche.inferTypeIO mode eager env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
   rw [ConLeche.inferTypeIO_succ]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
   rw [ite_eq_left hg]
-  simp only [ite_eq_right hp, pure, Except.pure]
+  simp only [hgd, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — the
-projection at a **`Prop`** structure, at the io grade. -/
-theorem inferIO_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
-    {us : List Level} {entry : ProjEntry}
-    (hpe : ConLeche.inferTypeIO mode eager env F d pe = .ok tpe)
-    (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
-    (hh : te.getAppFn = .const T us)
-    (ht : env.findProj? T i = some entry)
-    (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
-      us.length = entry.levelParams.length)
-    (hp : (Level.isEquiv entry.structSort .zero == some true))
-    (hf : (Level.isEquiv
-      (Level.subst entry.levelParams us entry.fieldSort) .zero
-        == some true)) :
-    ConLeche.inferTypeIO mode eager env (F + 1) d (.proj sn i pe) =
-      .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeIO_succ]
-  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
-  rw [ite_eq_left hg]
-  simp only [ite_eq_left hp, hf, pure, Except.pure]
-  simp
 /-! ### The leaf clauses at the io grade
 
 `inferBodyIO`'s `.sort`/`.fvar`/`.const`/literal clauses are `inferBody`'s
@@ -161,7 +141,7 @@ theorem inferIO_const {F d : Nat} {n : Name} {us : List Level}
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1313 inferBodyIO — a `Nat`
 literal types as `Nat`, at the io grade. -/
 theorem inferIO_natLit {F d n : Nat}
-    (h : ConLeche.natLitSupported env = true) :
+    (h : ConLeche.natLitStored env = true) :
     ConLeche.inferTypeIO mode eager env (F + 1) d (.lit (.natVal n)) =
       .ok (.const ConLeche.natName []) := by
   rw [ConLeche.inferTypeIO_succ]
@@ -171,7 +151,7 @@ theorem inferIO_natLit {F d n : Nat}
 /-- con-leche: ConLeche/Kernel/Core.lean:1314-1317 inferBodyIO — a string
 literal types as `String`, at the io grade. -/
 theorem inferIO_strLit {F d : Nat} {s : String}
-    (h : ConLeche.strLitSupported env = true) :
+    (h : ConLeche.strLitStored env = true) :
     ConLeche.inferTypeIO mode eager env (F + 1) d (.lit (.strVal s)) =
       .ok (.const ConLeche.stringName []) := by
   rw [ConLeche.inferTypeIO_succ]
@@ -182,7 +162,7 @@ theorem inferIO_strLit {F d : Nat} {s : String}
 literal clause as an answer, at the io grade (a `grind` lemma). -/
 @[bridge_grind ←] theorem SimE.of_natLitIO {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
-    (h : ConLeche.natLitSupported env = true) :
+    (h : ConLeche.natLitStored env = true) :
     SimE (ConLeche.inferTypeIO mode eager env) d (.lit (.natVal n)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, inferIO_natLit h⟩
 
@@ -190,7 +170,7 @@ literal clause as an answer, at the io grade (a `grind` lemma). -/
 literal clause as an answer, at the io grade. -/
 @[bridge_grind ←] theorem SimE.of_strLitIO {st : EStore} {r : EIdx} {d : Nat} {str : String}
     (hd : denoteE st r = some (.const ConLeche.stringName []))
-    (h : ConLeche.strLitSupported env = true) :
+    (h : ConLeche.strLitStored env = true) :
     SimE (ConLeche.inferTypeIO mode eager env) d (.lit (.strVal str)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, inferIO_strLit h⟩
 
@@ -580,13 +560,13 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>
-        vcgen [natLitSupported_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
+        vcgen [natLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinNat,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
       sym only [bridge_grind] =>
-        vcgen [strLitSupported_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
+        vcgen [strLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinString,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
           finish
@@ -619,15 +599,17 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
     dsimp only
     refine triple_mono (inferProj_spec henv
       (CoreFnsA.ioView (coreKnot .verified eager fe id fuel)) (ConLeche.inferTypeIO .verified eager env)
-      hsim.inferIO hsim.whnf s₀ d sn k pe nm es hok hsn hpe hwes) ?_
+      hsim.inferIO hsim.whnf (fun s₁ entry p us ls h1 h2 h3 => by
+        rw [checkProjGuard_ioView]
+        exact checkProjGuard_spec hsim henv s₁ entry p us ls h1 h2 h3)
+      s₀ d sn k pe nm es hok hsn hpe hwes) ?_
     rintro r s' ⟨hok', hx', hp', v, hv', hwv, F1, F2, vt, vte, T, ls, p, hF1,
-      hF2, hgf, hfp, hgP, hpr, rfl⟩
-    refine ⟨hok', hx', hp', _, hv', hwv, max F1 F2 + 1, ?_⟩
-    have hinf := ConLeche.inferTypeIO_mono (Nat.le_max_left F1 F2) hF1
-    have hwhnf := ConLeche.whnf_mono (Nat.le_max_right F1 F2) hF2
-    rcases hpr with hnp | ⟨hpp, hfield⟩
-    · exact inferIO_proj_nonprop hinf hwhnf hgf hfp hgP (by simp [hnp])
-    · exact inferIO_proj_prop hinf hwhnf hgf hfp hgP hpp hfield
+      hF2, hgf, hfp, hgP, ⟨F3, hF3⟩, rfl⟩
+    refine ⟨hok', hx', hp', _, hv', hwv, max F1 (max F2 F3) + 1, ?_⟩
+    have hinf := ConLeche.inferTypeIO_mono (by omega : F1 ≤ max F1 (max F2 F3)) hF1
+    have hwhnf := ConLeche.whnf_mono (by omega : F2 ≤ max F1 (max F2 F3)) hF2
+    exact inferIO_proj hinf hwhnf hgf hfp hgP
+      (checkProjGuardFueled_mono (by omega : F3 ≤ max F1 (max F2 F3)) hF3)
   all_goals
     exfalso
     rw [htag] at htg
