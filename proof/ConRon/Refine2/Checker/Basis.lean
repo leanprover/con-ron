@@ -268,6 +268,62 @@ theorem pin_agrees_refines {c c2 : arena.env.IConstantInfo} {o : Bool}
     | (rw [i_constant_val_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
     | (rw [i_constant_info_beq_refines h]; simp [pinAgrees, absIConstantInfo, beq_eq_decide])
 
+/-- `param_level_values` from its entry: `ps.map Level.param`. -/
+theorem param_level_values_entry {ps : alloc.vec.Vec kernel.name.Name}
+    (hps : ∀ n ∈ ps.val, ConRon.Refine.NameWF n) {o : alloc.vec.Vec kernel.level.Level}
+    (h : arena.basis.param_level_values ps 0#usize (alloc.vec.Vec.new _) = ok o) :
+    o.val.map ConRon.Refine.absLevel = (ConRon.Refine.absNames ps).map ConLeche.Level.param ∧
+      ∀ l ∈ o.val, ConRon.Refine.LevelWF l := by
+  obtain ⟨ha, hw⟩ := param_level_values_val hps _ 0#usize _ o (le_refl _)
+    (fun _ hl => by simp [alloc.vec.Vec.new] at hl) h
+  refine ⟨?_, hw⟩
+  rw [ha]
+  simp [alloc.vec.Vec.new, ConRon.Refine.absNames]
+
+/-! ## A recursor's link to its constructors -/
+
+open Lockstep in
+/-- `pin_link_ok` ⊑ `pinLinkOk`: four name reads, then the constructor's
+parameters against the pin's at the recursor's names, on read-back levels. -/
+@[lockstep] theorem pin_link_ok_ls {pers st lst}
+    {r rp c cp : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.pin_link_ok pers st r rp c cp) lst
+      (pinLinkOk (r.val.map absNIdx) (rp.val.map absNIdx) (c.val.map absNIdx)
+        (cp.val.map absNIdx)) := by
+  rw [arena.basis.pin_link_ok]
+  unfold pinLinkOk
+  refine LS.bind (read_names_m_ls hrel hinv r) rfl (fun _ _ => errArm_ok) ?_
+  intro rT b1 st1 lst1 ⟨w1, hb1⟩ hrel1 hinv1
+  subst hb1
+  refine LS.bind (read_names_m_ls hrel1 hinv1 rp) rfl (fun _ _ => errArm_ok) ?_
+  intro rpT b2 st2 lst2 ⟨w2, hb2⟩ hrel2 hinv2
+  subst hb2
+  refine LS.bind (read_names_m_ls hrel2 hinv2 c) rfl (fun _ _ => errArm_ok) ?_
+  intro cT b3 st3 lst3 ⟨w3, hb3⟩ hrel3 hinv3
+  subst hb3
+  refine LS.bind (read_names_m_ls hrel3 hinv3 cp) rfl (fun _ _ => errArm_ok) ?_
+  intro cpT b4 st4 lst4 ⟨w4, hb4⟩ hrel4 hinv4
+  subst hb4
+  refine LS.bind_eq fun rs hrs => ?_
+  refine LS.bind_eq fun lhs hlhs => ?_
+  refine LS.bind_eq fun rhs hrhs => ?_
+  refine LS.bind_eq fun b hb => ?_
+  obtain ⟨ars, wrs⟩ := param_level_values_entry w1 hrs
+  obtain ⟨alhs, wlhs⟩ := param_level_values_entry w3 hlhs
+  obtain ⟨arhs, wrhs⟩ := pin_link_rhs_val w2 w4 wrs _ 0#usize _ rhs (le_refl _)
+    (fun _ hl => by simp [alloc.vec.Vec.new] at hl) hrhs
+  have hbv := level_list_beq_refines wlhs wrhs _ 0#usize b (le_refl _) hb
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hbv arhs
+  refine LS.pure ?_ hrel4 hinv4
+  rw [hbv, alhs, arhs, ars]
+  simp only [alloc.vec.Vec.new, ConRon.Refine.absNames,
+    List.map_map, id]
+  cases h : (List.map (ConLeche.Level.param ∘ ConRon.Refine.absName) cT.val ==
+      List.map (fun p => ConLeche.Level.subst (List.map ConRon.Refine.absName rpT.val)
+        (List.map (ConLeche.Level.param ∘ ConRon.Refine.absName) rT.val)
+        (ConLeche.Level.param (ConRon.Refine.absName p))) cpT.val) <;> simp_all [Function.comp_def]
+
 /-! ## A pin at a stream's level-parameter names -/
 
 open Lockstep in
