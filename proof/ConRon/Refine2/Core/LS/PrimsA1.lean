@@ -1618,35 +1618,6 @@ theorem take_eidx_n_from_val (xs : alloc.vec.Vec arena.handle.EIdx) :
 
 attribute [local lockstep_simp] absIRecRule absIRecRuleFire
 
-@[lockstep] theorem rec_rule_k_ls (rules : alloc.vec.Vec arena.env.IRecRule) :
-    LSP (arena.core.rec_rule_k rules) (fun b => b = recRuleK (rules.val.map absIRecRule)) := by
-  intro b h
-  rw [arena.core.rec_rule_k] at h
-  split at h
-  · rename_i hl
-    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨hb, rfl⟩ := ConRon.Refine2.ExprOps.vecIndexAt hx
-    cases Result.ok_injective h
-    have hl' : rules.val.length = 1 := by
-      have := congrArg (fun u : Std.Usize => u.val) hl
-      simpa [alloc.vec.Vec.len_val] using this
-    obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl'
-    simp only [hy, List.map_cons, List.map_nil, recRuleK]
-    simp [absIRecRule]
-  · rename_i hl
-    cases Result.ok_injective h
-    have hl' : rules.val.length ≠ 1 := by
-      intro hc; apply hl; apply Aeneas.Std.UScalar.eq_imp
-      simpa [alloc.vec.Vec.len_val] using hc
-    unfold recRuleK
-    split
-    · rename_i r heq
-      have := congrArg List.length heq
-      simp at this; exact absurd this hl'
-    · rfl
-
-/-- `find_rule` answers the INDEX of the first rule at `c` from `i` on; the
-twin's `findRule` answers the rule itself. -/
 theorem find_rule_from (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.handle.NIdx) :
     ∀ k (i : Std.Usize), rules.length - i.val ≤ k → ∀ o,
       arena.core.find_rule rules c i = ok o →
