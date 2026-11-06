@@ -63,7 +63,7 @@ def KindRel {N N' E E' : Type} (AN : N → N') (AE : E → E') (RN : NatRel) :
 /-- **`spec::CEntryF` against upstream's.** -/
 structure EntryRel {N N' E E' : Type} (AN : N → N') (AE : E → E') (RN : NatRel)
     (c : frontend.olean.spec.CEntryF N E) (c' : CEntryF N' E') : Prop where
-  name : AN c.name = c'.name
+  «name» : AN c.name = c'.name
   levelParams : ListA AN c.level_params c'.levelParams
   type : AE c.ty = c'.type
   kind : KindRel AN AE RN c.kind c'.kind
