@@ -419,4 +419,74 @@ theorem iotaCase3At_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
         (capsP := ((ConLeche.ctorFamily env.find? cvjP).getD default).2) (ls := ls)] <;>
       finish (gen := 16)
 
+/-! ## 4. `projGuardSort` -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1088-1104 projGuardSort — **the guard
+sort's answer**: the pure walk answers `o` at some fuel. -/
+@[expose] def GS (eager : Bool) (env : Env) (cvT : ConstantVal) (caps : IndCaps)
+    (us : List Level) (o : Option Level) : Prop :=
+  ∃ F, projGuardSort (pureFns .verified eager env F).whnf cvT caps us = .ok o
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1088-1104 projGuardSort — a stored type
+that ends in a sort answers at once. -/
+theorem gs_stored {cvT : ConstantVal} {caps : IndCaps} {us : List Level} {st : EStore}
+    {j : LIdx} {sl : Level} {o : Option Level}
+    (h : denoteLO st (some j) = some (ConLeche.formerResSort cvT.type))
+    (hl : denoteL st.ls j = some sl)
+    (ho : o = if sl.isAlwaysZero then some .zero else none) :
+    GS eager env cvT caps us o := by
+  have hs : ConLeche.formerResSort cvT.type = some sl := by
+    simp only [denoteLO, hl, Option.map_some, Option.some.injEq] at h; exact h.symm
+  exact ⟨0, by simp only [ConLeche.projGuardSort, hs, ho]; rfl⟩
+grind_pattern [bridge_grind] gs_stored =>
+  GS eager env cvT caps us o, denoteLO st (some j), ConLeche.formerResSort cvT.type,
+  denoteL st.ls j, Level.isAlwaysZero sl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1088-1104 projGuardSort — any other is
+walked to its sort at the use's levels. -/
+theorem gs_walk {cvT : ConstantVal} {caps : IndCaps} {us : List Level} {st : EStore}
+    {j : LIdx} {sl : Level} {o : Option Level}
+    (h : (ConLeche.formerResSort cvT.type).isSome = false)
+    (hw : SortLoop eager env 0 (caps.nparams + caps.nIdx)
+      (cvT.type.instantiateLevelParams cvT.levelParams us) st (some j))
+    (hl : denoteL st.ls j = some sl)
+    (ho : o = if (Level.zeronessOf sl).isNever then none else some sl) :
+    GS eager env cvT caps us o := by
+  obtain ⟨v, hv, F, hF⟩ := hw
+  simp only [denoteLO, hl, Option.map_some, Option.some.injEq] at hv
+  subst hv
+  refine ⟨F, ?_⟩
+  have hn : ConLeche.formerResSort cvT.type = none := by
+    cases h' : ConLeche.formerResSort cvT.type <;> simp_all
+  simp only [ConLeche.projGuardSort, hn, hF, bind, Except.bind, ho]; rfl
+grind_pattern [bridge_grind] gs_walk =>
+  GS eager env cvT caps us o,
+  SortLoop eager env 0 (caps.nparams + caps.nIdx)
+    (cvT.type.instantiateLevelParams cvT.levelParams us) st (some j), denoteL st.ls j,
+  Level.zeronessOf sl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1088-1104 projGuardSort
+con-leche: ConLeche/Cached/CoreC.lean:966-976 projGuardSortI — **THEOREM 1 for
+`projGuardSort`**: the sort a projection's rows answer to, at a closed stored
+type. -/
+theorem projGuardSort_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (cvT : IConstantVal) (cvTP : ConstantVal) (caps : IIndCaps)
+    (capsP : IndCaps) (us : LsIdx) (ls : List Level)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvT = some cvTP)
+    (hcaps : Frontend.denoteCaps s₀.store caps = some capsP)
+    (hus : denoteLs s₀.store.lss us = some ls) (hcl : cvTP.type.hasFvar = false) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.projGuardSort (coreKnot .verified eager fe id fuel) cvT caps us
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        GS eager env cvTP capsP ls r; ⊤⦄ := by
+  obtain ⟨-, hlps, hty⟩ := denoteCV_inv hcv
+  obtain ⟨-, -, -, -, hnp, hni⟩ := denoteCaps_fields hcaps
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.projGuardSort,
+      formerResSort_spec (eager := eager) (env := env) (fe := fe) (tyP := cvTP.type),
+      instLPFast_specC (eager := eager) (env := env) (fe := fe) (ksv := cvTP.levelParams)
+        (usv := ls) (x := cvTP.type),
+      formerSortLoop_spec hsim, readLevelM_specC (eager := eager) (env := env) (fe := fe)] <;>
+      finish (gen := 16)
+
 end ConRon.Bridge.Core
