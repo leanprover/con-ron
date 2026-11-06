@@ -272,6 +272,133 @@ theorem usedRel_usedOf {st0 : EStore} {rd : ConRon.Arena.Frontend.Olean.OleanRea
          split at hd <;> simp at hd
          subst hd; rfl))
 
+/-! ## The values' references -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef — **what a theorem's check needs
+of the closure's modules, on both sides**: the module's name, and a frontier good on the region of
+its files on the snapshot.  Upstream's `ValueAt` reads `valuesP`. -/
+@[expose] def ValuesRel (sp : SearchPath) (F : FS) (st : EStore)
+    (values : Array ConRon.Arena.Frontend.Olean.ModRef)
+    (valuesP : Array ConLeche.Frontend.Olean.ModRef) : Prop :=
+  ListRel (fun md mdP => denoteN st.ns md.name = some mdP.name ∧
+      ∃ f, (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+        FrontGoodAt st f md.frontier)
+    values.toList valuesP.toList
+
+theorem ValuesRel.ext {sp : SearchPath} {F : FS} {st st' : EStore}
+    {values : Array ConRon.Arena.Frontend.Olean.ModRef}
+    {valuesP : Array ConLeche.Frontend.Olean.ModRef} (h : ValuesRel sp F st values valuesP)
+    (hx : Ext st st') : ValuesRel sp F st' values valuesP :=
+  ListRel.mono' (fun _ _ ⟨a, f, b, c⟩ => ⟨denoteN_ext a hx, f, b, c.ext hx⟩) h
+
+theorem valuesRel_of_loads {sp : SearchPath} {F : FS} {st : EStore} :
+    ∀ {ls : List ConRon.Arena.Frontend.Olean.Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded},
+      ListRel (LoadedRel st) ls lsC → ListRel (ModFront sp F st) ls lsC →
+      ListRel (fun (md : ConRon.Arena.Frontend.Olean.ModRef) (mdP : ConLeche.Frontend.Olean.ModRef) =>
+          denoteN st.ns md.name = some mdP.name ∧
+          ∃ f, (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+            FrontGoodAt st f md.frontier)
+        (ls.map fun l => ⟨l.name, l.frontier⟩) (lsC.map fun l => ⟨l.name, l.frontier⟩)
+  | _, _, .nil, .nil => .nil
+  | _, _, .cons a h1, .cons b h2 => .cons ⟨a.name, b⟩ (valuesRel_of_loads h1 h2)
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:835 readOleans_filled — **a theorem's
+record, with its value in place, is the specification's constant**: the reference in a record
+stands, on the snapshot, for the value of the theorem the specification reads off the files of
+the reference's module (`constSpec`), and the record's statement is that theorem's.  Upstream's
+proof, over the loads `loadClosure_run` gives (`LoadSpec`) and the values they make. -/
+theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
+    {lsC : List ConLeche.Frontend.Olean.Loaded} {mgC : ConLeche.Frontend.Olean.Merged}
+    {ds : Array Declaration}
+    (hnames : lsC.map (·.name) = orderC.toList)
+    (hloads : ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
+      (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      LoadSpec f i lC)
+    (hm : ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC)
+    (hds : ConLeche.Frontend.Olean.declsOf (ConLeche.Frontend.Olean.emitAll mgC mgC.order) = .ok ds)
+    {cv : ConstantVal} {code : Nat} {e : Expr}
+    (hd : Declaration.thmDecl cv (.bvar code) ∈ ds)
+    (hv : ConLeche.Frontend.Olean.ValueAt sp F
+      (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray code e) :
+    ∃ md f r a sk loc c all,
+      (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray[
+        ConLeche.Frontend.Olean.refModule code]? = some md ∧
+      (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
+      loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm e all ∧
+      cv = ⟨c.name, c.levelParams, c.type⟩ := by
+  obtain ⟨hk1, hk2, hk3, hk4⟩ := ConLeche.Frontend.Olean.mergeAll_ok hm
+  have hN : ∀ (n : ConLeche.Name) (x : ConLeche.Frontend.Olean.CEntry), mgC.map[n]? = some x →
+      x.name = n := fun n x hx => (hk2 n x hx).1
+  -- the record's constant
+  obtain ⟨E, hS, hE⟩ : ∃ E, ConLeche.Frontend.Olean.Stored mgC E ∧
+      ConLeche.Frontend.Olean.entryDecl E = some (.thmDecl cv (.bvar code)) := by
+    rcases ConLeche.Frontend.Olean.declsOf_from hN hds hd with h' | ⟨ts, cts, rcs, -, hb⟩
+    · exact h'
+    · exact (ConLeche.Frontend.Olean.declOfF_ind_thm hb).elim
+  obtain ⟨all, hkE, hcv⟩ : ∃ all, E.kind = .thm (.bvar code) all ∧
+      cv = ⟨E.name, E.levelParams, E.type⟩ := by
+    unfold ConLeche.Frontend.Olean.entryDecl at hE
+    cases hk : E.kind with
+    | thm v all =>
+      simp only [hk, Option.some.injEq, Declaration.thmDecl.injEq] at hE
+      obtain ⟨rfl, rfl⟩ := hE
+      exact ⟨all, rfl, rfl⟩
+    | ax u => simp [hk] at hE
+    | defn v h s =>
+      simp only [hk] at hE
+      split at hE <;> first | contradiction | simp at hE
+    | opaq v u => simp [hk] at hE
+    | quot k =>
+      simp only [hk] at hE
+      split at hE <;> first | contradiction | simp at hE
+    | induct _ _ _ _ _ _ _ _ => simp [hk] at hE
+    | ctor _ _ _ _ _ => simp [hk] at hE
+    | recur _ _ _ _ _ _ _ _ => simp [hk] at hE
+  -- its module and its skeleton
+  obtain ⟨-, l, hl, hEl⟩ := hk2 _ _ hS
+  have hl' : l ∈ lsC := by simpa using hl
+  obtain ⟨i, f, hzip, hf, r, a, sk, skels, hreg, hsk, hskels, hlazy⟩ := hloads l hl'
+  obtain ⟨s, hs, hent⟩ := hlazy.to_skel E (by simpa using hEl)
+  obtain ⟨p, g, all₀, hsk1, hw, hloc, hi, hn, hlp, hty, hall⟩ :=
+    ConLeche.Frontend.Olean.lazyEntry_thm hent hkE
+  obtain ⟨hm1, hm2⟩ := ConLeche.Frontend.Olean.refParts (g := g) hi
+  have hcode : code = g * ConLeche.Frontend.Olean.refBase + i := by
+    simp only [ConLeche.Frontend.Olean.valueRef, Expr.bvar.injEq] at hw
+    exact hw
+  subst hcode
+  -- the module the reference names is this one
+  have hzi : orderC.toList[i]? = some l.name := List.mem_zipIdx_iff_getElem?.mp hzip
+  rw [← hnames] at hzi
+  obtain ⟨md, f', r', a', hmd, hf', hreg', hval⟩ := hv
+  rw [hm1] at hmd
+  rw [hm2] at hval
+  have hname : md.name = l.name := by
+    simp only [List.getElem?_map, Option.map_eq_some_iff] at hzi
+    obtain ⟨y, hy, hyn⟩ := hzi
+    simp only [List.getElem?_toArray, List.getElem?_map, hy, Option.map_some,
+      Option.some.injEq] at hmd
+    rw [← hmd]
+    exact hyn
+  rw [hname] at hf'
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  rw [hreg] at hreg'
+  cases hreg'
+  obtain ⟨loc, hlocm, hcs⟩ := ConLeche.Frontend.Olean.mapM_mem_inv hskels hs
+  have hep : ConLeche.Frontend.Olean.exprP r p = some e := by
+    simp only [ConLeche.Frontend.Olean.exprP, hloc]
+    exact hval
+  have hspec : ConLeche.Frontend.Olean.constSpec r loc =
+      some ⟨E.name, E.levelParams, E.type, .thm e all⟩ := by
+    unfold ConLeche.Frontend.Olean.constSpec
+    rcases s with ⟨sn, sl, st, sk'⟩
+    simp only at hsk1 hn hlp hty
+    subst hsk1
+    simp only [hcs, bind, Option.bind, ConLeche.Frontend.Olean.CEntryF.mapM,
+      ConLeche.Frontend.Olean.CKindF.mapM, hn, hlp, hty, hep, hall, pure]
+  refine ⟨md, f, r, a, sk, loc, _, all, ?_, by rw [hname]; exact hf, hreg, hsk, hlocm, hspec, rfl, hcv⟩
+  rw [hm1, hmd]
+
 /-! ## The whole read -/
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:698 readOleans_thm — **THEOREM 1 FOR THE
@@ -286,22 +413,30 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
     (h : ConRon.Arena.Frontend.Olean.readOleans (modelFs F) sp roots none s = .ok (.ok rd, s')) :
     ParseStep s s' ∧ PersDecls rd.decls ∧ PinsRel s'.store rd.pins ∧
       (∃ usedC, UsedRel s'.store rd.usedOf usedC) ∧
-      ∃ ds, denoteDeclArray s'.store rd.decls = some ds ∧
-      ∀ {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded} {c : CEntryF ConLeche.Name Expr}
+      ∃ valuesP ds, ValuesRel sp F s'.store rd.values valuesP ∧
+      denoteDeclArray s'.store rd.decls = some ds ∧
+      (∀ {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded} {c : CEntryF ConLeche.Name Expr}
         {v : Expr} {all : List ConLeche.Name}, InClosure sp F rootsC m → ViewOf sp F m d →
         c ∈ d.constants → c.kind = .thm v all →
-        ∃ v', Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ v' ∈ ds := by
+        ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ ds) ∧
+      ∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
+        ConLeche.Frontend.Olean.ValueAt sp F valuesP code x →
+        ∃ md f r a sk loc c all, valuesP[ConLeche.Frontend.Olean.refModule code]? = some md ∧
+          (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok (.ok f)) ∧
+          f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
+          loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm x all ∧
+          cv = ⟨c.name, c.levelParams, c.type⟩ := by
   unfold ConRon.Arena.Frontend.Olean.readOleans at h
   obtain ⟨pk, s₁, h1, h⟩ := AM.bind_ok h
   obtain ⟨hst1, hp1⟩ := oleanPins_run hok hoff h1
   have hctx1 : Ctx pk s₁ := ⟨hst1.ok, by rw [hst1.scratch]; exact hoff, hp1.nulls⟩
   obtain ⟨ls, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨hst2, orderC, lsC, ho, hlsR, hnames, hloads⟩ :=
+  obtain ⟨hst2, orderC, lsC, ho, hlsR, hfront, hnames, hloads⟩ :=
     loadClosure_run hctx1 hp1 (NR_list_ext hst1.ext hroots) h2
   have hctx2 := hctx1.step hst2
   have hp2 := hp1.ext hst2.ext
   obtain ⟨mg, s₃, h3, h⟩ := AM.bind_ok h
-  obtain ⟨hs3, mgC, hm, hmr⟩ := mergeAll_run hctx2.ok hctx2.nulls hlsR h3
+  obtain ⟨hs3, hmls, mgC, hm, hmr⟩ := mergeAll_run hctx2.ok hctx2.nulls hlsR h3
   rw [hs3] at h
   obtain ⟨hk1, hk2, hk3, -⟩ := ConLeche.Frontend.Olean.mergeAll_ok hm
   have hN : ∀ (n : ConLeche.Name) (x : ConLeche.Frontend.Olean.CEntry), mgC.map[n]? = some x →
@@ -328,7 +463,13 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   have hpinsS : PinsOK s₂ := (hpins.mono (hst1.trans hst2).ext (hst1.trans hst2).pins)
   obtain ⟨hst3, hpers, ds, hds, hden⟩ := declsOf_run hctx2.ok hctx2.off hpinsS hem h7
   refine ⟨(hst1.trans hst2).trans hst3, hpers, hp2.ext hst3.ext,
-    ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩, ds, hden, ?_⟩
+    ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩,
+    (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray, ds, ?_, hden,
+    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv⟩
+  · have := valuesRel_of_loads (ListRel.mono' (fun _ _ h => h.ext hst3.ext) hlsR)
+      (ListRel.mono' (fun _ _ h => ModFront.ext h hst3.ext) hfront) (sp := sp) (F := F)
+    simp only [ValuesRel, hmls]
+    simpa using this
   intro m d c v all hcl hv hc hk
   obtain ⟨hco, hcr⟩ := ConLeche.Frontend.Olean.closureOrder_ok ho
   have hmo := hcl.mem_order hco hcr
@@ -370,6 +511,12 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
     ((hk3 _).2 (ConLeche.Frontend.Olean.contains_of_getElem hc')) hc' hk5
   rw [hn', hlp', hty', show e.name = c.name from hn, show e.levelParams = c.levelParams from hlp,
     show e.type = c.type from hty] at this
-  exact ⟨v', this⟩
+  -- the kept copy is a loaded constant, so its value is a reference
+  obtain ⟨-, l', hl', hcl'⟩ := hk2 _ _ hc'
+  obtain ⟨i', f'', -, -, r', a', sk'', skels', -, -, -, hlazy'⟩ := hloads l' (by simpa using hl')
+  obtain ⟨s0, -, hent0⟩ := hlazy'.to_skel c' (by simpa using hcl')
+  obtain ⟨-, g0, -, -, hw, -⟩ := ConLeche.Frontend.Olean.lazyEntry_thm hent0 hk5
+  rw [hw] at this
+  exact ⟨_, this⟩
 
 end ConRon.Bridge.Frontend.Olean

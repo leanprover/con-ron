@@ -576,6 +576,8 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
+/// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-60 oleanJob`; Theorem 2 reads this
+/// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.
 /// **One job of an `--olean` run**, from the module region the worker kept: a
 /// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
 /// reference) reads it into the worker's scratch tier and is checked with it in
@@ -600,7 +602,11 @@ pub fn olean_job(
         None => return checker::run_job(tier, w, mode, pins, ds, k),
     };
     let code: Option<u64> = match d {
-        IDeclaration::ThmDecl(_, v) => w.store.view_bvar(tier, v),
+        // a theorem's value is a reference only if its handle is a `bvar`: the store's
+        // projection reads the bvar table at the handle's slot whatever its tag
+        IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
+            w.store.view_bvar(tier, v)
+        }
         _ => None,
     };
     match (code, d) {

@@ -89,9 +89,8 @@ that needs the knot takes this theorem by name.  `sorry`-free since task
 #97-P5-Core round 6 (the guard below keeps it so). -/
 theorem knotRel_checkFuel' : KnotRel Arena.checkFuel := knotRel _
 
--- T143-STUB: census restored at stage 2
--- /-- info: 'ConRon.Refine2.knotRel_checkFuel'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
--- #guard_msgs in #print axioms knotRel_checkFuel'
+/-- info: 'ConRon.Refine2.knotRel_checkFuel'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms knotRel_checkFuel'
 
 /-! ## `CoreCtx`, from the checker tier's own facts
 

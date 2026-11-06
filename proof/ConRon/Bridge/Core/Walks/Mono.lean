@@ -103,7 +103,7 @@ theorem reduceNat_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
   rwa [reduceNat_fst_proj, reduceNat_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the full-grade
-ι telescope certificate** (`iotaCase3`), a `List` recursion over `r.infer` and
+ι telescope certificate** (`iotaCase3At`'s case 3), a `List` recursion over `r.infer` and
 `r.defeq`. -/
 theorem iotaCertsFull_mono (h : FnsRefines r₁ r₂) (d : Nat) (ty : Expr) (args : List Expr) :
     MRefines (iotaCertsFull r₁ env d ty args) (iotaCertsFull r₂ env d ty args) := by

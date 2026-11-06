@@ -13,7 +13,7 @@ constant)`.  `StreamIndexRel` is entry for entry over `ixRow`/`ixTbl`
 old entry: the constant list is exactly `next` long, and every stored counter and slot
 is in range.
 -/
-import ConRon.Refine2.Checker.Shape
+import ConRon.Refine2.Checker.Install
 import ConRon.Arena.StreamIndex
 
 open Aeneas Aeneas.Std Result
@@ -62,20 +62,6 @@ theorem StreamIndexRel.baseRel {ix : arena.stream_index.IStreamIndex} {I : IStre
 theorem StreamIndexRel.baseOK {pers : arena.store.PersTier} {I : IStreamIndex}
     (h : StreamIndexRel pers.env I) : BaseOK pers :=
   ⟨h.consts.inv, h.tables.inv, h.consts.range, h.tables.range⟩
-
-/-! ## The copies -/
-
-/-- **`stream_index::i_proj_table_dup` is the identity on the abstraction.** -/
-theorem i_proj_table_dup_abs {t o : arena.env.IProjTable}
-    (h : arena.stream_index.i_proj_table_dup t = ok o) : absIProjTable o = absIProjTable t := by
-  rw [arena.stream_index.i_proj_table_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h]
-  simp only [absIProjTable, dupId_nidx _ _ hn, dupId_nidx _ _ hn1, nidx_vec_dup_val hv,
-    eidx_vec_dup_val hv1]
 
 /-! ## The empty index -/
 

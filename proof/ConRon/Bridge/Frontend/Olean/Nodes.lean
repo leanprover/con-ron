@@ -182,7 +182,7 @@ theorem natWord_run {k k' : Nat} {s s' : AState}
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:111-125 nameNode
 The two arms after the parent, whatever the parent's read was: `t` the tag. -/
-theorem nameTail_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem nameTail_run {s s' : AState} (hok : StateOK s)
     {r : Region} {g t : Nat} {p : NIdx} {q : ConLeche.Name} (hp : denoteN s.store.ns p = some q)
     {h : NIdx} (hrun : Arena.Frontend.Olean.nameTail r g t p s = .ok (some h, s')) :
     ParseStep s s' ∧ ∃ n, denoteN s'.store.ns h = some n ∧
@@ -201,11 +201,11 @@ theorem nameTail_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
       obtain ⟨hv', hs⟩ := AM.pure_ok hrest
       cases hv'
       subst hs
-      obtain ⟨hst, -, hd⟩ := internNNode_istep hok hoff (v := .str p str)
+      obtain ⟨hst, hd⟩ := internNNode_sstep hok (v := .str p str)
         (by intro c hc
             simp only [NNodeView.children, List.mem_singleton] at hc
             subst hc; exact nview_isSome_of_denote hp) hin
-      refine ⟨hst.toParse hoff, .str q str, ?_, .inl ⟨rfl, str, hstr, rfl⟩⟩
+      refine ⟨hst.toParse', .str q str, ?_, .inl ⟨rfl, str, hstr, rfl⟩⟩
       rw [hd]
       simp only [denoteNView, denoteN_ext hp hst.ext, Option.map_some]
   · have hb : (t == 1) = false := by simpa using ht
@@ -221,16 +221,16 @@ theorem nameTail_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
       obtain ⟨hv', hs⟩ := AM.pure_ok hrest
       cases hv'
       subst hs
-      obtain ⟨hst, -, hd⟩ := internNNode_istep hok hoff (v := .num p i)
+      obtain ⟨hst, hd⟩ := internNNode_sstep hok (v := .num p i)
         (by intro c hc
             simp only [NNodeView.children, List.mem_singleton] at hc
             subst hc; exact nview_isSome_of_denote hp) hin
-      refine ⟨hst.toParse hoff, .num q i, ?_, .inr ⟨ht, i, hi, rfl⟩⟩
+      refine ⟨hst.toParse', .num q i, ?_, .inr ⟨ht, i, hi, rfl⟩⟩
       rw [hd]
       simp only [denoteNView, denoteN_ext hp hst.ext, Option.map_some]
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:111-125 nameNode -/
-theorem nameNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem nameNode_run {s s' : AState} (hok : StateOK s)
     {pk : OleanPins} (hpk : NullsRel s.store pk) {r : Region} {g : Nat} {sub : Sub}
     {ex : (c : Nat) → c < g → Option Expr} {nm : (c : Nat) → c < g → Option ConLeche.Name}
     {lv : (c : Nat) → c < g → Option Level} {ls : (c : Nat) → c < g → Option (List Level)}
@@ -256,7 +256,7 @@ theorem nameNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         subst hF
         obtain ⟨q, hq, hdq⟩ := nameIn_sim (nm := nm) hpk
           (fun c h hv hd => hsub.name c h (kid_of (nil := true) hf hfs (by simp) (by simpa using hv) hd)) hp
-        obtain ⟨hst, n, hdn, ha⟩ := nameTail_run hok hoff hdq hrun
+        obtain ⟨hst, n, hdn, ha⟩ := nameTail_run hok hdq hrun
         refine ⟨hst, n, ?_, hdn⟩
         rcases ha with ⟨ht1, str, hstr, rfl⟩ | ⟨ht1, i, hi, rfl⟩
         · simp [ht1, hn, hq, hstr]
@@ -270,7 +270,7 @@ theorem nameNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
 /-! ## One `Level` -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:127-148 levelNode -/
-theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem levelNode_run {s s' : AState} (hok : StateOK s)
     {pk : OleanPins} (hpk : NullsRel s.store pk) {r : Region} {g : Nat} {sub : Sub}
     {ex : (c : Nat) → c < g → Option Expr} {nm : (c : Nat) → c < g → Option ConLeche.Name}
     {lv : (c : Nat) → c < g → Option Level} {ls : (c : Nat) → c < g → Option (List Level)}
@@ -312,12 +312,12 @@ theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchO
         obtain ⟨hv', hs⟩ := AM.pure_ok hrest
         cases hv'
         subst hs
-        obtain ⟨hst, -, hd⟩ := internLNode_istep hok hoff
+        obtain ⟨hst, hd⟩ := internLNode_sstep hok
           (⟨by intro c hc
                simp only [LNodeView.lchildren, List.mem_singleton] at hc
                subst hc; exact lview_isSome_of_denote hdu,
             by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
-        refine ⟨hst.toParse hoff, .succ u, by simp [hu], ?_⟩
+        refine ⟨hst.toParse', .succ u, by simp [hu], ?_⟩
         rw [hd]
         simp only [denoteLView, denoteL_ext hdu hst.ext, Option.map_some]
     · -- max
@@ -330,14 +330,14 @@ theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchO
         obtain ⟨hv', hs⟩ := AM.pure_ok hrest
         cases hv'
         subst hs
-        obtain ⟨hst, -, hd⟩ := internLNode_istep hok hoff (v := .max x y)
+        obtain ⟨hst, hd⟩ := internLNode_sstep hok (v := .max x y)
           (⟨by intro c hc
                simp only [LNodeView.lchildren, List.mem_cons, List.not_mem_nil, or_false] at hc
                rcases hc with rfl | rfl
                · exact lview_isSome_of_denote hdu
                · exact lview_isSome_of_denote hdv,
             by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
-        refine ⟨hst.toParse hoff, .max u v, by simp [hu, hv], ?_⟩
+        refine ⟨hst.toParse', .max u v, by simp [hu, hv], ?_⟩
         rw [hd]
         simp only [denoteLView, opt2_eq_some_iff]
         exact ⟨u, v, denoteL_ext hdu hst.ext, denoteL_ext hdv hst.ext, rfl⟩
@@ -352,14 +352,14 @@ theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchO
         obtain ⟨hv', hs⟩ := AM.pure_ok hrest
         cases hv'
         subst hs
-        obtain ⟨hst, -, hd⟩ := internLNode_istep hok hoff (v := .imax x y)
+        obtain ⟨hst, hd⟩ := internLNode_sstep hok (v := .imax x y)
           (⟨by intro c hc
                simp only [LNodeView.lchildren, List.mem_cons, List.not_mem_nil, or_false] at hc
                rcases hc with rfl | rfl
                · exact lview_isSome_of_denote hdu
                · exact lview_isSome_of_denote hdv,
             by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
-        refine ⟨hst.toParse hoff, .imax u v, by simp [hu, hv], ?_⟩
+        refine ⟨hst.toParse', .imax u v, by simp [hu, hv], ?_⟩
         rw [hd]
         simp only [denoteLView, opt2_eq_some_iff]
         exact ⟨u, v, denoteL_ext hdu hst.ext, denoteL_ext hdv hst.ext, rfl⟩
@@ -376,12 +376,12 @@ theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchO
         obtain ⟨hv', hs⟩ := AM.pure_ok hrest
         cases hv'
         subst hs
-        obtain ⟨hst, -, hd⟩ := internLNode_istep hok hoff
+        obtain ⟨hst, hd⟩ := internLNode_sstep hok
           (⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
             by intro c hc
                simp only [LNodeView.nchildren, List.mem_singleton] at hc
                subst hc; exact nview_isSome_of_denote hdq⟩) hin
-        refine ⟨hst.toParse hoff, .param q, by simp [hq], ?_⟩
+        refine ⟨hst.toParse', .param q, by simp [hq], ?_⟩
         rw [hd]
         have hdq2 : denoteN s'.store.ls.ns x = some q := denoteN_ext hdq hst.ext
         simp only [denoteLView, hdq2, Option.map_some]
@@ -392,7 +392,7 @@ theorem levelNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchO
 /-! ## One `List Level` cell -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:150-160 levelsNode -/
-theorem levelsNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem levelsNode_run {s s' : AState} (hok : StateOK s)
     {pk : OleanPins} (hpk : NullsRel s.store pk) {r : Region} {g : Nat} {sub : Sub}
     {ex : (c : Nat) → c < g → Option Expr} {nm : (c : Nat) → c < g → Option ConLeche.Name}
     {lv : (c : Nat) → c < g → Option Level} {ls : (c : Nat) → c < g → Option (List Level)}
@@ -435,9 +435,9 @@ theorem levelsNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratch
         obtain ⟨hv', hs⟩ := AM.pure_ok hrest
         cases hv'
         subst hs
-        obtain ⟨hst, hd⟩ := internLsNode_istep hok hoff
+        obtain ⟨hst, hd⟩ := internLsNode_sstep hok
           (lsViewOK_of_denoteLList (st := s.store) _ _ hdc) hin
-        refine ⟨hst.toParse hoff, u :: us, by simp [ht, hn, hu, hus], ?_⟩
+        refine ⟨hst.toParse', u :: us, by simp [ht, hn, hu, hus], ?_⟩
         rw [hd]
         exact denoteLList_ext hst.ext.lss.ls _ _ hdc
       · subst hF; exact (none_not_some hrun).elim
@@ -450,7 +450,7 @@ theorem levelsNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratch
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:162-206 exprNode — one node interned,
 its view denoting. -/
-theorem internE_some {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem internE_some {s s' : AState} (hok : StateOK s)
     {v : ENodeView} (hv : s.store.ViewOK v) {e : Expr}
     (hd : ∀ t : EStore, Ext s.store t → denoteEView t v = some e) {h : EIdx}
     (hrun : (internE v >>= fun x => pure (some x)) s = .ok (some h, s')) :
@@ -459,11 +459,11 @@ theorem internE_some {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
   obtain ⟨hv', hs⟩ := AM.pure_ok hrest
   cases hv'
   subst hs
-  obtain ⟨hst, -, hden⟩ := internE_istep hok hoff hv hin
-  exact ⟨hst.toParse hoff, by rw [hden]; exact hd _ hst.ext⟩
+  obtain ⟨hst, hden⟩ := internE_sstep hok hv hin
+  exact ⟨hst.toParse', by rw [hden]; exact hd _ hst.ext⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:162-206 exprNode -/
-theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+theorem exprNode_run {s s' : AState} (hok : StateOK s)
     {pk : OleanPins} (hpk : NullsRel s.store pk) {r : Region} {g : Nat} {sub : Sub}
     {ex : (c : Nat) → c < g → Option Expr} {nm : (c : Nat) → c < g → Option ConLeche.Name}
     {lv : (c : Nat) → c < g → Option Level} {ls : (c : Nat) → c < g → Option (List Level)}
@@ -503,7 +503,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         obtain ⟨k, s₁, hw, hrest⟩ := AM.bind_ok hrun
         obtain ⟨hk1, hk2⟩ := natWord_run hw
         rw [hk1, hk2] at hrest
-        obtain ⟨hst, hd⟩ := internE_some (e := .bvar i) hok hoff viewOK_bvar (fun _ _ => rfl) hrest
+        obtain ⟨hst, hd⟩ := internE_some (e := .bvar i) hok viewOK_bvar (fun _ _ => rfl) hrest
         exact ⟨hst, .bvar i, by simp [hi], hd⟩
     · -- sort
       split at hF
@@ -514,7 +514,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
           (fun c h hv hd => hsub.level c h
             (kid_of (nil := true) hf (hkt (a := 3) (b := 1) rfl rfl rfl) (by simp)
               (by simpa using hv) hd)) hx
-        obtain ⟨hst, hd⟩ := internE_some (e := .sort u) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .sort u) hok
           (viewOK_sort (lview_isSome_of_denote hdu))
           (fun t hx' => by
             have := denoteL_ext hdu hx'
@@ -529,7 +529,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
           (fun c h hv hd => hsub.levels c h
             (kid_of (nil := true) hf (hkt (a := 4) (b := 2) rfl rfl rfl) (by simp)
               (by simpa using hv) hd)) hy
-        obtain ⟨hst, hd⟩ := internE_some (e := .const q us) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .const q us) hok
           (viewOK_const (nview_isSome_of_denote hdq)
             (by obtain ⟨w, hw, -⟩ := Arena.denoteLs_view hdus; rw [hw]; rfl))
           (fun t hx' => by
@@ -543,7 +543,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         subst hF
         obtain ⟨a, ha, hda⟩ := hE hf (hkt (a := 5) (b := 2) rfl rfl rfl) (by simp) hx
         obtain ⟨b, hb, hdb⟩ := hE hf (hkt (a := 5) (b := 2) rfl rfl rfl) (by simp) hy
-        obtain ⟨hst, hd⟩ := internE_some (e := .app a b) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .app a b) hok
           (viewOK_app (by rw [hda]; rfl) (by rw [hdb]; rfl))
           (fun t hx' => by
             simp only [denoteEView, opt2_eq_some_iff]
@@ -556,7 +556,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         subst hF
         obtain ⟨a, ha, hda⟩ := hE hf (hkt (a := 6) (b := 3) rfl rfl rfl) (by simp) hx
         obtain ⟨b, hb, hdb⟩ := hE hf (hkt (a := 6) (b := 3) rfl rfl rfl) (by simp) hy
-        obtain ⟨hst, hd⟩ := internE_some (e := .lam a b) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .lam a b) hok
           (viewOK_lam (by rw [hda]; rfl) (by rw [hdb]; rfl))
           (fun t hx' => by
             simp only [denoteEView, opt2_eq_some_iff]
@@ -569,7 +569,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         subst hF
         obtain ⟨a, ha, hda⟩ := hE hf (hkt (a := 7) (b := 3) rfl rfl rfl) (by simp) hx
         obtain ⟨b, hb, hdb⟩ := hE hf (hkt (a := 7) (b := 3) rfl rfl rfl) (by simp) hy
-        obtain ⟨hst, hd⟩ := internE_some (e := .forallE a b) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .forallE a b) hok
           (viewOK_forallE (by rw [hda]; rfl) (by rw [hdb]; rfl))
           (fun t hx' => by
             simp only [denoteEView, opt2_eq_some_iff]
@@ -583,7 +583,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
         obtain ⟨a, ha, hda⟩ := hE hf (hkt (a := 8) (b := 4) rfl rfl rfl) (by simp) hx
         obtain ⟨b, hb, hdb⟩ := hE hf (hkt (a := 8) (b := 4) rfl rfl rfl) (by simp) hy
         obtain ⟨c, hc, hdc⟩ := hE hf (hkt (a := 8) (b := 4) rfl rfl rfl) (by simp) hz
-        obtain ⟨hst, hd⟩ := internE_some (e := .letE a b c) hok hoff
+        obtain ⟨hst, hd⟩ := internE_some (e := .letE a b c) hok
           (viewOK_letE (by rw [hda]; rfl) (by rw [hdb]; rfl) (by rw [hdc]; rfl))
           (fun t hx' => by
             simp only [denoteEView, opt3_eq_some_iff]
@@ -595,7 +595,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
       · subst hF; exact (none_not_some hrun).elim
       · rename_i l hl
         subst hF
-        obtain ⟨hst, hd⟩ := internE_some (e := .lit l) hok hoff viewOK_lit (fun _ _ => rfl) hrun
+        obtain ⟨hst, hd⟩ := internE_some (e := .lit l) hok viewOK_lit (fun _ _ => rfl) hrun
         refine ⟨hst, .lit l, ?_, hd⟩
         simp only [Arena.Frontend.Olean.litP] at hl
         simp [hl]
@@ -624,7 +624,7 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
           | some y =>
             simp only [hy] at hrest
             obtain ⟨b, hb, hdb⟩ := hE hf (hkt (a := 11) (b := 3) rfl rfl rfl) (by simp) hy
-            obtain ⟨hst, hd⟩ := internE_some (e := .proj q i b) hok hoff
+            obtain ⟨hst, hd⟩ := internE_some (e := .proj q i b) hok
               (viewOK_proj (nview_isSome_of_denote hdq) (by rw [hdb]; rfl))
               (fun t hx' => by
                 simp only [denoteEView, opt2_eq_some_iff]
@@ -638,14 +638,14 @@ theorem exprNode_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:210-213 nameAt -/
 theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState},
-    StateOK s → s.store.scratchOn = false → NullsRel s.store pk → ∀ {h : NIdx},
+    StateOK s → NullsRel s.store pk → ∀ {h : NIdx},
     Arena.Frontend.Olean.nameAt pk r g s = .ok (some h, s') →
     ParseStep s s' ∧ ∃ n, ConLeche.Frontend.Olean.nameAt r g = some n ∧
       denoteN s'.store.ns h = some n := by
   intro g
   induction g using Nat.strongRecOn with
   | _ g ih =>
-    intro s s' hok hoff hpk h hrun
+    intro s s' hok hpk h hrun
     rw [Arena.Frontend.Olean.nameAt] at hrun
     rw [ConLeche.Frontend.Olean.nameAt, ConLeche.Frontend.Olean.nameNode]
     generalize hF : (if r.fits g = true then _ else _ : AM (Option NIdx)) = f at hrun
@@ -657,7 +657,7 @@ theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState}
         obtain ⟨htt, hn⟩ := hc
         have hend : ∀ {q : ConLeche.Name} {y : NIdx} {t : AState},
             r.nameIn g (r.fld g 0) (fun c _ => ConLeche.Frontend.Olean.nameAt r c) = some q →
-            denoteN t.store.ns y = some q → StateOK t → t.store.scratchOn = false →
+            denoteN t.store.ns y = some q → StateOK t →
             ParseStep s t →
             Arena.Frontend.Olean.nameTail r g (r.tag g) y t = .ok (some h, s') →
             ParseStep s s' ∧ ∃ n, (match r.tag g, r.nobjs g with
@@ -670,8 +670,8 @@ theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState}
                   let i ← r.natP g (r.fld g 1)
                   pure (ConLeche.Name.num p i))
               | _, _ => none) = some n ∧ denoteN s'.store.ns h = some n := by
-          intro q y t hq hdy hokt hofft hstep htail
-          obtain ⟨hst, n, hdn, ha⟩ := nameTail_run hokt hofft hdy htail
+          intro q y t hq hdy hokt hstep htail
+          obtain ⟨hst, n, hdn, ha⟩ := nameTail_run hokt hdy htail
           refine ⟨hstep.trans hst, n, ?_, hdn⟩
           rcases ha with ⟨ht1, str, hstr, rfl⟩ | ⟨ht1, i, hi, rfl⟩
           · simp [ht1, hn, hq, hstr]
@@ -680,7 +680,7 @@ theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState}
         by_cases hv : (r.fld g 0 == 1) = true
         · simp only [hv, ↓reduceIte] at hF
           subst hF
-          exact hend (q := .anonymous) (by simp [Region.nameIn, hv]) hpk.anon hok hoff
+          exact hend (q := .anonymous) (by simp [Region.nameIn, hv]) hpk.anon hok
             (ParseStep.refl hok) hrun
         · simp only [hv, Bool.false_eq_true, ↓reduceIte] at hF
           have hv' : ¬ r.fld g 0 = 1 := by simpa using hv
@@ -692,8 +692,8 @@ theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState}
             cases o with
             | none => exact (none_not_some hrest).elim
             | some p =>
-              obtain ⟨hst, q, hq, hdp⟩ := ih c (Region.down_lt heq) hok hoff hpk hat
-              refine hend (q := q) ?_ hdp hst.ok (by rw [hst.scratch]; exact hoff) hst hrest
+              obtain ⟨hst, q, hq, hdp⟩ := ih c (Region.down_lt heq) hok hpk hat
+              refine hend (q := q) ?_ hdp hst.ok hst hrest
               simp only [Region.nameIn, hv', beq_iff_eq, ↓reduceIte]
               split
               · rename_i c' heq'
@@ -710,7 +710,7 @@ theorem nameAt_run {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState}
 
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:231-236 nameP -/
 theorem nameP_run {r : Region} {pk : OleanPins} {v : UInt64} {s s' : AState}
-    (hok : StateOK s) (hoff : s.store.scratchOn = false) (hpk : NullsRel s.store pk) {h : NIdx}
+    (hok : StateOK s) (hpk : NullsRel s.store pk) {h : NIdx}
     (hrun : Arena.Frontend.Olean.nameP pk r v s = .ok (some h, s')) :
     ParseStep s s' ∧ ∃ n, ConLeche.Frontend.Olean.nameP r v = some n ∧
       denoteN s'.store.ns h = some n := by
@@ -729,7 +729,7 @@ theorem nameP_run {r : Region} {pk : OleanPins} {v : UInt64} {s s' : AState}
     · rename_i c hc
       subst hF
       rw [hc]
-      exact nameAt_run c hok hoff hpk hrun
+      exact nameAt_run c hok hpk hrun
     · subst hF; exact (none_not_some hrun).elim
 
 end ConRon.Bridge.Frontend.Olean

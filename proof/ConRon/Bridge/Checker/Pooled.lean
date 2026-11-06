@@ -225,6 +225,39 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
 
 /-! ## One job -/
 
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **the invariant at a
+view**: at a position whose prefix the fold has accepted with distinct names, any state whose store
+persistently extends the driver's, with caches sound at the prefix's environment and the driver's
+pins, holds `FoldOK` at the view of that position. -/
+theorem view_foldOK (V : Type w) [ConLeche.SetTheory V]
+    {pinsP : List NatOpPinSet} {dsP : List Declaration} {I : IStreamIndex} {s₁ s : AState}
+    {k : Nat} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
+    (hpI : PersIFBase I.base) (hk : k < dsP.length) (hP : PrefixOK pinsP dsP k)
+    (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
+    (hst : StateOK s) (hx : PExt s₁.store s.store)
+    (hc : CacheOK false (ConLeche.Cached.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
+    FoldOK (ConLeche.Cached.streamEnv (dsP.take k)) (I.view k) s := by
+  have hIj := hI.pmono hpI hx
+  have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
+      (ConLeche.Cached.buildIndex dsP.toArray) := by
+    rw [List.take_append_drop]
+    simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
+  have hlen : (dsP.take k).length = k := by simp; omega
+  obtain ⟨hienv, hgate⟩ := view_ok hst hIj hspec hnd
+  rw [hlen] at hienv hgate
+  obtain ⟨F₀, hF₀⟩ := hP
+  obtain ⟨⟨mp, -, -⟩, -, -⟩ := ConLeche.Model.foldPM (V := V) (pins := pinsP) (dsP.take k)
+    Env.empty ConLeche.Model.EnvModelOk.empty (hF₀ F₀ (Nat.le_refl _))
+  exact
+    { check := ⟨hst, hc, hpinsOK.pmono hpersPins hx hp, hienv⟩
+      envWF := mp.toEnvFacts.wf
+      tblShape := fun t ht => by simp [IStreamIndex.view] at ht
+      persPins := hpersPins.mono hp
+      coh := ⟨fun _ => rfl, fun _ => rfl⟩
+      gate := hgate }
+
+
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **one job, from a worker's
 state**: at a position whose prefix the fold has accepted with distinct names, record `k`'s job
 accepting leaves a worker's state and con-leche's `checkDecl` accepting the record at the
@@ -269,27 +302,10 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
     have hxj : PExt s₁.store sj.store := by
       rw [← hsj]; exact hw.pext.trans (PExt.enterScratch hw.state.wf)
     have hstj : StateOK sj := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.state.wf⟩
-    have hIj := hI.pmono hpI hxj
-    have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
-        (ConLeche.Cached.buildIndex dsP.toArray) := by
-      rw [List.take_append_drop]
-      simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
-    have hlen : (dsP.take k).length = k := by simp; omega
-    obtain ⟨hienv, hgate⟩ := view_ok hstj hIj hspec hnd
-    rw [hlen] at hienv hgate
-    obtain ⟨F₀, hF₀⟩ := hP
-    obtain ⟨⟨mp, -, -⟩, -, -⟩ := ConLeche.Model.foldPM (V := V) (pins := pinsP) (dsP.take k)
-      Env.empty ConLeche.Model.EnvModelOk.empty (hF₀ F₀ (Nat.le_refl _))
     have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.pins
     have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.caches
-    have hok : FoldOK (ConLeche.Cached.streamEnv (dsP.take k)) (I.view k) sj :=
-      { check := ⟨hstj, CacheOK.of_empty hcj,
-          (hpinsOK.pmono hpersPins hxj hpj), hienv⟩
-        envWF := mp.toEnvFacts.wf
-        tblShape := fun t ht => by simp [IStreamIndex.view] at ht
-        persPins := hpersPins.mono hpj
-        coh := ⟨fun _ => rfl, fun _ => rfl⟩
-        gate := hgate }
+    have hok := view_foldOK V hpinsOK hpersPins hI hpI hk' hP hnd hstj hxj
+      (CacheOK.of_empty hcj) hpj
     have hpinsj := PinsDenote.pmono hxj pins pinsP hpp hpins
     have hdj := denoteDecl_pext hxj (hpd _ (Array.getElem_mem_toList hk)) hdk
     obtain ⟨hst', hx', hp', env', F, hF⟩ := hrec hok hpinsj hdj (by cases u; exact hrc)
@@ -301,7 +317,7 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
 /-! ## A worker's list
 
 The fold over a worker's claims, abstracted: a worker's state `σ` (the arena state, and on an
-`--olean` run the value cache beside it), a step `Run k σ σ'` (job `k` accepted from `σ`, ending in
+`--olean` run the value cache beside it) with its invariant `Inv`, a step `Run k σ σ'` (job `k` accepted from `σ`, ending in
 `σ'`), and a list of claims run in order (`JobChain`).  `pooled_fold` holds for any such step whose
 accept is the fold's step at its position (`JobSpecAt`); the stream's step is `recordJob`
 (`job_spec`), an `--olean` run's is `Arena/OleanJobs.lean`'s `oleanJob`. -/
@@ -317,11 +333,11 @@ inductive JobChain {σ : Type} (Run : Nat → σ → σ → Prop) : σ → List 
 from a worker's state, at a position whose prefix the fold has accepted with distinct names, an
 accepted job leaves a worker's state and con-leche's `checkDecl` accepting the record at the
 prefix's environment. -/
-@[expose] def JobSpecAt {σ : Type} (s₁ : AState) (wst : σ → AState) (Run : Nat → σ → σ → Prop)
+@[expose] def JobSpecAt {σ : Type} (Inv : σ → Prop) (Run : Nat → σ → σ → Prop)
     (pinsP : List NatOpPinSet) (dsP : List Declaration) : Prop :=
-  ∀ {k : Nat} {w w' : σ} (hk : k < dsP.length), WorkerOK s₁ (wst w) → PrefixOK pinsP dsP k →
+  ∀ {k : Nat} {w w' : σ} (hk : k < dsP.length), Inv w → PrefixOK pinsP dsP k →
     ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup → Run k w w' →
-    WorkerOK s₁ (wst w') ∧ ∃ (env' : Env) (F : Nat),
+    Inv w' ∧ ∃ (env' : Env) (F : Nat),
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
         (ConLeche.Cached.streamEnv (dsP.take k)) (dsP[k]'hk) = .ok env'
 
@@ -329,14 +345,14 @@ prefix's environment. -/
 its jobs from a worker's state**, provided every job it ran before is at a position whose prefix
 the fold has accepted with distinct names: the claims increase, so those are the positions below
 the job's. -/
-theorem worker_reaches {σ : Type} {s₁ : AState} {wst : σ → AState} {Run : Nat → σ → σ → Prop}
+theorem worker_reaches {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ → Prop}
     {pinsP : List NatOpPinSet} {dsP : List Declaration}
-    (hspec : JobSpecAt s₁ wst Run pinsP dsP) (hrange : ∀ {t w w'}, Run t w w' → t < dsP.length)
+    (hspec : JobSpecAt Inv Run pinsP dsP) (hrange : ∀ {t w w'}, Run t w w' → t < dsP.length)
     {k : Nat}
     (hbelow : ∀ t < k, PrefixOK pinsP dsP t ∧
       ((ConLeche.Cached.recsConsts (dsP.take t)).map (·.name)).Nodup) :
-    ∀ (l : List Nat) (w : σ), WorkerOK s₁ (wst w) → l.Pairwise (· < ·) → k ∈ l →
-      JobChain Run w l → ∃ wk wk', WorkerOK s₁ (wst wk) ∧ Run k wk wk' := by
+    ∀ (l : List Nat) (w : σ), Inv w → l.Pairwise (· < ·) → k ∈ l →
+      JobChain Run w l → ∃ wk wk', Inv wk ∧ Run k wk wk' := by
   intro l
   induction l with
   | nil => intro _ _ _ hm; exact absurd hm (by simp)
@@ -357,13 +373,13 @@ theorem worker_reaches {σ : Type} {s₁ : AState} {wst : σ → AState} {Run : 
 passing is an accept of con-leche's fold**, at the stream the records denote: job lists covering
 the positions, each increasing, each run from a worker's state by a step whose accept is the
 fold's step at its position. -/
-theorem pooled_fold {σ : Type} {s₁ : AState} {wst : σ → AState} {Run : Nat → σ → σ → Prop}
+theorem pooled_fold {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ → Prop}
     {pinsP : List NatOpPinSet} {dsP : List Declaration}
-    (hspec : JobSpecAt s₁ wst Run pinsP dsP) (hrange : ∀ {t w w'}, Run t w w' → t < dsP.length)
+    (hspec : JobSpecAt Inv Run pinsP dsP) (hrange : ∀ {t w w'}, Run t w w' → t < dsP.length)
     (hpush : KernelPushes pinsP) (parts : List (List Nat))
     (hcov : ∀ t < dsP.length, ∃ w ∈ parts, t ∈ w)
     (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
-    (hacc : ∀ w ∈ parts, ∃ w₀, WorkerOK s₁ (wst w₀) ∧ JobChain Run w₀ w) :
+    (hacc : ∀ w ∈ parts, ∃ w₀, Inv w₀ ∧ JobChain Run w₀ w) :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
       = .ok (ConLeche.Cached.streamEnv dsP) := by
   have main : ∀ k, k ≤ dsP.length → ∀ t ≤ k, PrefixOK pinsP dsP t ∧
@@ -389,7 +405,7 @@ theorem pooled_fold {σ : Type} {s₁ : AState} {wst : σ → AState} {Run : Nat
       obtain ⟨wl, hwl, hkw⟩ := hcov k hks
       obtain ⟨w₀, hw₀, hch⟩ := hacc wl hwl
       obtain ⟨wk, wk', hwk, hrun⟩ :=
-        worker_reaches (Run := Run) (wst := wst) hspec hrange (fun t ht => hbelow t (by omega)) wl w₀ hw₀
+        worker_reaches (Run := Run) (Inv := Inv) hspec hrange (fun t ht => hbelow t (by omega)) wl w₀ hw₀
           (hinc wl hwl) hkw hch
       obtain ⟨hPk, hndk⟩ := hbelow k (Nat.le_refl _)
       obtain ⟨-, env', F, hF⟩ := hspec hks hwk hPk hndk hrun
@@ -463,7 +479,7 @@ theorem pooled_fold_records (V : Type w) [ConLeche.SetTheory V]
     (hacc : ∀ w ∈ parts, ∃ s'', checkJobList .verified pins I ds w s₁.worker = .ok (.ok (), s'')) :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
       = .ok (ConLeche.Cached.streamEnv dsP) := by
-  refine pooled_fold (s₁ := s₁) (wst := id) (Run := RecordRun pins I ds) ?_ ?_ hpush parts
+  refine pooled_fold (Inv := WorkerOK s₁) (Run := RecordRun pins I ds) ?_ ?_ hpush parts
     (fun t ht => hcov t (by omega)) hinc
     (fun w hw => ?_)
   · intro k w w' _ hw hP hnd hrun

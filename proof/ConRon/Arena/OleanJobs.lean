@@ -47,7 +47,9 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     | .error e => .error e
   match ds[t]? with
   | some (.thmDecl cv v) =>
-    match s.store.viewBVar v with
+    -- a theorem's value is a reference only if its handle is a `bvar`: `viewBVar`
+    -- reads the bvar table at the handle's slot whatever its tag
+    match (if v.tag == ETag.bvar then s.store.viewBVar v else none) with
     | some code =>
       match (do enterScratch; readValue fs pk sp values c code) s with
       | .ok ((c', .ok e), s₁) =>

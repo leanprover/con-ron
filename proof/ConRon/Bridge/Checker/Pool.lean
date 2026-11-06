@@ -20,9 +20,11 @@ module
 public import ConRon.Bridge.Checker.Pooled
 public import ConRon.Bridge.Checker.Index
 import ConRon.Bridge.Checker.Fold
+public import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Checker.Pushes
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Install
+import ConRon.Bridge.Frontend.Rel
 
 public section
 
@@ -45,30 +47,18 @@ is con-leche's step**: the `And` pin moves the store and nothing the check reads
 theorem recordSpec {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) : RecordSpec pins pinsP := by
   intro env I k pd d s s' hok hpins hd hrun
-  simp only [recordCheck, Bind.bind, StateT.bind, Except.bind] at hrun
-  cases ha : andPinOk pd s with
-  | error e => rw [ha] at hrun; exact nomatch hrun
-  | ok r =>
-    obtain ⟨b, s₁⟩ := r
-    rw [ha] at hrun
-    obtain ⟨hst₁, hx₁, hc₁, hp₁⟩ := andPinOk_run hok.check.state hok.check.pins hd ha
-    cases b with
-    | false => simp [fail] at hrun
-    | true =>
-      simp only [↓reduceIte] at hrun
-      cases hc : Arena.checkDecl .verified pins (I.view k) pd s₁ with
-      | error e => rw [hc] at hrun; exact nomatch hrun
-      | ok q =>
-        obtain ⟨fe', s₂⟩ := q
-        rw [hc] at hrun
-        simp only [pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at hrun
-        obtain ⟨-, rfl⟩ := hrun
-        have hok₁ : FoldOK env (I.view k) s₁ :=
-          hok.step (hok.check.mono hst₁ hx₁ hc₁ hp₁) hp₁
-        have hd₁ := denoteDecl_ext hx₁ hd
-        have hpins₁ := PinsDenote.mono hx₁ pins pinsP hpins
-        obtain ⟨hst₂, hx₂, hp₂, hrun₂⟩ := Arena.checkDecl_bridge hk hind hok₁ hpins₁ hd₁ hc
-        exact ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hrun₂⟩
+  simp only [recordCheck] at hrun
+  obtain ⟨b, s₁, ha, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hst₁, hx₁, hc₁, hp₁⟩ := andPinOk_run hok.check.state hok.check.pins hd ha
+  rcases AM.ite_ok k1 with ⟨-, k2⟩ | ⟨-, k2⟩
+  · obtain ⟨fe', s₂, hc, k3⟩ := AM.bind_ok k2
+    obtain ⟨-, rfl⟩ := AM.pure_ok k3
+    have hok₁ : FoldOK env (I.view k) s₁ := hok.step (hok.check.mono hst₁ hx₁ hc₁ hp₁) hp₁
+    have hd₁ := Frontend.denoteDecl_ext hx₁ hd
+    have hpins₁ := PinsDenote.mono hx₁ pins pinsP hpins
+    obtain ⟨hst₂, hx₂, hp₂, hrun₂⟩ := Arena.checkDecl_bridge hk hind hok₁ hpins₁ hd₁ hc
+    exact ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hrun₂⟩
+  · exact absurd k2 (AM.Never.fail _ _ _ _)
 
 /-- con-leche: none — a stream's denotation, record by record. -/
 theorem denoteDecls_getElem {st : EStore} :
@@ -120,7 +110,7 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
   have hden' : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
       Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
     obtain ⟨hi', h⟩ := hget i (by simpa using hi)
-    exact ⟨hi', denoteDecl_ext hx (by simpa using h)⟩
+    exact ⟨hi', Frontend.denoteDecl_ext hx (by simpa using h)⟩
   exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
     (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI parts hcov hinc hacc

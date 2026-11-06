@@ -12,6 +12,8 @@ import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.PrimsF
+import ConRon.Refine2.Core.LS.ProjGuard
+import ConRon.Refine2.Core.LS.PrimsC2
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PE.CoreLSReg
@@ -289,10 +291,50 @@ this use, from the stored structure and constructor types. -/
       (arena.core.check_proj_guard pers st mode eager lane fu fe entry us) lst
       (checkProjGuard (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absIProjEntry entry) (absLsIdx us)) := by
-  sorry -- T143-STUB
+  rw [arena.core.check_proj_guard, checkProjGuard]
+  lockstep
 
-/-- `check_proj_guard_ls` in an io body: the guard reads the knot's `inferIO` and
-`whnf` slots only, which `laneKnotAt` leaves as they are. -/
+theorem formerSortLoop_ioView (r : CoreFnsA) :
+    ∀ (n d : Nat) (e : EIdx), formerSortLoop r.ioView d n e = formerSortLoop r d n e := by
+  intro n
+  induction n with
+  | zero => intro d e; rfl
+  | succ m ih =>
+    intro d e
+    simp only [formerSortLoop, ih]
+    rfl
+
+theorem checkGuardRows_ioView (r : CoreFnsA) (g : ConLeche.Level) (rows : Array (Nat × EIdx)) :
+    ∀ (k i : Nat), rows.size - i = k → checkGuardRows r.ioView g rows i = checkGuardRows r g rows i := by
+  intro k
+  induction k with
+  | zero =>
+    intro i hk
+    have hi : ¬ i < rows.size := by omega
+    unfold checkGuardRows
+    simp only [hi, ↓reduceDIte]
+  | succ m ih =>
+    intro i hk
+    have hi : i < rows.size := by omega
+    unfold checkGuardRows
+    simp only [hi, ↓reduceDIte, ih (i + 1) (by omega)]
+    rfl
+
+/-- The projection guard reads the knot's `inferIO` and `whnf` slots only, which
+`ioView` leaves as they are. -/
+theorem checkProjGuard_ioView (r : CoreFnsA) (fe : IFEnv) (e : IProjEntry) (us : LsIdx) :
+    checkProjGuard r.ioView fe e us = checkProjGuard r fe e us := by
+  unfold checkProjGuard projGuardSort
+  simp only [formerSortLoop_ioView]
+  split
+  · refine congrArg _ (funext fun o => ?_)
+    rcases o with _ | gs
+    · rfl
+    · simp only [checkGuardRows_ioView r gs _ _ 0 rfl]
+  · rfl
+
+/-- `check_proj_guard_ls` in an io body: `laneKnotAt` changes the `infer` slot
+only, which the guard does not read. -/
 @[lockstep] theorem check_proj_guard_at_ls {f : Nat} (hk : KnotRel f)
     {pers st mode eager lane io fu fe lfe entry us lst}
     (hx : ExprOpsHyp pers)
@@ -302,7 +344,13 @@ this use, from the stored structure and constructor types. -/
       (arena.core.check_proj_guard pers st mode eager lane fu fe entry us) lst
       (checkProjGuard (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe
         (absIProjEntry entry) (absLsIdx us)) := by
-  sorry -- T143-STUB
+  have h := check_proj_guard_ls hk (mode := mode) (eager := eager) (lane := lane)
+    (entry := entry) (us := us) hx hrel hinv hctx hf
+  cases io
+  · exact h
+  · show LS _ _ _ _ (checkProjGuard (laneKnot _ _ _ _ _).ioView _ _ _)
+    rw [checkProjGuard_ioView]
+    exact h
 
 set_option maxHeartbeats 4000000 in
 /-- **`BodyRel.infer`**, in lockstep. -/

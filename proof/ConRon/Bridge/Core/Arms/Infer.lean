@@ -11,12 +11,12 @@ a twin SUCCESS is what each success lemma is the licence for.
 | `.sort u` | `Sort (u+1)` | `infer_sort` |
 | `.fvar idx ty` | in scope | `infer_fvar` |
 | `.const n us` | stored, level arity matches | `infer_const` |
-| `.lit (.natVal _)` | the `Nat` basis is installed | `infer_natLit` |
-| `.lit (.strVal _)` | the `String` basis is installed | `infer_strLit` |
+| `.lit (.natVal _)` | the `Nat` basis is stored | `infer_natLit` |
+| `.lit (.strVal _)` | the `String` basis is stored | `infer_strLit` |
 | `.forallE` | domain and codomain sorts | the batched `inferPis` (`Walks/BinderLoop.lean`) |
 | `.lam` | the domain a type, the body's type | the batched `inferLams` (`Walks/BinderLoop.lean`) |
 | `.app` | every argument checked against its domain | the batched `inferSpine` (`Walks/InferSpine.lean`) |
-| `.proj` | the table entry, at a `Prop` and at a non-`Prop` structure | `infer_proj_prop`, `infer_proj_nonprop` |
+| `.proj` | the table entry, past the projection guard | `infer_proj` |
 | `.letE` | official `infer_let` (con-leche's task #342) | `infer_letE` |
 
 ## The deviations the twin carries at this body
@@ -39,6 +39,7 @@ module
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.StrLit
+public import ConRon.Bridge.Core.Walks.ProjGuard
 import ConRon.Bridge.Core.Walks.InferSpine
 import ConRon.Bridge.Core.Walks.BinderLoop
 import ConRon.Bridge.Core.EnsureSort
@@ -95,7 +96,7 @@ theorem infer_const {F d : Nat} {n : Name} {us : List Level}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — a `Nat`
 literal types as `Nat`, once the basis declarations are pinned. -/
-theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitSupported env = true) :
+theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitStored env = true) :
     ConLeche.inferTypeCore mode eager env (F + 1) d (.lit (.natVal n)) =
       .ok (.const ConLeche.natName []) := by
   rw [ConLeche.inferTypeCore_succ]
@@ -104,7 +105,7 @@ theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitSupported env = true) :
 /-- con-leche: ConLeche/Kernel/Core.lean:1141-1147 inferBody — a string
 literal types as `String`. -/
 theorem infer_strLit {F d : Nat} {s : String}
-    (h : ConLeche.strLitSupported env = true) :
+    (h : ConLeche.strLitStored env = true) :
     ConLeche.inferTypeCore mode eager env (F + 1) d (.lit (.strVal s)) =
       .ok (.const ConLeche.stringName []) := by
   rw [ConLeche.inferTypeCore_succ]
@@ -115,7 +116,7 @@ literal clause as an answer (a `grind` lemma: its conclusion is its
 pattern). -/
 @[bridge_grind ←] theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
-    (h : ConLeche.natLitSupported env = true) :
+    (h : ConLeche.natLitStored env = true) :
     SimE (ConLeche.inferTypeCore mode eager env) d (.lit (.natVal n)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_natLit h⟩
 
@@ -123,7 +124,7 @@ pattern). -/
 literal clause as an answer. -/
 @[bridge_grind ←] theorem SimE.of_strLit {st : EStore} {r : EIdx} {d : Nat} {str : String}
     (hd : denoteE st r = some (.const ConLeche.stringName []))
-    (h : ConLeche.strLitSupported env = true) :
+    (h : ConLeche.strLitStored env = true) :
     SimE (ConLeche.inferTypeCore mode eager env) d (.lit (.strVal str)) st r :=
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
 
@@ -171,13 +172,12 @@ theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
 
 /-! ## 4. The projection clause
 
-Two success exits, and the guard that separates them is con-leche's task #175
-W4c/O4 fence: at a `Prop`-declared structure the field's sort must itself be
-`Prop` at this instantiation. -/
+One success exit, past official `infer_proj`'s restriction at this use
+(`checkProjGuard`, con-leche task #480). -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1229-1262 inferBody — the
-projection at a **non-`Prop`** structure: the fence does not apply. -/
-theorem infer_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
+/-- con-leche: ConLeche/Kernel/Core.lean:1195-1222 inferBody — the
+projection: the table entry's type, once the guard passes. -/
+theorem infer_proj {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     {us : List Level} {entry : ProjEntry}
     (hpe : ConLeche.inferTypeCore mode eager env F d pe = .ok tpe)
     (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
@@ -185,37 +185,15 @@ theorem infer_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     (ht : env.findProj? T i = some entry)
     (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
       us.length = entry.levelParams.length)
-    (hp : ¬ (Level.isEquiv entry.structSort .zero == some true)) :
+    (hgd : checkProjGuard (ConLeche.pureFns mode eager env F).inferIO
+      (ConLeche.pureFns mode eager env F).whnf env entry us = .ok ()) :
     ConLeche.inferTypeCore mode eager env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
     hpe, hw, hh, ht, bind, Except.bind]
   rw [ite_eq_left hg]
-  simp only [ite_eq_right hp, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1248-1259 inferBody — the projection
-at a **`Prop`** structure, where the field's own sort must be `Prop` too. -/
-theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
-    {us : List Level} {entry : ProjEntry}
-    (hpe : ConLeche.inferTypeCore mode eager env F d pe = .ok tpe)
-    (hw : ConLeche.whnf mode eager env F d tpe = .ok te)
-    (hh : te.getAppFn = .const T us)
-    (ht : env.findProj? T i = some entry)
-    (hg : T = sn ∧ te.getAppArgs.length = entry.numParams ∧
-      us.length = entry.levelParams.length)
-    (hp : (Level.isEquiv entry.structSort .zero == some true))
-    (hf : (Level.isEquiv
-      (Level.subst entry.levelParams us entry.fieldSort) .zero
-        == some true)) :
-    ConLeche.inferTypeCore mode eager env (F + 1) d (.proj sn i pe) =
-      .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeCore_succ]
-  simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
-    hpe, hw, hh, ht, bind, Except.bind]
-  rw [ite_eq_left hg]
-  simp only [ite_eq_left hp, hf, pure, Except.pure]
-  simp
+  simp only [hgd, pure, Except.pure]
 
 /-! ## 5. The two batched clauses' identification, and the body theorem -/
 
@@ -363,8 +341,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
-literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`) and
-`strLitSupported_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
+literal clauses**: `natLitStored_spec` (`Walks/Nat.lean`) and
+`strLitStored_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
 `infer_natLit`/`infer_strLit`. -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env)
@@ -389,13 +367,13 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>
-        vcgen [natLitSupported_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
+        vcgen [natLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinNat,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
       sym only [bridge_grind] =>
-        vcgen [strLitSupported_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
+        vcgen [strLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
           ConRon.Arena.pinString,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
           finish
@@ -450,6 +428,12 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
       ⦃fun s => s = s₀⦄ r.whnf d i
       ⦃fun x s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ SimE (ConLeche.whnf .verified eager env) d e s'.store x; ⊤⦄)
+    (hcg : ∀ (s₀ : AState) (entry : IProjEntry) (p : ProjEntry) (us : LsIdx) (ls : List Level),
+      CheckOK eager env fe s₀ → denoteProjEntry s₀.store entry = some p →
+      denoteLs s₀.store.lss us = some ls →
+      ⦃fun s => s = s₀⦄ checkProjGuard r fe entry us
+      ⦃fun _ s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ GuardOK eager env p ls; ⊤⦄)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (pe : EIdx)
     (nm : Name) (es : Expr) (hok : CheckOK eager env fe s₀)
     (hsn : denoteN s₀.store.ns sn = some nm)
@@ -463,10 +447,7 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
           vte.getAppFn = .const T ls ∧ env.findProj? T k = some p ∧
           (T = nm ∧ vte.getAppArgs.length = p.numParams ∧
             ls.length = p.levelParams.length) ∧
-          ((Level.isEquiv p.structSort .zero == some true) = false ∨
-            ((Level.isEquiv p.structSort .zero == some true) = true ∧
-             (Level.isEquiv (Level.subst p.levelParams ls p.fieldSort) .zero
-                == some true) = true)) ∧
+          GuardOK eager env p ls ∧
           v = p.typeAt ls vte.getAppArgs es; ⊤⦄ := by
   unfold ConRon.Arena.inferProj
   -- stage 1: the subject's type
@@ -510,7 +491,7 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
       have hargs : Frontend.denoteEList s2.store targs = some vte.getAppArgs :=
         hrelA vte hvte4
       have hus4 := denoteLs_ext hus (Ext.refl _)
-      obtain ⟨_hsnp, hlps, _hctor, _hbody, hfs, hss, _hidx, hnp, _hnf⟩ :=
+      obtain ⟨_hsnp, hlps, _hctor, _hbody, _hidx, hnp, _hnf⟩ :=
         denoteProjEntry_inv hpd
       split
       next => exact triple_fail
@@ -543,81 +524,16 @@ theorem inferProj_spec {fe : IFEnv} (henv : ConLeche.EnvWF env)
         have hwty : Expr.WScoped d (p.typeAt ls vte.getAppArgs es) :=
           ConLeche.projEntry_typeAt_WScoped henv hfp ls hlen'
             (Expr.WScoped.getAppArgs hwvte) hwes
-        -- the answer, at any state the fence leaves behind
-        have hfin : ∀ (s : AState), CheckOK eager env fe s →
-            s.store = s2.store → s.pins = s₀.pins →
-            ((Level.isEquiv p.structSort .zero == some true) = false ∨
-              ((Level.isEquiv p.structSort .zero == some true) = true ∧
-               (Level.isEquiv (Level.subst p.levelParams ls p.fieldSort) .zero
-                  == some true) = true)) →
-            ⦃fun s' => s' = s⦄ entry.typeAt us targs pe
-            ⦃fun x s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-                s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store x = some v ∧
-                Expr.WScoped d v ∧
-                ∃ F1 F2 vt vte T ls p, inf F1 d es = .ok vt ∧
-                  ConLeche.whnf .verified eager env F2 d vt = .ok vte ∧
-                  vte.getAppFn = .const T ls ∧ env.findProj? T k = some p ∧
-                  (T = nm ∧ vte.getAppArgs.length = p.numParams ∧
-                    ls.length = p.levelParams.length) ∧
-                  ((Level.isEquiv p.structSort .zero == some true) = false ∨
-                    ((Level.isEquiv p.structSort .zero == some true) = true ∧
-                     (Level.isEquiv (Level.subst p.levelParams ls p.fieldSort)
-                        .zero == some true) = true)) ∧
-                  v = p.typeAt ls vte.getAppArgs es; ⊤⦄ := by
-          intro s hs hst hps hpr
-          refine triple_mono (IProjEntry.typeAt_spec s entry us targs pe p ls
-            vte.getAppArgs es hs (by rw [hst]; exact hpd)
-            (by rw [hst]; exact hus4) (by rw [hst]; exact hargs)
-            (by rw [hst]; exact denote_ext hpe hx04)) ?_
-          rintro x s' ⟨hok', hx', hp', hd'⟩
-          exact ⟨hok', by rw [hst] at hx'; exact hx04.trans hx',
-            hp'.trans hps, _, hd', hwty, F1, F2, vt, vte, Tn, ls, p, hF1, hF2,
-            hgf, hfp, hgP, hpr, rfl⟩
-        -- stage 7: the possibly-`Prop` fence
-        refine triple_seq (pinZeroLevel_spec s2 hok2.pins) ?_
-        rintro z s7 ⟨hs7, hz⟩
-        subst s7
-        refine triple_seq (lvlEq?_spec s2 entry.structSort z hok2) ?_
-        rintro rq s8 ⟨hok8, hst8, hp8, lu, lv, hlu, hlv, hrq⟩
-        rw [hss] at hlu
-        rw [hz] at hlv
-        obtain rfl : lu = p.structSort := (Option.some.inj hlu).symm
-        obtain rfl : lv = Level.zero := (Option.some.inj hlv).symm
-        subst hrq
-        split
-        next hprop =>
-          -- a `Prop` structure: the field's sort must be `Prop` too
-          refine triple_seq (readNamesM_spec s8 entry.levelParams
-            hok8.caches.readN) ?_
-          rintro ks s9 ⟨hst9, hm9, hp9, hc9, hks, hN9⟩
-          have hok9 := CheckOK.ofReadbackFrame hok8
-            (ReadbackFrame.ofReadN hst9 hm9 hp9 hc9 hN9)
-          refine triple_seq (readLevelsM_spec s9 us hok9.caches.readLs) ?_
-          rintro vs s10 ⟨hst10, hm10, hp10, hc10, hvs, hLs10⟩
-          have hok10 := CheckOK.ofReadbackFrame hok9
-            (ReadbackFrame.ofReadLs hst10 hm10 hp10 hc10 hLs10)
-          refine triple_seq (readLevelM_spec s10 entry.fieldSort
-            hok10.caches.readL) ?_
-          rintro fs s11 ⟨hst11, hm11, hp11, hc11, hfs11, hL11⟩
-          have hok11 := CheckOK.ofReadbackFrame hok10
-            (ReadbackFrame.ofReadL hst11 hm11 hp11 hc11 hL11)
-          have hst411 : s11.store = s2.store :=
-            hst11.trans (hst10.trans (hst9.trans hst8))
-          rw [hst8, hlps] at hks
-          rw [hst9, hst8, hus4] at hvs
-          rw [hst10, hst9, hst8, hfs] at hfs11
-          obtain rfl : ks = p.levelParams := (Option.some.inj hks).symm
-          obtain rfl : vs = ls := (Option.some.inj hvs).symm
-          obtain rfl : fs = p.fieldSort := (Option.some.inj hfs11).symm
-          split
-          next => exact triple_fail
-          next hfield =>
-            exact hfin s11 hok11 hst411
-              (hp11.trans (hp10.trans (hp9.trans (hp8.trans hp04))))
-              (Or.inr ⟨by simpa using hprop, by simpa using hfield⟩)
-        next hprop =>
-          exact hfin s8 hok8 hst8 (hp8.trans hp04)
-            (Or.inl (by simpa using hprop))
+        -- the guard, then the answer
+        refine triple_seq (hcg s2 entry p us ls hok2 hpd hus4) ?_
+        rintro u s7 ⟨hok7, hx7, hp7, hgd⟩
+        refine triple_mono (IProjEntry.typeAt_spec s7 entry us targs pe p ls
+          vte.getAppArgs es hok7 (denoteProjEntry_ext hpd hx7)
+          (denoteLs_ext hus4 hx7) (denoteEList_ext hx7 _ _ hargs)
+          (denote_ext hpe (hx04.trans hx7))) ?_
+        rintro x s' ⟨hok', hx', hp', hd'⟩
+        exact ⟨hok', hx04.trans (hx7.trans hx'), hp'.trans (hp7.trans hp04), _, hd', hwty,
+          F1, F2, vt, vte, Tn, ls, p, hF1, hF2, hgf, hfp, hgP, hgd, rfl⟩
       next => exact triple_fail
   all_goals (dsimp only; exact triple_fail)
 
@@ -646,15 +562,16 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     refine view_bind_triple hv ?_
     dsimp only
     refine triple_mono (inferProj_spec henv _ (ConLeche.inferTypeCore .verified eager env)
-      hsim.infer hsim.whnf s₀ d sn k pe nm es hok hsn hpe hwes) ?_
+      hsim.infer hsim.whnf (fun s₁ entry p us ls h1 h2 h3 =>
+        checkProjGuard_spec hsim henv s₁ entry p us ls h1 h2 h3)
+      s₀ d sn k pe nm es hok hsn hpe hwes) ?_
     rintro r s' ⟨hok', hx', hp', v, hv', hwv, F1, F2, vt, vte, T, ls, p, hF1,
-      hF2, hgf, hfp, hgP, hpr, rfl⟩
-    refine ⟨hok', hx', hp', _, hv', hwv, max F1 F2 + 1, ?_⟩
-    have hinf := ConLeche.inferTypeCore_mono (Nat.le_max_left F1 F2) hF1
-    have hwhnf := ConLeche.whnf_mono (Nat.le_max_right F1 F2) hF2
-    rcases hpr with hnp | ⟨hpp, hfield⟩
-    · exact infer_proj_nonprop hinf hwhnf hgf hfp hgP (by simp [hnp])
-    · exact infer_proj_prop hinf hwhnf hgf hfp hgP hpp hfield
+      hF2, hgf, hfp, hgP, ⟨F3, hF3⟩, rfl⟩
+    refine ⟨hok', hx', hp', _, hv', hwv, max F1 (max F2 F3) + 1, ?_⟩
+    have hinf := ConLeche.inferTypeCore_mono (by omega : F1 ≤ max F1 (max F2 F3)) hF1
+    have hwhnf := ConLeche.whnf_mono (by omega : F2 ≤ max F1 (max F2 F3)) hF2
+    exact infer_proj hinf hwhnf hgf hfp hgP
+      (checkProjGuardFueled_mono (by omega : F3 ≤ max F1 (max F2 F3)) hF3)
   all_goals
     exfalso
     rw [htag] at htg

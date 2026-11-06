@@ -1,36 +1,19 @@
 /-
 # `ConRon.Bridge.Checker.Fold` — THEOREM 1, per declaration
 
-DESIGN.md §8.2's per-declaration statement.
+DESIGN.md §8.2's per-declaration statement:
 
     theorem Arena.checkDecl_bridge
-        (hok : StateOK st) (h : Arena.checkDecl .verified pins pd st = .ok ((), st')) :
-        StateOK st' ∧ Ext st st' ∧
-        ∃ F, ConLeche.checkDecl .verified (fueledOps .verified F) pins (denoteEnv st) (denoteDecl st pd)
-               = .ok (denoteEnv st')
+        (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
+        (hd : Frontend.denoteDecl s.store pd = some d)
+        (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s')) :
+        DeclOut pinsP env d s s'
 
-**`denoteEnv` is a function of the STORE and the INDEX, and it is partial.**
-`denoteEnv st` in §8.2 reads as if the environment were a projection of the
-state; it is not — the environment is `Arena/Env.lean`'s `IFEnv`, threaded as
-a value, and its readback can fail (a handle may not decode).  So the
-conclusion is `∃ env', denoteFEnv s'.store fe' = some env' ∧ … = .ok env'`,
-which is con-leche's own join-point shape
-(`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env ∧ ∃ F, … = .ok
-fe'.env`) with the readback where con-leche has the identity.
-
-`Arena.checkDecl_bridge` is `cases pd` over `Bridge/Checker/Arms.lean`'s
-seven arm theorems.  Its consumer is `Bridge/Checker/Split.lean`'s
-install/check seam, whose fold (`Bridge/Checker/Phased.lean` above it) is the one the
-binary runs.
-
-**There is no sequential fold here.**  The per-declaration theorem is the
-only fold-level fact this module states: the list of declarations is folded
-by `Bridge/Checker/Split.lean`'s install/check seam and the phased/pooled
-fold above it, which is the one `ConRon.Capstone` goes through.  A
-bracketed per-declaration step and a list induction over
-`Arena.checkDecl_bridge` alone would be a second, unused route to the same
-capstone (DESIGN `### Task #97-T2-CLEANUP`).
-
+`DeclOut`'s last clause is con-leche's `checkDecl` accepting the denoted record at
+`env`, the environment the index `fe` answers for (`IFEnvOK`).  It is `cases pd`
+over `Bridge/Checker/Arms.lean`'s six arms.  Its consumer is
+`Bridge/Checker/Pool.lean`'s `recordSpec`: a record's job at its view of the stream's
+index.
 -/
 module
 
@@ -49,7 +32,7 @@ set_option autoImplicit false
 /-! ## Running an `AM` do-block
 
 Three `rfl` equations; the bind's inversion (`AM.bind_ok`) lives in
-`Bridge/Promote/Pers.lean`, because `Bridge/Checker/Base.lean` needs it too
+`Bridge/Pers.lean`, because `Bridge/Checker/Base.lean` needs it too
 and sits below this module.  After them no proof in this module mentions
 `StateT`. -/
 
@@ -69,86 +52,16 @@ theorem dropScratch_run (s : AState) :
       { store := s.store.dropScratch, memos := s.memos,
         caches := Caches.empty, pins := s.pins }) := rfl
 
-/-! ## The pin list survives a drop -/
-
-/-- con-leche: none — a persistent type-pin list keeps denoting across a
-`dropScratch`. -/
-theorem TypePinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
-    ∀ ps qs, PersTypePins ps → TypePinsDenote st ps qs → TypePinsDenote st' ps qs
-  | [], [], _, _ => trivial
-  | p :: ps, _ :: qs, hp, ⟨h1, h2, h3⟩ =>
-    ⟨denoteN_pext hx (hp p (by simp)).1 h1, denoteE_pext hx (hp p (by simp)).2 h2,
-      TypePinsDenote.pmono hx ps qs (fun c hc => hp c (by simp [hc])) h3⟩
-  | [], _ :: _, _, h => h.elim
-  | _ :: _, [], _, h => h.elim
-
-/-- con-leche: none — the interned pin variants keep denoting across a
-`dropScratch`, because `internAllPins` ran before the parse with the scratch
-tier closed and every pin handle is therefore persistent. -/
-theorem PinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
-    ∀ ps qs, PersPinSets ps → PinsDenote st ps qs → PinsDenote st' ps qs := by
-  intro ps
-  induction ps with
-  | nil => intro qs _ h; cases qs <;> exact h
-  | cons a as ih =>
-    intro qs hp h
-    cases qs with
-    | nil => exact h
-    | cons b bs =>
-      obtain ⟨h1, h2⟩ := h
-      have hpa : PersPinSet a := hp a (by simp)
-      have hpp := hpa.pins
-      have hpr := hpa.proofs
-      simp only [PersEList, List.mem_cons] at hpp
-      refine ⟨?_, ih bs (fun c hc => hp c (by simp [hc])) h2⟩
-      refine {
-        toolchain := h1.toolchain
-        divPin := denoteE_pext hx (hpp _ (by simp)) h1.divPin
-        modPin := denoteE_pext hx (hpp _ (by simp)) h1.modPin
-        gcdPin := denoteE_pext hx (hpp _ (by simp)) h1.gcdPin
-        landPin := denoteE_pext hx (hpp _ (by simp)) h1.landPin
-        lorPin := denoteE_pext hx (hpp _ (by simp)) h1.lorPin
-        xorPin := denoteE_pext hx (hpp _ (by simp)) h1.xorPin
-        shiftLeftPin := denoteE_pext hx (hpp _ (by simp)) h1.shiftLeftPin
-        shiftRightPin := denoteE_pext hx (hpp _ (by simp)) h1.shiftRightPin
-        divProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.divProofs
-        modProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.modProofs
-        gcdProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.gcdProofs
-        landProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.landProofs
-        lorProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.lorProofs
-        xorProofs := denoteEList_pext hx _ _ (fun c hc => hpr c (by simp [hc])) h1.xorProofs
-        shiftLeftProofs := denoteEList_pext hx _ _
-          (fun c hc => hpr c (by simp [hc])) h1.shiftLeftProofs
-        shiftRightProofs := denoteEList_pext hx _ _
-          (fun c hc => hpr c (by simp [hc])) h1.shiftRightProofs
-        divTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.divTypePins
-        modTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.modTypePins
-        gcdTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.gcdTypePins
-        landTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.landTypePins
-        lorTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.lorTypePins
-        xorTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.xorTypePins
-        shiftLeftTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.shiftLeftTypePins
-        shiftRightTypePins := TypePinsDenote.pmono hx _ _
-          (fun c hc => hpa.typePins c (by simp [hc])) h1.shiftRightTypePins }
-
 /-! ## THE PER-DECLARATION BRIDGE -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
-con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:43-185 checkDecl
+con-leche: ConLeche/Verify/Cached/BridgeC.lean:281 checkDeclStepC_run
 **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
-`Bridge/Checker/Arms.lean`'s seven arms; the arms are where the content is
-(all proved: the tier is `sorry`-free).
+`Bridge/Checker/Arms.lean`'s six arms; the arms are where the content is.
 
-`Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
-`Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
-total extension holds here and weakens one level up. -/
+`Ext` and not `PExt`: `checkDecl` runs inside a job's bracket and drops nothing,
+so the total extension holds here; the job's `dropScratch` weakens it one level
+up (`Bridge/Checker/Pooled.lean`'s `job_spec`). -/
 theorem Arena.checkDecl_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
@@ -156,7 +69,7 @@ theorem Arena.checkDecl_bridge
     (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDecl .verified pins fe pd s = .ok (fe', s')) :
-    DeclOut pinsP env d s fe fe' s' := by
+    DeclOut pinsP env d s s' := by
   cases pd with
   | axiomDecl v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
@@ -165,15 +78,11 @@ theorem Arena.checkDecl_bridge
   | quotDecl k v =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨cv, hcv, rfl⟩ := hd
-    exact checkDecl_bridge_quot hk hok hpins hcv hrun
-  | basisDecl kind =>
-    simp only [Frontend.denoteDecl, Option.some.injEq] at hd
-    subst hd
-    exact checkDecl_bridge_basis hk hok hpins hrun
+    exact checkDecl_bridge_quot hok hcv hrun
   | indDecl block nP =>
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨b, hb, rfl⟩ := hd
-    exact checkDecl_bridge_ind hk hind hok hpins hb hrun
+    exact checkDecl_bridge_ind hind hok hb hrun
   | defnDecl v e hint =>
     simp only [Frontend.denoteDecl] at hd
     cases hcv : Frontend.denoteCV s.store v with
@@ -197,7 +106,7 @@ theorem Arena.checkDecl_bridge
         rw [hcv, he] at hd
         simp only [Option.some.injEq] at hd
         subst hd
-        exact checkDecl_bridge_thm hk hok hpins hcv he hrun
+        exact checkDecl_bridge_thm hk hok hcv he hrun
   | opaqueDecl v e =>
     simp only [Frontend.denoteDecl] at hd
     cases hcv : Frontend.denoteCV s.store v with
@@ -209,6 +118,6 @@ theorem Arena.checkDecl_bridge
         rw [hcv, he] at hd
         simp only [Option.some.injEq] at hd
         subst hd
-        exact checkDecl_bridge_opaque hk hok hpins hcv he hrun
+        exact checkDecl_bridge_opaque hk hok hcv he hrun
 
 end ConRon.Bridge
