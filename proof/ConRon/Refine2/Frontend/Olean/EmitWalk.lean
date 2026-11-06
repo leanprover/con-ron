@@ -293,9 +293,9 @@ theorem mark_all_rel {st : frontend.olean.emit.Emit} {lst : Emit} (hs : EmitRel 
 
 /-- **`c_entry_skipped` is `CEntry.skipped`.** -/
 theorem c_entry_skipped_eq {c : frontend.olean.lazy.CEntry} {c' : Arena.Frontend.Olean.CEntry}
-    (hc : CEntryRel c c') {b : Bool} (h : frontend.olean.closure.c_entry_skipped c = ok b) :
+    (hc : CEntryRel c c') {b : Bool} (h : frontend.olean.lazy.c_entry_skipped c = ok b) :
     b = c'.skipped := by
-  rw [frontend.olean.closure.c_entry_skipped, frontend.olean.reads.c_kind_skipped.eq_def] at h
+  rw [frontend.olean.lazy.c_entry_skipped, frontend.olean.reads.c_kind_skipped.eq_def] at h
   have hk := hc.1.kind
   rw [Arena.Frontend.Olean.CEntry.skipped]
   generalize c.c.kind = k at h hk
