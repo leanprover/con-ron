@@ -104,26 +104,23 @@ example {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
         (absINatOpPinSetLFrom variants i) (ltried ++ ["absent"])) := by
   lockstep
 
-/-! ## 1–2. The reported sites: `install_value_tail`, `install_constant_val_tail`
+/-! ## 1. The reported site: a value's guard tail
 
-The Checker lane closed both with `lockstep`, then `rw [bind_pure, ite_eq_right …]`
-by hand, then `unresolved_consts_error` at a specialised copy fixed at
-`"value"`/`"type"`.  Both are one `lockstep` call now (since task #119 the
-value install is the guard-only `install_value_guards_tail`). -/
+A tail that binds a guard into `if … then … else unresolved_consts_fail`, whose
+twin is a specialised `>>=` chain: one `lockstep` call. -/
 
-theorem install_value_guards_tail_refines' {E₀ : IEnv} {pers st lst} {rf lf}
+theorem value_guards_tail_refines' {pers st lst} {rf lf}
     {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers E₀ rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value_guards_tail pers st rf cv value = ok o) :
+    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.decl_check.value_guards_tail pers st rf cv value = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value)) := by
-  have hfeI : IFEnvRelI pers E₀ rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+      (valueGuardsTailSpec lf (absIConstantVal cv) (absEIdx value)) := by
+  have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv
   refine LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.install_value_guards_tail]
-  unfold installValueGuardsTailSpec
+  rw [arena.decl_check.value_guards_tail]
+  unfold valueGuardsTailSpec
   lockstep
 
 /-! ## 2. A Rust bind against a twin `if` in bind position -/
@@ -656,6 +653,6 @@ example {pers st lst} (n : Nat)
 /-! ## The axiom census -/
 
 #print axioms lift_fueled_any_ls
-#print axioms install_value_guards_tail_refines'
+#print axioms value_guards_tail_refines'
 
 end ConRon.Refine2.Lockstep.Tests
