@@ -38,7 +38,8 @@ test, then `viewBVar`); at a denoting handle that is exactly when the value deno
 /-- con-leche: none — a `bvar` view is the `bvar` projection's answer. -/
 theorem viewBVar_of_view {st : EStore} {i : EIdx} {k : Nat} (h : st.view i = some (.bvar k)) :
     st.viewBVar i = some k := by
-  have htg : i.tag = ETag.bvar := by have := EStore.tagOf_of_view h; simpa using this
+  have htg : i.tag = ETag.bvar := by
+    have := EStore.tagOf_of_view h; simpa [ENodeView.tagOf] using this
   rw [EStore.view_eq_tier] at h
   simp only [EStore.viewBVar, EStore.persGetBVar]
   have key : ∀ t : ETables, t.get i = some (.bvar k) → t.getBVar i = some k := by
@@ -68,18 +69,24 @@ theorem refTest_iff {st : EStore} (hwf : StoreWF st) {v : EIdx} {x : Expr}
       have hview := view_of_viewBVar (by simpa using htg) h
       exact denote_bvar_inv hwf hview hv
     · cases h
-  · rintro rfl
+  · intro hx
+    subst hx
     have htag : v.tag = ETag.bvar := by
-      have := (denote_tag hwf v); rw [hv] at this; exact this.symm
+      have h := denote_tag hwf v
+      rw [hv] at h
+      have := h.some
+      simp [exprTag] at this
+      exact this.symm
     obtain ⟨w, hw⟩ := denoteE_view hv
     have hwt := EStore.tagOf_of_view hw
     rw [htag] at hwt
-    cases w <;> simp_all [ENodeView.tagOf, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj]
-    all_goals
-      first
-      | (obtain rfl := denote_bvar_inv hwf hw hv; exact viewBVar_of_view hw)
-      | skip
+    cases w with
+    | bvar i =>
+      obtain ⟨⟩ := denote_bvar_inv hwf hw hv
+      simp only [htag, beq_self_eq_true, ↓reduceIte]
+      exact viewBVar_of_view hw
+    | _ => simp [ENodeView.tagOf, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+        ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj] at hwt
 
 /-! ## The filled stream -/
 
@@ -91,16 +98,18 @@ reference, replaced by the value at that reference. -/
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:758 ValueAt — **the value at a
 reference** in the snapshot, where there is one (`ValueAt.unique`). -/
-noncomputable def valueOf (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
+noncomputable def valueOf (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
     (code : Nat) : Expr :=
+  open Classical in
   if h : ∃ x, ConLeche.Frontend.Olean.ValueAt sp F valuesP code x then Classical.choose h
   else .bvar code
 
-theorem valueOf_eq {sp : SearchPath} {F : FS} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+theorem valueOf_eq {sp : ConLeche.Frontend.Olean.SearchPath} {F : FS} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     {code : Nat} {x : Expr} (h : ConLeche.Frontend.Olean.ValueAt sp F valuesP code x) :
     valueOf sp F valuesP code = x := by
   have hex : ∃ x, ConLeche.Frontend.Olean.ValueAt sp F valuesP code x := ⟨x, h⟩
-  simp only [valueOf, dif_pos hex]
+  unfold valueOf
+  rw [dite_eq_left hex]
   exact ConLeche.Frontend.Olean.ValueAt.unique (Classical.choose_spec hex) h
 
 /-! ## The index does not read a value -/
