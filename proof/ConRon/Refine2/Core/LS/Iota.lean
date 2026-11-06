@@ -21,6 +21,7 @@ import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
 import ConRon.Refine2.Core.LS.PropRead
+import ConRon.Refine2.Core.LS.ProjGuard
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PC2.CoreLSReg
@@ -323,16 +324,6 @@ attribute [lockstep_inline] arena.core.major_to_ctor_certs
   arena.core.major_to_ctor_eta_build arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build arena.core.major_to_ctor_at
 
-/-- `former_res_sort` ⊑ `formerResSort`: the sort a stored type ends in, if it is
-syntactically one. -/
-@[lockstep] theorem former_res_sort_ls {pers st ty lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a.map absLIdx) (arena.core.former_res_sort pers st ty) st lst
-      (formerResSort (absEIdx ty)) := by
-  apply LSR.of_LS
-  rw [arena.core.former_res_sort, formerResSort]
-  lockstep_c2
-
 /-- `former_z` ⊑ `formerZ`: the zero-ness datum of a former's stored sort. -/
 @[lockstep] theorem former_z_ls {pers st cvt lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -355,37 +346,6 @@ syntactically one. -/
       (formerNeverZero (absIConstantVal cvt) (absLsIdx us)) := by
   rw [arena.core.former_never_zero, formerNeverZero]
   lockstep_c2
-
-theorem former_sort_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
-    ∀ {pers st mode eager lane fu fe lfe lst} (d nn : Std.U64) (e : arena.handle.EIdx),
-      nn.val = n → ExprOpsHyp pers →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
-      LS pers (fun a b => b = a.map absLIdx)
-        (arena.core.former_sort_loop pers st mode eager lane fu fe d nn e) lst
-        (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n
-          (absEIdx e)) := by
-  induction n with
-  | zero =>
-    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
-    rw [arena.core.former_sort_loop, formerSortLoop]
-    lockstep_c2
-  | succ m ih =>
-    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
-    rw [arena.core.former_sort_loop, formerSortLoop]
-    lockstep_c2
-
-/-- `former_sort_loop` ⊑ `formerSortLoop`: the sort a type reaches past `n`
-binders, head-normalising at each step. -/
-@[lockstep] theorem former_sort_loop_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe d n e lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a.map absLIdx)
-      (arena.core.former_sort_loop pers st mode eager lane fu fe d n e) lst
-      (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n.val
-        (absEIdx e)) :=
-  former_sort_loop_aux hk _ d n e rfl hx hrel hinv hctx hf
 
 /-- `ctor_family` ⊑ `ctorFamily`: the stored family a constructor's type ends in. -/
 @[lockstep] theorem ctor_family_ls {pers st fe lfe cvj lst}

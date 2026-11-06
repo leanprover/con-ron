@@ -245,7 +245,7 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
       by_cases hij : i = ‹Std.U64›
       · subst hij; simp
       · have : (i : Std.U64).val ≠ (‹Std.U64› : Std.U64).val := fun hv => hij (UScalar.eq_of_val_eq hv)
-        simp [hij, this, absU]
+        simp [hij, this]
 
 end hlb
 
@@ -274,5 +274,276 @@ empty memo. -/
       (structUsedLater (absEIdx cty) (absU n_p) (absU j)) := by
   rw [arena.core.struct_used_later, structUsedLater]
   lockstep
+
+/-! ## Opening a telescope at fresh free variables -/
+
+theorem open_pis_at_fvars_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (nn : Std.U64) (h : arena.handle.EIdx) (i : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
+        (arena.core.open_pis_at_fvars pers st nn h i) lst
+        (openPisAtFvars n (absEIdx h) (absU i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst nn h i hn hrel hinv
+    rw [arena.core.open_pis_at_fvars, openPisAtFvars]
+    lockstep
+  | succ m ih =>
+    intro pers st lst nn h i hn hrel hinv
+    rw [arena.core.open_pis_at_fvars, openPisAtFvars]
+    lockstep
+
+/-- `open_pis_at_fvars` ⊑ `openPisAtFvars`. -/
+@[lockstep] theorem open_pis_at_fvars_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : Std.U64) (h : arena.handle.EIdx) (i : Std.U64) :
+    LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
+      (arena.core.open_pis_at_fvars pers st n h i) lst
+      (openPisAtFvars n.val (absEIdx h) (absU i)) :=
+  open_pis_at_fvars_aux _ n h i rfl hrel hinv
+
+theorem open_pis_at_fvars_f_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (acc : alloc.vec.Vec arena.handle.EIdx) (nn : Std.U64) (h : arena.handle.EIdx)
+      (i : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
+        (arena.core.open_pis_at_fvars_f_go pers st acc nn h i) lst
+        (openPisAtFvarsFGo (absEIdxArr acc) n (absEIdx h) (absU i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst acc nn h i hn hrel hinv
+    rw [arena.core.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst acc nn h i hn hrel hinv
+    rw [arena.core.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
+    lockstep
+
+/-- `open_pis_at_fvars_f` ⊑ `openPisAtFvarsF`: the one-pass opening, the plain one
+as its fallback. -/
+@[lockstep] theorem open_pis_at_fvars_f_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : Std.U64) (e : arena.handle.EIdx) (i : Std.U64) :
+    LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
+      (arena.core.open_pis_at_fvars_f pers st n e i) lst
+      (openPisAtFvarsF n.val (absEIdx e) (absU i)) := by
+  rw [arena.core.open_pis_at_fvars_f, openPisAtFvarsF]
+  have hgo := open_pis_at_fvars_f_go_aux n.val (alloc.vec.Vec.new _) n e i rfl hrel hinv
+  have h0 : absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := by
+    simp [absEIdxArr, alloc.vec.Vec.new]
+  rw [h0] at hgo
+  lockstep
+
+/-! ## The rows -/
+
+/-- A row vector `(depth, type)`, as the twin's array. -/
+def absRows (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) : Array (Nat × EIdx) :=
+  (v.val.map fun q => (absU q.1, absEIdx q.2)).toArray
+
+theorem absRows_push {v v' : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {q : Std.U64 × arena.handle.EIdx} (h : alloc.vec.Vec.push v q = ok v') :
+    absRows v' = (absRows v).push (absU q.1, absEIdx q.2) := by
+  simp [absRows, ConRon.Refine.vec_push_val h]
+
+attribute [local lockstep_simp] absRows_push
+
+theorem proj_guard_rows_at_aux (k : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (cty : arena.handle.EIdx) (n_p idx : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx)
+      (j : Std.U64) (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
+      (lout : Array (Nat × EIdx)),
+      idx.val + 1 - j.val = k → absRows out = lout → AStateRel₀ pers st lst →
+      AStateInv pers st →
+      LS pers (fun a b => b = absRows a)
+        (arena.core.proj_guard_rows_at pers st cty n_p idx fvs j out) lst
+        (projGuardRowsAt (absEIdx cty) (absU n_p) (absU idx) (absEIdxList fvs) (absU j)
+          lout) := by
+  induction k with
+  | zero =>
+    intro pers st lst cty n_p idx fvs j out lout hk hout hrel hinv
+    subst hout
+    rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
+    lockstep
+  | succ m ih =>
+    intro pers st lst cty n_p idx fvs j out lout hk hout hrel hinv
+    subst hout
+    rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
+    lockstep
+    all_goals
+      rename_i a1 hP1 a2 hP2 hw v hdisc
+      have hlen : fvs.val.length ≤ Std.Usize.max := fvs.property
+      have haa : a.val = n_p.val + j.val := by
+        rcases hP with h | h
+        · omega
+        · exfalso
+          have := (Std.UScalar.lt_equiv _ _).mp hc
+          rw [alloc.vec.Vec.len_val] at hP2
+          have : fvs.length = fvs.val.length := rfl
+          omega
+      have hv : v = absEIdx (fvs.val[a.val]'hw) := by
+        rw [List.getElem?_map, ← haa, List.getElem?_eq_getElem hw] at hdisc
+        simp only [Option.map_some, Option.some.injEq] at hdisc
+        exact hdisc.symm
+      subst hv
+      lockstep
+      all_goals
+        rename_i ty out1 hout1
+        have hj : (j.val : Nat) + 1 = absU a := by simp [absU, hP]
+        rw [hj]
+        exact ih _ _ _ _ _ _ _ (by simp only [absU] at *; omega)
+          (by simp [absRows, hout1, absU, hP1]) ‹_› ‹_›
+
+/-- `proj_guard_rows_at` ⊑ `projGuardRowsAt`: the rows of an opened telescope. -/
+@[lockstep] theorem proj_guard_rows_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (cty : arena.handle.EIdx) (n_p idx : Std.U64)
+    (fvs : alloc.vec.Vec arena.handle.EIdx) (j : Std.U64)
+    (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
+    LS pers (fun a b => b = absRows a)
+      (arena.core.proj_guard_rows_at pers st cty n_p idx fvs j out) lst
+      (projGuardRowsAt (absEIdx cty) (absU n_p) (absU idx) (absEIdxList fvs) (absU j)
+        (absRows out)) :=
+  proj_guard_rows_at_aux _ cty n_p idx fvs j out _ rfl rfl hrel hinv
+
+theorem absRows_new : absRows (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx)) = #[] := by
+  simp [absRows, alloc.vec.Vec.new]
+
+attribute [local lockstep_simp] absRows_new
+
+/-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
+may be a proposition must show. -/
+@[lockstep] theorem proj_guard_rows_ls {pers st fe lfe lst} (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)
+    (entry : arena.env.IProjEntry) (us : arena.handle.LsIdx) :
+    LS pers (fun a b => b = a.map absRows) (arena.core.proj_guard_rows pers st fe entry us) lst
+      (projGuardRows lfe (absIProjEntry entry) (absLsIdx us)) := by
+  rw [arena.core.proj_guard_rows, projGuardRows]
+  lockstep
+
+/-! ## The former's sort, and the guard sort -/
+
+/-- `former_res_sort` ⊑ `formerResSort`: the sort a stored type ends in, if it is
+syntactically one. -/
+@[lockstep] theorem former_res_sort_ls {pers st ty lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a.map absLIdx) (arena.core.former_res_sort pers st ty) st lst
+      (formerResSort (absEIdx ty)) := by
+  apply LSR.of_LS
+  rw [arena.core.former_res_sort, formerResSort]
+  lockstep
+
+theorem former_sort_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (d nn : Std.U64) (e : arena.handle.EIdx),
+      nn.val = n → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a.map absLIdx)
+        (arena.core.former_sort_loop pers st mode eager lane fu fe d nn e) lst
+        (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n
+          (absEIdx e)) := by
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
+    rw [arena.core.former_sort_loop, formerSortLoop]
+    lockstep
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst d nn e hn hx hrel hinv hctx hf
+    rw [arena.core.former_sort_loop, formerSortLoop]
+    lockstep
+
+/-- `former_sort_loop` ⊑ `formerSortLoop`: the sort a type reaches past `n`
+binders, head-normalising at each step. -/
+@[lockstep] theorem former_sort_loop_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe d n e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a.map absLIdx)
+      (arena.core.former_sort_loop pers st mode eager lane fu fe d n e) lst
+      (formerSortLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU d) n.val
+        (absEIdx e)) :=
+  former_sort_loop_aux hk _ d n e rfl hx hrel hinv hctx hf
+
+@[lockstep] theorem is_always_zero_ls {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
+    LSP (kernel.level.is_always_zero l)
+      (fun b => TwinEq (ConLeche.Level.isAlwaysZero (ConRon.Refine.absLevel l)) b) :=
+  fun _ h => (is_always_zero_abs hl h).symm
+
+@[lockstep] theorem zero_where_zero_ls {s u : kernel.level.Level} (hs : ConRon.Refine.LevelWF s)
+    (hu : ConRon.Refine.LevelWF u) :
+    LSP (kernel.level.zero_where_zero s u)
+      (fun b => TwinEq (ConLeche.Level.zeroWhereZero (ConRon.Refine.absLevel s)
+        (ConRon.Refine.absLevel u)) b) :=
+  fun _ h => (zero_where_zero_abs hs hu h).symm
+
+/-- The twin's `pure (if c then a else b)` as the Rust's branch. -/
+theorem pure_ite_am {α : Type} (c : Prop) [Decidable c] (a b : α) :
+    (pure (if c then a else b) : AM α) = if c then pure a else pure b := by
+  split <;> rfl
+
+attribute [local lockstep_simp] pure_ite_am
+
+/-- `proj_guard_sort` ⊑ `projGuardSort`: the sort a projection's rows answer to. -/
+@[lockstep] theorem proj_guard_sort_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe cvt caps us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => (∀ l, a = some l → ConRon.Refine.LevelWF l) ∧
+        b = a.map ConRon.Refine.absLevel)
+      (arena.core.proj_guard_sort pers st mode eager lane fu fe cvt caps us) lst
+      (projGuardSort (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        (absIConstantVal cvt) (absIIndCaps caps) (absLsIdx us)) := by
+  rw [arena.core.proj_guard_sort, projGuardSort]
+  lockstep
+  all_goals
+    rename_i hwf
+    obtain ⟨heq, -⟩ := ConRon.Refine.ExprOps.zeroness_of_refines hwf _ hf
+    rw [heq] at hc
+    simp only [hc, ↓reduceIte, Bool.false_eq_true]
+    intro o st' hh
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hh)
+    exact ⟨_, _, rfl, ⟨by simp_all, by simp⟩, hrel, hinv⟩
+
+@[simp] theorem absRows_size (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
+    (absRows v).size = v.val.length := by simp [absRows]
+
+theorem absRows_getElem (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (i : Nat)
+    (h : i < (absRows v).size) :
+    (absRows v)[i] = (absU (v.val[i]'(by simpa using h)).1, absEIdx (v.val[i]'(by simpa using h)).2) := by
+  simp [absRows]
+
+attribute [local lockstep_simp] absRows_size absRows_getElem
+
+theorem check_guard_rows_aux {f : Nat} (hk : KnotRel f) (k : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (g : kernel.level.Level)
+      (rows : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (i : Std.Usize),
+      rows.val.length - i.val = k → ConRon.Refine.LevelWF g → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.check_guard_rows pers st mode eager lane fu fe g rows i) lst
+        (checkGuardRows (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+          (ConRon.Refine.absLevel g) (absRows rows) i.val) := by
+  induction k with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst g rows i hk' hg hx hrel hinv hctx hf
+    rw [arena.core.check_guard_rows, checkGuardRows]
+    lockstep
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst g rows i hk' hg hx hrel hinv hctx hf
+    rw [arena.core.check_guard_rows, checkGuardRows]
+    lockstep
+
+/-- `check_guard_rows` ⊑ `checkGuardRows`: each row's domain, inferred at the io
+grade and head-normalised, has a sort zero wherever the guard sort is. -/
+@[lockstep] theorem check_guard_rows_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe lst} {g : kernel.level.Level}
+    (hg : ConRon.Refine.LevelWF g) (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f)
+    (rows : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (i : Std.Usize) :
+    LS pers (fun a b => b = a)
+      (arena.core.check_guard_rows pers st mode eager lane fu fe g rows i) lst
+      (checkGuardRows (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        (ConRon.Refine.absLevel g) (absRows rows) (absSz i)) :=
+  check_guard_rows_aux hk _ g rows i rfl hg hx hrel hinv hctx hf
 
 end ConRon.Refine2.Lockstep
