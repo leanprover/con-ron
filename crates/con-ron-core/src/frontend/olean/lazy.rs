@@ -231,6 +231,7 @@ pub fn add_use(seen: &mut HashMap2<NIdx, bool>, out: &mut Vec<NIdx>, n: &NIdx) {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:139-150 usesRead
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::uses_read_refines, then delete this line
 /// **What a constant mentions, as names**: in first-visit order, each once, and
 /// the literal dependencies lean4export adds: `Nat` for a numeral, `Char.ofNat`
 /// and `String.ofList` for a string.  Where a name does not read, it is left out.
@@ -256,7 +257,8 @@ pub fn uses_read(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r:
     acc
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:154-158 CEntry
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:164-168 CEntry
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::CEntry_refines, then delete this line
 /// **One stored constant**, as the merge and the emitter need it: the constant
 /// read (`lazy_entry`: a theorem's value is its reference) and the constants its
 /// type and values mention, in first-visit order.
@@ -265,13 +267,13 @@ pub struct CEntry {
     pub uses: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:162-163 CEntry.skipped
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:172-173 CEntry.skipped
 /// `CKindF.skipped` of a stored constant.
 pub fn c_entry_skipped(c: &CEntry) -> bool {
     crate::frontend::olean::reads::c_kind_skipped(&c.c.kind)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:165-170 Loaded
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:175-180 Loaded
 /// **A loaded module**: its constants at the private level, and the frontier its
 /// theorems' values are read over.
 pub struct Loaded {
@@ -280,30 +282,30 @@ pub struct Loaded {
     pub frontier: Frontier,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:174-175 refBase
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:184-185 refBase
 /// What separates the two parts of a reference.
 pub const REF_BASE: u64 = 1 << 32;
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:177-180 valueRef
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:187-190 valueRef
 /// **A theorem's value, until its check reads it**: the value at location `g` of
 /// module `i` of the closure's order, as an expression (`i`, `g` below `2^32`).
 pub fn value_ref(pers: &PersTier, ar: &mut EStore, i: u64, g: u64) -> Result<EIdx, CheckError> {
     ar.intern_bvar(pers, g * REF_BASE + i)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:182-183 refModule
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:192-193 refModule
 /// The module a reference's code names.
 pub fn ref_module(code: u64) -> u64 {
     code % REF_BASE
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:185-186 refLoc
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:195-196 refLoc
 /// The location a reference's code names.
 pub fn ref_loc(code: u64) -> u64 {
     code / REF_BASE
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:188-192 lazyRoots
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:198-202 lazyRoots
 /// The expressions the load reads of a constant, onto `out`: all but a
 /// theorem's value.
 pub fn lazy_roots(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
@@ -313,7 +315,7 @@ pub fn lazy_roots(c: &CEntryF<u64, u64>, out: &mut Vec<u64>) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:194-206 lazyEntry
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:204-216 lazyEntry
 /// **A constant read, a theorem's value as its reference.**
 pub fn lazy_entry(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &DS, i: u64, s: &CEntryF<u64, u64>) -> Result<CEntryF<NIdx, EIdx>, RdErr> {
     match &s.kind {
@@ -353,7 +355,8 @@ pub fn lazy_entry(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:208-218 lazyEntries
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:218-231 lazyEntries
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::lazy_entries_refines, then delete this line
 /// `lazyEntry` of every constant, each with what it mentions (`outs`, by
 /// position).
 pub fn lazy_entries(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &DS, i: u64, outs: &Vec<Vec<u64>>, ss: &Vec<CEntryF<u64, u64>>) -> Result<Vec<CEntry>, RdErr> {
@@ -376,7 +379,7 @@ pub fn lazy_entries(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8],
     Ok(es)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:222-224 kindCode
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:235-237 kindCode
 /// A kind as a stack entry's low bits.
 #[inline(always)]
 pub fn kind_code(k: u8) -> u64 {
@@ -391,7 +394,7 @@ pub fn kind_code(k: u8) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:226-228 kindOfCode
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:239-241 kindOfCode
 /// The kind of a stack entry's low bits.
 #[inline(always)]
 pub fn kind_of_code(c: u64) -> u8 {
@@ -406,7 +409,7 @@ pub fn kind_of_code(c: u64) -> u8 {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:230-253 frontierWalk
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:243-266 frontierWalk
 /// **The objects the load read that the values reach directly**: a walk from the
 /// `sp` entries on the stack over what the load did not read (each object once,
 /// `seen`), stopping at what it did (`env`), which goes into `fr`.  Entries are a
@@ -446,7 +449,7 @@ pub fn frontier_walk(bs: &[u8], r: &Region, env: &Vec<u8>, seen: &mut Vec<u8>, f
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:255-258 Table.add
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:268-271 Table.add
 /// A table with one more entry, at the end.
 #[inline(always)]
 pub fn table_add<T>(t: &mut Table<T>, c: u64, v: T) {
@@ -454,7 +457,7 @@ pub fn table_add<T>(t: &mut Table<T>, c: u64, v: T) {
     t.vals.push(v);
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:260-269 frontierStep
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:273-282 frontierStep
 /// Slot `p` of `fr`, where the marks `m` hold it too, into the frontier.
 pub fn frontier_step(m: &Vec<u8>, fr: &Vec<u8>, st: &DS, p: u64, b: &mut Frontier) {
     if fast::marks_at(fr, p) == 0 {
@@ -487,7 +490,7 @@ pub fn frontier_step(m: &Vec<u8>, fr: &Vec<u8>, st: &DS, p: u64, b: &mut Frontie
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:271-275 frontierOf
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:284-288 frontierOf
 /// **The frontier**: the slots from `p` to `n` of `fr` that the marks `m` hold,
 /// with their values in the passes' memo.  Ascending, so each table's keys are.
 pub fn frontier_of(m: &Vec<u8>, fr: &Vec<u8>, st: &DS, n: u64, p: u64, b: Frontier) -> Frontier {
@@ -500,7 +503,8 @@ pub fn frontier_of(m: &Vec<u8>, fr: &Vec<u8>, st: &DS, n: u64, p: u64, b: Fronti
     b
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_roots_refines, then delete this line
 /// The name and expression roots of the load, the walk's outputs' names among
 /// them.
 pub fn load_roots(sk: &spec::ModSkel, skels: &Vec<CEntryF<u64, u64>>) -> (Vec<u64>, Vec<u64>) {
@@ -520,7 +524,8 @@ pub fn load_roots(sk: &spec::ModSkel, skels: &Vec<CEntryF<u64, u64>>) -> (Vec<u6
     (names, exprs)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_imports_refines, then delete this line
 /// `sk.imports.mapM (ImportF.mapM (st.nameOf r))`, then `importsPre f.exported.bytes
 /// == some imports`.
 pub fn load_imports(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &DS, sk: &spec::ModSkel, f: &ModFiles) -> Result<(), RdErr> {
@@ -545,14 +550,16 @@ pub fn load_imports(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8],
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::value_roots_refines, then delete this line
 /// The values' locations, each with the expression kind's code: the walk's
 /// start.
 pub fn value_roots(r: &Region, skels: &Vec<CEntryF<u64, u64>>) -> Vec<u64> {
     value_roots_from(r, skels, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::value_roots_from_refines, then delete this line
 /// The cursor recursion behind `value_roots`.
 pub fn value_roots_from(r: &Region, skels: &Vec<CEntryF<u64, u64>>, i: usize, out: Vec<u64>) -> Vec<u64> {
     if i >= skels.len() {
@@ -571,7 +578,8 @@ pub fn value_roots_from(r: &Region, skels: &Vec<CEntryF<u64, u64>>, i: usize, ou
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_at_refines, then delete this line
 /// **The load of a module's private view**, everything but its theorems'
 /// values.  `RdErr::Bad` where the part of the view it reads does not read:
 /// `view_error` says why.
@@ -632,7 +640,7 @@ pub fn load_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, i: u64, m: &NId
     Ok(Loaded { name: m.dup2(), constants: cs, frontier })
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:299-303 loadView
+/// con-leche: ConLeche/Frontend/Olean/Lazy.lean:313-317 loadView
 /// **The load, with the reason where it does not read.**
 pub fn load_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, i: u64, m: &NIdx, f: &ModFiles) -> Result<Loaded, CheckError> {
     match load_at(pk, pers, ar, i, m, f) {

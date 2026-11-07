@@ -149,7 +149,7 @@ pub enum ParallelError<E> {
     Panicked,
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:432-455 parWorker
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -190,7 +190,7 @@ fn worker<S, E>(
     }
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:421-447 parMapWorkersIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:457-483 parMapWorkersIO
 /// The workers' arrays merged **by index** into one table.  The table is the
 /// pool's whole interface to the verdict: which worker produced a result, and
 /// when, is recorded nowhere.
@@ -230,7 +230,7 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:421-447 parMapWorkersIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:457-483 parMapWorkersIO
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:

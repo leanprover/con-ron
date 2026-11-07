@@ -532,7 +532,8 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     exit_after_verdict(code)
 }
 
-/// con-leche: Main.lean:32-91 main
+/// con-leche: Main.lean:56-103 main
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove con-ron::exit_after_verdict_refines, then delete this line
 /// con-leche task #336: **exit
 /// right after the verdict, without freeing the heap**.  Returning would drop
 /// the store, the parsed and prepared declarations and the environment on the
@@ -547,7 +548,8 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
-/// con-leche: Main.lean:32-91 main
+/// con-leche: Main.lean:56-103 main
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did

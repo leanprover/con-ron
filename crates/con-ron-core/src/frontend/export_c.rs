@@ -206,7 +206,7 @@ pub struct StateD {
     pub decls: Vec<IDeclaration>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:486-488 StateD.init
+/// con-leche: ConLeche/Frontend/ExportC.lean:509-511 StateD.init
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:466-475 StateD.init` —
 /// the initial parse state.  Over handles it INTERNS: index 0 of the name
 /// table is the format's implicit `Name.anonymous` and index 0 of the level
@@ -368,7 +368,7 @@ pub fn rebound_error(what: &[u32], i: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:178-187 StateD.freshName
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:351-360 IdTable.bound
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:352-361 IdTable.bound
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:151-156 StateD.freshName`
 /// — every table entry is bound once: a line that binds an index a previous
 /// line already bound is a parse error.  `scan_types` has no `bound`, so the
@@ -1851,7 +1851,8 @@ pub fn apply_decl_d(pers: &PersTier, ar: &EStore, st: &mut StateD, d: &DeclRec) 
     process_line_core_d(pers, ar, st, d)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:466-476 applyLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:495-499 applyLine
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::apply_line_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:440-453 applyLine` —
 /// **THE SEMANTIC LAYER**: one scanned line applied to the parse state.  The
 /// scanned record is con-leche's own (`Scan/Fast.lean`, reused); what this
@@ -1872,7 +1873,7 @@ pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec
 // The line feed and the drivers (`ExportC.lean:663-836` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:480-484 ParseResultD
+/// con-leche: ConLeche/Frontend/ExportC.lean:503-507 ParseResultD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:457-464 ParseResultD`
 /// — the direct parse result: the declarations over handles.  No arena
 /// conversion: the handles already point into the persistent tier the fold
@@ -1884,14 +1885,15 @@ pub struct ParseResultD {
     pub decls: Vec<IDeclaration>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:504-505 ParseResultD.ofState
+/// con-leche: ConLeche/Frontend/ExportC.lean:527-528 ParseResultD.ofState
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:477-480 ParseResultD.ofState`
 /// — the result: the file's records, in the file's order.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
     ParseResultD { decls: st.decls }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:508-518 applyFinalLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:531-542 applyFinalLine
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::apply_final_line_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:482-494 applyFinalLine`
 /// — scan and apply the LAST line of a stream, the one no newline ends.  A
 /// syntactic failure is reported at its offset in the line.  con-leche calls
@@ -1920,7 +1922,8 @@ pub fn apply_final_line(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:520-554 feedChunk
+/// con-leche: ConLeche/Frontend/ExportC.lean:544-578 feedChunk
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::feed_chunk_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:496-525 feedChunk` —
 /// every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins.  A line a chunk cut in half is told
@@ -1979,7 +1982,7 @@ pub fn feed_chunk(
     Ok((line_no, i))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:556-557 chunkSize
+/// con-leche: ConLeche/Frontend/ExportC.lean:580-581 chunkSize
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:527-529 chunkSize` — how
 /// many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
@@ -1989,7 +1992,7 @@ pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 /// `1 << 64` does not fit the type it bounds.
 pub const USIZE_SIZE: u128 = 1u128 << usize::BITS;
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:559-567 sizeError
+/// con-leche: ConLeche/Frontend/ExportC.lean:583-591 sizeError
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:531-535 sizeError` —
 /// **THE SIZE GUARD**: the byte reader addresses its buffer by machine word,
 /// so an input of `USize.size` bytes or more is refused before any of it is
@@ -2007,7 +2010,8 @@ pub fn size_error() -> (CheckError, u64) {
     )
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:573-584 parseBytes
+/// con-leche: ConLeche/Frontend/ExportC.lean:593-605 parseBytes
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_bytes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:537-550 parseBytes` —
 /// **wholesale direct parse of a byte buffer**: the whole input fed at once,
 /// then the last line.  The specification the streaming parse is proved equal
@@ -2026,7 +2030,8 @@ pub fn parse_bytes(pers: &PersTier, ar: &mut AState, b: &[u8]) -> Result<ParseRe
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:573-584 parseBytes
+/// con-leche: ConLeche/Frontend/ExportC.lean:593-605 parseBytes
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_bytes_final_refines, then delete this line
 /// The cited tail of `parseBytes`: the last line, the one no newline ends.
 pub fn parse_bytes_final(
     pers: &PersTier,
@@ -2046,7 +2051,7 @@ pub fn parse_bytes_final(
     Ok(parse_result_of_state(st))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:601-611 chunkStep
+/// con-leche: ConLeche/Frontend/ExportC.lean:625-635 chunkStep
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:552-564 chunkStep` —
 /// **one chunk of the stream, applied**: the carried incomplete tail is put in
 /// front of the new bytes, every complete line of the buffer is fed, and the
@@ -2081,7 +2086,8 @@ pub fn chunk_step(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:612-621 chunkFinish
+/// con-leche: ConLeche/Frontend/ExportC.lean:635-642 chunkFinish
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::chunk_finish_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:566-573 chunkFinish` —
 /// the end of the stream: the carried tail, if any, is its last line.
 pub fn chunk_finish(
@@ -2101,7 +2107,7 @@ pub fn chunk_finish(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:626-645 parseChunks
+/// con-leche: ConLeche/Frontend/ExportC.lean:650-669 parseChunks
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:575-589 parseChunksGo`
 /// — **THE STREAMING PARSE, PURELY**: `chunk_step` folded over a list of
 /// chunks, `chunk_finish` at its end — what the driver's read loop does with
@@ -2138,7 +2144,8 @@ pub fn parse_chunks(
     chunk_finish(pers, ar, st, &carry[..], line_no)
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::ChunkSource_refines, then delete this line
 /// **Where the reader loop's bytes come from** (task #97-P5-Driver): the one
 /// input seam of the parse, declared here and implemented in the driver over a
 /// file handle.  Deviation from `foldChunks`, whose reads are positional through
@@ -2148,7 +2155,8 @@ pub fn parse_chunks(
 /// (`Refine2/Frontend/Source.lean`'s `ReadsAs`), which is the one thing about
 /// the input the binary trusts.
 pub trait ChunkSource {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::next_chunk_refines, then delete this line
     /// The next buffer of the input, read strictly forward, never seeked:
     /// EMPTY exactly at the end of the input.  A source whose read fails
     /// answers empty too and keeps the failure for its owner, who reports it
@@ -2156,7 +2164,8 @@ pub trait ChunkSource {
     fn next_chunk(&mut self) -> Vec<u8>;
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_source_refines, then delete this line
 /// Lean twin: none — the reads have no model; `Refine2/Frontend/Source.lean`'s
 /// `parse_source_eq` makes this `parse_chunks` over the chunks read.
 /// **THE READER LOOP**, moved here from the driver by task #97-P5-Driver:

@@ -1271,7 +1271,7 @@ pub fn scan_hints(b: &[u8], i: usize) -> ScanRes<HintsRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:737-761 skipBraced
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:300-320 naiveSkipBraced
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:301-321 naiveSkipBraced
 /// Skip a `{`/`[`-opened value whose opening bracket is at `i - 1`, counting
 /// brackets and stepping over strings; `0` when it does not close, **or when
 /// a newline comes first**.  The `meta` header is validated *loosely* — its
@@ -1324,10 +1324,10 @@ pub enum Member {
     Key(Key, usize, usize),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:342-379 naiveObjLoop
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:324-328 Slot
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:330-335 Slot.of
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:337-340 Slot.drop
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:343-380 naiveObjLoop
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:325-329 Slot
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:331-336 Slot.of
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:338-341 Slot.drop
 /// The skeleton of every object's slot loop: skip whitespace, stop at `}`,
 /// take JSON's own alternation at `,`, and classify the key at `"`.  Key order
 /// is therefore irrelevant, a key outside the dialect is an error, and the
@@ -1491,7 +1491,7 @@ pub fn scan_str_name_loop(b: &[u8], i: usize) -> ScanRes<NameRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:831-835 scanStrName
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:397-398 naiveStrName
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:398-399 naiveStrName
 /// `{"pre":p,"str":s}` — a name-table entry's string payload.
 pub fn scan_str_name(b: &[u8], i: usize) -> ScanRes<NameRec> {
     if byte_at(b, i) == 123 {
@@ -1559,7 +1559,7 @@ pub fn scan_num_name_loop(b: &[u8], i: usize) -> ScanRes<NameRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:886-890 scanNumName
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:406-407 naiveNumName
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:407-408 naiveNumName
 /// `{"i":n,"pre":p}` — a name-table entry's numeric payload.
 pub fn scan_num_name(b: &[u8], i: usize) -> ScanRes<NameRec> {
     if byte_at(b, i) == 123 {
@@ -1627,7 +1627,7 @@ pub fn scan_app_expr_loop(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:941-945 scanAppExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:417-418 naiveAppExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:418-419 naiveAppExpr
 /// `{"arg":A,"fn":F}` — 80 % of every stream's lines.
 pub fn scan_app_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -1734,7 +1734,7 @@ pub fn scan_binder_expr_loop(b: &[u8], i: usize, lam: bool) -> ScanRes<ExprRec> 
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1012-1017 scanLamExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:429-430 naiveLamExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:430-431 naiveLamExpr
 /// A `lam` binder.  `binderInfo` and `name` are validated and dropped (tasks
 /// #142, #203).
 pub fn scan_lam_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
@@ -1746,7 +1746,7 @@ pub fn scan_lam_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1084-1088 scanForallExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:432-433 naiveForallExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:433-434 naiveForallExpr
 /// A `forallE` binder; as `lam`.
 pub fn scan_forall_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -1855,7 +1855,7 @@ pub fn scan_let_expr_loop(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1165-1169 scanLetExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:445-446 naiveLetExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:446-447 naiveLetExpr
 /// A `letE` binder.  `nondep` is the format's field and is not read.
 pub fn scan_let_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -1926,7 +1926,7 @@ pub fn scan_const_expr_loop(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1221-1225 scanConstExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:454-455 naiveConstExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:455-456 naiveConstExpr
 /// `{"name":N,"us":[…]}`.
 pub fn scan_const_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -2008,7 +2008,7 @@ pub fn scan_proj_expr_loop(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1285-1289 scanProjExpr
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:464-465 naiveProjExpr
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:465-466 naiveProjExpr
 /// `{"idx":i,"struct":S,"typeName":T}`.
 pub fn scan_proj_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -2097,7 +2097,7 @@ pub fn scan_rule_loop(b: &[u8], i: usize) -> ScanRes<RuleRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1349-1353 scanRule
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:475-476 naiveRule
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:476-477 naiveRule
 /// One recursor rule of an inductive record.
 pub fn scan_rule(b: &[u8], i: usize) -> ScanRes<RuleRec> {
     if byte_at(b, i) == 123 {
@@ -2157,7 +2157,7 @@ pub fn scan_rule_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<RuleRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1383-1387 scanRules
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:478 naiveRules
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:479 naiveRules
 /// The `[…]` of Rule records.
 pub fn scan_rules(b: &[u8], i: usize) -> ScanRes<Vec<RuleRec>> {
     if byte_at(b, i) == 91 {
@@ -2380,7 +2380,7 @@ pub fn scan_ind_rec_loop(b: &[u8], i: usize) -> ScanRes<IndRecRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1523-1527 scanIndRec
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:495-496 naiveIndRec
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:496-497 naiveIndRec
 /// One member of an inductive record's `recs`.
 pub fn scan_ind_rec(b: &[u8], i: usize) -> ScanRes<IndRecRec> {
     if byte_at(b, i) == 123 {
@@ -2436,7 +2436,7 @@ pub fn scan_ind_rec_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndRecRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1557-1561 scanIndRecs
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:498 naiveIndRecs
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:499 naiveIndRecs
 /// The `[…]` of IndRec records.
 pub fn scan_ind_recs(b: &[u8], i: usize) -> ScanRes<Vec<IndRecRec>> {
     if byte_at(b, i) == 91 {
@@ -2662,7 +2662,7 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1698-1702 scanIndType
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:515-516 naiveIndType
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:516-517 naiveIndType
 /// One member of an inductive record's `types`.
 pub fn scan_ind_type(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     if byte_at(b, i) == 123 {
@@ -2718,7 +2718,7 @@ pub fn scan_ind_type_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1732-1736 scanIndTypes
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:518 naiveIndTypes
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:519 naiveIndTypes
 /// The `[…]` of IndType records.
 pub fn scan_ind_types(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
     if byte_at(b, i) == 91 {
@@ -2890,7 +2890,7 @@ pub fn scan_ind_ctor_loop(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1845-1851 scanIndCtor
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:534-535 naiveIndCtor
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:535-536 naiveIndCtor
 /// One member of an inductive record's `ctors`.  `cidx` and `induct` are the
 /// format's redundant fields and are optional in the dialect.
 pub fn scan_ind_ctor(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
@@ -2947,7 +2947,7 @@ pub fn scan_ind_ctor_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1881-1885 scanIndCtors
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:537 naiveIndCtors
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:538 naiveIndCtors
 /// The `[…]` of IndCtor records.
 pub fn scan_ind_ctors(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
     if byte_at(b, i) == 91 {
@@ -3059,7 +3059,7 @@ pub fn scan_axiom_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1956-1960 scanAxiomDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:567-568 naiveAxiomDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:568-569 naiveAxiomDecl
 /// An `axiom` record.
 pub fn scan_axiom_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3219,7 +3219,7 @@ pub fn scan_def_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2059-2065 scanDefDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:578-579 naiveDefDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:579-580 naiveDefDecl
 /// A `def` record.  A missing `hints` field is `regular 0` — hints steer only
 /// the unfolding order of lazy delta, so any default is behaviourally safe.
 pub fn scan_def_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
@@ -3344,7 +3344,7 @@ pub fn scan_thm_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2144-2148 scanThmDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:586-587 naiveThmDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:587-588 naiveThmDecl
 /// A `thm` record.
 pub fn scan_thm_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3486,7 +3486,7 @@ pub fn scan_opaque_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2237-2241 scanOpaqueDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:595-596 naiveOpaqueDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:596-597 naiveOpaqueDecl
 /// An `opaque` record.
 pub fn scan_opaque_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3598,7 +3598,7 @@ pub fn scan_quot_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2312-2316 scanQuotDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:606-607 naiveQuotDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:607-608 naiveQuotDecl
 /// A `quot` record.
 pub fn scan_quot_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3719,7 +3719,7 @@ pub fn scan_ind_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2397-2401 scanIndDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:619-620 naiveIndDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:620-621 naiveIndDecl
 /// An `inductive` record: three arrays of member records.
 pub fn scan_ind_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3757,8 +3757,8 @@ pub fn line_payload_is_absent(p: &LinePayload) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2427-2574 scanLineLoop
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:634-773 naiveLineLoop
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:628-632 IdxKey
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:635-774 naiveLineLoop
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:629-633 IdxKey
 /// The members of one line.  `idx_kind` is `0` for none, `1` for `in`, `2` for
 /// `il`, `3` for `ie` (`Naive.lean` spells the same thing as an `IdxKey`
 /// enumeration).  The closing brace's match of payload against index key is a
@@ -4034,7 +4034,7 @@ pub fn scan_line_loop(b: &[u8], i: usize) -> ScanRes<LineRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:2576-2599 scanLineFwd
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:775-792 naiveLine
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:776-793 naiveLine
 /// One line of the stream from `i`: the record, and **the position after its
 /// newline** — or `0` when the buffer ran out before a newline did, which
 /// tells the driver that these bytes are an incomplete tail to carry into the

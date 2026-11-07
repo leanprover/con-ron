@@ -61,7 +61,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     | none => finish plain
   | _ => finish plain
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:432-455 parWorker
 **A worker's fold over the jobs it claimed** on an `--olean` run, on one state and
 one cache, the first failure the answer (`PooledOleanAccepts`). -/
 def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
@@ -88,7 +88,7 @@ def checkOleans (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
   | .ok (.error e, s₁) => .ok (.error e, s₁)
   | .error e => .error e
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:421-450 parMapWorkersIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:457-486 parMapWorkersIO
 **The pool's accept on an `--olean` run**: the index built from `s`, the stream's
 positions covered by job lists, each in range and increasing, and each list accepted
 from the worker of the post-index state with the empty cache.  `PooledAccepts`

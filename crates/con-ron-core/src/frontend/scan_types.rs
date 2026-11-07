@@ -365,7 +365,7 @@ pub enum DeclRec {
     Ind(Vec<IndTypeRec>, Vec<IndCtorRec>, Vec<IndRecRec>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:230-239 LineRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:230-240 LineRec
 /// One line of the stream.
 pub enum LineRec {
     Name(u64, NameRec),
@@ -378,7 +378,7 @@ pub enum LineRec {
     Blank,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:243-316 Key
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:244-317 Key
 /// Every key of the dialect, as a no-argument enumeration.  A key outside this
 /// alphabet is an error — the recogniser knows the whole format, and a key it
 /// does not know is a stream it does not know.
@@ -529,7 +529,7 @@ pub fn key_beq(a: &Key, b: &Key) -> bool {
     key_code(a) == key_code(b)
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:329-332 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:330-333 IdTable
 /// A stream-index-keyed partial map: dense prefix, sparse overflow.
 /// lean4export emits ids densely and in order, so the common insert is a push
 /// onto the dense `Vec`; a gap or an out-of-order id goes to the sparse
@@ -540,7 +540,7 @@ pub struct IdTable<T> {
     pub sparse: HashMap<u64, T>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:329-332 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:330-333 IdTable
 /// The empty table (Lean's field defaults `dense := #[]`, `sparse := {}`).
 pub fn id_table_empty<T>() -> IdTable<T> {
     IdTable {
@@ -549,7 +549,7 @@ pub fn id_table_empty<T>() -> IdTable<T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:334-336 IdTable.get?
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:335-337 IdTable.get?
 /// The value at a stream index, dense `Vec` first.
 pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     let k = i as usize;
@@ -560,7 +560,7 @@ pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:338-345 IdTable.insert
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:339-346 IdTable.insert
 /// Bind a stream index.  The dense case is a push; a rebinding below the
 /// frontier overwrites; anything beyond the frontier goes sparse.
 pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
@@ -574,7 +574,7 @@ pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:347-349 IdTable.singleton
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:348-350 IdTable.singleton
 /// A table with index 0 bound (the implicit `Name.anonymous` / `Level.zero` of
 /// the format).
 pub fn id_table_singleton<T>(x: T) -> IdTable<T> {

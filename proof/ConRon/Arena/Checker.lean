@@ -82,7 +82,7 @@ def runJob (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
     | .error e => .ok (.error (e, t), AState.abandoned)
   | none => .ok (.error (.internal "check phase: no job", t), AState.abandoned)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — **a worker's
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:432-455 parWorker — **a worker's
 fold over the jobs it claimed**, on one state, the first failure the answer
 (`PooledAccepts`, `Arena/Pooled.lean`). -/
 def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)

@@ -50,26 +50,32 @@ use crate::kernel::expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::OleanFs_refines, then delete this line
 /// **The checker's file reads**: the operations of upstream's class the reader
 /// uses, and the read's heartbeat, two of the `liftIO` actions upstream hands
 /// the class.  A failure is the operation's message.  The class's worker map
 /// (`parMapWorkers`) is the check pool's, in `crates/con-ron`.
 pub trait OleanFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::path_exists_refines, then delete this line
     /// whether the path names something (a file, a directory)
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::real_path_refines, then delete this line
     /// the path with every symbolic link resolved, absolute
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::read_bin_file_refines, then delete this line
     /// a regular file's bytes
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::read_range_refines, then delete this line
     /// a positional read: the bytes from `off` up to `off + len` or the end of
     /// the file, whichever comes first
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:117-159 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::file_size_refines, then delete this line
     /// the size of a regular file in bytes
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
@@ -656,7 +662,8 @@ pub fn hdr_short(acc: &Vec<u8>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:163-177 foldReads
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::read_hdr_bytes_refines, then delete this line
 /// The reads of the header: forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read, or the end of the file.
 pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec<u8>, CheckError> {
@@ -675,8 +682,10 @@ pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:185-197 readImportsAt
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:179-187 foldChunks
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:163-177 foldReads
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::read_imports_at_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove files::read_imports_at_refines, then delete this line
 /// **A module's imports, read off the start of its exported `.olean`** at its
 /// location: the file read forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read.

@@ -1840,7 +1840,7 @@
 
 == crates/con-ron/src/pool.rs#L232-L293
    232  
-   233  /// con-leche: ConLeche/Frontend/CheckerIO.lean:421-447 parMapWorkersIO
+   233  /// con-leche: ConLeche/Frontend/CheckerIO.lean:457-483 parMapWorkersIO
    234  /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
    235  /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
    236  /// module note's trusted claim is this function's contract:
