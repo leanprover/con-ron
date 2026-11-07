@@ -176,7 +176,7 @@ load read off the file, any other record what its expressions mention. -/
 @[expose] def usedOfC (mgC : ConLeche.Frontend.Olean.Merged) (d : Declaration) :
     Array ConLeche.Name :=
   match d with
-  | .thmDecl cv _ => (mgC.map[cv.name]?.map (·.uses)).getD d.usedConsts
+  | .thmDecl cv _ => (mgC.map[cv.name]?.map (·.uses.toArray)).getD d.usedConsts
   | _ => d.usedConsts
 
 /-- con-leche: none — `denoteNList` is the `mapM` of `denoteN`. -/
@@ -260,7 +260,7 @@ theorem usedRel_usedOf {st0 : EStore} {rd : ConRon.Arena.Frontend.Olean.OleanRea
       simp only [pure, Option.some.injEq] at hdc
       subst hdc
       refine ⟨ParseStep.refl hok, ?_⟩
-      simp only [usedOfC, hcC, Option.map_some, Option.getD_some, List.toList_toArray]
+      simp only [usedOfC, hcC, Option.map_some, Option.getD_some, toArray_toSubarray_toList]
       rw [denoteNList_eq_mapM]
       exact list_mono (fun _ _ hy => denoteN_ext hy hx) _ hu
   | _ =>
@@ -281,7 +281,7 @@ its files on the snapshot.  Upstream's `ValueAt` reads `valuesP`. -/
     (values : Array ConRon.Arena.Frontend.Olean.ModRef)
     (valuesP : Array ConLeche.Frontend.Olean.ModRef) : Prop :=
   ListRel (fun md mdP => denoteN st.ns md.name = some mdP.name ∧
-      ∃ f, (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      ∃ f, ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
         FrontGoodAt st f md.frontier)
     values.toList valuesP.toList
 
@@ -290,13 +290,13 @@ theorem valuesRel_of_loads {sp : SearchPath} {F : FS} {st : EStore} :
       ListRel (LoadedRel st) ls lsC → ListRel (ModFront sp F st) ls lsC →
       ListRel (fun (md : ConRon.Arena.Frontend.Olean.ModRef) (mdP : ConLeche.Frontend.Olean.ModRef) =>
           denoteN st.ns md.name = some mdP.name ∧
-          ∃ f, (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+          ∃ f, ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
             FrontGoodAt st f md.frontier)
         (ls.map fun l => ⟨l.name, l.frontier⟩) (lsC.map fun l => ⟨l.name, l.frontier⟩)
   | _, _, .nil, .nil => .nil
   | _, _, .cons a h1, .cons b h2 => .cons ⟨a.name, b⟩ (valuesRel_of_loads h1 h2)
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:835 readOleans_filled — **a theorem's
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:850 readOleans_filled — **a theorem's
 record, with its value in place, is the specification's constant**: the reference in a record
 stands, on the snapshot, for the value of the theorem the specification reads off the files of
 the reference's module (`constSpec`), and the record's statement is that theorem's.  Upstream's
@@ -306,7 +306,7 @@ theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
     {ds : Array Declaration}
     (hnames : lsC.map (·.name) = orderC.toList)
     (hloads : ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
-      (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
       LoadSpec f i lC)
     (hm : ConLeche.Frontend.Olean.mergeAll lsC.toArray = .ok mgC)
     (hds : ConLeche.Frontend.Olean.declsOf (ConLeche.Frontend.Olean.emitAll mgC mgC.order) = .ok ds)
@@ -317,7 +317,7 @@ theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
     ∃ md f r a sk loc c all,
       (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray[
         ConLeche.Frontend.Olean.refModule code]? = some md ∧
-      (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok f) ∧
       f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
       loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm e all ∧
       cv = ⟨c.name, c.levelParams, c.type⟩ := by
@@ -375,7 +375,7 @@ theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
     rw [← hmd]
     exact hyn
   rw [hname] at hf'
-  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf.canGive hf'
   rw [hreg] at hreg'
   cases hreg'
   obtain ⟨loc, hlocm, hcs⟩ := ConLeche.Frontend.Olean.mapM_mem_inv hskels hs
@@ -395,7 +395,7 @@ theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
 
 /-! ## The whole read -/
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:698 readOleans_thm — **THEOREM 1 FOR THE
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:713 readOleans_thm — **THEOREM 1 FOR THE
 READER**: the twin's accepting read on a snapshot leaves a store its records denote in, and a
 theorem of the private view of a module of the closure, by the specification, is among them with
 its statement.  The record's value is the reference to where the theorem's value is stored (a
@@ -416,7 +416,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
       ∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
         ConLeche.Frontend.Olean.ValueAt sp F valuesP code x →
         ∃ md f r a sk loc c all, valuesP[ConLeche.Frontend.Olean.refModule code]? = some md ∧
-          (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok (.ok f)) ∧
+          ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok f) ∧
           f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
           loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm x all ∧
           cv = ⟨c.name, c.levelParams, c.type⟩ := by
@@ -465,6 +465,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
     simp only [ValuesRel, hmls]
     simpa using this
   intro m d c v all hcl hv hc hk
+  obtain ⟨_, ho⟩ := ho.outcome #[]
   obtain ⟨hco, hcr⟩ := ConLeche.Frontend.Olean.closureOrder_ok ho
   have hmo := hcl.mem_order hco hcr
   have hmem : m ∈ lsC.map (·.name) := by
@@ -473,7 +474,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨l, hl, rfl⟩ := List.mem_map.mp hmem
   obtain ⟨i, f, -, hf, r, a, sk, skels, hreg, hsk, hskels, hlazy⟩ := hloads l hl
   obtain ⟨f', hf', hview⟩ := hv
-  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf.canGive hf'
   obtain ⟨sk', hsk', hspec⟩ := ConLeche.Frontend.Olean.view_parts hreg hview
   rw [hsk] at hsk'
   cases hsk'

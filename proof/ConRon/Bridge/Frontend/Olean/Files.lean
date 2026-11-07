@@ -2,8 +2,10 @@
 # `ConRon.Bridge.Frontend.Olean.Files` — the reads on one snapshot
 
 The twin reads through a record of five functions.  **`modelFs F` is the record of a snapshot
-`F`**: upstream's `ModelIO` operations on `F`, with a message where the snapshot has no answer.
-Over it each read of the twin that answers is a value outcome of upstream's read at `ModelIO`,
+`F`**: upstream's `ModelIO` operations on `F`, with a message where the snapshot has no answer;
+its positional `readRange p off len` is the slice a handle of `p` at position `off` reads
+(`ModelIO.read`).  Over it each read of the twin that answers is what upstream's read gives on
+`F` (`ModelIO.Gives`: one answer from any open handles), so it can give it (`ModelIO.CanGive`),
 which is what `readFiles_ok`, `closureOrder_ok` and `readView_of_viewOf` speak of.
 
 The binary's record is related to `modelFs F` by the theorems' file premise, `ConRon/Capstone.lean`'s
@@ -27,8 +29,10 @@ open ConRon.Arena.Frontend.Olean (OleanPins OleanFs partOfBytes toArenaError)
 open ConLeche.Frontend.Olean (ImportF ImportRec Part Located modFile partExts OLeanLevel ModFiles
   hdrChunk hdrStep hdrFin hdrWalk dataStart SearchPath undecodable)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:280-292 instCheckerIOModelIO — **the twin's
-record of a snapshot**: `ModelIO`'s operations, a message where they have no value. -/
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:357-364 instCheckerIOModelIO — **the twin's
+record of a snapshot**: `ModelIO`'s operations, a message where they have no value.  The twin
+reads a range by position: `readRange p off len` is what a handle of `p` at `off` reads
+(`ModelIO.read`), the slice of the file's bytes from `off`, `len` long but at the end. -/
 @[expose] def modelFs (F : FS) : OleanFs where
   pathExists p := .ok (F.real p).isSome
   realPath p := match F.real p with
@@ -54,6 +58,14 @@ theorem modelFs_readBinFile {F : FS} {p : System.FilePath} {b : ByteArray}
     cases h
     rfl
 
+theorem pathExists_gives (F : FS) (p : System.FilePath) :
+    ModelIO.Gives (CheckerIO.pathExists p : ModelIO Bool) F (F.real p).isSome :=
+  fun hs => ⟨hs, rfl⟩
+
+theorem realPath_gives {F : FS} {p q : System.FilePath} (h : F.real p = some q) :
+    ModelIO.Gives (CheckerIO.realPath p : ModelIO System.FilePath) F q :=
+  fun hs => ⟨hs, by show ModelIO.ret (F.real p) hs = _; rw [h]⟩
+
 theorem modelFs_fileSize {F : FS} {p : System.FilePath} {n : Nat}
     (h : (modelFs F).fileSize p = .ok n) : ∃ b, F.file p = some b ∧ n = b.size := by
   simp only [modelFs] at h
@@ -77,94 +89,86 @@ theorem except_ok_of_bind {ε α β : Type} {x : Except ε α} {f : α → Excep
 theorem locateIn_sim {F : FS} {m : ConLeche.Name} {d : System.FilePath}
     {x : System.FilePath × List (Option String)}
     (h : Arena.Frontend.Olean.locateIn (modelFs F) m d = .ok x) :
-    (ConLeche.Frontend.Olean.locateIn m d : ModelIO _) F (.ok x) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.locateIn m d : ModelIO _) F x := by
   unfold Arena.Frontend.Olean.locateIn at h
   unfold ConLeche.Frontend.Olean.locateIn
   obtain ⟨fsv, h1, h2⟩ := except_ok_of_bind h
   cases h2
-  simp only [ModelIO.bind_ok]
-  refine ⟨fsv, ?_, rfl⟩
   have key : ∀ (l : List String) {ys : List (Option String)},
       (l.mapM fun e => do
         let p := modFile d m e
         if ← (modelFs F).pathExists p then
           return some (← (modelFs F).realPath p).toString
         else return none) = (.ok ys : Except String _) →
-      (l.mapM fun e => do
+      ModelIO.Gives (l.mapM fun e => do
         let p := modFile d m e
         if ← (CheckerIO.pathExists p : ModelIO Bool) then
           return some (← (CheckerIO.realPath p : ModelIO _)).toString
-        else return none) F (.ok ys) := by
+        else return none) F ys := by
     intro l
     induction l with
     | nil =>
       intro ys hy
       simp only [List.mapM_nil] at hy ⊢
       cases hy
-      rfl
+      exact ModelIO.gives_pure _ _
     | cons e es ih =>
       intro ys hy
       simp only [List.mapM_cons] at hy ⊢
       obtain ⟨y, hy1, hy2⟩ := except_ok_of_bind hy
       obtain ⟨ys', hy3, hy4⟩ := except_ok_of_bind hy2
       cases hy4
-      simp only [ModelIO.bind_ok]
-      refine ⟨y, ?_, ys', ih hy3, rfl⟩
+      refine ModelIO.Gives.bind ?_ ((ih hy3).bind (ModelIO.gives_pure _ _))
       obtain ⟨b, hb1, hb2⟩ := except_ok_of_bind hy1
+      refine (pathExists_gives F _).bind ?_
       cases hr : F.real (modFile d m e) with
       | none =>
         simp only [modelFs, hr, Option.isSome_none, Except.ok.injEq] at hb1
         subst hb1
         simp only [Bool.false_eq_true, ↓reduceIte] at hb2
         cases hb2
-        refine ⟨false, ?_, rfl⟩
-        show (Except.ok false : Except IO.Error Bool) = .ok (F.real _).isSome
-        simp only [hr, Option.isSome_none]
+        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+        exact ModelIO.gives_pure _ _
       | some q =>
         simp only [modelFs, hr, Option.isSome_some, Except.ok.injEq] at hb1
         subst hb1
         simp only [↓reduceIte, modelFs, hr] at hb2
         cases hb2
-        refine ⟨true, ?_, ?_⟩
-        · show (Except.ok true : Except IO.Error Bool) = .ok (F.real _).isSome
-          simp only [hr, Option.isSome_some]
-        · exact (ModelIO.bind_ok _ _ _ _).2 ⟨q, (ModelIO.answer_ok _ _).2 hr, rfl⟩
-  exact key _ h1
+        simp only [Option.isSome_some, ↓reduceIte]
+        exact (realPath_gives hr).bind (ModelIO.gives_pure _ _)
+  exact (key _ h1).bind (ModelIO.gives_pure _ _)
 
 theorem locateHits_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name}
     {x : Array (System.FilePath × List (Option String))}
     (h : Arena.Frontend.Olean.locateHits (modelFs F) sp m = .ok x) :
-    (ConLeche.Frontend.Olean.locateHits sp m : ModelIO _) F (.ok x) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.locateHits sp m : ModelIO _) F x := by
   unfold Arena.Frontend.Olean.locateHits at h
   unfold ConLeche.Frontend.Olean.locateHits
   obtain ⟨hs, h1, h2⟩ := except_ok_of_bind h
   cases h2
-  simp only [ModelIO.bind_ok]
-  refine ⟨hs, ?_, rfl⟩
   have key : ∀ (l : List System.FilePath) {ys : List (System.FilePath × List (Option String))},
       (l.mapM (Arena.Frontend.Olean.locateIn (modelFs F) m)) = .ok ys →
-      (l.mapM (ConLeche.Frontend.Olean.locateIn m) : ModelIO _) F (.ok ys) := by
+      ModelIO.Gives (l.mapM (ConLeche.Frontend.Olean.locateIn m) : ModelIO _) F ys := by
     intro l
     induction l with
     | nil =>
       intro ys hy
       simp only [List.mapM_nil] at hy ⊢
       cases hy
-      rfl
+      exact ModelIO.gives_pure _ _
     | cons e es ih =>
       intro ys hy
       simp only [List.mapM_cons] at hy ⊢
       obtain ⟨y, hy1, hy2⟩ := except_ok_of_bind hy
       obtain ⟨ys', hy3, hy4⟩ := except_ok_of_bind hy2
       cases hy4
-      simp only [ModelIO.bind_ok]
-      exact ⟨y, locateIn_sim hy1, ys', ih hy3, rfl⟩
-  exact key _ h1
+      exact (locateIn_sim hy1).bind ((ih hy3).bind (ModelIO.gives_pure _ _))
+  exact (key _ h1).bind (ModelIO.gives_pure _ _)
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:69 findModule_ok -/
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:73 findModule_ok -/
 theorem findModule_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {l : Located}
     (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
-    (ConLeche.Frontend.Olean.findModule sp m : ModelIO _) F (.ok (.ok l)) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.findModule sp m : ModelIO _) F (.ok l) := by
   unfold Arena.Frontend.Olean.findModule at h
   unfold ConLeche.Frontend.Olean.findModule
   split at h
@@ -172,8 +176,9 @@ theorem findModule_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {l : Locat
     split at h
     · rename_i l' hl
       cases h
-      simp only [ModelIO.bind_ok, ModelIO.tryCatch_ok, ModelIO.map_ok]
-      exact ⟨.ok hits, .inl ⟨hits, locateHits_sim hh, rfl⟩, by simp only [hl]; rfl⟩
+      refine (locateHits_sim hh).map.tryCatch.bind ?_
+      simp only [hl]
+      exact ModelIO.gives_pure _ _
     · cases h
   · cases h
 
@@ -201,20 +206,19 @@ theorem partOfBytes_ok {path p' : String} {b : ByteArray} {x : Part} (h : partOf
       exact ofBytes_label hq
     · cases h
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:105 readPart_ok -/
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:114 readPart_det -/
 theorem readPart_sim {F : FS} {p : System.FilePath} {x : Part}
     (h : Arena.Frontend.Olean.readPart (modelFs F) p = .ok x) :
-    (ConLeche.Frontend.Olean.readPart p : ModelIO _) F (.ok (.ok x)) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.readPart p : ModelIO _) F (.ok x) := by
   unfold Arena.Frontend.Olean.readPart at h
-  unfold ConLeche.Frontend.Olean.readPart
   split at h
   · cases h
   · rename_i b hb
-    simp only [ModelIO.bind_ok]
-    exact ⟨b, (ModelIO.answer_ok _ _).2 (modelFs_readBinFile hb), by
-      rw [partOfBytes_ok h]; rfl⟩
+    have hd := ConLeche.Frontend.Olean.readPart_det (modelFs_readBinFile hb)
+    rwa [partOfBytes_ok h] at hd
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:131 foldList_hdr -/
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:136 foldList_hdr — the twin's reads at
+offsets `off`, `off + 4096`, … are the handle's reads from `off` (`readsFrom`). -/
 theorem readHdrBytes_fold {F : FS} {p : System.FilePath} {b : ByteArray}
     (hb : F.file p = some b) {path : String} {acc' : ByteArray} {x : Array ImportRec}
     {ex : Part} (hp : Part.ofBytes path acc' = .ok ex)
@@ -285,12 +289,12 @@ theorem readHdrBytes_fold {F : FS} {p : System.FilePath} {b : ByteArray}
 
 /-! ## The imports -/
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:228 readImportsAt_ok — **the imports
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:252 readImportsAt_det — **the imports
 off the start of a file**, read on the snapshot. -/
 theorem readImportsAt_run {pk : OleanPins} {F : FS} {loc : Located} {m : ConLeche.Name}
     {xs : Array (ImportF NIdx)} {s s' : AState} (hctx : Ctx pk s)
     (h : Arena.Frontend.Olean.readImportsAt (modelFs F) pk loc m s = .ok (xs, s')) :
-    ParseStep s s' ∧ ∃ zs, (ConLeche.Frontend.Olean.readImportsAt loc m : ModelIO _) F (.ok (.ok zs)) ∧
+    ParseStep s s' ∧ ∃ zs, ModelIO.Gives (ConLeche.Frontend.Olean.readImportsAt loc m : ModelIO _) F (.ok zs) ∧
       xs.toList.mapM (denoteImport s'.store) = some zs.toList := by
   generalize hF : Arena.Frontend.Olean.readImportsAt (modelFs F) pk loc m = fn at h
   unfold Arena.Frontend.Olean.readImportsAt at hF
@@ -326,15 +330,16 @@ theorem readImportsAt_run {pk : OleanPins} {F : FS} {loc : Located} {m : ConLech
           have hf := readHdrBytes_fold hb hp hz b.size 0 (by omega) (by omega)
             (by simp) hacc
           simp only [ConLeche.Frontend.Olean.readImportsAt]
-          rw [ModelIO.bind_det (ConLeche.foldChunks_det _ _ _ _ hb), hf]
-          rfl
+          refine (ConLeche.foldChunks_det _ _ _ _ hb).bind ?_
+          rw [hf]
+          exact ModelIO.gives_pure _ _
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:199-205 moduleImports -/
 theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
     {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
     (hm : denoteN s.store.ns m = some mn) (hctx : Ctx pk s)
     (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
-    ParseStep s s' ∧ ∃ zs, (ConLeche.Frontend.Olean.moduleImports sp mn : ModelIO _) F (.ok (.ok zs)) ∧
+    ParseStep s s' ∧ ∃ zs, ModelIO.Gives (ConLeche.Frontend.Olean.moduleImports sp mn : ModelIO _) F (.ok zs) ∧
       xs.toList.mapM (denoteImport s'.store) = some zs.toList := by
   unfold Arena.Frontend.Olean.moduleImports at h
   obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
@@ -350,25 +355,25 @@ theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
     simp only [hfm] at h2
     obtain ⟨hst, zs, hz, hd⟩ := readImportsAt_run hctx h2
     refine ⟨hst, zs, ?_, hd⟩
-    simp only [ConLeche.Frontend.Olean.moduleImports, ModelIO.bind_ok]
-    exact ⟨.ok loc, findModule_sim hfm, hz⟩
+    simp only [ConLeche.Frontend.Olean.moduleImports]
+    exact (findModule_sim hfm).bind hz
 
 /-! ## The files of a view -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles -/
 theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OLeanLevel}
     {f : ModFiles} (h : Arena.Frontend.Olean.readFiles (modelFs F) sp m level = .ok f) :
-    (ConLeche.Frontend.Olean.readFiles sp m level : ModelIO _) F (.ok (.ok f)) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp m level : ModelIO _) F (.ok f) := by
   unfold Arena.Frontend.Olean.readFiles at h
   obtain ⟨loc, h1, h⟩ := except_ok_of_bind h
   obtain ⟨ex, h2, h⟩ := except_ok_of_bind h
   unfold ConLeche.Frontend.Olean.readFiles
-  refine (ModelIO.bind_ok _ _ _ _).2 ⟨.ok loc, findModule_sim h1, ?_⟩
-  refine (ModelIO.bind_ok _ _ _ _).2 ⟨.ok ex, readPart_sim h2, ?_⟩
+  refine (findModule_sim h1).bind ?_
+  refine (readPart_sim h2).bind ?_
   by_cases he : (level == OLeanLevel.exported) = true
   · simp only [he, ↓reduceIte] at h ⊢
     cases h
-    rfl
+    exact ModelIO.gives_pure _ _
   · simp only [he, Bool.false_eq_true, ↓reduceIte] at h ⊢
     cases hm : ModFiles.isModule { exported := ex } with
     | false =>
@@ -378,7 +383,7 @@ theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OL
         cases h
       · simp only [hs1, Bool.false_eq_true, ↓reduceIte] at h ⊢
         cases h
-        rfl
+        exact ModelIO.gives_pure _ _
     | true =>
       simp only [hm, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
       cases hs : loc.hasServer with
@@ -394,14 +399,14 @@ theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OL
         | true =>
           simp only [hq, Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure_bind] at h ⊢
           obtain ⟨sv, h3, h⟩ := except_ok_of_bind h
-          refine (ModelIO.bind_ok _ _ _ _).2 ⟨.ok sv, readPart_sim h3, ?_⟩
+          refine (readPart_sim h3).bind ?_
           by_cases hl : (level == OLeanLevel.server) = true
           · simp only [hl, ↓reduceIte] at h ⊢
             cases h
-            rfl
+            exact ModelIO.gives_pure _ _
           · simp only [hl, Bool.false_eq_true, ↓reduceIte] at h ⊢
             obtain ⟨pv, h4, h⟩ := except_ok_of_bind h
             cases h
-            exact (ModelIO.bind_ok _ _ _ _).2 ⟨.ok pv, readPart_sim h4, rfl⟩
+            exact (readPart_sim h4).bind (ModelIO.gives_pure _ _)
 
 end ConRon.Bridge.Frontend.Olean

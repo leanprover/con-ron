@@ -2147,10 +2147,9 @@ theorem applyLine_run {s s' : AState} (hok : StateOK s)
   rw [applyLine, lineRecPlaced_eq] at hrun
   rw [ConLeche.Frontend.applyLine]
   by_cases hpl : r.placed (lineNo == 0) = true
-  · rw [if_pos hpl] at hrun
-    rw [if_pos hpl]
+  · simp only [hpl, ↓reduceIte] at hrun ⊢
     exact applyRecord_run hok hoff hpins hrel hp hrun
-  · rw [if_neg hpl] at hrun
+  · simp only [hpl, Bool.false_eq_true, ↓reduceIte] at hrun
     cases hrun
 
 end ConRon.Bridge.Frontend

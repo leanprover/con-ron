@@ -35,16 +35,16 @@ theorem visits_rel {st : EStore} {mg : Merged} :
   | _, _, .nil => .nil
   | _, _, .cons h hr => .cons h (visits_rel hr)
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:71-75 CEntry — a constant's `uses`, read
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:167-168 CEntry — a constant's `uses`, read
 back. -/
 theorem denoteCEntry_uses {st : EStore} {x : CEntry} {z : ConLeche.Frontend.Olean.CEntry}
-    (h : denoteCEntry st x = some z) : ListRel (NR st) x.uses.toList z.uses.toList := by
+    (h : denoteCEntry st x = some z) : ListRel (NR st) x.uses.toList z.uses.toArray.toList := by
   unfold denoteCEntry at h
   obtain ⟨e, -, h⟩ := bind_some_left h
   obtain ⟨u, hu, h⟩ := bind_some_left h
   simp only [pure, Option.some.injEq] at h
   subst h
-  simpa using listRel_of_mapM hu
+  simpa [Subarray.toList_eq] using listRel_of_mapM hu
 
 theorem usesOf_rel {st : EStore} {mg : Merged} :
     ∀ {ns : List NIdx} {zs : List ConLeche.Frontend.Olean.CEntry}, ListRel (SR st mg) ns zs →

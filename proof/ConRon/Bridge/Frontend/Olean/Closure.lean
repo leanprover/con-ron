@@ -3,8 +3,8 @@
 
 The walk `closureGo` is upstream's, over handles: the sets of handles denote upstream's sets of
 names (`SetRel`), so each `contains` answers alike, `denoteN` being injective on a well formed
-store, and the twin's run is a value outcome of upstream's at `ModelIO`, which `closureOrder_ok`
-speaks of.
+store, and the twin's run is what upstream's gives at `ModelIO` (`ModelIO.Gives`), so a value
+upstream's can give (`ModelIO.CanGive`), which `closureOrder_ok` speaks of.
 
 A module's load (`loadAt`) is upstream's `loadAt_spec` over handles: its constants are the
 specification's lazy entries (`LazyOf`), a theorem's value the reference upstream's is.  `uses`
@@ -192,7 +192,7 @@ theorem find_none_rel {st : EStore} (hw : NStoreWF st.ns) {a aC b bC}
       exact find_none_rel hw ha hb h2 h
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Closure.lean:105 closureGo_ok — **the twin's walk
-is a value outcome of upstream's**, the same step for step. -/
+is what upstream's gives**, the same step for step. -/
 theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
     ∀ (fuel : Nat) (stack : List (NIdx × Bool)) (seen done : Std.HashSet NIdx) (out outF : Array NIdx)
       (stackC : List (ConLeche.Name × Bool)) (seenC doneC : Std.HashSet ConLeche.Name)
@@ -201,8 +201,8 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
       ListRel (NR s.store) out.toList outC.toList →
       closureGo (modelFs F) pk sp fuel stack seen done out s = .ok (outF, s') →
       ParseStep s s' ∧ ∃ outFC : Array ConLeche.Name,
-        (ConLeche.Frontend.Olean.closureGo sp fuel stackC seenC doneC outC : ModelIO _) F
-          (.ok (.ok outFC)) ∧ ListRel (NR s'.store) outF.toList outFC.toList := by
+        ModelIO.Gives (ConLeche.Frontend.Olean.closureGo sp fuel stackC seenC doneC outC : ModelIO _)
+          F (.ok outFC) ∧ ListRel (NR s'.store) outF.toList outFC.toList := by
   intro fuel
   induction fuel with
   | zero =>
@@ -213,7 +213,8 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      exact ⟨ParseStep.refl hctx.ok, outC, by rw [ConLeche.Frontend.Olean.closureGo]; rfl, hou⟩
+      exact ⟨ParseStep.refl hctx.ok, outC, by
+        rw [ConLeche.Frontend.Olean.closureGo]; exact ModelIO.gives_pure _ _, hou⟩
     | cons _ _ =>
       rw [closureGo] at h
       cases h
@@ -225,7 +226,8 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      exact ⟨ParseStep.refl hctx.ok, outC, by rw [ConLeche.Frontend.Olean.closureGo]; rfl, hou⟩
+      exact ⟨ParseStep.refl hctx.ok, outC, by
+        rw [ConLeche.Frontend.Olean.closureGo]; exact ModelIO.gives_pure _ _, hou⟩
     | @cons a b as bs hab hrest =>
       obtain ⟨m, f⟩ := a
       obtain ⟨mC, fC⟩ := b
@@ -281,7 +283,7 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
               hse1 hdo1 (NR_list_ext hst1.ext hou) h2
             obtain ⟨hst2, outFC, hC, hR⟩ := hrec
             refine ⟨hst1.trans hst2, outFC, ?_, hR⟩
-            refine (ModelIO.bind_ok _ _ _ _).2 ⟨.ok zs, hz, ?_⟩
+            refine hz.bind ?_
             dsimp only
             rw [hfindC]
             exact hC
@@ -386,14 +388,20 @@ theorem oleanPins_run {pk : OleanPins} {s s' : AState} (hok : StateOK s)
 
 /-! ## A loaded constant, a loaded module -/
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:154-158 CEntry — **a stored constant read
-back**, with the twin's own `uses`. -/
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:167-168 CEntry — **a stored constant read
+back**, with the twin's own `uses`: an array of its own, read back as the slice of all of it
+(upstream's constants slice one array per module). -/
 @[expose] def denoteCEntry (st : EStore) (x : CEntry) : Option ConLeche.Frontend.Olean.CEntry := do
   let e ← denoteEntry st x.c
   let u ← x.uses.toList.mapM (denoteN st.ns)
-  pure { toCEntryF := e, uses := u.toArray }
+  pure { toCEntryF := e, uses := u.toArray.toSubarray }
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:165-170 Loaded — **a loaded module read back**:
+/-- The slice of all of a list's array holds the list. -/
+@[simp] theorem toArray_toSubarray_toList {α : Type} (u : List α) :
+    u.toArray.toSubarray.toArray.toList = u := by
+  simp [Subarray.toList_toArray, Subarray.toList_eq]
+
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:177-180 Loaded — **a loaded module read back**:
 its name and its constants.  The frontier is not related: nothing of the records reads it. -/
 structure LoadedRel (st : EStore) (l : ConRon.Arena.Frontend.Olean.Loaded)
     (lC : ConLeche.Frontend.Olean.Loaded) : Prop where
@@ -831,7 +839,7 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
         obtain ⟨z, hz⟩ := Option.isSome_iff_exists.mp (hU k n (by simpa using hn))
         rw [denoteN_ext hz hx]
         rfl)
-    refine ⟨hst1.trans hst2, { toCEntryF := eC, uses := us.toArray } :: esC, ?_, ?_⟩
+    refine ⟨hst1.trans hst2, { toCEntryF := eC, uses := us.toArray.toSubarray } :: esC, ?_, ?_⟩
     · simp only [List.mapM_cons, hes, denoteCEntry, denoteEntry_ext hst2.ext hde, hus]
       rfl
     · refine ⟨fun s0 hs0 => ?_, fun e0 he0 => ?_⟩
@@ -952,7 +960,7 @@ theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat}
     (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
     (h : ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total m idx s = .ok (l, s')) :
     ParseStep s s' ∧ ∃ lC f, LoadedRel s'.store l lC ∧ lC.name = mn ∧
-      (ConLeche.Frontend.Olean.readFiles sp mn .private : ModelIO _) F (.ok (.ok f)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mn .private : ModelIO _) F (.ok f) ∧
       LoadSpec f idx lC ∧ FrontGoodAt s'.store f l.frontier := by
   unfold ConRon.Arena.Frontend.Olean.loadModule at h
   obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
@@ -1002,7 +1010,7 @@ theorem closureOrder_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots orde
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.closureOrder (modelFs F) pk sp roots s = .ok (order, s')) :
     ParseStep s s' ∧ ∃ orderC : Array ConLeche.Name,
-      (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok (.ok orderC)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok orderC) ∧
       ListRel (NR s'.store) order.toList orderC.toList :=
   closureGo_run _ _ _ _ _ _ _ _ _ _ hctx (rootsStack_rel hr) (SetRel.empty _) (SetRel.empty _) .nil h
 
@@ -1017,7 +1025,7 @@ theorem listRel_zipIdx {α β : Type} {R : α → β → Prop} :
 good on the region of its files on the snapshot. -/
 @[expose] def ModFront (sp : SearchPath) (F : FS) (st : EStore)
     (l : ConRon.Arena.Frontend.Olean.Loaded) (lC : ConLeche.Frontend.Olean.Loaded) : Prop :=
-  ∃ f, (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+  ∃ f, ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
     FrontGoodAt st f l.frontier
 
 theorem ModFront.ext {sp : SearchPath} {F : FS} {st st' : EStore}
@@ -1035,7 +1043,7 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
         ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total p.1 p.2) s = .ok (ys, s') →
       ParseStep s s' ∧ ∃ lsC, ListRel (LoadedRel s'.store) ys lsC ∧
         ListRel (ModFront sp F s'.store) ys lsC ∧ lsC.map (·.name) = ns.map (·.1) ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ ns ∧
-          (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+          ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
           LoadSpec f i lC
   | [], ns, ys, s, s', hctx, _, hl, h => by
     cases hl
@@ -1078,10 +1086,10 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.loadClosure (modelFs F) pk sp roots s = .ok (ls, s')) :
     ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (lsC : List ConLeche.Frontend.Olean.Loaded),
-      (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok (.ok orderC)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok orderC) ∧
       ListRel (LoadedRel s'.store) ls.toList lsC ∧ ListRel (ModFront sp F s'.store) ls.toList lsC ∧
       lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
-        (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok (.ok f)) ∧
+        ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
         LoadSpec f i lC := by
   unfold ConRon.Arena.Frontend.Olean.loadClosure at h
   obtain ⟨order, s₁, h1, h⟩ := AM.bind_ok h

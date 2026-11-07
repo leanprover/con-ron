@@ -354,7 +354,7 @@ region of the files of the module it is cached for**, by upstream's values. -/
 @[expose] def CacheOK (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
     (c : ValueCache) : Prop :=
   ∀ r, c.region = some r → ∃ mdP f a, valuesP[c.idx]? = some mdP ∧
-    (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+    ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
     f.viewRegion .private = some (r, a)
 
 theorem CacheOK.empty (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef) :
@@ -369,7 +369,7 @@ theorem readRegion_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {i
     (h : ConRon.Arena.Frontend.Olean.regionFor.readRegion (modelFs F) pk sp m idx s =
       .ok ((c', .ok r), s')) :
     s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
-      (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
       f.viewRegion .private = some (r, a) := by
   unfold ConRon.Arena.Frontend.Olean.regionFor.readRegion at h
   obtain ⟨mn, s₁, h1, h2⟩ := AM.bind_ok h
@@ -406,7 +406,7 @@ theorem regionFor_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {id
     (hidx : valuesP[idx]? = some mdP) (hc : CacheOK sp F valuesP c)
     (h : ConRon.Arena.Frontend.Olean.regionFor (modelFs F) pk sp m idx c s = .ok ((c', .ok r), s')) :
     s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
-      (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok (.ok f)) ∧
+      ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
       f.viewRegion .private = some (r, a) := by
   unfold ConRon.Arena.Frontend.Olean.regionFor at h
   cases hr : c.region with
@@ -465,7 +465,7 @@ theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
   obtain ⟨c1, _ | r⟩ := p
   · cases (AM.pure_ok h2).1
   obtain ⟨rfl, hc1, f', a, hf', hreg⟩ := regionFor_run hname hmdP hc h1
-  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf hf'
+  obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf.canGive hf'.canGive
   rw [hreg0] at hreg
   cases hreg
   simp only [] at h2
@@ -479,7 +479,7 @@ theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
   simp only [Prod.mk.injEq, Except.ok.injEq] at hv'
   obtain ⟨rfl, rfl⟩ := hv'
   obtain ⟨hst, x, hx, hdx⟩ := frontierExpr_run ⟨hok, hnu⟩ hgood h3
-  exact ⟨hst, hc1, x, hdx, mdP, f, _, _, hmdP, hf, hreg0, hx⟩
+  exact ⟨hst, hc1, x, hdx, mdP, f, _, _, hmdP, hf.canGive, hreg0, hx⟩
 
 /-! ## On a worker's store
 
