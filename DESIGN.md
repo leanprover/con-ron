@@ -72113,3 +72113,34 @@ landed), Mathlib `--olean`, `--verified --jobs=8`, `ulimit -v 27000000`, every r
 Not done: dropping it in the binary would hand the check a different `OleanRead` from the one
 `read_oleans` returned (`h3`), which the capstone's `h8` (`oleanJobStep … rd`) names.  The clean form
 is a job step over `values` and `pins` only, a core signature change: a later task's.
+
+### Task #145 — an `--olean` check keeps only the values and the pins; the merged constants go after the preparation (2026-11-07, Opus)
+
+Follow-up to #144's memory census (maintainer: "moving closer to upstream and dropping unused data
+earlier, that's a clear win").  The binary held the whole `OleanRead` to the end of the run because
+the job took it (`driver::olean_job(…, rd, …)`), so `rd.merged` (0.8 M constants and their `uses`,
+whose last reader is the preparation's `OleanRead.thmUses`) stayed live through the check.
+Upstream's check phase takes only `rd.values` (`checkOleansG … sp rd.values J`).
+
+**The change.**  `driver::olean_job` takes the reader's pins and the values' modules (`pk`,
+`values`) in place of `rd`; `check_main` keeps `(rd.pins, rd.values)` after `prepare_d` and drops the
+rest there, before the pool.  The pins stay a parameter where upstream has none: a pinned name is a
+handle here, a value there.  The core is untouched (the calls inside the job already took
+`&rd.pins`, `&rd.values`), so no extraction.  Lean: `oleanJobStep`, `OleanPoolAccepts`,
+`olean_job_step_refines`, `foldAllOk_oleanJobStep_refines`, `oleanPoolAccepts_intro` and
+`olean_pool_accepts_refines` take `pk values` for `rd` (`Refine2/Checker/{OleanPool,Phased}.lean`);
+the capstone's `h8` (`no_False_oleans`, `model_exists_oleans`, their `_of` forms) and
+`rust_stages_oleans`'s `h6` now read `oleanJobStep … prepared.decls rd.pins rd.values dirs`, the same
+`rd` that `h3` names.  The twin already passed `rd.pins`, `rd.values` (`checkOleans`), so it and
+Theorem 1 are unchanged.
+
+**Measured** (Mathlib `--olean`, `--verified --jobs=8`, `ulimit -v 27000000`, master `9016e847`'s
+binary against this branch's, alternated, every run accepting 775 321):
+
+| | peak RSS (GiB) | instructions:u |
+|---|---|---|
+| master | 3.75, 3.73, 3.79 | 3 744.1 G, 3 744.3 G, 3 743.8 G |
+| this branch | 3.60, 3.57, 3.58 | 3 743.8 G, 3 744.6 G, 3 743.6 G |
+
+**−0.17 GiB (−4.5 %)** peak RSS, instructions unchanged.  (#144's census binary measured −0.21 GiB for
+the same drop; its census pass touched every vector first.)  diff-olean 122/122.

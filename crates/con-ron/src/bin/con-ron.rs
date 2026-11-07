@@ -68,7 +68,8 @@ use con_ron::driver::STACK_BYTES;
 use con_ron_core::frontend::pace::Pace;
 use con_ron_core::arena::env::IDeclaration;
 use con_ron_core::frontend::nat_op_ground::DeclUsedConsts;
-use con_ron_core::frontend::olean::records::{value_cache_empty, OleanRead, ValueCache};
+use con_ron_core::frontend::olean::records::{value_cache_empty, ModRef, OleanRead, ValueCache};
+use con_ron_core::frontend::olean::spec::OleanPins;
 use con_ron_core::arena::store::PersTier;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
@@ -390,7 +391,8 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // premise is about it yet (OVERVIEW.md).
     // An `--olean` run's theorems hold references to their values, which their
     // jobs read (`driver::olean_job`); what that needs comes back beside the
-    // records (`OleanRead`).
+    // records (`OleanRead`), and of it the check keeps only the pins and the
+    // values (below, after the preparation).
     let read: std::io::Result<Result<(Vec<IDeclaration>, Option<OleanRead>), (CheckError, u64)>> = match input {
         Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
             Err(e) => {
@@ -447,6 +449,13 @@ fn check_main(a: &Args, input: &Input) -> u8 {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
     };
+    // **What the check keeps of the read** (con-leche's `checkOleansG` takes
+    // `rd.values`): the reader's pins and the values' modules.  The merged
+    // constants, whose last reader is the preparation (`OleanRead.thmUses`), go
+    // here, before the pool: on Mathlib that is 0.8 M constants and their
+    // `uses` (DESIGN, task #145).
+    let olean: Option<(OleanPins, Vec<ModRef>)> =
+        olean.map(|rd| (rd.pins, rd.values));
     // the ground hoist's receipt
     if !prepared.hoisted.is_empty() {
         let names: Vec<String> = prepared
@@ -499,10 +508,10 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     let on = con_ron_core::frontend::pace::pace_on(&a.progress);
     let ds = &prepared.decls;
     let verdict = match (&olean, input) {
-        (Some(rd), Input::Oleans(req)) => {
+        (Some((pk, values)), Input::Oleans(req)) => {
             let sp = &req.search_path;
             let job = |tier: &PersTier, w: &mut AState, c: &mut ValueCache, k: u64| {
-                driver::olean_job(tier, w, c, &mode, &ipins, ds, rd, sp, k)
+                driver::olean_job(tier, w, c, &mode, &ipins, ds, pk, values, sp, k)
             };
             if on {
                 driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut hb, value_cache_empty, job)

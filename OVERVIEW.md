@@ -275,7 +275,7 @@ theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
       rd.decls rd = ok (.Ok prepared, st4))
     …
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
     False
 ```
 
@@ -285,7 +285,9 @@ The closure and the module's contents are con-leche's specification of the
 format (`InClosure`, `ViewOf`), not anything about the fast decoder that
 reads them.  The reader leaves a theorem's value in its file: the record holds
 a reference, and the theorem's job (`olean_job`) reads the value into its own
-scratch tier and checks the theorem with it.  `model_exists_oleans` takes the
+scratch tier and checks the theorem with it.  The jobs take only the reader's
+pins and the values' modules (`rd.pins`, `rd.values`); the merged constants, read
+last by the preparation, are freed before the check.  `model_exists_oleans` takes the
 same premises without `hcl` … `hty` and concludes as `model_exists` does, at
 `RustDenotesFilled`: the records' stream with each reference replaced by a value
 (con-leche states no model theorem for `--olean`).

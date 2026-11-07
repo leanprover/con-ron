@@ -315,26 +315,26 @@ frozen, and `parallel_all` over the record positions with the `--olean` closures
 def OleanPoolAccepts {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
-    (ds : alloc.vec.Vec arena.env.IDeclaration) (rd : frontend.olean.records.OleanRead)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
     (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32))
     (ix : arena.stream_index.IStreamIndex) (st' : arena.monad.AState) : Prop :=
   ∃ (tier : arena.store.PersTier) (est : arena.store.EStore),
     arena.stream_index.build_index pers st ixEmpty ds 0#usize = ok (.Ok ix, st') ∧
     arena.checker.freeze_tier st'.store ix = ok (tier, est) ∧
     ParallelAll ds.length (oleanWorkerInit st'.pins)
-      (oleanJobStep inst fs tier mode pins ds rd sp)
+      (oleanJobStep inst fs tier mode pins ds pk values sp)
 
 /-- `OleanPoolAccepts` from one premise per call of the driver. -/
 theorem oleanPoolAccepts_intro {F : Type} {inst : frontend.olean.files.OleanFs F} {fs : F}
-    {pers st mode pins ds rd sp ix st'}
+    {pers st mode pins ds pk values sp ix st'}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
     (hI : (do
         let e ← arena.stream_index.stream_index_empty
         arena.stream_index.build_index pers st e ds 0#usize) = ok (.Ok ix, st'))
     (hF : arena.checker.freeze_tier st'.store ix = ok (tier, est))
     (hB : ParallelAll ds.length (oleanWorkerInit st'.pins)
-      (oleanJobStep inst fs tier mode pins ds rd sp)) :
-    OleanPoolAccepts inst fs pers st mode pins ds rd sp ix st' := by
+      (oleanJobStep inst fs tier mode pins ds pk values sp)) :
+    OleanPoolAccepts inst fs pers st mode pins ds pk values sp ix st' := by
   rw [stream_index_empty_eq, bind_ok] at hI
   exact ⟨tier, est, hI, hF, hB⟩
 
@@ -348,14 +348,14 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ds : alloc.vec.Vec arena.env.IDeclaration} {rd : frontend.olean.records.OleanRead}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
     {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     {ix st'}
-    (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel rd.values.val values'.toList)
+    (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hpers : pers.frozen = false)
-    (hpool : OleanPoolAccepts inst fsv pers st mode pins ds rd sp ix st') :
-    ∃ I lst', PooledOleanAccepts fs (absPins rd.pins) (absSearchPath sp) values'
+    (hpool : OleanPoolAccepts inst fsv pers st mode pins ds pk values sp ix st') :
+    ∃ I lst', PooledOleanAccepts fs (absPins pk) (absSearchPath sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
   obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
@@ -363,7 +363,7 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
-      ∃ s'', checkOleanJobList fs (absPins rd.pins) (absSearchPath sp) values'
+      ∃ s'', checkOleanJobList fs (absPins pk) (absSearchPath sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray w {}
         lst'.worker = .ok (.ok (), s'') := by
     intro w hwm

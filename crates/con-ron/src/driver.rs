@@ -593,7 +593,8 @@ pub fn olean_job(
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
     ds: &Vec<IDeclaration>,
-    rd: &con_ron_core::frontend::olean::records::OleanRead,
+    pk: &con_ron_core::frontend::olean::spec::OleanPins,
+    values: &Vec<con_ron_core::frontend::olean::records::ModRef>,
     sp: &Vec<Vec<u32>>,
     k: u64,
 ) -> Result<(), (CheckError, u64)> {
@@ -614,11 +615,11 @@ pub fn olean_job(
             con_ron_core::arena::core::enter_record(w);
             let r = match con_ron_core::frontend::olean::records::read_value(
                 &crate::olean_fs::StdFs,
-                &rd.pins,
+                pk,
                 tier,
                 &mut w.store,
                 sp,
-                &rd.values,
+                values,
                 cache,
                 code,
             ) {
