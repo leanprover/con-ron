@@ -72093,3 +72093,23 @@ keep a vector per constant, the sequence is the same, and the bridge reads the t
 
 diff-e2e 689/689 (`--jobs=1`), the five new header fixtures among them (master's binary differed on
 those five); cargo test green.
+
+#### Follow-up: what #489's arrays cost here (memory census, 2026-11-07)
+
+Maintainer: profile like con-leche to see whether the many arrays #489 removes are costly for us too.
+Scratch binary (a census and an optional drop behind environment variables in `check_main`, not
+landed), Mathlib `--olean`, `--verified --jobs=8`, `ulimit -v 27000000`, every run accepting 775 321.
+
+* **The arrays**: 798 311 constants in `Merged` (10 976 modules); `uses` holds 21.3 M names in
+  30.1 M of capacity (`NIdx` is 4 bytes): ~120 MB in ~795 000 vectors of ~150 B, ~36 MB of it
+  `push` slack; the `CEntry`s themselves 798 311 × 144 B ≈ 115 MB, plus the name map.
+* **The pattern is not upstream's.**  Upstream frees them once the emission has read them, and the
+  holes they leave are its cost.  Here `Merged` lives in `OleanRead`, which the driver keeps to the
+  end of the run, though the check reads only its `values` and `pins` (`prepare_d`'s `thm_uses` is
+  `merged`'s last reader).  So they are live through the whole check.
+* **Peak RSS** (three runs each, alternated): `merged` kept 3.82, 3.72, 3.83 GiB; dropped after
+  `prepare` 3.58, 3.58, 3.58 GiB, so **−0.21 GiB (−5.6 %)**, about upstream's −4.9 %.
+
+Not done: dropping it in the binary would hand the check a different `OleanRead` from the one
+`read_oleans` returned (`h3`), which the capstone's `h8` (`oleanJobStep … rd`) names.  The clean form
+is a job step over `values` and `pins` only, a core signature change: a later task's.
