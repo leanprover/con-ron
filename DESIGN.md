@@ -72034,3 +72034,62 @@ used are the definition unfolded in place, not allow-list lines: `absMemberShape
 allow-list line goes), the two `rc_absCtorsLL_*` needed by nothing, and `Lockstep.u64_one_val` (shared
 core, its own commit) as the `rfl` fact at its one named use.  `dead-census.py --check` OK;
 `twin-lines.py check`, `provenance.py check` green, `coverage` unchanged (Rust 931/1012, arena 765/1011).
+
+### Task #144 — con-leche sync 701d72ae → 210a580e: the header line, the flush, the handle (2026-11-07, Opus)
+
+Upstream tasks absorbed: #488 (the `meta` header exactly as the first line), #490 (a failing final
+flush is exit 3), #491 (the IO class reads through a handle, the C `pread` goes) and #489 (a module's
+`uses` in one flat array).  72 markers, all reconciled; `coverage` unchanged (931/1012); the stale
+`ReadRange.lean *` and the now-cited `workerMap` skip lines go.
+
+**#488, ported.**  `export_c::apply_line` takes the line count and applies the record
+(`apply_record`, the old body) only where it may stand (`line_rec_placed`: the header only as line
+0, every other record never there, a blank line nowhere), else an `internal` failure with
+`line_rec_misplaced`'s message.  `apply_final_line` now takes the count before the line and reports
+at `line_no + 1`, as upstream; `parse_bytes_final` and `chunk_finish` drop their `+ 1`.  The twin
+mirrors it (`applyRecord`, `lineRecPlaced`, `lineRecMisplaced`: the twin does not import upstream's
+`ExportC`, so these are its own, `lineRecPlaced_eq` makes them upstream's).  The Rust tests' inline
+snippets gain the header (`with_header`); their expected line numbers move by one.  Theorem 1:
+`applyRecord_run` (the old proof) and `applyLine_run` (the same test on both sides; a misplaced line
+is the twin's failure, no `.ok`), `Chunks.lean` at the new line arithmetic.  Theorem 2:
+`apply_record_refines`, `line_rec_placed_eq`, `apply_line_refines` (`merr` against `fail`, kinds
+only), and `apply_final_line`/`parse_bytes_final`/`chunk_finish_refines` at the moved `+ 1`.
+
+**#490, ported.**  `con-ron`'s `main` is `exit_after_verdict(run_main())`: every path, not only the
+verdict's, flushes through `flush_stdout_stderr` (3 and a best-effort message if the flush fails).
+The Rust's flush used to ignore a failure (`let _ =`), so a failed flush kept the run's code.  Found
+while testing it: `--help > /dev/full` panicked in `println!` (exit 101); it now writes with
+`writeln!` and exits 3, as upstream's.  The twin's `Exe.main` has upstream's `flushStdoutStderr`.
+
+**#491, the stream side agrees again; the `.olean` read stays positional (deviation, maintainer
+2026-11-07: "both decisions fine").**  Upstream's `foldChunks` now opens a handle and reads it
+forward (`openRead`, `read`), which is what con-ron's `HandleSource`/twin `readFold` always did; the
+deviation notes there now say only that ours read to the first empty read and have no class.  The
+`.olean` reader's `OleanFs::read_range` is kept: upstream moved off positional reads because Lean's
+handles have none; Rust's `FileExt::read_at` is std, no C, and keeping the read stateless spares the
+extracted trait an associated handle type and the capstone's `SnapshotOf` a stateful premise.  The
+twin's binary had called upstream's C read; it now has `readRangeIO` (upstream's `openReadIO`, skip
+`off`, read `len`: header reads only).  Theorem 1's `.olean` bridge follows upstream's new
+`ModelIO := FS → HS → Except IO.Error α → HS → Prop`: every `(X : ModelIO _) F (.ok v)` is now
+`ModelIO.Gives X F v` (determined from any open handles; `.canGive` where upstream's `ViewOf`,
+`InClosure`, `readFiles_unique` want `CanGive`), across `Bridge/Frontend/Olean/{Files,Closure,
+Records,Value,EmitRun}.lean`; `readHdrBytes_fold` (the twin's positional reads are the handle's in
+order) is unchanged, `readImportsAt_run` goes through the new `foldChunks_det`.  The capstone's
+statements are unchanged.
+
+**#489, skipped (maintainer: fine).**  Upstream's `CEntry.uses` is a `Subarray` of one array per
+module (`usesFlat`), so that Lean's allocator frees what the emission read in one piece (upstream:
+−4.9 % peak RSS on Mathlib `--olean`).  A shared slice would take an `Rc` in the Rust; Rust and twin
+keep a vector per constant, the sequence is the same, and the bridge reads the twin's array back as
+`u.toArray.toSubarray` (`denoteCEntry`, `usedOfC`, `denoteCEntry_uses` at `.uses.toArray`).
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `eca70edc` | 188 473 425 622 | 77 371 955 744 |
+| this branch `cc4175c1` | **188 544 519 126** (+0.038 %) | 77 962 457 332 |
+
+diff-e2e 689/689 (`--jobs=1`), the five new header fixtures among them (master's binary differed on
+those five); cargo test green.
