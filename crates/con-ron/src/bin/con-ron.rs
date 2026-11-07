@@ -50,7 +50,6 @@
 //! `--no-pins` are con-ron's own and mean exactly what they mean there.
 
 use std::io::Write;
-use std::process::ExitCode;
 use std::time::Instant;
 
 use con_ron_core::arena::checker;
@@ -134,10 +133,10 @@ Documentation:
 
 /// con-leche: none — a usage error's two lines (con-leche writes them out at
 /// each site of `runArgs`): the message, then the pointer to `--help`.
-fn usage_error(msg: &str) -> ExitCode {
+fn usage_error(msg: &str) -> u8 {
     eprintln!("con-ron: {}", msg);
     eprintln!("{}", TRY_HELP);
-    ExitCode::from(3)
+    3
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:143-159 Args
@@ -532,24 +531,37 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     exit_after_verdict(code)
 }
 
+/// con-leche: Main.lean:32-54 flushStdoutStderr
+/// **The flush** before the exit: both streams, so that what the run printed
+/// last — the verdict or diagnostic line — is written out, and the exit code:
+/// `code`, or 3 if the flush fails (con-leche task #490): a run whose output
+/// did not get out has no verdict anyone read.  The message is best-effort.
+fn flush_stdout_stderr(code: u8) -> u8 {
+    match std::io::stdout().flush().and_then(|()| std::io::stderr().flush()) {
+        Ok(()) => code,
+        Err(e) => {
+            let _ = writeln!(std::io::stderr(), "con-ron: cannot write the output: {}", e);
+            3
+        }
+    }
+}
+
 /// con-leche: Main.lean:56-103 main
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove con-ron::exit_after_verdict_refines, then delete this line
 /// con-leche task #336: **exit
 /// right after the verdict, without freeing the heap**.  Returning would drop
 /// the store, the parsed and prepared declarations and the environment on the
 /// way out of `check_main` and `main` — at Mathlib scale a free cascade of
-/// its own — so the verdict path flushes the two streams and leaves the
-/// process here.  The worker pool is joined inside `check_decls_driver`, so
-/// nothing is left running.
+/// its own — so the verdict path flushes the two streams
+/// (`flush_stdout_stderr`, 3 if that fails) and leaves the process here.  The
+/// worker pool is joined inside `check_decls_driver`, so nothing is left
+/// running.
 fn exit_after_verdict(code: u8) -> ! {
-    let _ = std::io::stdout().flush();
-    let _ = std::io::stderr().flush();
+    let code = flush_stdout_stderr(code);
     std::process::exit(code as i32)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
 /// con-leche: Main.lean:56-103 main
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did
@@ -557,15 +569,32 @@ fn exit_after_verdict(code: u8) -> ! {
 /// an IO failure (an unreadable input, a failed write: con-leche task #335's
 /// rule, which the port already kept — a write failure panics the checking
 /// thread).  The verdict path exits from the checking thread without
-/// returning here (`exit_after_verdict`, con-leche task #336).
-fn main() -> ExitCode {
+/// returning here (`exit_after_verdict`, con-leche task #336); every other
+/// path's code goes through the same flush and exit.
+fn main() -> ! {
+    exit_after_verdict(run_main())
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+/// The run up to its exit code, for every path but the verdict's.
+fn run_main() -> u8 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if help_wanted(&argv) {
-        println!("{}\n{}\n\n{}", HELP_HEAD, SYNOPSIS, HELP_TAIL);
         // The one build-time choice a run's numbers depend on, printed rather
-        // than merely documented (task #89).
-        println!("this build's global allocator: {}", con_ron_dump::ALLOCATOR);
-        return ExitCode::SUCCESS;
+        // than merely documented (task #89).  A failed write is exit 3, as
+        // con-leche's `--help` on `/dev/full`.
+        let out = writeln!(
+            std::io::stdout(),
+            "{}\n{}\n\n{}\nthis build's global allocator: {}",
+            HELP_HEAD, SYNOPSIS, HELP_TAIL, con_ron_dump::ALLOCATOR
+        );
+        return match out {
+            Ok(()) => 0,
+            Err(e) => {
+                let _ = writeln!(std::io::stderr(), "con-ron: cannot write the output: {}", e);
+                3
+            }
+        };
     }
     let a = parse_args(&argv);
     if let Some(msg) = &a.bad {
@@ -591,7 +620,7 @@ fn main() -> ExitCode {
             0 => {
                 eprintln!("{}", SYNOPSIS);
                 eprintln!("{}", TRY_HELP);
-                return ExitCode::from(3);
+                return 3;
             }
             _ => return usage_error("takes one input file"),
         }
@@ -603,13 +632,13 @@ fn main() -> ExitCode {
     match h {
         Err(e) => {
             eprintln!("con-ron: cannot spawn the checking thread: {}", e);
-            ExitCode::from(3)
+            3
         }
         Ok(h) => match h.join() {
-            Ok(code) => ExitCode::from(code),
+            Ok(code) => code,
             Err(_) => {
                 eprintln!("con-ron: the checking thread died");
-                ExitCode::from(3)
+                3
             }
         },
     }

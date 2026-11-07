@@ -33,7 +33,6 @@ open ConLeche.Frontend.Olean (Located modFile partExts locateOf hdrWalk HdrWalk 
   Expo)
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Files.OleanFs_bridge, then delete this line
 **The checker's file reads**: a failure is the operation's message; and the read's
 heartbeat (upstream's `ReadNotes`, task #484), two `liftIO` actions that change
 nothing a read returns: the unit, here. -/
@@ -44,7 +43,10 @@ structure OleanFs where
   realPath : System.FilePath → Except String System.FilePath
   /-- a regular file's bytes -/
   readBinFile : System.FilePath → Except String ByteArray
-  /-- a positional read -/
+  /-- a positional read.  Deviation: the class opens a handle (`openRead`) and reads it
+  forward (`read`), since Lean's handles have no positional read; Rust's do, so the read
+  keeps no state, and the reads `readHdrBytes` makes, at `0, csz, 2·csz, …`, are the
+  handle's in order -/
   readRange : System.FilePath → Nat → Nat → Except String ByteArray
   /-- the size of a regular file in bytes -/
   fileSize : System.FilePath → Except String Nat
@@ -118,7 +120,6 @@ The header read's chunk size, as a number (upstream's is a `USize`). -/
 def hdrChunkN : Nat := 4096
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Files.readHdrBytes_bridge, then delete this line
 The reads of the header: forward in `hdrChunk` reads until the walk to the imports
 array is inside what was read, or the end of the file. -/
 def readHdrBytes (fs : OleanFs) (p : System.FilePath) (size : Nat) (off : Nat) (acc : ByteArray) :

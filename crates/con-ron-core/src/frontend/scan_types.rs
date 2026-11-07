@@ -372,9 +372,10 @@ pub enum LineRec {
     Level(u64, LevelRec),
     Expr(u64, ExprRec),
     Decl(DeclRec),
-    /// the header record, validated loosely and skipped
+    /// the header record, validated loosely; skipped as the first line, which
+    /// it must be, malformed on any other (`export_c::apply_line`)
     Header,
-    /// whitespace only
+    /// whitespace only: malformed (`export_c::apply_line`)
     Blank,
 }
 

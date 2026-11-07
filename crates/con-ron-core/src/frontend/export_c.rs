@@ -207,7 +207,7 @@ pub struct StateD {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:509-511 StateD.init
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:466-475 StateD.init` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:490-499 StateD.init` —
 /// the initial parse state.  Over handles it INTERNS: index 0 of the name
 /// table is the format's implicit `Name.anonymous` and index 0 of the level
 /// table its `Level.zero`, in the PERSISTENT tier, which is the tier the whole
@@ -1851,14 +1851,13 @@ pub fn apply_decl_d(pers: &PersTier, ar: &EStore, st: &mut StateD, d: &DeclRec) 
     process_line_core_d(pers, ar, st, d)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:495-499 applyLine
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::apply_line_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:440-453 applyLine` —
-/// **THE SEMANTIC LAYER**: one scanned line applied to the parse state.  The
-/// scanned record is con-leche's own (`Scan/Fast.lean`, reused); what this
-/// does with it is resolve the indices and INTERN the nodes.  There is no
-/// rewrite and no modeller seam left to run (task #105).
-pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
+/// con-leche: ConLeche/Frontend/ExportC.lean:466-477 applyRecord
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:440-453 applyRecord` —
+/// **one record applied** to the parse state.  The scanned record is
+/// con-leche's own (`Scan/Fast.lean`, reused); what this does with it is
+/// resolve the indices and INTERN the nodes.  The header and a blank line
+/// change nothing (where they may stand is `apply_line`'s).
+pub fn apply_record(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec) -> Result<(), LineErr> {
     match r {
         LineRec::Expr(i, e) => parse_expr_entry_d(pers, &mut ar.store, st, *i, e),
         LineRec::Name(i, n) => parse_name_entry_d(pers, &mut ar.store, st, *i, n),
@@ -1869,12 +1868,64 @@ pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec
     }
 }
 
+/// con-leche: ConLeche/Frontend/ExportC.lean:479-487 LineRec.placed
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:455-462 lineRecPlaced` —
+/// **where a line may stand**: the format's first line is its `meta` header
+/// (`first`), and every later line is a record — the header only first, every
+/// other record never first, a blank line nowhere.
+pub fn line_rec_placed(first: bool, r: &LineRec) -> bool {
+    match r {
+        LineRec::Header => first,
+        LineRec::Blank => false,
+        _ => !first,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:489-493 LineRec.misplaced
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:464-469 lineRecMisplaced` —
+/// what a line that stands where it may not is told.
+pub fn line_rec_misplaced(r: &LineRec) -> Vec<u32> {
+    match r {
+        LineRec::Header => {
+            const M_META: [u32; 32] = [
+                97, 32, 109, 101, 116, 97, 32, 108, 105, 110, 101, 32, 97, 102, 116, 101, 114,
+                32, 116, 104, 101, 32, 102, 105, 114, 115, 116, 32, 108, 105, 110, 101,
+            ];
+            core_types::code_points(&M_META)
+        }
+        LineRec::Blank => {
+            const M_BLANK: [u32; 12] = [97, 32, 98, 108, 97, 110, 107, 32, 108, 105, 110, 101];
+            core_types::code_points(&M_BLANK)
+        }
+        _ => {
+            const M_FIRST: [u32; 37] = [
+                116, 104, 101, 32, 102, 105, 114, 115, 116, 32, 108, 105, 110, 101, 32, 105,
+                115, 32, 110, 111, 116, 32, 116, 104, 101, 32, 109, 101, 116, 97, 32, 104, 101,
+                97, 100, 101, 114,
+            ];
+            core_types::code_points(&M_FIRST)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:495-499 applyLine
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:471-477 applyLine` —
+/// **THE SEMANTIC LAYER**: one scanned line, after `line_no` lines, applied to
+/// the parse state if it stands where it may.
+pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec, line_no: u64) -> Result<(), LineErr> {
+    if line_rec_placed(line_no == 0, r) {
+        apply_record(pers, ar, st, r)
+    } else {
+        merr(line_rec_misplaced(r))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The line feed and the drivers (`ExportC.lean:663-836` of the twin)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:503-507 ParseResultD
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:457-464 ParseResultD`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:481-488 ParseResultD`
 /// — the direct parse result: the declarations over handles.  No arena
 /// conversion: the handles already point into the persistent tier the fold
 /// will read.  con-leche's receipts (the projection rewrites, the modelled
@@ -1886,17 +1937,17 @@ pub struct ParseResultD {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:527-528 ParseResultD.ofState
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:477-480 ParseResultD.ofState`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:501-504 ParseResultD.ofState`
 /// — the result: the file's records, in the file's order.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
     ParseResultD { decls: st.decls }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:531-542 applyFinalLine
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::apply_final_line_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:482-494 applyFinalLine`
-/// — scan and apply the LAST line of a stream, the one no newline ends.  A
-/// syntactic failure is reported at its offset in the line.  con-leche calls
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:506-518 applyFinalLine`
+/// — scan and apply the LAST line of a stream, the one no newline ends,
+/// after `line_no` lines.  A syntactic failure is reported at its offset in
+/// the line.  con-leche calls
 /// `scanLineSpec` and lets `@[csimp]` substitute `scanLineFwd`; this calls
 /// `scan_line_fwd`, which is what all three binaries execute.
 pub fn apply_final_line(
@@ -1913,18 +1964,17 @@ pub fn apply_final_line(
                 offset: rel_offset(e.offset, i),
                 what: e.what,
             }),
-            line_no,
+            line_no + 1,
         )),
-        Ok((r, _)) => match apply_line(pers, ar, st, &r) {
-            Err(e) => Err(line_err_to_check(e, line_no)),
+        Ok((r, _)) => match apply_line(pers, ar, st, &r, line_no) {
+            Err(e) => Err(line_err_to_check(e, line_no + 1)),
             Ok(()) => Ok(()),
         },
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:544-578 feedChunk
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::feed_chunk_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:496-525 feedChunk` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:520-549 feedChunk` —
 /// every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins.  A line a chunk cut in half is told
 /// from a malformed one by whether the rest of the chunk holds a newline at
@@ -1959,7 +2009,7 @@ pub fn feed_chunk(
                 if j == 0 {
                     return Ok((line_no, i));
                 }
-                match apply_line(pers, ar, st, &r) {
+                match apply_line(pers, ar, st, &r, line_no) {
                     Err(e) => return Err(line_err_to_check(e, line_no + 1)),
                     Ok(()) => {}
                 }
@@ -1983,7 +2033,7 @@ pub fn feed_chunk(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:580-581 chunkSize
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:527-529 chunkSize` — how
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:551-553 chunkSize` — how
 /// many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
@@ -1993,7 +2043,7 @@ pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 pub const USIZE_SIZE: u128 = 1u128 << usize::BITS;
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:583-591 sizeError
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:531-535 sizeError` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:555-559 sizeError` —
 /// **THE SIZE GUARD**: the byte reader addresses its buffer by machine word,
 /// so an input of `USize.size` bytes or more is refused before any of it is
 /// read.  The error carries line 0: there is no line to name.  The port drops
@@ -2011,8 +2061,7 @@ pub fn size_error() -> (CheckError, u64) {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:593-605 parseBytes
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_bytes_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:537-550 parseBytes` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:561-574 parseBytes` —
 /// **wholesale direct parse of a byte buffer**: the whole input fed at once,
 /// then the last line.  The specification the streaming parse is proved equal
 /// to.
@@ -2031,7 +2080,6 @@ pub fn parse_bytes(pers: &PersTier, ar: &mut AState, b: &[u8]) -> Result<ParseRe
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:593-605 parseBytes
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_bytes_final_refines, then delete this line
 /// The cited tail of `parseBytes`: the last line, the one no newline ends.
 pub fn parse_bytes_final(
     pers: &PersTier,
@@ -2043,7 +2091,7 @@ pub fn parse_bytes_final(
 ) -> Result<ParseResultD, (CheckError, u64)> {
     let mut st = st;
     if tail < b.len() {
-        match apply_final_line(pers, ar, &mut st, b, tail, line_no + 1) {
+        match apply_final_line(pers, ar, &mut st, b, tail, line_no) {
             Err(e) => return Err(e),
             Ok(()) => {}
         }
@@ -2052,7 +2100,7 @@ pub fn parse_bytes_final(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:625-635 chunkStep
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:552-564 chunkStep` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:576-588 chunkStep` —
 /// **one chunk of the stream, applied**: the carried incomplete tail is put in
 /// front of the new bytes, every complete line of the buffer is fed, and the
 /// new incomplete tail is cut off for the next chunk; `total` counts the bytes
@@ -2087,8 +2135,7 @@ pub fn chunk_step(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:635-642 chunkFinish
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::chunk_finish_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:566-573 chunkFinish` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:590-597 chunkFinish` —
 /// the end of the stream: the carried tail, if any, is its last line.
 pub fn chunk_finish(
     pers: &PersTier,
@@ -2101,14 +2148,14 @@ pub fn chunk_finish(
     if carry.len() == 0 {
         return Ok(parse_result_of_state(st));
     }
-    match apply_final_line(pers, ar, &mut st, carry, 0, line_no + 1) {
+    match apply_final_line(pers, ar, &mut st, carry, 0, line_no) {
         Err(e) => Err(e),
         Ok(()) => Ok(parse_result_of_state(st)),
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:650-669 parseChunks
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:575-589 parseChunksGo`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:599-613 parseChunksGo`
 /// — **THE STREAMING PARSE, PURELY**: `chunk_step` folded over a list of
 /// chunks, `chunk_finish` at its end — what the driver's read loop does with
 /// the chunks its handle hands out, minus the reads.  The list is folded
@@ -2145,18 +2192,17 @@ pub fn parse_chunks(
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::ChunkSource_refines, then delete this line
 /// **Where the reader loop's bytes come from** (task #97-P5-Driver): the one
 /// input seam of the parse, declared here and implemented in the driver over a
-/// file handle.  Deviation from `foldChunks`, whose reads are positional through
-/// the `CheckerIO` class: these are sequential and forward, and the seam is this
-/// trait.  `IO.FS.Handle.read` has no model, so the refinement is
+/// file handle.  `foldChunks` reads through a handle too (the class's
+/// `openRead` and `read`), forward up to the file's size; this seam is a trait,
+/// not the class, and reads forward to the first empty read.  The reads have no
+/// model here, so the refinement is
 /// stated under a hypothesis that the reads ARE a list of chunks
 /// (`Refine2/Frontend/Source.lean`'s `ReadsAs`), which is the one thing about
 /// the input the binary trusts.
 pub trait ChunkSource {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::next_chunk_refines, then delete this line
     /// The next buffer of the input, read strictly forward, never seeked:
     /// EMPTY exactly at the end of the input.  A source whose read fails
     /// answers empty too and keeps the failure for its owner, who reports it
@@ -2165,7 +2211,6 @@ pub trait ChunkSource {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove export_c::parse_source_refines, then delete this line
 /// Lean twin: none — the reads have no model; `Refine2/Frontend/Source.lean`'s
 /// `parse_source_eq` makes this `parse_chunks` over the chunks read.
 /// **THE READER LOOP**, moved here from the driver by task #97-P5-Driver:
@@ -2333,10 +2378,23 @@ mod tests {
         n_n: usize,
     }
 
+    /// The `meta` header every stream begins with (con-leche task #488).
+    const HEADER: &str = "{\"meta\":{\"exporter\":{\"name\":\"lean4export\"}}}\n";
+
+    /// A snippet as a stream: the header in front, unless it has one already.
+    fn with_header(text: &str) -> String {
+        if text.starts_with("{\"meta\"") {
+            text.to_string()
+        } else {
+            format!("{}{}", HEADER, text)
+        }
+    }
+
+    /// A snippet parsed as a stream: line numbers count the header, line 1.
     fn parse(text: &str) -> Parsed {
         let pers: &PersTier = &PersTier::empty();
         let mut ar = AState::init(EStore::empty());
-        let r = parse_bytes(pers, &mut ar, text.as_bytes());
+        let r = parse_bytes(pers, &mut ar, with_header(text).as_bytes());
         Parsed {
             r,
             n_e: ar.store.node_count(pers),
@@ -2382,7 +2440,7 @@ mod tests {
     fn an_undefined_index_is_a_parse_error() {
         let p = parse("{\"ie\":0,\"sort\":7}\n");
         match &p.r {
-            Err((CheckError::Internal(m), 1)) => {
+            Err((CheckError::Internal(m), 2)) => {
                 assert!(s_of(m).contains("undefined level index 7"), "{}", s_of(m));
             }
             other => panic!("{}", shown(other)),
@@ -2412,7 +2470,7 @@ mod tests {
         ] {
             let p = parse(s);
             match &p.r {
-                Err((CheckError::Internal(m), 2)) => assert_eq!(s_of(m), what),
+                Err((CheckError::Internal(m), 3)) => assert_eq!(s_of(m), what),
                 other => panic!("{}: {}", what, shown(other)),
             }
         }
@@ -2445,7 +2503,7 @@ mod tests {
             "{\"quot\":{\"kind\":\"lift\",\"levelParams\":[],\"name\":1,\"type\":0}}\n"
         );
         let mut ar = AState::init(EStore::empty());
-        let r = parse_bytes(pers, &mut ar, s.as_bytes()).unwrap_or_else(|e| panic!("{}", show(&e)));
+        let r = parse_bytes(pers, &mut ar, with_header(s).as_bytes()).unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         match &r.decls[0] {
             IDeclaration::QuotDecl(k, cv) => {
@@ -2466,7 +2524,7 @@ mod tests {
         );
         let p = parse(s);
         match &p.r {
-            Err((CheckError::Internal(m), 3)) => {
+            Err((CheckError::Internal(m), 4)) => {
                 assert_eq!(s_of(m), "unknown quotient kind \"nope\"")
             }
             other => panic!("{}", shown(other)),
@@ -2639,7 +2697,7 @@ mod tests {
             "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":1}}\n"
         );
         let mut ar = AState::init(EStore::empty());
-        let r = parse_bytes(pers, &mut ar, s.as_bytes())
+        let r = parse_bytes(pers, &mut ar, with_header(s).as_bytes())
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         // two `ie` entries, one interned node

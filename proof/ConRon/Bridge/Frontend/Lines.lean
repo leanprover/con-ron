@@ -2060,61 +2060,57 @@ theorem applyDeclD_run {s s' : AState} (hok : StateOK s)
       ∃ y, ConLeche.Frontend.applyDeclD sc d = .ok y ∧ SumRel s'.store x y :=
   processLineCoreD_run hok hoff hpins hrel hp hrun
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:719 applyLine — **THE SEMANTIC
-LAYER**: one scanned line applied.  Six arms; the two trivial ones (`header`,
-`blank`) are `rfl` on both sides and the scanner's record is the same value,
-which is the whole point of reusing `Scan/Fast.lean` rather than twinning it.
-
-Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
+/-- con-leche: ConLeche/Frontend/ExportC.lean:470 applyRecord — one record
+applied.  Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
 `parseLevelEntryD_run` / `applyDeclD_run`, and two `rfl`s: the `header` and
 `blank` lines move nothing on either side, which is the whole point of reusing
 `Scan/Fast.lean` rather than twinning it. -/
-theorem applyLine_run {s s' : AState} (hok : StateOK s)
+theorem applyRecord_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {r : ConLeche.Frontend.LineRec}
     {x : StateD ⊕ RecordVerdict}
-    (hrun : applyLine sd r s = .ok (x, s')) :
+    (hrun : applyRecord sd r s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
-      ∃ y, ConLeche.Frontend.applyLine sc r = .ok y ∧ SumRel s'.store x y := by
+      ∃ y, ConLeche.Frontend.applyRecord sc r = .ok y ∧ SumRel s'.store x y := by
   cases r with
   | expr i e =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrest
     subst hv; subst hs
     obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
       parseExprEntryD_run hok hoff hrel hp hentry
     exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
-      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      by rw [ConLeche.Frontend.applyRecord]; simp only [hcl]; rfl,
       SumRel.of_state hrel'⟩
   | name i n =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrest
     subst hv; subst hs
     obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
       parseNameEntryD_run hok hoff hrel hp hentry
     exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
-      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      by rw [ConLeche.Frontend.applyRecord]; simp only [hcl]; rfl,
       SumRel.of_state hrel'⟩
   | level i l =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrest
     subst hv; subst hs
     obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
       parseLevelEntryD_run hok hoff hrel hp hentry
     exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
-      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      by rw [ConLeche.Frontend.applyRecord]; simp only [hcl]; rfl,
       SumRel.of_state hrel'⟩
   | decl d =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨hstep, hpers, y, hcl, hxy⟩ :=
       applyDeclD_run hok hoff hpins hrel hp hrun
-    exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyLine]; exact hcl, hxy⟩
+    exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyRecord]; exact hcl, hxy⟩
   | header =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrun
     subst hs
     obtain rfl : x = .inl sd := hv
@@ -2122,12 +2118,39 @@ theorem applyLine_run {s s' : AState} (hok : StateOK s)
       obtain rfl : sd = sd₂ := by injection h
       exact hp, .inl sc, rfl, SumRel.of_state hrel⟩
   | blank =>
-    rw [applyLine] at hrun
+    rw [applyRecord] at hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrun
     subst hs
     obtain rfl : x = .inl sd := hv
     exact ⟨ParseStep.refl hok, fun sd₂ h => by
       obtain rfl : sd = sd₂ := by injection h
       exact hp, .inl sc, rfl, SumRel.of_state hrel⟩
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:484 LineRec.placed — the twin's
+placement test is upstream's. -/
+theorem lineRecPlaced_eq (first : Bool) (r : ConLeche.Frontend.LineRec) :
+    lineRecPlaced first r = r.placed first := by
+  cases r <;> rfl
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:497 applyLine — **THE SEMANTIC
+LAYER**: one scanned line, after `lineNo` lines.  The same placement test on
+both sides (`lineRecPlaced_eq`); a misplaced line is the twin's failure, which
+is no `.ok`, and a placed one is `applyRecord_run`. -/
+theorem applyLine_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
+    (hp : PersStateD sd) {r : ConLeche.Frontend.LineRec} {lineNo : Nat}
+    {x : StateD ⊕ RecordVerdict}
+    (hrun : applyLine sd r lineNo s = .ok (x, s')) :
+    ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
+      ∃ y, ConLeche.Frontend.applyLine sc r lineNo = .ok y ∧ SumRel s'.store x y := by
+  rw [applyLine, lineRecPlaced_eq] at hrun
+  rw [ConLeche.Frontend.applyLine]
+  by_cases hpl : r.placed (lineNo == 0) = true
+  · rw [if_pos hpl] at hrun
+    rw [if_pos hpl]
+    exact applyRecord_run hok hoff hpins hrel hp hrun
+  · rw [if_neg hpl] at hrun
+    cases hrun
 
 end ConRon.Bridge.Frontend

@@ -897,13 +897,13 @@ pub fn verdict_failure(
 // `ConLeche/Frontend/CheckerIO.lean`'s `foldChunks`, the serial parse's fold
 // over a file's reads: the core's `export_c::parse_source` over the file
 // handle.  Only the READS are here, for `crate::driver`'s reason:
-// `IO.FS.Handle.read` has no model, and a theorem about the file is a
-// theorem about its bytes.  Deviation: con-leche's reads are positional, through
-// its `CheckerIO` class; these are sequential and forward, and there is no class.
+// the reads have no model here, and a theorem about the file is a theorem
+// about its bytes.  con-leche's reads go through a handle too (its `CheckerIO`
+// class's `openRead` and `read`), up to the size it read first; these go to the
+// first empty read, and there is no class.
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove driver::HandleSource_refines, then delete this line
 /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
 /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
 /// first empty read is the end of the input.  A failed read ends the input
@@ -922,10 +922,8 @@ pub struct HandleSource<'a, R: Read> {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove driver::impl<'a, R: Read> ChunkSource for HandleSource<'a, R>_refines, then delete this line
 impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-    /// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove driver::next_chunk_refines, then delete this line
     /// One read of up to `chunk` bytes; empty at the end or on a failure.
     fn next_chunk(&mut self) -> Vec<u8> {
         if self.err.is_some() {
@@ -949,7 +947,6 @@ impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove driver::parse_export_handle_d_refines, then delete this line
 /// Streaming direct parse off an open reader, into the persistent tier of
 /// `ar`: the VERIFIED reader loop `export_c::parse_source` over the handle
 /// (task #97-P5-Driver moved the loop into the core; what is left here is
@@ -971,11 +968,11 @@ pub fn parse_export_handle_d<R: Read>(
 
 /// con-leche: ConLeche/Driver/StreamParse.lean:114-125 parseStreamG
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove driver::parse_export_stream_d_refines, then delete this line
 /// Streaming direct parse of a file.  The input must be a regular file, and
 /// that is decided before it is opened, as the class's `fileSize` decides it:
-/// opening a FIFO with no writer would block.  con-leche goes on with positional
-/// reads and its rounds parse; this one reads forward, one chunk at a time.
+/// opening a FIFO with no writer would block.  con-leche goes on with its
+/// handle's reads (`foldChunks`) or its rounds parse; this one is the serial
+/// parse, one chunk at a time.
 pub fn parse_export_stream_d(
     pers: &PersTier,
     ar: &mut AState,

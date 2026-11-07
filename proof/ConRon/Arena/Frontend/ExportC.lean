@@ -437,13 +437,12 @@ def applyDeclD (st : StateD) (d : DeclRec) :
     AM (StateD ⊕ RecordVerdict) :=
   processLineCoreD st d
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:495-499 applyLine — THE SEMANTIC
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove ExportC.applyLine_bridge, then delete this line
-LAYER: one scanned line applied to the parse state.  The scanned record is
-con-leche's own (`Scan/Fast.lean`, reused); what this does with it is resolve
-the indices and INTERN the nodes.  There is no rewrite and no modeller seam
-left to run (task #105). -/
-def applyLine (st : StateD) (r : LineRec) :
+/-- con-leche: ConLeche/Frontend/ExportC.lean:466-477 applyRecord — one record
+applied to the parse state.  The scanned record is con-leche's own
+(`Scan/Fast.lean`, reused); what this does with it is resolve the indices and
+INTERN the nodes.  The header and a blank line change nothing (where they may
+stand is `applyLine`'s). -/
+def applyRecord (st : StateD) (r : LineRec) :
     AM (StateD ⊕ RecordVerdict) :=
   match r with
   | .expr i e => do pure (.inl (← parseExprEntryD st i e))
@@ -452,6 +451,30 @@ def applyLine (st : StateD) (r : LineRec) :
   | .decl d => applyDeclD st d
   | .header => pure (.inl st)
   | .blank => pure (.inl st)
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:479-487 LineRec.placed — where a
+line may stand: the format's first line is its `meta` header (`first`), and
+every later line is a record — the header only first, every other record never
+first, a blank line nowhere. -/
+def lineRecPlaced (first : Bool) : LineRec → Bool
+  | .header => first
+  | .blank => false
+  | _ => !first
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:489-493 LineRec.misplaced — what a
+line that stands where it may not is told. -/
+def lineRecMisplaced : LineRec → String
+  | .header => "a meta line after the first line"
+  | .blank => "a blank line"
+  | _ => "the first line is not the meta header"
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:495-499 applyLine — THE SEMANTIC
+LAYER: one scanned line, after `lineNo` lines, applied to the parse state if it
+stands where it may. -/
+def applyLine (st : StateD) (r : LineRec) (lineNo : Nat) :
+    AM (StateD ⊕ RecordVerdict) :=
+  if lineRecPlaced (lineNo == 0) r then applyRecord st r
+  else fail (.internal (lineRecMisplaced r))
 
 /-! ## The line feed and the drivers -/
 
@@ -481,22 +504,20 @@ def ParseResultD.ofState (st : StateD) : ParseResultD :=
   ⟨st.decls⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:531-542 applyFinalLine — scan and
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove ExportC.applyFinalLine_bridge, then delete this line
-apply the LAST line of a stream, the one no newline ends.  A syntactic failure
-is reported at its offset in the line.  con-leche calls `scanLineSpec` and lets
+apply the LAST line of a stream, the one no newline ends, after `lineNo` lines.
+A syntactic failure is reported at its offset in the line.  con-leche calls `scanLineSpec` and lets
 `@[csimp]` substitute `scanLineFwd`; this calls `scanLineFwd`, which is what
 both binaries execute. -/
 def applyFinalLine (st : StateD) (b : @& ByteArray) (i : USize)
     (lineNo : Nat) : AM (Except (CheckError × Nat) StateD) := do
   match scanLineFwd b i with
-  | .err e => pure (.error (.internal (ScanErr.render ⟨e.offset - i.toNat, e.what⟩), lineNo))
+  | .err e => pure (.error (.internal (ScanErr.render ⟨e.offset - i.toNat, e.what⟩), lineNo + 1))
   | .ok r _ =>
-    match ← applyLine st r with
-    | .inr v => pure (.error (v.toError, lineNo))
+    match ← applyLine st r lineNo with
+    | .inr v => pure (.error (v.toError, lineNo + 1))
     | .inl st => pure (.ok st)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:544-578 feedChunk — every
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove ExportC.feedChunk_bridge, then delete this line
 COMPLETE line of the chunk from `i`, applied in order: the state, the line
 count, and where the incomplete tail begins.  A line the chunk cut in half is
 told from a malformed one by whether the rest of the chunk holds a newline at
@@ -517,7 +538,7 @@ def feedChunk (st : StateD) (b : @& ByteArray) (i : USize)
       -- COMPARED, not matched.)
       if j == 0 then pure (.ok (st, lineNo, i))
       else do
-        match ← applyLine st r with
+        match ← applyLine st r lineNo with
         | .inr v => pure (.error (v.toError, lineNo + 1))
         | .inl st =>
           if _hj : i < j then feedChunk st b j (lineNo + 1)
@@ -538,7 +559,6 @@ def sizeError : CheckError × Nat :=
   (.notImplemented s!"an input of {USize.size} bytes or more", 0)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:593-605 parseBytes — wholesale
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove ExportC.parseBytes_bridge, then delete this line
 direct parse of a byte buffer: the whole input fed at once, then the last
 line.  The specification the streaming parse is proved equal to. -/
 def parseBytes (b : ByteArray) : AM (Except (CheckError × Nat) ParseResultD) := do
@@ -547,7 +567,7 @@ def parseBytes (b : ByteArray) : AM (Except (CheckError × Nat) ParseResultD) :=
   | .error e => pure (.error e)
   | .ok (st, lineNo, tail) =>
     if tail < b.usize then
-      match ← applyFinalLine st b tail (lineNo + 1) with
+      match ← applyFinalLine st b tail lineNo with
       | .error e => pure (.error e)
       | .ok st => pure (.ok (.ofState st))
     else
@@ -568,12 +588,11 @@ def chunkStep (st : StateD) (carry : ByteArray) (lineNo total : Nat)
     pure (.ok (st, buf.extract tail.toNat buf.size, lineNo, total + buf0.size))
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:635-642 chunkFinish — the end of
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove ExportC.chunkFinish_bridge, then delete this line
 the stream: the carried tail, if any, is its last line. -/
 def chunkFinish (st : StateD) (carry : ByteArray) (lineNo : Nat) :
     AM (Except (CheckError × Nat) ParseResultD) := do
   if carry.isEmpty then return .ok (.ofState st)
-  match ← applyFinalLine st carry 0 (lineNo + 1) with
+  match ← applyFinalLine st carry 0 lineNo with
   | .error e => pure (.error e)
   | .ok st => pure (.ok (.ofState st))
 

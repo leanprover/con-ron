@@ -1404,7 +1404,7 @@ structure frontend.scan_types.ScanErr where
   what : frontend.scan_types.ErrTag
 
 /-- [con_ron_core::frontend::scan_types::IdTable]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 538:0-541:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 539:0-542:1
     Visibility: public -/
 structure frontend.scan_types.IdTable (T : Type) where
   dense : alloc.vec.Vec T
@@ -1544,7 +1544,7 @@ inductive frontend.scan_types.DeclRec where
   frontend.scan_types.DeclRec
 
 /-- [con_ron_core::frontend::scan_types::LineRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 370:0-379:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 370:0-380:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.LineRec where
@@ -1565,13 +1565,13 @@ inductive frontend.scan_types.LineRec where
 | Blank : frontend.scan_types.LineRec
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1882:0-1885:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1934:0-1937:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec arena.env.IDeclaration
 
 /-- [con_ron_core::frontend::scan_types::Key]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 385:0-452:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 386:0-453:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.Key where
@@ -1667,7 +1667,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2150:0-2157:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2210:0-2218:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
@@ -1729,7 +1729,7 @@ inductive frontend.olean.header.HdrWalk where
 | Bad : frontend.olean.header.HdrWalk
 
 /-- Trait declaration: [con_ron_core::frontend::olean::files::OleanFs]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 58:0-83:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 59:0-93:1
     Visibility: public -/
 structure frontend.olean.files.OleanFs (Self : Type) where
   path_exists : Self → alloc.vec.Vec Std.U32 → Result (core.result.Result
@@ -1786,7 +1786,7 @@ structure frontend.olean.spec.PtrRead (Self : Type) where
 def frontend.olean.header.NamePRead := Unit
 
 /-- [con_ron_core::frontend::olean::files::Located]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 286:0-290:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 296:0-300:1
     Visibility: public -/
 structure frontend.olean.files.Located where
   dir : alloc.vec.Vec Std.U32
@@ -1794,14 +1794,14 @@ structure frontend.olean.files.Located where
   has_private : Bool
 
 /-- [con_ron_core::frontend::olean::files::Hit]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 306:0-309:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 316:0-319:1
     Visibility: public -/
 structure frontend.olean.files.Hit where
   dir : alloc.vec.Vec Std.U32
   files : alloc.vec.Vec (Option (alloc.vec.Vec Std.U32))
 
 /-- [con_ron_core::frontend::olean::files::LocErr]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 313:0-316:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 323:0-326:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.files.LocErr where
@@ -1943,14 +1943,14 @@ structure frontend.olean.sparse.Frontier where
   exprs : frontend.olean.sparse.Table arena.handle.EIdx
 
 /-- [con_ron_core::frontend::olean::lazy::CEntry]
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 263:0-266:1
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 269:0-272:1
     Visibility: public -/
 structure frontend.olean.lazy.CEntry where
   c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx
   uses : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::frontend::olean::lazy::Loaded]
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 277:0-281:1
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 283:0-287:1
     Visibility: public -/
 structure frontend.olean.lazy.Loaded where
   «name» : arena.handle.NIdx
@@ -1997,7 +1997,7 @@ structure frontend.olean.spec.StmtRec where
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::frontend::olean::files::NameScan]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 157:0-162:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 167:0-172:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.files.NameScan where
@@ -2103,7 +2103,7 @@ structure frontend.olean.records.OleanRead where
   pins : frontend.olean.spec.OleanPins
 
 /-- [con_ron_core::frontend::olean::records::ValueCache]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 237:0-240:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 238:0-241:1
     Visibility: public -/
 structure frontend.olean.records.ValueCache where
   idx : Std.U64

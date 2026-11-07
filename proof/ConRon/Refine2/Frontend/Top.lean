@@ -378,47 +378,85 @@ theorem apply_decl_d_refines {pers rst lst rsd lsd d o}
   rw [frontend.export_c.apply_decl_d] at h
   exact process_line_core_d_refines hrel hinv hd hi hs h
 
-/-- **`apply_line` refines `applyLine`** (`Arena/Frontend/ExportC.lean`) — THE
-SEMANTIC LAYER: one scanned line applied to the parse state.  Proved from its
-children (task #97-P5-Front round 2): the three table-entry writers and
+/-- **`apply_record` refines `applyRecord`** (`Arena/Frontend/ExportC.lean`):
+one record applied to the parse state.  Proved from its children (task #97-P5-Front round 2): the three table-entry writers and
 `apply_decl_d`; a header or a blank line changes nothing on either side.
 Task #105 drops the `Modeller` generic: there is no rewrite and no modeller
 seam left to run. -/
-theorem apply_line_refines {pers rst lst rsd lsd r o}
+theorem apply_record_refines {pers rst lst rsd lsd r o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (hs : LineRecStrWF r) (hnat : LineNatValSpec r)
-    (h : frontend.export_c.apply_line pers rst rsd r = ok o) :
-    SimDV pers lst o (applyLine lsd (absLineRec r)) := by
+    (h : frontend.export_c.apply_record pers rst rsd r = ok o) :
+    SimDV pers lst o (applyRecord lsd (absLineRec r)) := by
   cases r with
   | Name i n =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
     exact SimD.toSimDV_inl (parse_name_entry_d_refines hrel hinv hd hi hs h1)
   | Level i l =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
     exact SimD.toSimDV_inl (parse_level_entry_d_refines hrel hinv hd hi h1)
   | Expr i x =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
     exact SimD.toSimDV_inl (parse_expr_entry_d_refines hrel hinv hd hi hs hnat h1)
   | Decl d =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     obtain ⟨⟨r1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
     exact apply_decl_d_refines hrel hinv hd hi hs h1
   | Header =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     cases Result.ok_injective h
     exact SimDV.mk rfl hd hi hrel hinv
   | Blank =>
-    rw [frontend.export_c.apply_line] at h
+    rw [frontend.export_c.apply_record] at h
     cases Result.ok_injective h
     exact SimDV.mk rfl hd hi hrel hinv
+
+/-- **`line_rec_placed` is `lineRecPlaced`**, arm for arm. -/
+theorem line_rec_placed_eq (first : Bool) (r : frontend.scan_types.LineRec) :
+    frontend.export_c.line_rec_placed first r = ok (lineRecPlaced first (absLineRec r)) := by
+  cases r <;> simp [frontend.export_c.line_rec_placed, lineRecPlaced, absLineRec]
+
+/-- **`apply_line` refines `applyLine`** (`Arena/Frontend/ExportC.lean`) — THE
+SEMANTIC LAYER: one scanned line, after `line_no` lines.  The same placement
+test (`line_rec_placed_eq`); a placed line is `apply_record_refines`, and a
+misplaced one an `internal` failure on both sides (`merr` against `fail`). -/
+theorem apply_line_refines {pers rst lst rsd lsd r line_no o}
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (hs : LineRecStrWF r) (hnat : LineNatValSpec r)
+    (h : frontend.export_c.apply_line pers rst rsd r line_no = ok o) :
+    SimDV pers lst o (applyLine lsd (absLineRec r) line_no.val) := by
+  rw [frontend.export_c.apply_line, line_rec_placed_eq] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective hb
+  have h0 : decide (line_no = 0#u64) = (line_no.val == 0) := by
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, beq_iff_eq]
+    constructor
+    · intro e; rw [e]; rfl
+    · intro e; exact UScalar.eq_of_val_eq (by rw [e]; rfl)
+  rw [h0] at h
+  by_cases hp : lineRecPlaced (line_no.val == 0) (absLineRec r) = true
+  · simp only [hp, ↓reduceIte] at h
+    simp only [applyLine, hp, ↓reduceIte]
+    exact apply_record_refines hrel hinv hd hi hs hnat h
+  · simp only [hp, Bool.false_eq_true, ↓reduceIte] at h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    obtain ⟨msg, rfl⟩ := merr_refines hr1
+    simp only [applyLine, hp, Bool.false_eq_true, ↓reduceIte]
+    intro k hk
+    simp only [absAErrKind, Option.some.injEq] at hk
+    subst hk
+    exact ⟨_, rfl, rfl⟩
 
 /-! ## Stream plumbing (task #97-P5-Front)
 
@@ -635,9 +673,9 @@ theorem apply_final_line_refines {pers rst lst rsd lsd b i line_no o}
     obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hA := apply_line_refines hrel hinv hd hi hwf hnat hap
     have hrun : (applyFinalLine lsd (absBytes b) (absPos i) (absU line_no)).run lst =
-        (applyLine lsd (absLineRec r1)).run lst >>= fun q =>
+        (applyLine lsd (absLineRec r1) (absU line_no)).run lst >>= fun q =>
           (match q.1 with
-           | .inr v => (pure (.error (v.toError, absU line_no)) :
+           | .inr v => (pure (.error (v.toError, absU line_no + 1)) :
                 AM (Except (Arena.CheckError × Nat) Arena.Frontend.StateD))
            | .inl st => pure (.ok st)).run q.2 := by
       simp only [applyFinalLine, hscan]
@@ -650,9 +688,11 @@ theorem apply_final_line_refines {pers rst lst rsd lsd b i line_no o}
       obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv'⟩ := hA
       exact ⟨lsd', lst', by rw [hx]; rfl, hd', hi', hrel', hinv'⟩
     | Err e =>
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have ho := Result.ok_injective h; subst ho
       obtain ⟨hpos, herr, hver⟩ := line_err_to_check_refines hp1
+      rw [absU_add_one hi2] at hpos
       show StreamErrSim p1 _
       cases e with
       | Err ce =>
@@ -669,9 +709,11 @@ theorem apply_final_line_refines {pers rst lst rsd lsd b i line_no o}
   | Err e =>
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have ho := Result.ok_injective h; subst ho
     obtain ⟨hnone, hsome⟩ := scan_err_to_check_refines hce
-    show StreamErrSim (ce, line_no) _
+    show StreamErrSim (ce, i2) _
+    simp only [StreamErrSim, absU_add_one hi2]
     intro k hk
     cases ht : absErrTag e.what with
     | none =>
@@ -908,7 +950,7 @@ theorem parse_bytes_final_refines {pers rst lst rsd lsd b tail line_no o}
       = ok o) :
     SimStreamRel ParseResultDRel pers lst o
       (if absPos tail < (absBytes b).usize then do
-        match ← applyFinalLine lsd (absBytes b) (absPos tail) (absU line_no + 1) with
+        match ← applyFinalLine lsd (absBytes b) (absPos tail) (absU line_no) with
         | .error e => pure (.error e)
         | .ok st => pure (.ok (ParseResultD.ofState st))
       else pure (.ok (ParseResultD.ofState lsd))) := by
@@ -918,11 +960,8 @@ theorem parse_bytes_final_refines {pers rst lst rsd lsd b tail line_no o}
   · rename_i hlt
     have hlt' : absPos tail < (absBytes b).usize := absPos_lt_usize.mpr (by scalar_tac)
     rw [ite_eq_left hlt']
-    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hA := apply_final_line_refines hsc hrel hinv hd hi hap
-    have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
-    rw [hl] at hA
     simp only [SimStreamD] at hA
     rw [am_run_bind']
     cases r with
@@ -1178,14 +1217,12 @@ theorem chunk_finish_refines {pers rst lst rsd lsd carry line_no o}
       simp only [ByteArray.isEmpty, absBytes_size]
       have : carry.val.length ≠ 0 := by scalar_tac
       simp [this]
-    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hA := apply_final_line_refines hsc hrel hinv hd hi hap
-    have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
     have h0 : absPos 0#usize = 0 := rfl
-    rw [hl, h0] at hA
+    rw [h0] at hA
     have hrun : (chunkFinish lsd (absBytes carry) (absU line_no)).run lst =
-        (applyFinalLine lsd (absBytes carry) 0 (absU line_no + 1)).run lst >>=
+        (applyFinalLine lsd (absBytes carry) 0 (absU line_no)).run lst >>=
           fun p => (match p.1 with
             | .error e => (pure (.error e) : AM (Except (Arena.CheckError × Nat) ParseResultD))
             | .ok st => pure (.ok (.ofState st))).run p.2 := by
@@ -1210,7 +1247,7 @@ theorem chunk_finish_refines {pers rst lst rsd lsd carry line_no o}
       simp only at hA
       have ho := Result.ok_injective h; subst ho
       have hA' : StreamErrSim e
-          ((applyFinalLine lsd (absBytes carry) 0 (absU line_no + 1)).run lst) :=
+          ((applyFinalLine lsd (absBytes carry) 0 (absU line_no)).run lst) :=
         stream_unwrap_err hA (fun st => (st, ())) (fun _ => rfl) (fun _ => rfl)
       exact StreamErrSim.bind hA' _ (fun _ _ => rfl)
 

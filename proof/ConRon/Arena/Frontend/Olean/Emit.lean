@@ -164,7 +164,6 @@ The quotient package's constants. -/
 def quotConstants (pk : OleanPins) (mg : Merged) : List NIdx := blockTys mg (quotNames pk)
 
 /-- con-leche: ConLeche/Frontend/Olean/Emit.lean:285-286 Work.usesOf
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Emit.Work.usesOf_bridge, then delete this line
 Visits of what some constants mention. -/
 def Work.usesOf (mg : Merged) (cs : List NIdx) : List Work :=
   (entriesOf mg cs).flatMap fun c => c.uses.toList.map Work.visit

@@ -343,7 +343,6 @@ pub fn work_push(stack: &mut Vec<Work>, sp: usize, x: Work) -> usize {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:285-286 Work.usesOf
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove emit::push_uses_refines, then delete this line
 /// Visits of what one constant mentions, onto the stack (the last visit first, so
 /// that the first is on top); the new top.
 pub fn push_uses(stack: &mut Vec<Work>, sp: usize, c: &CEntry) -> usize {
@@ -357,7 +356,6 @@ pub fn push_uses(stack: &mut Vec<Work>, sp: usize, c: &CEntry) -> usize {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:285-286 Work.usesOf
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove emit::push_uses_of_refines, then delete this line
 /// Visits of what some constants mention, the first constant's on top.
 pub fn push_uses_of(stack: &mut Vec<Work>, sp: usize, mg: &Merged, ns: &Vec<NIdx>) -> usize {
     let mut s = sp;
@@ -370,7 +368,6 @@ pub fn push_uses_of(stack: &mut Vec<Work>, sp: usize, mg: &Merged, ns: &Vec<NIdx
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:285-286 Work.usesOf
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove emit::push_uses_named_refines, then delete this line
 /// Visits of what one constant mentions, by name.
 pub fn push_uses_named(stack: &mut Vec<Work>, sp: usize, mg: &Merged, n: &NIdx) -> usize {
     match merge::mg_get(mg, n) {

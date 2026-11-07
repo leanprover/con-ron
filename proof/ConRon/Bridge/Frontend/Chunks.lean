@@ -218,9 +218,9 @@ theorem applyFinalLine_run {s s' : AState} (hok : StateOK s)
     obtain ⟨x, s₁, hline, htail⟩ := AM.bind_ok hrun
     obtain ⟨hstep, hpers, y, hy, hxy⟩ := applyLine_run hok hoff hpins hrel hp hline
     have hcl : ConLeche.Frontend.applyFinalLine sc b i lineNo
-        = (match ConLeche.Frontend.applyLine sc r with
-           | .error msg => .error (.internal msg, lineNo)
-           | .ok (.inr v) => .error (v.toError, lineNo)
+        = (match ConLeche.Frontend.applyLine sc r lineNo with
+           | .error msg => .error (.internal msg, lineNo + 1)
+           | .ok (.inr v) => .error (v.toError, lineNo + 1)
            | .ok (.inl st) => .ok st) := by
       rw [ConLeche.Frontend.applyFinalLine, ← ConLeche.Frontend.scanLineFwd_eq,
         hsc]
@@ -299,7 +299,7 @@ theorem feedChunk_run_le :
            | .ok r j =>
              if j == 0 then .ok (sc, lineNo, i)
              else
-               match ConLeche.Frontend.applyLine sc r with
+               match ConLeche.Frontend.applyLine sc r lineNo with
                | .error msg => .error (.internal msg, lineNo + 1)
                | .ok (.inr v) => .error (v.toError, lineNo + 1)
                | .ok (.inl st) =>

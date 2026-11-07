@@ -112,7 +112,6 @@ A name once, in first-visit order. -/
   if x.1.contains n then x else (x.1.insert n, x.2.push n)
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:139-150 usesRead
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.usesRead_bridge, then delete this line
 **What a constant mentions, as names**: in first-visit order, each once, and the
 literal dependencies lean4export adds (the reader's pins).  Where a name does not
 read, it is left out. -/
@@ -125,9 +124,12 @@ def usesRead (pk : OleanPins) (nm : UInt64 → Option NIdx) (out : Array UInt64)
       | none => x) ((Std.HashSet.emptyWithCapacity 64 : Std.HashSet NIdx), #[])).2
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:164-168 CEntry
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.CEntry_bridge, then delete this line
 **One stored constant**, as the merge and the emitter need it: the constant read (a
-theorem's value its reference) and the constants it mentions. -/
+theorem's value its reference) and the constants it mentions.  Deviation: upstream's
+`uses` is a `Subarray` of one array per module (`usesFlat`, con-leche task #489), so that
+Lean's allocator frees what the emission has read in one piece; the sequence is the same,
+and this keeps an array per constant, as the Rust, which has no shared slice short of an
+`Rc`. -/
 structure CEntry where
   c : CEntryF NIdx EIdx
   uses : Array NIdx := #[]
@@ -167,7 +169,6 @@ def lazyEntry (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (s : CEntryF UIn
   | _ => entryMap (st.read pk r) s
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:218-231 lazyEntries
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.lazyEntries_bridge, then delete this line
 `lazyEntry` of every constant, each with what it mentions (`outs`, by position). -/
 def lazyEntries (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (outs : Array (Array UInt64)) :
     Nat → List (CEntryF UInt64 UInt64) → AM (Option (List CEntry))
@@ -231,13 +232,11 @@ def frontierOf (m fr : ByteArray) (st : DS) (n p : Nat) (b : Frontier) : Frontie
 termination_by n - p
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.loadRoots_bridge, then delete this line
 The name and expression roots of the load. -/
 def loadRoots (sk : ModSkel) (skels : List (CEntryF UInt64 UInt64)) : List UInt64 × List UInt64 :=
   (sk.imports.map (·.module) ++ skels.flatMap CEntryF.names, skels.flatMap CEntryF.exprs)
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.loadImports_bridge, then delete this line
 The imports read off the memo, against those at the start of `M.olean`. -/
 def loadImports (pk : OleanPins) (r : Region) (st : DS) (sk : ModSkel) (f : ModFiles) : AM Bool := do
   let some imports := sk.imports.mapM (fun i => i.mapM (st.nameOf pk r)) | return false
@@ -246,7 +245,6 @@ def loadImports (pk : OleanPins) (r : Region) (st : DS) (sk : ModSkel) (f : ModF
   | none => pure false
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.valueRoots_bridge, then delete this line
 The values' locations, each with the expression kind's code: the walk's start. -/
 def valueRoots (r : Region) (skels : List (CEntryF UInt64 UInt64)) : List Nat :=
   skels.filterMap fun c => match c.kind with
@@ -254,7 +252,6 @@ def valueRoots (r : Region) (skels : List (CEntryF UInt64 UInt64)) : List Nat :=
     | _ => none
 
 /-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Lazy.loadAt_bridge, then delete this line
 **The load of a module's private view**, everything but its theorems' values.
 `none` where the part of the view it reads does not read: `viewError` says why. -/
 def loadAt (pk : OleanPins) (i : Nat) (m : NIdx) (f : ModFiles) : AM (Option Loaded) := do

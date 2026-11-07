@@ -249,13 +249,12 @@ def msSecs (ms : Nat) : String :=
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Main.readFold_bridge, then delete this line
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
-never re-opened, and no scratch file exists anywhere.  Deviation from
-`foldChunks`, whose reads are positional through con-leche's `CheckerIO` class:
-these are sequential and forward, and there is no class.
+never re-opened, and no scratch file exists anywhere.  `foldChunks` reads a
+handle forward too, through con-leche's `CheckerIO` class, up to the size it
+read first; this reads to the first empty read, and there is no class.
 
 **This is the same fold as `Frontend.parseChunksGo`**, which the pure seam
 runs over a chunk LIST: the same `chunkStep` at the same four accumulators,
@@ -313,8 +312,25 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:371-377 openReadIO
+The reader's positional read at `IO`: the file opened by upstream's `openReadIO`
+(a regular file, or an exception), its first `off` bytes read and dropped, then
+up to `len` bytes, each read repeated until it has them or the file ends.
+Upstream reads its handle forward instead (Lean's handles have no positional
+read); the reader asks this only for an `.olean` header, so what is dropped is
+a few pages at most. -/
+partial def readRangeIO (p : System.FilePath) (off len : Nat) : IO ByteArray := do
+  let h ← openReadIO p
+  let rec go (want : Nat) (acc : ByteArray) : IO ByteArray := do
+    if want == 0 then return acc
+    let b ← h.read (min want chunkSize.toNat).toUSize
+    if b.isEmpty then return acc
+    go (want - b.size) (acc ++ b)
+  let skipped ← go off .empty
+  if skipped.size < off then return .empty
+  go len .empty
+
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Main.stdFsImpl_bridge, then delete this line
 The binary's file operations, as the pure functions the reader takes: `IO` run where
 it is asked, outside every theorem (`Frontend/Olean/Files.lean`'s note). -/
 unsafe def stdFsImpl : Frontend.Olean.OleanFs where
@@ -331,7 +347,7 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
   readRange p off len := unsafeBaseIO do
-    match ← (CheckerIO.readRange p off len : IO ByteArray).toBaseIO with
+    match ← (readRangeIO p off len).toBaseIO with
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
   fileSize p := unsafeBaseIO do
@@ -340,7 +356,6 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     | .error e => pure (.error (toString e))
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Main.stdFs_bridge, then delete this line
 The binary's file operations, opaque to the logic. -/
 @[implemented_by stdFsImpl]
 opaque stdFs : Frontend.Olean.OleanFs
@@ -544,7 +559,6 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     return e.exitCode
 
 /-- con-leche: Main.lean:56-103 main
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Main.main_bridge, then delete this line
 con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
 `--help` before any `--` prints the help on stdout and exits 0, reading
 nothing.  A bad flag prints its message and a pointer to `--help` on stderr

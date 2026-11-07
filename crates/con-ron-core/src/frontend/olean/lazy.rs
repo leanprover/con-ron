@@ -231,7 +231,6 @@ pub fn add_use(seen: &mut HashMap2<NIdx, bool>, out: &mut Vec<NIdx>, n: &NIdx) {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:139-150 usesRead
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::uses_read_refines, then delete this line
 /// **What a constant mentions, as names**: in first-visit order, each once, and
 /// the literal dependencies lean4export adds: `Nat` for a numeral, `Char.ofNat`
 /// and `String.ofList` for a string.  Where a name does not read, it is left out.
@@ -258,10 +257,13 @@ pub fn uses_read(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r:
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:164-168 CEntry
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::CEntry_refines, then delete this line
 /// **One stored constant**, as the merge and the emitter need it: the constant
 /// read (`lazy_entry`: a theorem's value is its reference) and the constants its
-/// type and values mention, in first-visit order.
+/// type and values mention, in first-visit order.  Deviation: upstream's `uses`
+/// is a `Subarray` of one array per module (`usesFlat`, con-leche task #489), so
+/// that Lean's allocator frees what the emission has read in one piece (−4.9 %
+/// peak RSS there); the sequence is the same, and a shared slice would take an
+/// `Rc` here, so each constant keeps its own vector.
 pub struct CEntry {
     pub c: CEntryF<NIdx, EIdx>,
     pub uses: Vec<NIdx>,
@@ -356,7 +358,6 @@ pub fn lazy_entry(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:218-231 lazyEntries
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::lazy_entries_refines, then delete this line
 /// `lazyEntry` of every constant, each with what it mentions (`outs`, by
 /// position).
 pub fn lazy_entries(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &DS, i: u64, outs: &Vec<Vec<u64>>, ss: &Vec<CEntryF<u64, u64>>) -> Result<Vec<CEntry>, RdErr> {
@@ -504,7 +505,6 @@ pub fn frontier_of(m: &Vec<u8>, fr: &Vec<u8>, st: &DS, n: u64, p: u64, b: Fronti
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_roots_refines, then delete this line
 /// The name and expression roots of the load, the walk's outputs' names among
 /// them.
 pub fn load_roots(sk: &spec::ModSkel, skels: &Vec<CEntryF<u64, u64>>) -> (Vec<u64>, Vec<u64>) {
@@ -525,7 +525,6 @@ pub fn load_roots(sk: &spec::ModSkel, skels: &Vec<CEntryF<u64, u64>>) -> (Vec<u6
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_imports_refines, then delete this line
 /// `sk.imports.mapM (ImportF.mapM (st.nameOf r))`, then `importsPre f.exported.bytes
 /// == some imports`.
 pub fn load_imports(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &DS, sk: &spec::ModSkel, f: &ModFiles) -> Result<(), RdErr> {
@@ -551,7 +550,6 @@ pub fn load_imports(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8],
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::value_roots_refines, then delete this line
 /// The values' locations, each with the expression kind's code: the walk's
 /// start.
 pub fn value_roots(r: &Region, skels: &Vec<CEntryF<u64, u64>>) -> Vec<u64> {
@@ -559,7 +557,6 @@ pub fn value_roots(r: &Region, skels: &Vec<CEntryF<u64, u64>>) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::value_roots_from_refines, then delete this line
 /// The cursor recursion behind `value_roots`.
 pub fn value_roots_from(r: &Region, skels: &Vec<CEntryF<u64, u64>>, i: usize, out: Vec<u64>) -> Vec<u64> {
     if i >= skels.len() {
@@ -579,7 +576,6 @@ pub fn value_roots_from(r: &Region, skels: &Vec<CEntryF<u64, u64>>, i: usize, ou
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove lazy::load_at_refines, then delete this line
 /// **The load of a module's private view**, everything but its theorems'
 /// values.  `RdErr::Bad` where the part of the view it reads does not read:
 /// `view_error` says why.

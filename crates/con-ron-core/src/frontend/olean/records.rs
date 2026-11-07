@@ -149,7 +149,6 @@ pub struct OleanRead {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:91-95 OleanRead.thmUses
-/// con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove records::olean_read_thm_uses_refines, then delete this line
 /// **What a theorem's record mentions**, which its reference does not say: what
 /// the load read off the file.  `None` for any other record.
 pub fn olean_read_thm_uses(rd: &OleanRead, d: &IDeclaration) -> Option<Vec<NIdx>> {

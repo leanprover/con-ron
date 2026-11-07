@@ -314,7 +314,6 @@ ConLeche/Frontend/CheckerIO.lean mapExcept Lean's IO seam for its own driver the
 ConLeche/Frontend/CheckerIO.lean lastNewlineBelow Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean parShare Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean parMapIO Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/ReadRange.lean * Lean's IO seam for its own driver theorem; the Rust driver is unverified, OVERVIEW §8.2
 
 # ---------------------------------------------------------------------------
 # The `.olean` reader (task #142): what does not execute
@@ -333,7 +332,6 @@ ConLeche/Kernel/CoreDefs.lean LooseBVarMemoInv A `Prop`-valued memo invariant, a
 ConLeche/Kernel/Inductives/BlockShape.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller (task #143: the file was `BlockParts.lean`).
 ConLeche/Frontend/CheckerIO.lean WorkerReach Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Frontend/CheckerIO.lean workerElem Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
-ConLeche/Frontend/CheckerIO.lean workerMap Lean's IO seam for its own driver theorem (the worker map's model, task #481); the Rust driver is unverified, OVERVIEW §8.2
 ConLeche/Kernel/FEnv.lean mkIdxGo The Rust builds no environment from a constant list: every job's environment is an empty layer over the stream's index (`arena::stream_index`); the twin ports it (`Arena/Env.lean`), for the spec fold.
 ConLeche/Kernel/FEnv.lean mkTblsGo As `mkIdxGo`.
 ConLeche/Kernel/FEnv.lean mkFEnv As `mkIdxGo`.

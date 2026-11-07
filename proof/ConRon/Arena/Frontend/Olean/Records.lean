@@ -69,7 +69,6 @@ structure OleanRead where
   pins : OleanPins
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:91-95 OleanRead.thmUses
--- con-leche: CHANGED since 701d72ae — re-port, re-test, re-prove Records.OleanRead.thmUses_bridge, then delete this line
 **What a theorem's record mentions**, which its reference does not say: what the
 load read off the file.  `none` for any other record. -/
 def OleanRead.thmUses (rd : OleanRead) : IDeclaration → Option (Array NIdx)
