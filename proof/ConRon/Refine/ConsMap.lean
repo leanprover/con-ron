@@ -695,7 +695,7 @@ theorem move_slots_sim (rows : alloc.vec.Vec (A × D)) (epoch : Std.U32) (hep : 
 
 /-- `try_resize` on the view. -/
 theorem try_resize_sim (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
-    (hep : 1 ≤ t.epoch.val) (hk : KInv hCH rows t)
+    (hep : 1 ≤ t.epoch.val)
     (h : arena.cons_map.ConsMap.try_resize hDI hCH hA hE t rows = ok t') :
     ron.hashmap2.HashMap2.try_resize hA hE (view hCH rows t) = ok (view hCH rows t') ∧
       KInv hCH rows t' ∧ t'.epoch = t.epoch ∧ t'.num_entries = t.num_entries := by
@@ -723,4 +723,344 @@ theorem try_resize_sim (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.Co
     unfold KInv at this
     rw [hep1] at this
     exact this
+
+/-! ## The public operations -/
+
+theorem insert_sim (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
+    {key : A} {value : I} {o : Option I}
+    (hkey : keyOf hCH rows value = some key) (hep : 1 ≤ t.epoch.val) (hk : KInv hCH rows t)
+    (h : arena.cons_map.ConsMap.insert hDI hCH hA hE t rows key value = ok (o, t')) :
+    ron.hashmap2.HashMap2.insert hA hE (view hCH rows t) key value = ok (o, view hCH rows t') ∧
+      KInv hCH rows t' := by
+  rw [arena.cons_map.ConsMap.insert] at h
+  obtain ⟨t1, ht1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q, hins, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨old, t2⟩ := q
+  obtain ⟨he1, hk1, hep1, -⟩ := ensure_slots_sim rows hep hk ht1
+  obtain ⟨hi1, hk2, hep2⟩ := insert_no_resize_sim rows hkey hk1 hins
+  rw [ron.hashmap2.HashMap2.insert]
+  change (if t2.num_entries > t2.max_load then _ else _) = _ at h
+  by_cases hgt : t2.num_entries > t2.max_load
+  · rw [ite_eq_left hgt] at h
+    obtain ⟨t3, ht3, h⟩ := bind_eq_ok_iff.mp h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    obtain ⟨hr, hk3, -, -⟩ := try_resize_sim rows (by rw [hep2, hep1]; exact hep) ht3
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, he1, bind_eq_ok_iff.mpr ⟨(_, view hCH rows t2), hi1, ?_⟩⟩, hk3⟩
+    change (if (view hCH rows t2).num_entries > (view hCH rows t2).max_load then _ else _) = _
+    rw [ite_eq_left (show (view hCH rows t2).num_entries > (view hCH rows t2).max_load from hgt)]
+    exact bind_eq_ok_iff.mpr ⟨_, hr, rfl⟩
+  · rw [ite_eq_right hgt] at h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, he1, bind_eq_ok_iff.mpr ⟨(_, view hCH rows t2), hi1, ?_⟩⟩, hk2⟩
+    change (if (view hCH rows t2).num_entries > (view hCH rows t2).max_load then _ else _) = _
+    rw [ite_eq_right (show ¬ (view hCH rows t2).num_entries > (view hCH rows t2).max_load from hgt)]
+
+theorem insert_at_sim (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
+    {at1 : Std.Usize} {key : A} {value : I}
+    (hkey : keyOf hCH rows value = some key) (hep : 1 ≤ t.epoch.val) (hk : KInv hCH rows t)
+    (h : arena.cons_map.ConsMap.insert_at hDI hCH hA hE t rows at1 value = ok t') :
+    ron.hashmap2.HashMap2.insert_at hA hE (view hCH rows t) at1 key value = ok (view hCH rows t') ∧
+      KInv hCH rows t' := by
+  rw [arena.cons_map.ConsMap.insert_at] at h
+  obtain ⟨p, hmut, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c, back⟩ := p
+  obtain ⟨hmut', rfl⟩ := vmap_index_mut (f := viewSlot hCH rows t.epoch) hmut
+  obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+  have hk1 := KInv_set hk at1 hkey i
+  have hv1 := view_set (t := t) at1 hkey i
+  rw [ron.hashmap2.HashMap2.insert_at]
+  by_cases hgt : i > t.max_load
+  · rw [ite_eq_left hgt] at h
+    obtain ⟨hr, hk2, -, -⟩ := try_resize_sim
+      (t := { t with
+        num_entries := i, slots := alloc.vec.Vec.set t.slots at1 { g := t.epoch, h := value } })
+      rows hep h
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, hmut', bind_eq_ok_iff.mpr ⟨i, hi, ?_⟩⟩, hk2⟩
+    rw [ite_eq_left (show i > (view hCH rows t).max_load from hgt)]
+    rw [hv1] at hr
+    exact hr
+  · rw [ite_eq_right hgt] at h
+    rw [← Result.ok_injective h]
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, hmut', bind_eq_ok_iff.mpr ⟨i, hi, ?_⟩⟩, hk1⟩
+    rw [ite_eq_right (show ¬ i > (view hCH rows t).max_load from hgt)]
+    exact congrArg ok hv1.symm
+
+theorem find_slot_sim (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
+    {key : A} {at1 : Std.Usize} {o : Option I} (hep : 1 ≤ t.epoch.val) (hk : KInv hCH rows t)
+    (h : arena.cons_map.ConsMap.find_slot hDI hCH hA hE t rows key = ok ((at1, o), t')) :
+    ron.hashmap2.HashMap2.find_slot hA hE hDI (view hCH rows t) key
+        = ok ((at1, o), view hCH rows t') ∧
+      KInv hCH rows t' ∧ t'.epoch = t.epoch := by
+  rw [arena.cons_map.ConsMap.find_slot] at h
+  obtain ⟨t1, ht1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨he1, hk1, hep1, -⟩ := ensure_slots_sim rows hep hk ht1
+  obtain ⟨hv, hhash, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q, hpr, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i2, b⟩ := q
+  have hpr' := probe_sim rows t1.slots t1.epoch key _ _ i1 _ _ rfl hpr
+  rw [home_index_eq] at hi1
+  rw [ron.hashmap2.HashMap2.find_slot]
+  cases b with
+  | true =>
+    change (if true = true then _ else _) = _ at h
+    rw [ite_eq_left rfl] at h
+    obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨v, hv2, h⟩ := bind_eq_ok_iff.mp h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := e
+    obtain ⟨s, hs, hsg, hsk⟩ := probe_true rows t1.slots t1.epoch key _ _ i1 _ _ rfl hpr
+    rw [vec_index_iff.mp hc] at hs
+    cases hs
+    obtain ⟨k, hk'⟩ := Option.isSome_iff_exists.mp hsk
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, he1, ?_⟩, hk1, hep1⟩
+    rw [view_len]
+    refine bind_eq_ok_iff.mpr ⟨hv, hhash, bind_eq_ok_iff.mpr ⟨i1, hi1,
+      bind_eq_ok_iff.mpr ⟨(i2, true), hpr', ?_⟩⟩⟩
+    change (if true = true then _ else _) = _
+    rw [ite_eq_left rfl]
+    refine bind_eq_ok_iff.mpr ⟨_, vmap_index hc, ?_⟩
+    rw [viewSlot_live hsg hk']
+    exact bind_eq_ok_iff.mpr ⟨v, hv2, rfl⟩
+  | false =>
+    change (if false = true then _ else _) = _ at h
+    rw [ite_eq_right (by simp)] at h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := e
+    refine ⟨bind_eq_ok_iff.mpr ⟨_, he1, ?_⟩, hk1, hep1⟩
+    rw [view_len]
+    refine bind_eq_ok_iff.mpr ⟨hv, hhash, bind_eq_ok_iff.mpr ⟨i1, hi1,
+      bind_eq_ok_iff.mpr ⟨(i2, false), hpr', ?_⟩⟩⟩
+    change (if false = true then _ else _) = _
+    rw [ite_eq_right (by simp)]
+
+theorem get_sim (rows : alloc.vec.Vec (A × D)) {t : arena.cons_map.ConsMap I} (hdup : DupId hDI)
+    {key : A} {o : Option I}
+    (h : arena.cons_map.ConsMap.get hDI hCH hA hE t rows key = ok o) :
+    ron.hashmap2.HashMap2.get hA hE (view hCH rows t) key = ok o := by
+  rw [arena.cons_map.ConsMap.get] at h
+  rw [ron.hashmap2.HashMap2.get, view_len]
+  split at h
+  · rename_i h0
+    rw [ite_eq_left h0]; exact h
+  · rename_i h0
+    rw [ite_eq_right h0]
+    obtain ⟨hv, hhash, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨q, hpr, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, b⟩ := q
+    have hpr' := probe_sim rows t.slots t.epoch key _ _ i1 _ _ rfl hpr
+    rw [home_index_eq] at hi1
+    refine bind_eq_ok_iff.mpr ⟨hv, hhash, bind_eq_ok_iff.mpr ⟨i1, hi1,
+      bind_eq_ok_iff.mpr ⟨(i2, b), hpr', ?_⟩⟩⟩
+    change (if b = true then _ else _) = _ at h
+    change (if b = true then _ else _) = _
+    cases b with
+    | true =>
+      rw [ite_eq_left rfl] at h ⊢
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨v, hv2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨s, hs, hsg, hsk⟩ := probe_true rows t.slots t.epoch key _ _ i1 _ _ rfl hpr
+      rw [vec_index_iff.mp hc] at hs
+      cases hs
+      obtain ⟨k, hk'⟩ := Option.isSome_iff_exists.mp hsk
+      refine bind_eq_ok_iff.mpr ⟨_, vmap_index hc, ?_⟩
+      rw [viewSlot_live hsg hk', ← Result.ok_injective h, hdup _ _ hv2]
+    | false =>
+      rw [ite_eq_right (by simp)] at h ⊢
+      exact h
+
+theorem new_sim (rows : alloc.vec.Vec (A × D)) {t : arena.cons_map.ConsMap I}
+    (h : arena.cons_map.ConsMap.new hDI hCH = ok t) :
+    ron.hashmap2.HashMap2.new A I = ok (view hCH rows t) ∧ KInv hCH rows t := by
+  rw [arena.cons_map.ConsMap.new] at h
+  have ht := Result.ok_injective h
+  subst ht
+  refine ⟨?_, ⟨by simp, by simp⟩⟩
+  rw [ron.hashmap2.HashMap2.new]
+  congr 1
+
+/-! ## `clear` and `clear_fit`, directly
+
+Not a simulation: `HashMap2::clear` leaves stale `Live` slots, which the view
+of the cleared `ConsMap` reads as `Vacant`.  Both are the empty map, and the
+view of the cleared table satisfies `Inv` by `HashMap2`'s own
+`vacant_table_inv`.  The conclusions hold over ANY row vector, because a
+table with no slot of its epoch names no row — which is what lets `Tbl::reset`
+replace the rows. -/
+
+theorem view_all_vacant {rows : alloc.vec.Vec (A × D)} {t : arena.cons_map.ConsMap I}
+    (h : ∀ s ∈ t.slots.val, ¬ s.g = t.epoch) :
+    ∀ j : Nat, (view hCH rows t).slots.val[j]! = ron.hashmap2.Slot.Vacant := by
+  intro j
+  rw [view_slots_val]
+  by_cases hj : j < t.slots.val.length
+  · rw [List.getElem!_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hj]
+    simp only [Option.map_some, Option.getD_some]
+    exact viewSlot_ne (h _ (List.getElem_mem hj))
+  · rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_none (by simp; omega)]; rfl
+
+theorem dead_view_inv [DecidableEq A] (rows : alloc.vec.Vec (A × D)) {t : arena.cons_map.ConsMap I}
+    (hdead : ∀ s ∈ t.slots.val, ¬ s.g = t.epoch) (hn : t.num_entries.val = 0)
+    (hpow : 0 < t.slots.val.length → ∃ e, t.slots.val.length = 2 ^ e)
+    (hmin : 0 < t.slots.val.length → 32 ≤ t.slots.val.length)
+    (hml : 0 < t.slots.val.length → t.max_load.val = 3 * (t.slots.val.length / 4))
+    (hep : 1 ≤ t.epoch.val) :
+    Inv hA (view hCH rows t) ∧ sl_v (view hCH rows t) = [] ∧
+      ∀ k, toFun (view hCH rows t) k = none := by
+  have hv := view_all_vacant (hCH := hCH) (rows := rows) hdead
+  have hlen : (view hCH rows t).slots.val.length = t.slots.val.length := by simp
+  have hsl : sl_v (view hCH rows t) = [] :=
+    ConRon.Refine.HashMap2.sl_v_eq_nil_of_no_live (fun j => by rw [slotKV, hv j]; rfl)
+  exact vacant_table_inv hv hsl hn (Nat.zero_le _) (by rw [hlen]; exact hpow)
+    (by rw [hlen]; exact hmin) (by rw [hlen]; exact hml) hep
+
+theorem vacate_slots_spec (N : Nat) :
+    ∀ (slots slots' : alloc.vec.Vec (arena.cons_map.CSlot I)) (lo hi : Std.Usize),
+      hi.val - lo.val = N →
+      arena.cons_map.ConsMap.vacate_slots hDI hCH slots lo hi = ok slots' →
+      slots'.val.length = slots.val.length ∧
+      (∀ j, lo.val ≤ j → j < hi.val → ∀ s, slots'.val[j]? = some s → s.g = 0#u32) ∧
+      (∀ j, (j < lo.val ∨ hi.val ≤ j) → slots'.val[j]? = slots.val[j]?) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro slots slots' lo hi hN h
+    rw [arena.cons_map.ConsMap.vacate_slots.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hlt : lo.val < hi.val := by scalar_tac
+      obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
+      split at h
+      · rename_i h1
+        have hn1 : hi.val = lo.val + 1 := by
+          have : n.val = 1 := by scalar_tac
+          omega
+        obtain ⟨x, -, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨p, hp, hb⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨y, f⟩ := p
+        obtain ⟨hy, rfl⟩ := vec_index_mut_iff.mp hp
+        have hlo : lo.val < slots.val.length := by
+          by_contra hc; rw [List.getElem?_eq_none (by omega)] at hy; simp at hy
+        rw [← Result.ok_injective hb, alloc.vec.Vec.set_val_eq]
+        refine ⟨by simp, ?_, ?_⟩
+        · intro j hj1 hj2 s hs
+          have : j = lo.val := by omega
+          subst this
+          rw [List.getElem?_set_self hlo] at hs
+          cases hs; rfl
+        · intro j hj
+          exact List.getElem?_set_ne (by omega)
+      · rename_i h1
+        have hn2 : 2 ≤ n.val := by
+          have : n.val ≠ 1 := by scalar_tac
+          omega
+        obtain ⟨i, hi2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨mid, hmid, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨slots1, hs1, h2⟩ := bind_eq_ok_iff.mp h
+        have hiv : i.val = n.val / 2 := by
+          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
+        obtain ⟨l1, c1, f1⟩ := ih (mid.val - lo.val) (by omega) slots slots1 lo mid rfl hs1
+        obtain ⟨l2, c2, f2⟩ := ih (hi.val - mid.val) (by omega) slots1 slots' mid hi rfl h2
+        refine ⟨by omega, ?_, ?_⟩
+        · intro j hj1 hj2 s hs
+          by_cases hjm : j < mid.val
+          · rw [f2 j (Or.inl hjm)] at hs; exact c1 j hj1 hjm s hs
+          · exact c2 j (by omega) hj2 s hs
+        · intro j hj
+          rw [f2 j (by omega), f1 j (by omega)]
+    · rename_i hgt
+      have : hi.val ≤ lo.val := by scalar_tac
+      rw [← Result.ok_injective h]
+      exact ⟨rfl, fun j hj1 hj2 => by omega, fun _ _ => rfl⟩
+
+theorem clear_spec [DecidableEq A] (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
+    (hinv : Inv hA (view hCH rows t)) (hk : KInv hCH rows t)
+    (h : arena.cons_map.ConsMap.clear hDI hCH t = ok t') (rows' : alloc.vec.Vec (A × D)) :
+    Inv hA (view hCH rows' t') ∧ sl_v (view hCH rows' t') = [] ∧
+      (∀ k, toFun (view hCH rows' t') k = none) ∧ KInv hCH rows' t' := by
+  have hlen0 : (view hCH rows t).slots.val.length = t.slots.val.length := by simp
+  rw [arena.cons_map.ConsMap.clear] at h
+  split at h
+  · -- the `EPOCH_MAX` wrap: every slot becomes a filler, the epoch restarts
+    obtain ⟨v, hv, hm⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hlen, hnil, -⟩ := vacate_slots_spec ((alloc.vec.Vec.len t.slots).val - 0)
+      t.slots v 0#usize (alloc.vec.Vec.len t.slots) rfl hv
+    have ht := Result.ok_injective hm
+    subst ht
+    have hz : ∀ s ∈ v.val, s.g = 0#u32 := by
+      intro s hs
+      obtain ⟨j, hj, hjs⟩ := List.getElem_of_mem hs
+      exact hnil j (by simp) (by rw [alloc.vec.Vec.len_val]; rw [hlen] at hj; exact hj) s
+        (by rw [List.getElem?_eq_getElem hj, hjs])
+    have hdead : ∀ s ∈ v.val, ¬ s.g = 1#u32 := by
+      intro s hs hc; rw [hz s hs] at hc; simp at hc
+    obtain ⟨h1, h2, h3⟩ := dead_view_inv (hA := hA)
+      (t := { t with num_entries := 0#usize, epoch := 1#u32, slots := v }) rows' hdead rfl
+      (by intro hp; rw [hlen] at hp ⊢; rw [← hlen0] at hp ⊢; exact hinv.pow2 hp)
+      (by intro hp; rw [hlen] at hp ⊢; rw [← hlen0] at hp ⊢; exact hinv.min_cap hp)
+      (by intro hp; rw [hlen] at hp ⊢; rw [← hlen0] at hp ⊢; exact hinv.max_load_eq hp)
+      (by simp)
+    exact ⟨h1, h2, h3, KInvS_filler (by simp) hz⟩
+  · -- the common path: `epoch += 1`, and no slot carries the new stamp
+    obtain ⟨i, hi, hm⟩ := bind_eq_ok_iff.mp h
+    have hiv : i.val = t.epoch.val + 1 := by rw [uscalar_add_eq hi]; simp
+    have ht := Result.ok_injective hm
+    subst ht
+    have hdead : ∀ s ∈ t.slots.val, ¬ s.g = i := by
+      intro s hs hc
+      have := hk.stamps s hs
+      rw [hc] at this; omega
+    obtain ⟨h1, h2, h3⟩ := dead_view_inv (hA := hA)
+      (t := { t with num_entries := 0#usize, epoch := i }) rows' hdead rfl
+      (by rw [← hlen0]; exact hinv.pow2) (by rw [← hlen0]; exact hinv.min_cap)
+      (by rw [← hlen0]; exact hinv.max_load_eq) (by show 1 ≤ i.val; omega)
+    refine ⟨h1, h2, h3, fun s hs => ?_, fun s hs hc => absurd hc (hdead s hs)⟩
+    have := hk.stamps s hs
+    show s.g.val ≤ i.val
+    omega
+
+theorem clear_fit_spec [DecidableEq A] (rows : alloc.vec.Vec (A × D)) {t t' : arena.cons_map.ConsMap I}
+    (hinv : Inv hA (view hCH rows t)) (hk : KInv hCH rows t)
+    (h : arena.cons_map.ConsMap.clear_fit hDI hCH t = ok t') (rows' : alloc.vec.Vec (A × D)) :
+    Inv hA (view hCH rows' t') ∧ sl_v (view hCH rows' t') = [] ∧
+      (∀ k, toFun (view hCH rows' t') k = none) ∧ KInv hCH rows' t' := by
+  rw [arena.cons_map.ConsMap.clear_fit] at h
+  obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨decayed, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hw, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨want, -, h⟩ := bind_eq_ok_iff.mp h
+  have hinv' : Inv hA (view hCH rows { t with fit_hw := hw }) :=
+    ConRon.Refine.HashMap2.Inv_fit_hw hinv hw
+  have hk' : KInv hCH rows { t with fit_hw := hw } := hk
+  have hlazy : ok (α := arena.cons_map.ConsMap I)
+        { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := hw,
+          slots := alloc.vec.Vec.new (arena.cons_map.CSlot I) } = ok t' →
+      Inv hA (view hCH rows' t') ∧ sl_v (view hCH rows' t') = [] ∧
+        (∀ k, toFun (view hCH rows' t') k = none) ∧ KInv hCH rows' t' := by
+    intro hok
+    have ht := Result.ok_injective hok
+    subst ht
+    obtain ⟨h1, h2, h3⟩ := dead_view_inv (hA := hA)
+      (t := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := hw,
+              slots := alloc.vec.Vec.new (arena.cons_map.CSlot I) })
+      rows' (by simp) rfl (by simp) (by simp) (by simp) (by simp)
+    exact ⟨h1, h2, h3, by simp, by simp⟩
+  split at h
+  · exact clear_spec rows hinv' hk' h rows'
+  · split at h
+    · obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
+      split at h
+      · exact clear_spec rows hinv' hk' h rows'
+      · exact hlazy h
+    · exact hlazy h
 

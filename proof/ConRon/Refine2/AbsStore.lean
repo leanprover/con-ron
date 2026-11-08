@@ -47,6 +47,7 @@ both sides, which is all Theorem 2 claims; excluding it is `StoreWF`'s
 -/
 import ConRon.Refine2.Idiom
 import ConRon.Refine.HashMap2WF
+import ConRon.Refine.ConsMap
 import ConRon.Refine.Expr
 import ConRon.Refine.PropWhen
 import ConRon.Arena.Store
@@ -356,12 +357,33 @@ observable — `instantiateLevelParams`' cutoff reads it — and the hash is
 not. -/
 def derObsL (d : LDer) : Bool := d.hasParam
 
+/-! ### The key-free cons table (task #148)
+
+`Tbl.cons` is a `arena::cons_map::ConsMap`, whose slots hold handles and no
+keys; `Refine/ConsMap.lean`'s `view` reads it, over the table's own rows, as
+the `HashMap2` it would be with the keys put back, and every clause below is
+stated at that view.  The handle's row index is the `ConsHandle` dictionary,
+an instance for the four handle kinds. -/
+
+attribute [class] arena.cons_map.ConsHandle
+
+attribute [instance] arena.handle.EIdx.Insts.Con_ron_coreArenaCons_mapConsHandle
+  arena.handle.NIdx.Insts.Con_ron_coreArenaCons_mapConsHandle
+  arena.handle.LIdx.Insts.Con_ron_coreArenaCons_mapConsHandle
+  arena.handle.LsIdx.Insts.Con_ron_coreArenaCons_mapConsHandle
+
+/-- The cons table as the `HashMap2` it denotes over the table's own rows. -/
+noncomputable abbrev consView {A I D : Type} [hCH : arena.cons_map.ConsHandle I]
+    (rt : arena.store.Tbl A I D) : ron.hashmap2.HashMap2 A I :=
+  ConRon.Refine.ConsMap.view hCH rt.rows rt.cons
+
 structure TblRel {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable α]
+    [hCH : arena.cons_map.ConsHandle I]
     (P : A → Prop) (absA : A → α) (absI : I → ι) (absD : D → δ) (obsD : δ → ω)
     (rt : arena.store.Tbl A I D) (lt : Tbl α ι δ) : Prop where
   nodes : lt.nodes.toList = rt.rows.val.map (fun p => absA p.1)
   der : lt.der.toList.map obsD = rt.rows.val.map (fun p => obsD (absD p.2))
-  cons : ConRon.Refine.HashMap2.RelOn P rt.cons lt.cons absA absI
+  cons : ConRon.Refine.HashMap2.RelOn P (consView rt) lt.cons absA absI
 
 /-! ### The key predicates
 
