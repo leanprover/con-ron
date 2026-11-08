@@ -156,8 +156,8 @@ theorem checkDeclsPure_thmDecl_const {F : Nat}
   subst h₀
   -- `DeclThmRun`: the header as declared, and the constant it pushes
   obtain ⟨-, type', value', hcv, -, -, henv⟩ :=
-    ConLeche.Semantics.declThmRun_of (pins := pins) h₂
-  obtain ⟨-, -, -, -, -, htype, -⟩ := hcv
+    ConLeche.Semantics.declThmRun_of (pins := pins) (ConLeche.checkDecl_inv h₂).1
+  obtain ⟨-, -, -, -, htype, -⟩ := hcv
   obtain rfl : type' = .const n ls := htype.trans hty
   refine ⟨ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩,
     ?_, rfl⟩

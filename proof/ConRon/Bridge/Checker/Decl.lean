@@ -1,11 +1,13 @@
 /-
 # `ConRon.Bridge.Checker.Decl` — what each of `checkDecl`'s arms concludes
 
-`Arena/CheckDecl.lean`'s `checkDecl` is a six-way match, with one bridge
-theorem per arm, all with the same conclusion (`DeclOut` below).
-`Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge` is then `cases pd` and
-nothing else, which is what keeps the per-declaration theorem — the one DESIGN
-§8.2 states — free of arm-specific hypotheses.
+`Arena/CheckDecl.lean`'s `checkDecl` is its own checks (`checkDeclKind`, a
+six-way match) followed by the reserved names' check (`basisNamesOk`).  There is
+one bridge theorem per arm of `checkDeclKind`, all with the same conclusion
+(`DeclKindOut` below); `Bridge/Checker/Fold.lean`'s `Arena.checkDeclKind_bridge`
+is `cases pd` over them, and `Arena.checkDecl_bridge` adds the reserved names'
+check, which is what keeps the per-declaration theorem — the one DESIGN §8.2
+states — free of arm-specific hypotheses.
 
 ## What an arm concludes
 
@@ -182,5 +184,17 @@ structure DeclOut (pinsP : List NatOpPinSet) (env : Env)
   pins : s'.pins = s.pins
   run : ∃ env' F,
     ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — **what an
+arm concludes**: `DeclOut`'s clauses at the declaration's own checks
+(`checkDeclKind`), which `Arena.checkDecl_bridge` composes with the reserved
+names' check (`basisNamesOk_run`). -/
+structure DeclKindOut (pinsP : List NatOpPinSet) (env : Env)
+    (d : Declaration) (s : AState) (s' : AState) : Prop where
+  state : StateOK s'
+  ext : Ext s.store s'.store
+  pins : s'.pins = s.pins
+  run : ∃ env' F,
+    ConLeche.checkDeclKind (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
 
 end ConRon.Bridge

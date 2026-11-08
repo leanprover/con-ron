@@ -481,9 +481,9 @@ structure IndOut (s s' : AState) (run : Prop) : Prop where
 
 /-! ## The recognisers' readers
 
-The recogniser (`blockShape?`) and the generated recursors read
-the reserved-name list, peel a rule's right-hand side with `stripLams`, and
-ask `lvlEq?` for `isProp`.  The run forms below put each of those at THIS
+The reader (`readBlock`) and the generated recursors read the pin table,
+peel a rule's right-hand side with `stripLams`, and ask `lvlEq?` for
+`isProp`.  The run forms below put each of those at THIS
 tier's frame. -/
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —

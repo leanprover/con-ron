@@ -2317,25 +2317,15 @@ theorem classConstOk_spec {env : Env} (fe : IFEnv)
     | none => rfl
     | some ci => rw [hf] at hdup; exact absurd rfl hdup
   have hfindP : env.find? cP.name = none := IFEnvOK.miss hok.state hok.ienv hnm hfind
-  -- 2. the reserved-name guard
-  obtain ⟨rs, s2, k2, r2⟩ := AM.bind_ok r1
-  obtain ⟨p2, hrs⟩ := reservedBasisNames_pstep hok.state hok.pins k2
-  obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
-  replace r3 := AM.pure_bind_ok r3
-  have hresP : ConLeche.reservedBasisNames.contains cP.name = false := by
-    rw [← contains_handle_eq p2.ok.wf (denoteN_ext hnm p2.ext) hrs]
-    cases hb : rs.contains cv.name with
-    | false => rfl
-    | true => rw [hb] at hres; exact absurd rfl hres
-  -- 3. the literal-shape guard, at the record as an axiom
-  have c2 := p2.toCore hok
-  have hciA : Frontend.denoteCI s2.store (.axiomInfo cv) = some (.axiomInfo cP) := by
-    simp only [Frontend.denoteCI, denoteCV_ext hcv p2.ext, Option.map_some]
-  obtain ⟨bl, s3, gL, rL⟩ := AM.bind_ok r3
-  obtain ⟨hck3, hxL, hpL, hbl⟩ := AM.of_run (P := fun t => t = s2)
-    (Q := fun r t => CheckOK false env fe t ∧ Ext s2.store t.store ∧
-      t.pins = s2.pins ∧ r = ConLeche.litShapeOk (.axiomInfo cP))
-    rfl gL (litShapeOk_run s2 (.axiomInfo cv) (.axiomInfo cP) c2.ok hciA)
+  -- 2. the literal-shape guard, at the record as an axiom
+  have c2 : CoreStep env fe s₀ s₀ := CoreStep.refl hok
+  have hciA : Frontend.denoteCI s₀.store (.axiomInfo cv) = some (.axiomInfo cP) := by
+    simp only [Frontend.denoteCI, hcv, Option.map_some]
+  obtain ⟨bl, s3, gL, rL⟩ := AM.bind_ok r1
+  obtain ⟨hck3, hxL, hpL, hbl⟩ := AM.of_run (P := fun t => t = s₀)
+    (Q := fun r t => CheckOK false env fe t ∧ Ext s₀.store t.store ∧
+      t.pins = s₀.pins ∧ r = ConLeche.litShapeOk (.axiomInfo cP))
+    rfl gL (litShapeOk_run s₀ (.axiomInfo cv) (.axiomInfo cP) c2.ok hciA)
   obtain ⟨hshape, r4⟩ := AM.dunless_ok AM.Never.fail_any rL
   replace r4 := AM.pure_bind_ok r4
   have hshapeP : ConLeche.litShapeOk (.axiomInfo cP) = true := by rw [← hbl]; exact hshape
@@ -2393,7 +2383,7 @@ theorem classConstOk_spec {env : Env} (fe : IFEnv)
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r16
   refine ⟨(c8.trans c9).trans c10, (), ⟨hws, hfindP⟩, ?_⟩
   simp only [ConLeche.classConstOk, mkFEnv_find?, hfindP, Option.isSome_none,
-    Bool.false_eq_true, ↓reduceIte, hresP, hshapeP, hnodP, hlbb, hfvP, hlpd,
+    Bool.false_eq_true, ↓reduceIte, hshapeP, hnodP, hlbb, hfvP, hlpd,
     constsResolveF_eq, hcr, mkFEnv_env]
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq
     (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
@@ -3161,7 +3151,7 @@ theorem domPass_consBlockRecsBare (pP : ConLeche.BlockShape) (env₂ : Env)
       obtain ⟨cv, hcv, rfl⟩ := hc
       have := hun cv hcv
       simp only [ConLeche.reservedRecName, Bool.or_eq_false_iff] at this
-      have hl := this.1.1.1.1.1.2
+      have hl := this.1.1.1.1.1
       rw [← List.contains_iff_mem] at hn
       rw [hn] at hl
       exact Bool.noConfusion hl

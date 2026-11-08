@@ -22,6 +22,7 @@ import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.ExprOps.Inst1
 public import ConRon.Bridge.Core.Knot
 public import ConRon.Bridge.Grind
 import ConRon.Bridge.Specs
@@ -104,130 +105,104 @@ theorem denoteRows_ext {st st' : EStore} (hx : Ext st st') :
         rw [denote_ext hh hx, denoteRows_ext hx hrs]
         exact hr
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — the
-row of field `j`, if it is one. -/
-@[expose] def rowAt (cty : Expr) (nP idx : Nat) (fvs : List Expr) (j : Nat) :
-    Option (Nat × Expr) :=
-  if j = idx ∨ ConLeche.structUsedLater cty nP j = true then
-    (fvs[nP + j]?).map fun x => (nP + j, x.fvarTypeD)
-  else none
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — the
-rows of fields `j..idx`. -/
-def rowsFrom (cty : Expr) (nP idx : Nat) (fvs : List Expr) (j : Nat) : List (Nat × Expr) :=
-  if j > idx then [] else (rowAt cty nP idx fvs j).toList ++ rowsFrom cty nP idx fvs (j + 1)
-termination_by idx + 1 - j
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — the
-cited `filterMap` over `range' j` is `rowsFrom j`. -/
-theorem filterMap_range'_rowsFrom (cty : Expr) (nP idx : Nat) (fvs : List Expr) :
-    ∀ (k j : Nat), idx + 1 - j = k →
-      (List.range' j k).filterMap (rowAt cty nP idx fvs) = rowsFrom cty nP idx fvs j
-  | 0, j, hk => by
-    rw [rowsFrom, ite_eq_left (by omega)]; rfl
-  | k + 1, j, hk => by
-    rw [rowsFrom, ite_eq_right (by omega), List.range'_succ, List.filterMap_cons,
-      ← filterMap_range'_rowsFrom cty nP idx fvs k (j + 1) (by omega)]
-    cases rowAt cty nP idx fvs j <;> rfl
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — the
-function is `rowsFrom 0`. -/
-theorem projGuardRowsAt_eq (cty : Expr) (nP idx : Nat) (fvs : List Expr) :
-    ConLeche.projGuardRowsAt cty nP idx fvs = rowsFrom cty nP idx fvs 0 := by
-  rw [ConLeche.projGuardRowsAt, List.range_eq_range',
-    ← filterMap_range'_rowsFrom cty nP idx fvs (idx + 1) 0 (by omega)]
-  rfl
-
-/-- con-leche: none — a denoting handle list read at an index: both miss, or
-both hit and the hit denotes. -/
-theorem denoteEList_getElem? {st : EStore} :
-    ∀ {hs : List EIdx} {xs : List Expr}, Frontend.denoteEList st hs = some xs →
-      ∀ (k : Nat), (hs[k]? = none ∧ xs[k]? = none) ∨
-        ∃ h x, hs[k]? = some h ∧ xs[k]? = some x ∧ denoteE st h = some x
-  | [], xs, hd, k => by
-    rw [denoteEList_nil_inv hd]; exact Or.inl ⟨rfl, rfl⟩
-  | h :: hs, xs, hd, k => by
-    obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons_inv hd
-    cases k with
-    | zero => exact Or.inr ⟨h, x, rfl, rfl, hx⟩
-    | succ k => simpa using denoteEList_getElem? hxs k
-
-open Guard in
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — **the
-rows, in run form**: the accumulator in push order, the answer the cited
-`filterMap` from `j` on. -/
-theorem projGuardRowsAt_run (cty : EIdx) (ctyP : Expr) (nP idx : Nat) (fvs : List EIdx)
-    (fvsP : List Expr) :
-    ∀ (k j : Nat) (out : Array (Nat × EIdx)) (outP : List (Nat × Expr))
-      (s₀ s' : AState) (r : Array (Nat × EIdx)), idx + 1 - j = k → StateOK s₀ →
-      denoteE s₀.store cty = some ctyP → Frontend.denoteEList s₀.store fvs = some fvsP →
-      denoteRows s₀.store out.toList = some outP →
-      ConRon.Arena.projGuardRowsAt cty nP idx fvs j out s₀ = .ok (r, s') →
-      PStep s₀ s' ∧ denoteRows s'.store r.toList = some (outP ++ rowsFrom ctyP nP idx fvsP j)
-  | 0, j, out, outP, s₀, s', r, hk, hok, hc, hf, ho, hrun => by
-    rw [ConRon.Arena.projGuardRowsAt, ite_eq_left (by omega)] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    rw [rowsFrom, ite_eq_left (by omega), List.append_nil]
-    exact ⟨PStep.refl hok, ho⟩
-  | k + 1, j, out, outP, s₀, s', r, hk, hok, hc, hf, ho, hrun => by
-    rw [ConRon.Arena.projGuardRowsAt, ite_eq_right (by omega)] at hrun
-    have common : ∀ (used : Bool) (s₁ : AState),
-        used = (j == idx || ConLeche.structUsedLater ctyP nP j) → PStep s₀ s₁ →
-        (if (!used) = true then ConRon.Arena.projGuardRowsAt cty nP idx fvs (j + 1) out
-          else
-            match fvs[nP + j]? with
-            | some x => do
-              let ty ← fvarTypeD x
-              ConRon.Arena.projGuardRowsAt cty nP idx fvs (j + 1) (out.push (nP + j, ty))
-            | none => ConRon.Arena.projGuardRowsAt cty nP idx fvs (j + 1) out) s₁ = .ok (r, s') →
-        PStep s₀ s' ∧ denoteRows s'.store r.toList =
-          some (outP ++ rowsFrom ctyP nP idx fvsP j) := by
-      intro used s₁ hu p1 h2
-      have hc1 := denote_ext hc p1.ext
-      have hf1 := denoteEList_ext p1.ext _ _ hf
-      have ho1 := denoteRows_ext p1.ext ho
-      have ih := projGuardRowsAt_run cty ctyP nP idx fvs fvsP k (j + 1)
-      rw [rowsFrom, ite_eq_right (by omega)]
-      by_cases hb : used = true
-      · rw [ite_eq_right (by simp [hb])] at h2
-        have hcond : j = idx ∨ ConLeche.structUsedLater ctyP nP j = true := by
-          rw [hb] at hu; simpa using hu.symm
-        rcases denoteEList_getElem? hf1 (nP + j) with ⟨hn, hnP⟩ | ⟨h, x, hh, hx, hdx⟩
-        · rw [hn] at h2
-          obtain ⟨p2, hr⟩ := ih out outP s₁ s' r (by omega) p1.ok hc1 hf1 ho1 h2
-          refine ⟨p1.trans p2, ?_⟩
-          rw [hr]; simp [rowAt, hcond, hnP]
-        · rw [hh] at h2
-          obtain ⟨ty, s₂, h3, h4⟩ := AM.bind_ok h2
-          obtain ⟨rfl, hty⟩ := fvarTypeD_run p1.ok hdx h3
-          obtain ⟨p2, hr⟩ := ih (out.push (nP + j, ty)) (outP ++ [(nP + j, x.fvarTypeD)]) s₂ s' r
-            (by omega) p1.ok hc1 hf1
-            (by
-              rw [Array.toList_push]
-              exact denoteRows_append ho1 (by simp [denoteRows, hty])) h4
-          refine ⟨p1.trans p2, ?_⟩
-          rw [hr]; simp [rowAt, hcond, hx]
-      · rw [ite_eq_left (by simp [hb])] at h2
-        have hcond : ¬ (j = idx ∨ ConLeche.structUsedLater ctyP nP j = true) := by
-          intro h; apply hb; rw [hu]; rcases h with h | h <;> simp [h]
-        obtain ⟨p2, hr⟩ := ih out outP s₁ s' r (by omega) p1.ok hc1 hf1 ho1 h2
-        refine ⟨p1.trans p2, ?_⟩
-        rw [hr]; simp [rowAt, hcond]
-    split at hrun
-    next hj =>
-      obtain ⟨used, s₁, h1, h2⟩ := AM.bind_ok hrun
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h1
-      exact common true _ (by simp [hj]) (PStep.refl hok) h2
-    next hj =>
-      obtain ⟨used, s₁, h1, h2⟩ := AM.bind_ok hrun
-      obtain ⟨p, hr⟩ := structUsedLater_spec cty ctyP nP j s₀ s₁ used hok hc h1
-      exact common used s₁ (by simp only [hj, Bool.false_or]; exact hr) p h2
-
 /-- con-leche: none — the denotation of an optional row array. -/
 @[expose] def denoteRowsO (st : EStore) : Option (Array (Nat × EIdx)) →
     Option (Option (List (Nat × Expr)))
   | none => some none
   | some a => (denoteRows st a.toList).map some
+
+open Guard in
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1080-1098 projGuardRowsGo — **the
+field loop, in run form**: the accumulator in push order, the answer the cited
+loop's rows after it. -/
+theorem projGuardRowsGo_run : ∀ (k : Nat) {d : Nat} {h : EIdx} {hP : Expr}
+    {out : Array (Nat × EIdx)} {outP : List (Nat × Expr)} {s₀ s' : AState}
+    {r : Option (Array (Nat × EIdx))}, StateOK s₀ → denoteE s₀.store h = some hP →
+    denoteRows s₀.store out.toList = some outP →
+    ConRon.Arena.projGuardRowsGo k d h out s₀ = .ok (r, s') →
+    PStep s₀ s' ∧
+      denoteRowsO s'.store r = some ((ConLeche.projGuardRowsGo k d hP).map (outP ++ ·)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro d h hP out outP s₀ s' r hok hh ho hrun
+    rw [ConRon.Arena.projGuardRowsGo] at hrun
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      have hsing : denoteRows s₀.store [(d, dom)] = some [(d, domP)] := by
+        simp [denoteRows, hd]
+      have happ := denoteRows_append ho hsing
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨PStep.refl hok, ?_⟩
+      simp [denoteRowsO, ConLeche.projGuardRowsGo, Array.toList_push, happ]
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b => simp [denoteEView] at hh
+      all_goals simp [denoteRowsO, ConLeche.projGuardRowsGo]
+  | succ k ih =>
+    intro d h hP out outP s₀ s' r hok hh ho hrun
+    rw [ConRon.Arena.projGuardRowsGo] at hrun
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨u, s2, k2, z2⟩ := AM.bind_ok z1
+      obtain ⟨p2, hu⟩ := hasLooseBVarBFast_spec 0 body bodyP s₀ s2 u hok hb k2
+      have hu' : u = bodyP.hasLooseBVarB 0 := hu
+      subst hu'
+      simp only [ConLeche.projGuardRowsGo]
+      cases hl : bodyP.hasLooseBVarB 0
+      · rw [hl] at z2
+        simp only [Bool.false_eq_true, ite_false] at z2
+        exact (fun ⟨p3, h3⟩ => ⟨p2.trans p3, h3⟩)
+          (ih p2.ok (denote_ext hb p2.ext) (denoteRows_ext p2.ext ho) z2)
+      · rw [hl] at z2
+        simp only [ite_true] at z2
+        obtain ⟨fv, s3, k3, z3⟩ := AM.bind_ok z2
+        have hd2 := denote_ext hd p2.ext
+        obtain ⟨p3, hfv⟩ := internE_run p2.ok (viewOK_fvar (by rw [hd2]; rfl)) k3
+        have hfv' : denoteE s3.store fv = some (.fvar d domP) := by
+          rw [hfv]; simp [denoteEView, denote_ext hd2 p3.ext]
+        obtain ⟨b2, s4, k4, z4⟩ := AM.bind_ok z3
+        have hb3 : denoteE s3.store body = some bodyP := denote_ext hb (p2.ext.trans p3.ext)
+        obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p3.ok hfv'
+          (by rw [hb3]; rfl) k4
+        have p4 : PStep s3 s4 := PStep.of_caches h1 h2 h4 h5
+        have hop : denoteE s4.store b2 = some (bodyP.instantiate1 (.fvar d domP) 0) :=
+          h7 _ hb3
+        have p24 := p2.trans (p3.trans p4)
+        have ho4 : denoteRows s4.store (out.push (d, dom)).toList = some (outP ++ [(d, domP)]) := by
+          rw [Array.toList_push]
+          exact denoteRows_append (denoteRows_ext p24.ext ho)
+            (by simp [denoteRows, denote_ext hd p24.ext])
+        obtain ⟨p5, hr⟩ := ih p4.ok hop ho4 z4
+        refine ⟨p24.trans p5, ?_⟩
+        rw [hr]
+        cases ConLeche.projGuardRowsGo k (d + 1) (bodyP.instantiate1 (.fvar d domP)) <;>
+          simp
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b => simp [denoteEView] at hh
+      all_goals simp [denoteRowsO, ConLeche.projGuardRowsGo]
 
 open Guard in
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:1086-1103 projGuardRows
@@ -266,23 +241,18 @@ theorem projGuardRows_run (s₀ s' : AState) (entry : IProjEntry) (p : ProjEntry
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨hok2, hx1.trans p2.ext, p2.pins.trans hp1, ?_⟩
-      have hn : ConLeche.openPisAtFvars (p.numParams + p.idx + 1)
+      have hn : ConLeche.openPisAtFvars p.numParams
           (cP.toConstantVal.type.instantiateLevelParams cP.toConstantVal.levelParams ls) 0 =
-          none := by rw [hnp, hidx]; exact (Option.some.inj ho).symm
+          none := by rw [hnp]; exact (Option.some.inj ho).symm
       simp [denoteRowsO, ConLeche.projGuardRows, hfind, hn]
     | some q =>
       obtain ⟨fvs, e⟩ := q
-      obtain ⟨xs, x, hx, hfvs, -⟩ := denoteOpen_some_inv ho
-      obtain ⟨rows, s3, k3, z3⟩ := AM.bind_ok z2
-      obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
-      obtain ⟨p3, hr⟩ := projGuardRowsAt_run ci.toConstantVal.type cP.toConstantVal.type
-        entry.numParams entry.idx fvs xs (entry.idx + 1) 0 #[] [] s2 s3 rows (by omega) p2.ok
-        (denote_ext hty (hx1.trans p2.ext)) hfvs rfl k3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+      obtain ⟨xs, x, hx, -, he⟩ := denoteOpen_some_inv ho
+      obtain ⟨p3, hr⟩ := projGuardRowsGo_run entry.idx p2.ok he (outP := []) rfl z2
       have hok3 := hok2.monoF p3.ok p3.ext p3.cframe p3.pins
       refine ⟨hok3, hx1.trans (p2.ext.trans p3.ext), p3.pins.trans (p2.pins.trans hp1), ?_⟩
-      simp only [denoteRowsO, ConLeche.projGuardRows, hfind, hnp, hidx, hx, hr,
-        projGuardRowsAt_eq, List.nil_append, Option.map_some]
+      rw [hr]
+      simp only [ConLeche.projGuardRows, hfind, hidx, hnp, hx, List.nil_append, Option.map_id']
 
 /-! ## The rows' sorts, at the knot -/
 
@@ -365,25 +335,13 @@ theorem checkGuardRows_run {fuel : Nat} (hsim : KnotSpec eager env fe fuel) (g :
     · rw [ite_eq_right ht] at z2
       exact absurd z2 AM.fail_ok
 
-/-- con-leche: ConLeche/Verify/ProjGuard.lean:52 projGuardRowsAt_ws — the rows
+/-- con-leche: ConLeche/Verify/ProjGuard.lean:80 projGuardRows_ws — the rows
 `projGuardRows` reads at a well-formed environment are scoped at their own
 depths. -/
-theorem projGuardRows_ws (henv : EnvWF env) {p : ProjEntry} {ls : List Level}
+theorem projGuardRows_wsE (henv : EnvWF env) {p : ProjEntry} {ls : List Level}
     {rows : List (Nat × Expr)} (h : ConLeche.projGuardRows env.find? p ls = some rows) :
-    GuardRowsWS rows := by
-  cases hc : env.find? p.ctor with
-  | none => simp [ConLeche.projGuardRows, hc] at h
-  | some ci =>
-    cases ho : ConLeche.openPisAtFvars (p.numParams + p.idx + 1)
-        (ci.toConstantVal.type.instantiateLevelParams ci.toConstantVal.levelParams ls) 0 with
-    | none => simp [ConLeche.projGuardRows, hc, ho] at h
-    | some q =>
-      obtain ⟨fvs, o⟩ := q
-      simp only [ConLeche.projGuardRows, hc, ho, Option.some.injEq] at h
-      subst h
-      exact projGuardRowsAt_ws ho (Expr.WScoped.of_not_hasFvar (by
-        rw [Expr.hasFvar_instantiateLevelParams]; exact (henv.consts _ (Env.find?_mem hc)).1))
-
+    GuardRowsWS rows :=
+  ConLeche.projGuardRows_ws (fun _ hc => (henv.consts _ (Env.find?_mem hc)).1) h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1106-1119 checkProjGuard
 con-leche: ConLeche/Cached/CoreC.lean:993-1004 checkProjGuardI — **THEOREM 1
@@ -430,7 +388,7 @@ theorem checkProjGuard_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
             obtain ⟨rowsP, hdr, hpr⟩ := hrows
             have hpr' : ConLeche.projGuardRows env.find? p ls = some rowsP := hpr.symm
             obtain ⟨hok3, hx3, hp3, F3, hF3⟩ := checkGuardRows_run hsim gs rows rows.size 0 s2 s' u
-              rowsP (by omega) hok2 (by simpa using hdr) (projGuardRows_ws henv hpr') z2
+              rowsP (by omega) hok2 (by simpa using hdr) (projGuardRows_wsE henv hpr') z2
             refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1), max F1 F3, ?_⟩
             simp only [ConLeche.checkProjGuard, hfind,
               projGuardSortFueled_mono (Nat.le_max_left F1 F3) hF1, bind, Except.bind, hpr']

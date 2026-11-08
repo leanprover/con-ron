@@ -1,22 +1,22 @@
 /-
-# `ConRon.Bridge.Checker.Arms` — `checkDecl`'s six arms
+# `ConRon.Bridge.Checker.Arms` — `checkDeclKind`'s six arms
 
-`Bridge/Checker/Decl.lean` states what an arm concludes (`DeclOut`) and what relates the two pin
-lists (`PinsDenote`); this module is the six arms themselves.  Every one is an ASSEMBLY, a chain of
-`AM.bind_ok` inversions over statements that live one tier down, closed by a pure step lemma about
-con-leche's own `checkDecl` clause (`ConLeche/Kernel/CheckDecl.lean:43`).
+`Bridge/Checker/Decl.lean` states what an arm concludes (`DeclKindOut`) and what relates the two
+pin lists (`PinsDenote`); this module is the six arms themselves.  Every one is an ASSEMBLY, a chain
+of `AM.bind_ok` inversions over statements that live one tier down, closed by a pure step lemma
+about con-leche's own `checkDeclKind` clause (`ConLeche/Kernel/CheckDecl.lean`).
 
 | arm | what it needs |
 |---|---|
 | `defn` | `checkConstantVal_bridge`, `checkDefnVal_bridge`, the structural-`Nat` and `Nat.div`/`Nat.mod` gates (`Bridge/Checker/DeclVal.lean`, `DivMod.lean`) |
 | `thm` / `opaque` | the front door, the value check; `opaque` also the `reduce*` gate |
 | `axiom` | the pinned-name tests, `checkQuotRecord_bridge` at `Quot.sound`, the shape tests (`Bridge/Checker/Basis.lean`) |
-| `ind` | `basisNameHit_run`, then `checkBasisBlock_bridge` or `IndSpec` |
-| `quot` | `checkDecl_bridge_quot` (`Bridge/Checker/Basis.lean`) |
+| `ind` | `IndSpec` (the uniform route at every block, the pinned basis blocks included) |
+| `quot` | `checkDeclKind_bridge_quot` (`Bridge/Checker/Basis.lean`) |
 
 A value arm checks the value, getting the record back unpushed; the gates run at the index with
 the record pushed and popped again (`IFEnv.SameView`); the arm pushes last.  What the record pushes
-is not this module's concern: `DeclOut` concludes con-leche's step only.
+is not this module's concern: `DeclKindOut` concludes con-leche's step only.
 -/
 module
 
@@ -64,31 +64,31 @@ theorem FoldOK.sameView {env : Env} {fe fe' : IFEnv} {s : AState}
 
 /-! ## The pure side's step lemmas
 
-One lemma per clause of con-leche's `checkDecl`, in the shape the arm's last step produces. -/
+One lemma per clause of con-leche's `checkDeclKind`, in the shape the arm's last step produces. -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:486-489 checkDecl (the `.thmDecl`
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.thmDecl`
 arm). -/
 theorem checkDecl_thm_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env' : Env} {c : ConstantVal} {x : Expr}
     (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
     (h2 : ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x = .ok env') :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.thmDecl c x)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.thmDecl c x)
       = .ok env' := by
-  simp only [ConLeche.checkDecl, h1, h2, bind, Except.bind]
+  simp only [ConLeche.checkDeclKind, h1, h2, bind, Except.bind]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:491-500 checkDecl (the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the
 `.opaqueDecl` arm) with the compiler-trust gate NOT taken. -/
 theorem checkDecl_opaque_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env2 : Env} {c : ConstantVal} {x : Expr}
     (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
     (h2 : ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env2)
     (h3 : ConLeche.reduceOpNames.contains c.name = false) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
       = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, Bool.false_eq_true, ite_false, bind,
+  simp only [ConLeche.checkDeclKind, h1, h2, h3, Bool.false_eq_true, ite_false, bind,
     Except.bind, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:491-500 checkDecl (the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the
 `.opaqueDecl` arm) with the compiler-trust gate TAKEN. -/
 theorem checkDecl_opaque_pin_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env2 : Env} {c : ConstantVal} {x : Expr}
@@ -97,12 +97,12 @@ theorem checkDecl_opaque_pin_pure {μ : CheckMode} {F : Nat}
     (h3 : ConLeche.reduceOpNames.contains c.name = true)
     (h4 : ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 c.name x
       = .ok ()) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
       = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, h4, ite_true, bind, Except.bind,
+  simp only [ConLeche.checkDeclKind, h1, h2, h3, h4, ite_true, bind, Except.bind,
     pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:46-82 checkDecl (the `.defnDecl` arm) — the two
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.defnDecl` arm) — the two
 gates, each taken exactly when its name list contains the definition's name. -/
 theorem checkDecl_defn_pure {F : Nat} {pinsP : List NatOpPinSet} {env env2 : Env}
     {c : ConstantVal} {x : Expr} {hint : ReducibilityHint}
@@ -117,19 +117,19 @@ theorem checkDecl_defn_pure {F : Nat} {pinsP : List NatOpPinSet} {env env2 : Env
             (Expr.substConst0 c.name v' eq.1, Expr.substConst0 c.name v' eq.2)) = .ok true)
     (h4 : ConLeche.natDivModNames.contains c.name = true →
       ConLeche.checkDivModPin (ConLeche.fueledOps .verified F) pinsP env env2 c.name = .ok ()) :
-    ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.defnDecl c x hint)
+    ConLeche.checkDeclKind (ConLeche.fueledOps .verified F) pinsP env (.defnDecl c x hint)
       = .ok env2 := by
   cases hn : ConLeche.natOpNames.contains c.name <;>
     cases hd : ConLeche.natDivModNames.contains c.name
-  · simp only [ConLeche.checkDecl, h1, h2, hn, hd, bind, Except.bind, Bool.false_eq_true,
+  · simp only [ConLeche.checkDeclKind, h1, h2, hn, hd, bind, Except.bind, Bool.false_eq_true,
       ite_false, pure, Except.pure]
-  · simp only [ConLeche.checkDecl, h1, h2, hn, hd, h4 hd, bind, Except.bind, Bool.false_eq_true,
+  · simp only [ConLeche.checkDeclKind, h1, h2, hn, hd, h4 hd, bind, Except.bind, Bool.false_eq_true,
       ite_false, ite_true, pure, Except.pure]
   · obtain ⟨hg, cv', v', hint', hf, hc⟩ := h3 hn
-    simp only [ConLeche.checkDecl, h1, h2, hn, hd, hg, hf, hc, bind, Except.bind,
+    simp only [ConLeche.checkDeclKind, h1, h2, hn, hd, hg, hf, hc, bind, Except.bind,
       Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
   · obtain ⟨hg, cv', v', hint', hf, hc⟩ := h3 hn
-    simp only [ConLeche.checkDecl, h1, h2, hn, hd, hg, hf, hc, h4 hd, bind, Except.bind,
+    simp only [ConLeche.checkDeclKind, h1, h2, hn, hd, hg, hf, hc, h4 hd, bind, Except.bind,
       ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:72-73 reduceOpNames. -/
@@ -148,30 +148,30 @@ theorem reduceOpNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
 
 /-! ### The `.axiomDecl` arm's six exits -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — the
 `Quot.sound` record: the quotient package's own record, compared with its pin and
 installed at its names. -/
 theorem checkDecl_axiom_quotSound_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env' : Env} {c : ConstantVal}
     (hnm : c.name = ConLeche.quotSoundName)
     (h : ConLeche.checkQuotRecord (m := CheckM) env .sound c = .ok env') :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok env' := by
-  simp only [ConLeche.checkDecl, hnm, ite_true]; exact h
+  simp only [ConLeche.checkDeclKind, hnm, ite_true]; exact h
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — a standard
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — a standard
 axiom, installed. -/
 theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
     (hnm : ¬ (c.name = ConLeche.quotSoundName))
     (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = true) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
-  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, ite_true, bind, Except.bind,
+  simp only [ConLeche.checkDeclKind, ite_eq_right hnm, h1, h2, ite_true, bind, Except.bind,
     pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl —
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind —
 `Lean.trustCompiler`, installed. -/
 theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
@@ -180,13 +180,13 @@ theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
     (h2 : ConLeche.stdAxiomOk env c = false)
     (h3 : c.name = ConLeche.trustCompilerName)
     (h4 : ConLeche.trustCompilerOk env c = true) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
   have hnm' : ¬ (ConLeche.trustCompilerName = ConLeche.quotSoundName) := h3 ▸ hnm
-  simp only [ConLeche.checkDecl, h1, h2, h3, h4, ite_eq_right hnm', Bool.false_eq_true,
+  simp only [ConLeche.checkDeclKind, h1, h2, h3, h4, ite_eq_right hnm', Bool.false_eq_true,
     ite_false, ite_true, bind, Except.bind, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — an
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — an
 `ofReduce*` axiom, installed. -/
 theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
@@ -197,13 +197,13 @@ theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
     (h4 : c.name = ConLeche.ofReduceNatName ∨
       c.name = ConLeche.ofReduceBoolName)
     (h5 : ConLeche.ofReduceAxOk env c = true) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
-  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, h5, Bool.false_eq_true,
+  simp only [ConLeche.checkDeclKind, ite_eq_right hnm, h1, h2, h5, Bool.false_eq_true,
     ite_false, ite_true, ite_eq_right h3, ite_eq_left h4, bind, Except.bind, pure,
     Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — `sorryAx`, the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — `sorryAx`, the
 one axiom the checker tolerates as a DECLARATION: skipped, installing
 nothing. -/
 theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
@@ -216,17 +216,17 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
       c.name = ConLeche.ofReduceBoolName))
     (h5 : ¬ (c.name = ConLeche.propextName ∨ c.name = ConLeche.choiceName))
     (h6 : c.name = ConLeche.sorryAxName) :
-    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+    ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok env := by
-  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, Bool.false_eq_true,
+  simp only [ConLeche.checkDeclKind, ite_eq_right hnm, h1, h2, Bool.false_eq_true,
     ite_false, ite_eq_right h3, ite_eq_right h4, ite_eq_right h5, ite_eq_left h6, bind, Except.bind,
     pure, Except.pure]
 
 /-! ## The arms -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:83-85 checkDecl (the `.thmDecl` arm): the front
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.thmDecl` arm): the front
 door and the value check, at one fuel. -/
-theorem checkDecl_bridge_thm
+theorem checkDeclKind_bridge_thm
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
@@ -234,9 +234,9 @@ theorem checkDecl_bridge_thm
     (hok : FoldOK env fe s)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl .verified pins fe (.thmDecl cv value) s = .ok (fe', s')) :
-    DeclOut pinsP env (.thmDecl c x) s s' := by
-  simp only [Arena.checkDecl] at hrun
+    (hrun : Arena.checkDeclKind .verified pins fe (.thmDecl cv value) s = .ok (fe', s')) :
+    DeclKindOut pinsP env (.thmDecl c x) s s' := by
+  simp only [Arena.checkDeclKind] at hrun
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ := checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
@@ -250,9 +250,9 @@ theorem checkDecl_bridge_thm
     max F1 F2, checkDecl_thm_pure (checkConstantVal_mono (Nat.le_max_left _ _) hpure1)
       (checkThmVal_mono (Nat.le_max_right _ _) hpure2)⟩
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:86-95 checkDecl (the `.opaqueDecl` arm), with the
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.opaqueDecl` arm), with the
 compiler-trust `reduce*` gate behind it. -/
-theorem checkDecl_bridge_opaque
+theorem checkDeclKind_bridge_opaque
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
@@ -260,9 +260,9 @@ theorem checkDecl_bridge_opaque
     (hok : FoldOK env fe s)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl .verified pins fe (.opaqueDecl cv value) s = .ok (fe', s')) :
-    DeclOut pinsP env (.opaqueDecl c x) s s' := by
-  simp only [Arena.checkDecl] at hrun
+    (hrun : Arena.checkDeclKind .verified pins fe (.opaqueDecl cv value) s = .ok (fe', s')) :
+    DeclKindOut pinsP env (.opaqueDecl c x) s s' := by
+  simp only [Arena.checkDeclKind] at hrun
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ := checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
@@ -309,10 +309,10 @@ theorem checkDecl_bridge_opaque
       checkDecl_opaque_pure (checkConstantVal_mono hle1 hpure1)
         (checkOpaqueVal_mono hle2 hpure2) hnoP⟩
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:46-82 checkDecl (the `.defnDecl` arm): the front
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.defnDecl` arm): the front
 door with a certified operation's name allowed, the value check, the structural-`Nat` gate and the
 `Nat.div`/`Nat.mod` gate, each at the index with the record pushed and popped. -/
-theorem checkDecl_bridge_defn
+theorem checkDeclKind_bridge_defn
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {hint : ReducibilityHint} {c : ConstantVal} {x : Expr}
@@ -320,9 +320,9 @@ theorem checkDecl_bridge_defn
     (hok : FoldOK env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl .verified pins fe (.defnDecl cv value hint) s = .ok (fe', s')) :
-    DeclOut pinsP env (.defnDecl c x hint) s s' := by
-  simp only [Arena.checkDecl] at hrun
+    (hrun : Arena.checkDeclKind .verified pins fe (.defnDecl cv value hint) s = .ok (fe', s')) :
+    DeclKindOut pinsP env (.defnDecl c x hint) s s' := by
+  simp only [Arena.checkDeclKind] at hrun
   obtain ⟨_, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, F1, hpure1⟩ := checkConstantVal_bridge_of_fold hk hok hcv g1
   have hcA : Frontend.denoteCV s1.store cv = some c := denoteCV_ext hcv hstep1.ext
@@ -363,7 +363,7 @@ theorem checkDecl_bridge_defn
           else do
             let y ← pure fe3
             pure (y.push (.defnInfo cv value hint))) s4 = .ok (fe', s') →
-      DeclOut pinsP env (.defnDecl c x hint) s s' := by
+      DeclKindOut pinsP env (.defnDecl c x hint) s s' := by
     intro fe3 s4 Fa hstep4 hsv4 hG r4
     have hok4 : FoldOK env fe3 s4 := (hok2.ofCore hstep4).sameView hsv4
     have hnm4 : denoteN s4.store.ns cv.name = some c.name := denoteN_ext hnm2 hstep4.ext
@@ -416,41 +416,31 @@ theorem checkDecl_bridge_defn
     exact tail fe s2 0 (CoreStep.refl hok2.check) ⟨fun _ => rfl, fun _ => rfl, rfl, rfl, rfl⟩
       (fun h => absurd (hcont ▸ h) hno) k3
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:163-182 checkDecl (the `.indDecl` arm): the pinned
-blocks by their names, else the uniform route, which is `IndSpec`. -/
-theorem checkDecl_bridge_ind
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.indDecl` arm): the
+uniform route at every block, which is `IndSpec`. -/
+theorem checkDeclKind_bridge_ind
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {nP : Nat}
     (hind : IndSpec) (hok : FoldOK env fe s)
     (hb : Frontend.denoteCIList s.store block = some b)
-    (hrun : Arena.checkDecl .verified pins fe (.indDecl block nP) s = .ok (fe', s')) :
-    DeclOut pinsP env (.indDecl b nP) s s' := by
-  simp only [Arena.checkDecl] at hrun
-  obtain ⟨r, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hst1, hx1, hp1, hc1, -, -, rfl⟩ := basisNameHit_run hok.check.state hb g1
-  have hok1 : FoldOK env fe s1 := hok.step (hok.check.mono hst1 hx1 hc1 hp1) hp1
-  have hb1 : Frontend.denoteCIList s1.store block = some b := denoteCIList_mono hx1 _ _ hb
-  cases hk : ConLeche.basisNameHit b with
-  | some kind =>
-    rw [hk] at r1
-    obtain ⟨hst, hx, hp, hrun'⟩ := checkBasisBlock_bridge (pinsP := pinsP) (nP := nP) hok1 hb1 hk r1
-    exact ⟨hst, hx1.trans hx, by rw [hp, hp1], hrun'⟩
-  | none =>
-    rw [hk] at r1
-    obtain ⟨hst, hx, hp, hrun'⟩ := hind.run (pinsP := pinsP) hok1 hb1 hk r1
-    exact ⟨hst, hx1.trans hx, by rw [hp, hp1], hrun'⟩
+    (hrun : Arena.checkDeclKind .verified pins fe (.indDecl block nP) s = .ok (fe', s')) :
+    DeclKindOut pinsP env (.indDecl b nP) s s' := by
+  simp only [Arena.checkDeclKind] at hrun
+  obtain ⟨hst, hx, hp, hrun'⟩ := hind.run (pinsP := pinsP) hok hb hrun
+  exact ⟨hst, hx, hp, hrun'⟩
 
-
-theorem checkDecl_bridge_axiom
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.axiomDecl` arm):
+`Quot.sound`'s own comparison, else the front door and the pinned-name tests. -/
+theorem checkDeclKind_bridge_axiom
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : Arena.checkDecl .verified pins fe (.axiomDecl cv) s = .ok (fe', s')) :
-    DeclOut pinsP env (.axiomDecl c) s s' := by
-  simp only [Arena.checkDecl] at hrun
+    (hrun : Arena.checkDeclKind .verified pins fe (.axiomDecl cv) s = .ok (fe', s')) :
+    DeclKindOut pinsP env (.axiomDecl c) s s' := by
+  simp only [Arena.checkDeclKind] at hrun
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
   -- the `Quot.sound` record's own comparison, first
   obtain ⟨qs, s1, g1, r1⟩ := AM.bind_ok hrun

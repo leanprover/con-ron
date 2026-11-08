@@ -164,9 +164,38 @@ theorem natSuccOk_optRun (s₀ : AState) (oc : Option IConstantInfo)
       constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName),
       pinAt_specE] <;> finish
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:375-386 litShapeOk — **THEOREM 1
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — at the inductive
+record `litShapeOk` builds from a denoted constant (any capabilities: the test
+reads none). -/
+theorem natIndOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal)
+    (caps : IIndCaps) (capsP : IndCaps) (hok : CheckOK eager env fe s₀)
+    (hcv : Frontend.denoteCV s₀.store cv = some cvP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk (some (.indInfo cv caps))
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk (some (.indInfo cvP capsP)); ⊤⦄ := by
+  sym only [bridge_grind, ConLeche.natIndOk] =>
+    vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — at the
+constructor record `litShapeOk` builds from a denoted constant. -/
+theorem natZeroOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal) (a b : Nat)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (some (.ctorInfo cv a b))
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ r = ConLeche.natZeroOk (some (.ctorInfo cvP a b)); ⊤⦄ :=
+  natZeroOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b, by simp [Frontend.denoteCI, hcv], rfl⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — at the
+constructor record `litShapeOk` builds from a denoted constant. -/
+theorem natSuccOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal) (a b : Nat)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (some (.ctorInfo cv a b))
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ r = ConLeche.natSuccOk (some (.ctorInfo cvP a b)); ⊤⦄ :=
+  natSuccOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b, by simp [Frontend.denoteCI, hcv], rfl⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk — **THEOREM 1
 for `litShapeOk`**: the ten-way pinned-name chain, each arm the shape walk of
-its name. -/
+its name (the three `Nat` arms at the kinds their guards ask for). -/
 theorem litShapeOk_run (s₀ : AState) (ci : IConstantInfo) (c : ConstantInfo)
     (hok : CheckOK eager env fe s₀) (hci : Frontend.denoteCI s₀.store ci = some c) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.litShapeOk ci
@@ -174,15 +203,18 @@ theorem litShapeOk_run (s₀ : AState) (ci : IConstantInfo) (c : ConstantInfo)
         s'.pins = s₀.pins ∧ b = ConLeche.litShapeOk c; ⊤⦄ := by
   have hrel : OptCI s₀.store (some ci) (some c) := ⟨c, hci, rfl⟩
   have hn : denoteN s₀.store.ns ci.name = some c.name := denoteCI_name hci
+  have hcv : Frontend.denoteCV s₀.store ci.toConstantVal = some c.toConstantVal :=
+    denoteCI_toConstantVal hci
   -- `splits := 20`: the ten-way pin-name chain splits once per name
   sym only [bridge_grind, ConLeche.litShapeOk] =>
     vcgen [ConRon.Arena.litShapeOk, ConRon.Arena.pinNat, ConRon.Arena.pinNatZero,
       ConRon.Arena.pinNatSucc, ConRon.Arena.pinString, ConRon.Arena.pinStringOfList,
       ConRon.Arena.pinList, ConRon.Arena.pinListNil, ConRon.Arena.pinListCons,
       ConRon.Arena.pinChar, ConRon.Arena.pinCharOfNat, pinAt_specE,
-      natIndOk_optRun (eager := eager) (env := env) (fe := fe) (oc' := some c),
-      natZeroOk_optRun (eager := eager) (env := env) (fe := fe) (oc' := some c),
-      natSuccOk_optRun (eager := eager) (env := env) (fe := fe) (oc' := some c),
+      natIndOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal)
+        (capsP := {}),
+      natZeroOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal),
+      natSuccOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal),
       stringTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),
       stringOfListTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),
       listTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),
@@ -207,8 +239,8 @@ run gives an accepting pure run whose answer the arena's answer denotes.  The
 guards are what make it non-trivial — each must be *exact*, not merely sound,
 because the arena's acceptance has to imply con-leche's.
 
-Proved: the five guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
-through the lemma above, `nameNodup`,
+Proved: the guards (`fe.find?` through `IFEnvOK`, the certified operations'
+names, the literal shapes, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
 then `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
@@ -221,7 +253,6 @@ does not read `PersIFEnv`.  The arms use `checkConstantVal_bridge_of_fold`. -/
 theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     {c : ConstantVal} {a : Bool} {sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)
-    (h2 : ConLeche.reservedBasisNames.contains c.name = false)
     (h3 : (ConLeche.natOpName c.name && !a) = false)
     (h3s : ConLeche.litShapeOk (.axiomInfo c) = true)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
@@ -232,7 +263,7 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h10 : ConLeche.inferTypeCore μ false env F 0 c.type = .ok sty)
     (h11 : ConLeche.ensureSortCore μ false env F 0 sty = .ok u) :
     ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c a = .ok () := by
-  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h3, h3s, h4, h5,
+  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h3, h3s, h4, h5,
     h6, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
@@ -260,25 +291,14 @@ theorem checkConstantVal_bridge {env : Env}
     | some ci => rw [hf] at hdup; exact absurd rfl hdup
   have hfindP : env.find? c.name = none :=
     IFEnvOK.miss hck0.state hck0.ienv hnm hfind
-  -- 2. the reserved-name guard
-  obtain ⟨rs, s1, g2r, r2⟩ := AM.bind_ok r1
-  obtain ⟨hp1, hrs⟩ := reservedBasisNames_run hck0.state.wf hck0.pins g2r
-  have hck1 : CheckOK false env fe s1 := hck0.mono ⟨hp1.wf⟩ hp1.ext hp1.caches hp1.pins
-  have hnm1 : denoteN s1.store.ns cv.name = some c.name := denoteN_ext hnm hp1.ext
-  obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
-  replace r3 := AM.pure_bind_ok r3
-  have hresP : ConLeche.reservedBasisNames.contains c.name = false := by
-    have hc := denoteNList_contains hck1.state.wf rs reservedBasisNameValues
-      (denoteNL_toList rs reservedBasisNameValues hrs) cv.name c.name hnm1
-    rw [← reservedBasisNameValues_eq, ← hc]
-    cases hb : rs.contains cv.name with
-    | false => rfl
-    | true => rw [hb] at hres; exact absurd rfl hres
+  have hck1 : CheckOK false env fe s := hck0
+  have hnm1 : denoteN s.store.ns cv.name = some c.name := hnm
   -- 2a. the certified-operation-name guard: a pin read moves nothing
-  obtain ⟨bo, sO, gO, rO⟩ := AM.bind_ok r3
-  obtain ⟨rfl, hbo⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => t = s1 ∧ r = ConLeche.natOpName c.name)
-    rfl gO (natOpName_run s1 cv.name c.name hck1 hnm1)
+  obtain ⟨bo, sO, gO, rO⟩ := AM.bind_ok r1
+  obtain ⟨hsO, hbo⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ r = ConLeche.natOpName c.name)
+    rfl gO (natOpName_run s cv.name c.name hck1 hnm1)
+  subst sO
   obtain ⟨hop, rO2⟩ := AM.dguard_ok
     (AM.Never.bind fun _ => AM.Never.fail_any) rO
   replace rO2 := AM.pure_bind_ok rO2
@@ -288,18 +308,18 @@ theorem checkConstantVal_bridge {env : Env}
     | false => rfl
     | true => rw [hb] at hop; exact absurd rfl hop
   -- 2b. the literal-shape guard, at the record as an axiom
-  have hciA : Frontend.denoteCI sO.store (.axiomInfo cv) = some (.axiomInfo c) := by
-    simp only [Frontend.denoteCI, denoteCV_ext hcv hp1.ext, Option.map_some]
+  have hciA : Frontend.denoteCI s.store (.axiomInfo cv) = some (.axiomInfo c) := by
+    simp only [Frontend.denoteCI, hcv, Option.map_some]
   obtain ⟨bl, s2, gL, rL⟩ := AM.bind_ok rO2
-  obtain ⟨hck2, hxL, hpL, hbl⟩ := AM.of_run (P := fun t => t = sO)
-    (Q := fun r t => CheckOK false env fe t ∧ Ext sO.store t.store ∧
-      t.pins = sO.pins ∧ r = ConLeche.litShapeOk (.axiomInfo c))
-    rfl gL (litShapeOk_run sO (.axiomInfo cv) (.axiomInfo c) hck1 hciA)
+  obtain ⟨hck2, hxL, hpL, hbl⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => CheckOK false env fe t ∧ Ext s.store t.store ∧
+      t.pins = s.pins ∧ r = ConLeche.litShapeOk (.axiomInfo c))
+    rfl gL (litShapeOk_run s (.axiomInfo cv) (.axiomInfo c) hck1 hciA)
   obtain ⟨hshape, r3⟩ := AM.dunless_ok AM.Never.fail_any rL
   replace r3 := AM.pure_bind_ok r3
   have hshapeP : ConLeche.litShapeOk (.axiomInfo c) = true := by rw [← hbl]; exact hshape
-  have hx02 : Ext s.store s2.store := hp1.ext.trans hxL
-  have hp02 : s2.pins = s.pins := by rw [hpL, hp1.pins]
+  have hx02 : Ext s.store s2.store := hxL
+  have hp02 : s2.pins = s.pins := hpL
   have hnm2 : denoteN s2.store.ns cv.name = some c.name := denoteN_ext hnm hx02
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hx02.lss.ls.ns _ _ hlps
@@ -402,7 +422,7 @@ theorem checkConstantVal_bridge {env : Env}
   have hle10 : F10 ≤ max F10 F11 := Nat.le_max_left F10 F11
   have hle11 : F11 ≤ max F10 F11 := Nat.le_max_right F10 F11
   refine ⟨⟨hck11, hext, hpins⟩, max F10 F11, ?_⟩
-  exact checkConstantVal_pure hfindP hresP hopP hshapeP hnodP hlbbP hfvP
+  exact checkConstantVal_pure hfindP hopP hshapeP hnodP hlbbP hfvP
     hlpdP hcrP
     (ConLeche.inferTypeCore_mono hle10 hF10)
     (ConLeche.ensureSortCore_mono hle11 hF11)

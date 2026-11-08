@@ -6,12 +6,12 @@ formers with their capability records (`blockCapsAt`, `blockFormers`), the
 constructors (`blockCtors`), the recursors with their rules' firing mode
 (`Expr.dropVars`, `recFire`, `blockRecs`), the projection tables
 (`blockTables`), the block's constants (`blockConstants`, at official's
-`is_rec`, `blockIsRec`), and the recogniser at this frame (`blockShape?`).
+`is_rec`, `blockIsRec`), and the reader at this frame (`readBlock`).
 
 **Pure grade throughout but the recogniser.**  Nothing here reads the
 environment: the twins read the record, intern and walk handles, so every
 statement is a run form at `PStep` (state invariant, append, cache frame,
-untouched pins).  `blockShape?` is the exception: its `isProp` is `lvlEq?`'s
+untouched pins).  `readBlock` is the exception: its `isProp` is `lvlEq?`'s
 cached verdict, the denotation only under `CheckOK`'s cache clauses
 (`Bridge/Inductives/BlockShape.lean`'s module note).
 
@@ -787,7 +787,7 @@ theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche
 
 /-! ## The recogniser keeps the scratch flag
 
-`blockShape?` reads the store, interns names and levels (which live beside the
+`readBlock` reads the store, interns names and levels (which live beside the
 expression store's own flag) and asks `lvlEq?` (which leaves the store alone).
 `XFree` is "the expression store's scratch flag is unchanged"; it composes
 through every bind, and each recursive reader is one fuel induction of the
@@ -989,11 +989,11 @@ theorem XFree.recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) :
   have h4 := XFree.viewConst
   unfold Arena.recTargetOf; xfree_auto
 
-theorem XFree.blockCounts? (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat)) :
-    XFree (Arena.blockCounts? nPd k nC nR cvT r) := by
+theorem XFree.blockCounts (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat)) :
+    XFree (Arena.blockCounts nPd k nC nR cvT r) := by
   have h1 := XFree.piBinders
   have h2 := XFree.view'
-  unfold Arena.blockCounts?
+  unfold Arena.blockCounts
   repeat (first
     | exact XFree.pure _
     | (solve_by_elim (maxDepth := 2))
@@ -1012,24 +1012,23 @@ theorem XFree.paramLevels (lps : List NIdx) : XFree (Arena.paramLevels lps) := b
   unfold Arena.paramLevels
   exact XFree.bind (hgo _) (fun _ => XFree.internLsNode _)
 
-theorem XFree.blockMemberCounts? (nPd k nC : Nat) (names : List NIdx)
+theorem XFree.blockMemberCounts (nPd k nC : Nat) (names : List NIdx)
     (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule)) :
     ∀ (m : Nat) (cvTs : List IConstantVal),
-      XFree (Arena.blockMemberCounts? nPd k nC names rs m cvTs)
-  | _, [] => by unfold Arena.blockMemberCounts?; exact XFree.pure _
+      XFree (Arena.blockMemberCounts nPd k nC names rs m cvTs)
+  | _, [] => by unfold Arena.blockMemberCounts; exact XFree.pure _
   | m, cvT :: ts => by
-    have ih := XFree.blockMemberCounts? nPd k nC names rs (m + 1) ts
-    have h1 := XFree.blockCounts? nPd k nC
+    have ih := XFree.blockMemberCounts nPd k nC names rs (m + 1) ts
+    have h1 := XFree.blockCounts nPd k nC
     have h2 := XFree.recTargetOf names
     have h3 : XFree (rs.findM? fun q => do Pure.pure ((← Arena.recTargetOf names q.2.1 q.1.type) == m)) :=
       XFree.findM? (fun q => XFree.bind (h2 _ _) (fun _ => by
         intro s s' r h; obtain ⟨-, rfl⟩ := AM.pure_ok h; rfl)) rs
-    unfold Arena.blockMemberCounts?; xfree_auto
+    unfold Arena.blockMemberCounts; xfree_auto
 
-theorem XFree.blockShape? (nPd : Nat) (block : List IConstantInfo) :
-    XFree (Arena.blockShape? nPd block) := by
-  have h1 := XFree.blockMemberCounts? nPd
-  have h2 := XFree.reservedBasisNames
+theorem XFree.readBlock (nPd : Nat) (block : List IConstantInfo) :
+    XFree (Arena.readBlock nPd block) := by
+  have h1 := XFree.blockMemberCounts nPd
   have h3 := XFree.stripPis
   have h4 := XFree.view'
   have h5 := XFree.zeroLevel
@@ -1038,7 +1037,7 @@ theorem XFree.blockShape? (nPd : Nat) (block : List IConstantInfo) :
   have h8 := XFree.blockGroups
   have h9 := XFree.recTargetOf
   have h10 := XFree.internNNode
-  unfold Arena.blockShape?
+  unfold Arena.readBlock
   repeat (first
     | exact XFree.pure _
     | exact XFree.fail _
@@ -1054,18 +1053,20 @@ theorem XFree.blockShape? (nPd : Nat) (block : List IConstantInfo) :
     | exact h9 _ _ _
     | exact h10 _
     | (refine XFree.bind ?_ (fun _ => ?_))
+    | (dsimp only)
     | split)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-`blockShape?_install` with the scratch flag framed. -/
-theorem blockShape?_installS {env : Env} {fe : IFEnv} {nP : Nat}
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+`readBlock_run` with the scratch flag framed. -/
+theorem readBlock_installS {env : Env} {fe : IFEnv} {nP : Nat}
     {block : List IConstantInfo} {b : List ConstantInfo} {s s' : AState}
-    {r : Option Arena.BlockShape} (hc : CheckOK false env fe s)
+    {r : Except Arena.CheckError Arena.BlockShape} (hc : CheckOK false env fe s)
     (hb : Frontend.denoteCIList s.store block = some b)
-    (hrun : Arena.blockShape? nP block s = .ok (r, s')) :
+    (hrun : Arena.readBlock nP block s = .ok (r, s')) :
     PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
-      ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b) s'.store r :=
-  ⟨(blockShape?_run nP block b s s' r hc hb hrun).1, XFree.blockShape? nP block s s' r hrun,
-    (blockShape?_run nP block b s s' r hc hb hrun).2⟩
+      ROp (fun q st p => dShape st p = some q) (ConLeche.readBlock nP b).toOption s'.store
+        r.toOption :=
+  ⟨(readBlock_run nP block b s s' r hc hb hrun).1, XFree.readBlock nP block s s' r hrun,
+    (readBlock_run nP block b s s' r hc hb hrun).2⟩
 
 end ConRon.Bridge.Inductives

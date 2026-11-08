@@ -268,7 +268,7 @@ theorem checkConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
     {cv : ConstantVal} {a : Bool}
     (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv a = .ok ()) :
     CVTypeWF env cv := by
-  obtain ⟨-, -, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
+  obtain ⟨-, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
     ConLeche.checkConstantVal_inv h
   exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt,
           shape := ConLeche.checkConstantVal_litShapeAt h }

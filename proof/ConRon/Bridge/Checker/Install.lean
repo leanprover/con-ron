@@ -3,22 +3,24 @@
 
 `Arena/Install.lean`'s `declConstants` and `declTables` read what a record installs off the record,
 with no environment: a value record its own constant, an axiom itself (or `Quot.sound`'s pin, or
-nothing for `sorryAx`), a quotient record its slot's pin at its names, a pinned block each pin at its
-names, a recognised block its formers, constructors, recursors and tables.  `constsSpec` and
+nothing for `sorryAx`), a quotient record its slot's pin at its names, a block `readBlock` reads
+(a pinned basis block included) its formers, constructors, recursors and tables, any other block
+nothing.  `constsSpec` and
 `tablesSpec`: on the driver's state they denote con-leche's `declConstants`/`declTables` of the
 denoted record, keep the core invariant at the empty environment and the scratch tier closed, and
 what they return is persistent.  These are the hypotheses `Bridge/Checker/Index.lean`'s
 `buildIndex_run` takes.
 
-The pieces are the pinned blocks' walks (`Bridge/Checker/Basis.lean`: `basisNameHit_run`,
-`BasisKind.atBlock_run`, `quotAt_run`) and the recognised block's
-(`Bridge/Inductives/Install.lean`: `blockShape?_installS`, `blockConstants_run`, `blockTables_run`).
+The pieces are the quotient record's walk (`Bridge/Checker/Basis.lean`: `quotAt_run`) and the
+block's (`Bridge/Inductives/Install.lean`: `readBlock_installS`, `blockConstants_run`,
+`blockTables_run`).
 -/
 module
 
 public import ConRon.Bridge.Checker.Index
 public import ConRon.Bridge.Checker.Basis
 public import ConRon.Bridge.Inductives.Install
+import ConRon.Bridge.Inductives.BlockShape
 import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Frontend.Rel
 
@@ -163,46 +165,29 @@ theorem constsSpec : ConstsSpec := by
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨b, hb, rfl⟩ := hd
     simp only [Arena.declConstants] at hrun
-    obtain ⟨r, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨hst1, hx1, hp1, hc1, -, hsc1, rfl⟩ := basisNameHit_run hok.state hb g1
-    have hok1 : DriverOK s1 := hok.mono hst1 hx1 hc1 hp1
-    have hoff1 : s1.store.scratchOn = false := by rw [hsc1, hoff]
-    have hb1 := denoteCIList_mono hx1 _ _ hb
-    cases hk : ConLeche.basisNameHit b with
-    | some kind =>
-      rw [hk] at k1
-      obtain ⟨hr, hL⟩ := BasisKind.atBlock_run hok1.state hok1.readOK hb1 k1
+    obtain ⟨q, s2, g2, k2⟩ := AM.bind_ok hrun
+    obtain ⟨hp2, hsc2, hq⟩ := readBlock_installS hok hb g2
+    have hok2 := hok.of_pstep hp2
+    have hoff2 : s2.store.scratchOn = false := by rw [hsc2, hoff]
+    cases q with
+    | error e =>
+      simp only [ROp, Except.toOption] at hq
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+      have h : Frontend.denoteCIList s'.store [] =
+          some (ConLeche.declConstants (.indDecl b nP)) := by
+        obtain ⟨e', he'⟩ := Inductives.toOption_eq_none hq
+        simp [Frontend.denoteCIList, ConLeche.declConstants, he']
+      exact ⟨hok2, hp2.ext, hp2.pins, hoff2, h, persCIList_of hp2.ok.wf hoff2 h⟩
+    | ok p =>
+      simp only [ROp, Except.toOption] at hq
+      obtain ⟨pP, hpP, hdp⟩ := hq
+      obtain ⟨hp3, hsc3, hL⟩ := blockConstants_run hok2.state hok2.pins hdp k2
       have h : Frontend.denoteCIList s'.store L =
           some (ConLeche.declConstants (.indDecl b nP)) := by
-        simp [ConLeche.declConstants, hk, hL]
-      have hoff' : s'.store.scratchOn = false := by rw [hr.scratch, hoff1]
-      exact ⟨hok1.of_rstep hr, hx1.trans hr.ext, hr.pins.trans hp1, hoff', h,
-        persCIList_of hr.ok.wf hoff' h⟩
-    | none =>
-      rw [hk] at k1
-      obtain ⟨q, s2, g2, k2⟩ := AM.bind_ok k1
-      obtain ⟨hp2, hsc2, hq⟩ := blockShape?_installS hok1 hb1 g2
-      have hok2 := hok1.of_pstep hp2
-      have hoff2 : s2.store.scratchOn = false := by rw [hsc2, hoff1]
-      cases q with
-      | none =>
-        simp only [ROp] at hq
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-        have h : Frontend.denoteCIList s'.store [] =
-            some (ConLeche.declConstants (.indDecl b nP)) := by
-          simp [Frontend.denoteCIList, ConLeche.declConstants, hk, hq]
-        exact ⟨hok2, hx1.trans hp2.ext, hp2.pins.trans hp1, hoff2, h,
-          persCIList_of hp2.ok.wf hoff2 h⟩
-      | some p =>
-        simp only [ROp] at hq
-        obtain ⟨pP, hpP, hdp⟩ := hq
-        obtain ⟨hp3, hsc3, hL⟩ := blockConstants_run hok2.state hok2.pins hdp k2
-        have h : Frontend.denoteCIList s'.store L =
-            some (ConLeche.declConstants (.indDecl b nP)) := by
-          simp [ConLeche.declConstants, hk, hpP, hL]
-        have hoff' : s'.store.scratchOn = false := by rw [hsc3, hoff2]
-        exact ⟨hok2.of_pstep hp3, (hx1.trans hp2.ext).trans hp3.ext,
-          (hp3.pins.trans hp2.pins).trans hp1, hoff', h, persCIList_of hp3.ok.wf hoff' h⟩
+        simp [ConLeche.declConstants, Inductives.toOption_eq_some hpP, hL]
+      have hoff' : s'.store.scratchOn = false := by rw [hsc3, hoff2]
+      exact ⟨hok2.of_pstep hp3, hp2.ext.trans hp3.ext, hp3.pins.trans hp2.pins, hoff', h,
+        persCIList_of hp3.ok.wf hoff' h⟩
 
 /-! ## The tables -/
 
@@ -223,40 +208,28 @@ theorem tablesSpec : TablesSpec := by
     simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
     obtain ⟨b, hb, rfl⟩ := hd
     simp only [Arena.declTables] at hrun
-    obtain ⟨r, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨hst1, hx1, hp1, hc1, -, hsc1, rfl⟩ := basisNameHit_run hok.state hb g1
-    have hok1 : DriverOK s1 := hok.mono hst1 hx1 hc1 hp1
-    have hoff1 : s1.store.scratchOn = false := by rw [hsc1, hoff]
-    have hb1 := denoteCIList_mono hx1 _ _ hb
-    cases hk : ConLeche.basisNameHit b with
-    | some kind =>
-      rw [hk] at k1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
-      exact ⟨hok1, hx1, hp1, hoff1, by simp [ConLeche.declTables, hk, Frontend.denoteProjTableList],
+    obtain ⟨q, s2, g2, k2⟩ := AM.bind_ok hrun
+    obtain ⟨hp2, hsc2, hq⟩ := readBlock_installS hok hb g2
+    have hok2 := hok.of_pstep hp2
+    have hoff2 : s2.store.scratchOn = false := by rw [hsc2, hoff]
+    cases q with
+    | error e =>
+      simp only [ROp, Except.toOption] at hq
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+      obtain ⟨e', he'⟩ := Inductives.toOption_eq_none hq
+      exact ⟨hok2, hp2.ext, hp2.pins, hoff2,
+        by simp [ConLeche.declTables, he', Frontend.denoteProjTableList],
         fun _ h => nomatch h⟩
-    | none =>
-      rw [hk] at k1
-      obtain ⟨q, s2, g2, k2⟩ := AM.bind_ok k1
-      obtain ⟨hp2, hsc2, hq⟩ := blockShape?_installS hok1 hb1 g2
-      have hok2 := hok1.of_pstep hp2
-      have hoff2 : s2.store.scratchOn = false := by rw [hsc2, hoff1]
-      cases q with
-      | none =>
-        simp only [ROp] at hq
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-        exact ⟨hok2, hx1.trans hp2.ext, hp2.pins.trans hp1, hoff2,
-          by simp [ConLeche.declTables, hk, hq, Frontend.denoteProjTableList],
-          fun _ h => nomatch h⟩
-      | some p =>
-        simp only [ROp] at hq
-        obtain ⟨pP, hpP, hdp⟩ := hq
-        obtain ⟨hms, -⟩ := dShape_inv hdp
-        obtain ⟨hp3, hsc3, hQ, hokQ⟩ := blockTables_run p.members pP.members hok2.state hdp hms k2
-        have hoff' : s'.store.scratchOn = false := by rw [hsc3, hoff2]
-        refine ⟨hok2.of_pstep hp3, (hx1.trans hp2.ext).trans hp3.ext,
-          (hp3.pins.trans hp2.pins).trans hp1, hoff', by simp [ConLeche.declTables, hk, hpP, hQ],
-          fun t ht => ⟨?_, hokQ t ht⟩⟩
-        exact persProjTables_of hp3.ok.wf hoff' hQ t ht
+    | ok p =>
+      simp only [ROp, Except.toOption] at hq
+      obtain ⟨pP, hpP, hdp⟩ := hq
+      obtain ⟨hms, -⟩ := dShape_inv hdp
+      obtain ⟨hp3, hsc3, hQ, hokQ⟩ := blockTables_run p.members pP.members hok2.state hdp hms k2
+      have hoff' : s'.store.scratchOn = false := by rw [hsc3, hoff2]
+      refine ⟨hok2.of_pstep hp3, hp2.ext.trans hp3.ext, hp3.pins.trans hp2.pins, hoff',
+        by simp [ConLeche.declTables, Inductives.toOption_eq_some hpP, hQ],
+        fun t ht => ⟨?_, hokQ t ht⟩⟩
+      exact persProjTables_of hp3.ok.wf hoff' hQ t ht
   | defnDecl v e hint =>
     refine nil_arm rfl ?_
     revert hd; cases d <;> simp [Frontend.denoteDecl, ConLeche.declTables] <;> split <;> simp

@@ -24,10 +24,9 @@ carry every arm's result environment and every duplicate guard the checker ran:
 | `defn` / `thm` / `opaque` / `axiom` | one cons | `ConstantValRun`'s first conjunct, `(env.find? cv.name).isNone` |
 | `Quot.sound` axiom, `quot` | one cons | `DeclQuotRun`'s `isNone` |
 | `sorryAx` | `env` | none needed |
-| pinned `ind` block | `BasisInstallRun`'s chain | its per-constant `isNone` |
-| recognised `ind` block (`BlockRun`) | `checkBlock`'s final `pushDelta` | below |
+| `ind` block `readBlock` reads (`BlockRun`), a pinned basis block included | `checkBlock`'s final `pushDelta` | below |
 
-A recognised block installs `blockConstants p₀`: the formers, then the
+A block `readBlock` reads installs `blockConstants p₀`: the formers, then the
 constructors, then the recursors (`blockConstants_names`).  `BlockRun` runs its
 stages at the REDUCED members `ms`, whose declared formers, names and
 constructors are `p₀`'s (`reduceMembers_inv`).  The formers are fresh at `env`
@@ -106,29 +105,7 @@ theorem fresh_one {e : Env} {c : ConstantInfo} (h : e.find? c.name = none) :
     rw [List.map_cons, List.map_nil, List.mem_singleton] at hn
     rw [hn]; exact h⟩
 
-/-! ## The pinned blocks -/
-
-/-- con-leche: ConLeche/Semantics/Decl.lean BasisInstallRun — the pinned
-block's install is a chain of fresh pushes. -/
-theorem basisInstallRun_pushes : ∀ (L : List ConstantInfo) {e e' : Env},
-    BasisInstallRun e L e' → e' = e.pushDelta L [] ∧ FreshAt e (L.map (·.name))
-  | [], e, e', h => by
-    simp only [BasisInstallRun] at h
-    subst h
-    exact ⟨rfl, List.nodup_nil, fun _ h => nomatch h⟩
-  | ci :: rest, e, e', h => by
-    simp only [BasisInstallRun] at h
-    obtain ⟨hci, hrest⟩ := h
-    obtain ⟨he', hnd, hfr⟩ := basisInstallRun_pushes rest hrest
-    refine ⟨by rw [he']; simp [Env.pushDelta], ?_, ?_⟩
-    · refine List.nodup_cons.mpr ⟨fun hm => ?_, hnd⟩
-      exact (find?_none_append (X := [ci]) (hfr _ hm)).1 (List.mem_singleton_self _)
-    · intro n hn
-      rcases List.mem_cons.mp hn with rfl | hn
-      · exact Option.isNone_iff_eq_none.mp hci
-      · exact (find?_none_append (X := [ci]) (hfr n hn)).2
-
-/-! ## The recognised blocks -/
+/-! ## The blocks `readBlock` reads -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:154 checkBlock — **an
 accepted block pushes its constants and tables**: the install is the check's
@@ -337,18 +314,13 @@ theorem blockRun_fresh {F : Nat} {env env' : Env} {block : List ConstantInfo}
 type is the declared one, and the name was fresh. -/
 theorem constantValRun_type {F : Nat} {env : Env} {cv : ConstantVal} {type' : Expr}
     (h : ConstantValRun F env cv type') : type' = cv.type ∧ env.find? cv.name = none :=
-  ⟨h.2.2.2.2.2.1, Option.isNone_iff_eq_none.mp h.1⟩
+  ⟨h.2.2.2.2.1, Option.isNone_iff_eq_none.mp h.1⟩
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:185 stdAxiomOk — the tolerated
 axiom is no standard one (cf. `Cached.tolerated_not_std`). -/
 theorem stdAxiomOk_sorry {env : Env} {cv : ConstantVal} (ht : cv.name = sorryAxName) :
     stdAxiomOk env cv = false := by
   rw [stdAxiomOk, ite_eq_right, ite_eq_right] <;> rw [ht] <;> decide
-
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:97 reservedBasisNames —
-`Quot.sound` is a reserved name, so the ordinary axiom route never sees it. -/
-theorem quotSound_reserved : reservedBasisNames.contains quotSoundName = true := by
-  decide
 
 /-! ## The whole step -/
 
@@ -358,7 +330,7 @@ theorem checkDecl_pushes_fresh {pinsP : List NatOpPinSet} {F : Nat} {env env' : 
     (h : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env') :
     env' = env.pushDelta (declConstants d) (declTables d) ∧
       FreshAt env ((declConstants d).map (·.name)) := by
-  have hrun := checkDeclRun_ofEnvFactsK h
+  obtain ⟨-, hrun⟩ := checkDeclRun_ofEnvFactsK h
   cases d with
   | defnDecl cv value hint =>
     obtain ⟨type', value', hcv, hvf, rfl, -, -⟩ := hrun
@@ -374,14 +346,10 @@ theorem checkDecl_pushes_fresh {pinsP : List NatOpPinSet} {F : Nat} {env env' : 
     obtain ⟨rfl, hfr⟩ := constantValRun_type hcv
     exact ⟨rfl, fresh_one hfr⟩
   | axiomDecl cv =>
-    rcases hrun with ⟨hq, -, -, hfr, rfl⟩ | ⟨type', -, hcv, hdisj⟩
+    rcases hrun with ⟨hq, -, -, hfr, rfl⟩ | ⟨hqs, type', -, hcv, hdisj⟩
     · simp only [declConstants, declTables, ite_eq_left hq]
       exact ⟨rfl, fresh_one (Option.isNone_iff_eq_none.mp hfr)⟩
-    · have hqs : cv.name ≠ quotSoundName := fun he => by
-        have := hcv.2.1
-        rw [he, quotSound_reserved] at this
-        exact nomatch this
-      obtain ⟨rfl, hfr⟩ := constantValRun_type hcv
+    · obtain ⟨rfl, hfr⟩ := constantValRun_type hcv
       dsimp only at hdisj
       simp only [declConstants, declTables, ite_eq_right hqs]
       rcases hdisj with ⟨hstd, rfl⟩ | ⟨hn, -, rfl⟩ | ⟨hn, -, rfl⟩ |
@@ -404,24 +372,19 @@ theorem checkDecl_pushes_fresh {pinsP : List NatOpPinSet} {F : Nat} {env env' : 
     obtain ⟨-, -, hfr, rfl⟩ := hrun
     exact ⟨rfl, fresh_one (Option.isNone_iff_eq_none.mp hfr)⟩
   | indDecl block nP =>
-    cases hk : basisNameHit block with
-    | some kind =>
-      simp only [DeclRun, hk] at hrun
-      simp only [declConstants, declTables, hk]
-      exact basisInstallRun_pushes _ hrun.2
-    | none =>
-      simp only [DeclRun, hk, DeclIndRunDispatchK] at hrun
-      simp only [ConLeche.checkDecl, hk] at h
-      cases hbp : blockShape? nP block with
-      | none => simp only [hbp] at hrun
-      | some p =>
-        simp only [hbp] at hrun
-        simp only [declConstants, declTables, hk, hbp]
-        by_cases hok : indParamsOk nP block = true
-        · rw [ite_eq_left hok, hbp] at h
-          exact ⟨checkBlock_pushes h, blockRun_fresh (blockShape?_declared hbp) hrun⟩
-        · rw [ite_eq_right hok] at h
-          exact nomatch h
+    simp only [DeclKindRun, DeclIndRunDispatchK] at hrun
+    obtain ⟨hK, -⟩ := ConLeche.checkDecl_inv h
+    simp only [ConLeche.checkDeclKind] at hK
+    cases hbp : readBlock nP block with
+    | error e => simp only [hbp] at hrun
+    | ok p =>
+      simp only [hbp] at hrun
+      simp only [declConstants, declTables, hbp]
+      by_cases hok : indParamsOk nP block = true
+      · rw [ite_eq_left hok, hbp] at hK
+        exact ⟨checkBlock_pushes hK, blockRun_fresh (readBlock_declared hbp) hrun⟩
+      · rw [ite_eq_right hok] at hK
+        exact nomatch hK
 
 /-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean checkDeclStepC_pushes —
 **an accepted kernel step pushes what its declaration installs**: the result

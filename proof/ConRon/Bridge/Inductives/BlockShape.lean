@@ -1,23 +1,25 @@
 /-
-# `ConRon.Bridge.Inductives.BlockShape` — Theorem 1 for the block recogniser
+# `ConRon.Bridge.Inductives.BlockShape` — Theorem 1 for the block reader
 
 `Arena/Inductives/BlockShape.lean`'s twins against
 `ConLeche/Kernel/Inductives/BlockShape.lean` (task #105): the record's
 projections, `withSort`, the split, the per-member readers
-(`recTargetOf`, `blockCounts?`, `ctorMember?`, `blockGroups`), the recursor
+(`recTargetOf`, `blockCounts`, `ctorMember?`, `blockGroups`), the recursor
 records' pins (`blockRecLpsOk`, `blockRecNameSetOk`,
-`blockRecNamesUnreserved`) and the recogniser (`blockMemberCounts?`,
-`blockShape?`).
+`blockRecNamesUnreserved`) and the reader (`blockMemberCounts`, `readBlock`).
+The reader's answers are `Except`s whose messages differ (the twin's drop
+con-leche's interpolated names), so they are related as `Option`s
+(`Except.toOption`): the same value, or both an error.
 
 **Grades.**  The projections, the split and the level pin are pure on both
 sides and their statements are plain equations.  The readers are `PSpec`
 (they intern and read, nothing more); `blockRecNamesUnreserved` reads the pin
-table (`PSpecP`); `withSort` and `blockShape?` ask `lvlEq?` for
+table (`PSpecP`); `withSort` and `readBlock` ask `lvlEq?` for
 `isProp`, whose cached verdict is the denotation only under `CheckOK` — so
 they are `CSpec`, the old `withSort_spec`/`nativeShape?_spec` argument.
 
-**`blockShape?_spec` is TWO-SIDED** (`ROp`): the dispatch between
-`checkBlock` and `checkShapeless` reads it and nothing else.
+**`readBlock_spec` is TWO-SIDED** (`ROp`): the dispatch between `checkBlock`
+and the reader's reject reads it and nothing else.
 -/
 module
 
@@ -552,8 +554,8 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
       | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
-— the non-sort tail: the recursor's argument sums. -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
+— the non-sort tail, as an `Option`: the recursor's argument sums. -/
 def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat × Nat)
   | none => none
   | some (mI, rP) =>
@@ -562,32 +564,41 @@ def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat ×
     else if k < nR && nPd + nR + nC ≤ rP then some (nPd, mI - rP)
     else none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
+/-- con-leche: none — the two counts a recursor record hands the member's
+reader, without the name con-leche carries for its error text. -/
+@[expose] def recCounts (r : Option (ConLeche.Name × Nat × Nat)) : Option (Nat × Nat) :=
+  r.map fun q => (q.2.1, q.2.2)
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
 — con-leche's `match` on the whole pair re-read as a match on the residual,
-which is what the twin's `view` dispatch decides. -/
-private theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat × Nat)) :
-    ConLeche.blockCounts? nPd k nC nR cvTP r =
+which is what the twin's `view` dispatch decides; its answer as an `Option`
+(the errors' messages are not the twin's). -/
+private theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal)
+    (r : Option (ConLeche.Name × Nat × Nat)) :
+    (ConLeche.blockCounts nPd k nC nR cvTP r).toOption =
       (match (cvTP.type.piBinders).2 with
        | .sort _ =>
          if nPd ≤ (cvTP.type.piBinders).1.length then
            some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
-       | _ => blockCountsTail nPd k nC nR r) := by
-  simp only [ConLeche.blockCounts?]
+       | _ => blockCountsTail nPd k nC nR (recCounts r)) := by
+  simp only [ConLeche.blockCounts]
   cases h : cvTP.type.piBinders with
   | mk bs body =>
-    cases body <;> rcases r with _ | ⟨mI, rP⟩ <;> rfl
+    cases body <;> rcases r with _ | ⟨rn, mI, rP⟩ <;>
+      simp only [recCounts, blockCountsTail, Option.map_none, Option.map_some] <;>
+      (repeat' split) <;> simp_all [Except.toOption]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:273-299 blockCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
 One member's parameter and index counts: `piBinders_spec`, the ten-way `view`
 dispatch at the residual, `denoteEList_length` for the telescope's
-length. -/
-theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : ConstantVal)
-    (r : Option (Nat × Nat)) :
+length.  The answers agree as `Option`s: the same counts, or both an error. -/
+theorem blockCounts_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : ConstantVal)
+    (r : Option (ConLeche.Name × Nat × Nat)) :
     PSpec (fun st => Frontend.denoteCV st cvT = some cvTP)
-      (Arena.blockCounts? nPd k nC nR cvT r)
-      (RV (ConLeche.blockCounts? nPd k nC nR cvTP r)) := by
+      (Arena.blockCounts nPd k nC nR cvT (recCounts r))
+      (fun _ x => x.toOption = (ConLeche.blockCounts nPd k nC nR cvTP r).toOption) := by
   intro s₀ s' x hok hcv hrun
-  simp only [Arena.blockCounts?] at hrun
+  simp only [Arena.blockCounts] at hrun
   obtain ⟨q, s1, k1, hz1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hbs, hbody⟩ :=
     piBinders_spec Arena.coreWalkFuel cvT.type cvTP.type s₀ s1 q hok
@@ -608,36 +619,40 @@ theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : Const
     rw [hEq, ← hlen]
     split at hz2
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-      exact ⟨p1, by simp_all⟩
+      exact ⟨p1, by simp_all [Except.toOption]⟩
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-      exact ⟨p1, by simp_all⟩
+      exact ⟨p1, by simp_all [Except.toOption]⟩
   all_goals
     (have hns := ExprOps.denoteEView_not_sort hbv (by simp)
      have hm : (match (cvTP.type.piBinders).2 with
          | .sort _ =>
            if nPd ≤ (cvTP.type.piBinders).1.length then
              some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
-         | _ => blockCountsTail nPd k nC nR r) = blockCountsTail nPd k nC nR r := by
+         | _ => blockCountsTail nPd k nC nR (recCounts r)) =
+           blockCountsTail nPd k nC nR (recCounts r) := by
        generalize (cvTP.type.piBinders).2 = e at hns
        cases e <;> first | rfl | exact absurd rfl (hns _)
      rw [hm]
      dsimp only at hz2
-     rcases r with _ | ⟨mI, rP⟩
+     generalize recCounts r = rr at hz2 ⊢
+     rcases rr with _ | ⟨mI, rP⟩
      · obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
        exact ⟨p1, rfl⟩
      · dsimp only at hz2
        simp only [blockCountsTail]
        split at hz2
-       · rename_i hc; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2; exact ⟨p1, by simp [hc]⟩
+       · rename_i hc; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
+         exact ⟨p1, by simp [hc, Except.toOption]⟩
        · rename_i hc
          split at hz2
-         · rename_i hc2; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2; exact ⟨p1, by simp [hc, hc2]⟩
+         · rename_i hc2; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
+           exact ⟨p1, by simp [hc, hc2, Except.toOption]⟩
          · rename_i hc2
            split at hz2
            · rename_i hc3; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩
+             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all [Except.toOption]⟩
            · rename_i hc3; obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩)
+             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all [Except.toOption]⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:301-308 ctorMember?
 The member a constructor belongs to: `stripPis`, `getAppFn`, then
@@ -1066,55 +1081,43 @@ theorem reservedRecBool_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b :
       obtain ⟨rfl, rfl⟩ := AM.pure_ok r3
       exact ⟨rfl, by simp only [hc, hc2, Bool.false_or]⟩
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:508-511 reservedRecName — the
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:510-524 reservedRecName — the
 `||` chain, one pin-table list at a time. -/
 theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b : Bool}
     (hok : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
     (hr : Arena.reservedRecName n s = .ok (b, s')) :
     PStep s s' ∧ b = ConLeche.reservedRecName nm := by
   simp only [Arena.reservedRecName] at hr
-  obtain ⟨rs, s₁, h1, h2⟩ := AM.bind_ok hr
-  obtain ⟨p1, hrs⟩ := reservedBasisNames_pstep hok hp h1
-  have hn1 := denoteN_ext hn p1.ext
-  have e1 := denoteNList_contains p1.ok.wf _ _ hrs _ _ hn1
   simp only [ConLeche.reservedRecName]
-  rw [e1] at h2
-  split at h2
-  · rename_i hc
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    exact ⟨p1, by simp only [hc, Bool.true_or]⟩
-  · rename_i hc
-    simp only [Bool.not_eq_true] at hc
-    have hp1 := hp.mono p1.ext p1.pins
-    obtain ⟨ls, s₂, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨rfl, hls⟩ := litGuardNames_run hp1 h3
-    rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hls) _ _ hn1] at h4
-    split at h4
-    · rename_i hc2
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-      exact ⟨p1, by simp only [hc, hc2, Bool.true_or, Bool.false_or]⟩
-    · rename_i hc2
-      simp only [Bool.not_eq_true] at hc2
-      obtain ⟨os, s₃, h5, h6⟩ := AM.bind_ok h4
-      obtain ⟨rfl, hos⟩ := natOpNames_runB hp1 h5
-      rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hos) _ _ hn1] at h6
-      split at h6
-      · rename_i hc3
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
-        exact ⟨p1, by simp only [hc, hc2, hc3, Bool.true_or, Bool.false_or]⟩
-      · rename_i hc3
-        simp only [Bool.not_eq_true] at hc3
-        obtain ⟨ds, s₄, h7, h8⟩ := AM.bind_ok h6
-        obtain ⟨rfl, hds⟩ := natDivModNames_runB hp1 h7
-        rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hds) _ _ hn1] at h8
-        split at h8
-        · rename_i hc4
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
-          exact ⟨p1, by simp only [hc, hc2, hc3, hc4, Bool.true_or, Bool.false_or]⟩
-        · rename_i hc4
-          simp only [Bool.not_eq_true] at hc4
-          obtain ⟨rfl, hb⟩ := reservedRecBool_run p1.ok hp1 hn1 h8
-          exact ⟨p1, by rw [hb]; simp only [hc, hc2, hc3, hc4, Bool.false_or, Bool.or_assoc]⟩
+  obtain ⟨ls, s₂, h3, h4⟩ := AM.bind_ok hr
+  obtain ⟨rfl, hls⟩ := litGuardNames_run hp h3
+  rw [denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hls) _ _ hn] at h4
+  split at h4
+  · rename_i hc2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+    exact ⟨PStep.refl hok, by simp only [hc2, Bool.true_or]⟩
+  · rename_i hc2
+    simp only [Bool.not_eq_true] at hc2
+    obtain ⟨os, s₃, h5, h6⟩ := AM.bind_ok h4
+    obtain ⟨rfl, hos⟩ := natOpNames_runB hp h5
+    rw [denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hos) _ _ hn] at h6
+    split at h6
+    · rename_i hc3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
+      exact ⟨PStep.refl hok, by simp only [hc2, hc3, Bool.true_or, Bool.false_or]⟩
+    · rename_i hc3
+      simp only [Bool.not_eq_true] at hc3
+      obtain ⟨ds, s₄, h7, h8⟩ := AM.bind_ok h6
+      obtain ⟨rfl, hds⟩ := natDivModNames_runB hp h7
+      rw [denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hds) _ _ hn] at h8
+      split at h8
+      · rename_i hc4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
+        exact ⟨PStep.refl hok, by simp only [hc2, hc3, hc4, Bool.true_or, Bool.false_or]⟩
+      · rename_i hc4
+        simp only [Bool.not_eq_true] at hc4
+        obtain ⟨rfl, hb⟩ := reservedRecBool_run hok hp hn h8
+        exact ⟨PStep.refl hok, by rw [hb]; simp only [hc2, hc3, hc4, Bool.false_or, Bool.or_assoc]⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:359-368 blockRecNamesUnreserved
 No recursor takes a reserved name: the twin stops at the first hit, the pure
@@ -1156,7 +1159,7 @@ theorem blockRecNamesUnreserved_spec (pP : ConLeche.BlockShape) :
 
 /-! ## The members' counts -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:370-383 blockMemberCounts?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
 (`rec_for_member`) — the twin's `findM?` over the recursors is con-leche's
 `find?`, read at the two counts the member's reader takes. -/
 theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : Nat) :
@@ -1203,17 +1206,32 @@ theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : 
         (mapM_option_ext (fun x y h => dRecT_ext p3.ext x y h) _ _ hqs) h2
       exact ⟨p3.trans p4, h5⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:370-383 blockMemberCounts?
+/-- con-leche: none — an `Except` answer as an `Option`, at an error and at an
+`ok`. -/
+theorem toOption_eq_none {ε α : Type} {x : Except ε α} (h : x.toOption = none) :
+    ∃ e, x = .error e := by
+  cases x with
+  | error e => exact ⟨e, rfl⟩
+  | ok a => simp [Except.toOption] at h
+
+theorem toOption_eq_some {ε α : Type} {x : Except ε α} {a : α} (h : x.toOption = some a) :
+    x = .ok a := by
+  cases x with
+  | error e => simp [Except.toOption] at h
+  | ok b => simp only [Except.toOption, Option.some.injEq] at h; rw [h]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
 The members' index counts, member by member: `recForMember_run`, then
-`blockCounts?_spec`. -/
-theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
+`blockCounts_spec`.  The answers agree as `Option`s. -/
+theorem blockMemberCounts_spec (nPd k nC : Nat) (names : List NIdx)
     (namesP : List ConLeche.Name) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
     (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) :
     ∀ (m : Nat) (cvTs : List IConstantVal) (cvTsP : List ConstantVal),
     PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
         rs.mapM (dRecT st) = some rsP ∧ cvTs.mapM (Frontend.denoteCV st) = some cvTsP)
-      (Arena.blockMemberCounts? nPd k nC names rs m cvTs)
-      (RV (ConLeche.blockMemberCounts? nPd k nC namesP rsP m cvTsP)) := by
+      (Arena.blockMemberCounts nPd k nC names rs m cvTs)
+      (fun _ x => x.toOption =
+        (ConLeche.blockMemberCounts nPd k nC namesP rsP m cvTsP).toOption) := by
   intro m cvTs
   induction cvTs generalizing m with
   | nil =>
@@ -1221,7 +1239,7 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
     obtain ⟨-, -, hc⟩ := hp
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hc
     subst hc
-    simp only [Arena.blockMemberCounts?] at hrun
+    simp only [Arena.blockMemberCounts] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons cvT ts ih =>
@@ -1229,32 +1247,37 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
     obtain ⟨hN, hrs, hc⟩ := hp
     obtain ⟨cvTP, tsP, rfl, hcv, hts⟩ := mapM_option_cons_inv hc
     have hlen : rs.length = rsP.length := (ConLeche.option_mapM_length hrs).symm
-    simp only [Arena.blockMemberCounts?] at hrun
+    simp only [Arena.blockMemberCounts] at hrun
     obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨p1, ho⟩ := recForMember_run names namesP m rs rsP s₀ s₁ o hok hN hrs h1
     obtain ⟨c, s₂, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨rr, hrr, h3⟩ : ∃ rr, rr = (rsP.find? fun q =>
-          ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map (fun q => (q.2.1, q.2.2.1)) ∧
-        Arena.blockCounts? nPd k nC rs.length cvT rr s₁ = .ok (c, s₂) := by
+    obtain ⟨rr, hrr, h3⟩ : ∃ rr, rr = recCounts ((rsP.find? fun q =>
+          ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
+            fun q => (q.1.name, q.2.1, q.2.2.1)) ∧
+        Arena.blockCounts nPd k nC rs.length cvT rr s₁ = .ok (c, s₂) := by
+      have ho' : (rsP.find? fun q => ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
+          (fun q => (q.2.1, q.2.2.1)) = recCounts ((rsP.find? fun q =>
+            ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
+              fun q => (q.1.name, q.2.1, q.2.2.1)) := by
+        rw [recCounts, Option.map_map]; rfl
       cases o with
-      | none => exact ⟨none, by rw [← ho]; rfl, h3⟩
-      | some q => exact ⟨_, by rw [← ho]; rfl, h3⟩
+      | none => exact ⟨none, by rw [← ho', ← ho]; rfl, h3⟩
+      | some q => exact ⟨_, by rw [← ho', ← ho]; rfl, h3⟩
     subst hrr
     rw [hlen] at h3
-    obtain ⟨p3, hc3⟩ := blockCounts?_spec nPd k nC rsP.length cvT cvTP _ s₁ s₂ c p1.ok
+    obtain ⟨p3, hc3⟩ := blockCounts_spec nPd k nC rsP.length cvT cvTP _ s₁ s₂ c p1.ok
       (denoteCV_ext hcv p1.ext) h3
-    simp only [RV] at hc3
-    subst hc3
-    simp only [ConLeche.blockMemberCounts?]
-    cases hbc : ConLeche.blockCounts? nPd k nC rsP.length cvTP
-        ((rsP.find? fun q => ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
-          fun q => (q.2.1, q.2.2.1)) with
-    | none =>
-      rw [hbc] at h4
+    simp only [ConLeche.blockMemberCounts]
+    cases c with
+    | error e =>
+      dsimp only at h4
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-      exact ⟨p1.trans p3, rfl⟩
-    | some cc =>
-      rw [hbc] at h4
+      obtain ⟨e', he'⟩ := toOption_eq_none hc3.symm
+      refine ⟨p1.trans p3, ?_⟩
+      rw [he']; rfl
+    | ok cc =>
+      have hbc := toOption_eq_some hc3.symm
+      rw [hbc]
       dsimp only at h4
       obtain ⟨ns, s₃, h5, h6⟩ := AM.bind_ok h4
       have x3 := p1.ext.trans p3.ext
@@ -1262,35 +1285,36 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
         ⟨denoteNListE_ext x3 _ _ hN,
          mapM_option_ext (fun x y h => dRecT_ext x3 x y h) _ _ hrs,
          mapM_option_ext (fun x y h => denoteCV_ext h x3) _ _ hts⟩ h5
-      simp only [RV] at hns
-      subst hns
-      cases hrest : ConLeche.blockMemberCounts? nPd k nC namesP rsP (m + 1) tsP with
-      | none =>
-        rw [hrest] at h6
+      cases ns with
+      | error e =>
+        dsimp only at h6
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
-        exact ⟨(p1.trans p3).trans p5, rfl⟩
-      | some ns =>
-        rw [hrest] at h6
+        obtain ⟨e', he'⟩ := toOption_eq_none hns.symm
+        refine ⟨(p1.trans p3).trans p5, ?_⟩
+        rw [he']; rfl
+      | ok ns =>
+        dsimp only at h6
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
+        rw [toOption_eq_some hns.symm]
         exact ⟨(p1.trans p3).trans p5, rfl⟩
 
 /-! ## The recogniser -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 (the result sort) — member 0's sort, or the placeholder `0`. -/
 def resSortOfP (ty : Expr) (k : Nat) : Level :=
   match ty.stripPis k with
   | some (_, .sort s) => s
   | _ => .zero
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 (`large?`) — which eliminator the first recursor claims. -/
 def largeOfP (lps : List ConLeche.Name) : List ConLeche.Name → Option ConLeche.Name
   | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
   | [] => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
-(after the pins) — the record, the pure side's stretch the twin duplicates
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+(after the declarations' tests) — the record, the pure side's stretch the twin duplicates
 into its three result-sort arms. -/
 def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
     (cs : List (ConstantVal × Nat × Nat)) (rs : List (ConstantVal × Nat × Nat × Bool × List RecRule))
@@ -1312,8 +1336,9 @@ def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
   | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp⟩
   | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
-(after the split) — the pure recogniser with its inline `match`es named. -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+(after the split) — the pure reader with its inline `match`es named, as an
+`Option` (an error is `none`: the messages are not the twin's). -/
 def shapeOfSplitP (nPd : Nat) (cvTs : List ConstantVal) (cs : List (ConstantVal × Nat × Nat))
     (rs : List (ConstantVal × Nat × Nat × Bool × List RecRule)) : Option ConLeche.BlockShape :=
   match cvTs, rs with
@@ -1321,33 +1346,71 @@ def shapeOfSplitP (nPd : Nat) (cvTs : List ConstantVal) (cs : List (ConstantVal 
     let lps := cvT0.levelParams
     let names := cvTs.map (·.name)
     let k := cvTs.length
-    match ConLeche.blockMemberCounts? nPd k cs.length names rs 0 cvTs with
+    match (ConLeche.blockMemberCounts nPd k cs.length names rs 0 cvTs).toOption with
     | none => none
     | some nIdxs =>
-      if (cvTs.all fun c => reservedBasisNames.contains c.name == false) &&
-          (rs.all fun r => reservedBasisNames.contains r.1.name == false) &&
-          (cvTs.all fun c => c.levelParams == lps) &&
-          cs.all (fun c => c.2.1 == nPd && c.1.levelParams == lps &&
-            reservedBasisNames.contains c.1.name == false) then
+      if (cvTs.all fun c => c.levelParams == lps) && (cs.all fun c => c.2.1 == nPd) &&
+          (cs.all fun c => c.1.levelParams == lps) then
         shapeTailP nPd cvT0 cvR0 cvTs cs rs nIdxs
       else none
   | _, _ => none
 
-theorem blockShape_eq (nPd : Nat) (block : List ConstantInfo) :
-    ConLeche.blockShape? nPd block =
+/-- con-leche: none — a `find?` for an element whose field differs hits
+exactly when not every element's field agrees. -/
+theorem all_false_of_find?_bne {α β : Type} [BEq β] {l : List α} {f : α → β} {v : β} {x : α}
+    (h : l.find? (fun y => f y != v) = some x) : (l.all fun y => f y == v) = false := by
+  rw [List.all_eq_false]
+  exact ⟨x, List.mem_of_find?_eq_some h, by simpa [bne] using List.find?_some h⟩
+
+theorem all_true_of_find?_bne {α β : Type} [BEq β] {l : List α} {f : α → β} {v : β}
+    (h : l.find? (fun y => f y != v) = none) : (l.all fun y => f y == v) = true := by
+  rw [List.all_eq_true]
+  intro x hx
+  simpa [bne] using List.find?_eq_none.mp h x hx
+
+theorem readBlock_eq (nPd : Nat) (block : List ConstantInfo) :
+    (ConLeche.readBlock nPd block).toOption =
       (ConLeche.blockSplit block).bind fun q => shapeOfSplitP nPd q.1 q.2.1 q.2.2 := by
-  unfold ConLeche.blockShape?
+  unfold ConLeche.readBlock
   rcases ConLeche.blockSplit block with _ | ⟨cvTs, cs, rs⟩
   · rfl
   · simp only [Option.bind_some, shapeOfSplitP]
-    rcases cvTs with _ | ⟨cvT0, cvTs⟩ <;> rcases rs with _ | ⟨⟨cvR0, a, b, c, d⟩, rs⟩ <;> rfl
+    rcases cvTs with _ | ⟨cvT0, cvTs⟩ <;> rcases rs with _ | ⟨⟨cvR0, a, b, c, d⟩, rs⟩
+    · rfl
+    · rfl
+    · rfl
+    · dsimp only
+      split
+      · rename_i e he
+        rw [he]; rfl
+      · rename_i nIdxs he
+        rw [he]
+        dsimp only [Except.toOption]
+        cases h1 : (cvT0 :: cvTs).find? (fun c => c.levelParams != cvT0.levelParams) with
+        | some x => simp [all_false_of_find?_bne h1]
+        | none =>
+          cases h2 : cs.find? (fun c => c.2.1 != nPd) with
+          | some x => simp [all_true_of_find?_bne h1, all_false_of_find?_bne h2]
+          | none =>
+            cases h3 : cs.find? (fun c => c.1.levelParams != cvT0.levelParams) with
+            | some x =>
+              simp only [all_true_of_find?_bne h1, all_true_of_find?_bne h2,
+                all_false_of_find?_bne h3, Bool.and_false, Bool.false_eq_true, ite_false]
+            | none =>
+              simp only [all_true_of_find?_bne h1, all_true_of_find?_bne h2,
+                all_true_of_find?_bne h3, Bool.and_self, ite_true, shapeTailP, largeOfP]
+              cases cvR0.levelParams with
+              | nil => rfl
+              | cons e r =>
+                by_cases hc : (r = cvT0.levelParams ∧ ¬e ∈ cvT0.levelParams) <;>
+                  simp [hc, resSortOfP] <;> exact ⟨rfl, rfl⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 (after the result sort) — the twin's stretch its `do` block duplicates into
 the three result-sort arms, written once. -/
 def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
     (cs : List (IConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
-    (nIdxs : List Nat) (y : LIdx) : AM (Option Arena.BlockShape) := do
+    (nIdxs : List Nat) (y : LIdx) : AM (Except Arena.CheckError Arena.BlockShape) := do
   let z ← zeroLevel
   let eq ← lvlEq? y z
   let lvls ← paramLevels cvT0.levelParams
@@ -1362,7 +1425,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
         if (relps == cvT0.levelParams && !cvT0.levelParams.contains elim) = true then some elim
         else none) with
   | some elim =>
-    pure (some { members := ((cvTs.zip nIdxs).zip groups).map
+    pure (.ok { members := ((cvTs.zip nIdxs).zip groups).map
                    (fun a => { cvT := a.1.1, declared := a.1.1, nIdx := a.1.2, ctors := a.2 }),
                  recs := recsL, nP := nPd, elim := elim, resSort := y, large := true,
                  isProp := match eq with
@@ -1371,7 +1434,7 @@ def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
                    | none => false })
   | none => do
     let anon ← internNNode NNodeView.anonymous
-    pure (some { members := ((cvTs.zip nIdxs).zip groups).map
+    pure (.ok { members := ((cvTs.zip nIdxs).zip groups).map
                    (fun a => { cvT := a.1.1, declared := a.1.1, nIdx := a.1.2, ctors := a.2 }),
                  recs := recsL, nP := nPd, elim := anon, resSort := y, large := false,
                  isProp := match eq with
@@ -1523,7 +1586,7 @@ theorem members_denote {st : EStore} :
         refine mapM_option_cons ?_ (ih csP ns gs gsP hcs hgs)
         simp only [dMember, hc, hg, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 — **the record, once the result sort is read**: `lvlEq?` (CORE: the cache
 licence), `paramLevels`, `blockGroups_spec`, `recsL_run`, the eliminator. -/
 theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
@@ -1531,7 +1594,7 @@ theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (cvTsP : List ConstantVal) (cs : List (IConstantVal × Nat × Nat))
     (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule))
     (rsP : List (ConstantVal × Nat × Nat × Bool × List RecRule)) (nIdxs : List Nat) (y : LIdx)
-    {s₀ s s' : AState} {r : Option Arena.BlockShape}
+    {s₀ s s' : AState} {r : Except Arena.CheckError Arena.BlockShape}
     (hc : CheckOK false env fe s₀) (q : PStep s₀ s)
     (hT0 : Frontend.denoteCV s.store cvT0 = some cvT0P)
     (hR0 : Frontend.denoteCV s.store cvR0 = some cvR0P)
@@ -1540,7 +1603,7 @@ theorem shapeTail_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (hy : denoteL s.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)))
     (hrun : shapeTailM nPd cvT0 cvR0 cvTs cs rs nIdxs y s = .ok (r, s')) :
     PStep s₀ s' ∧ ROp (fun q st p => dShape st p = some q)
-      (shapeTailP nPd cvT0P cvR0P cvTsP csP rsP nIdxs) s'.store r := by
+      (shapeTailP nPd cvT0P cvR0P cvTsP csP rsP nIdxs) s'.store r.toOption := by
   simp only [shapeTailM] at hrun
   obtain ⟨z, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨e, s2, k2, z2⟩ := AM.bind_ok z1
@@ -1688,21 +1751,23 @@ theorem all_and_split {α : Type} (p q : α → Bool) :
 theorem not_eq_beq_false {a b : Bool} (h : a = b) : (!a) = (b == false) := by
   subst h; cases a <;> rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-442 blockShape?
-— **the recogniser's run, inverted once**: the split (`blockSplit_spec`), the
-counts, the pins (reassociated: the twin reads the formers' two pins in one
-pass), the result sort's three arms, each into `shapeTail_run`. -/
-theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+— **the reader's run, inverted once**: the split (`blockSplit_spec`), the
+counts, the universe and parameter declarations' three tests, the result
+sort's three arms, each into `shapeTail_run`.  The answers agree as `Option`s:
+the same record, or both an error. -/
+theorem readBlock_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
-    (r : Option Arena.BlockShape) (hc : CheckOK false env fe s₀)
+    (r : Except Arena.CheckError Arena.BlockShape) (hc : CheckOK false env fe s₀)
     (hb : Frontend.denoteCIList s₀.store block = some blockP)
-    (hrun : Arena.blockShape? nPd block s₀ = .ok (r, s')) :
+    (hrun : Arena.readBlock nPd block s₀ = .ok (r, s')) :
     PStep s₀ s' ∧
-      ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nPd blockP) s'.store r := by
+      ROp (fun q st p => dShape st p = some q) (ConLeche.readBlock nPd blockP).toOption
+        s'.store r.toOption := by
   have hok := hc.state
-  rw [blockShape_eq]
+  rw [readBlock_eq]
   have hsp := blockSplit_spec s₀.store block blockP hb
-  unfold Arena.blockShape? at hrun
+  unfold Arena.readBlock at hrun
   cases hA : Arena.blockSplit block with
   | none =>
     rw [hA] at hrun hsp
@@ -1743,80 +1808,82 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
     have hlenT : cvTs.length = cvTsP.length := (ConLeche.option_mapM_length hTs).symm
     have hlenC : cs.length = csP.length := denoteCtors3_length hcs
     obtain ⟨cnt, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hcnt⟩ := blockMemberCounts?_spec nPd cvTs.length cs.length
+    obtain ⟨p1, hcnt⟩ := blockMemberCounts_spec nPd cvTs.length cs.length
       (cvTs.map (·.name)) (cvTsP.map (·.name)) rs rsP 0 cvTs cvTsP s₀ s1 cnt hok
       ⟨cvNames_go hTs, hrs, hTs⟩ k1
-    simp only [RV] at hcnt
-    subst hcnt
-    have hcnt' : ConLeche.blockMemberCounts? nPd cvTs.length cs.length
-        (cvTsP.map (·.name)) rsP 0 cvTsP = ConLeche.blockMemberCounts? nPd cvTsP.length
-        csP.length (cvTsP.map (·.name)) rsP 0 cvTsP := by rw [hlenT, hlenC]
-    rw [hcnt'] at z1
-    cases hcntP : ConLeche.blockMemberCounts? nPd cvTsP.length csP.length
-        (cvTsP.map (·.name)) rsP 0 cvTsP with
-    | none =>
-      rw [hcntP] at z1
+    rw [hlenT, hlenC] at hcnt
+    cases cnt with
+    | error e =>
+      dsimp only at z1
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      exact ⟨p1, rfl⟩
-    | some nIdxs =>
-    rw [hcntP] at z1
-    dsimp only at z1 ⊢
-    obtain ⟨reserved, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hres⟩ := reservedBasisNames_pstep p1.ok (hc.pins.mono p1.ext p1.pins) k2
-    have q2 : PStep s₀ s2 := p1.trans p2
-    have x2 := q2.ext
-    have hwf := q2.ok.wf
-    have hlps := denoteNListE_ext x2 _ _ (denoteCV_lps hT0)
-    have E1 : (cvTs.all fun c => !reserved.contains c.name && c.levelParams == cvT0.levelParams)
-        = (cvTsP.all fun c => (reservedBasisNames.contains c.name == false) &&
-            c.levelParams == cvT0P.levelParams) :=
-      all_mapM_eq (fun x y h => by
-        rw [not_eq_beq_false (denoteNList_contains hwf _ _ hres _ _ (denoteCV_name h)),
-          beq_nhandleList_eq hwf (denoteCV_lps h) hlps])
-        cvTs cvTsP (mapM_option_ext (fun a b h => denoteCV_ext h x2) _ _ hTs)
-    have E2 : (rs.all fun r => !reserved.contains r.1.name)
-        = (rsP.all fun r => reservedBasisNames.contains r.1.name == false) :=
-      all_mapM_eq (fun x y h => by
-        rw [not_eq_beq_false (denoteNList_contains hwf _ _ hres _ _
-          (denoteCV_name (dRecT_inv h).1))])
-        rs rsP (mapM_option_ext (fun a b h => dRecT_ext x2 a b h) _ _ hrs)
-    have E3 : (cs.all fun c => c.2.1 == nPd && c.1.levelParams == cvT0.levelParams &&
-          !reserved.contains c.1.name)
-        = (csP.all fun c => c.2.1 == nPd && c.1.levelParams == cvT0P.levelParams &&
-          reservedBasisNames.contains c.1.name == false) :=
+      refine ⟨p1, ?_⟩
+      show _ = none
+      rw [← hcnt]; rfl
+    | ok nIdxs =>
+    rw [← hcnt]
+    dsimp only [Except.toOption] at z1 ⊢
+    have x1 := p1.ext
+    have hwf := p1.ok.wf
+    have hlps := denoteNListE_ext x1 _ _ (denoteCV_lps hT0)
+    have E1 : (cvTs.all fun c => c.levelParams == cvT0.levelParams)
+        = (cvTsP.all fun c => c.levelParams == cvT0P.levelParams) :=
+      all_mapM_eq (fun x y h => beq_nhandleList_eq hwf (denoteCV_lps h) hlps)
+        cvTs cvTsP (mapM_option_ext (fun a b h => denoteCV_ext h x1) _ _ hTs)
+    have E2 : (cs.all fun c => c.2.1 == nPd) = (csP.all fun c => c.2.1 == nPd) :=
+      all_ctors3_eq (fun cv a b cvP h => rfl) cs csP (denoteCtors3_ext x1 _ _ hcs)
+    have E3 : (cs.all fun c => c.1.levelParams == cvT0.levelParams)
+        = (csP.all fun c => c.1.levelParams == cvT0P.levelParams) :=
       all_ctors3_eq (fun cv a b cvP h => by
         simp only
-        rw [not_eq_beq_false (denoteNList_contains hwf _ _ hres _ _ (denoteCV_name h)),
-          beq_nhandleList_eq hwf (denoteCV_lps h) hlps])
-        cs csP (denoteCtors3_ext x2 _ _ hcs)
-    rw [E1, E2, E3, all_and_split] at z2
-    have hB : ∀ a b c d : Bool, (((a && c) && b) && d) = (((a && b) && c) && d) := by decide
-    rw [hB] at z2
-    split at z2
-    case isFalse hcnd =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-      refine ⟨q2, ?_⟩
+        rw [beq_nhandleList_eq hwf (denoteCV_lps h) hlps])
+        cs csP (denoteCtors3_ext x1 _ _ hcs)
+    rw [E1, E2, E3] at z1
+    by_cases h1 : (cvTsP.all fun c => c.levelParams == cvT0P.levelParams) = true
+    case neg =>
+      rw [ite_eq_left (by simpa using h1)] at z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨p1, ?_⟩
       show _ = none
-      rw [ite_eq_right hcnd]
-    case isTrue hcnd =>
-    rw [ite_eq_left hcnd]
-    obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z2
-    obtain ⟨hs3, hbp⟩ := stripPis_pstep q2.ok (denote_ext (denoteCV_type hT0) x2) k3
+      simp [h1]
+    rw [ite_eq_right (by simpa using h1)] at z1
+    by_cases h2 : (csP.all fun c => c.2.1 == nPd) = true
+    case neg =>
+      rw [ite_eq_left (by simpa using h2)] at z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨p1, ?_⟩
+      show _ = none
+      simp [h2]
+    rw [ite_eq_right (by simpa using h2)] at z1
+    by_cases h3 : (csP.all fun c => c.1.levelParams == cvT0P.levelParams) = true
+    case neg =>
+      rw [ite_eq_left (by simpa using h3)] at z1
+      split at z1 <;>
+        (obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+         refine ⟨p1, ?_⟩
+         show _ = none
+         simp [h3])
+    rw [ite_eq_right (by simpa using h3)] at z1
+    simp only [show ((cvTsP.all fun c => c.levelParams == cvT0P.levelParams) &&
+        (csP.all fun c => c.2.1 == nPd) &&
+        (csP.all fun c => c.1.levelParams == cvT0P.levelParams)) = true by simp [h1, h2, h3],
+      ↓reduceIte]
+    obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z1
+    obtain ⟨hs3, hbp⟩ := stripPis_pstep p1.ok (denote_ext (denoteCV_type hT0) x1) k3
     rw [hs3] at z3
-    have hT0' := denoteCV_ext hT0 x2
-    have hR0' := denoteCV_ext hR0 x2
-    have hTs' := mapM_option_ext (fun a b h => denoteCV_ext h x2) _ _ hTs
-    have hcs' := denoteCtors3_ext x2 _ _ hcs
-    have hrs' := mapM_option_ext (fun a b h => dRecT_ext x2 a b h) _ _ hrs
-    have hp2 := hc.pins.mono q2.ext q2.pins
+    have hT0' := denoteCV_ext hT0 x1
+    have hR0' := denoteCV_ext hR0 x1
+    have hTs' := mapM_option_ext (fun a b h => denoteCV_ext h x1) _ _ hTs
+    have hcs' := denoteCtors3_ext x1 _ _ hcs
+    have hrs' := mapM_option_ext (fun a b h => dRecT_ext x1 a b h) _ _ hrs
+    have hp2 := hc.pins.mono p1.ext p1.pins
     cases o with
     | none =>
       obtain ⟨y, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨hs4, hy⟩ := zeroLevel_run hp2 k4
       rw [hs4] at z4
-      have hyP : denoteL s2.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) := by
+      have hyP : denoteL s1.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) := by
         simp only [resSortOfP, stripPis_none hbp]; exact hy
-      exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc q2
+      exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc p1
         hT0' hR0' hTs' hcs' hrs' hyP z4
     | some qq =>
       obtain ⟨bs, e⟩ := qq
@@ -1825,41 +1892,43 @@ theorem blockShape?_run {env : Env} {fe : IFEnv} (nPd : Nat)
       obtain ⟨v, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨hs4, hview⟩ := view_run k4
       rw [hs4] at z4
-      have hbv : denoteEView s2.store v = some x := by
-        rw [← denoteE_view_eq q2.ok.wf hview]; exact hx
+      have hbv : denoteEView s1.store v = some x := by
+        rw [← denoteE_view_eq p1.ok.wf hview]; exact hx
       cases v
       case sort u =>
-        obtain ⟨l, rfl, hl⟩ := denote_sort_inv q2.ok.wf hview hx
+        obtain ⟨l, rfl, hl⟩ := denote_sort_inv p1.ok.wf hview hx
         obtain ⟨y, s5, k5, z5⟩ := AM.bind_ok z4
         obtain ⟨hyu, hs5⟩ := AM.pure_ok k5
         rw [hs5] at z5
-        have hyP : denoteL s2.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) := by
+        have hyP : denoteL s1.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) := by
           rw [hyu]; simp only [resSortOfP, hsp]; exact hl
-        exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc q2
+        exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc p1
           hT0' hR0' hTs' hcs' hrs' hyP z5
       all_goals
         (have hns := ExprOps.denoteEView_not_sort hbv (by simp)
          obtain ⟨y, s5, k5, z5⟩ := AM.bind_ok z4
          obtain ⟨hs5, hy⟩ := zeroLevel_run hp2 k5
          rw [hs5] at z5
-         have hyP : denoteL s2.store.ls y =
+         have hyP : denoteL s1.store.ls y =
              some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) := by
            simp only [resSortOfP, hsp]
            cases x <;> first | exact hy | exact absurd rfl (hns _)
-         exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc q2
+         exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc p1
            hT0' hR0' hTs' hcs' hrs' hyP z5)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-**THE DISPATCH'S RECOGNISER** — `checkBlock` against `checkShapeless` routes
-on this, so its two-sidedness (`ROp`) is the soundness of the route choice.
-CORE grade: `isProp` is `lvlEq?`'s cached verdict. -/
-theorem blockShape?_spec {env : Env} (fe : IFEnv) (nP : Nat)
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+**THE DISPATCH'S READER** — `checkBlock` against the reader's reject routes on
+this, so its two-sidedness (`ROp` over the answers as `Option`s) is the
+soundness of the route choice.  CORE grade: `isProp` is `lvlEq?`'s cached
+verdict. -/
+theorem readBlock_spec {env : Env} (fe : IFEnv) (nP : Nat)
     (block : List IConstantInfo) (b : List ConstantInfo) :
     CSpec env fe (fun st => Frontend.denoteCIList st block = some b)
-      (Arena.blockShape? nP block)
-      (ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nP b)) := by
+      (Arena.readBlock nP block)
+      (fun st r => ROp (fun q st p => dShape st p = some q) (ConLeche.readBlock nP b).toOption
+        st r.toOption) := by
   intro s₀ s' r hok hb hrun
-  obtain ⟨p1, hrel⟩ := blockShape?_run nP block b s₀ s' r hok hb hrun
+  obtain ⟨p1, hrel⟩ := readBlock_run nP block b s₀ s' r hok hb hrun
   exact ⟨p1.toCore hok, hrel⟩
 
 end ConRon.Bridge.Inductives

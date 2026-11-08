@@ -87,13 +87,13 @@ theorem FOk.ensureSort {μ : CheckMode} {env : Env} {d : Nat} {e : Expr} {v : Le
     (h : ∃ F, ConLeche.ensureSortCore μ false env F d e = .ok v) :
     FOk ((fueledOpsM μ).ensureSort env d e) v := h
 
-/-- con-leche: ConLeche/Verify/BridgeDecl.lean:1201 checkDecl_datF — the
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:1180 checkDeclKind_datF — the
 tier's conclusion in the shape `IndSpec` states. -/
-theorem FOk.checkDecl {μ : CheckMode} {pins : List NatOpPinSet} {env env' : Env}
-    {d : Declaration} (h : FOk (ConLeche.checkDecl μ (fueledOpsM μ) pins env d) env') :
-    ∃ F, ConLeche.checkDecl μ (fueledOps μ F) pins env d = .ok env' := by
+theorem FOk.checkDeclKind {μ : CheckMode} {pins : List NatOpPinSet} {env env' : Env}
+    {d : Declaration} (h : FOk (ConLeche.checkDeclKind (fueledOpsM μ) pins env d) env') :
+    ∃ F, ConLeche.checkDeclKind (fueledOps μ F) pins env d = .ok env' := by
   obtain ⟨F, hF⟩ := h
-  exact ⟨F, by rw [← checkDecl_datF]; exact hF⟩
+  exact ⟨F, by rw [← checkDeclKind_datF]; exact hF⟩
 
 /-! ## A generic list denotation, and its transport -/
 

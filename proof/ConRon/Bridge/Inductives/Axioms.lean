@@ -33,7 +33,7 @@ namespace ConRon.Bridge.Inductives
 #print axioms piBinders_spec
 #print axioms closeTelescope_spec
 -- the recogniser and the pre-pass
-#print axioms blockShape?_spec
+#print axioms readBlock_spec
 #print axioms classRead_spec
 -- the positivity walk
 #print axioms nestPos_spec

@@ -39,11 +39,11 @@ of `KnotSpec` and `EnsureSortSpec` ends `s'.pins = s₀.pins`, which is what
 lets the run-form proofs of `Bridge/Checker/Base.lean` and
 `Bridge/Checker/Arms.lean` conclude `CoreStep` at all.
 
-**`IndSpec` — the INDUCTIVES tier's**.  `checkDecl`'s `.indDecl` arm, past
-the pin recogniser (`checkIndRoute` below: the declared parameter count, then
-`checkBlock` on every block `blockParts?` reads and `checkShapeless` on the
-rest), has the whole of `Arena/Inductives/**` under it, and the arm is the
-single place the declaration checker reaches it.  So the whole inductive
+**`IndSpec` — the INDUCTIVES tier's**.  `checkDeclKind`'s `.indDecl` arm
+(`checkIndRoute` below: the declared parameter count, then `checkBlock` on
+every block `readBlock` reads and the reader's reject on the rest), has the
+whole of `Arena/Inductives/**` under it, and the arm is the single place the
+declaration checker reaches it.  So the whole inductive
 install is one hypothesis, exactly as `RefineOld/Main.lean`'s
 `hind : IndRoutesSpec .Verified` was.
 -/
@@ -232,55 +232,38 @@ theorem CoreSpec.of_core :
 
 /-! ## The inductive install -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:163-182 checkDecl (the
-`.indDecl` arm past `basisNameHit`) — **the unpinned inductive route, named**:
-`Arena/CheckDecl.lean`'s `checkDecl` arm after the pin recogniser declined,
-verbatim: con-leche's uniform inductive route.  `checkDecl`'s `.indDecl` arm
-unfolds to it by `rfl`. -/
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the
+`.indDecl` arm) — **the inductive route, named**: `Arena/CheckDecl.lean`'s
+`checkDeclKind` arm, verbatim: the declared parameter count, then con-leche's
+uniform inductive route at every block `readBlock` reads, the reader's reject
+at any other.  `checkDeclKind`'s `.indDecl` arm unfolds to it by `rfl`. -/
 @[expose] def checkIndRoute (fe : IFEnv) (block : List IConstantInfo)
     (nP : Nat) : AM IFEnv := do
   if !(← indParamsOk nP block) then
     fail (.invalid "number of parameters mismatch")
   else
-    match ← blockShape? nP block with
-    | some p => checkBlock .verified fe block p
-    | none => checkShapeless .verified fe block
+    match ← readBlock nP block with
+    | .ok p => checkBlock .verified fe block p
+    | .error e => fail e
 
-/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:38 checkShapeless_ne_ok —
-**a block the recogniser does not read never installs**: the twin's
-`checkShapeless` ends in a decline whatever its formers' checks do. -/
-theorem checkShapeless_ne_ok {mode : CheckMode} {fe fe' : IFEnv}
-    {block : List IConstantInfo} {s s' : AState} :
-    checkShapeless mode fe block s ≠ .ok (fe', s') := by
-  intro h
-  unfold ConRon.Arena.checkShapeless at h
-  obtain ⟨_, s1, _, h2⟩ := AM.bind_ok h
-  exact nomatch h2
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:163-182 checkDecl (the `.indDecl`
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.indDecl`
 arm) — **THE INDUCTIVES TIER'S THEOREM, as this tier's hypothesis**.
-
-The hypothesis `hpin` is the arena's own dispatch, already taken: this clause
-covers the route `basisNameHit` did NOT recognise, which is the one
-`checkIndRoute` runs.  The recogniser's own exactness is
-`Bridge/Checker/Basis.lean`'s and is not part of this hypothesis.
 
 What the route's environment becomes is not a clause: con-leche's `checkDecl`
 pushes what the declaration says (`Bridge/Checker/Pushes.lean`), the job's
 environment is dropped with its scratch tier, and the next record checks at
 its own view of the stream's index.  No fold theorem reads `IndSpec`; they pass
-it down to `checkDecl_bridge_ind`, and `Bridge/Inductives/Decl.lean`'s
+it down to `checkDeclKind_bridge_ind`, and `Bridge/Inductives/Decl.lean`'s
 `indSpec_of_bridge` discharges it. -/
 structure IndSpec : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat}
       {pinsP : List NatOpPinSet},
     FoldOK env fe s → Frontend.denoteCIList s.store block = some b →
-    ConLeche.basisNameHit b = none →
     checkIndRoute fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       ∃ env' F,
-        ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
+        ConLeche.checkDeclKind (ConLeche.fueledOps .verified F) pinsP env (.indDecl b nP)
           = .ok env'
 
 end ConRon.Bridge
