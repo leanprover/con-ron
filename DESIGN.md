@@ -72207,3 +72207,121 @@ end to end).
    counts capacity, which overstates exactly this row.  The cons tables' slots are written at allocation
    (`Vacant`), so lead 1 is resident.
 3. Name strings as bytes: tens of MiB.
+
+### Task #148 — key-free intern (cons) tables: an 8-byte slot of stamp, hash fragment and handle (2026-11-08, Opus)
+
+Task #146's lead 1 (maintainer: "Duplicating every node for the hash map sounds stupid").  Every
+`arena::store::Tbl` kept its records twice: once in `rows`, once as the key of its `ron::HashMap2` cons
+table (`push` copied it in with `dup2`).  On Mathlib `--olean` the frozen tier's cons tables were
+1 024 MiB of 1.88 GiB, and the run's peak is one theorem's scratch `app` table.
+
+**The table.**  `arena::cons_map::ConsMap<I>` is `HashMap2` probe for probe — linear probing, power-of-two
+capacity, load ≤ 3/4, epoch-stamped O(1) `clear`, `clear_fit`'s decaying high-water policy, the fused
+`find_slot`/`insert_at` — with the slot cut to **`CSlot { g: u16, f: u16, h: I }`, 8 bytes** for every
+handle kind (was 20 B for `app`, more for `StrNode`/`ListNode`/`LitNode` keys, whose `Vec` header and
+heap block the slot also copied).  A slot's key is the record of the row its handle names,
+`rows[h.row()].0`; `ConsHandle` (`row`, `vacant`) is implemented by the four handle kinds through
+`word_idx_nat`.  `f` is 16 bits of the key's multiplied hash (`frag_of`, the top bits, the ones
+`home_index` uses least), and a probe reads the row only on a slot of the current epoch whose fragment
+matches.  To fit the fragment the stamp is 16 bits: `clear`'s `O(capacity)` wrap comes every 65 535
+clears of one table (the scratch tables are cleared twice a declaration) instead of every 2^32.  `Tbl`
+pushes the row first and then binds the handle (`push_at` → `ConsMap::insert_at`, `push` →
+`ConsMap::insert` under `&rows[n].0`), because a resize rehashes every entry from its row.  `Tbl::reset`
+is `rows := Vec::new(); cons.clear_fit()`.  Other `HashMap2` uses (memos, caches) are untouched;
+`HashMap2::find_slot`/`insert_at` lost their last Rust caller and stay as the specification
+(`scripts/dead-rust-allow.txt`).
+
+**The proof** (`proof/ConRon/Refine/ConsMap.lean`, new, ~1 150 lines; no change to `HashMap2.lean`).
+A simulation, not a second hash-map development.  The **view** of a `ConsMap` over a row vector is a
+`HashMap2 A I`: slot `j` is `Live(e32 epoch, rows[h.row()].0, h)` when it carries the epoch and its
+handle names a row, `Vacant` otherwise (`e32`: the 16-bit stamp as `HashMap2`'s 32-bit one).  Each
+operation that succeeds is the `HashMap2` operation of the same name on the view (`probe_sim`,
+`insert_no_resize_sim`, `move_slots_sim`, `try_resize_sim`, `ensure_slots_sim`, `insert_sim`,
+`insert_at_sim`, `find_slot_sim`, `get_sim`, `new_sim`), **under `fragEq2`**: the `Eq2` that answers
+`false` first when the two keys' fragments differ and `hE`'s answer otherwise — exactly what the
+`ConsMap` probe computes, and still exact (`fragEq2_fwd`: equal keys hash equally), so every
+`HashMap2` specification applies with `fragEq2_fwd heq` for `heq`.  The view forgets stale slots,
+so `KInv` carries what it cannot see: every stamp is at most the epoch (`HashMap2`'s `Inv.stamps`,
+which `clear` needs), and every slot of the epoch names a row whose key hashes to the slot's
+fragment.  `clear`/`clear_fit` are proved directly (`clear_fit_spec`: the cleared view satisfies
+`Inv` by `vacant_table_inv`, over ANY rows, which is what lets `reset` drop them); pushing a row
+leaves the view alone (`view_push`, from `KInv`).  One forward simulation per function, so a `fail`
+on the `ConsMap` side (an out-of-range row read) needs no argument.
+
+**Downstream.**  `TblRel.cons` is `RelOn P (consView rt) lt.cons absA absI` and `TblInv` is
+`Inv hA (consView rt)`, `KeysOk P (consView rt)`, the new `kinv`, and `nodesP`
+(`Refine2/AbsStore.lean`, `Refine2/Inv.lean`); `ConsHandle` is made a class with the four generated
+dictionaries as instances, so the 83 `TblRel …`/`TblInv …` mentions are unchanged.  The Tbl floor
+(`Refine2/Specs.lean`: `tbl_find_abs`, `tbl_push_abs`, `tbl_find_slot_abs`; `Checker/Init.lean`'s
+`Tbl.empty`; `Core/Bracket.lean`'s `Tbl.reset`) is re-proved over the view.  **The one new obligation**
+is the key-free table's: the handle a push binds names the row it appends (`RowIs hCH i lt.size`).
+Every intern builds that handle from the array's size, and its `hhandle` already says so at the
+twin's level, so the obligation is `rowIs_e_mk hhandle (by decide) (by decide) <its not-full bound>`
+(`rowIs_e_mkWide` for `app`, `rowIs_{n,l,ls}_mk`); `{n,l,ls}tables_push_abs`, which push at a tier
+argument without testing the cap themselves, gain `hcap`/`htier` hypotheses that their two callers
+each discharge from the cap test they already make.  The twin, Theorem 1 and the capstone statement
+are untouched; `dupId_*node` lost their uses in the push lemmas (the push no longer `dup2`s the
+record).
+
+**Measured.**  `perf stat -e instructions:u,cycles:u`, peak RSS from `time -v`; alternated runs;
+master = `3cbe6b11`'s binary.  `kf8` = the first layout, `(u32 stamp, handle)` with no fragment;
+`kf12` = `(u32 stamp, u32 fragment, handle)`, 12 B; **`kf8f`** = the landed layout (the prototype
+row is the same code before its doc comments were written).  The first master/`kf8`/`kf12` rounds on
+Mathlib (the last three master and `kf8` entries and both `kf12` ones) ran on a loaded machine (load
+12–55): their instructions and peaks stand, their cycles and walls do not.
+
+Init, `--verified --jobs=1`, `_tmp/corpus/init.ndjson` (every run accepts 57 919):
+
+| | instructions:u | cycles:u | peak RSS (MB) | wall |
+|---|---:|---:|---:|---:|
+| master `3cbe6b11` | 188.5 G, 188.5 G, 188.5 G, 188.5 G, 188.5 G | 77.8 G, 77.1 G, 78.0 G, 78.5 G, 78.0 G | 504, 504, 504, 502, 503 | 0:17.72, 0:17.56, 0:17.76, 0:17.93, 0:17.81 |
+| `kf8` (u32 stamp, handle; no fragment) | 190.2 G, 190.2 G, 190.2 G | 78.1 G, 78.4 G, 78.3 G | 392, 392, 392 | 0:17.79, 0:17.85, 0:17.84 |
+| **`kf8f`** prototype | 191.3 G, 191.3 G, 191.3 G | 75.0 G, 75.6 G, 78.3 G | 384, 387, 385 | 0:17.06, 0:17.22, 0:17.84 |
+| **`kf8f`** (this branch, landed) | 191.3 G, 191.3 G | 76.2 G, 75.0 G | 386, 384 | 0:17.42, 0:17.07 |
+
+Mathlib `--olean`, `--verified --jobs=8`, `ulimit -v 27000000` (every run accepts 775 321):
+
+| | instructions:u | cycles:u | peak RSS (GiB) | wall |
+|---|---:|---:|---:|---:|
+| master `3cbe6b11` | 3744.6 G, 3744.0 G, 3744.5 G, 3744.4 G, 3744.4 G, 3743.5 G, 3743.8 G, 3743.7 G | 1812.2 G, 1782.6 G, 1764.3 G, 1763.4 G, 1764.7 G, 2268.0 G, 1798.0 G, 1871.4 G | 3.53, 3.60, 3.65, 3.59, 3.60, 3.63, 3.61, 3.59 | 1:14.66, 1:13.71, 1:12.72, 1:13.52, 1:13.28, 1:40.19, 1:14.49, 1:19.30 |
+| `kf8` (u32 stamp, handle; no fragment) | 3774.5 G, 3775.0 G, 3775.1 G, 3774.3 G, 3775.3 G, 3773.6 G | 1814.9 G, 1816.5 G, 1814.5 G, 2424.0 G, 1811.4 G, 1958.1 G | 2.54, 2.53, 2.53, 2.51, 2.51, 2.44 | 1:17.58, 1:17.69, 1:18.03, 2:07.91, 1:17.47, 1:25.49 |
+| `kf12` (u32 stamp, u32 fragment, handle; 12 B) | 3815.7 G, 3816.6 G | 1874.0 G, 1771.8 G | 2.83, 2.85 | 1:19.79, 1:13.94 |
+| **`kf8f`** prototype | 3799.6 G, 3800.1 G, 3800.2 G | 1730.9 G, 1724.4 G, 1731.3 G | 2.55, 2.50, 2.57 | 1:12.99, 1:12.24, 1:12.43 |
+| **`kf8f`** (this branch, landed) | 3800.0 G, 3800.2 G | 1719.2 G, 1709.0 G | 2.50, 2.53 | 1:12.23, 1:11.91 |
+
+The peak declaration alone (`--olean --constant=WeierstrassCurve.Affine.Point.sym2x_add_sub_eq_addSubMap_sym2x._proof_1_8
+Mathlib.AlgebraicGeometry.EllipticCurve.Affine.AddSubMap --jobs=1`, task #146's correction; 6.3 M scratch
+`app` entries):
+
+| | instructions:u | cycles:u | peak RSS (MB) | wall |
+|---|---:|---:|---:|---:|
+| master `3cbe6b11` | 66.5 G, 66.5 G, 66.5 G, 66.5 G | 28.3 G, 28.1 G, 28.8 G, 28.7 G | 1211, 1210, 1208, 1211 | 0:06.98, 0:06.89, 0:07.24, 0:07.00 |
+| `kf8` (u32 stamp, handle; no fragment) | 66.7 G, 66.7 G | 32.8 G, 32.7 G | 720, 720 | 0:07.92, 0:07.89 |
+| `kf12` (u32 stamp, u32 fragment, handle; 12 B) | 66.9 G, 66.9 G | 29.3 G, 29.3 G | 821, 821 | 0:07.12, 0:07.13 |
+| **`kf8f`** prototype | 66.6 G, 66.6 G | 28.8 G, 28.6 G | 713, 714 | 0:07.00, 0:06.96 |
+| **`kf8f`** (this branch, landed) | 66.6 G, 66.6 G | 29.1 G, 29.3 G | 691, 700 | 0:07.52, 0:07.20 |
+
+Mathlib `.ndjson`, `--verified --jobs=1`, once each (both accept 703 103):
+
+| | instructions:u | cycles:u | peak RSS (GiB) | wall |
+|---|---:|---:|---:|---:|
+| master `3cbe6b11` | 3395.9 G | 1629.9 G | 6.37 | 6:33.73 |
+| **`kf8f`** (this branch, landed) | 3452.2 G | 1592.1 G | 4.15 | 6:12.53 |
+
+**Reading.**  The landed layout takes **~1.1 GiB (−30 %) off Mathlib `--olean`'s peak** (3.53–3.65 →
+2.50–2.57 GiB), **−41 %** on the peak declaration alone and −23 % on `Init`, for **+1.5 % instructions**
+(the fragment and the hash `insert_at` recomputes from the row) and **no cycle cost**: −3 % on
+Mathlib, within noise on `Init`, +2 % on the peak declaration.  The fragment is what makes it free:
+without it (`kf8`) the instructions are lower (+0.8 %) but every live slot a probe passes is a
+dependent load into a large row vector, **+16 % cycles on the peak declaration** and +1–3 % on
+Mathlib (+5 % wall); a 32-bit fragment beside a 32-bit stamp (`kf12`, 12 B) recovers the cycles but
+costs 0.3–0.45 GiB more peak and +1.9 % instructions.  On the Mathlib `.ndjson` at one job:
+−35 % peak (6.37 → 4.15 GiB), +1.7 % instructions, −2.3 % cycles.
+
+**Rejected / not measured.**  A 4-byte slot (the handle alone, no stamp) would make `clear`
+`O(capacity)` — the cost task #97-P6-4b removed — on the scratch tier, which is cleared twice a
+declaration; one layout per tier would break `Tbl`'s genericity.  Not built.  Storing the hash (or
+its fragment) instead of recomputing it at a resize: resizes are amortised and the rows they read are
+the table's own; not measured.
+
+Differentials: `scripts/diff-e2e.sh` 689/689, `scripts/diff-olean.sh` 122/122.

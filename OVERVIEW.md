@@ -169,10 +169,10 @@ They are stated about the Aeneas model of the Rust functions the binary's
 the binary's own start values.  Both depend on con-leche's three axioms
 (`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
 `sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L890-L906)).
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L895-L911)).
 
 **Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L592-L617)),
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L597-L622)),
 with the implicit arguments left out:
 
 ```lean
@@ -204,7 +204,7 @@ returned `Ok`; the first starts from `startState`, the value of the binary's
 of `check_main`.
 
 **The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L545-L569))
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L550-L574))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -212,7 +212,7 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L436-L440)
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L441-L445)
 says that the records the Rust checked (`prepared.decls`), read in a twin state
 related to the Rust's final state, denote a con-leche stream `dsP`, and that
 `env` is that stream's environment (`streamEnv dsP`: every record's constants
@@ -250,9 +250,9 @@ still checks that con-ron ships con-leche's prelude.
 ### 3.2 The `.olean` path
 
 `--olean` has its own two theorems,
-[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L805-L841)
+[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L810-L846)
 and
-[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L850-L878),
+[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L855-L883),
 on the same three axioms.  They take the calls of §3 with the stream's two
 replaced by the `.olean` reader's: `hroots`, the roots' names interned one by
 one, and `h3`, the whole read of their import closure.  Soundness, with the
@@ -352,7 +352,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1180-L1194)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1186-L1200)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -365,11 +365,12 @@ bit.  So "does this term have loose bound variables?" is one array read.
 
 Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
-handle) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3597-L3632)).
+handle, which stores only the handle and compares the fields against the row
+the handle names) and returns the existing handle if there is one
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3603-L3638)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3882-L3929)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3888-L3935)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -413,7 +414,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  After the index is built,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L64-L87)
 moves the four stores' persistent tables and the index out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1211-L1263)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1217-L1269)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -496,7 +497,12 @@ full lane for everything else.
 [`ron::HashMap2`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/hashmap2.rs#L1-L40),
 an open-addressed map whose slots carry an epoch stamp, so clearing it is
 O(1).  It is proved to implement a finite map in
-[`Refine/HashMap2.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine/HashMap2.lean).
+[`Refine/HashMap2.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine/HashMap2.lean).  The cons tables are its key-free variant,
+[`arena::cons_map`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron-core/src/arena/cons_map.rs):
+an 8-byte slot of stamp, 16-bit hash fragment and handle, the key read from
+the row the handle names (task #148); it is proved by simulation, as
+`HashMap2` on a view that puts the keys back
+([`Refine/ConsMap.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine/ConsMap.lean)).
 
 ## 6. The checking pipeline
 
