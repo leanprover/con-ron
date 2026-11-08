@@ -22,7 +22,7 @@
 use crate::arena::basis::{basis_names_error, basis_names_ok};
 use crate::arena::checker_base;
 use crate::arena::checker_base::{check_constant_val, nidx_contains_from};
-use crate::arena::core::{nat_div_mod_names, nat_op_deps, nat_op_equations, nat_op_guard, nat_op_names};
+use crate::arena::core::{flush_caches, nat_div_mod_names, nat_op_deps, nat_op_equations, nat_op_guard, nat_op_names};
 use crate::arena::decl_check::{
     certify_nat_eqs, check_defn_val, check_div_mod_pin, check_opaque_val,
     check_quot_record, check_reduce_pin, check_thm_val, defn_value, nat_op_stored_ok_all,
@@ -136,10 +136,15 @@ pub fn check_decl_kind(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
 /// con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:154-163 checkDecl` — **check a single
+/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:154-167 checkDecl` — **check a single
 /// declaration**: its own checks (`check_decl_kind`), then the reserved names'
 /// (`basis_names_ok`), which justify the model's fixed meanings of the basis
 /// names.
+///
+/// Deviation: the per-declaration caches are flushed between the two
+/// (`flush_caches`, which the next record does first anyway), so the reserved
+/// names' check starts from an empty readback memo.  The verdict cannot move: a
+/// cache only memoises.
 pub fn check_decl(
     pers: &PersTier,
     st: &mut AState,
@@ -150,14 +155,17 @@ pub fn check_decl(
 ) -> Result<IFEnv, CheckError> {
     match check_decl_kind(pers, st, mode, pins, fe, d) {
         Err(e) => Err(e),
-        Ok(fe2) => match basis_names_ok(pers, st, d) {
-            Err(e) => Err(e),
-            Ok(true) => Ok(fe2),
-            Ok(false) => match basis_names_error(pers, st, d) {
+        Ok(fe2) => {
+            flush_caches(st);
+            match basis_names_ok(pers, st, d) {
                 Err(e) => Err(e),
-                Ok(e) => fail(e),
-            },
-        },
+                Ok(true) => Ok(fe2),
+                Ok(false) => match basis_names_error(pers, st, d) {
+                    Err(e) => Err(e),
+                    Ok(e) => fail(e),
+                },
+            }
+        }
     }
 }
 

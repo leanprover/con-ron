@@ -2703,9 +2703,8 @@ back, here as an accumulator in push order. -/
 def projGuardRowsGo : Nat → Nat → EIdx → Array (Nat × EIdx) → AM (Option (Array (Nat × EIdx)))
   | k, d, h, out => do
     if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (dom, body) =>
+      match ← view h with
+      | .forallE dom body =>
         match k with
         | 0 => pure (some (out.push (d, dom)))
         | k + 1 =>
@@ -2714,6 +2713,7 @@ def projGuardRowsGo : Nat → Nat → EIdx → Array (Nat × EIdx) → AM (Optio
             let b2 ← instantiate1Fast coreWalkFuel body fv 0
             projGuardRowsGo k (d + 1) b2 (out.push (d, dom))
           else projGuardRowsGo k (d + 1) body out
+      | _ => pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:1100-1118 projGuardRows

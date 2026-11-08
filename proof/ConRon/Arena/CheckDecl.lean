@@ -155,10 +155,14 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
 **Check a single declaration**: its own checks (`checkDeclKind`), then the
 reserved names' (`basisNamesOk`), which justify the model's fixed meanings of
-the basis names. -/
+the basis names.  The per-declaration caches are flushed between the two (the
+port's deviation, the Rust's too: the next record flushes first anyway), so the
+reserved names' check starts from an empty readback memo; a cache only
+memoises, so no verdict moves. -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   let fe₂ ← checkDeclKind mode pins fe d
+  flushCaches
   if ← basisNamesOk d then pure fe₂
   else fail (← basisNamesError d)
 
