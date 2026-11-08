@@ -57,7 +57,7 @@ theorem tbl_empty_rel {A I D α ι δ ω : Type} [DecidableEq A] {_ : BEq α} {_
     TblRel P absA absI absD obsD rt (Tbl.empty : Tbl α ι δ) := by
   obtain ⟨hm, hhm, rfl⟩ := tbl_empty_eq h
   obtain ⟨-, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hA)
-    (ConRon.Refine.ConsMap.new_sim (alloc.vec.Vec.new (A × D)) hhm).1
+    (ConRon.Refine.ConsMap.new_sim (hA := hA) (alloc.vec.Vec.new (A × D)) hhm).1
   exact ⟨rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty hnone⟩
 
 theorem tbl_empty_inv {A I D : Type} [DecidableEq A]
@@ -67,7 +67,7 @@ theorem tbl_empty_inv {A I D : Type} [DecidableEq A]
     {P : A → Prop} {rt : arena.store.Tbl A I D}
     (h : arena.store.Tbl.empty hA e2 dA dI hCH dD dd = ok rt) : TblInv hA P rt := by
   obtain ⟨hm, hhm, rfl⟩ := tbl_empty_eq h
-  obtain ⟨hnew, hk⟩ := ConRon.Refine.ConsMap.new_sim (alloc.vec.Vec.new (A × D)) hhm
+  obtain ⟨hnew, hk⟩ := ConRon.Refine.ConsMap.new_sim (hA := hA) (alloc.vec.Vec.new (A × D)) hhm
   obtain ⟨hinv, hnil, -⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hA) hnew
   refine ⟨hinv, ConRon.Refine.HashMap2.KeysOk_of_nil hnil, hk, ?_⟩
   intro p hp

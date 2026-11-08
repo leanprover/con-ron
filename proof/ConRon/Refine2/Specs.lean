@@ -207,8 +207,8 @@ theorem tbl_find_abs (hrel : TblRel P absA absI absD obsD rt lt)
     (h : arena.store.Tbl.find hH hE hDA hDI hCH hDD hDf rt a = ok o) :
     lt.find? (absA a) = o.map absI := by
   rw [arena.store.Tbl.find] at h
-  have hto := ConRon.Refine.HashMap2.get_refines_wf heq hinv.inv hinv.keys hk
-    (ConRon.Refine.ConsMap.get_sim rt.rows hdup h)
+  have hto := ConRon.Refine.HashMap2.get_refines_wf (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinv.inv hinv.keys hk
+    (ConRon.Refine.ConsMap.get_sim rt.rows hdup hinv.kinv h)
   have hrelk := hrel.cons a hk
   show lt.cons[absA a]? = o.map absI
   rw [← hrelk, ← hto]
@@ -457,7 +457,7 @@ already computed. -/
 def RowIs {I : Type} (hCH : arena.cons_map.ConsHandle I) (i : I) (n : Nat) : Prop :=
   ∃ r, hCH.row i = ok r ∧ r.val = n
 
-omit [LawfulBEq α] [LawfulHashable α] in
+omit [DecidableEq A] [LawfulBEq α] [LawfulHashable α] in
 theorem keyOf_pushed {rows v : alloc.vec.Vec (A × D)} {a : A} {d : D} {i : I}
     (hv : v.val = rows.val ++ [(a, d)]) (hrow : RowIs hCH i rows.val.length) :
     ConRon.Refine.ConsMap.keyOf hCH v i = some a := by
@@ -522,11 +522,11 @@ theorem tbl_push_abs (hrel : TblRel P absA absI absD obsD rt lt)
   have hview := ConRon.Refine.ConsMap.view_push (hCH := hCH) hvv hinv.kinv
   have hk1 := ConRon.Refine.ConsMap.KInv_push (hCH := hCH) hvv hinv.kinv
   obtain ⟨hins', hk2⟩ := ConRon.Refine.ConsMap.insert_sim v hkey
-    (hinv.inv.epoch_pos) hk1 hins
+    (by simpa using hinv.inv.epoch_pos) hk1 hins
   rw [hview] at hins'
   obtain ⟨hcons, hkeys⟩ :=
-    ConRon.Refine.HashMap2.Rel_insert_wf heq hinjA hinv.inv hinv.keys hrel.cons hk hins'
-  have hinv' := (ConRon.Refine.HashMap2.insert_refines_wf heq hinv.inv hinv.keys hk hins').1
+    ConRon.Refine.HashMap2.Rel_insert_wf (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinjA hinv.inv hinv.keys hrel.cons hk hins'
+  have hinv' := (ConRon.Refine.HashMap2.insert_refines_wf (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinv.inv hinv.keys hk hins').1
   obtain ⟨hn, hd, hp⟩ := tbl_push_rows (i := absI i) hrel hinv hk hdl hvv
   exact ⟨⟨hn, hd, hcons⟩, ⟨hinv', hkeys, hk2, hp⟩⟩
 
@@ -556,10 +556,10 @@ theorem tbl_find_slot_abs (hrel : TblRel P absA absI absD obsD rt lt)
   have hrt1 : rt1 = { rt with cons := hmq } := (congrArg Prod.snd he).symm
   subst hrt1
   subst hat
-  obtain ⟨hq', hk1, -⟩ := ConRon.Refine.ConsMap.find_slot_sim rt.rows hinv.inv.epoch_pos
+  obtain ⟨hq', hk1, -⟩ := ConRon.Refine.ConsMap.find_slot_sim rt.rows (by simpa using hinv.inv.epoch_pos)
     hinv.kinv hq
   obtain ⟨hinv1, hkeys1, htf1, -, hoval, hid⟩ :=
-    ConRon.Refine.HashMap2.find_slot_spec hdupI heq hinv.inv hinv.keys hk hq'
+    ConRon.Refine.HashMap2.find_slot_spec hdupI (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinv.inv hinv.keys hk hq'
   have hcons1 : RelOn P (ConRon.Refine.ConsMap.view hCH rt.rows hmq) lt.cons absA absI := by
     intro k hkk; rw [htf1]; exact hrel.cons k hkk
   refine ⟨⟨hrel.nodes, hrel.der, hcons1⟩, ⟨hinv1, hkeys1, hk1, hinv.nodesP⟩, ?_, ?_⟩
@@ -575,13 +575,13 @@ theorem tbl_find_slot_abs (hrel : TblRel P absA absI absD obsD rt lt)
     have hkey := keyOf_pushed hvv (by rw [tbl_size_rows hrel]; exact hrow)
     have hview := ConRon.Refine.ConsMap.view_push (hCH := hCH) hvv hk1
     have hk2 := ConRon.Refine.ConsMap.KInv_push (hCH := hCH) hvv hk1
-    obtain ⟨hins', hk3⟩ := ConRon.Refine.ConsMap.insert_at_sim v hkey hinv1.epoch_pos hk2 hins
+    obtain ⟨hins', hk3⟩ := ConRon.Refine.ConsMap.insert_at_sim v hkey (by simpa using hinv1.epoch_pos) hk2 hins
     rw [hview] at hins'
     have hfull := hid hnone i _ hins'
     obtain ⟨hcons2, hkeys2⟩ :=
-      ConRon.Refine.HashMap2.Rel_insert_wf heq hinjA hinv.inv hinv.keys hrel.cons hk hfull
+      ConRon.Refine.HashMap2.Rel_insert_wf (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinjA hinv.inv hinv.keys hrel.cons hk hfull
     have hinv2 :=
-      (ConRon.Refine.HashMap2.insert_refines_wf heq hinv.inv hinv.keys hk hfull).1
+      (ConRon.Refine.HashMap2.insert_refines_wf (ConRon.Refine.ConsMap.fragEq2_fwd heq) hinv.inv hinv.keys hk hfull).1
     obtain ⟨hn, hd, hp⟩ := tbl_push_rows (i := absI i) hrel hinv hk hdl hvv
     exact ⟨⟨hn, hd, hcons2⟩, ⟨hinv2, hkeys2, hk3, hp⟩⟩
 

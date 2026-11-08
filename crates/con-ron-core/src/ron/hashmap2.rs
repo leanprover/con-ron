@@ -602,6 +602,11 @@ where
     /// table does not hold — which is the equation `Refine/HashMap2.lean`'s
     /// `find_slot_insert_at` proves, and the reason the fused pair costs the
     /// specification one lemma rather than a second development.
+    ///
+    /// **No Rust caller** (task #148): the arena's cons tables are
+    /// `arena::cons_map::ConsMap`, this table without the key in the slot, and
+    /// this function is what `ConsMap::insert_at` is proved to be on the
+    /// table's view (`Refine/ConsMap.lean`'s `insert_at_sim`).
     pub fn insert_at(&mut self, at: usize, key: K, value: V) {
         let e = self.epoch;
         self.slots[at] = Slot::Live(e, key, value);
@@ -790,6 +795,10 @@ where
     /// `get` is `find_slot`'s second component and nothing else; the two are
     /// kept apart because `get` is a `&self` reader on a table that may never
     /// have been allocated, and this one is the insert path's own.
+    ///
+    /// **No Rust caller** (task #148): it is the specification
+    /// `arena::cons_map::ConsMap::find_slot` is proved against on the view
+    /// (`Refine/ConsMap.lean`'s `find_slot_sim`), as `insert_at` is.
     pub fn find_slot(&mut self, key: &K) -> (usize, Option<V>) {
         self.ensure_slots();
         let n = self.slots.len();

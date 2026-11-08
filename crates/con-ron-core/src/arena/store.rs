@@ -5,6 +5,8 @@
 //! constructor per tier** of a uniform fixed-size record, a **parallel
 //! derived array** holding con-leche's own cached word for that node, and a
 //! **cons table** per constructor per tier keyed by the constructor's fields.
+//! The cons table is key-free (`arena::cons_map`, task #148): its slots hold
+//! handles, and a probe compares the key against the row the handle names.
 //!
 //! ```text
 //! NStore ⊂ LStore ⊂ LsStore ⊂ EStore
@@ -60,7 +62,7 @@
 //! either one would put a fresh external hole into the extracted model for an
 //! operation the Lean twin does not perform — `NStore.dropScratch` is
 //! `{ st with scr := NTables.empty, scratchOn := false }`.  Replacing the
-//! tier is the twin's own step, and `ron::HashMap::new` allocates nothing at
+//! tier is the twin's own step, and `ConsMap::new` allocates nothing at
 //! all (task #35's lazy allocation), so the cons tables cost the same either
 //! way; only the ten `Vec`s re-grow, which P6 measures.
 
@@ -170,6 +172,10 @@ impl DerDefault for u64 {
 /// derived array beside it (lesson 1: derived data never lives inside the
 /// cons key).  One constructor's array of one tier: the node records, the
 /// parallel derived words, and the cons table from record to handle.
+/// **The cons table holds no record** (task #148): a slot is the handle, and
+/// the record it is keyed by is `rows[handle.row()].0`, so every node is
+/// stored once.  The refinement reads the table through `Refine/ConsMap.lean`'s
+/// view, the `HashMap2` with the keys put back.
 /// **The node record and its derived word are ONE column** (task #97-P6-5,
 /// lever 3).  They were two parallel `Vec`s, so a `view` that needs both —
 /// which is every substituting walk, whose cutoff reads `der` and whose body
@@ -241,11 +247,11 @@ where
     ///
     /// It used to be `… || self.cons.is_saturated_full()` as well (a query
     /// deleted unused since, task #105).  That
-    /// disjunct cannot fire below `WIDE_CAP`: the cons table holds one key per
-    /// row, so at most `2^30` keys, and a table at its load limit with that
-    /// many keys has far fewer than `usize::MAX / 2` slots on any target the
+    /// disjunct cannot fire below `WIDE_CAP`: the cons table holds one entry
+    /// per row, so at most `2^30` entries, and a table at its load limit with
+    /// that many has far fewer than `usize::MAX / 2` slots on any target the
     /// port builds for (32 or 64 bits).  It is dropped so that the port's
-    /// test is purely size-based, as the twin's is; `HashMap2::insert`'s
+    /// test is purely size-based, as the twin's is; `ConsMap::insert`'s
     /// precondition (the table not saturated) is then the unreachability just
     /// stated, and the model's `try_resize` still fails (an Aeneas panic, which
     /// Theorem 2 excludes) rather than overwriting a live entry.
@@ -271,7 +277,8 @@ where
     /// **none owed** — the cons-table probe that also hands back the slot a
     /// miss would be written at.  `find?` is its second component, and the
     /// twin keeps `find?` then `push`: the pair is `Refine/HashMap2.lean`'s
-    /// `find_or_insert_refines`, which says it means what `insert` means, so
+    /// `find_slot_spec` on the table's view, which says it means what
+    /// `insert` means, so
     /// the refinement ABSORBS the split (the slot index is a representation
     /// and `find_slot`'s `ensure_slots` is an allocation).
     ///
@@ -285,7 +292,11 @@ where
 
     /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
     /// **none owed** — `Tbl.push` with the cons row written at the slot
-    /// `find_slot` returned.  Same value as `push`; see `find_slot`.
+    /// `find_slot` returned.  Same value as `push`; see `find_slot`.  The row
+    /// goes first: the slot holds only `i`, whose key is the row it names, so
+    /// the row must exist before the table can rehash it.  The caller's `i`
+    /// names the row appended here (`i.row() == self.size()` before the call:
+    /// every caller packs `i` from `size()`, `Refine2/Specs.lean`'s `RowIs`).
     pub fn push_at(&mut self, at: usize, a: A, d: D, i: I) {
         self.rows.push((a, d));
         self.cons.insert_at(&self.rows, at, i);
@@ -293,9 +304,10 @@ where
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:97-102 Tbl.push
     /// Append a node with its derived word and register it in the cons table.
-    /// The record is stored twice, as the Lean stores it twice — once as the
-    /// array element and once as the cons key — so the caller hands over one
-    /// and `push` copies it into the table.
+    /// The Lean stores the record twice, as the array element and as the cons
+    /// key; here it is stored once, in the row, and the table binds the handle
+    /// under the row's record (task #148).  `i` names the appended row, as in
+    /// `push_at`.
     pub fn push(&mut self, a: A, d: D, i: I) {
         let n = self.rows.len();
         self.rows.push((a, d));
@@ -304,8 +316,8 @@ where
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
     /// `proof/ConRon/Arena/Store.lean:77-78 Tbl.empty` — the same VALUE as
-    /// `empty`, with the cons table's bucket array kept
-    /// (`arena::core_state::reset_map`).  The scratch tier is emptied twice
+    /// `empty`, with the cons table's slot array kept (`ConsMap::clear_fit`,
+    /// `arena::core_state::reset_map`'s policy).  The scratch tier is emptied twice
     /// per declaration (`freeze` and `thaw`, or `clear_scratch` twice on a
     /// phase-B worker), 57 362 times on
     /// `Init`, and task #97-P4f measured the bucket arrays growing back from

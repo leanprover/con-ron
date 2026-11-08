@@ -3,21 +3,25 @@
 //! `arena::cons_map::ConsMap<I>` — an interning table that stores **no key**.
 //! `ron::hashmap2::HashMap2` is open addressing with linear probing over
 //! `Slot<K, V> = Vacant | Live(epoch, K, V)`; this is the same table, probe
-//! for probe, with the slot cut down to `(epoch, handle)`.  The key of a live
-//! slot is the node record the handle points at, `rows[h.row()].0`, which
-//! the owning `arena::store::Tbl` holds anyway: `HashMap2` held a second copy
-//! of every node in its slots.
+//! for probe, with the slot cut down to `(epoch, fragment, handle)`, 8 bytes
+//! for every handle kind.  The key of a live slot is the node record the
+//! handle points at, `rows[h.row()].0`, which the owning `arena::store::Tbl`
+//! holds anyway: `HashMap2` held a second copy of every node in its slots.
+//!
+//! **The fragment** is 16 bits of the key's hash (`frag_of`), and a probe
+//! reads the row only when the slot's fragment is the probed key's.  Without
+//! it every live slot a probe passes is a dependent load into the rows, a
+//! cache miss on a large table; task #148 measured that at +16 % cycles on
+//! the heaviest Mathlib declaration, and the fragment takes it back to +2 %.
+//! The stamp is 16 bits to make room for it, so `clear`'s wrap — the
+//! `O(capacity)` vacate — comes every 65 535 clears of one table instead of
+//! every 2^32; the scratch tables are cleared twice per declaration.
 //!
 //! **What it saves** (task #146's profile, Mathlib `--olean`): the frozen
 //! persistent tier's cons tables were 1 024 MiB of a 1.88 GiB tier, and the
-//! `e.apps` one alone 2^25 slots of 20 B.  A slot here is 8 B for every
-//! handle kind (the handle is one `u32` word), whatever the record: a
-//! `StrNode` or `ListNode` key was a `Vec` header plus its own heap block.
-//!
-//! **What it costs.**  A probe that meets a live slot of the current epoch
-//! reads the row to compare keys, where `HashMap2` compared the key in the
-//! slot: one more dependent load per such probe step.  A resize re-hashes
-//! each entry from its row.  Task #148's section has the measurement.
+//! `e.apps` one alone 2^25 slots of 20 B; a slot here is 8 B whatever the
+//! record (a `StrNode` or `ListNode` key was a `Vec` header plus its own heap
+//! block).  Task #148's section has the measurement.
 //!
 //! **How it is proved** (`proof/ConRon/Refine/ConsMap.lean`).  Every function
 //! below is `HashMap2`'s function of the same name with "the slot's key"
@@ -26,8 +30,11 @@
 //! `Live(epoch, rows[h.row()].0, h)`, every other slot `Vacant` — is a
 //! `HashMap2<A, I>`, each operation here maps to the `HashMap2` operation on
 //! the view, and `Refine/HashMap2.lean`'s specifications are reused as they
-//! stand.  The view needs two facts of the table itself: every stamp is at
-//! most the epoch, and every slot of the current epoch names a row.
+//! stand.  The fragment test is the `HashMap2` run under an `Eq2` that
+//! answers `false` first when the two fragments differ, which is still exact.
+//! The view needs three facts of the table itself: every stamp is at most
+//! the epoch, every slot of the current epoch names a row, and its fragment
+//! is that row's key's.
 //!
 //! Only the operations `Tbl` uses exist: no `remove`, no `contains_key`.
 
@@ -106,9 +113,11 @@ impl ConsHandle for LsIdx {
 /// con-leche: none — arena infrastructure (task #148)
 /// A slot: the handle `h` is bound (to the key `rows[h.row()].0`) **if and
 /// only if** `g` is the table's current epoch.  The epoch is at least 1, so a
-/// filler slot (`g = 0`) is never live; it plays `HashMap2`'s `Vacant`.
+/// filler slot (`g = 0`) is never live; it plays `HashMap2`'s `Vacant`.  `f`
+/// is the key's `frag_of`, so a probe compares it before it reads the row.
 pub struct CSlot<I> {
-    pub g: u32,
+    pub g: u16,
+    pub f: u16,
     pub h: I,
 }
 
@@ -121,7 +130,7 @@ where
 {
     /// con-leche: none — arena infrastructure (task #148)
     fn clone(&self) -> CSlot<I> {
-        CSlot { g: self.g, h: self.h.dup2() }
+        CSlot { g: self.g, f: self.f, h: self.h.dup2() }
     }
 }
 
@@ -131,7 +140,7 @@ where
 pub struct ConsMap<I> {
     num_entries: usize,
     max_load: usize,
-    epoch: u32,
+    epoch: u16,
     fit_hw: usize,
     slots: Vec<CSlot<I>>,
 }
@@ -152,8 +161,8 @@ const FIT_DECAY: usize = 8;
 /// `HashMap2`'s `FIT_SLACK` (task #97-P6-7).
 const FIT_SLACK: usize = 64;
 
-/// The largest stamp.
-const EPOCH_MAX: u32 = 4294967295;
+/// The largest stamp; `clear` at this value vacates the slots and restarts.
+const EPOCH_MAX: u16 = 65535;
 
 /// con-leche: none — arena infrastructure (task #148)
 /// `HashMap2`'s `home_index`, the same multiply-xor finalizer.
@@ -163,6 +172,15 @@ fn home_index(h: u64, n: usize) -> usize {
     let n64 = n as u64;
     let i = x & (n64 - 1);
     i as usize
+}
+
+/// con-leche: none — arena infrastructure (task #148)
+/// A slot's fragment: the top 16 bits of the multiplied hash, the bits
+/// `home_index` uses least.  Any function of the hash would be exact; this one
+/// separates the keys of one probe run.
+fn frag_of(h: u64) -> u16 {
+    let m = h.wrapping_mul(0x9e3779b97f4a7c15);
+    (m >> 48) as u16
 }
 
 /// con-leche: none — arena infrastructure (task #148)
@@ -199,12 +217,14 @@ fn pow2_at_least(n: usize, cap: usize, fuel: usize) -> usize {
 
 /// con-leche: none — arena infrastructure (task #148)
 /// **The probe**, `HashMap2`'s with the key read from the row: walk the run
-/// that starts at `i` and return `(at, found)`.
+/// that starts at `i` and return `(at, found)`.  `fr` is the key's fragment;
+/// the row is read only on a slot whose fragment is `fr`.
 fn probe<A, D, I>(
     rows: &Vec<(A, D)>,
     slots: &Vec<CSlot<I>>,
-    epoch: u32,
+    epoch: u16,
     key: &A,
+    fr: u16,
     i: usize,
     n: usize,
     fuel: usize,
@@ -219,10 +239,10 @@ where
         let s = &slots[i];
         if s.g != epoch {
             (i, false)
-        } else if rows[s.h.row()].0.eq2(key) {
+        } else if s.f == fr && rows[s.h.row()].0.eq2(key) {
             (i, true)
         } else {
-            probe(rows, slots, epoch, key, next_index(i, n), n, fuel - 1)
+            probe(rows, slots, epoch, key, fr, next_index(i, n), n, fuel - 1)
         }
     }
 }
@@ -235,7 +255,7 @@ where
     /// Append `n` filler slots to `slots`: one `Vec::resize`.
     fn allocate_slots(mut slots: Vec<CSlot<I>>, n: usize) -> Vec<CSlot<I>> {
         let len: usize = slots.len() + n;
-        slots.resize(len, CSlot { g: 0, h: I::vacant() });
+        slots.resize(len, CSlot { g: 0, f: 0, h: I::vacant() });
         slots
     }
 
@@ -317,7 +337,7 @@ where
         if hi > lo {
             let n = hi - lo;
             if n == 1 {
-                slots[lo] = CSlot { g: 0, h: I::vacant() }
+                slots[lo] = CSlot { g: 0, f: 0, h: I::vacant() }
             } else {
                 let mid = lo + n / 2;
                 ConsMap::vacate_slots(slots, lo, mid);
@@ -336,8 +356,9 @@ where
         if n == 0 {
             None
         } else {
-            let i = home_index(key.hash64(), n);
-            let r = probe(rows, &self.slots, self.epoch, key, i, n, n);
+            let hh = key.hash64();
+            let i = home_index(hh, n);
+            let r = probe(rows, &self.slots, self.epoch, key, frag_of(hh), i, n, n);
             if r.1 {
                 Some(self.slots[r.0].h.dup2())
             } else {
@@ -355,8 +376,9 @@ where
     {
         self.ensure_slots();
         let n = self.slots.len();
-        let i = home_index(key.hash64(), n);
-        let r = probe(rows, &self.slots, self.epoch, key, i, n, n);
+        let hh = key.hash64();
+        let i = home_index(hh, n);
+        let r = probe(rows, &self.slots, self.epoch, key, frag_of(hh), i, n, n);
         if r.1 {
             (r.0, Some(self.slots[r.0].h.dup2()))
         } else {
@@ -386,10 +408,11 @@ where
         A: Hashable + Eq2,
     {
         let n = self.slots.len();
-        let i = home_index(key.hash64(), n);
-        let r = probe(rows, &self.slots, self.epoch, key, i, n, n);
+        let hh = key.hash64();
+        let i = home_index(hh, n);
+        let r = probe(rows, &self.slots, self.epoch, key, frag_of(hh), i, n, n);
         let e = self.epoch;
-        let prev = core::mem::replace(&mut self.slots[r.0], CSlot { g: e, h: value });
+        let prev = core::mem::replace(&mut self.slots[r.0], CSlot { g: e, f: frag_of(hh), h: value });
         if r.1 {
             Some(prev.h)
         } else {
@@ -406,7 +429,8 @@ where
         A: Hashable + Eq2,
     {
         let e = self.epoch;
-        self.slots[at] = CSlot { g: e, h: value };
+        let fr = frag_of(rows[value.row()].0.hash64());
+        self.slots[at] = CSlot { g: e, f: fr, h: value };
         self.num_entries += 1;
         if self.num_entries > self.max_load {
             self.try_resize(rows)
@@ -436,14 +460,14 @@ where
         slots: &mut Vec<CSlot<I>>,
         lo: usize,
         hi: usize,
-        epoch: u32,
+        epoch: u16,
     ) where
         A: Hashable + Eq2,
     {
         if hi > lo {
             let n = hi - lo;
             if n == 1 {
-                let s = core::mem::replace(&mut slots[lo], CSlot { g: 0, h: I::vacant() });
+                let s = core::mem::replace(&mut slots[lo], CSlot { g: 0, f: 0, h: I::vacant() });
                 if s.g == epoch {
                     let k = &rows[s.h.row()].0;
                     let _ = ntable.insert_no_resize(rows, k, s.h);
@@ -454,5 +478,82 @@ where
                 ConsMap::move_slots(rows, ntable, slots, mid, hi, epoch)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// A key whose hash is constant (every entry in one run), or the
+    /// identity, by its second field.
+    struct Key(u64, bool);
+
+    impl Hashable for Key {
+        fn hash64(&self) -> u64 {
+            if self.1 {
+                7
+            } else {
+                self.0
+            }
+        }
+    }
+
+    impl Eq2 for Key {
+        fn eq2(&self, other: &Self) -> bool {
+            self.0 == other.0
+        }
+    }
+
+    /// Differential run against `std::collections::HashMap`: `find_slot` then
+    /// `insert_at` on a miss (the interning path), `get`, and `clear_fit`
+    /// rounds that drop the rows as `Tbl::reset` does.
+    fn run(bad: bool) {
+        let mut rows: Vec<(Key, ())> = Vec::new();
+        let mut m: ConsMap<EIdx> = ConsMap::new();
+        let mut oracle: HashMap<u64, u32> = HashMap::new();
+        let mut x: u64 = 0x2545f4914f6cdd1d;
+        let mut step = 0;
+        let steps = if bad { 3_000 } else { 100_000 };
+        while step < steps {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let k = (x >> 40) % if bad { 200 } else { 30_000 };
+            let key = Key(k, bad);
+            let (at, hit) = m.find_slot(&rows, &key);
+            match oracle.get(&k) {
+                Some(w) => assert_eq!(hit.map(|h| h.word), Some(*w)),
+                None => {
+                    assert!(hit.is_none());
+                    let w = rows.len() as u32;
+                    rows.push((key, ()));
+                    m.insert_at(&rows, at, EIdx { word: w });
+                    oracle.insert(k, w);
+                }
+            }
+            if step % 7 == 0 {
+                let probe = Key(k ^ 1, bad);
+                assert_eq!(m.get(&rows, &probe).map(|h| h.word), oracle.get(&(k ^ 1)).copied());
+            }
+            assert_eq!(m.len(), oracle.len());
+            if step % 20_000 == 19_999 {
+                m.clear_fit();
+                rows = Vec::new();
+                oracle.clear();
+            }
+            step += 1;
+        }
+    }
+
+    #[test]
+    fn differential_against_std() {
+        run(false)
+    }
+
+    #[test]
+    fn differential_constant_hash() {
+        run(true)
     }
 }

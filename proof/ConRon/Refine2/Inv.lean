@@ -361,8 +361,9 @@ structure TblInv {A I D : Type} [DecidableEq A] [hCH : arena.cons_map.ConsHandle
   inv : Inv hA (consView rt)
   keys : KeysOk P (consView rt)
   /-- What the view of the key-free table cannot see (`Refine/ConsMap.lean`'s
-  `KInv`): no stamp above the epoch, and every live slot names a row. -/
-  kinv : ConRon.Refine.ConsMap.KInv hCH rt.rows rt.cons
+  `KInv`): no stamp above the epoch, and every live slot names a row whose
+  key's fragment is the slot's. -/
+  kinv : ConRon.Refine.ConsMap.KInv hA hCH rt.rows rt.cons
   /-- **Every record in the NODE column is well formed too** (task #97-P5-2).
   `keys` says it of the cons table; this says it of the array, and the two
   are separate because `Tbl.node` reads the array and not the table.  (It was
